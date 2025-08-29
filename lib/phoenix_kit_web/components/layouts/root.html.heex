@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html
+  lang="en"
+  class="[scrollbar-gutter:stable]"
+  data-theme="light"
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title default="PhoenixKit" suffix=" · Phoenix Framework">
+      {assigns[:page_title]}
+    </.live_title>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body class="bg-gray-50">
+    <nav class="navbar bg-base-100 shadow-sm">
+      <div class="navbar-start">
+        <a class="btn btn-ghost normal-case text-xl" href="/">PhoenixKit</a>
+      </div>
+      <div class="navbar-end">
+        <div class="flex-none gap-2">
+          <%= if assigns[:phoenix_kit_current_scope] && PhoenixKit.Users.Auth.Scope.authenticated?(@phoenix_kit_current_scope) do %>
+            <%!-- 
+            Scope-based authentication (recommended approach)
+            Better encapsulation and ready for future extensions
+            --%>
+            <div class="dropdown dropdown-end">
+              <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+                <div class="w-10 rounded-full">
+                  <img src="https://ui-avatars.com/api/?name={PhoenixKit.Users.Auth.Scope.user_email(@phoenix_kit_current_scope)}&background=random" />
+                </div>
+              </label>
+              <ul
+                tabindex="0"
+                class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52"
+              >
+                <li><.link href="/phoenix_kit/users/settings">Settings</.link></li>
+                <li>
+                  <.link
+                    href="/phoenix_kit/users/log-out"
+                    method="delete"
+                    class="flex items-center px-4 py-2 hover:bg-base-200"
+                  >
+                    Logout
+                  </.link>
+                </li>
+              </ul>
+            </div>
+          <% else %>
+            <.link href="/phoenix_kit/register" class="btn btn-primary btn-sm">Sign Up</.link>
+            <.link href="/phoenix_kit/log_in" class="btn btn-ghost btn-sm">Login</.link>
+          <% end %>
+        </div>
+      </div>
+    </nav>
+    <!-- 
+    Legacy approach (for backwards compatibility):
+    
+    If you're still using :phoenix_kit_mount_current_user, this approach works:
+    
+    <%= if @phoenix_kit_current_user do %>
+      <div class="dropdown dropdown-end">
+        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+          <div class="w-10 rounded-full">
+            <img src="https://ui-avatars.com/api/?name={@phoenix_kit_current_user.email}&background=random" />
+          </div>
+        </label>
+        <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+          <li><.link href="/phoenix_kit/users/settings">Settings</.link></li>
+          <li><.link href="/phoenix_kit/users/log-out" method="delete">Logout</.link></li>
+        </ul>
+      </div>
+    <% else %>
+      <.link href="/phoenix_kit/register" class="btn btn-primary btn-sm">Sign Up</.link>
+      <.link href="/phoenix_kit/log_in" class="btn btn-ghost btn-sm">Login</.link>
+    <% end %>
+
+    To use scope approach, update your router:
+    
+    live_session :default,
+      layout: {MyAppWeb.Layouts, :app},
+      on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
+      # your routes
+    end
+
+    Additional scope-based examples -->
+
+    <!-- Check if user is authenticated -->
+    <%!-- <%= if assigns[:phoenix_kit_current_scope] && PhoenixKit.Users.Auth.Scope.authenticated?(@phoenix_kit_current_scope) do %>
+      <p>Welcome back, {PhoenixKit.Users.Auth.Scope.user_email(@phoenix_kit_current_scope)}!</p>
+    <% end %> --%>
+
+    <%!-- Access user ID for database queries or links --%>
+    <%!-- <%= if assigns[:phoenix_kit_current_scope] do %>
+      <%= if user_id = PhoenixKit.Users.Auth.Scope.user_id(@phoenix_kit_current_scope) do %>
+        <.link href={"/users/#{user_id}"}>View Profile</.link>
+      <% end %>
+    <% end %> --%>
+
+    <%!-- Safe scope access with fallback --%>
+    <%!-- <%= if PhoenixKit.Users.Auth.Scope.anonymous?(assigns[:phoenix_kit_current_scope] || PhoenixKit.Users.Auth.Scope.for_user(nil)) do %>
+      <p>You are browsing as a guest.</p>
+      <.link href="/phoenix_kit/register">Create an account</.link>
+    <% end %> --%>
+
+    <main class="py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <.flash_group flash={@flash} />
+        {@inner_content}
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,96 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where third-party dependencies like ExDoc output generated docs.
+/doc/
+/test/
+/test_projects/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+phoenix_module_template-*.tar
+
+# Temporary files, for example, from tests.
+/tmp/
+/temp/
+*.temp
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database files (if using SQLite for testing)
+*.db
+*.sqlite
+*.sqlite3
+*.code-workspace
+
+# Log files
+*.log
+
+# Elixir Language Server
+.elixir_ls/
+
+# Dialyzer PLTs
+*.plt
+*.plt.hash
+
+# Coverage reports
+coverage.xml
+lcov.info
+phoenix_kit.code-workspace
+
+# Test artifacts
+test_results.xml
+
+# Node.js (if using for assets)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Assets compilation (legacy Phoenix apps)
+/priv/static/assets/
+/priv/static/cache_manifest.json
+/assets/node_modules/
+
+# Ignore personal notes
+NOTES.md
+TODO.md
+DAISYUI_SETUP.md
+
+# Claude Code memory
+memory.json
+
+*.tar

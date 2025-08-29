@@ -1,0 +1,625 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title="User Management"
+  current_path={@current_path}
+>
+  <div class="container flex-col mx-auto px-4 py-6">
+    <!-- Header Section -->
+    <header class="w-full relative mb-6">
+      <!-- Back Button (Left aligned) -->
+      <.link
+        navigate="/phoenix_kit/admin/dashboard"
+        class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+          >
+          </path>
+        </svg>
+        Back to Dashboard
+      </.link>
+      
+<!-- Title Section -->
+      <div class="text-center">
+        <h1 class="text-4xl font-bold text-base-content mb-3">User Management</h1>
+        <p class="text-lg text-base-content">Manage user accounts and roles</p>
+      </div>
+    </header>
+    
+<!-- Role Management Modal -->
+    <%= if @show_role_modal && @managing_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-2xl">
+          <h3 class="font-bold text-xl mb-4">
+            Manage Roles for {@managing_user.email}
+          </h3>
+
+          <form phx-submit="sync_user_roles" class="space-y-4">
+            <div class="space-y-2">
+              <%= for role <- @all_roles do %>
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-3">
+                    <input
+                      type="checkbox"
+                      name={"roles[#{role.name}]"}
+                      value={role.name}
+                      class="checkbox"
+                      checked={role.name in @user_roles}
+                      disabled={
+                        role.is_system_role && role.name == "Owner" &&
+                          user_has_role?(@managing_user, "Owner") &&
+                          Enum.count(@user_roles, &(&1 == "Owner")) == 1
+                      }
+                    />
+                    <div class="flex items-center gap-2">
+                      <span class={"badge #{role_badge_class_for_custom(role.name)} badge-sm"}>
+                        {role.name}
+                      </span>
+                      <%= if role.is_system_role do %>
+                        <span class="badge badge-outline badge-xs">System</span>
+                      <% end %>
+                      <%= if role.description do %>
+                        <span class="text-sm text-base-content/70">- {role.description}</span>
+                      <% end %>
+                    </div>
+                  </label>
+                </div>
+              <% end %>
+            </div>
+
+            <%= if Enum.empty?(@all_roles) do %>
+              <div class="text-center py-8 text-base-content/70">
+                <p>No roles available. Create roles first in Role Management.</p>
+              </div>
+            <% end %>
+
+            <div class="modal-action">
+              <button type="button" phx-click="hide_role_management" class="btn btn-outline">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">
+                Update Roles
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% end %>
+    
+<!-- Create User Modal -->
+    <%= if @show_create_user_modal do %>
+      <div
+        class="modal modal-open"
+        phx-click="hide_create_user_modal"
+        phx-window-keydown="hide_create_user_modal"
+        phx-key="Escape"
+      >
+        <div class="modal-box max-w-2xl" phx-click="stop_propagation">
+          <h3 class="font-bold text-xl mb-4">Create New User</h3>
+
+          <form
+            id="create_user_form"
+            phx-submit="create_user"
+            phx-change="validate_create_user"
+            class="space-y-4"
+          >
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Email -->
+              <div class="md:col-span-2">
+                <label class="label">
+                  <span class="label-text">Email *</span>
+                </label>
+                <input
+                  type="email"
+                  name="user[email]"
+                  value={@create_user_form_data["email"]}
+                  class="input input-bordered w-full"
+                  placeholder="user@example.com"
+                  required
+                />
+                <%= if @create_user_errors["email"] do %>
+                  <div class="text-red-500 text-sm mt-1">{@create_user_errors["email"]}</div>
+                <% end %>
+              </div>
+              
+<!-- Password -->
+              <div class="md:col-span-2">
+                <label class="label">
+                  <span class="label-text">Password *</span>
+                </label>
+                <input
+                  type="password"
+                  name="user[password]"
+                  value={@create_user_form_data["password"]}
+                  class="input input-bordered w-full"
+                  placeholder="Minimum 8 characters"
+                  minlength="8"
+                  required
+                />
+                <%= if @create_user_errors["password"] do %>
+                  <div class="text-red-500 text-sm mt-1">{@create_user_errors["password"]}</div>
+                <% end %>
+              </div>
+              
+<!-- First Name -->
+              <div>
+                <label class="label">
+                  <span class="label-text">First Name</span>
+                </label>
+                <input
+                  type="text"
+                  name="user[first_name]"
+                  value={@create_user_form_data["first_name"]}
+                  class="input input-bordered w-full"
+                  placeholder="Optional"
+                />
+                <%= if @create_user_errors["first_name"] do %>
+                  <div class="text-red-500 text-sm mt-1">{@create_user_errors["first_name"]}</div>
+                <% end %>
+              </div>
+              
+<!-- Last Name -->
+              <div>
+                <label class="label">
+                  <span class="label-text">Last Name</span>
+                </label>
+                <input
+                  type="text"
+                  name="user[last_name]"
+                  value={@create_user_form_data["last_name"]}
+                  class="input input-bordered w-full"
+                  placeholder="Optional"
+                />
+                <%= if @create_user_errors["last_name"] do %>
+                  <div class="text-red-500 text-sm mt-1">{@create_user_errors["last_name"]}</div>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="divider">Additional Information</div>
+
+            <div class="bg-base-200 p-4 rounded-lg">
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 mt-0.5 text-info" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fill-rule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clip-rule="evenodd"
+                  >
+                  </path>
+                </svg>
+                <div class="text-sm">
+                  <p class="font-medium">Default Settings:</p>
+                  <ul class="mt-1 text-base-content/70">
+                    <li>• User will be assigned default "User" role</li>
+                    <li>• Account will be active by default</li>
+                    <li>• Confirmation email will be sent automatically</li>
+                    <li>• User can update their profile after first login</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-action">
+              <button
+                type="button"
+                phx-click="hide_create_user_modal"
+                class="btn btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary"
+                phx-disable-with="Creating user..."
+              >
+                Create User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% end %>
+    
+<!-- Controls -->
+    <div class="bg-base-200 rounded-lg p-6 mb-6">
+      <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Search -->
+        <div class="flex-1">
+          <label class="label">
+            <span class="label-text">Search by email or name</span>
+          </label>
+          <form phx-submit="search" phx-change="search">
+            <input
+              type="text"
+              name="search"
+              value={@search_query}
+              placeholder="Enter email or name to search..."
+              class="input input-bordered w-full"
+            />
+          </form>
+        </div>
+        
+<!-- Role Filter -->
+        <div class="w-full lg:w-48">
+          <label class="label">
+            <span class="label-text">Filter by role</span>
+          </label>
+          <form phx-change="filter_by_role">
+            <select class="select select-bordered w-full" name="role" value={@filter_role}>
+              <option value="all">All Users</option>
+              <option value="Owner">Owners Only</option>
+              <option value="Admin">Admins Only</option>
+              <option value="User">Regular Users</option>
+            </select>
+          </form>
+        </div>
+        
+<!-- Add User Button -->
+        <div class="w-full lg:w-48">
+          <label class="label">
+            <span class="label-text">Quick Actions</span>
+          </label>
+          <.link
+            patch="/phoenix_kit/admin/users?action=add"
+            class="btn btn-primary w-full"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+              />
+            </svg>
+            Add New User
+          </.link>
+        </div>
+      </div>
+    </div>
+    
+<!-- Users Table -->
+    <div class="bg-base-100 rounded-lg shadow-md overflow-hidden">
+      <%= if length(@users) > 0 do %>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Registered</th>
+                <th>Last Confirmed</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for user <- @users do %>
+                <tr>
+                  <td>
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium">{user.email}</span>
+                        <%= if user.id == @phoenix_kit_current_user.id do %>
+                          <span class="badge badge-info badge-xs">you</span>
+                        <% end %>
+                      </div>
+                      <%= if user.first_name || user.last_name do %>
+                        <div class="text-sm text-base-content/70">
+                          {PhoenixKit.Users.Auth.User.full_name(user)}
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td>
+                    <% user_roles = get_user_roles(user) %>
+                    <div class="flex flex-wrap gap-1">
+                      <%= for role_name <- user_roles do %>
+                        <span class={"badge #{role_badge_class_for_custom(role_name)} badge-sm"}>
+                          {role_name}
+                        </span>
+                      <% end %>
+                      <%= if Enum.empty?(user_roles) do %>
+                        <span class="badge badge-ghost badge-sm">No roles</span>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="flex flex-col gap-1">
+                      <%= if user.confirmed_at do %>
+                        <span class="badge badge-success badge-sm">Confirmed</span>
+                      <% else %>
+                        <span class="badge badge-warning badge-sm">Pending</span>
+                      <% end %>
+                      <%= if user.is_active do %>
+                        <span class="badge badge-outline badge-xs">Active</span>
+                      <% else %>
+                        <span class="badge badge-error badge-xs">Inactive</span>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-sm">
+                    {format_datetime(user.inserted_at)}
+                  </td>
+                  <td class="text-sm">
+                    {format_datetime(user.confirmed_at)}
+                  </td>
+                  <td>
+                    <div class="flex flex-wrap gap-1">
+                      <!-- Role Management -->
+                      <%= if user.id != @phoenix_kit_current_user.id do %>
+                        <button
+                          class="btn btn-xs btn-outline btn-primary"
+                          phx-click="show_role_management"
+                          phx-value-user_id={user.id}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3 mr-1"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                            />
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                          Manage Roles
+                        </button>
+                      <% end %>
+                      
+<!-- Status Toggle -->
+                      <%= if user.id != @phoenix_kit_current_user.id && user_primary_role(user) != "Owner" do %>
+                        <button
+                          class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-warning", else: "btn-success"}"}
+                          phx-click="toggle_user_status"
+                          phx-value-user_id={user.id}
+                          data-confirm={"Are you sure you want to #{if user.is_active, do: "deactivate", else: "activate"} this user?"}
+                        >
+                          <%= if user.is_active do %>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3 mr-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"
+                              />
+                            </svg>
+                            Deactivate
+                          <% else %>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3 mr-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            Activate
+                          <% end %>
+                        </button>
+                      <% else %>
+                        <span class="text-xs text-base-content/50">
+                          {if user.id == @phoenix_kit_current_user.id,
+                            do: "Self",
+                            else: "Protected"}
+                        </span>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+<!-- Pagination -->
+        <%= if @total_pages > 1 do %>
+          <div class="flex justify-center p-4 border-t border-base-300">
+            <div class="join">
+              <%= for page <- 1..@total_pages do %>
+                <button
+                  class={"join-item btn btn-sm #{if page == @page, do: "btn-active", else: ""}"}
+                  phx-click="change_page"
+                  phx-value-page={page}
+                >
+                  {page}
+                </button>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% else %>
+        <!-- Empty state -->
+        <div class="text-center py-12">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto text-base-content/40 mb-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0zM5 21v-1a6 6 0 0112 0v1z"
+            />
+          </svg>
+          <h3 class="text-lg font-medium text-base-content mb-2">
+            No users found
+          </h3>
+          <p class="text-base-content/70 mb-4">
+            <%= if @search_query != "" or @filter_role != "all" do %>
+              Try adjusting your search or filter criteria.
+            <% else %>
+              No users are registered yet.
+            <% end %>
+          </p>
+          <%= if @search_query != "" or @filter_role != "all" do %>
+            <button
+              class="btn btn-outline btn-sm"
+              phx-click="search"
+              phx-value-search=""
+              onclick="document.querySelector('input[name=&quot;search&quot;]').value = ''"
+            >
+              Clear Filters
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+<!-- Enhanced Stats -->
+    <div class="mt-8">
+      <h3 class="text-lg font-semibold text-base-content mb-6">User Statistics</h3>
+      
+<!-- Main Role Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-white/20 rounded-lg">
+              👥
+            </div>
+            <div>
+              <div class="text-2xl font-bold">{@total_users}</div>
+              <div class="text-sm opacity-90">Total Users</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-white/20 rounded-lg">
+              👑
+            </div>
+            <div>
+              <div class="text-2xl font-bold">{@total_owners}</div>
+              <div class="text-sm opacity-90">System Owners</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-4 shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-white/20 rounded-lg">
+              ⭐
+            </div>
+            <div>
+              <div class="text-2xl font-bold">{@total_admins}</div>
+              <div class="text-sm opacity-90">Administrators</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-gray-500 to-gray-600 text-white rounded-xl p-4 shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-white/20 rounded-lg">
+              👤
+            </div>
+            <div>
+              <div class="text-2xl font-bold">{@total_regular_users}</div>
+              <div class="text-sm opacity-90">Regular Users</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- Secondary Stats - Gradient Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Active Users -->
+        <div class="bg-gradient-to-br from-green-500 via-green-600 to-emerald-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@active_users}</div>
+          <div class="text-green-100 font-medium">Active Users</div>
+          <div class="text-green-200 text-xs mt-1">Online users</div>
+        </div>
+        
+<!-- Inactive Users -->
+        <div class="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@inactive_users}</div>
+          <div class="text-red-100 font-medium">Inactive Users</div>
+          <div class="text-red-200 text-xs mt-1">Disabled</div>
+        </div>
+        
+<!-- Confirmed Users -->
+        <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@confirmed_users}</div>
+          <div class="text-blue-100 font-medium">Confirmed</div>
+          <div class="text-blue-200 text-xs mt-1">Verified emails</div>
+        </div>
+        
+<!-- Pending Users -->
+        <div class="bg-gradient-to-br from-yellow-500 via-orange-500 to-amber-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm0-8h2v6h-2V9z" />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@pending_users}</div>
+          <div class="text-yellow-100 font-medium">Pending</div>
+          <div class="text-yellow-200 text-xs mt-1">Awaiting email</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>
