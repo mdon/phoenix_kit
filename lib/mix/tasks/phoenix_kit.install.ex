@@ -127,7 +127,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     defp add_completion_notice(igniter) do
       notice = """
 
-      🎉 PhoenixKit installation complete!
+      🎉 PhoenixKit installation is complete!
 
       Next steps:
         1. Run: mix ecto.migrate
