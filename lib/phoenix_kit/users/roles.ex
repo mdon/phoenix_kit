@@ -96,8 +96,7 @@ defmodule PhoenixKit.Users.Roles do
         attrs = %{
           user_id: user.id,
           role_id: role.id,
-          assigned_by: assigned_by && assigned_by.id,
-          is_active: true
+          assigned_by: assigned_by && assigned_by.id
         }
 
         # Use upsert with ON CONFLICT DO NOTHING for idempotency
@@ -116,7 +115,7 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   @doc """
-  Removes a role from a user by deactivating the assignment.
+  Removes a role from a user by deleting the assignment.
 
   ## Parameters
 
@@ -134,14 +133,12 @@ defmodule PhoenixKit.Users.Roles do
   def remove_role(%User{} = user, role_name) when is_binary(role_name) do
     repo = RepoHelper.repo()
 
-    case get_active_assignment(user.id, role_name) do
+    case get_assignment(user.id, role_name) do
       nil ->
         {:error, :assignment_not_found}
 
       assignment ->
-        assignment
-        |> RoleAssignment.update_changeset(%{is_active: false})
-        |> repo.update()
+        repo.delete(assignment)
     end
   end
 
@@ -168,8 +165,7 @@ defmodule PhoenixKit.Users.Roles do
       from assignment in RoleAssignment,
         join: role in assoc(assignment, :role),
         where: assignment.user_id == ^user.id,
-        where: role.name == ^role_name,
-        where: assignment.is_active == true
+        where: role.name == ^role_name
 
     repo.exists?(query)
   end
@@ -196,7 +192,6 @@ defmodule PhoenixKit.Users.Roles do
       from assignment in RoleAssignment,
         join: role in assoc(assignment, :role),
         where: assignment.user_id == ^user.id,
-        where: assignment.is_active == true,
         select: role.name,
         order_by: role.name
 
@@ -226,7 +221,6 @@ defmodule PhoenixKit.Users.Roles do
         join: assignment in assoc(user, :role_assignments),
         join: role in assoc(assignment, :role),
         where: role.name == ^role_name,
-        where: assignment.is_active == true,
         distinct: user.id,
         order_by: user.email
 
@@ -357,19 +351,19 @@ defmodule PhoenixKit.Users.Roles do
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'Owner' AND ra.is_active = true
+        WHERE r.name = 'Owner'
       ), 0) as owner_count,
       COALESCE((
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'Admin' AND ra.is_active = true
+        WHERE r.name = 'Admin'
       ), 0) as admin_count,
       COALESCE((
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'User' AND ra.is_active = true
+        WHERE r.name = 'User'
       ), 0) as user_count
     FROM phoenix_kit_users;
     """
@@ -450,7 +444,6 @@ defmodule PhoenixKit.Users.Roles do
       from assignment in RoleAssignment,
         join: role in assoc(assignment, :role),
         where: role.name == ^role_name,
-        where: assignment.is_active == true,
         select: count(assignment.id)
 
     repo.one(query) || 0
@@ -525,7 +518,6 @@ defmodule PhoenixKit.Users.Roles do
         join: assignment in assoc(user, :role_assignments),
         join: role in assoc(assignment, :role),
         where: role.name == "Owner",
-        where: assignment.is_active == true,
         where: user.is_active == true,
         select: count(user.id)
 
@@ -647,7 +639,6 @@ defmodule PhoenixKit.Users.Roles do
             join: u in User,
             on: assignment.user_id == u.id,
             where: assignment.role_id == ^owner_role.id,
-            where: assignment.is_active == true,
             where: u.is_active == true,
             limit: 1
         )
@@ -742,7 +733,6 @@ defmodule PhoenixKit.Users.Roles do
         join: assignment in assoc(u, :role_assignments),
         join: role in assoc(assignment, :role),
         where: role.name == "Owner",
-        where: assignment.is_active == true,
         where: u.is_active == true,
         where: u.id != ^excluding_user_id,
         select: count(u.id)
@@ -800,7 +790,7 @@ defmodule PhoenixKit.Users.Roles do
       role.is_system_role ->
         {:error, :system_role_protected}
 
-      role_has_active_assignments?(role) ->
+      role_has_assignments?(role) ->
         {:error, :role_in_use}
 
       true ->
@@ -879,26 +869,24 @@ defmodule PhoenixKit.Users.Roles do
     end
   end
 
-  defp role_has_active_assignments?(%Role{} = role) do
+  defp role_has_assignments?(%Role{} = role) do
     repo = RepoHelper.repo()
 
     query =
       from assignment in RoleAssignment,
-        where: assignment.role_id == ^role.id,
-        where: assignment.is_active == true
+        where: assignment.role_id == ^role.id
 
     repo.exists?(query)
   end
 
-  defp get_active_assignment(user_id, role_name) do
+  defp get_assignment(user_id, role_name) do
     repo = RepoHelper.repo()
 
     query =
       from assignment in RoleAssignment,
         join: role in assoc(assignment, :role),
         where: assignment.user_id == ^user_id,
-        where: role.name == ^role_name,
-        where: assignment.is_active == true
+        where: role.name == ^role_name
 
     repo.one(query)
   end

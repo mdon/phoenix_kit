@@ -641,7 +641,7 @@ defmodule PhoenixKit.Users.Auth do
       nil
   """
   def get_user_with_roles(id) when is_integer(id) do
-    from(u in User, where: u.id == ^id, preload: [:roles])
+    from(u in User, where: u.id == ^id, preload: [:roles, :role_assignments])
     |> Repo.one()
   end
 
@@ -676,7 +676,7 @@ defmodule PhoenixKit.Users.Auth do
       query
       |> limit(^page_size)
       |> offset(^((page - 1) * page_size))
-      |> preload([:roles])
+      |> preload([:roles, :role_assignments])
       |> Repo.all()
 
     %{

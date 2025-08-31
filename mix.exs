@@ -1,8 +1,8 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
-  @description "The Elixir Phoenix Starter Kit"
+  @version "1.1.0"
+  @description "Professional authentication library for Phoenix applications with minimal setup"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
   def project do
@@ -106,9 +106,9 @@ defmodule PhoenixKit.MixProject do
       name: "PhoenixKit",
       source_ref: "v#{@version}",
       source_url: @source_url,
-      main: "README",
+      main: "readme",
       extras: ["README.md", "CHANGELOG.md"],
-      groups_for_modules: [ ]
+      groups_for_modules: []
     ]
   end
 

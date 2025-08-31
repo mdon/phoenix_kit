@@ -35,7 +35,9 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   PhoenixKit uses a versioned migration system similar to Oban. Each version
   contains specific database schema changes that can be applied incrementally.
 
-  Current version: V01 (includes basic authentication with role system)
+  Current version: V02 (simplified role system without is_active column)
+  - V01: Basic authentication with role system
+  - V02: Remove is_active column from role assignments (direct deletion)
 
   ## Safe Updates
 
@@ -260,8 +262,8 @@ defmodule Mix.Tasks.PhoenixKit.Update do
         # Check if migration files exist but haven't been run
         case find_existing_phoenix_kit_migrations() do
           [] -> {:not_installed}
-          # Migration files exist but not run
-          _migrations -> {:current_version, 0}
+          # Migration files exist but not run - treat as V01 (first version)
+          _migrations -> {:current_version, 1}
         end
       else
         {:current_version, current_version}
@@ -271,8 +273,8 @@ defmodule Mix.Tasks.PhoenixKit.Update do
         # Database error, check migration files as fallback
         case find_existing_phoenix_kit_migrations() do
           [] -> {:not_installed}
-          # Migration files exist but DB not accessible
-          _migrations -> {:current_version, 0}
+          # Migration files exist but DB not accessible - assume V01
+          _migrations -> {:current_version, 1}
         end
     end
   end
@@ -290,10 +292,11 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   end
 
   # Describe what changed between versions
+  @spec describe_version_changes(integer(), integer()) :: String.t()
   defp describe_version_changes(from_version, to_version) do
     case {from_version, to_version} do
-      {0, 1} ->
-        "- Complete PhoenixKit installation with authentication and role system"
+      {1, 2} ->
+        "- Remove is_active column from role assignments (simplified role system)"
 
       {_, _} ->
         "- Various improvements and new features"
