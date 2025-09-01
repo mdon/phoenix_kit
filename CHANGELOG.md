@@ -5,7 +5,7 @@
 - Role removal now permanently deletes assignment records instead of soft deactivation
 - All role-related functions updated to work with direct deletion approach
 - Improved performance by eliminating `is_active` filtering in database queries
-- Documenation link fixed for hex
+- Documenatation link fixed for hex
 
 ### Added
 - V02 migration for upgrading existing installations to simplified role system
