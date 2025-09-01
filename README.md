@@ -8,17 +8,18 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
 
 ## 📦 Current PhoenixKit Features/Modules:
 - Users
-  - Registration, Login, Logout, Email confirmation, Password reset
-  - User roles
+  - [x] Registration, Login, Logout, Email confirmation, Password reset
+  - [x] User roles
 - Backend admin
-  - User management
-  - Role management
+  - [x] User management
+  - [x] Role management
 
 ## 🛣️ Roadmap
 - Users
   - Magic link
   - OAuth
   - 2FA
+  - Locale / Timezone
   - Referral Program
 - Backend admin
   - Modules manager
@@ -26,8 +27,11 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
     - General
     - Languages
   - Sessions
-  - Pages
-  - Blog
+  - Content publishing
+    - Static pages
+    - Blog
+    - Blocks
+      - Sliders
   - Notifications
   - Email
   - Billing system
@@ -38,8 +42,10 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
       - Crypto
   - Newsletter
   - Media / Gallery (with s3 backend)
+  - E-commerce
   - Membership
   - SEO
+  - AI
   - What’s New
   - Customer service
   - Feedback
