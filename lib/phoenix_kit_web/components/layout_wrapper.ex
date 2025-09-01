@@ -224,6 +224,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       label="Roles"
                       current_path={@current_path || ""}
                     />
+
+                    <.admin_nav_item
+                      href="/phoenix_kit/admin/modules"
+                      icon="modules"
+                      label="Modules"
+                      current_path={@current_path || ""}
+                    />
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->
