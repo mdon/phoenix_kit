@@ -92,7 +92,7 @@ defmodule PhoenixKit.MixProject do
   # Package configuration for Hex.pm
   defp package do
     [
-      name: "PhoenixKit",
+      name: "phoenix_kit",
       maintainers: ["BeamLab EU"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
