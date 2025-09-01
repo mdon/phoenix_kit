@@ -5,9 +5,9 @@
   current_path={@current_path}
 >
   <div class="container flex-col mx-auto px-4 py-6">
-    <!-- Header Section -->
+    <%!-- Header Section --%>
     <header class="w-full relative mb-6">
-      <!-- Back Button (Left aligned) -->
+      <%!-- Back Button (Left aligned) --%>
       <.link
         navigate="/phoenix_kit/admin/dashboard"
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
@@ -23,15 +23,15 @@
         </svg>
         Back to Dashboard
       </.link>
-      
-<!-- Title Section -->
+
+      <%!-- Title Section --%>
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">User Management</h1>
         <p class="text-lg text-base-content">Manage user accounts and roles</p>
       </div>
     </header>
-    
-<!-- Role Management Modal -->
+
+    <%!-- Role Management Modal --%>
     <%= if @show_role_modal && @managing_user do %>
       <div class="modal modal-open">
         <div class="modal-box max-w-2xl">
@@ -90,11 +90,11 @@
         </div>
       </div>
     <% end %>
-    
-<!-- Controls -->
+
+    <%!-- Controls --%>
     <div class="bg-base-200 rounded-lg p-6 mb-6">
       <div class="flex flex-col lg:flex-row gap-4">
-        <!-- Search -->
+        <%!-- Search --%>
         <div class="flex-1">
           <label class="label">
             <span class="label-text">Search by email or name</span>
@@ -109,8 +109,8 @@
             />
           </form>
         </div>
-        
-<!-- Role Filter -->
+
+        <%!-- Role Filter --%>
         <div class="w-full lg:w-48">
           <label class="label">
             <span class="label-text">Filter by role</span>
@@ -124,8 +124,8 @@
             </select>
           </form>
         </div>
-        
-<!-- Add User Button -->
+
+        <%!-- Add User Button --%>
         <div class="w-full lg:w-48">
           <label class="label">
             <span class="label-text">Quick Actions</span>
@@ -147,8 +147,8 @@
         </div>
       </div>
     </div>
-    
-<!-- Users Table -->
+
+    <%!-- Users Table --%>
     <div class="bg-base-100 rounded-lg shadow-md overflow-hidden">
       <%= if length(@users) > 0 do %>
         <div class="overflow-x-auto">
@@ -216,7 +216,7 @@
                   </td>
                   <td>
                     <div class="flex flex-wrap gap-1">
-                      <!-- Edit User -->
+                      <%!-- Edit User --%>
                       <.link
                         navigate={"/phoenix_kit/admin/users/edit/#{user.id}"}
                         class="btn btn-xs btn-outline btn-secondary"
@@ -237,8 +237,8 @@
                         </svg>
                         Edit
                       </.link>
-                      
-<!-- Role Management -->
+
+                      <%!-- Role Management --%>
                       <%= if user.id != @phoenix_kit_current_user.id do %>
                         <button
                           class="btn btn-xs btn-outline btn-primary"
@@ -268,8 +268,8 @@
                           Manage Roles
                         </button>
                       <% end %>
-                      
-<!-- Status Toggle -->
+
+                      <%!-- Status Toggle --%>
                       <%= if user.id != @phoenix_kit_current_user.id && user_primary_role(user) != "Owner" do %>
                         <button
                           class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-warning", else: "btn-success"}"}
@@ -325,8 +325,8 @@
             </tbody>
           </table>
         </div>
-        
-<!-- Pagination -->
+
+        <%!-- Pagination --%>
         <%= if @total_pages > 1 do %>
           <div class="flex justify-center p-4 border-t border-base-300">
             <div class="join">
@@ -343,7 +343,7 @@
           </div>
         <% end %>
       <% else %>
-        <!-- Empty state -->
+        <%!-- Empty state --%>
         <div class="text-center py-12">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -382,12 +382,12 @@
         </div>
       <% end %>
     </div>
-    
-<!-- Enhanced Stats -->
+
+    <%!-- Enhanced Stats --%>
     <div class="mt-8">
       <h3 class="text-lg font-semibold text-base-content mb-6">User Statistics</h3>
-      
-<!-- Main Role Stats -->
+
+      <%!-- Main Role Stats --%>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
           <div class="flex items-center gap-3">
@@ -437,10 +437,10 @@
           </div>
         </div>
       </div>
-      
-<!-- Secondary Stats - Gradient Cards -->
+
+      <%!-- Secondary Stats - Gradient Cards --%>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Active Users -->
+        <%!-- Active Users --%>
         <div class="bg-gradient-to-br from-green-500 via-green-600 to-emerald-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
           <div class="flex items-center justify-between mb-4">
             <div class="p-2 bg-white/20 rounded-lg">
@@ -456,8 +456,8 @@
           <div class="text-green-100 font-medium">Active Users</div>
           <div class="text-green-200 text-xs mt-1">Online users</div>
         </div>
-        
-<!-- Inactive Users -->
+
+        <%!-- Inactive Users --%>
         <div class="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
           <div class="flex items-center justify-between mb-4">
             <div class="p-2 bg-white/20 rounded-lg">
@@ -473,8 +473,8 @@
           <div class="text-red-100 font-medium">Inactive Users</div>
           <div class="text-red-200 text-xs mt-1">Disabled</div>
         </div>
-        
-<!-- Confirmed Users -->
+
+        <%!-- Confirmed Users --%>
         <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
           <div class="flex items-center justify-between mb-4">
             <div class="p-2 bg-white/20 rounded-lg">
@@ -492,8 +492,8 @@
           <div class="text-blue-100 font-medium">Confirmed</div>
           <div class="text-blue-200 text-xs mt-1">Verified emails</div>
         </div>
-        
-<!-- Pending Users -->
+
+        <%!-- Pending Users --%>
         <div class="bg-gradient-to-br from-yellow-500 via-orange-500 to-amber-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
           <div class="flex items-center justify-between mb-4">
             <div class="p-2 bg-white/20 rounded-lg">

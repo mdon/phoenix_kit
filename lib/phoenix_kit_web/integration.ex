@@ -127,6 +127,7 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/new", Users.UserFormLive, :new
           live "/admin/users/edit/:id", Users.UserFormLive, :edit
           live "/admin/roles", Live.RolesLive, :index
+          live "/admin/modules", Live.ModulesLive, :index
         end
       end
     end

@@ -1,0 +1,49 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title="PhoenixKit Modules"
+  current_path={@current_path}
+>
+  <div class="container flex flex-col mx-auto px-4 py-6">
+    <!-- Header Section -->
+    <header class="w-full relative mb-6">
+      <!-- Back Button (Left aligned) -->
+      <.link
+        navigate="/phoenix_kit/admin/dashboard"
+        class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+          />
+        </svg>
+        Back to Dashboard
+      </.link>
+
+      <!-- Title Section -->
+      <div class="text-center">
+        <h1 class="text-4xl font-bold text-base-content mb-3">Modules Management</h1>
+        <p class="text-lg text-base-content">Manage system modules and extensions</p>
+      </div>
+    </header>
+    
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Available Modules</h2>
+        <div class="text-center py-12">
+          <div class="text-6xl mb-4">🧩</div>
+          <h3 class="text-xl font-semibold text-base-content mb-2">
+            Module System Coming Soon
+          </h3>
+          <p class="text-base-content/70 max-w-md mx-auto">
+            This section will allow you to manage and configure system modules, 
+            extensions, and integrations for your PhoenixKit application.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>
