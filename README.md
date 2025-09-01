@@ -7,6 +7,8 @@ Let's not reinvent the wheel every time we create apps, let's create Elixir/Phoe
 PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix. It provides a foundation, patterns, and configurations so you can focus on building your product rather than re-implementing common setup tasks.
 
 ## 📦 Current PhoenixKit Features/Modules:
+- [x] **Igniter installation** - Simple installation
+- [x] **Layout integration** 
 - Users
   - [x] Registration, Login, Logout, Email confirmation, Password reset
   - [x] User roles
@@ -30,6 +32,7 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - Content publishing
     - Static pages
     - Blog
+    - Comments
     - Blocks
       - Sliders
   - Notifications
@@ -51,16 +54,9 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - Feedback
   - Roadmap / Ideas
   - Analytics
+  - Testimonials
   
 Send your ideas and suggestions about any existing modules and features our way.
-
-### Key Features
-
-- **Igniter installation** - Simplified installation 
-- **Authentication** - Registration, login, logout, email confirmation, password reset
-- **Role-Based Access Control** - Built-in Owner/Admin/User roles with management interface
-- **Layout integration** - Versioned migrations with Oban-style architecture
-- **Developer Friendly** - Single command installation with automatic setup
 
 Start building your apps today!
 
