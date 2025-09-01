@@ -124,6 +124,8 @@ defmodule PhoenixKitWeb.Integration do
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
           live "/admin/dashboard", Live.DashboardLive, :index
           live "/admin/users", Live.UsersLive, :index
+          live "/admin/users/new", Users.UserFormLive, :new
+          live "/admin/users/edit/:id", Users.UserFormLive, :edit
           live "/admin/roles", Live.RolesLive, :index
         end
       end

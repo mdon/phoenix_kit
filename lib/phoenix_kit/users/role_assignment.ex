@@ -11,14 +11,13 @@ defmodule PhoenixKit.Users.RoleAssignment do
   - `role_id`: Reference to the role being assigned
   - `assigned_by`: Reference to the user who assigned this role (can be nil for system assignments)
   - `assigned_at`: Timestamp when the role was assigned
-  - `is_active`: Whether this role assignment is currently active
 
   ## Features
 
   - Tracks role assignment history
   - Supports bulk role management
   - Audit trail for security purposes
-  - Soft deactivation instead of deletion
+  - Direct deletion for role removal
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -29,7 +28,6 @@ defmodule PhoenixKit.Users.RoleAssignment do
           role_id: integer(),
           assigned_by: integer() | nil,
           assigned_at: NaiveDateTime.t(),
-          is_active: boolean(),
           inserted_at: NaiveDateTime.t()
         }
 
@@ -39,7 +37,6 @@ defmodule PhoenixKit.Users.RoleAssignment do
     belongs_to :assigned_by_user, PhoenixKit.Users.Auth.User, foreign_key: :assigned_by
 
     field :assigned_at, :naive_datetime
-    field :is_active, :boolean, default: true
 
     timestamps(updated_at: false)
   end
@@ -62,7 +59,7 @@ defmodule PhoenixKit.Users.RoleAssignment do
   """
   def changeset(role_assignment, attrs) do
     role_assignment
-    |> cast(attrs, [:user_id, :role_id, :assigned_by, :assigned_at, :is_active])
+    |> cast(attrs, [:user_id, :role_id, :assigned_by, :assigned_at])
     |> validate_required([:user_id, :role_id])
     |> put_assigned_at()
     |> unique_constraint([:user_id, :role_id],
@@ -72,25 +69,6 @@ defmodule PhoenixKit.Users.RoleAssignment do
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:role_id)
     |> foreign_key_constraint(:assigned_by)
-  end
-
-  @doc """
-  A role assignment changeset for updating active status.
-
-  ## Parameters
-
-  - `role_assignment`: The role assignment struct to modify
-  - `attrs`: Attributes to update (typically just is_active)
-
-  ## Examples
-
-      iex> update_changeset(%RoleAssignment{}, %{is_active: false})
-      %Ecto.Changeset{valid?: true}
-  """
-  def update_changeset(role_assignment, attrs) do
-    role_assignment
-    |> cast(attrs, [:is_active])
-    |> validate_inclusion(:is_active, [true, false])
   end
 
   # Set assigned_at to current time if not provided

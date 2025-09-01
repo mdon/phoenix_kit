@@ -134,4 +134,11 @@ defmodule PhoenixKit.RepoHelper do
   def transaction(fun_or_multi, opts \\ []) do
     repo().transaction(fun_or_multi, opts)
   end
+
+  @doc """
+  Delegates to the configured repo's preload function.
+  """
+  def preload(struct_or_structs, preloads, opts \\ []) do
+    repo().preload(struct_or_structs, preloads, opts)
+  end
 end

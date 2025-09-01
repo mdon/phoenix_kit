@@ -29,7 +29,7 @@ defmodule PhoenixKit do
   ## Examples
 
       iex> PhoenixKit.version()
-      "1.0.0"
+      "1.1.0"
 
   """
   @spec version() :: String.t()

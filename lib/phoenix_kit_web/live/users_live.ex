@@ -6,10 +6,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
 
   @per_page 10
 
-  def mount(params, session, socket) do
-    # Check if we should show create user modal based on URL params
-    show_create_modal = params["action"] == "add"
-
+  def mount(_params, session, socket) do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
@@ -23,14 +20,6 @@ defmodule PhoenixKitWeb.Live.UsersLive do
       |> assign(:managing_user, nil)
       |> assign(:user_roles, [])
       |> assign(:all_roles, [])
-      |> assign(:show_create_user_modal, show_create_modal)
-      |> assign(:create_user_form_data, %{
-        "email" => "",
-        "password" => "",
-        "first_name" => "",
-        "last_name" => ""
-      })
-      |> assign(:create_user_errors, %{})
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Users")
       |> load_users()
@@ -39,26 +28,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _url, socket) do
-    # Handle URL parameter changes (like ?action=add)
-    show_create_modal = params["action"] == "add"
-
-    socket =
-      if show_create_modal && !socket.assigns.show_create_user_modal do
-        # Open modal if URL says to and it's not already open
-        socket
-        |> assign(:show_create_user_modal, true)
-        |> assign(:create_user_form_data, %{
-          "email" => "",
-          "password" => "",
-          "first_name" => "",
-          "last_name" => ""
-        })
-        |> assign(:create_user_errors, %{})
-      else
-        socket
-      end
-
+  def handle_params(_params, _url, socket) do
     {:noreply, socket}
   end
 
@@ -94,7 +64,8 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   end
 
   def handle_event("show_role_management", %{"user_id" => user_id}, socket) do
-    user = Auth.get_user!(user_id)
+    user_id_int = String.to_integer(user_id)
+    user = Auth.get_user!(user_id_int)
     current_user = socket.assigns.phoenix_kit_current_user
 
     # Prevent self-modification for critical operations
@@ -102,12 +73,15 @@ defmodule PhoenixKitWeb.Live.UsersLive do
       socket = put_flash(socket, :error, "Cannot modify your own roles")
       {:noreply, socket}
     else
-      user_roles = Roles.get_user_roles(user)
+      # Get fresh user with preloaded roles to ensure accurate state
+      user_with_roles = Auth.get_user_with_roles(user_id_int)
+
+      user_roles = Roles.get_user_roles(user_with_roles)
       all_roles = Roles.list_roles()
 
       socket =
         socket
-        |> assign(:managing_user, user)
+        |> assign(:managing_user, user_with_roles)
         |> assign(:user_roles, user_roles)
         |> assign(:all_roles, all_roles)
         |> assign(:show_role_modal, true)
@@ -138,6 +112,8 @@ defmodule PhoenixKitWeb.Live.UsersLive do
           |> put_flash(:info, "User roles updated successfully")
           |> assign(:show_role_modal, false)
           |> assign(:managing_user, nil)
+          |> assign(:user_roles, [])
+          |> assign(:all_roles, [])
           |> load_users()
           |> load_stats()
 
@@ -151,7 +127,16 @@ defmodule PhoenixKitWeb.Live.UsersLive do
             _ -> "Failed to update user roles"
           end
 
-        socket = put_flash(socket, :error, error_msg)
+        # Refresh the modal data on error to show current state
+        user_with_roles = Auth.get_user_with_roles(user.id)
+        updated_user_roles = Roles.get_user_roles(user_with_roles)
+
+        socket =
+          socket
+          |> put_flash(:error, error_msg)
+          |> assign(:managing_user, user_with_roles)
+          |> assign(:user_roles, updated_user_roles)
+
         {:noreply, socket}
     end
   end
@@ -179,98 +164,6 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     else
       toggle_user_status_safely(socket, user)
     end
-  end
-
-  def handle_event("show_create_user_modal", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_create_user_modal, true)
-      |> assign(:create_user_form_data, %{
-        "email" => "",
-        "password" => "",
-        "first_name" => "",
-        "last_name" => ""
-      })
-      |> assign(:create_user_errors, %{})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("hide_create_user_modal", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_create_user_modal, false)
-      |> assign(:create_user_form_data, %{
-        "email" => "",
-        "password" => "",
-        "first_name" => "",
-        "last_name" => ""
-      })
-      |> assign(:create_user_errors, %{})
-      |> push_patch(to: "/phoenix_kit/admin/users")
-
-    {:noreply, socket}
-  end
-
-  def handle_event("validate_create_user", %{"user" => user_params}, socket) do
-    # Just update form data, no validation on change to avoid field clearing
-    socket =
-      socket
-      |> assign(:create_user_form_data, user_params)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("create_user", %{"user" => user_params}, socket) do
-    case Auth.register_user(user_params) do
-      {:ok, user} ->
-        # Optionally send confirmation email
-        case Auth.deliver_user_confirmation_instructions(
-               user,
-               &"/phoenix_kit/users/confirm/#{&1}"
-             ) do
-          {:ok, _} -> :ok
-          # Continue even if email fails
-          {:error, _} -> :ok
-        end
-
-        socket =
-          socket
-          |> put_flash(:info, "User created successfully. Confirmation email sent.")
-          |> assign(:show_create_user_modal, false)
-          |> assign(:create_user_form_data, %{
-            "email" => "",
-            "password" => "",
-            "first_name" => "",
-            "last_name" => ""
-          })
-          |> assign(:create_user_errors, %{})
-          |> load_users()
-          |> load_stats()
-          |> push_patch(to: "/phoenix_kit/admin/users")
-
-        {:noreply, socket}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        # Extract errors from changeset
-        errors =
-          changeset.errors
-          |> Enum.into(%{}, fn {field, {message, _opts}} ->
-            {Atom.to_string(field), message}
-          end)
-
-        socket =
-          socket
-          |> assign(:create_user_form_data, user_params)
-          |> assign(:create_user_errors, errors)
-
-        {:noreply, socket}
-    end
-  end
-
-  def handle_event("stop_propagation", _params, socket) do
-    # This event exists to stop event propagation, no action needed
-    {:noreply, socket}
   end
 
   defp toggle_user_status_safely(socket, user) do
@@ -309,7 +202,10 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     %{users: users, total_count: total_count, total_pages: total_pages} =
       Auth.list_users_paginated(params)
 
+    # Force refresh by clearing users first, then setting new ones
+    # This ensures LiveView doesn't reuse stale user objects with cached roles
     socket
+    |> assign(:users, [])
     |> assign(:users, users)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
@@ -338,11 +234,13 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   end
 
   defp get_user_roles(user) do
-    # Use preloaded roles if available to avoid DB queries
+    # Use preloaded roles if available
     case Ecto.assoc_loaded?(user.roles) do
       true ->
-        # Roles are preloaded, extract names
-        Enum.map(user.roles, & &1.name) |> Enum.sort()
+        # Use preloaded roles directly since inactive assignments are deleted from DB
+        user.roles
+        |> Enum.map(& &1.name)
+        |> Enum.sort()
 
       false ->
         # Fallback to DB query if roles not preloaded
