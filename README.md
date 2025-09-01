@@ -31,6 +31,11 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - Notifications
   - Email
   - Billing system
+    - Invoices
+    - Integration
+      - Stripe
+      - PayPal
+      - Crypto
   - Newsletter
   - Media / Gallery (with s3 backend)
   - Membership
