@@ -204,6 +204,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
+                    <.admin_nav_item
+                      href="/phoenix_kit/admin/modules"
+                      icon="modules"
+                      label="Modules"
+                      current_path={@current_path || ""}
+                    />
+
                     <div class="divider my-3"></div>
                     
             <!-- User Management Section -->
@@ -222,13 +229,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       href="/phoenix_kit/admin/roles"
                       icon="roles"
                       label="Roles"
-                      current_path={@current_path || ""}
-                    />
-
-                    <.admin_nav_item
-                      href="/phoenix_kit/admin/modules"
-                      icon="modules"
-                      label="Modules"
                       current_path={@current_path || ""}
                     />
                   </nav>
@@ -269,14 +269,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   this.setTheme(savedTheme);
                   this.setupListeners();
                 },
-                
+
                 setTheme(theme) {
                   document.documentElement.setAttribute('data-theme', theme);
                   localStorage.setItem('phoenix_kit_theme', theme);
-                  
+
                   // Update slider position via CSS data attribute
                   document.documentElement.setAttribute('data-theme', theme);
-                  
+
                   // Update active state for all theme buttons
                   document.querySelectorAll('[data-theme-target]').forEach(btn => {
                     if (btn.dataset.themeTarget === theme) {
@@ -286,7 +286,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     }
                   });
                 },
-                
+
                 setupListeners() {
                   // Listen to Phoenix LiveView theme events
                   document.addEventListener('phx:set-admin-theme', (e) => {
