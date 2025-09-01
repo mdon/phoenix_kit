@@ -1,8 +1,8 @@
 defmodule PhoenixKit.Mailer do
   @moduledoc """
-  Mailer module for PhoenixKit authentication emails.
+  Mailer module for PhoenixKit emails.
 
-  This module handles sending authentication-related emails such as
+  This module handles sending emails such as
   confirmation emails, password reset emails, magic link emails, etc.
   """
 
@@ -56,23 +56,23 @@ defmodule PhoenixKit.Mailer do
         <div class="header">
           <h1>Secure Login Link</h1>
         </div>
-        
+
         <p>Hi #{user.email},</p>
-        
+
         <p>Click the button below to securely log in to your account:</p>
-        
+
         <p style="text-align: center; margin: 30px 0;">
           <a href="#{magic_link_url}" class="button">Log In Securely</a>
         </p>
-        
+
         <div class="warning">
           <strong>⚠️ Important:</strong> This link will expire in 15 minutes and can only be used once.
         </div>
-        
+
         <p>If you didn't request this login link, you can safely ignore this email.</p>
-        
+
         <p>For your security, never share this link with anyone.</p>
-        
+
         <div class="footer">
           <p>If the button above doesn't work, you can copy and paste this link into your browser:</p>
           <p><a href="#{magic_link_url}">#{magic_link_url}</a></p>

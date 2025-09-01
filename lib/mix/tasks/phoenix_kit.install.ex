@@ -1,7 +1,7 @@
 if Code.ensure_loaded?(Igniter.Mix.Task) do
   defmodule Mix.Tasks.PhoenixKit.Install do
     @moduledoc """
-    Igniter installer for PhoenixKit authentication system.
+    Igniter installer for PhoenixKit.
 
     This task automatically installs PhoenixKit into a Phoenix application by:
     1. Auto-detecting and configuring Ecto repo
@@ -43,7 +43,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     The `phoenix_kit_routes()` macro is properly used and will expand correctly.
     """
 
-    @shortdoc "Install PhoenixKit authentication system into a Phoenix application"
+    @shortdoc "Install PhoenixKit into a Phoenix application"
 
     use Igniter.Mix.Task
 
@@ -155,7 +155,7 @@ else
     Then run: mix deps.get
     """
 
-    @shortdoc "Install PhoenixKit authentication system (requires Igniter)"
+    @shortdoc "Install PhoenixKit (requires Igniter)"
 
     use Mix.Task
 

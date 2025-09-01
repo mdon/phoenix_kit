@@ -1,9 +1,8 @@
 defmodule PhoenixKitWeb.CoreComponents do
   @moduledoc """
-  Provides core UI components for PhoenixKit authentication interface.
+  Provides core UI components for PhoenixKit interface.
 
-  These components are used throughout the authentication system
-  to provide a consistent user interface.
+  These components are used throughout the library to provide a consistent user interface.
   """
   use Phoenix.Component
 
@@ -384,7 +383,7 @@ defmodule PhoenixKitWeb.CoreComponents do
   @doc """
   Renders a simple theme switcher placeholder.
 
-  Note: This is a placeholder implementation. The full theme system 
+  Note: This is a placeholder implementation. The full theme system
   requires the PhoenixKit.ThemeConfig module to be implemented.
   """
   attr :size, :string, default: "medium", values: ["small", "medium", "large"]
