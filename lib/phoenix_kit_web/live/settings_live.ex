@@ -147,71 +147,19 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
 
   # Helper functions for template to show dropdown labels
   def get_timezone_label(value, setting_options) do
-    case Enum.find(setting_options["time_zone"], fn {_label, val} -> val == value end) do
-      {label, _value} -> label
-      nil -> "UTC#{if value != "0", do: value, else: ""}"
-    end
+    Settings.get_timezone_label(value, setting_options)
   end
 
   def get_option_label(value, options) do
-    case Enum.find(options, fn {_label, val} -> val == value end) do
-      {label, _value} -> label
-      nil -> value
-    end
+    Settings.get_option_label(value, options)
   end
 
   # Helper functions for template to show current format examples
   def get_current_date_example(format) do
-    today = Date.utc_today()
-    year = today.year
-    month = today.month
-    day = today.day
-
-    # Pad month and day with leading zeros
-    month_str = String.pad_leading(Integer.to_string(month), 2, "0")
-    day_str = String.pad_leading(Integer.to_string(day), 2, "0")
-    year_str = Integer.to_string(year)
-
-    case format do
-      "Y-m-d" -> "#{year_str}-#{month_str}-#{day_str}"
-      "m/d/Y" -> "#{month_str}/#{day_str}/#{year_str}"
-      "d/m/Y" -> "#{day_str}/#{month_str}/#{year_str}"
-      "d.m.Y" -> "#{day_str}.#{month_str}.#{year_str}"
-      "d-m-Y" -> "#{day_str}-#{month_str}-#{year_str}"
-      _ -> "#{year_str}-#{month_str}-#{day_str}"
-    end
+    Settings.format_date(Date.utc_today(), format)
   end
 
   def get_current_time_example(format) do
-    now = Time.utc_now()
-    hour = now.hour
-    minute = now.minute
-
-    # Pad minute with leading zero
-    minute_str = String.pad_leading(Integer.to_string(minute), 2, "0")
-
-    case format do
-      "H:i" ->
-        # 24-hour format
-        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
-        "#{hour_str}:#{minute_str}"
-
-      "h:i A" ->
-        # 12-hour format with AM/PM
-        {display_hour, period} =
-          cond do
-            hour == 0 -> {12, "AM"}
-            hour < 12 -> {hour, "AM"}
-            hour == 12 -> {12, "PM"}
-            true -> {hour - 12, "PM"}
-          end
-
-        "#{display_hour}:#{minute_str} #{period}"
-
-      _ ->
-        # Default to 24-hour format
-        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
-        "#{hour_str}:#{minute_str}"
-    end
+    Settings.format_time(Time.utc_now(), format)
   end
 end

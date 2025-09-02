@@ -214,7 +214,8 @@ defmodule PhoenixKit.Settings do
         {"MM/DD/YYYY (#{date_examples["m/d/Y"]})", "m/d/Y"},
         {"DD/MM/YYYY (#{date_examples["d/m/Y"]})", "d/m/Y"},
         {"DD.MM.YYYY (#{date_examples["d.m.Y"]})", "d.m.Y"},
-        {"DD-MM-YYYY (#{date_examples["d-m-Y"]})", "d-m-Y"}
+        {"DD-MM-YYYY (#{date_examples["d-m-Y"]})", "d-m-Y"},
+        {"Month Day, Year (#{date_examples["F j, Y"]})", "F j, Y"}
       ],
       "time_format" => [
         {"24 Hour (#{time_examples["H:i"]})", "H:i"},
@@ -239,7 +240,8 @@ defmodule PhoenixKit.Settings do
       "m/d/Y" => "#{month_str}/#{day_str}/#{year_str}",
       "d/m/Y" => "#{day_str}/#{month_str}/#{year_str}",
       "d.m.Y" => "#{day_str}.#{month_str}.#{year_str}",
-      "d-m-Y" => "#{day_str}-#{month_str}-#{year_str}"
+      "d-m-Y" => "#{day_str}-#{month_str}-#{year_str}",
+      "F j, Y" => "#{get_month_name(month)} #{day}, #{year_str}"
     }
   end
 
@@ -293,5 +295,133 @@ defmodule PhoenixKit.Settings do
       "date_format" => "Y-m-d",
       "time_format" => "H:i"
     }
+  end
+
+  @doc """
+  Formats a date according to the specified format string.
+  
+  Uses the same format codes as the date_format setting.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "Y-m-d")
+      "2024-01-15"
+      
+      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "m/d/Y")
+      "01/15/2024"
+  """
+  def format_date(date, format) do
+    year = date.year
+    month = date.month
+    day = date.day
+
+    # Pad month and day with leading zeros
+    month_str = String.pad_leading(Integer.to_string(month), 2, "0")
+    day_str = String.pad_leading(Integer.to_string(day), 2, "0")
+    year_str = Integer.to_string(year)
+
+    case format do
+      "Y-m-d" -> "#{year_str}-#{month_str}-#{day_str}"
+      "m/d/Y" -> "#{month_str}/#{day_str}/#{year_str}"
+      "d/m/Y" -> "#{day_str}/#{month_str}/#{year_str}"
+      "d.m.Y" -> "#{day_str}.#{month_str}.#{year_str}"
+      "d-m-Y" -> "#{day_str}-#{month_str}-#{year_str}"
+      "F j, Y" -> "#{get_month_name(month)} #{day}, #{year_str}"
+      _ -> "#{year_str}-#{month_str}-#{day_str}" # Default to Y-m-d format
+    end
+  end
+
+  @doc """
+  Formats a time according to the specified format string.
+  
+  Uses the same format codes as the time_format setting.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Settings.format_time(~T[15:30:00], "H:i")
+      "15:30"
+      
+      iex> PhoenixKit.Settings.format_time(~T[15:30:00], "h:i A")
+      "3:30 PM"
+  """
+  def format_time(time, format) do
+    hour = time.hour
+    minute = time.minute
+
+    # Pad minute with leading zero
+    minute_str = String.pad_leading(Integer.to_string(minute), 2, "0")
+
+    case format do
+      "H:i" ->
+        # 24-hour format
+        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
+        "#{hour_str}:#{minute_str}"
+
+      "h:i A" ->
+        # 12-hour format with AM/PM
+        {display_hour, period} =
+          cond do
+            hour == 0 -> {12, "AM"}
+            hour < 12 -> {hour, "AM"}
+            hour == 12 -> {12, "PM"}
+            true -> {hour - 12, "PM"}
+          end
+
+        "#{display_hour}:#{minute_str} #{period}"
+
+      _ ->
+        # Default to 24-hour format
+        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
+        "#{hour_str}:#{minute_str}"
+    end
+  end
+
+  @doc """
+  Gets the display label for a timezone value.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Settings.get_timezone_label("0", get_setting_options())
+      "UTC+0 (GMT/London)"
+  """
+  def get_timezone_label(value, setting_options) do
+    case Enum.find(setting_options["time_zone"], fn {_label, val} -> val == value end) do
+      {label, _value} -> label
+      nil -> "UTC#{if value != "0", do: value, else: ""}"
+    end
+  end
+
+  @doc """
+  Gets the display label for a setting option value.
+  
+  ## Examples
+  
+      iex> options = [{"YYYY-MM-DD", "Y-m-d"}, {"MM/DD/YYYY", "m/d/Y"}]
+      iex> PhoenixKit.Settings.get_option_label("Y-m-d", options)
+      "YYYY-MM-DD"
+  """
+  def get_option_label(value, options) do
+    case Enum.find(options, fn {_label, val} -> val == value end) do
+      {label, _value} -> label
+      nil -> value
+    end
+  end
+
+  # Helper function to get month name from month number
+  defp get_month_name(month) do
+    case month do
+      1 -> "January"
+      2 -> "February"
+      3 -> "March"
+      4 -> "April"
+      5 -> "May"
+      6 -> "June"
+      7 -> "July"
+      8 -> "August"
+      9 -> "September"
+      10 -> "October"
+      11 -> "November"
+      12 -> "December"
+    end
   end
 end
