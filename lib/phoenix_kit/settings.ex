@@ -41,6 +41,7 @@ defmodule PhoenixKit.Settings do
 
   import Ecto.Query, warn: false
   alias PhoenixKit.Settings.Setting
+  use Timex
 
   # Gets the configured repository for database operations.
   # Uses PhoenixKit.RepoHelper to get the configured repo with proper prefix support.
@@ -226,51 +227,21 @@ defmodule PhoenixKit.Settings do
 
   # Helper function to generate date examples in different formats
   defp generate_date_examples(date) do
-    year = date.year
-    month = date.month
-    day = date.day
-
-    # Pad month and day with leading zeros
-    month_str = String.pad_leading(Integer.to_string(month), 2, "0")
-    day_str = String.pad_leading(Integer.to_string(day), 2, "0")
-    year_str = Integer.to_string(year)
-
     %{
-      "Y-m-d" => "#{year_str}-#{month_str}-#{day_str}",
-      "m/d/Y" => "#{month_str}/#{day_str}/#{year_str}",
-      "d/m/Y" => "#{day_str}/#{month_str}/#{year_str}",
-      "d.m.Y" => "#{day_str}.#{month_str}.#{year_str}",
-      "d-m-Y" => "#{day_str}-#{month_str}-#{year_str}",
-      "F j, Y" => "#{get_month_name(month)} #{day}, #{year_str}"
+      "Y-m-d" => format_date(date, "Y-m-d"),
+      "m/d/Y" => format_date(date, "m/d/Y"),
+      "d/m/Y" => format_date(date, "d/m/Y"),
+      "d.m.Y" => format_date(date, "d.m.Y"),
+      "d-m-Y" => format_date(date, "d-m-Y"),
+      "F j, Y" => format_date(date, "F j, Y")
     }
   end
 
   # Helper function to generate time examples in different formats
   defp generate_time_examples(time) do
-    hour = time.hour
-    minute = time.minute
-
-    # Pad minute with leading zero
-    minute_str = String.pad_leading(Integer.to_string(minute), 2, "0")
-
-    # 24-hour format
-    hour_24_str = String.pad_leading(Integer.to_string(hour), 2, "0")
-    time_24 = "#{hour_24_str}:#{minute_str}"
-
-    # 12-hour format with AM/PM
-    {display_hour, period} =
-      cond do
-        hour == 0 -> {12, "AM"}
-        hour < 12 -> {hour, "AM"}
-        hour == 12 -> {12, "PM"}
-        true -> {hour - 12, "PM"}
-      end
-
-    time_12 = "#{display_hour}:#{minute_str} #{period}"
-
     %{
-      "H:i" => time_24,
-      "h:i A" => time_12
+      "H:i" => format_time(time, "H:i"),
+      "h:i A" => format_time(time, "h:i A")
     }
   end
 
@@ -300,7 +271,7 @@ defmodule PhoenixKit.Settings do
   @doc """
   Formats a date according to the specified format string.
   
-  Uses the same format codes as the date_format setting.
+  Uses Timex for robust date formatting with extensive format support.
   
   ## Examples
   
@@ -309,32 +280,32 @@ defmodule PhoenixKit.Settings do
       
       iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "m/d/Y")
       "01/15/2024"
+      
+      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "F j, Y")
+      "January 15, 2024"
   """
   def format_date(date, format) do
-    year = date.year
-    month = date.month
-    day = date.day
-
-    # Pad month and day with leading zeros
-    month_str = String.pad_leading(Integer.to_string(month), 2, "0")
-    day_str = String.pad_leading(Integer.to_string(day), 2, "0")
-    year_str = Integer.to_string(year)
-
-    case format do
-      "Y-m-d" -> "#{year_str}-#{month_str}-#{day_str}"
-      "m/d/Y" -> "#{month_str}/#{day_str}/#{year_str}"
-      "d/m/Y" -> "#{day_str}/#{month_str}/#{year_str}"
-      "d.m.Y" -> "#{day_str}.#{month_str}.#{year_str}"
-      "d-m-Y" -> "#{day_str}-#{month_str}-#{year_str}"
-      "F j, Y" -> "#{get_month_name(month)} #{day}, #{year_str}"
-      _ -> "#{year_str}-#{month_str}-#{day_str}" # Default to Y-m-d format
+    # Map our format codes to Timex format strings
+    timex_format = case format do
+      "Y-m-d" -> "{YYYY}-{0M}-{0D}"
+      "m/d/Y" -> "{0M}/{0D}/{YYYY}"
+      "d/m/Y" -> "{0D}/{0M}/{YYYY}"
+      "d.m.Y" -> "{0D}.{0M}.{YYYY}"
+      "d-m-Y" -> "{0D}-{0M}-{YYYY}"
+      "F j, Y" -> "{Mfull} {D}, {YYYY}"
+      _ -> "{YYYY}-{0M}-{0D}" # Default to Y-m-d format
+    end
+    
+    case Timex.format(date, timex_format) do
+      {:ok, formatted} -> formatted
+      {:error, _} -> Date.to_string(date) # Fallback to ISO format
     end
   end
 
   @doc """
   Formats a time according to the specified format string.
   
-  Uses the same format codes as the time_format setting.
+  Uses Timex for robust time formatting with extensive format support.
   
   ## Examples
   
@@ -345,34 +316,16 @@ defmodule PhoenixKit.Settings do
       "3:30 PM"
   """
   def format_time(time, format) do
-    hour = time.hour
-    minute = time.minute
-
-    # Pad minute with leading zero
-    minute_str = String.pad_leading(Integer.to_string(minute), 2, "0")
-
-    case format do
-      "H:i" ->
-        # 24-hour format
-        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
-        "#{hour_str}:#{minute_str}"
-
-      "h:i A" ->
-        # 12-hour format with AM/PM
-        {display_hour, period} =
-          cond do
-            hour == 0 -> {12, "AM"}
-            hour < 12 -> {hour, "AM"}
-            hour == 12 -> {12, "PM"}
-            true -> {hour - 12, "PM"}
-          end
-
-        "#{display_hour}:#{minute_str} #{period}"
-
-      _ ->
-        # Default to 24-hour format
-        hour_str = String.pad_leading(Integer.to_string(hour), 2, "0")
-        "#{hour_str}:#{minute_str}"
+    # Map our format codes to Timex format strings
+    timex_format = case format do
+      "H:i" -> "{h24}:{m}"
+      "h:i A" -> "{h12}:{m} {AM}"
+      _ -> "{h24}:{m}" # Default to 24-hour format
+    end
+    
+    case Timex.format(time, timex_format) do
+      {:ok, formatted} -> formatted
+      {:error, _} -> Time.to_string(time) # Fallback to ISO format
     end
   end
 
@@ -407,21 +360,4 @@ defmodule PhoenixKit.Settings do
     end
   end
 
-  # Helper function to get month name from month number
-  defp get_month_name(month) do
-    case month do
-      1 -> "January"
-      2 -> "February"
-      3 -> "March"
-      4 -> "April"
-      5 -> "May"
-      6 -> "June"
-      7 -> "July"
-      8 -> "August"
-      9 -> "September"
-      10 -> "October"
-      11 -> "November"
-      12 -> "December"
-    end
-  end
 end

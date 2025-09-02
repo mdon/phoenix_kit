@@ -83,6 +83,7 @@ defmodule PhoenixKit.MixProject do
 
       # Utilities
       {:jason, "~> 1.4"},
+      {:timex, "~> 3.7"},
 
       # Code generation and project patching
       {:igniter, "~> 0.6.27", optional: true}

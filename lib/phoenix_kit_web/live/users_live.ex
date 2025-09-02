@@ -230,13 +230,6 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     |> assign(:pending_users, stats.pending_users)
   end
 
-  defp format_datetime(nil), do: "Never"
-
-  defp format_datetime(datetime) do
-    datetime
-    |> NaiveDateTime.to_date()
-    |> Date.to_string()
-  end
 
   # Format datetime using the date format setting from assigns
   defp format_datetime(nil, _format), do: "Never"
