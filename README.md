@@ -1,27 +1,28 @@
-# PhoenixKit - The Elixir Phoenix Starter Kit
+# PhoenixKit - The Elixir Phoenix Starter Kit for SaaS apps
 
-Let's not reinvent the wheel every time we create apps, let's create Elixir/Phoenix-powered apps much faster.
+We are actively building PhoenixKit, a comprehensive SaaS starter kit for the Elixir/Phoenix ecosystem. Our goal is to eliminate the need to reinvent the wheel every time we all start a new SaaS project.
 
-## Overview
+**🚧 Early Access - We Need Your Feedback!**
+PhoenixKit is under heavy development and we're looking for early adopters to test, provide feedback, and help shape the future of this toolkit. If you're building with Phoenix and want to skip the boilerplate setup, we'd love to have you try it out and share your experience.
 
-PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix. It provides a foundation, patterns, and configurations so you can focus on building your product rather than re-implementing common setup tasks.
+With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
-## 📦 Current PhoenixKit Features/Modules:
+## 📦 Current PhoenixKit Features / Modules:
 - [x] **Igniter installation** - Simple installation
 - [x] **Layout integration** 
-- Users
+- User module
   - [x] Registration, Login, Logout, Email confirmation, Password reset
   - [x] User roles
-- Backend admin
+- Backend admin module
   - [x] User management
   - [x] Role management
 
 ## 🛣️ Roadmap
-- Users
+- User module
   - Magic link
   - OAuth
   - 2FA
-  - Locale / Timezone
+  - User's locale / timezone
   - Referral Program
   - Fail2ban
 - Backend admin
@@ -83,7 +84,7 @@ Add both `phoenix_kit` and `igniter` to your project dependencies:
 # mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.1"},
+    {:phoenix_kit, "~> 1.2"},
     {:igniter, "~> 0.6.0", only: [:dev]}
   ]
 end
@@ -122,7 +123,7 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 
 ### Manual Installation
 
-1. Add `{:phoenix_kit, "~> 1.1"}` to `mix.exs`
+1. Add `{:phoenix_kit, "~> 2"}` to `mix.exs`
 2. Run `mix deps.get && mix phoenix_kit.gen.migration`
 3. Configure repository: `config :phoenix_kit, repo: MyApp.Repo`
 4. Add `phoenix_kit_routes()` to your router

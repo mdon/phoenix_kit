@@ -209,10 +209,10 @@
                     </div>
                   </td>
                   <td class="text-sm">
-                    {format_datetime(user.inserted_at)}
+                    {format_datetime(user.inserted_at, @date_format)}
                   </td>
                   <td class="text-sm">
-                    {format_datetime(user.confirmed_at)}
+                    {format_datetime(user.confirmed_at, @date_format)}
                   </td>
                   <td>
                     <div class="flex flex-wrap gap-1">

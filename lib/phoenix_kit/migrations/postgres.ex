@@ -8,7 +8,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias Ecto.Adapters.SQL
 
   @initial_version 1
-  @current_version 2
+  @current_version 3
   @default_prefix "public"
 
   @doc false
@@ -67,7 +67,7 @@ defmodule PhoenixKit.Migrations.Postgres do
     # First check if phoenix_kit table exists
     table_exists_query = """
     SELECT EXISTS (
-      SELECT FROM information_schema.tables 
+      SELECT FROM information_schema.tables
       WHERE table_name = 'phoenix_kit'
       AND table_schema = '#{escaped_prefix}'
     )
@@ -144,8 +144,8 @@ defmodule PhoenixKit.Migrations.Postgres do
   defp detect_version_by_schema(repo, escaped_prefix) do
     # Check if main PhoenixKit tables exist
     tables_query = """
-    SELECT table_name 
-    FROM information_schema.tables 
+    SELECT table_name
+    FROM information_schema.tables
     WHERE table_schema = '#{escaped_prefix}'
     AND table_name IN ('phoenix_kit_users', 'phoenix_kit_user_roles', 'phoenix_kit_user_role_assignments')
     ORDER BY table_name
@@ -187,9 +187,9 @@ defmodule PhoenixKit.Migrations.Postgres do
   defp check_role_assignment_schema(repo, escaped_prefix) do
     # Check if is_active column exists in role assignments table
     column_query = """
-    SELECT column_name 
-    FROM information_schema.columns 
-    WHERE table_schema = '#{escaped_prefix}' 
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = '#{escaped_prefix}'
     AND table_name = 'phoenix_kit_user_role_assignments'
     AND column_name = 'is_active'
     """

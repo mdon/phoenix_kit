@@ -4,6 +4,8 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Date, as: PKDate
 
   @per_page 10
 
@@ -17,6 +19,9 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
+    # Load date format setting
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+
     socket =
       socket
       |> assign(:page, 1)
@@ -29,6 +34,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
       |> assign(:all_roles, [])
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Users")
+      |> assign(:date_format, date_format)
       |> load_users()
       |> load_stats()
 
@@ -232,12 +238,9 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     |> assign(:pending_users, stats.pending_users)
   end
 
-  defp format_datetime(nil), do: "Never"
-
-  defp format_datetime(datetime) do
-    datetime
-    |> NaiveDateTime.to_date()
-    |> Date.to_string()
+  # Format datetime using the date format setting from assigns
+  defp format_datetime(datetime, format) do
+    PKDate.format_datetime(datetime, format)
   end
 
   defp get_user_roles(user) do

@@ -22,26 +22,207 @@
         </svg>
         Back to Dashboard
       </.link>
-
-      <!-- Title Section -->
+      
+<!-- Title Section -->
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">System Settings</h1>
         <p class="text-lg text-base-content">Configure system preferences and options</p>
       </div>
     </header>
     
-    <div class="card bg-base-100 shadow-xl">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Configuration Options</h2>
-        <div class="text-center py-12">
-          <div class="text-6xl mb-4">⚙️</div>
-          <h3 class="text-xl font-semibold text-base-content mb-2">
-            Settings Panel Coming Soon
-          </h3>
-          <p class="text-base-content/70 max-w-md mx-auto">
-            This section will allow you to configure system settings, 
-            preferences, and application options for your PhoenixKit installation.
-          </p>
+<!-- Settings Form -->
+    <div class="max-w-2xl mx-auto">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <h2 class="card-title text-xl mb-6">System Configuration</h2>
+
+          <.form
+            :let={_form}
+            for={@changeset}
+            id="settings_form"
+            phx-submit="save_settings"
+            phx-change="validate_settings"
+            class="space-y-6"
+          >
+            <!-- Time Zone Setting -->
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Time Zone</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  System default timezone
+                </span>
+              </label>
+              <select
+                name="settings[time_zone]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["time_zone"] do %>
+                  <option value={value} selected={value == @settings["time_zone"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["time_zone"] != @saved_settings["time_zone"] do %>
+                    <span class="text-warning">
+                      Selected: {get_timezone_label(@settings["time_zone"], @setting_options)}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_timezone_label(@saved_settings["time_zone"], @setting_options)}
+                    </span>
+                  <% else %>
+                    Saved: {get_timezone_label(@settings["time_zone"], @setting_options)}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+            
+<!-- Date Format Setting -->
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Date Format</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  How dates are displayed
+                </span>
+              </label>
+              <select
+                name="settings[date_format]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["date_format"] do %>
+                  <option value={value} selected={value == @settings["date_format"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["date_format"] != @saved_settings["date_format"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["date_format"],
+                        @setting_options["date_format"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["date_format"],
+                        @setting_options["date_format"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["date_format"],
+                      @setting_options["date_format"]
+                    )}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+            
+<!-- Time Format Setting -->
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Time Format</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  How times are displayed
+                </span>
+              </label>
+              <select
+                name="settings[time_format]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["time_format"] do %>
+                  <option value={value} selected={value == @settings["time_format"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["time_format"] != @saved_settings["time_format"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["time_format"],
+                        @setting_options["time_format"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["time_format"],
+                        @setting_options["time_format"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["time_format"],
+                      @setting_options["time_format"]
+                    )}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+            
+<!-- Action Buttons -->
+            <div class="flex gap-3 pt-4">
+              <button
+                type="submit"
+                class={[
+                  "btn btn-primary flex-1",
+                  if(@saving, do: "loading", else: "")
+                ]}
+                disabled={@saving}
+              >
+                <%= if @saving do %>
+                  Saving...
+                <% else %>
+                  Save All Settings
+                <% end %>
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-outline"
+                phx-click={
+                  Phoenix.LiveView.JS.dispatch("phx:page-loading-start")
+                  |> Phoenix.LiveView.JS.patch("/phoenix_kit/admin/settings")
+                }
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  >
+                  </path>
+                </svg>
+                Reset
+              </button>
+            </div>
+          </.form>
+          
+<!-- Information Panel -->
+          <div class="divider">Information</div>
+
+          <div class="bg-base-200 rounded-lg p-4 mt-6">
+            <div class="flex items-start gap-3">
+              <div class="text-2xl">💡</div>
+              <div class="flex-1">
+                <h3 class="font-semibold text-base-content mb-2">About System Settings</h3>
+                <ul class="text-sm text-base-content/70 space-y-1">
+                  <li>• Make changes to dropdowns and click "Save All Settings" to apply</li>
+                  <li>• Changes show "Selected" vs "Saved" values until you click Save</li>
+                  <li>• Time zone affects date/time display throughout the system</li>
+                  <li>• Date formats control how dates appear (e.g. Users dashboard "Registered" field)</li>
+                  <li>• Time formats control 12-hour vs 24-hour time display</li>
+                  <li>• Settings are applied system-wide and use Timex for robust formatting</li>
+                  <li>• Currently supports 6 date formats including "September 2, 2025" style</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
