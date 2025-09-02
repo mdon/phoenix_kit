@@ -83,7 +83,7 @@ Add both `phoenix_kit` and `igniter` to your project dependencies:
 # mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.1"},
+    {:phoenix_kit, "~> 1.2"},
     {:igniter, "~> 0.6.0", only: [:dev]}
   ]
 end
@@ -122,7 +122,7 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 
 ### Manual Installation
 
-1. Add `{:phoenix_kit, "~> 1.1.1"}` to `mix.exs`
+1. Add `{:phoenix_kit, "~> 1.2"}` to `mix.exs`
 2. Run `mix deps.get && mix phoenix_kit.gen.migration`
 3. Configure repository: `config :phoenix_kit, repo: MyApp.Repo`
 4. Add `phoenix_kit_routes()` to your router
