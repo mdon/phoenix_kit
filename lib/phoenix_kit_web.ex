@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb do
   @moduledoc """
-  The web interface for PhoenixKit authentication module.
+  The web interface for PhoenixKit.
 
   This module provides the base functionality for web components
   including controllers, live views, and components used for

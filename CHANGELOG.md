@@ -10,13 +10,14 @@
 - Added admin shortcut route for improved navigation
 - Enhanced admin dashboard accessibility
 
-## 1.1.0 - 2025-08-30
+## 1.1.0 - 2025-09-01
 
 ### Changed
 - **BREAKING**: Simplified role system by removing `is_active` column from role assignments
 - Role removal now permanently deletes assignment records instead of soft deactivation
 - All role-related functions updated to work with direct deletion approach
 - Improved performance by eliminating `is_active` filtering in database queries
+- Documenatation link fixed for hex
 
 ### Added
 - V02 migration for upgrading existing installations to simplified role system
@@ -25,7 +26,7 @@
 - Rollback support for V02 migration (though inactive assignments cannot be restored)
 
 ### Fixed
-- Test suite updated to reflect schema changes
+- Test suite updated to reflect schema new changes
 
 ### Migration Notes
 - Existing V01 installations can upgrade using `mix phoenix_kit.update`

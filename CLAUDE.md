@@ -20,7 +20,7 @@ Update data in memory when discovering new components or changes in project arch
 
 ## Project Overview
 
-This is **PhoenixKit** - a professional authentication library for Phoenix applications with PostgreSQL support and streamlined setup. It provides a complete authentication system that can be integrated into any Phoenix application without circular dependencies.
+This is **PhoenixKit** - PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix with PostgreSQL support and streamlined setup. As a start it provides a complete authentication system that can be integrated into any Phoenix application without circular dependencies.
 
 **Key Characteristics:**
 

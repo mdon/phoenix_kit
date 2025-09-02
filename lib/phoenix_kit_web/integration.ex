@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Integration do
   @moduledoc """
-  Integration helpers for adding PhoenixKit authentication to Phoenix applications.
+  Integration helpers for adding PhoenixKit to Phoenix applications.
 
   ## Basic Usage
 

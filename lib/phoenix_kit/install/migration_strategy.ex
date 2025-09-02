@@ -310,7 +310,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     prompt = """
 
     🚀 Would you like to run the database migration now?
-    This will create the PhoenixKit authentication tables.
+    This will create the PhoenixKit tables.
 
     Options:
     - y/yes: Run 'mix ecto.migrate' now

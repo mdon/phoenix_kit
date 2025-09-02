@@ -6,8 +6,9 @@ Let's not reinvent the wheel every time we create apps, let's create Elixir/Phoe
 
 PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix. It provides a foundation, patterns, and configurations so you can focus on building your product rather than re-implementing common setup tasks.
 
-With PhoenixKit v1 you get:
+With PhoenixKit you get:
 - User authentication (Registration, login, logout, email confirmation, password reset).
+- User roles
 - Backend admin with user management.
 
 We are working on more modules and features.

@@ -337,7 +337,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
             root_layout: {#{inspect(layouts_module)}, :root},  # Optional
             page_title_prefix: "Auth"                          # Optional
 
-        This will make PhoenixKit authentication pages use your app's design.
+        This will make PhoenixKit use your app's design.
         """)
 
       :no_layouts_found ->

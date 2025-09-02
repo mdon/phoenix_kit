@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Users.Roles do
   @moduledoc """
-  API for managing user roles in PhoenixKit authentication system.
+  API for managing user roles in PhoenixKit.
 
   This module provides functions for assigning, removing, and querying user roles.
   It works with the role system to provide authorization capabilities.

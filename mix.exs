@@ -2,7 +2,7 @@ defmodule PhoenixKit.MixProject do
   use Mix.Project
 
   @version "1.1.1"
-  @description "Professional authentication library for Phoenix applications with minimal setup"
+  @description "PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
   def project do
@@ -54,7 +54,7 @@ defmodule PhoenixKit.MixProject do
       {:ecto_sql, "~> 3.10"},
       {:postgrex, "~> 0.21.1"},
 
-      # Phoenix web layer - required for authentication module
+      # Phoenix web layer
       {:phoenix, "~> 1.8.0"},
       {:phoenix_ecto, "~> 4.6"},
       {:phoenix_html, "~> 4.0"},
