@@ -219,6 +219,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     />
 
                     <.admin_nav_item
+                      href="/phoenix_kit/admin/sessions"
+                      icon="sessions"
+                      label="Sessions"
+                      current_path={@current_path || ""}
+                    />
+
+                    <.admin_nav_item
                       href="/phoenix_kit/admin/roles"
                       icon="roles"
                       label="Roles"

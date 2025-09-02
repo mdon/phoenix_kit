@@ -15,7 +15,7 @@
     </div>
     
 <!-- Admin Menu Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
       <.link
         navigate="/phoenix_kit/admin/users"
         class="card bg-secondary text-secondary-content hover:shadow-lg transition-all"
@@ -55,6 +55,28 @@
             <div>
               <h3 class="card-title text-lg">Roles</h3>
               <p class="text-sm opacity-75">Role management</p>
+            </div>
+          </div>
+        </div>
+      </.link>
+
+      <.link
+        navigate="/phoenix_kit/admin/sessions"
+        class="card bg-success text-success-content hover:shadow-lg transition-all"
+      >
+        <div class="card-body">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+            <div>
+              <h3 class="card-title text-lg">Sessions</h3>
+              <p class="text-sm opacity-75">Active sessions</p>
             </div>
           </div>
         </div>
@@ -170,6 +192,69 @@
               <div class="text-7xl font-black mb-2 tracking-tight">{@stats.total_users}</div>
               <p class="text-blue-100 text-sm">Registered accounts</p>
             </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- Sessions Statistics -->
+      <div class="mb-8">
+        <h3 class="text-xl font-bold text-base-content mb-4">Active Sessions</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Total Active Sessions -->
+          <div class="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <div class="flex items-center justify-between mb-4">
+              <div class="p-2 bg-white/20 rounded-lg">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.88 9.88l-4.24 4.24c-.78.78-2.05.78-2.83 0-.78-.78-.78-2.05 0-2.83L12.05 10l-3.24-3.29c-.78-.78-.78-2.05 0-2.83.78-.78 2.05-.78 2.83 0l4.24 4.24c.39.39.39 1.02 0 1.41z" />
+                </svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold mb-2">{@session_stats.total_active}</div>
+            <div class="text-purple-100 font-medium">Active Sessions</div>
+            <div class="text-purple-200 text-xs mt-1">Currently logged in</div>
+          </div>
+          
+<!-- Unique Users -->
+          <div class="bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <div class="flex items-center justify-between mb-4">
+              <div class="p-2 bg-white/20 rounded-lg">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold mb-2">{@session_stats.unique_users}</div>
+            <div class="text-teal-100 font-medium">Unique Users</div>
+            <div class="text-teal-200 text-xs mt-1">With active sessions</div>
+          </div>
+          
+<!-- Today's Sessions -->
+          <div class="bg-gradient-to-br from-emerald-500 via-emerald-600 to-green-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <div class="flex items-center justify-between mb-4">
+              <div class="p-2 bg-white/20 rounded-lg">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
+                  <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z" />
+                </svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold mb-2">{@session_stats.sessions_today}</div>
+            <div class="text-emerald-100 font-medium">Today's Sessions</div>
+            <div class="text-emerald-200 text-xs mt-1">New login activity</div>
+          </div>
+          
+<!-- Expired Sessions -->
+          <div class="bg-gradient-to-br from-slate-500 via-slate-600 to-gray-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <div class="flex items-center justify-between mb-4">
+              <div class="p-2 bg-white/20 rounded-lg">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-6V7h2v4h4v2z" />
+                </svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold mb-2">{@session_stats.expired_sessions}</div>
+            <div class="text-slate-100 font-medium">Expired Sessions</div>
+            <div class="text-slate-200 text-xs mt-1">Need cleanup</div>
           </div>
         </div>
       </div>
