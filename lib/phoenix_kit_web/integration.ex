@@ -81,14 +81,9 @@ defmodule PhoenixKitWeb.Integration do
       end
 
       scope unquote(prefix), PhoenixKitWeb do
-        pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_redirect_if_authenticated]
-
-        post "/users/log-in", Users.SessionController, :create
-      end
-
-      scope unquote(prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
+        post "/users/log-in", Users.SessionController, :create
         delete "/users/log-out", Users.SessionController, :delete
         get "/users/log-out", Users.SessionController, :get_logout
         get "/users/magic-link/:token", Users.MagicLinkController, :verify
@@ -123,6 +118,7 @@ defmodule PhoenixKitWeb.Integration do
         live_session :phoenix_kit_admin,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
           live "/admin/dashboard", Live.DashboardLive, :index
+          live "/admin", Live.DashboardLive, :index
           live "/admin/users", Live.UsersLive, :index
           live "/admin/users/new", Users.UserFormLive, :new
           live "/admin/users/edit/:id", Users.UserFormLive, :edit
