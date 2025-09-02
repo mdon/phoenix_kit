@@ -2,8 +2,15 @@ defmodule PhoenixKitWeb.Live.RolesLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.{Role, Roles}
+  alias PhoenixKit.Admin.Events
 
   def mount(_params, _session, socket) do
+    # Subscribe to role events for live updates
+    if connected?(socket) do
+      Events.subscribe_to_roles()
+      Events.subscribe_to_stats()
+    end
+
     # Get current path for navigation
     current_path = get_current_path()
 
@@ -175,5 +182,42 @@ defmodule PhoenixKitWeb.Live.RolesLive do
         # System role - use cached count
         count
     end
+  end
+
+  ## Live Event Handlers
+
+  def handle_info({:role_created, _role}, socket) do
+    socket =
+      socket
+      |> load_roles()
+      |> assign(:role_stats, load_role_statistics())
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:role_updated, _role}, socket) do
+    socket =
+      socket
+      |> load_roles()
+      |> assign(:role_stats, load_role_statistics())
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:role_deleted, _role}, socket) do
+    socket =
+      socket
+      |> load_roles()
+      |> assign(:role_stats, load_role_statistics())
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:stats_updated, _stats}, socket) do
+    socket =
+      socket
+      |> assign(:role_stats, load_role_statistics())
+
+    {:noreply, socket}
   end
 end

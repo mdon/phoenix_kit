@@ -44,6 +44,7 @@ defmodule PhoenixKit.Users.Roles do
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.{Role, RoleAssignment}
+  alias PhoenixKit.Admin.Events
 
   @doc """
   Assigns a role to a user.
@@ -108,8 +109,13 @@ defmodule PhoenixKit.Users.Roles do
           conflict_target: [:user_id, :role_id]
         )
         |> case do
-          {:ok, assignment} -> {:ok, assignment}
-          {:error, changeset} -> {:error, changeset}
+          {:ok, assignment} ->
+            # Broadcast role assignment event
+            Events.broadcast_user_role_assigned(user, role_name)
+            {:ok, assignment}
+
+          {:error, changeset} ->
+            {:error, changeset}
         end
     end
   end
@@ -138,7 +144,15 @@ defmodule PhoenixKit.Users.Roles do
         {:error, :assignment_not_found}
 
       assignment ->
-        repo.delete(assignment)
+        case repo.delete(assignment) do
+          {:ok, deleted_assignment} ->
+            # Broadcast role removal event
+            Events.broadcast_user_role_removed(user, role_name)
+            {:ok, deleted_assignment}
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
     end
   end
 
@@ -245,9 +259,17 @@ defmodule PhoenixKit.Users.Roles do
   def create_role(attrs \\ %{}) do
     repo = RepoHelper.repo()
 
-    %Role{}
-    |> Role.changeset(attrs)
-    |> repo.insert()
+    case %Role{}
+         |> Role.changeset(attrs)
+         |> repo.insert() do
+      {:ok, role} ->
+        # Broadcast role creation event
+        Events.broadcast_role_created(role)
+        {:ok, role}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -758,9 +780,17 @@ defmodule PhoenixKit.Users.Roles do
   def update_role(%Role{} = role, attrs) do
     repo = RepoHelper.repo()
 
-    role
-    |> Role.changeset(attrs)
-    |> repo.update()
+    case role
+         |> Role.changeset(attrs)
+         |> repo.update() do
+      {:ok, updated_role} ->
+        # Broadcast role update event
+        Events.broadcast_role_updated(updated_role)
+        {:ok, updated_role}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -794,7 +824,15 @@ defmodule PhoenixKit.Users.Roles do
         {:error, :role_in_use}
 
       true ->
-        repo.delete(role)
+        case repo.delete(role) do
+          {:ok, deleted_role} ->
+            # Broadcast role deletion event
+            Events.broadcast_role_deleted(deleted_role)
+            {:ok, deleted_role}
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
     end
   end
 
@@ -829,6 +867,10 @@ defmodule PhoenixKit.Users.Roles do
 
       # Add roles that should be present
       assignments = Enum.map(roles_to_add, &assign_role_or_rollback(user, &1, repo))
+
+      # Broadcast role synchronization event
+      new_user_roles = get_user_roles(user)
+      Events.broadcast_user_roles_synced(user, new_user_roles)
 
       assignments
     end)

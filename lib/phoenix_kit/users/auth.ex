@@ -65,6 +65,7 @@ defmodule PhoenixKit.Users.Auth do
 
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Admin.Events
 
   ## Database getters
 
@@ -148,6 +149,10 @@ defmodule PhoenixKit.Users.Auth do
             # Log successful role assignment for security audit
             require Logger
             Logger.info("PhoenixKit: User #{user.id} (#{user.email}) assigned #{role_type} role")
+
+            # Broadcast user creation event
+            Events.broadcast_user_created(user)
+
             {:ok, user}
 
           {:error, reason} ->
@@ -324,7 +329,17 @@ defmodule PhoenixKit.Users.Auth do
   """
   def generate_user_session_token(user) do
     {token, user_token} = UserToken.build_session_token(user)
-    Repo.insert!(user_token)
+    inserted_token = Repo.insert!(user_token)
+
+    # Broadcast session creation event
+    token_info = %{
+      token_id: inserted_token.id,
+      created_at: inserted_token.inserted_at,
+      context: inserted_token.context
+    }
+
+    Events.broadcast_session_created(user, token_info)
+
     token
   end
 
@@ -597,9 +612,17 @@ defmodule PhoenixKit.Users.Auth do
       {:error, %Ecto.Changeset{}}
   """
   def update_user_profile(%User{} = user, attrs) do
-    user
-    |> User.profile_changeset(attrs)
-    |> Repo.update()
+    case user
+         |> User.profile_changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated_user} ->
+        # Broadcast user profile update event
+        Events.broadcast_user_updated(updated_user)
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -625,9 +648,17 @@ defmodule PhoenixKit.Users.Auth do
     if attrs["is_active"] == false or attrs[:is_active] == false do
       case Roles.can_deactivate_user?(user) do
         :ok ->
-          user
-          |> User.status_changeset(attrs)
-          |> Repo.update()
+          case user
+               |> User.status_changeset(attrs)
+               |> Repo.update() do
+            {:ok, updated_user} ->
+              # Broadcast user status update event
+              Events.broadcast_user_updated(updated_user)
+              {:ok, updated_user}
+
+            {:error, changeset} ->
+              {:error, changeset}
+          end
 
         {:error, :cannot_deactivate_last_owner} ->
           require Logger
@@ -636,9 +667,17 @@ defmodule PhoenixKit.Users.Auth do
       end
     else
       # Activation is always safe
-      user
-      |> User.status_changeset(attrs)
-      |> Repo.update()
+      case user
+           |> User.status_changeset(attrs)
+           |> Repo.update() do
+        {:ok, updated_user} ->
+          # Broadcast user status update event
+          Events.broadcast_user_updated(updated_user)
+          {:ok, updated_user}
+
+        {:error, changeset} ->
+          {:error, changeset}
+      end
     end
   end
 

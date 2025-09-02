@@ -3,10 +3,17 @@ defmodule PhoenixKitWeb.Live.UsersLive do
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Admin.Events
 
   @per_page 10
 
   def mount(_params, session, socket) do
+    # Subscribe to user events for live updates
+    if connected?(socket) do
+      Events.subscribe_to_users()
+      Events.subscribe_to_stats()
+    end
+
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
@@ -318,5 +325,67 @@ defmodule PhoenixKitWeb.Live.UsersLive do
       "Admin" in roles -> "Admin"
       true -> "User"
     end
+  end
+
+  ## Live Event Handlers
+
+  def handle_info({:user_created, _user}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_updated, _user}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_role_assigned, _user, _role_name}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_role_removed, _user, _role_name}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_roles_synced, _user, _new_roles}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:stats_updated, stats}, socket) do
+    socket =
+      socket
+      |> assign(:total_users, stats.total_users)
+      |> assign(:total_owners, stats.owner_count)
+      |> assign(:total_admins, stats.admin_count)
+      |> assign(:total_regular_users, stats.user_count)
+      |> assign(:active_users, stats.active_users)
+      |> assign(:inactive_users, stats.inactive_users)
+      |> assign(:confirmed_users, stats.confirmed_users)
+      |> assign(:pending_users, stats.pending_users)
+
+    {:noreply, socket}
   end
 end
