@@ -4,13 +4,14 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Settings
+  alias PhoenixKit.Date, as: PKDate
 
   @per_page 10
 
   def mount(_params, session, socket) do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
-    
+
     # Load date format setting
     date_format = Settings.get_setting("date_format", "Y-m-d")
 
@@ -230,13 +231,9 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     |> assign(:pending_users, stats.pending_users)
   end
 
-
   # Format datetime using the date format setting from assigns
-  defp format_datetime(nil, _format), do: "Never"
-
   defp format_datetime(datetime, format) do
-    date = NaiveDateTime.to_date(datetime)
-    Settings.format_date(date, format)
+    PKDate.format_datetime(datetime, format)
   end
 
   defp get_user_roles(user) do

@@ -41,7 +41,7 @@ defmodule PhoenixKit.Settings do
 
   import Ecto.Query, warn: false
   alias PhoenixKit.Settings.Setting
-  use Timex
+  alias PhoenixKit.Date, as: PKDate
 
   # Gets the configured repository for database operations.
   # Uses PhoenixKit.RepoHelper to get the configured repo with proper prefix support.
@@ -174,14 +174,6 @@ defmodule PhoenixKit.Settings do
       }
   """
   def get_setting_options do
-    # Generate dynamic examples using current date and time
-    today = Date.utc_today()
-    now = Time.utc_now()
-
-    # Format current date in different patterns
-    date_examples = generate_date_examples(today)
-    time_examples = generate_time_examples(now)
-
     %{
       "time_zone" => [
         {"UTC-12 (Baker Island)", "-12"},
@@ -210,38 +202,8 @@ defmodule PhoenixKit.Settings do
         {"UTC+11 (Solomon Islands)", "11"},
         {"UTC+12 (New Zealand)", "12"}
       ],
-      "date_format" => [
-        {"YYYY-MM-DD (#{date_examples["Y-m-d"]})", "Y-m-d"},
-        {"MM/DD/YYYY (#{date_examples["m/d/Y"]})", "m/d/Y"},
-        {"DD/MM/YYYY (#{date_examples["d/m/Y"]})", "d/m/Y"},
-        {"DD.MM.YYYY (#{date_examples["d.m.Y"]})", "d.m.Y"},
-        {"DD-MM-YYYY (#{date_examples["d-m-Y"]})", "d-m-Y"},
-        {"Month Day, Year (#{date_examples["F j, Y"]})", "F j, Y"}
-      ],
-      "time_format" => [
-        {"24 Hour (#{time_examples["H:i"]})", "H:i"},
-        {"12 Hour (#{time_examples["h:i A"]})", "h:i A"}
-      ]
-    }
-  end
-
-  # Helper function to generate date examples in different formats
-  defp generate_date_examples(date) do
-    %{
-      "Y-m-d" => format_date(date, "Y-m-d"),
-      "m/d/Y" => format_date(date, "m/d/Y"),
-      "d/m/Y" => format_date(date, "d/m/Y"),
-      "d.m.Y" => format_date(date, "d.m.Y"),
-      "d-m-Y" => format_date(date, "d-m-Y"),
-      "F j, Y" => format_date(date, "F j, Y")
-    }
-  end
-
-  # Helper function to generate time examples in different formats
-  defp generate_time_examples(time) do
-    %{
-      "H:i" => format_time(time, "H:i"),
-      "h:i A" => format_time(time, "h:i A")
+      "date_format" => PKDate.get_date_format_options(),
+      "time_format" => PKDate.get_time_format_options()
     }
   end
 
@@ -266,67 +228,6 @@ defmodule PhoenixKit.Settings do
       "date_format" => "Y-m-d",
       "time_format" => "H:i"
     }
-  end
-
-  @doc """
-  Formats a date according to the specified format string.
-  
-  Uses Timex for robust date formatting with extensive format support.
-  
-  ## Examples
-  
-      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "Y-m-d")
-      "2024-01-15"
-      
-      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "m/d/Y")
-      "01/15/2024"
-      
-      iex> PhoenixKit.Settings.format_date(~D[2024-01-15], "F j, Y")
-      "January 15, 2024"
-  """
-  def format_date(date, format) do
-    # Map our format codes to Timex format strings
-    timex_format = case format do
-      "Y-m-d" -> "{YYYY}-{0M}-{0D}"
-      "m/d/Y" -> "{0M}/{0D}/{YYYY}"
-      "d/m/Y" -> "{0D}/{0M}/{YYYY}"
-      "d.m.Y" -> "{0D}.{0M}.{YYYY}"
-      "d-m-Y" -> "{0D}-{0M}-{YYYY}"
-      "F j, Y" -> "{Mfull} {D}, {YYYY}"
-      _ -> "{YYYY}-{0M}-{0D}" # Default to Y-m-d format
-    end
-    
-    case Timex.format(date, timex_format) do
-      {:ok, formatted} -> formatted
-      {:error, _} -> Date.to_string(date) # Fallback to ISO format
-    end
-  end
-
-  @doc """
-  Formats a time according to the specified format string.
-  
-  Uses Timex for robust time formatting with extensive format support.
-  
-  ## Examples
-  
-      iex> PhoenixKit.Settings.format_time(~T[15:30:00], "H:i")
-      "15:30"
-      
-      iex> PhoenixKit.Settings.format_time(~T[15:30:00], "h:i A")
-      "3:30 PM"
-  """
-  def format_time(time, format) do
-    # Map our format codes to Timex format strings
-    timex_format = case format do
-      "H:i" -> "{h24}:{m}"
-      "h:i A" -> "{h12}:{m} {AM}"
-      _ -> "{h24}:{m}" # Default to 24-hour format
-    end
-    
-    case Timex.format(time, timex_format) do
-      {:ok, formatted} -> formatted
-      {:error, _} -> Time.to_string(time) # Fallback to ISO format
-    end
   end
 
   @doc """
