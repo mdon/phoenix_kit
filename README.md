@@ -63,6 +63,7 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - Testimonials
   - Chat
   - Team
+  - Contact Us
   
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
