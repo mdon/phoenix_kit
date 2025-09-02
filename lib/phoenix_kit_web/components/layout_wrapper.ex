@@ -211,6 +211,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
+                    <.admin_nav_item
+                      href="/phoenix_kit/admin/settings"
+                      icon="settings"
+                      label="Settings"
+                      current_path={@current_path || ""}
+                    />
+
                     <div class="divider my-3"></div>
                     
             <!-- User Management Section -->
