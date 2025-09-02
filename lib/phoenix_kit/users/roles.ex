@@ -112,6 +112,11 @@ defmodule PhoenixKit.Users.Roles do
           {:ok, assignment} ->
             # Broadcast role assignment event
             Events.broadcast_user_role_assigned(user, role_name)
+
+            # Log out user from all sessions to refresh their permissions
+            alias PhoenixKitWeb.Users.Auth, as: WebAuth
+            WebAuth.log_out_user_from_all_sessions(user)
+
             {:ok, assignment}
 
           {:error, changeset} ->
@@ -148,6 +153,11 @@ defmodule PhoenixKit.Users.Roles do
           {:ok, deleted_assignment} ->
             # Broadcast role removal event
             Events.broadcast_user_role_removed(user, role_name)
+
+            # Log out user from all sessions to refresh their permissions
+            alias PhoenixKitWeb.Users.Auth, as: WebAuth
+            WebAuth.log_out_user_from_all_sessions(user)
+
             {:ok, deleted_assignment}
 
           {:error, changeset} ->
@@ -871,6 +881,10 @@ defmodule PhoenixKit.Users.Roles do
       # Broadcast role synchronization event
       new_user_roles = get_user_roles(user)
       Events.broadcast_user_roles_synced(user, new_user_roles)
+
+      # Log out user from all sessions to refresh their permissions
+      alias PhoenixKitWeb.Users.Auth, as: WebAuth
+      WebAuth.log_out_user_from_all_sessions(user)
 
       assignments
     end)

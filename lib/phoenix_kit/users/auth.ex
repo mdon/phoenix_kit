@@ -359,6 +359,26 @@ defmodule PhoenixKit.Users.Auth do
     :ok
   end
 
+  @doc """
+  Deletes all session tokens for the given user.
+
+  This function is useful when you need to force logout a user from all sessions,
+  for example when their roles change and they need fresh authentication.
+  """
+  def delete_all_user_session_tokens(user) do
+    Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["session"]))
+    :ok
+  end
+
+  @doc """
+  Gets all active session tokens for the given user.
+
+  This is useful for finding all active sessions to broadcast logout messages.
+  """
+  def get_all_user_session_tokens(user) do
+    Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
+  end
+
   ## Confirmation
 
   @doc ~S"""

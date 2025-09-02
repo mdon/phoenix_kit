@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.DashboardLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Admin.{Events, Presence}
   alias PhoenixKit.Users.{Roles, Sessions}
 
   def mount(_params, session, socket) do
@@ -9,11 +9,13 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     if connected?(socket) do
       Events.subscribe_to_stats()
       Events.subscribe_to_sessions()
+      Events.subscribe_to_presence()
     end
 
     # Load extended statistics including activity and confirmation status (now optimized!)
     stats = Roles.get_extended_stats()
     session_stats = Sessions.get_session_stats()
+    presence_stats = Presence.get_presence_stats()
 
     # Get PhoenixKit version from application specification
     version = Application.spec(:phoenix_kit, :vsn) |> to_string()
@@ -32,6 +34,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       socket
       |> assign(:stats, stats)
       |> assign(:session_stats, session_stats)
+      |> assign(:presence_stats, presence_stats)
       |> assign(:phoenix_kit_version, version)
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Dashboard")
@@ -49,11 +52,13 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     # Refresh statistics with optimized single query
     stats = Roles.get_extended_stats()
     session_stats = Sessions.get_session_stats()
+    presence_stats = Presence.get_presence_stats()
 
     socket =
       socket
       |> assign(:stats, stats)
       |> assign(:session_stats, session_stats)
+      |> assign(:presence_stats, presence_stats)
       |> assign(:stats_last_updated, :os.system_time(:second))
       |> put_flash(:info, "Statistics refreshed successfully")
 
@@ -75,6 +80,15 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     socket =
       socket
       |> assign(:session_stats, session_stats)
+
+    {:noreply, socket}
+  end
+
+  # Handle live presence statistics updates from PubSub
+  def handle_info({:presence_stats_updated, presence_stats}, socket) do
+    socket =
+      socket
+      |> assign(:presence_stats, presence_stats)
 
     {:noreply, socket}
   end
