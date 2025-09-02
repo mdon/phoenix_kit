@@ -10,6 +10,28 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       Events.subscribe_to_stats()
       Events.subscribe_to_sessions()
       Events.subscribe_to_presence()
+
+      # Track authenticated user session if logged in
+      if socket.assigns[:phoenix_kit_current_scope] do
+        scope = socket.assigns.phoenix_kit_current_scope
+
+        if PhoenixKit.Users.Auth.Scope.authenticated?(scope) do
+          user_id = PhoenixKit.Users.Auth.Scope.user_id(scope)
+          user_email = PhoenixKit.Users.Auth.Scope.user_email(scope)
+
+          # Create a user struct for tracking
+          user = %{id: user_id, email: user_email}
+          session_id = session["live_socket_id"] || generate_session_id()
+
+          Presence.track_user(user, %{
+            connected_at: DateTime.utc_now(),
+            session_id: session_id,
+            ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+            user_agent: get_connect_info(socket, :user_agent),
+            current_page: "/phoenix_kit/admin/dashboard"
+          })
+        end
+      end
     end
 
     # Load extended statistics including activity and confirmation status (now optimized!)
@@ -92,4 +114,14 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
 
     {:noreply, socket}
   end
+
+  # Helper functions
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  defp extract_ip_address(nil), do: "unknown"
+  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp extract_ip_address(%{address: address}), do: to_string(address)
+  defp extract_ip_address(_), do: "unknown"
 end

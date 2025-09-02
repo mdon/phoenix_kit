@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.RegistrationLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
 
@@ -132,7 +133,19 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
     """
   end
 
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    # Track anonymous visitor session
+    if connected?(socket) do
+      session_id = session["live_socket_id"] || generate_session_id()
+
+      Presence.track_anonymous(session_id, %{
+        connected_at: DateTime.utc_now(),
+        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+        user_agent: get_connect_info(socket, :user_agent),
+        current_page: "/phoenix_kit/users/register"
+      })
+    end
+
     changeset = Auth.change_user_registration(%User{})
 
     socket =
@@ -181,4 +194,13 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       _ -> false
     end
   end
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  defp extract_ip_address(nil), do: "unknown"
+  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp extract_ip_address(%{address: address}), do: to_string(address)
+  defp extract_ip_address(_), do: "unknown"
 end

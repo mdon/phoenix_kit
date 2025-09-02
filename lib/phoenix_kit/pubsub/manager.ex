@@ -19,7 +19,7 @@ defmodule PhoenixKit.PubSub.Manager do
   Starts the manager if not already running.
   """
   def broadcast(topic, message) do
-    ensure_started()
+    ensure_started_internal()
     Phoenix.PubSub.broadcast(@pubsub_name, topic, message)
   end
 
@@ -28,7 +28,7 @@ defmodule PhoenixKit.PubSub.Manager do
   Starts the manager if not already running.
   """
   def subscribe(topic) do
-    ensure_started()
+    ensure_started_internal()
     Phoenix.PubSub.subscribe(@pubsub_name, topic)
   end
 
@@ -36,7 +36,7 @@ defmodule PhoenixKit.PubSub.Manager do
   Unsubscribes from a topic.
   """
   def unsubscribe(topic) do
-    ensure_started()
+    ensure_started_internal()
     Phoenix.PubSub.unsubscribe(@pubsub_name, topic)
   end
 
@@ -47,9 +47,17 @@ defmodule PhoenixKit.PubSub.Manager do
     GenServer.start_link(__MODULE__, opts, name: @manager_name)
   end
 
+  @doc """
+  Ensures the PubSub manager is started.
+  Public function that can be called from other modules.
+  """
+  def ensure_started do
+    ensure_started_internal()
+  end
+
   ## Private Functions
 
-  defp ensure_started do
+  defp ensure_started_internal do
     case GenServer.whereis(@manager_name) do
       nil ->
         case start_link() do
