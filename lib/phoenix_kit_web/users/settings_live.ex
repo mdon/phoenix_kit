@@ -49,6 +49,29 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
               </div>
             </div>
             
+    <!-- Profile Settings Card -->
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <h2 class="card-title">Profile Information</h2>
+                <p class="text-sm text-base-content/70 mb-4">Update your personal information</p>
+
+                <.simple_form
+                  for={@profile_form}
+                  id="profile_form"
+                  phx-submit="update_profile"
+                  phx-change="validate_profile"
+                >
+                  <.input field={@profile_form[:first_name]} type="text" label="First Name" />
+                  <.input field={@profile_form[:last_name]} type="text" label="Last Name" />
+                  <:actions>
+                    <.button phx-disable-with="Updating..." class="btn-primary">
+                      Update Profile
+                    </.button>
+                  </:actions>
+                </.simple_form>
+              </div>
+            </div>
+            
     <!-- Password Settings Card -->
             <div class="card bg-base-100 shadow-xl">
               <div class="card-body">
@@ -144,6 +167,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
     user = socket.assigns.phoenix_kit_current_user
     email_changeset = Auth.change_user_email(user)
     password_changeset = Auth.change_user_password(user)
+    profile_changeset = Auth.change_user_profile(user)
 
     socket =
       socket
@@ -152,6 +176,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
       |> assign(:current_email, user.email)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
+      |> assign(:profile_form, to_form(profile_changeset))
       |> assign(:trigger_submit, false)
 
     {:ok, socket}
@@ -216,6 +241,31 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
 
       {:error, changeset} ->
         {:noreply, assign(socket, password_form: to_form(changeset))}
+    end
+  end
+
+  def handle_event("validate_profile", params, socket) do
+    %{"user" => user_params} = params
+
+    profile_form =
+      socket.assigns.phoenix_kit_current_user
+      |> Auth.change_user_profile(user_params)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, profile_form: profile_form)}
+  end
+
+  def handle_event("update_profile", params, socket) do
+    %{"user" => user_params} = params
+    user = socket.assigns.phoenix_kit_current_user
+
+    case Auth.update_user_profile(user, user_params) do
+      {:ok, _user} ->
+        {:noreply, socket |> put_flash(:info, "Profile updated successfully")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :profile_form, to_form(Map.put(changeset, :action, :insert)))}
     end
   end
 
