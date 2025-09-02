@@ -24,9 +24,9 @@ defmodule PhoenixKit.Users.Sessions do
   """
 
   import Ecto.Query, warn: false
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.RepoHelper, as: Repo
   alias PhoenixKit.Users.Auth.{User, UserToken}
-  alias PhoenixKit.Admin.Events
 
   @session_validity_in_days 60
 

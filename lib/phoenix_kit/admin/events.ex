@@ -47,8 +47,8 @@ defmodule PhoenixKit.Admin.Events do
       PhoenixKit.Admin.Events.broadcast_stats_updated()
   """
 
-  alias PhoenixKit.Users.Roles
   alias PhoenixKit.PubSub.Manager
+  alias PhoenixKit.Users.Roles
 
   # Topic names
   @topic_users "phoenix_kit:admin:users"
@@ -153,7 +153,8 @@ defmodule PhoenixKit.Admin.Events do
   Broadcasts session statistics update event to admin panels.
   """
   def broadcast_sessions_stats_updated do
-    stats = PhoenixKit.Users.Sessions.get_session_stats()
+    alias PhoenixKit.Users.Sessions
+    stats = Sessions.get_session_stats()
     broadcast(@topic_sessions, {:sessions_stats_updated, stats})
   end
 
@@ -215,13 +216,11 @@ defmodule PhoenixKit.Admin.Events do
 
   # Safe version that doesn't crash if no repository configured
   defp maybe_broadcast_stats_updated do
-    try do
-      broadcast_stats_updated()
-    rescue
-      # No repository configured, skip stats
-      RuntimeError -> :ok
-      # Any other error, skip stats
-      _ -> :ok
-    end
+    broadcast_stats_updated()
+  rescue
+    # No repository configured, skip stats
+    RuntimeError -> :ok
+    # Any other error, skip stats
+    _ -> :ok
   end
 end

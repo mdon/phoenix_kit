@@ -1,9 +1,9 @@
 defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Admin.Events
 
   @per_page 10
 

@@ -13,8 +13,8 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Users.{Sessions, Auth}
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Users.{Auth, Sessions}
 
   @per_page 20
 

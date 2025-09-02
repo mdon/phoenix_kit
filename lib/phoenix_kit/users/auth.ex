@@ -63,9 +63,9 @@ defmodule PhoenixKit.Users.Auth do
 
   # This module will be populated by mix phx.gen.auth
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Admin.Events
 
   ## Database getters
 
@@ -646,38 +646,36 @@ defmodule PhoenixKit.Users.Auth do
   def update_user_status(%User{} = user, attrs) do
     # Check if this would deactivate the last owner
     if attrs["is_active"] == false or attrs[:is_active] == false do
-      case Roles.can_deactivate_user?(user) do
-        :ok ->
-          case user
-               |> User.status_changeset(attrs)
-               |> Repo.update() do
-            {:ok, updated_user} ->
-              # Broadcast user status update event
-              Events.broadcast_user_updated(updated_user)
-              {:ok, updated_user}
-
-            {:error, changeset} ->
-              {:error, changeset}
-          end
-
-        {:error, :cannot_deactivate_last_owner} ->
-          require Logger
-          Logger.warning("PhoenixKit: Attempted to deactivate last Owner user #{user.id}")
-          {:error, :cannot_deactivate_last_owner}
-      end
+      do_deactivate_user(user, attrs)
     else
       # Activation is always safe
-      case user
-           |> User.status_changeset(attrs)
-           |> Repo.update() do
-        {:ok, updated_user} ->
-          # Broadcast user status update event
-          Events.broadcast_user_updated(updated_user)
-          {:ok, updated_user}
+      do_update_user_status(user, attrs)
+    end
+  end
 
-        {:error, changeset} ->
-          {:error, changeset}
-      end
+  defp do_deactivate_user(user, attrs) do
+    case Roles.can_deactivate_user?(user) do
+      :ok ->
+        do_update_user_status(user, attrs)
+
+      {:error, :cannot_deactivate_last_owner} ->
+        require Logger
+        Logger.warning("PhoenixKit: Attempted to deactivate last Owner user #{user.id}")
+        {:error, :cannot_deactivate_last_owner}
+    end
+  end
+
+  defp do_update_user_status(user, attrs) do
+    case user
+         |> User.status_changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated_user} ->
+        # Broadcast user status update event
+        Events.broadcast_user_updated(updated_user)
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 

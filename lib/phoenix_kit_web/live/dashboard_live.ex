@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.DashboardLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Users.{Roles, Sessions}
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Users.{Roles, Sessions}
 
   def mount(_params, session, socket) do
     # Subscribe to statistics updates for live data

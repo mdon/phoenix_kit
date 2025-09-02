@@ -41,10 +41,10 @@ defmodule PhoenixKit.Users.Roles do
 
   import Ecto.Query, warn: false
   alias Ecto.Adapters.SQL
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.{Role, RoleAssignment}
-  alias PhoenixKit.Admin.Events
 
   @doc """
   Assigns a role to a user.
