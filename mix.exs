@@ -1,8 +1,8 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.1.0"
-  @description "PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix"
+  @version "1.1.1"
+  @description "Professional authentication library for Phoenix applications with minimal setup"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
   def project do
