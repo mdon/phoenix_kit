@@ -12,11 +12,24 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Mailer
   alias PhoenixKit.Users.MagicLink
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    # Track anonymous visitor session
+    if connected?(socket) do
+      session_id = session["live_socket_id"] || generate_session_id()
+
+      Presence.track_anonymous(session_id, %{
+        connected_at: DateTime.utc_now(),
+        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+        user_agent: get_connect_info(socket, :user_agent),
+        current_page: "/phoenix_kit/users/magic-link"
+      })
+    end
+
     {:ok,
      socket
      |> assign(:page_title, "Magic Link Login")
@@ -192,4 +205,13 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
   end
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  defp extract_ip_address(nil), do: "unknown"
+  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp extract_ip_address(%{address: address}), do: to_string(address)
+  defp extract_ip_address(_), do: "unknown"
 end
