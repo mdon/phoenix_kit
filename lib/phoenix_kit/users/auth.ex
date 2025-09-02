@@ -276,6 +276,19 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Returns an `%Ecto.Changeset{}` for changing the user profile.
+
+  ## Examples
+
+      iex> change_user_profile(user)
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  def change_user_profile(user, attrs \\ %{}) do
+    User.profile_changeset(user, attrs, validate_email: false)
+  end
+
+  @doc """
   Updates the user password.
 
   ## Examples

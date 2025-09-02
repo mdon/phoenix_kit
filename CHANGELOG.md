@@ -1,3 +1,15 @@
+## 1.1.1 - 2025-09-02
+
+### Added
+- Profile settings functionality with first name and last name fields
+- Profile changeset function for user profile updates
+- Complete profile editing interface in user settings
+
+### Fixed
+- Router integration by removing unnecessary redirect pipe for login route
+- Added admin shortcut route for improved navigation
+- Enhanced admin dashboard accessibility
+
 ## 1.1.0 - 2025-09-01
 
 ### Changed
