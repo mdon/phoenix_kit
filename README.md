@@ -23,6 +23,7 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - 2FA
   - Locale / Timezone
   - Referral Program
+  - Fail2ban
 - Backend admin
   - Modules manager
   - Settings
