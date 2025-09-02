@@ -220,6 +220,7 @@ defmodule PhoenixKit.Admin.Events do
   Subscribes to user events for admin panels.
   """
   def subscribe_to_users do
+    Manager.ensure_started()
     Manager.subscribe(@topic_users)
   end
 
@@ -227,6 +228,7 @@ defmodule PhoenixKit.Admin.Events do
   Subscribes to role events for admin panels.
   """
   def subscribe_to_roles do
+    Manager.ensure_started()
     Manager.subscribe(@topic_roles)
   end
 
@@ -234,6 +236,7 @@ defmodule PhoenixKit.Admin.Events do
   Subscribes to session events for admin panels.
   """
   def subscribe_to_sessions do
+    Manager.ensure_started()
     Manager.subscribe(@topic_sessions)
   end
 
@@ -241,6 +244,7 @@ defmodule PhoenixKit.Admin.Events do
   Subscribes to presence events for admin panels.
   """
   def subscribe_to_presence do
+    Manager.ensure_started()
     Manager.subscribe(@topic_presence)
   end
 
@@ -248,6 +252,7 @@ defmodule PhoenixKit.Admin.Events do
   Subscribes to statistics events for admin dashboard.
   """
   def subscribe_to_stats do
+    Manager.ensure_started()
     Manager.subscribe(@topic_stats)
   end
 

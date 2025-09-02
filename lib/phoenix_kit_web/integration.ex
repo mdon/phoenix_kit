@@ -42,6 +42,7 @@ defmodule PhoenixKitWeb.Integration do
 
   Admin routes (Owner/Admin only):
   - /admin/dashboard, /admin/users, /admin/roles
+  - /admin/live_sessions, /admin/sessions
 
   ## DaisyUI Setup
 
@@ -123,6 +124,8 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/new", Users.UserFormLive, :new
           live "/admin/users/edit/:id", Users.UserFormLive, :edit
           live "/admin/roles", Live.RolesLive, :index
+          live "/admin/live_sessions", Live.LiveSessionsLive, :index
+          live "/admin/sessions", Live.SessionsLive, :index
         end
       end
     end

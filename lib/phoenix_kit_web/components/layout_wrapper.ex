@@ -58,10 +58,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :phoenix_kit_current_user, :any, default: nil
   attr :page_title, :string, default: nil
   attr :current_path, :string, default: nil
+  attr :inner_content, :string, default: nil
 
-  slot :inner_block, required: true
+  slot :inner_block, required: false
 
   def app_layout(assigns) do
+    # Handle both inner_content (Phoenix 1.7-) and inner_block (Phoenix 1.8+)
+    assigns = normalize_content_assigns(assigns)
+
     # For admin pages, render simplified layout without parent headers
     if admin_page?(assigns) do
       render_admin_only_layout(assigns)
@@ -77,6 +81,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   ## Private Implementation
+
+  # Normalize content assigns to handle both inner_content and inner_block
+  defp normalize_content_assigns(assigns) do
+    # If we have inner_content but no inner_block, create inner_block from inner_content
+    if assigns[:inner_content] && (!assigns[:inner_block] || assigns[:inner_block] == []) do
+      inner_content = assigns[:inner_content]
+
+      # Create a synthetic inner_block slot
+      inner_block = [
+        %{
+          inner_block: fn _slot_assigns, _index ->
+            Phoenix.HTML.raw(inner_content)
+          end
+        }
+      ]
+
+      Map.put(assigns, :inner_block, inner_block)
+    else
+      # If we have inner_block but no inner_content, leave as is
+      assigns
+    end
+  end
 
   # Check if current page is an admin page that needs navigation
   defp admin_page?(assigns) do
@@ -229,6 +255,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       href="/phoenix_kit/admin/users"
                       icon="users"
                       label="Users"
+                      current_path={@current_path || ""}
+                    />
+
+                    <.admin_nav_item
+                      href="/phoenix_kit/admin/live_sessions"
+                      icon="live_sessions"
+                      label="Live Sessions"
                       current_path={@current_path || ""}
                     />
 
