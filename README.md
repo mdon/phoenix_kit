@@ -40,6 +40,7 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
     - Search
     - Blocks
       - Sliders
+      - Video player (mp4, youtube, etc)
   - Notifications
   - Email
   - Billing system
@@ -60,6 +61,7 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
   - Feedback
   - Roadmap / Ideas
   - Analytics
+  - API
   - Testimonials
   - Chat
   - Team
