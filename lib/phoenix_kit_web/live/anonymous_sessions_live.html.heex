@@ -1,0 +1,334 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title="Anonymous Sessions - PhoenixKit Admin"
+  current_path={@current_path}
+>
+  <div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-base-content mb-2">
+        Real-Time Session Activity
+      </h1>
+      <p class="text-base-content/70">
+        Monitor anonymous and authenticated visitor sessions in real-time
+      </p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <!-- Total Active Sessions -->
+      <div class="card bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white shadow-xl">
+        <div class="card-body">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@presence_stats.total_sessions}</div>
+          <div class="text-purple-100 font-medium">Total Active</div>
+          <div class="text-purple-200 text-xs">All connections</div>
+        </div>
+      </div>
+
+      <!-- Anonymous Sessions -->
+      <div class="card bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 text-white shadow-xl">
+        <div class="card-body">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.1 3.89 23 5 23H11V21H5V3H13V9H21Z" />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@presence_stats.anonymous_sessions}</div>
+          <div class="text-cyan-100 font-medium">Anonymous</div>
+          <div class="text-cyan-200 text-xs">Unregistered visitors</div>
+        </div>
+      </div>
+
+      <!-- Authenticated Sessions -->
+      <div class="card bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 text-white shadow-xl">
+        <div class="card-body">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@presence_stats.authenticated_sessions}</div>
+          <div class="text-green-100 font-medium">Authenticated</div>
+          <div class="text-green-200 text-xs">Logged in users</div>
+        </div>
+      </div>
+
+      <!-- Unique Visitors -->
+      <div class="card bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 text-white shadow-xl">
+        <div class="card-body">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-2 bg-white/20 rounded-lg">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,13.54C18.81,13.66 21.53,14.61 23,16.66V22H21V17.51C21,16.19 19.11,15.09 16,15.09C14.1,15.09 12.8,15.42 11.91,15.83L10.88,13.54C12.93,12.68 14.63,12.54 16,13.54M8,12C10.21,12 12,10.21 12,8C12,5.79 10.21,4 8,4C5.79,4 4,5.79 4,8C4,10.21 5.79,12 8,12M8,13C5.33,13 0,14.34 0,17V20H16V17C16,14.34 10.67,13 8,13Z" />
+              </svg>
+            </div>
+          </div>
+          <div class="text-3xl font-bold mb-2">{@presence_stats.unique_anonymous_visitors + @presence_stats.active_authenticated_users}</div>
+          <div class="text-yellow-100 font-medium">Unique Visitors</div>
+          <div class="text-yellow-200 text-xs">Individual connections</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="card bg-base-100 shadow-xl mb-6">
+      <div class="card-body">
+        <div class="flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <!-- Search -->
+          <form phx-change="search" phx-submit="search" class="flex-1 max-w-md">
+            <div class="form-control">
+              <div class="input-group">
+                <input
+                  type="text"
+                  name="search"
+                  value={@search_query}
+                  placeholder="Search by IP, User-Agent, Page, or Email..."
+                  class="input input-bordered flex-1"
+                  autocomplete="off"
+                />
+                <button type="submit" class="btn btn-square btn-primary">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Filter by Type -->
+          <div class="form-control">
+            <select
+              class="select select-bordered w-full max-w-xs"
+              phx-change="filter_by_type"
+              name="type"
+            >
+              <option value="all" selected={@filter_type == "all"}>All Sessions</option>
+              <option value="anonymous" selected={@filter_type == "anonymous"}>Anonymous Only</option>
+              <option value="authenticated" selected={@filter_type == "authenticated"}>Authenticated Only</option>
+            </select>
+          </div>
+
+          <!-- Refresh Button -->
+          <button
+            phx-click="refresh_sessions"
+            class="btn btn-accent"
+            type="button"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Results Summary -->
+    <div class="mb-6">
+      <div class="stats shadow">
+        <div class="stat">
+          <div class="stat-title">Total Results</div>
+          <div class="stat-value text-2xl">{@total_count}</div>
+          <div class="stat-desc">
+            {if @search_query != "", do: "Filtered", else: "Active"} sessions
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Current Page</div>
+          <div class="stat-value text-2xl">{@page}</div>
+          <div class="stat-desc">of {@total_pages} pages</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>
+                  <button
+                    phx-click="sort_by"
+                    phx-value-field="type"
+                    class="btn btn-ghost btn-xs"
+                  >
+                    Type {sort_icon(@sort_by, :type, @sort_order)}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    phx-click="sort_by"
+                    phx-value-field="user_email"
+                    class="btn btn-ghost btn-xs"
+                  >
+                    User/ID {sort_icon(@sort_by, :user_email, @sort_order)}
+                  </button>
+                </th>
+                <th>IP Address</th>
+                <th>
+                  <button
+                    phx-click="sort_by"
+                    phx-value-field="current_page"
+                    class="btn btn-ghost btn-xs"
+                  >
+                    Current Page {sort_icon(@sort_by, :current_page, @sort_order)}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    phx-click="sort_by"
+                    phx-value-field="connected_at"
+                    class="btn btn-ghost btn-xs"
+                  >
+                    Connected {sort_icon(@sort_by, :connected_at, @sort_order)}
+                  </button>
+                </th>
+                <th>Duration</th>
+                <th>User Agent</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for session <- @sessions do %>
+                <tr>
+                  <!-- Session Type -->
+                  <td>
+                    <div class={"badge #{elem(session_type_badge(session.type), 0)} badge-sm"}>
+                      {elem(session_type_badge(session.type), 1)}
+                    </div>
+                  </td>
+
+                  <!-- User/ID -->
+                  <td>
+                    <%= if session.type == :authenticated do %>
+                      <div>
+                        <div class="font-bold text-sm">{session.user_email}</div>
+                        <div class="text-xs text-base-content/60">ID: {session.user_id}</div>
+                      </div>
+                    <% else %>
+                      <div class="text-xs text-base-content/60">
+                        Session: {String.slice(session.session_id || "unknown", 0, 8)}...
+                      </div>
+                    <% end %>
+                  </td>
+
+                  <!-- IP Address -->
+                  <td>
+                    <span class="font-mono text-sm">{extract_ip_address(session.ip_address)}</span>
+                  </td>
+
+                  <!-- Current Page -->
+                  <td>
+                    <%= if session.current_page do %>
+                      <span class="text-sm font-mono text-primary">{session.current_page}</span>
+                    <% else %>
+                      <span class="text-xs text-base-content/40">Unknown</span>
+                    <% end %>
+                  </td>
+
+                  <!-- Connected Time -->
+                  <td>
+                    <div>
+                      <div class="text-sm">{format_datetime(session.connected_at)}</div>
+                      <div class="text-xs text-base-content/60">{format_time(session.connected_at)}</div>
+                    </div>
+                  </td>
+
+                  <!-- Duration -->
+                  <td>
+                    <div class="badge badge-outline badge-sm">
+                      {connection_duration(session.connected_at)}
+                    </div>
+                  </td>
+
+                  <!-- User Agent -->
+                  <td>
+                    <div class="text-xs max-w-xs" title={session.user_agent}>
+                      {truncate_user_agent(session.user_agent)}
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <%= if @total_pages > 1 do %>
+          <div class="flex justify-center mt-6 pb-6">
+            <div class="btn-group">
+              <%= if @page > 1 do %>
+                <button
+                  phx-click="change_page"
+                  phx-value-page={@page - 1}
+                  class="btn btn-sm"
+                >
+                  «
+                </button>
+              <% end %>
+
+              <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+                <button
+                  phx-click="change_page"
+                  phx-value-page={page_num}
+                  class={if page_num == @page, do: "btn btn-sm btn-active", else: "btn btn-sm"}
+                >
+                  {page_num}
+                </button>
+              <% end %>
+
+              <%= if @page < @total_pages do %>
+                <button
+                  phx-click="change_page"
+                  phx-value-page={@page + 1}
+                  class="btn btn-sm"
+                >
+                  »
+                </button>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <!-- Empty State -->
+        <%= if @total_count == 0 do %>
+          <div class="text-center py-12">
+            <div class="text-6xl mb-4">👻</div>
+            <h3 class="text-lg font-bold text-base-content mb-2">No Active Sessions</h3>
+            <p class="text-base-content/60">
+              <%= if @search_query != "" do %>
+                No sessions match your search criteria.
+              <% else %>
+                No visitors are currently active.
+              <% end %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

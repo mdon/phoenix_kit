@@ -107,6 +107,38 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   @doc """
+  Logs out a specific user by invalidating all their session tokens and broadcasting disconnect to their LiveView sessions.
+
+  This function is useful when user roles or permissions change and you need to force re-authentication
+  to ensure the user gets updated permissions in their session.
+
+  ## Parameters
+
+  - `user`: The user to log out from all sessions
+
+  ## Examples
+
+      iex> log_out_user_from_all_sessions(user)
+      :ok
+  """
+  def log_out_user_from_all_sessions(user) do
+    # Get all session tokens before deleting them
+    user_tokens = Auth.get_all_user_session_tokens(user)
+
+    # Broadcast disconnect to all LiveView sessions for this user
+    # Each session token creates a unique live_socket_id
+    Enum.each(user_tokens, fn token ->
+      live_socket_id = "phoenix_kit_sessions:#{Base.url_encode64(token.token)}"
+      broadcast_disconnect(live_socket_id)
+    end)
+
+    # Delete all session tokens for this user
+    Auth.delete_all_user_session_tokens(user)
+
+    :ok
+  end
+
+  @doc """
   Authenticates the user by looking into the session
   and remember me token.
   """
