@@ -31,6 +31,8 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
     - Languages
   - Sessions
   - Content publishing
+    - Media / Gallery (with s3 backend)
+    - CDN
     - Static pages
     - Blog
     - Comments
@@ -45,7 +47,6 @@ PhoenixKit is a starter kit for building modern web applications with Elixir and
       - PayPal
       - Crypto
   - Newsletter
-  - Media / Gallery (with s3 backend)
   - E-commerce
   - Membership
   - SEO
