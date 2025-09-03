@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.{Auth, Sessions}
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 20
 
@@ -253,13 +254,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
     "/phoenix_kit/admin/sessions"
   end
 
-  defp format_datetime(nil), do: "Never"
-
-  defp format_datetime(datetime) when is_struct(datetime, NaiveDateTime) do
-    datetime
-    |> NaiveDateTime.to_date()
-    |> Date.to_string()
-  end
 
   defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}
   defp format_age_badge(age_in_days) when age_in_days < 7, do: {"badge-info", "#{age_in_days}d"}

@@ -1,4 +1,4 @@
-defmodule PhoenixKit.Date do
+defmodule PhoenixKit.Utils.Date do
   @moduledoc """
   Date and time formatting utilities for PhoenixKit.
 
@@ -33,16 +33,16 @@ defmodule PhoenixKit.Date do
 
       # Format a date
       date = Date.utc_today()
-      PhoenixKit.Date.format_date(date, "F j, Y")
+      PhoenixKit.Utils.Date.format_date(date, "F j, Y")
       # => "September 2, 2025"
 
       # Format a time
       time = Time.utc_now()
-      PhoenixKit.Date.format_time(time, "h:i A")  
+      PhoenixKit.Utils.Date.format_time(time, "h:i A")  
       # => "3:30 PM"
 
       # Get examples for all date formats
-      PhoenixKit.Date.get_date_examples(Date.utc_today())
+      PhoenixKit.Utils.Date.get_date_examples(Date.utc_today())
       # => %{"Y-m-d" => "2025-09-02", "F j, Y" => "September 2, 2025", ...}
 
   ## Implementation
@@ -52,6 +52,7 @@ defmodule PhoenixKit.Date do
   """
 
   use Timex
+  alias PhoenixKit.Settings
 
   @doc """
   Formats a date according to the specified format string.
@@ -60,13 +61,13 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.format_date(~D[2024-01-15], "Y-m-d")
+      iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "Y-m-d")
       "2024-01-15"
       
-      iex> PhoenixKit.Date.format_date(~D[2024-01-15], "m/d/Y")
+      iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "m/d/Y")
       "01/15/2024"
       
-      iex> PhoenixKit.Date.format_date(~D[2024-01-15], "F j, Y")
+      iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "F j, Y")
       "January 15, 2024"
   """
   def format_date(date, format) do
@@ -103,10 +104,10 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.format_time(~T[15:30:00], "H:i")
+      iex> PhoenixKit.Utils.Date.format_time(~T[15:30:00], "H:i")
       "15:30"
       
-      iex> PhoenixKit.Date.format_time(~T[15:30:00], "h:i A")
+      iex> PhoenixKit.Utils.Date.format_time(~T[15:30:00], "h:i A")
       "3:30 PM"
   """
   def format_time(time, format) do
@@ -134,7 +135,7 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.get_date_examples(~D[2024-01-15])
+      iex> PhoenixKit.Utils.Date.get_date_examples(~D[2024-01-15])
       %{
         "Y-m-d" => "2024-01-15",
         "m/d/Y" => "01/15/2024", 
@@ -163,7 +164,7 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.get_time_examples(~T[15:30:00])
+      iex> PhoenixKit.Utils.Date.get_time_examples(~T[15:30:00])
       %{
         "H:i" => "15:30",
         "h:i A" => "3:30 PM"
@@ -184,10 +185,10 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.format_datetime(~N[2024-01-15 15:30:00], "F j, Y")
+      iex> PhoenixKit.Utils.Date.format_datetime(~N[2024-01-15 15:30:00], "F j, Y")
       "January 15, 2024"
       
-      iex> PhoenixKit.Date.format_datetime(nil, "Y-m-d")
+      iex> PhoenixKit.Utils.Date.format_datetime(nil, "Y-m-d")
       "Never"
   """
   def format_datetime(nil, _format), do: "Never"
@@ -205,7 +206,7 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.get_date_format_options()
+      iex> PhoenixKit.Utils.Date.get_date_format_options()
       [
         {"YYYY-MM-DD (2025-09-02)", "Y-m-d"},
         {"MM/DD/YYYY (09/02/2025)", "m/d/Y"},
@@ -234,7 +235,7 @@ defmodule PhoenixKit.Date do
 
   ## Examples
 
-      iex> PhoenixKit.Date.get_time_format_options()
+      iex> PhoenixKit.Utils.Date.get_time_format_options()
       [
         {"24 Hour (15:30)", "H:i"},
         {"12 Hour (3:30 PM)", "h:i A"}
@@ -248,5 +249,57 @@ defmodule PhoenixKit.Date do
       {"24 Hour (#{time_examples["H:i"]})", "H:i"},
       {"12 Hour (#{time_examples["h:i A"]})", "h:i A"}
     ]
+  end
+
+  ## Settings-Aware Functions
+  ## These functions automatically load format preferences from Settings
+
+  @doc """
+  Formats a datetime using the user's date format preference from Settings.
+  
+  Automatically loads the date_format setting and applies it to the datetime.
+  Returns "Never" for nil values.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Utils.Date.format_datetime_with_user_format(~N[2024-01-15 15:30:00])
+      "January 15, 2024"  # If user has "F j, Y" format selected
+      
+      iex> PhoenixKit.Utils.Date.format_datetime_with_user_format(nil)
+      "Never"
+  """
+  def format_datetime_with_user_format(datetime) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_datetime(datetime, date_format)
+  end
+
+  @doc """
+  Formats a date using the user's date format preference from Settings.
+  
+  Automatically loads the date_format setting and applies it to the date.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Utils.Date.format_date_with_user_format(~D[2024-01-15])
+      "January 15, 2024"  # If user has "F j, Y" format selected
+  """
+  def format_date_with_user_format(date) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_date(date, date_format)
+  end
+
+  @doc """
+  Formats a time using the user's time format preference from Settings.
+  
+  Automatically loads the time_format setting and applies it to the time.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Utils.Date.format_time_with_user_format(~T[15:30:00])
+      "3:30 PM"  # If user has "h:i A" format selected
+  """
+  def format_time_with_user_format(time) do
+    time_format = Settings.get_setting("time_format", "H:i")
+    format_time(time, time_format)
   end
 end
