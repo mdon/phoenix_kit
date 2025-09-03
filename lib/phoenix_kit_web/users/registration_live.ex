@@ -10,121 +10,111 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="Join PhoenixKit"
+      page_title="Create account"
     >
-      <div class="hero bg-base-200 py-8 min-h-[80vh]">
-        <div class="hero-content flex-col lg:flex-row-reverse">
-          <!-- Welcome Section (Left side on desktop) -->
-          <div class="text-center lg:text-left">
-            <h1 class="text-5xl font-bold">Join PhoenixKit!</h1>
-            <p class="py-6">
-              Create your account to access authentication features.
-              Get started with our intelligent authentication platform designed for Phoenix applications.
-            </p>
-            <div class="text-sm opacity-75">
-              Already have an account?
+      <div class="flex items-center justify-center py-8 min-h-[80vh] bg-base-200">
+        <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
+          <div class="card-body">
+            <h1 class="text-2xl font-bold text-center mb-6">Create account</h1>
+
+            <.form
+              for={@form}
+              id="registration_form"
+              phx-submit="save"
+              phx-change="validate"
+              phx-trigger-action={@trigger_submit}
+              action="/phoenix_kit/users/log-in?_action=registered"
+              method="post"
+            >
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend sr-only">Account Information</legend>
+
+                <div :if={@check_errors} class="alert alert-error text-sm mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="stroke-current shrink-0 h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>Oops, something went wrong! Please check the errors below.</span>
+                </div>
+
+                <label class="label" for="user_email">Email</label>
+                <input
+                  id="user_email"
+                  name="user[email]"
+                  type="email"
+                  class="input input-bordered validator w-full"
+                  placeholder="Enter your email address"
+                  value={@form.params["email"] || ""}
+                  pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
+                  title="Please enter a valid email address"
+                  required
+                />
+                <p class="validator-hint">Please enter a valid email address</p>
+
+                <label class="label" for="user_password">Password</label>
+                <input
+                  id="user_password"
+                  name="user[password]"
+                  type="password"
+                  class="input input-bordered validator w-full"
+                  placeholder="Choose a secure password"
+                  minlength="8"
+                  title="Password must be at least 8 characters long"
+                  required
+                />
+                <p class="validator-hint">Password must be at least 8 characters long</p>
+
+                <button
+                  type="submit"
+                  phx-disable-with="Creating account..."
+                  class="btn btn-primary w-full mt-4"
+                >
+                  Create account <span aria-hidden="true">→</span>
+                </button>
+              </fieldset>
+            </.form>
+            
+    <!-- Login link -->
+            <div class="text-center mt-4 text-sm">
+              <span>Already have an account? </span>
               <.link
                 navigate="/phoenix_kit/users/log-in"
                 class="font-semibold text-primary hover:underline"
               >
-                Sign in here
+                Sign in
               </.link>
             </div>
-          </div>
-          
-    <!-- Registration Form Card (Right side on desktop) -->
-          <div class="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
-            <div class="card-body">
-              <h2 class="card-title justify-center">Create account</h2>
-
-              <.form
-                for={@form}
-                id="registration_form"
-                phx-submit="save"
-                phx-change="validate"
-                phx-trigger-action={@trigger_submit}
-                action="/phoenix_kit/users/log-in?_action=registered"
-                method="post"
-              >
-                <fieldset class="fieldset">
-                  <legend class="fieldset-legend">Account Information</legend>
-
-                  <div :if={@check_errors} class="alert alert-error text-sm mb-4">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="stroke-current shrink-0 h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span>Oops, something went wrong! Please check the errors below.</span>
-                  </div>
-
-                  <label class="label" for="user_email">Email</label>
-                  <input
-                    id="user_email"
-                    name="user[email]"
-                    type="email"
-                    class="input input-bordered validator w-full"
-                    placeholder="Enter your email address"
-                    value={@form.params["email"] || ""}
-                    pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-                    title="Please enter a valid email address"
-                    required
-                  />
-                  <p class="validator-hint">Please enter a valid email address</p>
-
-                  <label class="label" for="user_password">Password</label>
-                  <input
-                    id="user_password"
-                    name="user[password]"
-                    type="password"
-                    class="input input-bordered validator w-full"
-                    placeholder="Choose a secure password"
-                    minlength="8"
-                    title="Password must be at least 8 characters long"
-                    required
-                  />
-                  <p class="validator-hint">Password must be at least 8 characters long</p>
-
-                  <button
-                    type="submit"
-                    phx-disable-with="Creating account..."
-                    class="btn btn-primary w-full mt-4"
-                  >
-                    Create account <span aria-hidden="true">→</span>
-                  </button>
-                </fieldset>
-              </.form>
-              
+            
     <!-- Development Mode Notice -->
-              <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="stroke-current shrink-0 h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
+            <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="stroke-current shrink-0 h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  >
-                  </path>
-                </svg>
-                <span>
-                  Development mode: Check
-                  <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
-                  for confirmation emails
-                </span>
-              </div>
+                </path>
+              </svg>
+              <span>
+                Development mode: Check
+                <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
+                for confirmation emails
+              </span>
             </div>
           </div>
         </div>

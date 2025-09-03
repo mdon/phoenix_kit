@@ -175,6 +175,29 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
             </div>
           </div>
         </div>
+        
+    <!-- Development Mode Notice -->
+        <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-6">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="stroke-current shrink-0 h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            >
+            </path>
+          </svg>
+          <span>
+            Development mode: Check
+            <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
+            for confirmation emails
+          </span>
+        </div>
 
         <div class="mt-6">
           <div class="relative">
@@ -204,6 +227,13 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
       </div>
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
+  end
+
+  defp show_dev_notice? do
+    case Application.get_env(:phoenix_kit, PhoenixKit.Mailer)[:adapter] do
+      Swoosh.Adapters.Local -> true
+      _ -> false
+    end
   end
 
   defp generate_session_id do

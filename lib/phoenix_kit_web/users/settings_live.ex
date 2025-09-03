@@ -139,8 +139,9 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                 </path>
               </svg>
               <span>
-                Development mode: Email confirmation links will be available in
+                Development mode: Check
                 <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
+                for confirmation emails
               </span>
             </div>
           </div>
