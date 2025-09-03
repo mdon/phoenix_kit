@@ -421,7 +421,7 @@ config :phoenix_kit,
 # In your Phoenix app's mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.0"}
+    {:phoenix_kit, "~> 1.2"}
   ]
 end
 
