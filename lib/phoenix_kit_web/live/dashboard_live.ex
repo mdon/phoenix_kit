@@ -97,7 +97,26 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     {:noreply, socket}
   end
 
-  # Helper functions
+  def handle_info({:anonymous_session_connected, _session_id, _metadata}, socket) do
+    {:noreply, update_presence_stats(socket)}
+  end
+
+  def handle_info({:anonymous_session_disconnected, _session_id}, socket) do
+    {:noreply, update_presence_stats(socket)}
+  end
+
+  def handle_info({:user_session_connected, _user_id, _metadata}, socket) do
+    {:noreply, update_presence_stats(socket)}
+  end
+
+  def handle_info({:user_session_disconnected, _user_id, _session_id}, socket) do
+    {:noreply, update_presence_stats(socket)}
+  end
+
+  defp update_presence_stats(socket) do
+    assign(socket, :presence_stats, Presence.get_presence_stats())
+  end
+
   defp track_authenticated_session(socket, session) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
