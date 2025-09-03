@@ -65,6 +65,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Roadmap / Ideas
   - Analytics
   - API
+  - CRM
   - Testimonials
   - Chat
   - Team
