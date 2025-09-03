@@ -55,11 +55,11 @@ defmodule PhoenixKit.Date do
 
   @doc """
   Formats a date according to the specified format string.
-  
+
   Uses Timex for robust date formatting with extensive format support.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.format_date(~D[2024-01-15], "Y-m-d")
       "2024-01-15"
       
@@ -71,29 +71,32 @@ defmodule PhoenixKit.Date do
   """
   def format_date(date, format) do
     # Map our format codes to Timex format strings
-    timex_format = case format do
-      "Y-m-d" -> "{YYYY}-{0M}-{0D}"
-      "m/d/Y" -> "{0M}/{0D}/{YYYY}"
-      "d/m/Y" -> "{0D}/{0M}/{YYYY}"
-      "d.m.Y" -> "{0D}.{0M}.{YYYY}"
-      "d-m-Y" -> "{0D}-{0M}-{YYYY}"
-      "F j, Y" -> "{Mfull} {D}, {YYYY}"
-      _ -> "{YYYY}-{0M}-{0D}" # Default to Y-m-d format
-    end
-    
+    timex_format =
+      case format do
+        "Y-m-d" -> "{YYYY}-{0M}-{0D}"
+        "m/d/Y" -> "{0M}/{0D}/{YYYY}"
+        "d/m/Y" -> "{0D}/{0M}/{YYYY}"
+        "d.m.Y" -> "{0D}.{0M}.{YYYY}"
+        "d-m-Y" -> "{0D}-{0M}-{YYYY}"
+        "F j, Y" -> "{Mfull} {D}, {YYYY}"
+        # Default to Y-m-d format
+        _ -> "{YYYY}-{0M}-{0D}"
+      end
+
     case Timex.format(date, timex_format) do
       {:ok, formatted} -> formatted
-      {:error, _} -> Date.to_string(date) # Fallback to ISO format
+      # Fallback to ISO format
+      {:error, _} -> Date.to_string(date)
     end
   end
 
   @doc """
   Formats a time according to the specified format string.
-  
+
   Uses Timex for robust time formatting with extensive format support.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.format_time(~T[15:30:00], "H:i")
       "15:30"
       
@@ -102,26 +105,29 @@ defmodule PhoenixKit.Date do
   """
   def format_time(time, format) do
     # Map our format codes to Timex format strings
-    timex_format = case format do
-      "H:i" -> "{h24}:{m}"
-      "h:i A" -> "{h12}:{m} {AM}"
-      _ -> "{h24}:{m}" # Default to 24-hour format
-    end
-    
+    timex_format =
+      case format do
+        "H:i" -> "{h24}:{m}"
+        "h:i A" -> "{h12}:{m} {AM}"
+        # Default to 24-hour format
+        _ -> "{h24}:{m}"
+      end
+
     case Timex.format(time, timex_format) do
       {:ok, formatted} -> formatted
-      {:error, _} -> Time.to_string(time) # Fallback to ISO format
+      # Fallback to ISO format
+      {:error, _} -> Time.to_string(time)
     end
   end
 
   @doc """
   Generates example formatted dates for all supported formats.
-  
+
   Returns a map with format codes as keys and formatted examples as values.
   Useful for generating dropdown options and previews.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.get_date_examples(~D[2024-01-15])
       %{
         "Y-m-d" => "2024-01-15",
@@ -145,12 +151,12 @@ defmodule PhoenixKit.Date do
 
   @doc """
   Generates example formatted times for all supported formats.
-  
+
   Returns a map with format codes as keys and formatted examples as values.
   Useful for generating dropdown options and previews.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.get_time_examples(~T[15:30:00])
       %{
         "H:i" => "15:30",
@@ -166,12 +172,12 @@ defmodule PhoenixKit.Date do
 
   @doc """
   Formats a datetime (NaiveDateTime) according to the specified date format.
-  
+
   Extracts the date part and formats it using format_date/2.
   Returns "Never" for nil values.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.format_datetime(~N[2024-01-15 15:30:00], "F j, Y")
       "January 15, 2024"
       
@@ -187,12 +193,12 @@ defmodule PhoenixKit.Date do
 
   @doc """
   Gets all supported date format options with dynamic examples.
-  
+
   Returns a list of {label, format_code} tuples suitable for dropdown menus.
   Each label includes the format description and a current date example.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.get_date_format_options()
       [
         {"YYYY-MM-DD (2025-09-02)", "Y-m-d"},
@@ -216,12 +222,12 @@ defmodule PhoenixKit.Date do
 
   @doc """
   Gets all supported time format options with dynamic examples.
-  
+
   Returns a list of {label, format_code} tuples suitable for dropdown menus.
   Each label includes the format description and a current time example.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Date.get_time_format_options()
       [
         {"24 Hour (15:30)", "H:i"},
