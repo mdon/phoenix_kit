@@ -58,6 +58,8 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - SEO
   - AI
   - What’s New
+  - DB manager
+    - Custom entities and fields
   - Customer service
   - Feedback
   - Roadmap / Ideas
