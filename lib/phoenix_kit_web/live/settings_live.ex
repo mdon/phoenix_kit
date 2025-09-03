@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Settings
 
   # Embedded schema for form validation
@@ -153,10 +153,10 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
 
   # Helper functions for template to show current format examples
   def get_current_date_example(format) do
-    PKDate.format_date(Date.utc_today(), format)
+    UtilsDate.format_date(Date.utc_today(), format)
   end
 
   def get_current_time_example(format) do
-    PKDate.format_time(Time.utc_now(), format)
+    UtilsDate.format_time(Time.utc_now(), format)
   end
 end
