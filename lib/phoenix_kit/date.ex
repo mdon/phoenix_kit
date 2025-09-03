@@ -52,6 +52,7 @@ defmodule PhoenixKit.Date do
   """
 
   use Timex
+  alias PhoenixKit.Settings
 
   @doc """
   Formats a date according to the specified format string.
@@ -248,5 +249,57 @@ defmodule PhoenixKit.Date do
       {"24 Hour (#{time_examples["H:i"]})", "H:i"},
       {"12 Hour (#{time_examples["h:i A"]})", "h:i A"}
     ]
+  end
+
+  ## Settings-Aware Functions
+  ## These functions automatically load format preferences from Settings
+
+  @doc """
+  Formats a datetime using the user's date format preference from Settings.
+  
+  Automatically loads the date_format setting and applies it to the datetime.
+  Returns "Never" for nil values.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Date.format_datetime_with_user_format(~N[2024-01-15 15:30:00])
+      "January 15, 2024"  # If user has "F j, Y" format selected
+      
+      iex> PhoenixKit.Date.format_datetime_with_user_format(nil)
+      "Never"
+  """
+  def format_datetime_with_user_format(datetime) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_datetime(datetime, date_format)
+  end
+
+  @doc """
+  Formats a date using the user's date format preference from Settings.
+  
+  Automatically loads the date_format setting and applies it to the date.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Date.format_date_with_user_format(~D[2024-01-15])
+      "January 15, 2024"  # If user has "F j, Y" format selected
+  """
+  def format_date_with_user_format(date) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_date(date, date_format)
+  end
+
+  @doc """
+  Formats a time using the user's time format preference from Settings.
+  
+  Automatically loads the time_format setting and applies it to the time.
+  
+  ## Examples
+  
+      iex> PhoenixKit.Date.format_time_with_user_format(~T[15:30:00])
+      "3:30 PM"  # If user has "h:i A" format selected
+  """
+  def format_time_with_user_format(time) do
+    time_format = Settings.get_setting("time_format", "H:i")
+    format_time(time, time_format)
   end
 end

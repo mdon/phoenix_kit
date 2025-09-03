@@ -15,7 +15,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.{Auth, Sessions}
-  alias PhoenixKit.Settings
   alias PhoenixKit.Date, as: PKDate
 
   @per_page 20
@@ -28,9 +27,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
 
     # Get current path for navigation
     current_path = get_current_path(socket, session)
-    
-    # Load date format setting
-    date_format = Settings.get_setting("date_format", "Y-m-d")
 
     socket =
       socket
@@ -40,7 +36,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
       |> assign(:filter_user_status, "all")
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Sessions")
-      |> assign(:date_format, date_format)
       |> assign(:show_revoke_modal, false)
       |> assign(:selected_session, nil)
       |> assign(:revoke_type, nil)
@@ -259,9 +254,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
     "/phoenix_kit/admin/sessions"
   end
 
-  defp format_datetime(datetime, format) do
-    PKDate.format_datetime(datetime, format)
-  end
 
   defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}
   defp format_age_badge(age_in_days) when age_in_days < 7, do: {"badge-info", "#{age_in_days}d"}

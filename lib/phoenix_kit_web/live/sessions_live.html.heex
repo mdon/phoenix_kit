@@ -104,7 +104,7 @@
               <div class="text-sm">
                 <div><strong>Token:</strong> {@selected_session.token_preview}...</div>
                 <div>
-                  <strong>Created:</strong> {format_datetime(@selected_session.created_at, @date_format)}
+                  <strong>Created:</strong> {PKDate.format_datetime_with_user_format(@selected_session.created_at)}
                 </div>
                 <div><strong>Age:</strong> {@selected_session.age_in_days} days</div>
               </div>
@@ -266,7 +266,7 @@
                   
 <!-- Created -->
                   <td class="text-sm">
-                    {format_datetime(session.created_at, @date_format)}
+                    {PKDate.format_datetime_with_user_format(session.created_at)}
                   </td>
                   
 <!-- Age -->
@@ -279,7 +279,7 @@
                   
 <!-- Expires -->
                   <td class="text-sm">
-                    {format_datetime(session.expires_at, @date_format)}
+                    {PKDate.format_datetime_with_user_format(session.expires_at)}
                   </td>
                   
 <!-- Actions -->
