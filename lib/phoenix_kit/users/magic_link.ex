@@ -223,14 +223,14 @@ defmodule PhoenixKit.Users.MagicLink do
   ## Examples
 
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123")
-      "http://localhost:4000/phoenix_kit/magic_link/token123"
+      "http://localhost:4000/phoenix_kit/users/magic-link/token123"
       
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123", "https://myapp.com")
-      "https://myapp.com/phoenix_kit/magic_link/token123"
+      "https://myapp.com/phoenix_kit/users/magic-link/token123"
   """
   def magic_link_url(token, base_url \\ nil) when is_binary(token) do
     base = base_url || get_base_url()
-    "#{base}/phoenix_kit/magic_link/#{token}"
+    "#{base}/phoenix_kit/users/magic-link/#{token}"
   end
 
   @doc """
