@@ -70,19 +70,25 @@ defmodule PhoenixKit.Date do
       "January 15, 2024"
   """
   def format_date(date, format) do
-    # Map our format codes to Timex format strings
-    timex_format =
-      case format do
-        "Y-m-d" -> "{YYYY}-{0M}-{0D}"
-        "m/d/Y" -> "{0M}/{0D}/{YYYY}"
-        "d/m/Y" -> "{0D}/{0M}/{YYYY}"
-        "d.m.Y" -> "{0D}.{0M}.{YYYY}"
-        "d-m-Y" -> "{0D}-{0M}-{YYYY}"
-        "F j, Y" -> "{Mfull} {D}, {YYYY}"
-        # Default to Y-m-d format
-        _ -> "{YYYY}-{0M}-{0D}"
-      end
+    timex_format = get_timex_format(format)
+    format_with_timex(date, timex_format)
+  end
 
+  # Private helper functions to reduce complexity
+  defp get_timex_format(format) do
+    case format do
+      "Y-m-d" -> "{YYYY}-{0M}-{0D}"
+      "m/d/Y" -> "{0M}/{0D}/{YYYY}"
+      "d/m/Y" -> "{0D}/{0M}/{YYYY}"
+      "d.m.Y" -> "{0D}.{0M}.{YYYY}"
+      "d-m-Y" -> "{0D}-{0M}-{YYYY}"
+      "F j, Y" -> "{Mfull} {D}, {YYYY}"
+      # Default to Y-m-d format
+      _ -> "{YYYY}-{0M}-{0D}"
+    end
+  end
+
+  defp format_with_timex(date, timex_format) do
     case Timex.format(date, timex_format) do
       {:ok, formatted} -> formatted
       # Fallback to ISO format

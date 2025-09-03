@@ -1,4 +1,17 @@
 defmodule PhoenixKit.Migrations.Postgres.V03 do
+  @moduledoc """
+  PhoenixKit V03 Migration: Settings System
+
+  This migration adds the settings table and initial system configurations
+  to support user preferences and system-wide settings management.
+
+  ## Changes
+
+  - Adds phoenix_kit_settings table with key-value storage
+  - Creates unique index on settings keys
+  - Inserts default system settings (time_zone, date_format)
+  - Supports PostgreSQL prefix for schema isolation
+  """
   use Ecto.Migration
 
   @doc """

@@ -40,8 +40,8 @@ defmodule PhoenixKit.Settings do
   """
 
   import Ecto.Query, warn: false
-  alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Settings.Setting
 
   # Gets the configured repository for database operations.
   # Uses PhoenixKit.RepoHelper to get the configured repo with proper prefix support.

@@ -2,10 +2,10 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Settings
-  alias PhoenixKit.Date, as: PKDate
 
   @per_page 10
 
