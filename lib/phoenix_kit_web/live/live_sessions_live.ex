@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.{Events, Presence}
+  alias PhoenixKit.Users.Auth.Scope
 
   # Refresh every 5 seconds
   @refresh_interval 5_000
@@ -31,26 +32,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
       schedule_refresh()
 
       # Track authenticated user session if logged in
-      if socket.assigns[:phoenix_kit_current_scope] do
-        scope = socket.assigns.phoenix_kit_current_scope
-
-        if PhoenixKit.Users.Auth.Scope.authenticated?(scope) do
-          user_id = PhoenixKit.Users.Auth.Scope.user_id(scope)
-          user_email = PhoenixKit.Users.Auth.Scope.user_email(scope)
-
-          # Create a user struct for tracking
-          user = %{id: user_id, email: user_email}
-          session_id = session["live_socket_id"] || generate_session_id()
-
-          Presence.track_user(user, %{
-            connected_at: DateTime.utc_now(),
-            session_id: session_id,
-            ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
-            user_agent: get_connect_info(socket, :user_agent),
-            current_page: "/phoenix_kit/admin/live_sessions"
-          })
-        end
-      end
+      track_authenticated_session(socket, session)
     end
 
     # Get current path for navigation
@@ -299,6 +281,27 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
   end
 
   defp format_time_ago(_), do: "Unknown"
+
+  defp track_authenticated_session(socket, session) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    if scope && Scope.authenticated?(scope) do
+      user_id = Scope.user_id(scope)
+      user_email = Scope.user_email(scope)
+
+      # Create a user struct for tracking
+      user = %{id: user_id, email: user_email}
+      session_id = session["live_socket_id"] || generate_session_id()
+
+      Presence.track_user(user, %{
+        connected_at: DateTime.utc_now(),
+        session_id: session_id,
+        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+        user_agent: get_connect_info(socket, :user_agent),
+        current_page: "/phoenix_kit/admin/live_sessions"
+      })
+    end
+  end
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(16) |> Base.encode64()

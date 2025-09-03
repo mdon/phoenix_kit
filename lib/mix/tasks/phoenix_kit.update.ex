@@ -295,8 +295,12 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   @spec describe_version_changes(integer(), integer()) :: String.t()
   defp describe_version_changes(from_version, to_version) do
     case {from_version, to_version} do
-      {1, 2} ->
-        "- Remove is_active column from role assignments (simplified role system)"
+      {1, 3} ->
+        "- Remove is_active column from role assignments (simplified role system)\n" <>
+          "- Add settings table with user preferences support"
+
+      {2, 3} ->
+        "- Add settings table with user preferences support"
 
       {_, _} ->
         "- Various improvements and new features"

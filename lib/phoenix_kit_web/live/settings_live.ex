@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Settings
   alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Settings
 
   # Embedded schema for form validation
   defmodule SettingsForm do
@@ -140,10 +140,6 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
     errors
     |> List.first()
     |> to_string()
-  end
-
-  defp format_error_message(error) do
-    to_string(error)
   end
 
   # Helper functions for template to show dropdown labels
