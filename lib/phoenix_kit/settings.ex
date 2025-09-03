@@ -40,8 +40,8 @@ defmodule PhoenixKit.Settings do
   """
 
   import Ecto.Query, warn: false
-  alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Settings.Setting
 
   # Gets the configured repository for database operations.
   # Uses PhoenixKit.RepoHelper to get the configured repo with proper prefix support.
@@ -232,9 +232,9 @@ defmodule PhoenixKit.Settings do
 
   @doc """
   Gets the display label for a timezone value.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Settings.get_timezone_label("0", get_setting_options())
       "UTC+0 (GMT/London)"
   """
@@ -247,9 +247,9 @@ defmodule PhoenixKit.Settings do
 
   @doc """
   Gets the display label for a setting option value.
-  
+
   ## Examples
-  
+
       iex> options = [{"YYYY-MM-DD", "Y-m-d"}, {"MM/DD/YYYY", "m/d/Y"}]
       iex> PhoenixKit.Settings.get_option_label("Y-m-d", options)
       "YYYY-MM-DD"
@@ -260,5 +260,4 @@ defmodule PhoenixKit.Settings do
       nil -> value
     end
   end
-
 end

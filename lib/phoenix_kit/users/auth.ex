@@ -63,6 +63,7 @@ defmodule PhoenixKit.Users.Auth do
 
   # This module will be populated by mix phx.gen.auth
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.Roles
 
@@ -148,6 +149,10 @@ defmodule PhoenixKit.Users.Auth do
             # Log successful role assignment for security audit
             require Logger
             Logger.info("PhoenixKit: User #{user.id} (#{user.email}) assigned #{role_type} role")
+
+            # Broadcast user creation event
+            Events.broadcast_user_created(user)
+
             {:ok, user}
 
           {:error, reason} ->
@@ -324,7 +329,17 @@ defmodule PhoenixKit.Users.Auth do
   """
   def generate_user_session_token(user) do
     {token, user_token} = UserToken.build_session_token(user)
-    Repo.insert!(user_token)
+    inserted_token = Repo.insert!(user_token)
+
+    # Broadcast session creation event
+    token_info = %{
+      token_id: inserted_token.id,
+      created_at: inserted_token.inserted_at,
+      context: inserted_token.context
+    }
+
+    Events.broadcast_session_created(user, token_info)
+
     token
   end
 
@@ -342,6 +357,26 @@ defmodule PhoenixKit.Users.Auth do
   def delete_user_session_token(token) do
     Repo.delete_all(UserToken.by_token_and_context_query(token, "session"))
     :ok
+  end
+
+  @doc """
+  Deletes all session tokens for the given user.
+
+  This function is useful when you need to force logout a user from all sessions,
+  for example when their roles change and they need fresh authentication.
+  """
+  def delete_all_user_session_tokens(user) do
+    Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["session"]))
+    :ok
+  end
+
+  @doc """
+  Gets all active session tokens for the given user.
+
+  This is useful for finding all active sessions to broadcast logout messages.
+  """
+  def get_all_user_session_tokens(user) do
+    Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
   end
 
   ## Confirmation
@@ -597,9 +632,17 @@ defmodule PhoenixKit.Users.Auth do
       {:error, %Ecto.Changeset{}}
   """
   def update_user_profile(%User{} = user, attrs) do
-    user
-    |> User.profile_changeset(attrs)
-    |> Repo.update()
+    case user
+         |> User.profile_changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated_user} ->
+        # Broadcast user profile update event
+        Events.broadcast_user_updated(updated_user)
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -623,22 +666,36 @@ defmodule PhoenixKit.Users.Auth do
   def update_user_status(%User{} = user, attrs) do
     # Check if this would deactivate the last owner
     if attrs["is_active"] == false or attrs[:is_active] == false do
-      case Roles.can_deactivate_user?(user) do
-        :ok ->
-          user
-          |> User.status_changeset(attrs)
-          |> Repo.update()
-
-        {:error, :cannot_deactivate_last_owner} ->
-          require Logger
-          Logger.warning("PhoenixKit: Attempted to deactivate last Owner user #{user.id}")
-          {:error, :cannot_deactivate_last_owner}
-      end
+      do_deactivate_user(user, attrs)
     else
       # Activation is always safe
-      user
-      |> User.status_changeset(attrs)
-      |> Repo.update()
+      do_update_user_status(user, attrs)
+    end
+  end
+
+  defp do_deactivate_user(user, attrs) do
+    case Roles.can_deactivate_user?(user) do
+      :ok ->
+        do_update_user_status(user, attrs)
+
+      {:error, :cannot_deactivate_last_owner} ->
+        require Logger
+        Logger.warning("PhoenixKit: Attempted to deactivate last Owner user #{user.id}")
+        {:error, :cannot_deactivate_last_owner}
+    end
+  end
+
+  defp do_update_user_status(user, attrs) do
+    case user
+         |> User.status_changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated_user} ->
+        # Broadcast user status update event
+        Events.broadcast_user_updated(updated_user)
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 

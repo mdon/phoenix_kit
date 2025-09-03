@@ -12,11 +12,24 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Mailer
   alias PhoenixKit.Users.MagicLink
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    # Track anonymous visitor session
+    if connected?(socket) do
+      session_id = session["live_socket_id"] || generate_session_id()
+
+      Presence.track_anonymous(session_id, %{
+        connected_at: DateTime.utc_now(),
+        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+        user_agent: get_connect_info(socket, :user_agent),
+        current_page: "/phoenix_kit/users/magic-link"
+      })
+    end
+
     {:ok,
      socket
      |> assign(:page_title, "Magic Link Login")
@@ -162,6 +175,29 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
             </div>
           </div>
         </div>
+        
+    <!-- Development Mode Notice -->
+        <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-6">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="stroke-current shrink-0 h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            >
+            </path>
+          </svg>
+          <span>
+            Development mode: Check
+            <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
+            for confirmation emails
+          </span>
+        </div>
 
         <div class="mt-6">
           <div class="relative">
@@ -192,4 +228,20 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
   end
+
+  defp show_dev_notice? do
+    case Application.get_env(:phoenix_kit, PhoenixKit.Mailer)[:adapter] do
+      Swoosh.Adapters.Local -> true
+      _ -> false
+    end
+  end
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  defp extract_ip_address(nil), do: "unknown"
+  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp extract_ip_address(%{address: address}), do: to_string(address)
+  defp extract_ip_address(_), do: "unknown"
 end
