@@ -184,6 +184,79 @@ git commit -m "Update version to 1.0.1 with comprehensive changelog"
 - `mix hex.publish` - Publish to Hex.pm (requires auth)
 - `mix docs` - Generate documentation with ExDoc
 
+## Code Style Guidelines
+
+### Template Comments
+
+**ALWAYS use EEx comments in Phoenix templates and components:**
+
+```heex
+<%!-- EEx comments (CORRECT) --%>
+<div class="container">
+  <%!-- This is the preferred way to comment in .heex templates --%>
+  <h1>My App</h1>
+</div>
+
+<!-- HTML comments (AVOID) -->
+<div class="container">
+  <!-- This should be avoided in Phoenix templates -->
+  <h1>My App</h1>
+</div>
+```
+
+**Why EEx comments are preferred:**
+
+- ✅ **Server-side processing** - EEx comments (`<%!-- --%>`) are processed server-side and never sent to the client
+- ✅ **Performance** - Reduces HTML payload size since comments don't appear in browser
+- ✅ **Security** - Internal comments and notes remain private on the server
+- ✅ **Consistency** - Matches Phoenix LiveView and EEx template conventions
+
+**When to use:**
+
+- ✅ All `.heex` template files
+- ✅ LiveView components
+- ✅ Phoenix templates and layouts
+- ✅ Documentation and section dividers in templates
+- ✅ Temporary code comments during development
+
+**Template Comment Examples:**
+
+```heex
+<%!-- Header Section --%>
+<header class="w-full relative mb-6">
+  <%!-- Back Button (Left aligned) --%>
+  <.link navigate="/dashboard" class="btn btn-outline">
+    Back to Dashboard
+  </.link>
+
+  <%!-- Title Section --%>
+  <div class="text-center">
+    <h1>Page Title</h1>
+  </div>
+</header>
+
+<%!-- Main Content Area --%>
+<main class="container mx-auto">
+  <%!-- TODO: Add pagination controls --%>
+  <div class="content">
+    <!-- This HTML comment will appear in browser source -->
+    <%!-- This EEx comment stays on the server --%>
+  </div>
+</main>
+```
+
+**Code Comments in Elixir Files:**
+
+For regular Elixir code (`.ex` files), continue using standard Elixir comments:
+
+```elixir
+# Standard Elixir comment for code documentation
+def my_function do
+  # Inline comment explaining logic
+  :ok
+end
+```
+
 ## Architecture
 
 ### Authentication Structure
