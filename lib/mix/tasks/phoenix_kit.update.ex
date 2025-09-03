@@ -297,7 +297,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     case {from_version, to_version} do
       {1, 3} ->
         "- Remove is_active column from role assignments (simplified role system)\n" <>
-        "- Add settings table with user preferences support"
+          "- Add settings table with user preferences support"
 
       {2, 3} ->
         "- Add settings table with user preferences support"
