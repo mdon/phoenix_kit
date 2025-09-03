@@ -266,7 +266,12 @@
                   
 <!-- Created -->
                   <td class="text-sm">
-                    {UtilsDate.format_datetime_with_user_format(session.created_at)}
+                    <div class="flex flex-col gap-1">
+                      <div>{UtilsDate.format_date_with_user_format(session.created_at)}</div>
+                      <div class="text-xs text-base-content/70">
+                        {UtilsDate.format_time_with_user_format(session.created_at)}
+                      </div>
+                    </div>
                   </td>
                   
 <!-- Age -->
@@ -279,7 +284,12 @@
                   
 <!-- Expires -->
                   <td class="text-sm">
-                    {UtilsDate.format_datetime_with_user_format(session.expires_at)}
+                    <div class="flex flex-col gap-1">
+                      <div>{UtilsDate.format_date_with_user_format(session.expires_at)}</div>
+                      <div class="text-xs text-base-content/70">
+                        {UtilsDate.format_time_with_user_format(session.expires_at)}
+                      </div>
+                    </div>
                   </td>
                   
 <!-- Actions -->
