@@ -1,3 +1,25 @@
+## 1.2.0 - 2025-09-03
+
+### Added
+- User settings system with customizable time zone, date format, and time format preferences
+- Comprehensive session management system for admin interface with real-time tracking
+- Live data updates system for admin panels with automatic refresh capabilities
+- Automatic user logout functionality when role changes occur for enhanced security
+- DateTime formatting functions with Timex library integration for better date/time handling
+- Enhanced authentication session management for improved user experience
+
+### Changed
+- Authentication components updated with GitHub-inspired design and unified development notices
+- Date handling refactored into separate PhoenixKit.Date module (aliased as PKDate) for better organization
+- User dashboard "Registered" field now uses enhanced date formatting from settings
+- Improved code quality and PubSub integration for better real-time communication
+
+### Fixed
+- Missing admin routes for settings and modules sections
+- Dialyzer type errors resolved across the codebase
+- Live Activity link in dashboard now correctly navigates to intended destination
+- Settings tab information updated with accurate user preferences display
+
 ## 1.1.1 - 2025-09-02
 
 ### Added
