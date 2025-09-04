@@ -26,7 +26,7 @@ defmodule PhoenixKit.Config do
   Gets all PhoenixKit configuration.
   """
   @spec get_all() :: map()
-  def get_all() do
+  def get_all do
     app_config = Application.get_all_env(:phoenix_kit)
     Map.new(app_config)
   end

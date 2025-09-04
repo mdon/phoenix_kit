@@ -256,15 +256,15 @@ defmodule PhoenixKit.Utils.Date do
 
   @doc """
   Formats a datetime using the user's date format preference from Settings.
-  
+
   Automatically loads the date_format setting and applies it to the datetime.
   Returns "Never" for nil values.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Utils.Date.format_datetime_with_user_format(~N[2024-01-15 15:30:00])
       "January 15, 2024"  # If user has "F j, Y" format selected
-      
+
       iex> PhoenixKit.Utils.Date.format_datetime_with_user_format(nil)
       "Never"
   """
@@ -275,11 +275,11 @@ defmodule PhoenixKit.Utils.Date do
 
   @doc """
   Formats a date using the user's date format preference from Settings.
-  
+
   Automatically loads the date_format setting and applies it to the date.
-  
+
   ## Examples
-  
+
       iex> PhoenixKit.Utils.Date.format_date_with_user_format(~D[2024-01-15])
       "January 15, 2024"  # If user has "F j, Y" format selected
   """
@@ -290,11 +290,8 @@ defmodule PhoenixKit.Utils.Date do
 
   @doc """
   Formats a time using the user's time format preference from Settings.
-  
   Automatically loads the time_format setting and applies it to the time.
-  
   ## Examples
-  
       iex> PhoenixKit.Utils.Date.format_time_with_user_format(~T[15:30:00])
       "3:30 PM"  # If user has "h:i A" format selected
   """
