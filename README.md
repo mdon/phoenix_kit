@@ -8,19 +8,29 @@ PhoenixKit is under heavy development and we're looking for early adopters to te
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
 ## 📦 Current PhoenixKit Features / Modules:
-- [x] **Igniter installation** - Simple installation
-- [x] **Layout integration** 
-- User module
-  - [x] Registration, Login, Logout, Email confirmation, Password reset
+- [x] Simple installation with Igniter
+- [x] App layout integration
+- [x] App database integration (Postgres only for now)
+- [ ] User Module
+  - [x] Registration
+  - [x] Login
+  - [x] Logout
+  - [ ] Email confirmation (waiting Email Module)
+  - [x] Password reset
   - [x] User roles
-- Backend admin module
+- [ ] Backend Admin module
+  - [ ] Modules Manager (in progress)
+  - [x] Session Manager Module
+  - [ ] Settings (in progress)
+    - [x] Global app timezone (using timex)
+    - [x] Global time format (using timex)
   - [x] User management
   - [x] Role management
 
-## 🛣️ Roadmap
+## 🛣️ Roadmap / Ideas / Feature requests
 - User module
   - Magic link
-  - OAuth
+  - OAuth (google, facebook, twitter, github, etc...)
   - 2FA
   - User's locale / timezone
   - Referral Program
@@ -30,46 +40,52 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Settings
     - General
     - Languages
-  - Sessions
+  - Email Module
+    - Email templates
+  - Notifications Module
+    - Integration with notification providers (Twilio, etc...)
   - Content publishing
     - Media / Gallery (with s3 backend)
     - CDN
     - Static pages
     - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
     - Blog
+    - Video
     - Comments
     - Search
     - Blocks
       - Sliders
       - Video player (mp4, youtube, etc)
-  - Notifications
-  - Email
-  - Billing system
+  - Billing System Module
     - Invoices
     - Integration
       - Stripe
       - PayPal
       - Crypto
-  - Newsletter
-  - E-commerce
-  - Membership
-  - Cookies
-  - Popups
-  - SEO
-  - AI
-  - What’s New
-  - DB manager
+  - Newsletter Module
+  - E-commerce Module
+  - Membership Module
+  - Cookies Module
+  - Popups Module
+  - Contact Us Module
+  - SEO Module
+  - AI Module
+    - Integration with AI providers
+  - What’s New Module
+  - DB Manager Module
+    - Export / Import
+    - Snapshots
+    - Backups
     - Custom entities and fields
-  - Customer service
-  - Feedback
-  - Roadmap / Ideas
-  - Analytics
+  - Customer service Module
+    - Chat 
+  - Feedback Module
+  - Roadmap / Ideas Module
+  - CRM Module
+  - Analytics Module
   - API
-  - CRM
-  - Testimonials
-  - Chat
-  - Team
-  - Contact Us
+  - Testimonials Module
+  - Team Module
   
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
