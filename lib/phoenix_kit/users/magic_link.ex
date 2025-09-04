@@ -8,7 +8,7 @@ defmodule PhoenixKit.Users.MagicLink do
   ## Features
 
   - **Passwordless Authentication**: Users log in with just their email
-  - **Secure Token System**: Uses existing UserToken infrastructure  
+  - **Secure Token System**: Uses existing UserToken infrastructure
   - **Time-Limited Links**: Magic links expire after a configurable period
   - **Optional Integration**: Works alongside existing password authentication
   - **Email Verification**: Links are sent to the user's email address
@@ -21,18 +21,18 @@ defmodule PhoenixKit.Users.MagicLink do
           # Send email with magic link
           PhoenixKit.Mailer.send_magic_link_email(user, token)
           {:ok, user}
-          
+
         {:error, :user_not_found} ->
           # Handle unknown email
           {:error, :invalid_email}
       end
-      
+
       # Verify magic link token
       case PhoenixKit.Users.MagicLink.verify_magic_link(token) do
         {:ok, user} ->
           # Log user in
           {:ok, user}
-          
+
         {:error, :invalid_token} ->
           # Handle invalid/expired token
           {:error, :expired_link}
@@ -66,14 +66,14 @@ defmodule PhoenixKit.Users.MagicLink do
   @doc """
   Generates a magic link for the given email address.
 
-  Returns `{:ok, user, token}` if the user exists, or `{:error, :user_not_found}` 
+  Returns `{:ok, user, token}` if the user exists, or `{:error, :user_not_found}`
   if no user is found with that email.
 
   ## Examples
 
       iex> PhoenixKit.Users.MagicLink.generate_magic_link("user@example.com")
       {:ok, %User{}, "magic_link_token_here"}
-      
+
       iex> PhoenixKit.Users.MagicLink.generate_magic_link("nonexistent@example.com")
       {:error, :user_not_found}
   """
@@ -110,15 +110,15 @@ defmodule PhoenixKit.Users.MagicLink do
 
   The token is automatically deleted after successful verification (single-use).
 
-  Returns `{:ok, user}` if the token is valid, or `{:error, :invalid_token}` 
+  Returns `{:ok, user}` if the token is valid, or `{:error, :invalid_token}`
   if the token is invalid, expired, or already used.
 
   ## Examples
 
       iex> PhoenixKit.Users.MagicLink.verify_magic_link("valid_token")
       {:ok, %User{}}
-      
-      iex> PhoenixKit.Users.MagicLink.verify_magic_link("invalid_token")  
+
+      iex> PhoenixKit.Users.MagicLink.verify_magic_link("invalid_token")
       {:error, :invalid_token}
   """
   def verify_magic_link(token) when is_binary(token) do
@@ -217,14 +217,14 @@ defmodule PhoenixKit.Users.MagicLink do
   @doc """
   Generates a magic link URL for the given token.
 
-  This is a convenience function to construct the full URL that should be 
+  This is a convenience function to construct the full URL that should be
   included in magic link emails.
 
   ## Examples
 
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123")
       "http://localhost:4000/phoenix_kit/users/magic-link/token123"
-      
+
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123", "https://myapp.com")
       "https://myapp.com/phoenix_kit/users/magic-link/token123"
   """
@@ -236,7 +236,7 @@ defmodule PhoenixKit.Users.MagicLink do
   @doc """
   Cleans up expired magic link tokens.
 
-  This function can be called periodically (e.g., via a scheduled job) to 
+  This function can be called periodically (e.g., via a scheduled job) to
   remove expired tokens from the database.
 
   Returns the number of tokens deleted.
@@ -277,21 +277,24 @@ defmodule PhoenixKit.Users.MagicLink do
 
   # Get base URL for magic link construction
   defp get_base_url do
-    case PhoenixKit.Config.get(:host) do
-      {:ok, host} ->
-        scheme = if String.contains?(host, "localhost"), do: "http", else: "https"
+    host =
+      case PhoenixKit.Config.get(:host) do
+        {:ok, host} -> host
+        _ -> "localhost"
+      end
 
-        port =
-          case PhoenixKit.Config.get(:port) do
-            {:ok, port} when port not in [80, 443] -> ":#{port}"
-            _ -> ""
-          end
+    scheme =
+      case PhoenixKit.Config.get(:scheme) do
+        {:ok, scheme} -> scheme
+        _ -> "http"
+      end
 
-        "#{scheme}://#{host}#{port}"
+    port =
+      case PhoenixKit.Config.get(:port) do
+        {:ok, port} when port not in [80, 443] -> ":#{port}"
+        _ -> ":4000"
+      end
 
-      :not_found ->
-        # Fallback for development
-        "http://localhost:4000"
-    end
+    "#{scheme}://#{host}#{port}"
   end
 end
