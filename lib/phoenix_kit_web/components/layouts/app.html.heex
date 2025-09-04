@@ -6,7 +6,7 @@
   and scope-based approaches for accessing user information.
 --%>
 <%!-- Only show header on non-admin pages --%>
-<%= if not String.contains?(assigns[:current_path] || "", "/admin/") do %>
+<%!--= if not String.contains?(assigns[:current_path] || "", "/admin/") do %>
   <header class="px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between border-b border-zinc-100 py-3 text-sm">
       <div class="flex items-center gap-4">
@@ -17,10 +17,7 @@
           v{Application.spec(:phoenix_kit, :vsn)}
         </p>
       </div>
-
-      <%!-- User info display - shows how to access user data in layouts --%>
       <div class="flex items-center gap-2 text-sm text-zinc-600">
-        <%!-- Scope-based authentication (recommended approach) --%>
         <%= if assigns[:phoenix_kit_current_scope] && PhoenixKit.Users.Auth.Scope.authenticated?(@phoenix_kit_current_scope) do %>
           <span class="bg-green-100 text-green-800 px-2 py-1 rounded">
             Logged in as: {PhoenixKit.Users.Auth.Scope.user_email(@phoenix_kit_current_scope)}
@@ -59,12 +56,12 @@
         - Explicit authentication checks
         - Ready for future extensions (roles, permissions, etc.)
         - Type safety with proper struct
-      --%>
+      
       </div>
     </div>
   </header>
 <% end %>
-<%!-- <main class="px-4 sm:px-6 lg:px-8">
+<main class="px-4 sm:px-6 lg:px-8">
   <div class="mx-auto max-w-2xl">
     <.flash_group flash={@flash} />
     {@inner_content}
