@@ -17,18 +17,28 @@ defmodule PhoenixKit.Config do
 
   - `:repo` - Ecto repository module (required)
   - `:mailer` - Mailer module for sending emails
-  - `:layout` - Custom layout configuration
   - `:host` - Application hostname
   - `:port` - Application port
+  - `:layout_module` - Custom layout configuration
   """
+
+  @default_config [
+    repo: nil,
+    mailer: nil,
+    scheme: "http",
+    host: "localhost",
+    port: 4000,
+    layouts_module: nil,
+    phoenix_version_strategy: nil
+  ]
 
   @doc """
   Gets all PhoenixKit configuration.
   """
-  @spec get_all() :: map()
+  @spec get_all() :: Keyword.t()
   def get_all do
     app_config = Application.get_all_env(:phoenix_kit)
-    Map.new(app_config)
+    Keyword.merge(@default_config, app_config)
   end
 
   @doc """
@@ -38,7 +48,7 @@ defmodule PhoenixKit.Config do
   def get(key) when is_atom(key) do
     config = get_all()
 
-    case Map.get(config, key) do
+    case Keyword.get(config, key) do
       nil -> :not_found
       value -> {:ok, value}
     end
