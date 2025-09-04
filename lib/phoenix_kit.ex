@@ -42,7 +42,7 @@ defmodule PhoenixKit do
   ## Examples
 
       iex> PhoenixKit.config()
-      %{ecto_repos: []}
+      %{repo: []}
 
   """
   @spec config() :: map()
