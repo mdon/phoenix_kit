@@ -83,7 +83,9 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Feedback Module
   - Roadmap / Ideas Module
   - CRM Module
-  - Analytics Module
+  - Analytics / BI Module
+    - ClickHouse backend
+    - Events
   - API
   - Testimonials Module
   - Team Module
