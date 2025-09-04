@@ -87,13 +87,13 @@ defmodule PhoenixKit.Config do
 
     missing_keys =
       required_keys
-      |> Enum.reject(&Map.has_key?(config, &1))
+      |> Enum.reject(&Keyword.has_key?(config, &1))
 
     if length(missing_keys) > 0 do
       raise """
       Missing required PhoenixKit configuration keys: #{inspect(missing_keys)}
 
-      Current configuration: #{inspect(Map.keys(config))}
+      Current configuration: #{inspect(Keyword.keys(config))}
 
       Please add the missing keys to your configuration:
 
