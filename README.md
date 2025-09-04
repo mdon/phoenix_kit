@@ -72,6 +72,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - AI Module
     - Integration with AI providers
   - What’s New Module
+  - Chat Module (https://github.com/basecamp/once-campfire)
   - DB Manager Module
     - Export / Import
     - Snapshots
