@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   # Embedded schema for form validation
   defmodule SettingsForm do
@@ -52,6 +52,10 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
     {:ok, socket}
   end
 
+  def handle_params(_params, _url, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
     # Update the changeset with new values for validation
     changeset = create_settings_changeset(settings_params) |> Map.put(:action, :validate)
@@ -90,6 +94,36 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
         socket =
           socket
           |> assign(:saving, false)
+          |> put_flash(:error, error_msg)
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("reset_to_defaults", _params, socket) do
+    # Get default settings
+    defaults = Settings.get_defaults()
+
+    # Update all settings to defaults in database
+    case update_all_settings(defaults) do
+      {:ok, updated_settings} ->
+        # Update socket with default settings
+        changeset = create_settings_changeset(updated_settings)
+
+        socket =
+          socket
+          |> assign(:settings, updated_settings)
+          |> assign(:saved_settings, updated_settings)
+          |> assign(:changeset, changeset)
+          |> put_flash(:info, "Settings reset to defaults successfully")
+
+        {:noreply, socket}
+
+      {:error, errors} ->
+        error_msg = format_error_message(errors)
+
+        socket =
+          socket
           |> put_flash(:error, error_msg)
 
         {:noreply, socket}

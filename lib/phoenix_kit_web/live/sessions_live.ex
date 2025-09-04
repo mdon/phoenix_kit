@@ -254,7 +254,6 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
     "/phoenix_kit/admin/sessions"
   end
 
-
   defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}
   defp format_age_badge(age_in_days) when age_in_days < 7, do: {"badge-info", "#{age_in_days}d"}
 

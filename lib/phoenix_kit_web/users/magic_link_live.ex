@@ -30,36 +30,41 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
       })
     end
 
+    form = to_form(%{"email" => ""}, as: "magic_link")
+
     {:ok,
      socket
      |> assign(:page_title, "Magic Link Login")
-     |> assign(:email, "")
+     |> assign(:form, form)
      |> assign(:sent, false)
      |> assign(:loading, false)
      |> assign(:error, nil)}
   end
 
   @impl true
-  def handle_event("validate", %{"email" => email}, socket) do
-    # Simple client-side validation
-    error = if valid_email?(email), do: nil, else: "Please enter a valid email address"
-
-    {:noreply,
-     socket
-     |> assign(:email, email)
-     |> assign(:error, error)}
+  def handle_event("validate", %{"magic_link" => magic_link_params}, socket) do
+    form = to_form(magic_link_params, as: "magic_link")
+    {:noreply, assign(socket, form: form)}
   end
 
   @impl true
-  def handle_event("send_magic_link", %{"email" => email}, socket) do
+  def handle_event("send_magic_link", %{"magic_link" => %{"email" => email}}, socket) do
     if valid_email?(email) do
+      form = to_form(%{"email" => email}, as: "magic_link")
+
       {:noreply,
        socket
+       |> assign(:form, form)
        |> assign(:loading, true)
        |> assign(:error, nil)
        |> send_magic_link_async(email)}
     else
-      {:noreply, assign(socket, :error, "Please enter a valid email address")}
+      form = to_form(%{"email" => email}, as: "magic_link")
+
+      {:noreply,
+       socket
+       |> assign(:form, form)
+       |> assign(:error, "Please enter a valid email address")}
     end
   end
 
@@ -138,29 +143,60 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
           <:subtitle>Enter your email to receive a secure login link</:subtitle>
         </.header>
 
-        <.simple_form for={%{}} as={:magic_link} phx-change="validate" phx-submit="send_magic_link">
-          <.input
-            name="email"
-            value={@email}
-            type="email"
-            label="Email"
-            placeholder="you@example.com"
-            required
-          />
+        <.form
+          for={@form}
+          id="magic_link_form"
+          phx-submit="send_magic_link"
+          phx-change="validate"
+        >
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend sr-only">Magic Link Authentication</legend>
 
-          <.error :if={@error}>{@error}</.error>
+            <div :if={@error} class="alert alert-error text-sm mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="stroke-current shrink-0 h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>{@error}</span>
+            </div>
 
-          <:actions>
-            <.button phx-disable-with="Sending..." class="w-full" disabled={@loading || @sent}>
+            <label class="label" for="magic_link_email">Email</label>
+            <input
+              id="magic_link_email"
+              name="magic_link[email]"
+              type="email"
+              class="input input-bordered validator w-full"
+              placeholder="you@example.com"
+              value={@form.params["email"] || ""}
+              pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
+              title="Please enter a valid email address"
+              required
+            />
+            <p class="validator-hint">Please enter a valid email address</p>
+
+            <button
+              type="submit"
+              phx-disable-with="Sending magic link..."
+              class="btn btn-primary w-full mt-4"
+              disabled={@loading || @sent}
+            >
               <%= if @loading do %>
-                <.icon name="hero-arrow-path" class="animate-spin -ml-1 mr-2 h-4 w-4" />
-                Sending magic link...
+                <span class="loading loading-spinner loading-sm mr-2"></span> Sending magic link...
               <% else %>
-                Send Magic Link
+                Send Magic Link <span aria-hidden="true">→</span>
               <% end %>
-            </.button>
-          </:actions>
-        </.simple_form>
+            </button>
+          </fieldset>
+        </.form>
 
         <div :if={@sent} class="mt-6 p-4 bg-green-50 border border-green-200 rounded-md">
           <div class="flex">

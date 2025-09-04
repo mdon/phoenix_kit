@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Plug.Conn
   import Phoenix.Controller
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
 
@@ -94,10 +95,20 @@ defmodule PhoenixKitWeb.Users.Auth do
   """
   def log_out_user(conn) do
     user_token = get_session(conn, :user_token)
+
+    # Get user info before deleting token for admin notification
+    user = user_token && Auth.get_user_by_session_token(user_token)
+
     user_token && Auth.delete_user_session_token(user_token)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       broadcast_disconnect(live_socket_id)
+    end
+
+    # Notify admin panel about user logout
+    if user do
+      session_id = extract_session_id_from_live_socket_id(get_session(conn, :live_socket_id))
+      Events.broadcast_user_session_disconnected(user.id, session_id)
     end
 
     conn
@@ -577,6 +588,17 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp maybe_store_return_to(conn), do: conn
 
   defp signed_in_path(_conn), do: "/"
+
+  defp extract_session_id_from_live_socket_id(live_socket_id) do
+    case live_socket_id do
+      "phoenix_kit_sessions:" <> encoded_token ->
+        # Use first 8 chars of encoded token as session_id for admin display
+        String.slice(encoded_token, 0, 8)
+
+      _ ->
+        "unknown"
+    end
+  end
 
   defp broadcast_disconnect(live_socket_id) do
     case get_parent_endpoint() do

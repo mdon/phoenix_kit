@@ -2,9 +2,9 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
 
@@ -232,7 +232,6 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     |> assign(:confirmed_users, stats.confirmed_users)
     |> assign(:pending_users, stats.pending_users)
   end
-
 
   defp get_user_roles(user) do
     # Use preloaded roles if available
