@@ -89,6 +89,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - API
   - Testimonials Module
   - Team Module
+  - Cluster support
   
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
