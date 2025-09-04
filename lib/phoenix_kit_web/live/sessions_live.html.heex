@@ -5,9 +5,9 @@
   current_path={@current_path}
 >
   <div class="container flex-col mx-auto px-4 py-6">
-    <!-- Header Section -->
+    <%!-- Header Section --%>
     <header class="w-full relative mb-6">
-      <!-- Back Button -->
+      <%!-- Back Button --%>
       <.link
         navigate="/phoenix_kit/admin/dashboard"
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
@@ -23,15 +23,15 @@
         </svg>
         Back to Dashboard
       </.link>
-      
-<!-- Title Section -->
+
+      <%!-- Title Section --%>
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">Session Management</h1>
         <p class="text-lg text-base-content">Monitor and manage active user sessions</p>
       </div>
     </header>
-    
-<!-- Session Statistics -->
+
+    <%!-- Session Statistics --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-4">
         <div class="flex items-center justify-between">
@@ -90,8 +90,8 @@
         </div>
       </div>
     </div>
-    
-<!-- Revoke Session Modal -->
+
+    <%!-- Revoke Session Modal --%>
     <%= if @show_revoke_modal do %>
       <div class="modal modal-open">
         <div class="modal-box">
@@ -104,7 +104,9 @@
               <div class="text-sm">
                 <div><strong>Token:</strong> {@selected_session.token_preview}...</div>
                 <div>
-                  <strong>Created:</strong> {format_datetime(@selected_session.created_at)}
+                  <strong>Created:</strong> {UtilsDate.format_datetime_with_user_format(
+                    @selected_session.created_at
+                  )}
                 </div>
                 <div><strong>Age:</strong> {@selected_session.age_in_days} days</div>
               </div>
@@ -147,11 +149,11 @@
         </div>
       </div>
     <% end %>
-    
-<!-- Controls -->
+
+    <%!-- Controls --%>
     <div class="bg-base-200 rounded-lg p-6 mb-6">
       <div class="flex flex-col lg:flex-row gap-4 items-end">
-        <!-- Search -->
+        <%!-- Search --%>
         <div class="flex-1">
           <label class="label">
             <span class="label-text">Search by email or token</span>
@@ -166,8 +168,8 @@
             class="input input-bordered w-full"
           />
         </div>
-        
-<!-- Filter by User Status -->
+
+        <%!-- Filter by User Status --%>
         <div>
           <label class="label">
             <span class="label-text">Filter by User Status</span>
@@ -192,8 +194,8 @@
             </option>
           </select>
         </div>
-        
-<!-- Refresh Button -->
+
+        <%!-- Refresh Button --%>
         <button
           phx-click="refresh_sessions"
           class="btn btn-primary"
@@ -210,8 +212,8 @@
         </button>
       </div>
     </div>
-    
-<!-- Sessions Table -->
+
+    <%!-- Sessions Table --%>
     <div class="bg-base-100 rounded-lg shadow-xl overflow-hidden mb-6">
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
@@ -240,22 +242,22 @@
             <% else %>
               <%= for session <- @sessions do %>
                 <tr class="hover:bg-base-200/50">
-                  <!-- User -->
+                  <%!-- User --%>
                   <td>
                     <div class="flex flex-col">
                       <span class="font-medium">{session.user_email}</span>
                       <span class="text-xs text-base-content/70">ID: {session.user_id}</span>
                     </div>
                   </td>
-                  
-<!-- Token -->
+
+                  <%!-- Token --%>
                   <td>
                     <code class="bg-base-200 px-2 py-1 rounded text-sm">
                       {session.token_preview}...
                     </code>
                   </td>
-                  
-<!-- User Status -->
+
+                  <%!-- User Status --%>
                   <td>
                     <% {badge_class, badge_text} =
                       user_status_badge(session.user_is_active, session.user_confirmed_at) %>
@@ -263,29 +265,39 @@
                       {badge_text}
                     </span>
                   </td>
-                  
-<!-- Created -->
+
+                  <%!-- Created --%>
                   <td class="text-sm">
-                    {format_datetime(session.created_at)}
+                    <div class="flex flex-col gap-1">
+                      <div>{UtilsDate.format_date_with_user_format(session.created_at)}</div>
+                      <div class="text-xs text-base-content/70">
+                        {UtilsDate.format_time_with_user_format(session.created_at)}
+                      </div>
+                    </div>
                   </td>
-                  
-<!-- Age -->
+
+                  <%!-- Age --%>
                   <td>
                     <% {age_class, age_text} = format_age_badge(session.age_in_days) %>
                     <span class={"badge #{age_class} badge-sm"}>
                       {age_text}
                     </span>
                   </td>
-                  
-<!-- Expires -->
+
+                  <%!-- Expires --%>
                   <td class="text-sm">
-                    {format_datetime(session.expires_at)}
+                    <div class="flex flex-col gap-1">
+                      <div>{UtilsDate.format_date_with_user_format(session.expires_at)}</div>
+                      <div class="text-xs text-base-content/70">
+                        {UtilsDate.format_time_with_user_format(session.expires_at)}
+                      </div>
+                    </div>
                   </td>
-                  
-<!-- Actions -->
+
+                  <%!-- Actions --%>
                   <td>
                     <div class="flex gap-2">
-                      <!-- Revoke Single Session -->
+                      <%!-- Revoke Single Session --%>
                       <button
                         phx-click="show_revoke_session"
                         phx-value-token_id={session.token_id}
@@ -301,8 +313,8 @@
                           />
                         </svg>
                       </button>
-                      
-<!-- Revoke All User Sessions -->
+
+                      <%!-- Revoke All User Sessions --%>
                       <button
                         phx-click="show_revoke_user_sessions"
                         phx-value-user_id={session.user_id}
@@ -327,8 +339,8 @@
         </table>
       </div>
     </div>
-    
-<!-- Pagination -->
+
+    <%!-- Pagination --%>
     <%= if @total_pages > 1 do %>
       <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div class="text-sm text-base-content/70">

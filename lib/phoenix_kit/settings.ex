@@ -40,7 +40,7 @@ defmodule PhoenixKit.Settings do
   """
 
   import Ecto.Query, warn: false
-  alias PhoenixKit.Date, as: PKDate
+  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Settings.Setting
 
   # Gets the configured repository for database operations.
@@ -202,8 +202,8 @@ defmodule PhoenixKit.Settings do
         {"UTC+11 (Solomon Islands)", "11"},
         {"UTC+12 (New Zealand)", "12"}
       ],
-      "date_format" => PKDate.get_date_format_options(),
-      "time_format" => PKDate.get_time_format_options()
+      "date_format" => UtilsDate.get_date_format_options(),
+      "time_format" => UtilsDate.get_time_format_options()
     }
   end
 

@@ -209,10 +209,24 @@
                     </div>
                   </td>
                   <td class="text-sm">
-                    {format_datetime(user.inserted_at, @date_format)}
+                    <div class="flex flex-col gap-1">
+                      <div>{UtilsDate.format_date_with_user_format(user.inserted_at)}</div>
+                      <div class="text-xs text-base-content/70">
+                        {UtilsDate.format_time_with_user_format(user.inserted_at)}
+                      </div>
+                    </div>
                   </td>
                   <td class="text-sm">
-                    {format_datetime(user.confirmed_at, @date_format)}
+                    <div class="flex flex-col gap-1">
+                      <%= if user.confirmed_at do %>
+                        <div>{UtilsDate.format_date_with_user_format(user.confirmed_at)}</div>
+                        <div class="text-xs text-base-content/70">
+                          {UtilsDate.format_time_with_user_format(user.confirmed_at)}
+                        </div>
+                      <% else %>
+                        <div>Never</div>
+                      <% end %>
+                    </div>
                   </td>
                   <td>
                     <div class="flex flex-wrap gap-1">

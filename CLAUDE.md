@@ -184,6 +184,79 @@ git commit -m "Update version to 1.0.1 with comprehensive changelog"
 - `mix hex.publish` - Publish to Hex.pm (requires auth)
 - `mix docs` - Generate documentation with ExDoc
 
+## Code Style Guidelines
+
+### Template Comments
+
+**ALWAYS use EEx comments in Phoenix templates and components:**
+
+```heex
+<%!-- EEx comments (CORRECT) --%>
+<div class="container">
+  <%!-- This is the preferred way to comment in .heex templates --%>
+  <h1>My App</h1>
+</div>
+
+<!-- HTML comments (AVOID) -->
+<div class="container">
+  <!-- This should be avoided in Phoenix templates -->
+  <h1>My App</h1>
+</div>
+```
+
+**Why EEx comments are preferred:**
+
+- ✅ **Server-side processing** - EEx comments (`<%!-- --%>`) are processed server-side and never sent to the client
+- ✅ **Performance** - Reduces HTML payload size since comments don't appear in browser
+- ✅ **Security** - Internal comments and notes remain private on the server
+- ✅ **Consistency** - Matches Phoenix LiveView and EEx template conventions
+
+**When to use:**
+
+- ✅ All `.heex` template files
+- ✅ LiveView components
+- ✅ Phoenix templates and layouts
+- ✅ Documentation and section dividers in templates
+- ✅ Temporary code comments during development
+
+**Template Comment Examples:**
+
+```heex
+<%!-- Header Section --%>
+<header class="w-full relative mb-6">
+  <%!-- Back Button (Left aligned) --%>
+  <.link navigate="/dashboard" class="btn btn-outline">
+    Back to Dashboard
+  </.link>
+
+  <%!-- Title Section --%>
+  <div class="text-center">
+    <h1>Page Title</h1>
+  </div>
+</header>
+
+<%!-- Main Content Area --%>
+<main class="container mx-auto">
+  <%!-- TODO: Add pagination controls --%>
+  <div class="content">
+    <!-- This HTML comment will appear in browser source -->
+    <%!-- This EEx comment stays on the server --%>
+  </div>
+</main>
+```
+
+**Code Comments in Elixir Files:**
+
+For regular Elixir code (`.ex` files), continue using standard Elixir comments:
+
+```elixir
+# Standard Elixir comment for code documentation
+def my_function do
+  # Inline comment explaining logic
+  :ok
+end
+```
+
 ## Architecture
 
 ### Authentication Structure
@@ -212,6 +285,56 @@ git commit -m "Update version to 1.0.1 with comprehensive changelog"
 - **Security Features** - Owner protection, audit trail, self-modification prevention
 - **Scope Integration** - Role checks via `PhoenixKit.Users.Auth.Scope`
 
+### Settings System Architecture
+
+- **PhoenixKit.Settings** - Settings context for system-wide configuration management
+- **PhoenixKit.Settings.Setting** - Settings schema with key/value storage and timestamps
+- **PhoenixKitWeb.Live.SettingsLive** - Settings management interface at `/phoenix_kit/admin/settings`
+
+**Core Settings:**
+- **time_zone** - System timezone offset (UTC-12 to UTC+12)
+- **date_format** - Date display format (Y-m-d, m/d/Y, d/m/Y, d.m.Y, d-m-Y, F j, Y)
+- **time_format** - Time display format (H:i for 24-hour, h:i A for 12-hour)
+
+**Key Features:**
+- **Database Storage** - Settings persisted in phoenix_kit_settings table
+- **Admin Interface** - Complete settings management at `/phoenix_kit/admin/settings`
+- **Default Values** - Fallback defaults for all settings (UTC+0, Y-m-d, H:i)
+- **Validation** - Form validation with real-time preview examples
+- **Integration** - Automatic integration with date formatting utilities
+
+### Date Formatting Architecture
+
+- **PhoenixKit.Utils.Date** - Date and time formatting utilities using Timex
+- **Settings Integration** - Automatic user preference loading from Settings system
+- **Template Integration** - Direct usage in LiveView templates with UtilsDate alias
+
+**Core Functions:**
+- **format_date/2** - Format dates with PHP-style format codes
+- **format_time/2** - Format times with PHP-style format codes
+- **format_datetime/2** - Format datetime values with date formats
+- **format_datetime_with_user_format/1** - Auto-load user's date_format setting
+- **format_date_with_user_format/1** - Auto-load user's date_format setting
+- **format_time_with_user_format/1** - Auto-load user's time_format setting
+
+**Supported Formats:**
+- **Date Formats** - Y-m-d (ISO), m/d/Y (US), d/m/Y (European), d.m.Y (German), d-m-Y, F j, Y (Long)
+- **Time Formats** - H:i (24-hour), h:i A (12-hour with AM/PM)
+- **Examples** - Dynamic format preview with current date/time examples
+- **Timex Integration** - Robust internationalized formatting with extensive format support
+
+**Template Usage:**
+```heex
+<!-- Settings-aware formatting (recommended) -->
+{UtilsDate.format_datetime_with_user_format(user.inserted_at)}
+{UtilsDate.format_date_with_user_format(user.confirmed_at)}
+{UtilsDate.format_time_with_user_format(Time.utc_now())}
+
+<!-- Manual formatting -->
+{UtilsDate.format_date(Date.utc_today(), "F j, Y")}
+{UtilsDate.format_time(Time.utc_now(), "h:i A")}
+```
+
 ### Migration Architecture
 
 - **PhoenixKit.Migrations.Postgres** - PostgreSQL-specific migrator with Oban-style versioning
@@ -232,8 +355,9 @@ git commit -m "Update version to 1.0.1 with comprehensive changelog"
 
 - **PostgreSQL** - Primary database with Ecto integration
 - **Repository Pattern** - Auto-detection or explicit configuration
-- **Migration Support** - V01 migration with authentication and role tables
+- **Migration Support** - V01 migration with authentication, role, and settings tables
 - **Role System Tables** - phoenix_kit_user_roles, phoenix_kit_user_role_assignments
+- **Settings Table** - phoenix_kit_settings with key/value/timestamp storage
 - **Race Condition Protection** - FOR UPDATE locking in Ecto transactions
 - **Test Database** - Separate test database with sandbox
 
@@ -254,6 +378,7 @@ git commit -m "Update version to 1.0.1 with comprehensive changelog"
 4. **Configure Mailer**: Set up email delivery in `config/config.exs`
 5. **Run Migrations**: Database tables created automatically
 6. **Theme Support**: Optionally enable with `--theme-enabled` flag
+7. **Settings Management**: Access admin settings at `/phoenix_kit/admin/settings`
 
 ### Integration Pattern
 
@@ -285,12 +410,30 @@ config :phoenix_kit,
 # Migrate existing installations to daisyUI 5
 # Run: mix phoenix_kit.migrate_to_daisyui5
 
+# Settings System Configuration (optional defaults)
+config :phoenix_kit,
+  default_settings: %{
+    time_zone: "0",          # UTC+0 (GMT)
+    date_format: "Y-m-d",    # ISO format: 2025-09-03
+    time_format: "H:i"       # 24-hour format: 15:30
+  }
+
 # In your Phoenix app's mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.0"}
+    {:phoenix_kit, "~> 1.2"}
   ]
 end
+
+# Date Formatting in Templates
+# Use Settings-aware functions for automatic user preference integration:
+{UtilsDate.format_datetime_with_user_format(user.inserted_at)}
+{UtilsDate.format_date_with_user_format(user.confirmed_at)}
+{UtilsDate.format_time_with_user_format(Time.utc_now())}
+
+# Manual formatting for specific use cases:
+{UtilsDate.format_date(Date.utc_today(), "F j, Y")}  # "September 3, 2025"
+{UtilsDate.format_time(Time.utc_now(), "h:i A")}     # "3:30 PM"
 ```
 
 ## Key File Structure
@@ -303,13 +446,16 @@ end
 - `lib/phoenix_kit/users/auth/user_token.ex` - Token management
 - `lib/phoenix_kit/users/magic_link.ex` - Magic link authentication
 - `lib/phoenix_kit/users/role*.ex` - Role system (Role, RoleAssignment, Roles)
+- `lib/phoenix_kit/settings.ex` - Settings context and management
+- `lib/phoenix_kit/utils/date.ex` - Date formatting utilities with Settings integration
 
 ### Web Integration
 
 - `lib/phoenix_kit_web/integration.ex` - Router integration macro
 - `lib/phoenix_kit_web/users/auth.ex` - Web authentication plugs
 - `lib/phoenix_kit_web/users/*_live.ex` - LiveView components
-- `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces
+- `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces (Dashboard, Users, Sessions, Settings)
+- `lib/phoenix_kit_web/live/settings_live.ex` - Settings management interface
 - `lib/phoenix_kit_web/components/core_components.ex` - UI components
 
 ### Migration & Config
