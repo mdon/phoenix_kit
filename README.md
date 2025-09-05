@@ -64,6 +64,8 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
       - Crypto
   - Newsletter Module
   - E-commerce Module
+    - Digital products
+    - Physical products
   - Membership Module
   - Cookies Module
   - Popups Module
