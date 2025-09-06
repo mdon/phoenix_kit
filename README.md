@@ -89,6 +89,8 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - ClickHouse backend
     - Events
   - API
+  - Cron modules
+  - Jobs module (can use Oban)
   - Testimonials Module
   - Team Module
   - Cluster support
