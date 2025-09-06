@@ -343,6 +343,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
         {output, 0} ->
           IO.puts("\n✅ Migration completed successfully!\n")
           IO.puts(output)
+          # Check if asset rebuilding is needed after successful migration
+          check_and_rebuild_assets_if_needed()
+
           show_success_notice()
 
         {output, _} ->
@@ -357,8 +360,52 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     end
   end
 
-  # Notice functions for interactive migration
+  # handle asset rebuilding
+  defp check_and_rebuild_assets_if_needed do
+    # Check if this is a daisyUI 5 upgrade or CSS-related migration
+    if asset_rebuild_needed?() do
+      IO.puts("\n🎨 Checking if asset rebuilding is needed...")
 
+      case System.cmd("mix", ["assets.build"], stderr_to_stdout: true) do
+        {output, 0} ->
+          IO.puts("✅ Assets rebuilt successfully!")
+          IO.puts(output)
+
+        {output, _} ->
+          IO.puts("⚠️  Asset rebuild failed (this is optional):")
+          IO.puts(output)
+          IO.puts("You can manually rebuild assets with: mix assets.build")
+      end
+    end
+  end
+
+  defp asset_rebuild_needed? do
+    # For new installations or when PhoenixKit contains daisyUI assets
+    # Check if PhoenixKit has daisyUI-related static assets
+    phoenix_kit_assets = Path.join(["deps", "phoenix_kit", "priv", "static", "assets"])
+
+    if File.dir?(phoenix_kit_assets) do
+      # Check if PhoenixKit includes daisyUI assets
+      File.ls!(phoenix_kit_assets)
+      |> Enum.any?(fn file ->
+        String.contains?(file, "daisyui") || String.contains?(file, "theme")
+      end)
+    else
+      # Fallback: check if current project uses Tailwind/daisyUI
+      tailwind_config = Path.join(["assets", "css", "app.css"])
+
+      if File.exists?(tailwind_config) do
+        content = File.read!(tailwind_config)
+        String.contains?(content, "daisyui") || String.contains?(content, "@plugin")
+      else
+        false
+      end
+    end
+  rescue
+    _ -> false
+  end
+
+  # Notice functions for interactive migration
   defp manual_migration_notice_simple do
     IO.puts("""
 
