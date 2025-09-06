@@ -44,7 +44,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Email templates
   - Notifications Module
     - Integration with notification providers (Twilio, etc...)
-  - Content publishing
+  - Content publishing Module
     - Media / Gallery (with s3 backend)
     - CDN
     - Static pages
@@ -88,12 +88,13 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Analytics / BI Module
     - ClickHouse backend
     - Events
-  - API
-  - Cron modules
-  - Jobs module (can use Oban)
+  - API Module
+  - Cron Modules
+  - Jobs Module (Oban)
   - Testimonials Module
   - Team Module
-  - Cluster support
+  - Forms Module
+  - Cluster Module
   
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
