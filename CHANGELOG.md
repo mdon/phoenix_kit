@@ -1,3 +1,21 @@
+## 1.2.1 - 2025-09-07
+
+### Added
+- Project title customization system with dynamic branding across all admin interfaces
+- Project title integration in authentication pages (login and registration)
+- Time display enhancement showing both date and time in Users and Sessions tables
+- Settings-aware date/time formatting functions for consistent user preferences
+
+### Changed
+- Date handling moved from PhoenixKit.Date to PhoenixKit.Utils.Date for better organization
+- All admin pages now consistently display custom project title instead of hardcoded "PhoenixKit"
+- Enhanced admin interface with unified project branding throughout navigation
+- Login and registration pages now show custom project title in headings and browser tabs
+- Changed config and magic link
+
+## Fixed
+- Fixed asset rebuilding integration in migration strategy
+
 ## 1.2.0 - 2025-09-03
 
 ### Added
