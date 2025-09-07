@@ -225,6 +225,7 @@ defmodule PhoenixKit.Settings do
   """
   def get_defaults do
     %{
+      "project_title" => "PhoenixKit",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
       "time_format" => "H:i"

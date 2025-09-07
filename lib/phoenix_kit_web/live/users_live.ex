@@ -2,6 +2,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -18,6 +19,9 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     socket =
       socket
       |> assign(:page, 1)
@@ -30,6 +34,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
       |> assign(:all_roles, [])
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Users")
+      |> assign(:project_title, project_title)
       |> load_users()
       |> load_stats()
 

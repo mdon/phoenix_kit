@@ -2,18 +2,19 @@ defmodule PhoenixKitWeb.Users.LoginLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Settings
 
   def render(assigns) do
     ~H"""
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="Sign in"
+      page_title="{@project_title} - Sign in"
     >
       <div class="flex items-center justify-center py-8 min-h-[80vh] bg-base-200">
         <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
           <div class="card-body">
-            <h1 class="text-2xl font-bold text-center mb-6">Sign in</h1>
+            <h1 class="text-2xl font-bold text-center mb-6">{@project_title} Sign in</h1>
             <.form
               for={@form}
               id="login_form"
@@ -83,7 +84,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
             
     <!-- Registration link -->
             <div class="text-center mt-4 text-sm">
-              <span>New to PhoenixKit? </span>
+              <span>New to {@project_title}? </span>
               <.link
                 navigate="/phoenix_kit/users/register"
                 class="font-semibold text-primary hover:underline"
@@ -134,9 +135,14 @@ defmodule PhoenixKitWeb.Users.LoginLive do
       })
     end
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
-    {:ok, assign(socket, form: form), temporary_assigns: [form: form]}
+
+    {:ok, assign(socket, form: form, project_title: project_title),
+     temporary_assigns: [form: form]}
   end
 
   defp show_dev_notice? do
