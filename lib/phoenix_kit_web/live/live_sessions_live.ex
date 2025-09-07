@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.{Events, Presence}
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
 
   # Refresh every 5 seconds
@@ -38,6 +39,9 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     socket =
       socket
       |> assign(:page, 1)
@@ -47,6 +51,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
       |> assign(:filter_type, "all")
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Live Sessions")
+      |> assign(:project_title, project_title)
       |> assign(:sort_by, :connected_at)
       |> assign(:sort_order, :desc)
       |> assign(:auto_refresh, true)

@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
 
     @primary_key false
     embedded_schema do
+      field :project_title, :string
       field :time_zone, :string
       field :date_format, :string
       field :time_format, :string
@@ -18,8 +19,8 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
 
     def changeset(form, attrs) do
       form
-      |> cast(attrs, [:time_zone, :date_format, :time_format])
-      |> validate_required([:time_zone, :date_format, :time_format])
+      |> cast(attrs, [:project_title, :time_zone, :date_format, :time_format])
+      |> validate_required([:project_title, :time_zone, :date_format, :time_format])
     end
   end
 
@@ -48,6 +49,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
       |> assign(:setting_options, setting_options)
       |> assign(:changeset, changeset)
       |> assign(:saving, false)
+      |> assign(:project_title, merged_settings["project_title"] || "PhoenixKit")
 
     {:ok, socket}
   end
@@ -84,6 +86,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
           |> assign(:saved_settings, updated_settings)
           |> assign(:changeset, changeset)
           |> assign(:saving, false)
+          |> assign(:project_title, updated_settings["project_title"] || "PhoenixKit")
           |> put_flash(:info, "Settings updated successfully")
 
         {:noreply, socket}
@@ -115,6 +118,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
           |> assign(:settings, updated_settings)
           |> assign(:saved_settings, updated_settings)
           |> assign(:changeset, changeset)
+          |> assign(:project_title, updated_settings["project_title"] || "PhoenixKit")
           |> put_flash(:info, "Settings reset to defaults successfully")
 
         {:noreply, socket}

@@ -1,13 +1,14 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="PhoenixKit Settings"
+  page_title="{@project_title} Settings"
   current_path={@current_path}
+  project_title={@project_title}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <!-- Header Section -->
+    <%!-- Header Section --%>
     <header class="w-full relative mb-6">
-      <!-- Back Button (Left aligned) -->
+      <%!-- Back Button (Left aligned) --%>
       <.link
         navigate="/phoenix_kit/admin/dashboard"
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
@@ -23,14 +24,14 @@
         Back to Dashboard
       </.link>
       
-<!-- Title Section -->
+<%!-- Title Section --%>
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">System Settings</h1>
         <p class="text-lg text-base-content">Configure system preferences and options</p>
       </div>
     </header>
     
-<!-- Settings Form -->
+<%!-- Settings Form --%>
     <div class="max-w-2xl mx-auto">
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -44,7 +45,39 @@
             phx-change="validate_settings"
             class="space-y-6"
           >
-            <!-- Time Zone Setting -->
+            <%!-- Project Title Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Project Title</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  Application name display
+                </span>
+              </label>
+              <input
+                name="settings[project_title]"
+                type="text"
+                value={@settings["project_title"]}
+                class="input input-bordered w-full focus:input-primary"
+                placeholder="Enter project title"
+                phx-debounce="500"
+              />
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["project_title"] != @saved_settings["project_title"] do %>
+                    <span class="text-warning">
+                      Selected: {@settings["project_title"]}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {@saved_settings["project_title"]}
+                    </span>
+                  <% else %>
+                    Saved: {@settings["project_title"]}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+            
+            <%!-- Time Zone Setting --%>
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text text-base font-medium">Time Zone</span>
@@ -78,7 +111,7 @@
               </div>
             </div>
             
-<!-- Date Format Setting -->
+<%!-- Date Format Setting --%>
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text text-base font-medium">Date Format</span>
@@ -121,7 +154,7 @@
               </div>
             </div>
             
-<!-- Time Format Setting -->
+<%!-- Time Format Setting --%>
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text text-base font-medium">Time Format</span>
@@ -164,7 +197,7 @@
               </div>
             </div>
             
-<!-- Action Buttons -->
+<%!-- Action Buttons --%>
             <div class="flex gap-3 pt-4">
               <button
                 type="submit"
@@ -203,7 +236,7 @@
             </div>
           </.form>
           
-<!-- Information Panel -->
+<%!-- Information Panel --%>
           <div class="divider">Information</div>
 
           <div class="bg-base-200 rounded-lg p-4 mt-6">

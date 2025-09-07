@@ -2,6 +2,7 @@ defmodule PhoenixKitWeb.Live.RolesLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Role, Roles}
 
   def mount(_params, _session, socket) do
@@ -17,6 +18,9 @@ defmodule PhoenixKitWeb.Live.RolesLive do
     # Load optimized role statistics once
     role_stats = load_role_statistics()
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     socket =
       socket
       |> assign(:roles, [])
@@ -26,6 +30,7 @@ defmodule PhoenixKitWeb.Live.RolesLive do
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Roles")
       |> assign(:role_stats, role_stats)
+      |> assign(:project_title, project_title)
       |> load_roles()
 
     {:ok, socket}

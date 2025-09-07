@@ -2,6 +2,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
 
@@ -10,12 +11,12 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="Create account"
+      page_title="{@project_title} - Create account"
     >
       <div class="flex items-center justify-center py-8 min-h-[80vh] bg-base-200">
         <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
           <div class="card-body">
-            <h1 class="text-2xl font-bold text-center mb-6">Create account</h1>
+            <h1 class="text-2xl font-bold text-center mb-6">{@project_title} Create account</h1>
 
             <.form
               for={@form}
@@ -136,11 +137,15 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       })
     end
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     changeset = Auth.change_user_registration(%User{})
 
     socket =
       socket
       |> assign(trigger_submit: false, check_errors: false)
+      |> assign(project_title: project_title)
       |> assign_form(changeset)
 
     {:ok, socket, temporary_assigns: [form: nil]}

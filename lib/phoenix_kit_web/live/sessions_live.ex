@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Sessions}
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -28,6 +29,9 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     socket =
       socket
       |> assign(:page, 1)
@@ -36,6 +40,7 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
       |> assign(:filter_user_status, "all")
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Sessions")
+      |> assign(:project_title, project_title)
       |> assign(:show_revoke_modal, false)
       |> assign(:selected_session, nil)
       |> assign(:revoke_type, nil)

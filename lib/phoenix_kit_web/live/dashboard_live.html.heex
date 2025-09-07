@@ -1,16 +1,17 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="PhoenixKit Dashboard"
+  page_title="{@project_title} Dashboard"
   current_path={@current_path}
+  project_title={@project_title}
 >
   <div class="container flex-col mx-auto px-4 py-8">
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-base-content mb-2">
-        PhoenixKit Dashboard
+        {@project_title} Dashboard
       </h1>
       <p class="text-base-content/70">
-        Welcome to the PhoenixKit administration panel
+        Welcome to the {@project_title} administration panel
       </p>
     </div>
     
@@ -448,7 +449,7 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="text-center">
               <div class="text-2xl font-bold text-primary mb-2">{@phoenix_kit_version}</div>
-              <div class="text-sm text-base-content/70">PhoenixKit Version</div>
+              <div class="text-sm text-base-content/70">{@project_title} Version</div>
             </div>
             <div class="text-center">
               <div class="badge badge-success badge-lg mb-2">Active</div>

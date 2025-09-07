@@ -59,6 +59,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_title, :string, default: nil
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
+  attr :project_title, :string, default: "PhoenixKit"
 
   slot :inner_block, required: false
 
@@ -132,7 +133,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             template_assigns = %{
               original_inner_block: original_inner_block,
               current_path: assigns[:current_path],
-              phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope]
+              phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
+              project_title: assigns[:project_title] || "PhoenixKit"
             }
 
             assigns = template_assigns
@@ -171,7 +173,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       />
                     </svg>
                   </div>
-                  <span class="font-bold text-base-content">PhoenixKit Admin</span>
+                  <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
                 
             <!-- Theme Switcher Mobile -->
@@ -211,7 +213,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         </svg>
                       </div>
                       <div>
-                        <h2 class="font-bold text-base-content">PhoenixKit Admin</h2>
+                        <h2 class="font-bold text-base-content">{@project_title} Admin</h2>
                       </div>
                     </div>
                   </div>
@@ -410,7 +412,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
-        <.live_title default="PhoenixKit Admin">
+        <.live_title default={"#{assigns[:project_title] || "PhoenixKit"} Admin"}>
           {assigns[:page_title] || "Admin"}
         </.live_title>
         <link phx-track-static rel="stylesheet" href="/assets/app.css" />

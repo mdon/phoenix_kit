@@ -2,6 +2,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.{Events, Presence}
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.{Roles, Sessions}
 
@@ -24,6 +25,9 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     # Get PhoenixKit version from application specification
     version = Application.spec(:phoenix_kit, :vsn) |> to_string()
 
+    # Get project title from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+
     # Get current path for navigation
     current_path = get_current_path(socket, session)
 
@@ -40,6 +44,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       |> assign(:session_stats, session_stats)
       |> assign(:presence_stats, presence_stats)
       |> assign(:phoenix_kit_version, version)
+      |> assign(:project_title, project_title)
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Dashboard")
       |> assign(:cached_user_roles, user_roles)
