@@ -1,3 +1,27 @@
+## 1.2.2 - 2025-09-08
+
+### Added
+- Comprehensive asset rebuild system with `mix phoenix_kit.assets.rebuild` task for automatic CSS integration
+- System status checker with `mix phoenix_kit.status` task for installation diagnostics
+- Asset management tools for PhoenixKit CSS integration updates and Tailwind CSS compatibility
+- Common utility functions in `PhoenixKit.Install.Common` for version checking and installation management
+- Helper functions for better code organization and separation of concerns
+- Progress tracking and enhanced user feedback for migration operations
+- Type specifications for Mix.Task modules and asset rebuild functions
+
+### Changed
+- CSS integration workflow simplified with better Tailwind CSS 4 support and @source directive optimization
+- Migration function refactored to reduce cyclomatic complexity and improve maintainability
+- Code organization improved with extraction of helper functions across multiple modules
+- Enhanced error handling and user notifications for asset rebuild operations
+
+### Fixed
+- All Credo static analysis warnings (trailing whitespace, formatting issues, deep nesting)
+- All Dialyzer type analysis warnings with proper function specifications
+- CSS integration logic and @source directive paths for correct asset compilation
+- Complex migration function broken down into smaller, more maintainable functions
+- Conditional statements simplified (cond to if) for better code clarity
+
 ## 1.2.1 - 2025-09-07
 
 ### Added
