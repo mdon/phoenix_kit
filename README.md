@@ -297,4 +297,4 @@ MIT License - see [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
-Built with ❤️ for the Elixir Phoenix community
+Built in 🇪🇺🇪🇪 with ❤️ for the Elixir Phoenix community.
