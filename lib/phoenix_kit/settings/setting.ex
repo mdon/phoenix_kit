@@ -9,6 +9,7 @@ defmodule PhoenixKit.Settings.Setting do
 
   - `key`: Setting identifier (unique, required)
   - `value`: Setting value (string format)
+  - `module`: Module/feature identifier for organization (optional)
   - `date_added`: When the setting was first created
   - `date_updated`: When the setting was last modified
 
@@ -40,6 +41,7 @@ defmodule PhoenixKit.Settings.Setting do
   schema "phoenix_kit_settings" do
     field :key, :string
     field :value, :string
+    field :module, :string
     field :date_added, :utc_datetime_usec
     field :date_updated, :utc_datetime_usec
   end
@@ -52,10 +54,11 @@ defmodule PhoenixKit.Settings.Setting do
   """
   def changeset(setting, attrs) do
     setting
-    |> cast(attrs, [:key, :value, :date_added, :date_updated])
+    |> cast(attrs, [:key, :value, :module, :date_added, :date_updated])
     |> validate_required([:key, :value])
     |> validate_length(:key, min: 1, max: 255)
     |> validate_length(:value, min: 1, max: 1000)
+    |> validate_length(:module, max: 255)
     |> unique_constraint(:key, name: :phoenix_kit_settings_key_uidx)
     |> maybe_set_timestamps()
   end
@@ -68,9 +71,10 @@ defmodule PhoenixKit.Settings.Setting do
   """
   def update_changeset(setting, attrs) do
     setting
-    |> cast(attrs, [:value])
+    |> cast(attrs, [:value, :module])
     |> validate_required([:value])
     |> validate_length(:value, min: 1, max: 1000)
+    |> validate_length(:module, max: 255)
     |> put_change(:date_updated, DateTime.utc_now())
   end
 
