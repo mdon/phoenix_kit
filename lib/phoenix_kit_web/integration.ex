@@ -49,7 +49,7 @@ defmodule PhoenixKitWeb.Integration do
 
   1. Install: `npm install daisyui@latest`
   2. Add to tailwind.config.js:
-     - Content: `"../../deps/phoenix_kit/**/*.{ex,heex,js}"`
+     - Content: `"../../deps/phoenix_kit"`
      - Plugin: `require('daisyui')`
 
   ## Layout Templates

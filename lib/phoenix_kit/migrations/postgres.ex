@@ -230,12 +230,43 @@ defmodule PhoenixKit.Migrations.Postgres do
   end
 
   defp change(range, direction, opts) do
-    for index <- range do
+    range_list = Enum.to_list(range)
+    total_steps = length(range_list)
+
+    # Show migration progress header
+    if total_steps > 1 do
+      {start_version, end_version} =
+        case direction do
+          :up -> {Enum.min(range_list), Enum.max(range_list)}
+          :down -> {Enum.max(range_list), Enum.min(range_list)}
+        end
+
+      action = if direction == :up, do: "Running", else: "Rolling back"
+
+      IO.puts(
+        "\n🔄 #{action} PhoenixKit migration V#{String.pad_leading(to_string(start_version), 2, "0")}→V#{String.pad_leading(to_string(end_version), 2, "0")}..."
+      )
+    end
+
+    # Execute migrations with progress tracking
+    range_list
+    |> Enum.with_index()
+    |> Enum.each(fn {index, step_index} ->
       pad_idx = String.pad_leading(to_string(index), 2, "0")
+
+      # Show progress bar for multi-step migrations
+      if total_steps > 1 do
+        show_migration_progress(step_index + 1, total_steps, "V#{pad_idx}")
+      end
 
       [__MODULE__, "V#{pad_idx}"]
       |> Module.concat()
       |> apply(direction, [opts])
+    end)
+
+    # Show completion message
+    if total_steps > 1 do
+      IO.puts("✅ Migration completed successfully!\n")
     end
 
     case direction do
@@ -247,6 +278,29 @@ defmodule PhoenixKit.Migrations.Postgres do
         # For down migrations, let individual migration handle version comments
         # This prevents conflicts with version comments in migration down() functions
         :ok
+    end
+  end
+
+  # Show migration progress bar
+  defp show_migration_progress(current_step, total_steps, version_info) do
+    percentage = div(current_step * 100, total_steps)
+    progress_width = 20
+    filled_width = div(current_step * progress_width, total_steps)
+    empty_width = progress_width - filled_width
+
+    filled_bar = String.duplicate("█", filled_width)
+    empty_bar = String.duplicate("▒", empty_width)
+
+    progress_bar = "#{filled_bar}#{empty_bar}"
+
+    # Use carriage return to update the same line
+    IO.write(
+      "\r#{progress_bar} #{percentage}% (#{current_step}/#{total_steps} migrations) #{version_info}"
+    )
+
+    # Add newline after the last step
+    if current_step == total_steps do
+      IO.puts("")
     end
   end
 

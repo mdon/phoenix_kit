@@ -11,6 +11,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   alias Igniter.Project.Application
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Install.{AssetRebuild, Common}
 
   @doc """
   Creates PhoenixKit migration without interactive prompts (used by igniter).
@@ -206,7 +207,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
         Igniter.add_warning(igniter, "Could not determine app name for migration")
 
       app_name ->
-        timestamp = generate_timestamp()
+        timestamp = Common.generate_timestamp()
         migration_file = "#{timestamp}_add_phoenix_kit_tables.exs"
         migration_path = Path.join(["priv", "repo", "migrations", migration_file])
 
@@ -225,11 +226,21 @@ defmodule PhoenixKit.Install.MigrationStrategy do
         end
         """
 
+        # Get PhoenixKit version info from mix.exs
+        phoenix_kit_version =
+          case :application.get_key(:phoenix_kit, :vsn) do
+            {:ok, vsn} when is_list(vsn) -> List.to_string(vsn)
+            {:ok, vsn} -> to_string(vsn)
+            :undefined -> "unknown"
+          end
+
+        migration_version = Postgres.current_version()
+
         initial_notice = """
 
-        📦 PhoenixKit Initial Installation Created:
-        - Migration: #{migration_file}
-        - This will install PhoenixKit version #{Postgres.current_version()} (latest)
+        📦 PhoenixKit Installation Created:
+        - PhoenixKit Module Version: #{phoenix_kit_version}
+        - Migration V#{Common.pad_version(migration_version)}: #{migration_file}
         """
 
         igniter
@@ -258,9 +269,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
     """
 
-    📦 PhoenixKit is already installed (V#{pad_version(current_version)}).
+    📦 PhoenixKit is already installed (V#{Common.pad_version(current_version)}).
 
-    To update to the latest version (V#{pad_version(target_version)}), please use:
+    To update to the latest version (V#{Common.pad_version(target_version)}), please use:
       mix phoenix_kit.update#{prefix_option}
 
     To check current status:
@@ -344,9 +355,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
           IO.puts("\n✅ Migration completed successfully!\n")
           IO.puts(output)
           # Check if asset rebuilding is needed after successful migration
-          check_and_rebuild_assets_if_needed()
+          asset_result = AssetRebuild.check_and_rebuild(verbose: false)
 
-          show_success_notice()
+          show_success_notice(asset_result)
 
         {output, _} ->
           IO.puts("\n❌ Migration failed:")
@@ -358,51 +369,6 @@ defmodule PhoenixKit.Install.MigrationStrategy do
         IO.puts("\n⚠️  Migration execution failed: #{inspect(error)}")
         show_manual_migration_instructions()
     end
-  end
-
-  # handle asset rebuilding
-  defp check_and_rebuild_assets_if_needed do
-    # Check if this is a daisyUI 5 upgrade or CSS-related migration
-    if asset_rebuild_needed?() do
-      IO.puts("\n🎨 Checking if asset rebuilding is needed...")
-
-      case System.cmd("mix", ["assets.build"], stderr_to_stdout: true) do
-        {output, 0} ->
-          IO.puts("✅ Assets rebuilt successfully!")
-          IO.puts(output)
-
-        {output, _} ->
-          IO.puts("⚠️  Asset rebuild failed (this is optional):")
-          IO.puts(output)
-          IO.puts("You can manually rebuild assets with: mix assets.build")
-      end
-    end
-  end
-
-  defp asset_rebuild_needed? do
-    # For new installations or when PhoenixKit contains daisyUI assets
-    # Check if PhoenixKit has daisyUI-related static assets
-    phoenix_kit_assets = Path.join(["deps", "phoenix_kit", "priv", "static", "assets"])
-
-    if File.dir?(phoenix_kit_assets) do
-      # Check if PhoenixKit includes daisyUI assets
-      File.ls!(phoenix_kit_assets)
-      |> Enum.any?(fn file ->
-        String.contains?(file, "daisyui") || String.contains?(file, "theme")
-      end)
-    else
-      # Fallback: check if current project uses Tailwind/daisyUI
-      tailwind_config = Path.join(["assets", "css", "app.css"])
-
-      if File.exists?(tailwind_config) do
-        content = File.read!(tailwind_config)
-        String.contains?(content, "daisyui") || String.contains?(content, "@plugin")
-      else
-        false
-      end
-    end
-  rescue
-    _ -> false
   end
 
   # Notice functions for interactive migration
@@ -423,9 +389,17 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     """)
   end
 
-  defp show_success_notice do
+  defp show_success_notice(asset_result) do
+    # Include asset rebuild status in success message
+    asset_status =
+      case asset_result do
+        :rebuild_completed -> " (assets rebuilt successfully)"
+        :rebuild_failed -> " (note: asset rebuild failed, but PhoenixKit is functional)"
+        _ -> ""
+      end
+
     IO.puts("""
-    🎉 PhoenixKit is now ready to use!
+    🎉 PhoenixKit is now ready to use!#{asset_status}
     📖 Check the demo pages at: /test-current-user, /test-ensure-auth
     """)
   end
@@ -447,9 +421,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
     IO.puts("""
 
-    📦 PhoenixKit is already installed (V#{pad_version(current_version)}).
+    📦 PhoenixKit is already installed (V#{Common.pad_version(current_version)}).
 
-    To update to the latest version (V#{pad_version(target_version)}), please use:
+    To update to the latest version (V#{Common.pad_version(target_version)}), please use:
       mix phoenix_kit.update#{prefix_option}
 
     To check current status:
@@ -495,10 +469,6 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     _ -> []
   end
 
-  # Pad version number for consistent naming
-  defp pad_version(version) when version < 10, do: "0#{version}"
-  defp pad_version(version), do: to_string(version)
-
   # Generate migration options (same as phoenix_kit.install.ex)
   defp migration_opts("public", false), do: "[]"
   # public schema doesn't need create_schema
@@ -509,13 +479,4 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     opts = if create_schema, do: Keyword.put(opts, :create_schema, true), else: opts
     inspect(opts)
   end
-
-  # Generate timestamp
-  defp generate_timestamp do
-    {{y, m, d}, {hh, mm, ss}} = :calendar.universal_time()
-    "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
-  end
-
-  defp pad(i) when i < 10, do: <<?0, ?0 + i>>
-  defp pad(i), do: to_string(i)
 end
