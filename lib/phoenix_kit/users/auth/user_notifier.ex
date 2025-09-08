@@ -30,15 +30,25 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
+    from_email = get_from_email()
+
     email =
       new()
       |> to(recipient)
-      |> from({"PhoenixKit", "contact@example.com"})
+      |> from({"PhoenixKit", from_email})
       |> subject(subject)
       |> text_body(body)
 
     with {:ok, _metadata} <- Mailer.deliver(email) do
       {:ok, email}
+    end
+  end
+
+  # Get the from email address from configuration or use a default
+  defp get_from_email do
+    case PhoenixKit.Config.get(:from_email) do
+      {:ok, email} -> email
+      :not_found -> "noreply@localhost"
     end
   end
 

@@ -12,12 +12,14 @@ defmodule Mix.Tasks.PhoenixKit.Update do
       $ mix phoenix_kit.update
       $ mix phoenix_kit.update --prefix=myapp
       $ mix phoenix_kit.update --status
+      $ mix phoenix_kit.update --skip-assets
 
   ## Options
 
     * `--prefix` - Database schema prefix (default: "public")
     * `--status` - Show current installation status and available updates
     * `--force` - Force update even if already up to date
+    * `--skip-assets` - Skip automatic asset rebuild check
 
   ## Examples
 
@@ -49,13 +51,15 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   """
 
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Install.{AssetRebuild, Common}
 
   @shortdoc "Updates PhoenixKit to the latest version"
 
   @switches [
     prefix: :string,
     status: :boolean,
-    force: :boolean
+    force: :boolean,
+    skip_assets: :boolean
   ]
 
   @aliases [
@@ -129,15 +133,15 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   end
 
   # Handle update check logic
-  defp handle_update_check(prefix, current_version, force) do
-    target_version = Postgres.current_version()
+  defp handle_update_check(prefix, current_version, force, skip_assets) do
+    target_version = Common.current_version()
 
     cond do
       current_version >= target_version && !force ->
         handle_already_up_to_date(current_version)
 
       current_version < target_version || force ->
-        handle_update_needed(prefix, current_version, target_version, force)
+        handle_update_needed(prefix, current_version, target_version, force, skip_assets)
 
       true ->
         Mix.shell().info("No update needed.")
@@ -155,22 +159,27 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   end
 
   # Handle update needed scenario
-  defp handle_update_needed(prefix, current_version, target_version, force) do
+  defp handle_update_needed(prefix, current_version, target_version, force, skip_assets) do
     create_update_migration(prefix, current_version, target_version, force)
     suggest_layout_integration_if_needed()
+    # Check and rebuild assets after migration creation (unless skipped)
+    unless skip_assets do
+      suggest_asset_rebuild_if_needed(current_version, target_version)
+    end
   end
 
   # Perform the actual update
   defp perform_update(opts) do
     prefix = opts[:prefix] || "public"
     force = opts[:force] || false
+    skip_assets = opts[:skip_assets] || false
 
     case check_installation_status(prefix) do
       {:not_installed} ->
         handle_not_installed()
 
       {:current_version, current_version} ->
-        handle_update_check(prefix, current_version, force)
+        handle_update_check(prefix, current_version, force, skip_assets)
     end
   end
 
@@ -223,14 +232,22 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     # Write migration file
     File.write!(migration_file, migration_content)
 
-    # Show success notice
+    # Show success notice with version information
     changes = describe_version_changes(current_version, target_version)
+
+    phoenix_kit_version =
+      case :application.get_key(:phoenix_kit, :vsn) do
+        {:ok, vsn} when is_list(vsn) -> List.to_string(vsn)
+        {:ok, vsn} -> to_string(vsn)
+        :undefined -> "unknown"
+      end
 
     notice = """
 
     📦 PhoenixKit Update Migration Created:
+    - PhoenixKit Module Version: #{phoenix_kit_version}
     - Migration: #{migration_name}
-    - Updating from V#{pad_version(current_version)} to V#{pad_version(target_version)}
+    - Updating from Migration V#{pad_version(current_version)} to V#{pad_version(target_version)}
 
     What's new:
     #{changes}
@@ -247,6 +264,27 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     """
 
     Mix.shell().info(notice)
+  end
+
+  # Suggest asset rebuild if needed after update
+  defp suggest_asset_rebuild_if_needed(_current_version, target_version) do
+    if AssetRebuild.asset_rebuild_needed?(false) do
+      Mix.shell().info("""
+
+      🎨 Asset Rebuild Recommended:
+
+      PhoenixKit V#{pad_version(target_version)} includes CSS/theme changes that may
+      require rebuilding your application's assets.
+
+      To rebuild assets automatically:
+        mix phoenix_kit.assets.rebuild
+
+      Or check if rebuild is needed:
+        mix phoenix_kit.assets.rebuild --check
+
+      This ensures your application uses the latest PhoenixKit styles.
+      """)
+    end
   end
 
   # Check what version of PhoenixKit is currently installed

@@ -123,19 +123,15 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       result
     end
 
-    # Add completion notice with essential next steps
+    # Add completion notice with essential next steps (reduced duplication)
     defp add_completion_notice(igniter) do
       notice = """
 
-      🎉 PhoenixKit installation is complete!
-
-      Next steps:
-        1. Run: mix ecto.migrate
-        2. Start server: mix phx.server
-        3. Visit /phoenix_kit/users/register
-        4. Test demo pages: /test-current-user, /test-redirect-if-auth, /test-ensure-auth
-
-      💡 Layout changes require: mix deps.compile phoenix_kit --force
+      ✅ PhoenixKit ready! Next:
+        • mix ecto.migrate
+        • mix phx.server  
+        • Visit /phoenix_kit/users/register
+        • Test: /test-current-user, /test-ensure-auth
       """
 
       Igniter.add_notice(igniter, notice)

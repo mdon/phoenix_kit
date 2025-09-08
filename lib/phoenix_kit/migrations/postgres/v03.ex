@@ -48,4 +48,12 @@ defmodule PhoenixKit.Migrations.Postgres.V03 do
   # Helper function to build table name with prefix
   defp prefix_table_name(table_name, nil), do: table_name
   defp prefix_table_name(table_name, prefix), do: "#{prefix}.#{table_name}"
+
+  def down(%{prefix: prefix} = _opts) do
+    # Drop settings table
+    drop_if_exists table(:phoenix_kit_settings, prefix: prefix)
+
+    # Set version comment back to V02
+    execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '2'"
+  end
 end

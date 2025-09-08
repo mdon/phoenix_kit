@@ -11,6 +11,11 @@
   {"lib/mix/tasks/phoenix_kit.install.ex", :callback_info_missing, 2},
   {"lib/mix/tasks/phoenix_kit.update.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.modernize_layouts.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.assets.rebuild.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.status.ex", :callback_info_missing, 1},
+
+  # False positive guard clause warnings (function returns boolean correctly)
+  {"lib/mix/tasks/phoenix_kit.assets.rebuild.ex", :guard_fail, 209},
 
   # Ecto.Multi opaque type false positives (code works correctly)
   ~r/lib\/phoenix_kit\/users\/auth\.ex:.*call_without_opaque/

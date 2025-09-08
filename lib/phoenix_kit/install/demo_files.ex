@@ -100,16 +100,7 @@ defmodule PhoenixKit.Install.DemoFiles do
 
   # Add notice about demo files
   defp add_test_demo_notice(igniter) do
-    notice = """
-    📝 Demo test files created at /test-current-user, /test-redirect-if-auth, /test-ensure-auth
-
-    These demonstrate PhoenixKit authentication levels:
-      • test-current-user: Shows current scope without requiring auth
-      • test-redirect-if-auth: Redirects authenticated users
-      • test-ensure-auth: Requires authentication to access
-
-    Visit these pages after starting your server to test the authentication system.
-    """
+    notice = "📝 Demo pages: /test-current-user, /test-redirect-if-auth, /test-ensure-auth"
 
     Igniter.add_notice(igniter, notice)
   end

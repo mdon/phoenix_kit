@@ -108,12 +108,7 @@ defmodule PhoenixKit.Install.MailerConfig do
 
   # Add brief notice about mailer configuration
   defp add_mailer_production_notice(igniter) do
-    notice = """
-
-    📧 Development mailer configured (Swoosh.Adapters.Local)
-    📄 Production mailer templates added to config/prod.exs (as comments)
-    💡 Uncomment and configure your preferred email provider
-    """
+    notice = "📧 Email configured (dev: local, prod: see config/prod.exs)"
 
     Igniter.add_notice(igniter, notice)
   end
