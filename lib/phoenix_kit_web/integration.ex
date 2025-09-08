@@ -129,7 +129,7 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/sessions", Live.SessionsLive, :index
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
-          live "/admin/referral-codes", Live.ReferralCodes.ReferralCodesLive, :index
+          live "/admin/referral-codes", Live.ReferralCodesLive, :index
         end
       end
     end

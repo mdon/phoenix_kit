@@ -1,10 +1,74 @@
-defmodule PhoenixKit.ReferralCodes.ReferralCode do
+defmodule PhoenixKit.ReferralCodes do
   @moduledoc """
-  Schema and domain logic for referral codes.
+  Referral code system for PhoenixKit - complete management in a single module.
+
+  This module provides both the Ecto schema definition and business logic for 
+  managing referral codes. It includes code creation, validation, usage tracking,
+  and system configuration.
+
+  ## Schema Fields
+
+  - `code`: The referral code string (unique, required)
+  - `description`: Human-readable description of the code
+  - `status`: Boolean indicating if the code is active
+  - `number_of_uses`: Current number of times the code has been used
+  - `max_uses`: Maximum number of times the code can be used
+  - `created_by`: User ID of the admin who created the code
+  - `date_created`: When the code was created
+  - `expiration_date`: When the code expires
+
+  ## Core Functions
+
+  ### Code Management
+  - `list_codes/0` - Get all referral codes
+  - `get_code!/1` - Get a referral code by ID (raises if not found)
+  - `get_code_by_string/1` - Get a referral code by its string value
+  - `create_code/1` - Create a new referral code
+  - `update_code/2` - Update an existing referral code
+  - `delete_code/1` - Delete a referral code
+  - `generate_random_code/0` - Generate a random code string
+
+  ### Usage Tracking
+  - `use_code/2` - Record usage of a referral code by a user
+  - `get_usage_stats/1` - Get usage statistics for a code
+  - `list_usage_for_code/1` - Get all usage records for a code
+  - `user_used_code?/2` - Check if user has used a specific code
+
+  ### System Settings
+  - `enabled?/0` - Check if referral codes system is enabled
+  - `required?/0` - Check if referral codes are required for registration
+  - `enable_system/0` - Enable the referral codes system
+  - `disable_system/0` - Disable the referral codes system
+  - `set_required/1` - Set whether referral codes are required
+
+  ## Usage Examples
+
+      # Check if system is enabled
+      if PhoenixKit.ReferralCodes.enabled?() do
+        # System is active
+      end
+
+      # Create a new referral code
+      {:ok, code} = PhoenixKit.ReferralCodes.create_code(%{
+        code: "WELCOME2024",
+        description: "Welcome promotion",
+        max_uses: 100,
+        created_by: admin_user.id,
+        expiration_date: ~U[2024-12-31 23:59:59.000000Z]
+      })
+
+      # Use a referral code during registration
+      case PhoenixKit.ReferralCodes.use_code("WELCOME2024", user.id) do
+        {:ok, usage} -> # Code used successfully
+        {:error, reason} -> # Handle error
+      end
   """
 
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query, warn: false
+
+  alias PhoenixKit.Settings
 
   @primary_key {:id, :id, autogenerate: true}
 
@@ -21,14 +85,13 @@ defmodule PhoenixKit.ReferralCodes.ReferralCode do
     has_many :usage_records, PhoenixKit.ReferralCodeUsage, foreign_key: :code_id
   end
 
-  @doc """
-  Changeset for creating/updating referral codes.
+  ## --- Schema Functions ---
 
-  - Ensures required fields and lengths
-  - Enforces unique `code`
-  - Validates expiration (if present) is in the future
-  - Auto-sets `date_created` for new records
-  - Defaults `expiration_date` to 1 week from now for new records if not supplied
+  @doc """
+  Creates a changeset for referral code creation and updates.
+
+  Validates that code is unique and all required fields are present.
+  Automatically sets date_created on new records.
   """
   def changeset(referral_code, attrs) do
     referral_code
@@ -56,37 +119,400 @@ defmodule PhoenixKit.ReferralCodes.ReferralCode do
   @doc """
   Generates a random 5-character alphanumeric referral code.
 
-  Excludes confusing characters: 0, O, I, 1.
+  Returns a string with uppercase letters and numbers, excluding
+  potentially confusing characters (0, O, I, 1).
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.generate_random_code()
+      "A7B2K"
   """
   def generate_random_code do
+    # Exclude confusing characters: 0, O, I, 1
     chars = ~w(A B C D E F G H J K L M N P Q R S T U V W X Y Z 2 3 4 5 6 7 8 9)
-    chars |> Enum.take_random(5) |> Enum.join()
+    
+    chars
+    |> Enum.take_random(5)
+    |> Enum.join()
   end
 
   @doc """
-  Returns true if the code is active, not expired, and under its usage limit.
+  Checks if a referral code is currently valid for use.
+
+  A code is valid if:
+  - It exists and is active (status: true)
+  - It has not exceeded its maximum uses
+  - It has not expired
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.valid_for_use?(code)
+      true
   """
   def valid_for_use?(%__MODULE__{} = code) do
-    code.status &&
-      code.number_of_uses < code.max_uses &&
-      DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt
+    code.status && 
+    code.number_of_uses < code.max_uses && 
+    DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt
   end
 
   @doc """
-  Returns true if the code is expired.
+  Checks if a referral code has expired.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.expired?(code)
+      false
   """
   def expired?(%__MODULE__{} = code) do
     DateTime.compare(DateTime.utc_now(), code.expiration_date) != :lt
   end
 
   @doc """
-  Returns true if the usage limit has been reached.
+  Checks if a referral code has reached its usage limit.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.usage_limit_reached?(code)
+      false
   """
   def usage_limit_reached?(%__MODULE__{} = code) do
     code.number_of_uses >= code.max_uses
   end
 
-  # --- private helpers ---
+  ## --- Business Logic Functions ---
+
+  @doc """
+  Returns the list of referral codes ordered by creation date.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.list_codes()
+      [%PhoenixKit.ReferralCodes{}, ...]
+  """
+  def list_codes do
+    __MODULE__
+    |> order_by([r], desc: r.date_created)
+    |> repo().all()
+  end
+
+  @doc """
+  Gets a single referral code by ID.
+
+  Raises `Ecto.NoResultsError` if the code does not exist.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_code!(123)
+      %PhoenixKit.ReferralCodes{}
+
+      iex> PhoenixKit.ReferralCodes.get_code!(456)
+      ** (Ecto.NoResultsError)
+  """
+  def get_code!(id), do: repo().get!(__MODULE__, id)
+
+  @doc """
+  Gets a single referral code by its string value.
+
+  Returns the referral code if found, nil otherwise.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_code_by_string("WELCOME2024")
+      %PhoenixKit.ReferralCodes{}
+
+      iex> PhoenixKit.ReferralCodes.get_code_by_string("INVALID")
+      nil
+  """
+  def get_code_by_string(code_string) when is_binary(code_string) do
+    repo().get_by(__MODULE__, code: code_string)
+  end
+
+  @doc """
+  Creates a referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.create_code(%{code: "TEST123", max_uses: 10})
+      {:ok, %PhoenixKit.ReferralCodes{}}
+
+      iex> PhoenixKit.ReferralCodes.create_code(%{code: ""})
+      {:error, %Ecto.Changeset{}}
+  """
+  def create_code(attrs \\ %{}) do
+    %__MODULE__{}
+    |> changeset(attrs)
+    |> repo().insert()
+  end
+
+  @doc """
+  Updates a referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.update_code(code, %{description: "Updated"})
+      {:ok, %PhoenixKit.ReferralCodes{}}
+
+      iex> PhoenixKit.ReferralCodes.update_code(code, %{code: ""})
+      {:error, %Ecto.Changeset{}}
+  """
+  def update_code(%__MODULE__{} = referral_code, attrs) do
+    referral_code
+    |> changeset(attrs)
+    |> repo().update()
+  end
+
+  @doc """
+  Deletes a referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.delete_code(code)
+      {:ok, %PhoenixKit.ReferralCodes{}}
+
+      iex> PhoenixKit.ReferralCodes.delete_code(code)
+      {:error, %Ecto.Changeset{}}
+  """
+  def delete_code(%__MODULE__{} = referral_code) do
+    repo().delete(referral_code)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking referral code changes.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.change_code(code)
+      %Ecto.Changeset{data: %PhoenixKit.ReferralCodes{}}
+  """
+  def change_code(%__MODULE__{} = referral_code, attrs \\ %{}) do
+    changeset(referral_code, attrs)
+  end
+
+  @doc """
+  Records usage of a referral code by a user.
+
+  Validates that the code is valid for use before recording the usage.
+  Updates the code's number_of_uses counter.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.use_code("WELCOME2024", user_id)
+      {:ok, %PhoenixKit.ReferralCodeUsage{}}
+
+      iex> PhoenixKit.ReferralCodes.use_code("EXPIRED", user_id)
+      {:error, :code_not_found}
+  """
+  def use_code(code_string, user_id) when is_binary(code_string) and is_integer(user_id) do
+    case get_code_by_string(code_string) do
+      nil ->
+        {:error, :code_not_found}
+
+      code ->
+        if valid_for_use?(code) do
+          repo().transaction(fn ->
+            # Record the usage
+            usage_result = %PhoenixKit.ReferralCodeUsage{}
+            |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
+            |> repo().insert()
+
+            case usage_result do
+              {:ok, usage} ->
+                # Update the code's usage counter
+                {:ok, _updated_code} = update_code(code, %{number_of_uses: code.number_of_uses + 1})
+                usage
+
+              {:error, changeset} ->
+                repo().rollback(changeset)
+            end
+          end)
+        else
+          cond do
+            expired?(code) -> {:error, :code_expired}
+            usage_limit_reached?(code) -> {:error, :usage_limit_reached}
+            !code.status -> {:error, :code_inactive}
+            true -> {:error, :code_invalid}
+          end
+        end
+    end
+  end
+
+  @doc """
+  Gets usage statistics for a referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_usage_stats(code_id)
+      %{total_uses: 5, unique_users: 3, last_used: ~U[...], recent_users: [...]}
+  """
+  def get_usage_stats(code_id) when is_integer(code_id) do
+    PhoenixKit.ReferralCodeUsage.get_usage_stats(code_id)
+  end
+
+  @doc """
+  Lists all usage records for a referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.list_usage_for_code(code_id)
+      [%PhoenixKit.ReferralCodeUsage{}, ...]
+  """
+  def list_usage_for_code(code_id) when is_integer(code_id) do
+    PhoenixKit.ReferralCodeUsage.for_code(code_id)
+    |> repo().all()
+  end
+
+  @doc """
+  Checks if a user has already used a specific referral code.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.user_used_code?(user_id, code_id)
+      false
+  """
+  def user_used_code?(user_id, code_id) when is_integer(user_id) and is_integer(code_id) do
+    PhoenixKit.ReferralCodeUsage.user_used_code?(user_id, code_id)
+  end
+
+  ## --- System Settings ---
+
+  @doc """
+  Checks if the referral codes system is enabled.
+
+  Returns true if the "referral_codes_enabled" setting is true.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.enabled?()
+      false
+  """
+  def enabled? do
+    Settings.get_boolean_setting("referral_codes_enabled", false)
+  end
+
+  @doc """
+  Checks if referral codes are required for user registration.
+
+  Returns true if the "referral_codes_required" setting is true.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.required?()
+      false
+  """
+  def required? do
+    Settings.get_boolean_setting("referral_codes_required", false)
+  end
+
+  @doc """
+  Enables the referral codes system.
+
+  Sets the "referral_codes_enabled" setting to true.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.enable_system()
+      {:ok, %Setting{}}
+  """
+  def enable_system do
+    Settings.update_boolean_setting_with_module("referral_codes_enabled", true, "referral_codes")
+  end
+
+  @doc """
+  Disables the referral codes system.
+
+  Sets the "referral_codes_enabled" setting to false.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.disable_system()
+      {:ok, %Setting{}}
+  """
+  def disable_system do
+    Settings.update_boolean_setting_with_module("referral_codes_enabled", false, "referral_codes")
+  end
+
+  @doc """
+  Sets whether referral codes are required for registration.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.set_required(true)
+      {:ok, %Setting{}}
+
+      iex> PhoenixKit.ReferralCodes.set_required(false)
+      {:ok, %Setting{}}
+  """
+  def set_required(required) when is_boolean(required) do
+    Settings.update_boolean_setting_with_module("referral_codes_required", required, "referral_codes")
+  end
+
+  @doc """
+  Gets the current referral codes system configuration.
+
+  Returns a map with the current settings.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_config()
+      %{enabled: false, required: false}
+  """
+  def get_config do
+    %{
+      enabled: enabled?(),
+      required: required?()
+    }
+  end
+
+  @doc """
+  Gets codes that are currently valid for use.
+
+  Returns codes that are active, not expired, and haven't reached usage limits.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.list_valid_codes()
+      [%PhoenixKit.ReferralCodes{}, ...]
+  """
+  def list_valid_codes do
+    now = DateTime.utc_now()
+    
+    from(r in __MODULE__,
+      where: r.status == true,
+      where: r.expiration_date > ^now,
+      where: r.number_of_uses < r.max_uses,
+      order_by: [desc: r.date_created]
+    )
+    |> repo().all()
+  end
+
+  @doc """
+  Gets summary statistics for the referral codes system.
+
+  Returns counts and metrics useful for admin dashboards.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_system_stats()
+      %{total_codes: 10, active_codes: 8, total_usage: 150, codes_with_usage: 6}
+  """
+  def get_system_stats do
+    codes_query = from r in __MODULE__
+    usage_query = from u in PhoenixKit.ReferralCodeUsage
+
+    total_codes = repo().aggregate(codes_query, :count)
+    active_codes = repo().aggregate(from(r in codes_query, where: r.status == true), :count)
+    total_usage = repo().aggregate(usage_query, :count)
+    codes_with_usage = repo().aggregate(from(r in codes_query, where: r.number_of_uses > 0), :count)
+
+    %{
+      total_codes: total_codes,
+      active_codes: active_codes,
+      total_usage: total_usage,
+      codes_with_usage: codes_with_usage
+    }
+  end
+
+  ## --- Private Helpers ---
 
   defp validate_expiration_date(changeset) do
     case get_field(changeset, :expiration_date) do
@@ -125,244 +551,9 @@ defmodule PhoenixKit.ReferralCodes.ReferralCode do
         changeset
     end
   end
-end
 
-defmodule PhoenixKit.ReferralCodes do
-  @moduledoc """
-  Context for managing the referral code system in PhoenixKit.
-
-  Provides CRUD for codes, usage tracking helpers, and system settings access.
-  """
-
-  import Ecto.Query, warn: false
-
-  alias PhoenixKit.ReferralCodes.ReferralCode
-  alias PhoenixKit.Settings
-
-  # Central repo accessor (respects your RepoHelper indirection)
-  defp repo, do: PhoenixKit.RepoHelper.repo()
-
-  ## --- Code Management ---
-
-  @doc """
-  List all referral codes, newest first.
-  """
-  def list_codes do
-    ReferralCode
-    |> order_by([r], desc: r.date_created)
-    |> repo().all()
-  end
-
-  @doc """
-  Fetch a referral code by ID (bang).
-  """
-  def get_code!(id), do: repo().get!(ReferralCode, id)
-
-  @doc """
-  Fetch a referral code by its code string. Returns `nil` if not found.
-  """
-  def get_code_by_string(code_string) when is_binary(code_string) do
-    repo().get_by(ReferralCode, code: code_string)
-  end
-
-  @doc """
-  Create a referral code.
-  """
-  def create_code(attrs \\ %{}) do
-    %ReferralCode{}
-    |> ReferralCode.changeset(attrs)
-    |> repo().insert()
-  end
-
-  @doc """
-  Update a referral code.
-  """
-  def update_code(%ReferralCode{} = referral_code, attrs) do
-    referral_code
-    |> ReferralCode.changeset(attrs)
-    |> repo().update()
-  end
-
-  @doc """
-  Delete a referral code.
-  """
-  def delete_code(%ReferralCode{} = referral_code) do
-    repo().delete(referral_code)
-  end
-
-  @doc """
-  Return a changeset for a referral code with optional attributes applied.
-  """
-  def change_code(%ReferralCode{} = referral_code, attrs \\ %{}) do
-    ReferralCode.changeset(referral_code, attrs)
-  end
-
-  @doc """
-  Generate a random referral code string.
-  """
-  def generate_random_code, do: ReferralCode.generate_random_code()
-
-  ## --- Usage Tracking ---
-
-  @doc """
-  Attempt to use a referral code for `user_id`.
-
-  - Validates code status/expiry/limits
-  - Inserts usage record
-  - Increments code `number_of_uses` atomically in a transaction
-
-  Returns `{:ok, %ReferralCodeUsage{}}` on success, or `{:error, reason}`.
-  """
-  def use_code(code_string, user_id) when is_binary(code_string) and is_integer(user_id) do
-    case get_code_by_string(code_string) do
-      nil ->
-        {:error, :code_not_found}
-
-      code ->
-        if ReferralCode.valid_for_use?(code) do
-          repo().transaction(fn ->
-            usage_result =
-              %PhoenixKit.ReferralCodeUsage{}
-              |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
-              |> repo().insert()
-
-            case usage_result do
-              {:ok, usage} ->
-                {:ok, _updated_code} =
-                  update_code(code, %{number_of_uses: code.number_of_uses + 1})
-
-                usage
-
-              {:error, changeset} ->
-                repo().rollback(changeset)
-            end
-          end)
-        else
-          cond do
-            ReferralCode.expired?(code) -> {:error, :code_expired}
-            ReferralCode.usage_limit_reached?(code) -> {:error, :usage_limit_reached}
-            !code.status -> {:error, :code_inactive}
-            true -> {:error, :code_invalid}
-          end
-        end
-    end
-  end
-
-  @doc """
-  Return usage stats for a given code ID (delegates to `ReferralCodeUsage`).
-  """
-  def get_usage_stats(code_id) when is_integer(code_id) do
-    PhoenixKit.ReferralCodeUsage.get_usage_stats(code_id)
-  end
-
-  @doc """
-  List usage records for a given code ID.
-  """
-  def list_usage_for_code(code_id) when is_integer(code_id) do
-    PhoenixKit.ReferralCodeUsage.for_code(code_id)
-    |> repo().all()
-  end
-
-  @doc """
-  Check if a user already used a specific code.
-  """
-  def user_used_code?(user_id, code_id) when is_integer(user_id) and is_integer(code_id) do
-    PhoenixKit.ReferralCodeUsage.user_used_code?(user_id, code_id)
-  end
-
-  ## --- System Settings ---
-
-  @doc """
-  Is the referral code system enabled?
-  """
-  def enabled? do
-    Settings.get_boolean_setting("referral_codes_enabled", false)
-  end
-
-  @doc """
-  Are referral codes required on registration?
-  """
-  def required? do
-    Settings.get_boolean_setting("referral_codes_required", false)
-  end
-
-  @doc """
-  Enable the referral code system.
-  """
-  def enable_system do
-    Settings.update_boolean_setting_with_module(
-      "referral_codes_enabled",
-      true,
-      "referral_codes"
-    )
-  end
-
-  @doc """
-  Disable the referral code system.
-  """
-  def disable_system do
-    Settings.update_boolean_setting_with_module(
-      "referral_codes_enabled",
-      false,
-      "referral_codes"
-    )
-  end
-
-  @doc """
-  Set whether referral codes are required.
-  """
-  def set_required(required) when is_boolean(required) do
-    Settings.update_boolean_setting_with_module(
-      "referral_codes_required",
-      required,
-      "referral_codes"
-    )
-  end
-
-  @doc """
-  Fetch current referral code configuration.
-  """
-  def get_config do
-    %{
-      enabled: enabled?(),
-      required: required?()
-    }
-  end
-
-  @doc """
-  List codes that are currently valid for use.
-  """
-  def list_valid_codes do
-    now = DateTime.utc_now()
-
-    from(r in ReferralCode,
-      where: r.status == true,
-      where: r.expiration_date > ^now,
-      where: r.number_of_uses < r.max_uses,
-      order_by: [desc: r.date_created]
-    )
-    |> repo().all()
-  end
-
-  @doc """
-  Summary statistics for admin dashboards.
-  """
-  def get_system_stats do
-    codes_query = from(r in ReferralCode)
-    usage_query = from(u in PhoenixKit.ReferralCodeUsage)
-
-    total_codes = repo().aggregate(codes_query, :count)
-    active_codes = repo().aggregate(from(r in codes_query, where: r.status == true), :count)
-    total_usage = repo().aggregate(usage_query, :count)
-
-    codes_with_usage =
-      repo().aggregate(from(r in codes_query, where: r.number_of_uses > 0), :count)
-
-    %{
-      total_codes: total_codes,
-      active_codes: active_codes,
-      total_usage: total_usage,
-      codes_with_usage: codes_with_usage
-    }
+  # Gets the configured repository for database operations
+  defp repo do
+    PhoenixKit.RepoHelper.repo()
   end
 end

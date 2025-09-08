@@ -40,7 +40,7 @@ defmodule PhoenixKit.ReferralCodeUsage do
     field :used_by, :integer
     field :date_used, :utc_datetime_usec
 
-    belongs_to :referral_code, PhoenixKit.ReferralCodes.ReferralCode, foreign_key: :code_id
+    belongs_to :referral_code, PhoenixKit.ReferralCodes, foreign_key: :code_id
   end
 
   @doc """

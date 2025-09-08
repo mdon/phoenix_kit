@@ -285,10 +285,10 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
           not code.status ->
             {:error, "This referral code is no longer active"}
 
-          PhoenixKit.ReferralCodes.ReferralCode.expired?(code) ->
+          PhoenixKit.ReferralCodes.expired?(code) ->
             {:error, "This referral code has expired"}
 
-          PhoenixKit.ReferralCodes.ReferralCode.usage_limit_reached?(code) ->
+          PhoenixKit.ReferralCodes.usage_limit_reached?(code) ->
             {:error, "This referral code has reached its usage limit"}
 
           true ->
