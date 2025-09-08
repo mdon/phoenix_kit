@@ -216,14 +216,14 @@ defmodule PhoenixKit.Install.CssIntegration do
   # Helper functions for detecting existing integrations
   defp has_phoenix_kit_source?(content) do
     phoenix_kit_patterns = [
-      # Quoted patterns
-      ~r/@source\s+["'][^"']*phoenix_kit[^"']*["']/,
-      ~r/@source\s+["'][^"']*\.\.\/\.\.\/\.\.\/phoenix_kit[^"']*["']/,
-      ~r/@source\s+["'][^"']*\.\/deps\/phoenix_kit[^"']*["']/,
-      # Unquoted patterns (without quotes)
-      ~r/@source\s+[^;]+phoenix_kit[^;]*;/,
-      ~r/@source\s+\.\.\/\.\.\/\.\.\/phoenix_kit[^;]*;/,
-      ~r/@source\s+\.\/deps\/phoenix_kit[^;]*;/
+      # Exact PhoenixKit deps patterns (quoted)
+      ~r/@source\s+["']\.\.\/\.\.\/deps\/phoenix_kit["']/,
+      ~r/@source\s+["']\.\/deps\/phoenix_kit["']/,
+      ~r/@source\s+["']deps\/phoenix_kit["']/,
+      # Exact PhoenixKit deps patterns (unquoted)
+      ~r/@source\s+\.\.\/\.\.\/deps\/phoenix_kit[;\s]/,
+      ~r/@source\s+\.\/deps\/phoenix_kit[;\s]/,
+      ~r/@source\s+deps\/phoenix_kit[;\s]/
     ]
 
     Enum.any?(phoenix_kit_patterns, &String.match?(content, &1))

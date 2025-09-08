@@ -1,3 +1,10 @@
+## 1.2.3 - 2025-09-08
+
+### Fixed
+- Critical CSS integration bug where regex patterns incorrectly matched file paths containing "phoenix_kit" substring
+- CSS integration now properly detects only exact PhoenixKit dependency paths (../../deps/phoenix_kit) and ignores false matches like "test_phoenix_kit_v1_web"
+- Improved pattern matching specificity to prevent installation failures in projects with similar naming
+
 ## 1.2.2 - 2025-09-08
 
 ### Added
