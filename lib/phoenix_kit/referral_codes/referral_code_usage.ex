@@ -1,4 +1,4 @@
-defmodule PhoenixKit.ReferralCodes.ReferralCodeUsage do
+defmodule PhoenixKit.ReferralCodeUsage do
   @moduledoc """
   ReferralCodeUsage schema for tracking referral code usage in PhoenixKit.
 
@@ -13,7 +13,7 @@ defmodule PhoenixKit.ReferralCodes.ReferralCodeUsage do
 
   ## Associations
 
-  - `referral_code`: Belongs to the ReferralCode that was used
+  - `referral_code`: Belongs to the referral code that was used
   - `user`: Belongs to the User who used the code (via used_by field)
 
   ## Usage Examples

@@ -18,7 +18,7 @@ defmodule PhoenixKit.ReferralCodes.ReferralCode do
     field :date_created, :utc_datetime_usec
     field :expiration_date, :utc_datetime_usec
 
-    has_many :usage_records, PhoenixKit.ReferralCodes.ReferralCodeUsage, foreign_key: :code_id
+    has_many :usage_records, PhoenixKit.ReferralCodeUsage, foreign_key: :code_id
   end
 
   @doc """
@@ -136,7 +136,7 @@ defmodule PhoenixKit.ReferralCodes do
 
   import Ecto.Query, warn: false
 
-  alias PhoenixKit.ReferralCodes.{ReferralCode, ReferralCodeUsage}
+  alias PhoenixKit.ReferralCodes.ReferralCode
   alias PhoenixKit.Settings
 
   # Central repo accessor (respects your RepoHelper indirection)
@@ -222,8 +222,8 @@ defmodule PhoenixKit.ReferralCodes do
         if ReferralCode.valid_for_use?(code) do
           repo().transaction(fn ->
             usage_result =
-              %ReferralCodeUsage{}
-              |> ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
+              %PhoenixKit.ReferralCodeUsage{}
+              |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
               |> repo().insert()
 
             case usage_result do
@@ -252,14 +252,14 @@ defmodule PhoenixKit.ReferralCodes do
   Return usage stats for a given code ID (delegates to `ReferralCodeUsage`).
   """
   def get_usage_stats(code_id) when is_integer(code_id) do
-    ReferralCodeUsage.get_usage_stats(code_id)
+    PhoenixKit.ReferralCodeUsage.get_usage_stats(code_id)
   end
 
   @doc """
   List usage records for a given code ID.
   """
   def list_usage_for_code(code_id) when is_integer(code_id) do
-    ReferralCodeUsage.for_code(code_id)
+    PhoenixKit.ReferralCodeUsage.for_code(code_id)
     |> repo().all()
   end
 
@@ -267,7 +267,7 @@ defmodule PhoenixKit.ReferralCodes do
   Check if a user already used a specific code.
   """
   def user_used_code?(user_id, code_id) when is_integer(user_id) and is_integer(code_id) do
-    ReferralCodeUsage.user_used_code?(user_id, code_id)
+    PhoenixKit.ReferralCodeUsage.user_used_code?(user_id, code_id)
   end
 
   ## --- System Settings ---
@@ -349,7 +349,7 @@ defmodule PhoenixKit.ReferralCodes do
   """
   def get_system_stats do
     codes_query = from(r in ReferralCode)
-    usage_query = from(u in ReferralCodeUsage)
+    usage_query = from(u in PhoenixKit.ReferralCodeUsage)
 
     total_codes = repo().aggregate(codes_query, :count)
     active_codes = repo().aggregate(from(r in codes_query, where: r.status == true), :count)

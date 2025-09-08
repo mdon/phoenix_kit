@@ -3,7 +3,6 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.ReferralCodes
-  alias PhoenixKit.ReferralCodes.ReferralCode
 
   def mount(_params, session, socket) do
     # Get current path for navigation
@@ -18,7 +17,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
     config = ReferralCodes.get_config()
 
     # Create initial changeset and form
-    changeset = ReferralCode.changeset(%ReferralCode{}, %{})
+    changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, %{})
     form = to_form(changeset, as: "referral_code")
 
     socket =
@@ -38,7 +37,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
   end
 
   def handle_event("show_new_form", _params, socket) do
-    changeset = ReferralCode.changeset(%ReferralCode{}, %{})
+    changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, %{})
     form = to_form(changeset, as: "referral_code")
 
     socket =
@@ -53,7 +52,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
 
   def handle_event("show_edit_form", %{"id" => id}, socket) do
     code = ReferralCodes.get_code!(String.to_integer(id))
-    changeset = ReferralCode.changeset(code, %{})
+    changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(code, %{})
     form = to_form(changeset, as: "referral_code")
 
     socket =
@@ -67,7 +66,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
   end
 
   def handle_event("cancel_form", _params, socket) do
-    changeset = ReferralCode.changeset(%ReferralCode{}, %{})
+    changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, %{})
     form = to_form(changeset, as: "referral_code")
 
     socket =
@@ -89,8 +88,8 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
     
     changeset = 
       case socket.assigns.form_code do
-        nil -> ReferralCode.changeset(%ReferralCode{}, updated_attrs)
-        code -> ReferralCode.changeset(code, updated_attrs)
+        nil -> PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, updated_attrs)
+        code -> PhoenixKit.ReferralCodes.ReferralCode.changeset(code, updated_attrs)
       end
 
     form = to_form(changeset, as: "referral_code")
@@ -107,13 +106,13 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
     changeset =
       case socket.assigns.form_code do
         nil -> 
-          %ReferralCode{}
-          |> ReferralCode.changeset(params)
+          %PhoenixKit.ReferralCodes.ReferralCode{}
+          |> PhoenixKit.ReferralCodes.ReferralCode.changeset(params)
           |> Map.put(:action, :validate)
         
         code -> 
           code
-          |> ReferralCode.changeset(params)
+          |> PhoenixKit.ReferralCodes.ReferralCode.changeset(params)
           |> Map.put(:action, :validate)
       end
 
@@ -140,7 +139,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
       nil ->
         case ReferralCodes.create_code(params_with_creator) do
           {:ok, _code} ->
-            changeset = ReferralCode.changeset(%ReferralCode{}, %{})
+            changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, %{})
             form = to_form(changeset, as: "referral_code")
 
             socket =
@@ -167,7 +166,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
       code ->
         case ReferralCodes.update_code(code, params_with_creator) do
           {:ok, _code} ->
-            changeset = ReferralCode.changeset(%ReferralCode{}, %{})
+            changeset = PhoenixKit.ReferralCodes.ReferralCode.changeset(%PhoenixKit.ReferralCodes.ReferralCode{}, %{})
             form = to_form(changeset, as: "referral_code")
 
             socket =
@@ -248,8 +247,8 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
   defp code_status_class(code) do
     cond do
       !code.status -> "bg-gray-100 text-gray-800"
-      ReferralCode.expired?(code) -> "bg-red-100 text-red-800"
-      ReferralCode.usage_limit_reached?(code) -> "bg-yellow-100 text-yellow-800"
+      PhoenixKit.ReferralCodes.ReferralCode.expired?(code) -> "bg-red-100 text-red-800"
+      PhoenixKit.ReferralCodes.ReferralCode.usage_limit_reached?(code) -> "bg-yellow-100 text-yellow-800"
       true -> "bg-green-100 text-green-800"
     end
   end
@@ -257,8 +256,8 @@ defmodule PhoenixKitWeb.Live.ReferralCodes.ReferralCodesLive do
   defp code_status_text(code) do
     cond do
       !code.status -> "Inactive"
-      ReferralCode.expired?(code) -> "Expired"
-      ReferralCode.usage_limit_reached?(code) -> "Limit Reached"
+      PhoenixKit.ReferralCodes.ReferralCode.expired?(code) -> "Expired"
+      PhoenixKit.ReferralCodes.ReferralCode.usage_limit_reached?(code) -> "Limit Reached"
       true -> "Active"
     end
   end
