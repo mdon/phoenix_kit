@@ -238,9 +238,8 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
         initial_notice = """
 
-        📦 PhoenixKit Installation Created:
-        - PhoenixKit Module Version: #{phoenix_kit_version}
-        - Migration V#{Common.pad_version(migration_version)}: #{migration_file}
+        📦 PhoenixKit V#{phoenix_kit_version} migration ready: #{migration_file}
+        Target version: V#{Common.pad_version(migration_version)}
         """
 
         igniter
@@ -391,16 +390,15 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   defp show_success_notice(asset_result) do
     # Include asset rebuild status in success message
-    asset_status =
+    status_emoji =
       case asset_result do
-        :rebuild_completed -> " (assets rebuilt successfully)"
-        :rebuild_failed -> " (note: asset rebuild failed, but PhoenixKit is functional)"
-        _ -> ""
+        :rebuild_completed -> "🎉"
+        :rebuild_failed -> "⚠️"
+        _ -> "✅"
       end
 
     IO.puts("""
-    🎉 PhoenixKit is now ready to use!#{asset_status}
-    📖 Check the demo pages at: /test-current-user, /test-ensure-auth
+    #{status_emoji} PhoenixKit ready! Visit: /phoenix_kit/users/register
     """)
   end
 

@@ -177,72 +177,11 @@ defmodule PhoenixKit.Install.LayoutConfig do
   end
 
   # Add version-aware comments to configuration
-  defp add_version_aware_comments(igniter, layouts_module) do
-    phoenix_version = PhoenixVersion.get_version()
-    strategy = PhoenixVersion.get_strategy()
-
-    # Add an informational notice about Phoenix version and strategy
-    version_notice = """
-    PhoenixKit Layout Integration Configuration:
-
-    • Phoenix Version: #{phoenix_version} (Strategy: #{strategy})
-    • LayoutWrapper will automatically detect your Phoenix version
-    • Phoenix v1.8+: Uses function component layouts with dynamic calling
-    • Phoenix v1.7-: Uses legacy router-level layout configuration
-
-    Configuration allows PhoenixKit to integrate seamlessly with your app's layouts
-    while maintaining full backward compatibility.
-    """
+  defp add_version_aware_comments(igniter, _layouts_module) do
+    # Simple notice that layout integration is configured
+    notice = "✅ Layout integration configured automatically"
 
     igniter
-    |> Igniter.add_notice(version_notice)
-    |> add_integration_instructions(layouts_module, strategy)
-  end
-
-  # Add integration instructions based on Phoenix version
-  defp add_integration_instructions(igniter, layouts_module, strategy) do
-    case strategy do
-      :modern ->
-        add_modern_integration_instructions(igniter, layouts_module)
-
-      :legacy ->
-        add_legacy_integration_instructions(igniter, layouts_module)
-    end
-  end
-
-  # Phoenix v1.8+ integration instructions
-  defp add_modern_integration_instructions(igniter, layouts_module) do
-    instructions = """
-
-    Phoenix v1.8+ Integration Instructions:
-
-    1. Your layouts (#{layouts_module}) will be called as function components
-    2. PhoenixKit templates now use LayoutWrapper for seamless integration
-    3. No additional changes needed - the wrapper handles version detection
-
-    For manual integration in your own templates:
-
-        <#{layouts_module}.app flash={@flash}>
-          <!-- Your content here -->
-        </#{layouts_module}.app>
-    """
-
-    Igniter.add_notice(igniter, instructions)
-  end
-
-  # Phoenix v1.7- integration instructions
-  defp add_legacy_integration_instructions(igniter, layouts_module) do
-    instructions = """
-
-    Phoenix v1.7- Integration Instructions:
-
-    1. Your layouts (#{layouts_module}) are configured at router level
-    2. PhoenixKit templates use LayoutWrapper with legacy mode detection
-    3. Layout configuration added to config.exs automatically
-
-    The layout wrapper will detect legacy mode and render content appropriately.
-    """
-
-    Igniter.add_notice(igniter, instructions)
+    |> Igniter.add_notice(notice)
   end
 end

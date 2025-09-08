@@ -14,7 +14,6 @@ defmodule PhoenixKit.Install.CssIntegration do
   @phoenix_kit_integration """
   #{@phoenix_kit_css_marker}
   @source "../../deps/phoenix_kit";
-  @plugin "daisyui";
   """
 
   @doc """
@@ -75,19 +74,12 @@ defmodule PhoenixKit.Install.CssIntegration do
     content = source.content
     existing = check_existing_integration(content)
 
-    cond do
-      # Complete integration already exists
-      existing.phoenix_kit_source and existing.daisyui_plugin ->
-        # No changes needed
-        source
-
-      # Partial integration exists, add missing parts
-      existing.phoenix_kit_source or existing.daisyui_plugin ->
-        add_missing_integration_parts(source, existing)
-
-      # No integration exists, add complete integration
-      true ->
-        add_complete_integration(source, existing)
+    if existing.phoenix_kit_source do
+      # No changes needed - PhoenixKit source already integrated
+      source
+    else
+      # No PhoenixKit integration exists, add it
+      add_complete_integration(source, existing)
     end
   end
 
@@ -155,21 +147,70 @@ defmodule PhoenixKit.Install.CssIntegration do
     Rewrite.Source.update(source, :content, updated_content)
   end
 
-  # Insert PhoenixKit integration at the end of the file
+  # Insert PhoenixKit integration at the appropriate location
   defp insert_phoenix_kit_integration(lines) do
-    # Check if @import "tailwindcss" exists, if not add it at the beginning
-    has_tailwind_import = Enum.any?(lines, &String.match?(&1, ~r/@import\s+["']tailwindcss["']/))
+    # Detect if this is Tailwind CSS 4 format (@import "tailwindcss" source())
+    has_tailwind_v4 =
+      Enum.any?(lines, &String.match?(&1, ~r/@import\s+["']tailwindcss["'].*source\(/))
 
     result_lines =
-      if has_tailwind_import do
-        # Add PhoenixKit integration at the end
-        lines ++ ["", @phoenix_kit_integration]
+      if has_tailwind_v4 do
+        # For Tailwind CSS 4, add PhoenixKit @source after existing @source lines
+        insert_after_existing_sources(lines)
       else
-        # Add tailwindcss import first, then PhoenixKit integration at the end
-        ["@import \"tailwindcss\";"] ++ lines ++ ["", @phoenix_kit_integration]
+        # For older Tailwind, add at the end
+        lines ++ ["", @phoenix_kit_integration]
       end
 
     Enum.join(result_lines, "\n")
+  end
+
+  # Insert PhoenixKit @source after existing @source lines for Tailwind CSS 4
+  defp insert_after_existing_sources(lines) do
+    {pre_sources, post_sources} = find_source_insertion_point(lines)
+
+    phoenix_kit_lines = [
+      "@source \"../../deps/phoenix_kit\";"
+    ]
+
+    pre_sources ++ phoenix_kit_lines ++ post_sources
+  end
+
+  # Find the right place to insert PhoenixKit @source directive
+  defp find_source_insertion_point(lines) do
+    # Find the last @source line (not reversed - we want the actual last one)
+    last_source_index =
+      lines
+      |> Enum.with_index()
+      |> Enum.reverse()
+      |> Enum.find(fn {line, _index} ->
+        String.match?(line, ~r/^@source\s+/) &&
+          !String.contains?(line, "phoenix_kit")
+      end)
+
+    case last_source_index do
+      {_line, index} ->
+        # Split after the last @source line
+        pre_lines = Enum.take(lines, index + 1)
+        post_lines = Enum.drop(lines, index + 1)
+        {pre_lines, post_lines}
+
+      nil ->
+        # No @source lines found, look for @import line and add after it
+        import_index =
+          lines
+          |> Enum.with_index()
+          |> Enum.find(fn {line, _index} -> String.match?(line, ~r/^@import\s+/) end)
+
+        case import_index do
+          {_line, index} ->
+            {Enum.take(lines, index + 1), Enum.drop(lines, index + 1)}
+
+          nil ->
+            # No @import either, add at the beginning
+            {[], lines}
+        end
+    end
   end
 
   # Helper functions for detecting existing integrations

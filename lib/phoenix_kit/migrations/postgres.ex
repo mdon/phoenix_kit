@@ -233,7 +233,14 @@ defmodule PhoenixKit.Migrations.Postgres do
     range_list = Enum.to_list(range)
     total_steps = length(range_list)
 
-    # Show migration progress header
+    show_migration_header(range_list, direction, total_steps)
+    execute_migration_steps(range_list, direction, opts, total_steps)
+    show_completion_message(total_steps)
+    handle_version_recording(direction, range, opts, total_steps)
+  end
+
+  # Show migration progress header for multi-step migrations
+  defp show_migration_header(range_list, direction, total_steps) do
     if total_steps > 1 do
       {start_version, end_version} =
         case direction do
@@ -241,14 +248,16 @@ defmodule PhoenixKit.Migrations.Postgres do
           :down -> {Enum.max(range_list), Enum.min(range_list)}
         end
 
-      action = if direction == :up, do: "Running", else: "Rolling back"
+      action = if direction == :up, do: "Applying", else: "Rolling back"
 
       IO.puts(
-        "\n🔄 #{action} PhoenixKit migration V#{String.pad_leading(to_string(start_version), 2, "0")}→V#{String.pad_leading(to_string(end_version), 2, "0")}..."
+        "🔄 #{action} PhoenixKit V#{String.pad_leading(to_string(start_version), 2, "0")}→V#{String.pad_leading(to_string(end_version), 2, "0")}"
       )
     end
+  end
 
-    # Execute migrations with progress tracking
+  # Execute migration steps with progress tracking
+  defp execute_migration_steps(range_list, direction, opts, total_steps) do
     range_list
     |> Enum.with_index()
     |> Enum.each(fn {index, step_index} ->
@@ -263,16 +272,24 @@ defmodule PhoenixKit.Migrations.Postgres do
       |> Module.concat()
       |> apply(direction, [opts])
     end)
+  end
 
-    # Show completion message
+  # Show completion message for multi-step migrations
+  defp show_completion_message(total_steps) do
     if total_steps > 1 do
-      IO.puts("✅ Migration completed successfully!\n")
+      IO.puts("✅ PhoenixKit migration complete\n")
     end
+  end
 
+  # Handle version recording based on direction
+  defp handle_version_recording(direction, range, opts, total_steps) do
     case direction do
       :up ->
-        # For up migrations, set version to the highest version applied
-        record_version(opts, Enum.max(range))
+        # For up migrations, only set final version comment for multi-step migrations
+        # Individual migrations handle their own version comments for single steps
+        if total_steps > 1 do
+          record_version(opts, Enum.max(range))
+        end
 
       :down ->
         # For down migrations, let individual migration handle version comments
@@ -311,8 +328,8 @@ defmodule PhoenixKit.Migrations.Postgres do
   end
 
   defp record_version(%{prefix: prefix}, version) do
-    # Use execute for migration context
-    execute "COMMENT ON TABLE #{inspect(prefix)}.phoenix_kit IS '#{version}'"
+    # Use execute for migration context - only once per migration cycle
+    execute "COMMENT ON TABLE #{prefix}.phoenix_kit IS '#{version}'"
   end
 
   # Get the application that owns the repo module
