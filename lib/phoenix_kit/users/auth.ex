@@ -780,4 +780,64 @@ defmodule PhoenixKit.Users.Auth do
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
   end
+
+  @doc """
+  Searches users by email or name for selection interfaces.
+
+  Returns a list of users matching the search term, limited to 10 results
+  for performance. Useful for autocomplete/typeahead interfaces.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.Auth.search_users("john")
+      [%User{email: "john@example.com", first_name: "John"}, ...]
+
+      iex> PhoenixKit.Users.Auth.search_users("")
+      []
+  """
+  def search_users(search_term) when is_binary(search_term) do
+    case String.trim(search_term) do
+      "" ->
+        []
+
+      trimmed_term when byte_size(trimmed_term) >= 2 ->
+        search_pattern = "%#{trimmed_term}%"
+
+        from(u in User,
+          where:
+            ilike(u.email, ^search_pattern) or
+              ilike(u.first_name, ^search_pattern) or
+              ilike(u.last_name, ^search_pattern),
+          order_by: [asc: u.email],
+          limit: 10,
+          select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+        )
+        |> Repo.all()
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Gets a user by ID with minimal fields for selection interfaces.
+
+  Returns a user map with id, email, first_name, and last_name fields.
+  Returns nil if user is not found.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.Auth.get_user_for_selection(123)
+      %{id: 123, email: "user@example.com", first_name: "John", last_name: "Doe"}
+
+      iex> PhoenixKit.Users.Auth.get_user_for_selection(999)
+      nil
+  """
+  def get_user_for_selection(user_id) when is_integer(user_id) do
+    from(u in User,
+      where: u.id == ^user_id,
+      select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+    )
+    |> Repo.one()
+  end
 end

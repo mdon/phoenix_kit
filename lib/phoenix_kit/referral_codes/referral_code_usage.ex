@@ -101,9 +101,10 @@ defmodule PhoenixKit.ReferralCodeUsage do
       false
   """
   def user_used_code?(user_id, code_id) do
-    query = from u in __MODULE__,
-      where: u.used_by == ^user_id and u.code_id == ^code_id,
-      limit: 1
+    query =
+      from u in __MODULE__,
+        where: u.used_by == ^user_id and u.code_id == ^code_id,
+        limit: 1
 
     PhoenixKit.RepoHelper.repo().exists?(query)
   end
@@ -127,21 +128,23 @@ defmodule PhoenixKit.ReferralCodeUsage do
     repo = PhoenixKit.RepoHelper.repo()
 
     base_query = from u in __MODULE__, where: u.code_id == ^code_id
-    
+
     total_uses = repo.aggregate(base_query, :count)
     unique_users = repo.aggregate(base_query, :count, :used_by, distinct: true)
-    
-    last_used_query = from u in base_query,
-      order_by: [desc: u.date_used],
-      limit: 1,
-      select: u.date_used
-    
+
+    last_used_query =
+      from u in base_query,
+        order_by: [desc: u.date_used],
+        limit: 1,
+        select: u.date_used
+
     last_used = repo.one(last_used_query)
 
-    recent_users_query = from u in base_query,
-      order_by: [desc: u.date_used],
-      limit: 5,
-      select: u.used_by
+    recent_users_query =
+      from u in base_query,
+        order_by: [desc: u.date_used],
+        limit: 5,
+        select: u.used_by
 
     recent_users = repo.all(recent_users_query)
 

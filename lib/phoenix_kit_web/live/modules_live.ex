@@ -29,18 +29,25 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
     # Since we're sending "toggle", we just flip the current state
     new_enabled = !socket.assigns.referral_codes_enabled
 
-    result = if new_enabled do
-      ReferralCodes.enable_system()
-    else
-      ReferralCodes.disable_system()
-    end
+    result =
+      if new_enabled do
+        ReferralCodes.enable_system()
+      else
+        ReferralCodes.disable_system()
+      end
 
     case result do
       {:ok, _setting} ->
         socket =
           socket
           |> assign(:referral_codes_enabled, new_enabled)
-          |> put_flash(:info, if(new_enabled, do: "Referral codes system enabled", else: "Referral codes system disabled"))
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Referral codes system enabled",
+              else: "Referral codes system disabled"
+            )
+          )
 
         {:noreply, socket}
 
@@ -61,7 +68,13 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
         socket =
           socket
           |> assign(:referral_codes_required, new_required)
-          |> put_flash(:info, if(new_required, do: "Referral codes are now required", else: "Referral codes are now optional"))
+          |> put_flash(
+            :info,
+            if(new_required,
+              do: "Referral codes are now required",
+              else: "Referral codes are now optional"
+            )
+          )
 
         {:noreply, socket}
 

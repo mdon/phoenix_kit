@@ -14,6 +14,7 @@ defmodule PhoenixKit.ReferralCodes do
   - `number_of_uses`: Current number of times the code has been used
   - `max_uses`: Maximum number of times the code can be used
   - `created_by`: User ID of the admin who created the code
+  - `beneficiary`: User ID who benefits when this code is used (optional)
   - `date_created`: When the code was created
   - `expiration_date`: When the code expires
 
@@ -79,10 +80,16 @@ defmodule PhoenixKit.ReferralCodes do
     field :number_of_uses, :integer, default: 0
     field :max_uses, :integer
     field :created_by, :integer
+    field :beneficiary, :integer
     field :date_created, :utc_datetime_usec
     field :expiration_date, :utc_datetime_usec
 
     belongs_to :creator, PhoenixKit.Users.Auth.User, foreign_key: :created_by, define_field: false
+
+    belongs_to :beneficiary_user, PhoenixKit.Users.Auth.User,
+      foreign_key: :beneficiary,
+      define_field: false
+
     has_many :usage_records, PhoenixKit.ReferralCodeUsage, foreign_key: :code_id
   end
 
@@ -103,6 +110,7 @@ defmodule PhoenixKit.ReferralCodes do
       :number_of_uses,
       :max_uses,
       :created_by,
+      :beneficiary,
       :date_created,
       :expiration_date
     ])
@@ -132,7 +140,7 @@ defmodule PhoenixKit.ReferralCodes do
   def generate_random_code do
     # Exclude confusing characters: 0, O, I, 1
     chars = ~w(A B C D E F G H J K L M N P Q R S T U V W X Y Z 2 3 4 5 6 7 8 9)
-    
+
     chars
     |> Enum.take_random(5)
     |> Enum.join()
@@ -152,9 +160,9 @@ defmodule PhoenixKit.ReferralCodes do
       true
   """
   def valid_for_use?(%__MODULE__{} = code) do
-    code.status && 
-    code.number_of_uses < code.max_uses && 
-    DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt
+    code.status &&
+      code.number_of_uses < code.max_uses &&
+      DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt
   end
 
   @doc """
@@ -194,7 +202,7 @@ defmodule PhoenixKit.ReferralCodes do
   def list_codes do
     __MODULE__
     |> order_by([r], desc: r.date_created)
-    |> preload(:creator)
+    |> preload([:creator, :beneficiary_user])
     |> repo().all()
   end
 
@@ -314,14 +322,17 @@ defmodule PhoenixKit.ReferralCodes do
         if valid_for_use?(code) do
           repo().transaction(fn ->
             # Record the usage
-            usage_result = %PhoenixKit.ReferralCodeUsage{}
-            |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
-            |> repo().insert()
+            usage_result =
+              %PhoenixKit.ReferralCodeUsage{}
+              |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
+              |> repo().insert()
 
             case usage_result do
               {:ok, usage} ->
                 # Update the code's usage counter
-                {:ok, _updated_code} = update_code(code, %{number_of_uses: code.number_of_uses + 1})
+                {:ok, _updated_code} =
+                  update_code(code, %{number_of_uses: code.number_of_uses + 1})
+
                 usage
 
               {:error, changeset} ->
@@ -446,7 +457,11 @@ defmodule PhoenixKit.ReferralCodes do
       {:ok, %Setting{}}
   """
   def set_required(required) when is_boolean(required) do
-    Settings.update_boolean_setting_with_module("referral_codes_required", required, "referral_codes")
+    Settings.update_boolean_setting_with_module(
+      "referral_codes_required",
+      required,
+      "referral_codes"
+    )
   end
 
   @doc """
@@ -478,7 +493,7 @@ defmodule PhoenixKit.ReferralCodes do
   """
   def list_valid_codes do
     now = DateTime.utc_now()
-    
+
     from(r in __MODULE__,
       where: r.status == true,
       where: r.expiration_date > ^now,
@@ -499,13 +514,15 @@ defmodule PhoenixKit.ReferralCodes do
       %{total_codes: 10, active_codes: 8, total_usage: 150, codes_with_usage: 6}
   """
   def get_system_stats do
-    codes_query = from r in __MODULE__
-    usage_query = from u in PhoenixKit.ReferralCodeUsage
+    codes_query = from(r in __MODULE__)
+    usage_query = from(u in PhoenixKit.ReferralCodeUsage)
 
     total_codes = repo().aggregate(codes_query, :count)
     active_codes = repo().aggregate(from(r in codes_query, where: r.status == true), :count)
     total_usage = repo().aggregate(usage_query, :count)
-    codes_with_usage = repo().aggregate(from(r in codes_query, where: r.number_of_uses > 0), :count)
+
+    codes_with_usage =
+      repo().aggregate(from(r in codes_query, where: r.number_of_uses > 0), :count)
 
     %{
       total_codes: total_codes,
@@ -519,13 +536,30 @@ defmodule PhoenixKit.ReferralCodes do
 
   defp validate_code_uniqueness(changeset) do
     case get_field(changeset, :code) do
-      nil -> changeset
-      "" -> changeset  # Let validate_required handle empty strings
+      nil ->
+        changeset
+
+      # Let validate_required handle empty strings
+      "" ->
+        changeset
+
       code_string ->
         case get_code_by_string(code_string) do
-          nil -> changeset  # No duplicate found, validation passes
-          _existing_code -> 
-            add_error(changeset, :code, "has already been taken")
+          # No duplicate found, validation passes
+          nil ->
+            changeset
+
+          existing_code ->
+            # Check if this is the same record we're editing
+            current_id = get_field(changeset, :id)
+            
+            if current_id && existing_code.id == current_id do
+              # This is the same record, validation passes
+              changeset
+            else
+              # Different record with same code, validation fails
+              add_error(changeset, :code, "has already been taken")
+            end
         end
     end
   end

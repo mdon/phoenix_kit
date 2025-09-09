@@ -3,6 +3,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
 
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
 
   def mount(params, session, socket) do
     code_id = params["id"]
@@ -21,50 +22,138 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
       |> assign(:current_path, current_path)
       |> assign(:page_title, page_title(mode))
       |> assign(:project_title, project_title)
+      |> assign(:search_results, [])
+      |> assign(:selected_beneficiary, nil)
       |> load_code_data(mode, code_id)
       |> load_form_data()
 
     {:ok, socket}
   end
 
-  def handle_event("validate_code", %{"referral_code" => code_params}, socket) do
+  def handle_event("validate_code", params, socket) do
+    # Extract referral_codes params (note: plural form), ignoring search params  
+    code_params = Map.get(params, "referral_codes", %{})
+    
+    # Add beneficiary if selected
+    updated_params = case socket.assigns.selected_beneficiary do
+      nil -> code_params
+      beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
+    end
+    
+    # Create changeset for validation
     changeset =
       case socket.assigns.mode do
-        :new -> ReferralCodes.changeset(%ReferralCodes{}, code_params)
-        :edit -> ReferralCodes.changeset(socket.assigns.code, code_params)
+        :new -> ReferralCodes.changeset(%ReferralCodes{}, updated_params)
+        :edit -> ReferralCodes.changeset(socket.assigns.code, updated_params)
       end
       |> Map.put(:action, :validate)
 
     socket =
       socket
       |> assign(:changeset, changeset)
-      |> assign(:form_data, code_params)
 
     {:noreply, socket}
   end
 
-  def handle_event("save_code", %{"referral_code" => code_params}, socket) do
+  def handle_event("save_code", params, socket) do
+    # Extract referral_codes params (note: plural form) and add selected beneficiary
+    code_params = Map.get(params, "referral_codes", %{})
+    
+    # Ensure beneficiary is included if selected
+    updated_code_params = case socket.assigns.selected_beneficiary do
+      nil -> code_params
+      beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
+    end
+    
     case socket.assigns.mode do
-      :new -> create_code(socket, code_params)
-      :edit -> update_code(socket, code_params)
+      :new -> create_code(socket, updated_code_params)
+      :edit -> update_code(socket, updated_code_params)
     end
   end
 
   def handle_event("generate_code", _params, socket) do
     random_code = ReferralCodes.generate_random_code()
-    
-    updated_params = Map.put(socket.assigns.form_data || %{}, "code", random_code)
-    
+
+    # Get current changeset changes and add the generated code
+    current_changes = socket.assigns.changeset.changes
+    updated_changes = Map.put(current_changes, :code, random_code)
+
+    # Add beneficiary if selected
+    final_changes = case socket.assigns.selected_beneficiary do
+      nil -> updated_changes
+      beneficiary -> Map.put(updated_changes, :beneficiary, beneficiary.id)
+    end
+
     changeset =
       case socket.assigns.mode do
-        :new -> ReferralCodes.changeset(%ReferralCodes{}, updated_params)
-        :edit -> ReferralCodes.changeset(socket.assigns.code, updated_params)
+        :new -> ReferralCodes.changeset(%ReferralCodes{}, final_changes)
+        :edit -> ReferralCodes.changeset(socket.assigns.code, final_changes)
       end
 
     socket =
       socket
       |> assign(:changeset, changeset)
-      |> assign(:form_data, updated_params)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("search_beneficiary", %{"search" => search_term}, socket) do
+    search_results =
+      if String.length(search_term) >= 2 do
+        Auth.search_users(search_term)
+      else
+        []
+      end
+
+    socket =
+      socket
+      |> assign(:search_results, search_results)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_beneficiary", %{"user_id" => user_id}, socket) do
+    # Find the selected user from search results
+    selected_user =
+      Enum.find(socket.assigns.search_results, fn user ->
+        to_string(user.id) == user_id
+      end)
+
+    # Update the changeset with the selected beneficiary, preserving other changes
+    current_changes = socket.assigns.changeset.changes
+    updated_changes = Map.put(current_changes, :beneficiary, String.to_integer(user_id))
+
+    changeset =
+      case socket.assigns.mode do
+        :new -> ReferralCodes.changeset(%ReferralCodes{}, updated_changes)
+        :edit -> ReferralCodes.changeset(socket.assigns.code, updated_changes)
+      end
+
+    socket =
+      socket
+      |> assign(:changeset, changeset)
+      |> assign(:selected_beneficiary, selected_user)
+      |> assign(:search_results, [])
+
+    {:noreply, socket}
+  end
+
+  def handle_event("clear_beneficiary", _params, socket) do
+    # Clear the beneficiary selection while preserving other changes
+    current_changes = socket.assigns.changeset.changes
+    updated_changes = Map.delete(current_changes, :beneficiary)
+
+    changeset =
+      case socket.assigns.mode do
+        :new -> ReferralCodes.changeset(%ReferralCodes{}, updated_changes)
+        :edit -> ReferralCodes.changeset(socket.assigns.code, updated_changes)
+      end
+
+    socket =
+      socket
+      |> assign(:changeset, changeset)
+      |> assign(:selected_beneficiary, nil)
+      |> assign(:search_results, [])
 
     {:noreply, socket}
   end
@@ -80,27 +169,58 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   defp load_code_data(socket, :edit, code_id) do
+    # Use repo query to preload beneficiary_user
     code = ReferralCodes.get_code!(code_id)
+    # TODO: Add preload for beneficiary_user - for now we'll handle it in the loading
     assign(socket, :code, code)
   end
 
   defp load_form_data(socket) do
     code = socket.assigns.code || %ReferralCodes{}
-    changeset = ReferralCodes.changeset(code, %{})
     
+    # For new codes, initialize with empty changeset
+    # For edit mode, initialize changeset with current code data to pre-populate form
+    initial_params = case socket.assigns.mode do
+      :new -> %{}
+      :edit -> %{
+        "code" => code.code,
+        "description" => code.description,
+        "max_uses" => code.max_uses,
+        "expiration_date" => code.expiration_date,
+        "status" => code.status
+      }
+    end
+    
+    changeset = ReferralCodes.changeset(code, initial_params)
+
+    # Load selected beneficiary if editing existing code with beneficiary ID
+    selected_beneficiary =
+      case code.beneficiary do
+        nil -> nil
+        beneficiary_id -> Auth.get_user_for_selection(beneficiary_id)
+      end
+
     socket
     |> assign(:changeset, changeset)
-    |> assign(:form_data, %{})
+    |> assign(:selected_beneficiary, selected_beneficiary)
   end
 
   defp create_code(socket, code_params) do
-    # Add created_by field if current user is available
+    # Add created_by field from current user
     code_params_with_creator =
-      case socket.assigns[:phoenix_kit_current_scope] do
-        %{user_id: user_id} when not is_nil(user_id) ->
-          Map.put(code_params, "created_by", user_id)
+      case socket.assigns.phoenix_kit_current_user do
+        user when not is_nil(user) ->
+          Map.put(code_params, "created_by", user.id)
         _ ->
-          code_params
+          # Try alternative scope pattern
+          case socket.assigns do
+            %{phoenix_kit_current_scope: %{user_id: user_id}} when not is_nil(user_id) ->
+              Map.put(code_params, "created_by", user_id)
+            _ ->
+              # This should not happen in normal operation
+              IO.inspect(socket.assigns, label: "Socket assigns when current_user is nil")
+              code_params
+          end
       end
 
     case ReferralCodes.create_code(code_params_with_creator) do

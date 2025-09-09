@@ -65,7 +65,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                 <%!-- Referral Code Field (shown when referral codes are enabled) --%>
                 <%= if @referral_codes_enabled do %>
                   <label class="label" for="referral_code">
-                    Referral Code 
+                    Referral Code
                     <%= if @referral_codes_required do %>
                       <span class="text-error">*</span>
                     <% else %>
@@ -82,7 +82,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                     required={@referral_codes_required}
                   />
                   <%= if @referral_code_error do %>
-                    <p class="text-error text-sm mt-1"><%= @referral_code_error %></p>
+                    <p class="text-error text-sm mt-1">{@referral_code_error}</p>
                   <% end %>
                 <% end %>
 
@@ -185,7 +185,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
 
   def handle_event("save", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
-    
+
     # Validate referral code if system is enabled
     case validate_referral_code(referral_code, socket) do
       {:ok, validated_code} ->
@@ -210,7 +210,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         end
 
       {:error, error_message} ->
-        socket = 
+        socket =
           socket
           |> assign(referral_code: referral_code)
           |> assign(referral_code_error: error_message)
@@ -222,24 +222,24 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
 
   def handle_event("validate", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
-    
+
     # Validate referral code and update error state
     case validate_referral_code(referral_code, socket) do
       {:ok, _} ->
-        socket = 
+        socket =
           socket
           |> assign(referral_code: referral_code)
           |> assign(referral_code_error: nil)
-        
+
         changeset = Auth.change_user_registration(%User{}, user_params)
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
 
       {:error, error_message} ->
-        socket = 
+        socket =
           socket
           |> assign(referral_code: referral_code)
           |> assign(referral_code_error: error_message)
-        
+
         changeset = Auth.change_user_registration(%User{}, user_params)
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
     end
@@ -262,7 +262,8 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         {:ok, nil}
 
       # If referral codes are required but none provided
-      socket.assigns.referral_codes_required and (is_nil(referral_code) or String.trim(referral_code) == "") ->
+      socket.assigns.referral_codes_required and
+          (is_nil(referral_code) or String.trim(referral_code) == "") ->
         {:error, "Referral code is required"}
 
       # If referral code is provided, validate it

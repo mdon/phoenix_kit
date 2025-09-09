@@ -30,7 +30,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
 
   def handle_event("delete_code", %{"id" => id}, socket) do
     code = ReferralCodes.get_code!(String.to_integer(id))
-    
+
     case ReferralCodes.delete_code(code) do
       {:ok, _code} ->
         socket =
@@ -50,11 +50,11 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
   def handle_event("toggle_code_status", %{"id" => id}, socket) do
     code = ReferralCodes.get_code!(String.to_integer(id))
     new_status = !code.status
-    
+
     case ReferralCodes.update_code(code, %{status: new_status}) do
       {:ok, _code} ->
         status_text = if new_status, do: "activated", else: "deactivated"
-        
+
         socket =
           socket
           |> put_flash(:info, "Referral code #{status_text}")
@@ -74,6 +74,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
   end
 
   defp format_expiration_date(nil), do: "No expiration"
+
   defp format_expiration_date(date) do
     date
     |> DateTime.to_date()

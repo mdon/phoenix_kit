@@ -54,16 +54,31 @@ defmodule PhoenixKit.Migrations.Postgres.V04 do
     end
 
     # Add unique constraint on referral code string
-    create_if_not_exists unique_index(:phoenix_kit_referral_codes, [:code], prefix: prefix, name: :phoenix_kit_referral_codes_code_uidx)
+    create_if_not_exists unique_index(:phoenix_kit_referral_codes, [:code],
+                           prefix: prefix,
+                           name: :phoenix_kit_referral_codes_code_uidx
+                         )
 
     # Add foreign key constraint for referral code usage
-    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:code_id], prefix: prefix, name: :phoenix_kit_referral_code_usage_code_id_idx)
-    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:used_by], prefix: prefix, name: :phoenix_kit_referral_code_usage_used_by_idx)
-    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:date_used], prefix: prefix, name: :phoenix_kit_referral_code_usage_date_used_idx)
+    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:code_id],
+                           prefix: prefix,
+                           name: :phoenix_kit_referral_code_usage_code_id_idx
+                         )
+
+    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:used_by],
+                           prefix: prefix,
+                           name: :phoenix_kit_referral_code_usage_used_by_idx
+                         )
+
+    create_if_not_exists index(:phoenix_kit_referral_code_usage, [:date_used],
+                           prefix: prefix,
+                           name: :phoenix_kit_referral_code_usage_date_used_idx
+                         )
 
     # Add foreign key constraint for referral code usage to referral codes
     alter table(:phoenix_kit_referral_code_usage, prefix: prefix) do
-      modify :code_id, references(:phoenix_kit_referral_codes, on_delete: :delete_all, prefix: prefix)
+      modify :code_id,
+             references(:phoenix_kit_referral_codes, on_delete: :delete_all, prefix: prefix)
     end
 
     # Update existing settings to assign them to core system module
@@ -83,10 +98,25 @@ defmodule PhoenixKit.Migrations.Postgres.V04 do
 
   def down(%{prefix: prefix} = _opts) do
     # Drop indexes and constraints first
-    drop_if_exists index(:phoenix_kit_referral_code_usage, [:date_used], prefix: prefix, name: :phoenix_kit_referral_code_usage_date_used_idx)
-    drop_if_exists index(:phoenix_kit_referral_code_usage, [:used_by], prefix: prefix, name: :phoenix_kit_referral_code_usage_used_by_idx)
-    drop_if_exists index(:phoenix_kit_referral_code_usage, [:code_id], prefix: prefix, name: :phoenix_kit_referral_code_usage_code_id_idx)
-    drop_if_exists index(:phoenix_kit_referral_codes, [:code], prefix: prefix, name: :phoenix_kit_referral_codes_code_uidx)
+    drop_if_exists index(:phoenix_kit_referral_code_usage, [:date_used],
+                     prefix: prefix,
+                     name: :phoenix_kit_referral_code_usage_date_used_idx
+                   )
+
+    drop_if_exists index(:phoenix_kit_referral_code_usage, [:used_by],
+                     prefix: prefix,
+                     name: :phoenix_kit_referral_code_usage_used_by_idx
+                   )
+
+    drop_if_exists index(:phoenix_kit_referral_code_usage, [:code_id],
+                     prefix: prefix,
+                     name: :phoenix_kit_referral_code_usage_code_id_idx
+                   )
+
+    drop_if_exists index(:phoenix_kit_referral_codes, [:code],
+                     prefix: prefix,
+                     name: :phoenix_kit_referral_codes_code_uidx
+                   )
 
     # Drop referral system tables
     drop_if_exists table(:phoenix_kit_referral_code_usage, prefix: prefix)
