@@ -239,21 +239,6 @@
           <%!-- Form Actions --%>
           <div class="flex justify-end gap-4 pt-6 border-t">
             <button
-              type="button"
-              class="btn btn-ghost"
-              phx-click="cancel"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-              Cancel
-            </button>
-            <button
               type="submit"
               class="btn btn-primary"
               disabled={!@changeset.valid?}
@@ -267,6 +252,21 @@
                 />
               </svg>
               {if @mode == :edit, do: "Update Code", else: "Create Code"}
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              phx-click="cancel"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              Cancel
             </button>
           </div>
         </.form>
