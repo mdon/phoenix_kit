@@ -110,6 +110,7 @@ defmodule PhoenixKit.ReferralCodes do
     |> validate_length(:description, min: 1, max: 255)
     |> validate_number(:max_uses, greater_than: 0)
     |> validate_number(:number_of_uses, greater_than_or_equal_to: 0)
+    |> validate_code_uniqueness()
     |> unique_constraint(:code)
     |> validate_expiration_date()
     |> maybe_set_date_created()
@@ -513,6 +514,19 @@ defmodule PhoenixKit.ReferralCodes do
   end
 
   ## --- Private Helpers ---
+
+  defp validate_code_uniqueness(changeset) do
+    case get_field(changeset, :code) do
+      nil -> changeset
+      "" -> changeset  # Let validate_required handle empty strings
+      code_string ->
+        case get_code_by_string(code_string) do
+          nil -> changeset  # No duplicate found, validation passes
+          _existing_code -> 
+            add_error(changeset, :code, "has already been taken")
+        end
+    end
+  end
 
   defp validate_expiration_date(changeset) do
     case get_field(changeset, :expiration_date) do
