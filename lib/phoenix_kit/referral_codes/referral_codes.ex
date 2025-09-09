@@ -82,6 +82,7 @@ defmodule PhoenixKit.ReferralCodes do
     field :date_created, :utc_datetime_usec
     field :expiration_date, :utc_datetime_usec
 
+    belongs_to :creator, PhoenixKit.Users.Auth.User, foreign_key: :created_by, define_field: false
     has_many :usage_records, PhoenixKit.ReferralCodeUsage, foreign_key: :code_id
   end
 
@@ -193,6 +194,7 @@ defmodule PhoenixKit.ReferralCodes do
   def list_codes do
     __MODULE__
     |> order_by([r], desc: r.date_created)
+    |> preload(:creator)
     |> repo().all()
   end
 

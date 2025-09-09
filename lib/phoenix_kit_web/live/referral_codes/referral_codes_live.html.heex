@@ -151,6 +151,7 @@
                     <th>Usage</th>
                     <th>Expiration</th>
                     <th>Status</th>
+                    <th>Created By</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -183,6 +184,15 @@
                         <span class={"badge #{code_status_class(code)}"}>
                           <%= code_status_text(code) %>
                         </span>
+                      </td>
+                      <td>
+                        <div class="text-sm">
+                          <%= if code.creator do %>
+                            <%= code.creator.email %>
+                          <% else %>
+                            <span class="text-gray-500">Unknown</span>
+                          <% end %>
+                        </div>
                       </td>
                       <td>
                         <div class="flex gap-2">
