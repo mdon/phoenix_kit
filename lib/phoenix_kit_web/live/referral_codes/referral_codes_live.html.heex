@@ -103,15 +103,15 @@
           </div>
           
           <%= if @config.enabled do %>
-            <button 
+            <.link
+              navigate="/phoenix_kit/admin/referral-codes/new"
               class="btn btn-primary"
-              phx-click="show_new_form"
             >
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
               New Code
-            </button>
+            </.link>
           <% else %>
             <div class="text-sm text-base-content/50">
               Enable referral codes system in Modules to create codes
@@ -134,12 +134,12 @@
               <p class="text-base-content/70 max-w-md mx-auto mb-4">
                 Create your first referral code to start tracking user registrations.
               </p>
-              <button 
+              <.link
+                navigate="/phoenix_kit/admin/referral-codes/new"
                 class="btn btn-primary"
-                phx-click="show_new_form"
               >
                 Create First Code
-              </button>
+              </.link>
             </div>
           <% else %>
             <div class="overflow-x-auto">
@@ -196,15 +196,14 @@
                       </td>
                       <td>
                         <div class="flex gap-2">
-                          <button 
+                          <.link
+                            navigate={"/phoenix_kit/admin/referral-codes/edit/#{code.id}"}
                             class="btn btn-sm btn-outline"
-                            phx-click="show_edit_form"
-                            phx-value-id={code.id}
                           >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                          </button>
+                          </.link>
                           
                           <button 
                             class={"btn btn-sm #{if code.status, do: "btn-warning", else: "btn-success"}"}
@@ -253,109 +252,5 @@
       </div>
     <% end %>
 
-    <%!-- Form Modal --%>
-    <%= if @show_form do %>
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="card bg-base-100 shadow-xl max-w-md w-full mx-4">
-          <div class="card-body">
-            <h2 class="card-title text-xl mb-4">
-              <%= if @form_code, do: "Edit Referral Code", else: "New Referral Code" %>
-            </h2>
-            
-            <.form 
-              for={@form}
-              id="code-form"
-              phx-change="validate_code"
-              phx-submit="save_code"
-            >
-              <div class="form-control mb-4">
-                <label class="label">
-                  <span class="label-text">Code</span>
-                </label>
-                <div class="flex gap-2">
-                  <.input 
-                    field={@form[:code]}
-                    type="text"
-                    placeholder="Enter code or generate random"
-                    class="input input-bordered flex-1"
-                  />
-                  <button 
-                    type="button"
-                    class="btn btn-outline"
-                    phx-click="generate_code"
-                  >
-                    Generate
-                  </button>
-                </div>
-              </div>
-
-              <div class="form-control mb-4">
-                <label class="label">
-                  <span class="label-text">Description</span>
-                </label>
-                <.input 
-                  field={@form[:description]}
-                  type="text"
-                  placeholder="Brief description of this code"
-                  class="input input-bordered"
-                />
-              </div>
-
-              <div class="form-control mb-4">
-                <label class="label">
-                  <span class="label-text">Maximum Uses</span>
-                </label>
-                <.input 
-                  field={@form[:max_uses]}
-                  type="number"
-                  min="1"
-                  placeholder="How many times can this code be used?"
-                  class="input input-bordered"
-                />
-              </div>
-
-              <div class="form-control mb-4">
-                <label class="label">
-                  <span class="label-text">Expiration Date</span>
-                </label>
-                <.input 
-                  field={@form[:expiration_date]}
-                  type="datetime-local"
-                  class="input input-bordered"
-                />
-              </div>
-
-              <div class="form-control mb-6">
-                <label class="label cursor-pointer">
-                  <span class="label-text">Active</span>
-                  <.input 
-                    field={@form[:status]}
-                    type="checkbox"
-                    class="toggle toggle-primary"
-                  />
-                </label>
-              </div>
-
-              <div class="card-actions justify-end">
-                <button 
-                  type="button"
-                  class="btn btn-ghost"
-                  phx-click="cancel_form"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  class="btn btn-primary"
-                  disabled={!@form.source.valid?}
-                >
-                  <%= if @form_code, do: "Update Code", else: "Create Code" %>
-                </button>
-              </div>
-            </.form>
-          </div>
-        </div>
-      </div>
-    <% end %>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
