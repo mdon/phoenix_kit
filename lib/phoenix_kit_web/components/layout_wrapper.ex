@@ -239,6 +239,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
+                    <%= if PhoenixKit.ReferralCodes.enabled?() do %>
+                      <.admin_nav_item
+                        href="/phoenix_kit/admin/referral-codes"
+                        icon="referral_codes"
+                        label="Referral System"
+                        current_path={@current_path || ""}
+                        nested={true}
+                      />
+                    <% end %>
+
                     <.admin_nav_item
                       href="/phoenix_kit/admin/settings"
                       icon="settings"
