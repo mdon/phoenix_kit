@@ -54,12 +54,12 @@
               <span class="label-text font-semibold">Referral Code</span>
               <span class="label-text-alt text-error">*</span>
             </label>
-            <div class="flex gap-2">
+            <div class="flex gap-2 items-stretch">
               <.input
                 field={form[:code]}
                 type="text"
                 placeholder="Enter code or generate random"
-                class="input input-bordered flex-1"
+                class="flex-1"
                 required
               />
               <button
@@ -97,7 +97,6 @@
               field={form[:description]}
               type="text"
               placeholder="Brief description of this referral code"
-              class="input input-bordered"
               required
             />
           </div>
@@ -195,7 +194,6 @@
               type="number"
               min="1"
               placeholder="How many times can this code be used?"
-              class="input input-bordered"
               required
             />
             <label class="label">
@@ -213,7 +211,6 @@
             <.input
               field={form[:expiration_date]}
               type="datetime-local"
-              class="input input-bordered"
             />
             <label class="label">
               <span class="label-text-alt text-base-content/70">
