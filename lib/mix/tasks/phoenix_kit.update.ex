@@ -50,8 +50,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   - Rollback-capable (can be reverted if needed)
   """
 
-  alias PhoenixKit.Migrations.Postgres
-  alias PhoenixKit.Install.{AssetRebuild, Common}
+  alias PhoenixKit.Install.Common
 
   @shortdoc "Updates PhoenixKit to the latest version"
 
@@ -83,43 +82,9 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   defp show_status(opts) do
     prefix = opts[:prefix] || "public"
 
-    case check_installation_status(prefix) do
-      {:not_installed} ->
-        Mix.shell().info("""
-
-        ❌ PhoenixKit is not installed.
-
-        Please run: mix phoenix_kit.install
-        """)
-
-      {:current_version, version} ->
-        target_version = Postgres.current_version()
-
-        if version >= target_version do
-          Mix.shell().info("""
-
-          ✅ PhoenixKit is up to date!
-
-          Current version: V#{pad_version(version)}
-          Latest version: V#{pad_version(target_version)}
-          """)
-        else
-          changes = describe_version_changes(version, target_version)
-
-          Mix.shell().info("""
-
-          📦 PhoenixKit Update Available!
-
-          Current version: V#{pad_version(version)}
-          Latest version: V#{pad_version(target_version)}
-
-          What's new:
-          #{changes}
-
-          To update, run: mix phoenix_kit.update
-          """)
-        end
-    end
+    # Use the status command to show current status
+    args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
+    Mix.Task.run("phoenix_kit.status", args)
   end
 
   # Handle not installed scenario
@@ -174,7 +139,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     force = opts[:force] || false
     skip_assets = opts[:skip_assets] || false
 
-    case check_installation_status(prefix) do
+    case Common.check_installation_status(prefix) do
       {:not_installed} ->
         handle_not_installed()
 
@@ -266,67 +231,20 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     Mix.shell().info(notice)
   end
 
-  # Suggest asset rebuild if needed after update
+  # Always suggest asset rebuild after update
   defp suggest_asset_rebuild_if_needed(_current_version, target_version) do
-    if AssetRebuild.asset_rebuild_needed?(false) do
-      Mix.shell().info("""
+    Mix.shell().info("""
 
-      🎨 Asset Rebuild Recommended:
+    🎨 Asset Rebuild Recommended:
 
-      PhoenixKit V#{pad_version(target_version)} includes CSS/theme changes that may
-      require rebuilding your application's assets.
+    PhoenixKit V#{pad_version(target_version)} may include CSS/theme changes that
+    require rebuilding your application's assets.
 
-      To rebuild assets automatically:
-        mix phoenix_kit.assets.rebuild
+    To rebuild assets automatically:
+      mix phoenix_kit.assets.rebuild
 
-      Or check if rebuild is needed:
-        mix phoenix_kit.assets.rebuild --check
-
-      This ensures your application uses the latest PhoenixKit styles.
-      """)
-    end
-  end
-
-  # Check what version of PhoenixKit is currently installed
-  defp check_installation_status(prefix) do
-    # Use the same version detection logic as the migration system
-    opts = %{prefix: prefix, escaped_prefix: String.replace(prefix, "'", "\\'")}
-
-    try do
-      # Use PhoenixKit's centralized runtime version detection function
-      current_version = Postgres.migrated_version_runtime(opts)
-
-      if current_version == 0 do
-        # Check if migration files exist but haven't been run
-        case find_existing_phoenix_kit_migrations() do
-          [] -> {:not_installed}
-          # Migration files exist but not run - treat as V01 (first version)
-          _migrations -> {:current_version, 1}
-        end
-      else
-        {:current_version, current_version}
-      end
-    rescue
-      _ ->
-        # Database error, check migration files as fallback
-        case find_existing_phoenix_kit_migrations() do
-          [] -> {:not_installed}
-          # Migration files exist but DB not accessible - assume V01
-          _migrations -> {:current_version, 1}
-        end
-    end
-  end
-
-  # Find existing PhoenixKit migrations in the project
-  defp find_existing_phoenix_kit_migrations do
-    if File.exists?("priv/repo/migrations") do
-      "priv/repo/migrations"
-      |> File.ls!()
-      |> Enum.filter(&String.contains?(&1, "phoenix_kit"))
-      |> Enum.map(&Path.join("priv/repo/migrations", &1))
-    else
-      []
-    end
+    This ensures your application uses the latest PhoenixKit styles.
+    """)
   end
 
   # Describe what changed between versions

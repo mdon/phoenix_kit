@@ -20,7 +20,7 @@ defmodule PhoenixKit.Admin.Presence do
   ```
 
   Track authenticated session:
-  ```elixir  
+  ```elixir
   PhoenixKit.Admin.Presence.track_user(user, %{
     connected_at: DateTime.utc_now(),
     session_id: session_id,
@@ -31,7 +31,7 @@ defmodule PhoenixKit.Admin.Presence do
   ## Events Generated
 
   - `{:anonymous_session_connected, session_id, session_info}`
-  - `{:anonymous_session_disconnected, session_id}`  
+  - `{:anonymous_session_disconnected, session_id}`
   - `{:user_session_connected, user_id, session_info}`
   - `{:user_session_disconnected, user_id, session_id}`
   - `{:presence_stats_updated, stats}`
@@ -47,7 +47,7 @@ defmodule PhoenixKit.Admin.Presence do
   Tracks an anonymous session in Presence.
 
   ## Parameters
-  - `session_id` - Unique session identifier  
+  - `session_id` - Unique session identifier
   - `metadata` - Session metadata map
 
   ## Metadata Fields
@@ -71,7 +71,7 @@ defmodule PhoenixKit.Admin.Presence do
   ## Metadata Fields
   - `:connected_at` - Connection timestamp
   - `:session_id` - Session identifier
-  - `:ip_address` - Client IP address  
+  - `:ip_address` - Client IP address
   - `:user_agent` - Browser User-Agent string
   - `:current_page` - Current page path
   """
@@ -118,7 +118,7 @@ defmodule PhoenixKit.Admin.Presence do
   Returns statistics about current active sessions:
   - Total sessions
   - Anonymous sessions count
-  - Authenticated sessions count  
+  - Authenticated sessions count
   - Unique anonymous visitors
   - Active authenticated users
   - Top pages by activity

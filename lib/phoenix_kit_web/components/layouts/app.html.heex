@@ -1,6 +1,6 @@
-<%!-- 
+<%!--
   PhoenixKit App Layout Example
-  
+
   This layout demonstrates how to access PhoenixKit authentication data
   within your application layouts. This example shows both traditional
   and scope-based approaches for accessing user information.
@@ -28,11 +28,11 @@
           </span>
         <% end %>
 
-        <%!-- 
+        <%!--
         Legacy option: Basic user check (backwards compatibility)
-        
+
         If you're still using :phoenix_kit_mount_current_user, this approach works:
-        
+
         <%= if @phoenix_kit_current_user do %>
           <span class="bg-green-100 text-green-800 px-2 py-1 rounded">
             Logged in as: {@phoenix_kit_current_user.email}
@@ -42,21 +42,21 @@
             Not authenticated
           </span>
         <% end %>
-        
+
         To use scope approach, update your router:
-        
+
         live_session :default,
           layout: {MyAppWeb.Layouts, :app},
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
           # your routes
         end
-        
+
         Benefits of scope approach:
         - Better encapsulation of authentication state
         - Explicit authentication checks
         - Ready for future extensions (roles, permissions, etc.)
         - Type safety with proper struct
-      
+
       </div>
     </div>
   </header>
@@ -65,6 +65,6 @@
   <div class="mx-auto max-w-2xl">
     <.flash_group flash={@flash} />
     {@inner_content}
-  </div> 
+  </div>
 </main>--%>
 {@inner_content}

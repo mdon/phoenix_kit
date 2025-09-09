@@ -353,7 +353,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
         {output, 0} ->
           IO.puts("\n✅ Migration completed successfully!\n")
           IO.puts(output)
-          # Check if asset rebuilding is needed after successful migration
+          # Always rebuild assets after successful migration
           asset_result = AssetRebuild.check_and_rebuild(verbose: false)
 
           show_success_notice(asset_result)
@@ -388,17 +388,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     """)
   end
 
-  defp show_success_notice(asset_result) do
-    # Include asset rebuild status in success message
-    status_emoji =
-      case asset_result do
-        :rebuild_completed -> "🎉"
-        :rebuild_failed -> "⚠️"
-        _ -> "✅"
-      end
-
+  defp show_success_notice(:rebuild_completed) do
     IO.puts("""
-    #{status_emoji} PhoenixKit ready! Visit: /phoenix_kit/users/register
+    🎉 PhoenixKit ready! Visit: /phoenix_kit/users/register
     """)
   end
 

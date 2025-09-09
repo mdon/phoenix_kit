@@ -10,10 +10,10 @@ defmodule PhoenixKit.Utils.PhoenixVersion do
 
       iex> PhoenixKit.Utils.PhoenixVersion.get_version()
       "1.8.2"
-      
+
       iex> PhoenixKit.Utils.PhoenixVersion.get_strategy()
       :modern
-      
+
       iex> PhoenixKit.Utils.PhoenixVersion.supports_function_components?()
       true
 
@@ -109,7 +109,7 @@ defmodule PhoenixKit.Utils.PhoenixVersion do
 
       iex> PhoenixKit.Utils.PhoenixVersion.modern_version?("1.8.0")
       true
-      
+
       iex> PhoenixKit.Utils.PhoenixVersion.modern_version?("1.7.14")
       false
   """

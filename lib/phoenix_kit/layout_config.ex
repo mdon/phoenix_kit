@@ -11,12 +11,12 @@ defmodule PhoenixKit.LayoutConfig do
 
       # Minimal configuration - only app layout
       config :phoenix_kit, layout: {MyAppWeb.Layouts, :app}
-      
-      # Full configuration - both root and app layouts  
-      config :phoenix_kit, 
+
+      # Full configuration - both root and app layouts
+      config :phoenix_kit,
         root_layout: {MyAppWeb.Layouts, :root},
         layout: {MyAppWeb.Layouts, :app}
-        
+
       # With additional options
       config :phoenix_kit,
         layout: {MyAppWeb.Layouts, :app},
@@ -26,7 +26,7 @@ defmodule PhoenixKit.LayoutConfig do
 
       iex> PhoenixKit.LayoutConfig.get_layout()
       {PhoenixKitWeb.Layouts, :app}
-      
+
       iex> PhoenixKit.LayoutConfig.get_root_layout()
       {PhoenixKitWeb.Layouts, :root}
   """
@@ -44,7 +44,7 @@ defmodule PhoenixKit.LayoutConfig do
       iex> Application.put_env(:phoenix_kit, :layout, {MyApp.Layouts, :app})
       iex> PhoenixKit.LayoutConfig.get_layout()
       {MyApp.Layouts, :app}
-      
+
       iex> Application.delete_env(:phoenix_kit, :layout)
       iex> PhoenixKit.LayoutConfig.get_layout()
       {PhoenixKitWeb.Layouts, :app}
@@ -71,7 +71,7 @@ defmodule PhoenixKit.LayoutConfig do
       iex> Application.put_env(:phoenix_kit, :root_layout, {MyApp.Layouts, :root})
       iex> PhoenixKit.LayoutConfig.get_root_layout()
       {MyApp.Layouts, :root}
-      
+
       iex> Application.delete_env(:phoenix_kit, :root_layout)
       iex> PhoenixKit.LayoutConfig.get_root_layout()
       {PhoenixKitWeb.Layouts, :root}
@@ -100,7 +100,7 @@ defmodule PhoenixKit.LayoutConfig do
       iex> Application.put_env(:phoenix_kit, :page_title_prefix, "Auth")
       iex> PhoenixKit.LayoutConfig.get_page_title_prefix()
       "Auth"
-      
+
       iex> Application.delete_env(:phoenix_kit, :page_title_prefix)
       iex> PhoenixKit.LayoutConfig.get_page_title_prefix()
       nil
@@ -121,7 +121,7 @@ defmodule PhoenixKit.LayoutConfig do
       iex> Application.put_env(:phoenix_kit, :layout, {MyApp.Layouts, :app})
       iex> PhoenixKit.LayoutConfig.custom_layout?()
       true
-      
+
       iex> Application.delete_env(:phoenix_kit, :layout)
       iex> PhoenixKit.LayoutConfig.custom_layout?()
       false
