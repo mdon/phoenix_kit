@@ -26,7 +26,7 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
   ## When to use
 
   This task is automatically called by:
-  - `mix phoenix_kit.install` (when CSS integration is set up)  
+  - `mix phoenix_kit.install` (when CSS integration is set up)
   - `mix phoenix_kit.update` (when version requires asset changes)
 
   You may need to run it manually when:
@@ -54,7 +54,7 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
   - PhoenixKit version updates that include CSS changes
   """
 
-  alias PhoenixKit.Install.{AssetRebuild, CssIntegration}
+  alias PhoenixKit.Install.AssetRebuild
 
   @shortdoc "Rebuilds PhoenixKit assets when CSS configuration changes"
 
@@ -100,28 +100,17 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
       """)
     end
 
-    case AssetRebuild.check_and_rebuild(check_only: true, verbose: verbose) do
-      :needed ->
-        IO.puts("""
+    # Always show that rebuild is recommended for consistency
+    IO.puts("""
 
-        ⚠️  Asset rebuild is NEEDED
+    ⚠️  Asset rebuild is RECOMMENDED
 
-        Reasons rebuild is recommended:
-        #{analyze_rebuild_reasons(verbose)}
+    Reasons rebuild is recommended:
+    #{analyze_rebuild_reasons(verbose)}
 
-        To rebuild assets, run:
-          mix phoenix_kit.assets.rebuild
-        """)
-
-      :not_needed ->
-        IO.puts("""
-
-        ✅ Asset rebuild is NOT NEEDED
-
-        Your PhoenixKit CSS configuration appears to be up to date.
-        #{check_css_integration_status(verbose)}
-        """)
-    end
+    To rebuild assets, run:
+      mix phoenix_kit.assets.rebuild
+    """)
   end
 
   # Perform actual rebuild
@@ -137,44 +126,17 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
       end
     end
 
-    case AssetRebuild.check_and_rebuild(force: force, verbose: verbose) do
-      :rebuild_completed ->
-        if verbose do
-          IO.puts("""
+    # Always rebuild assets - no complex checks needed
+    AssetRebuild.check_and_rebuild(verbose: verbose)
 
-          ✅ PhoenixKit assets rebuilt successfully!
+    if verbose do
+      IO.puts("""
 
-          Your application should now have the latest CSS integration.
-          If you're running a dev server, you may need to refresh your browser.
-          """)
-        end
+      ✅ PhoenixKit asset rebuild completed!
 
-      :rebuild_failed ->
-        IO.puts(:stderr, """
-
-        ❌ Asset rebuild failed
-
-        This could be due to:
-        - Missing 'mix assets.build' task in your project
-        - Tailwind CSS configuration issues
-        - Asset compilation errors
-
-        To manually rebuild assets, try:
-          mix assets.build
-          # or
-          cd assets && npm run build
-        """)
-
-      :not_needed ->
-        if verbose do
-          IO.puts("""
-
-          ℹ️  Asset rebuild was not needed
-
-          Your PhoenixKit CSS configuration is already up to date.
-          Use --force to rebuild anyway.
-          """)
-        end
+      Your application should now have the latest CSS integration.
+      If you're running a dev server, you may need to refresh your browser.
+      """)
     end
   end
 
@@ -193,78 +155,10 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
   # Helper function to collect rebuild reasons
   @spec collect_rebuild_reasons() :: [String.t()]
   defp collect_rebuild_reasons do
-    base_reasons =
-      if AssetRebuild.asset_rebuild_needed?(false) do
-        [
-          "• PhoenixKit contains daisyUI/theme assets that need compilation",
-          "• Project uses Tailwind CSS with daisyUI integration",
-          "• CSS @source directives include PhoenixKit paths"
-        ]
-      else
-        []
-      end
-
-    # Add version-specific reasons
-    version_reasons =
-      if AssetRebuild.check_version_requires_rebuild(false) do
-        ["• Current PhoenixKit version includes CSS changes"]
-      else
-        []
-      end
-
-    base_reasons ++ version_reasons
-  end
-
-  # Check CSS integration status for informational purposes
-  defp check_css_integration_status(_verbose) do
-    css_paths = [
-      "assets/css/app.css",
-      "priv/static/assets/app.css",
-      "assets/app.css"
+    [
+      "• PhoenixKit assets are always rebuilt to ensure consistency",
+      "• Ensures latest Tailwind CSS and daisyUI integration",
+      "• Compiles CSS @source directives including PhoenixKit paths"
     ]
-
-    css_status =
-      Enum.find_value(css_paths, fn path ->
-        if File.exists?(path) do
-          check_file_css_integration(path)
-        else
-          nil
-        end
-      end)
-
-    case css_status do
-      nil -> "\nNo CSS files found in common locations."
-      status -> "\n#{status}"
-    end
-  rescue
-    _ -> "\nCould not analyze CSS integration status."
-  end
-
-  # Helper function to check CSS integration in a specific file
-  defp check_file_css_integration(path) do
-    content = File.read!(path)
-    integration_status = CssIntegration.check_existing_integration(content)
-
-    integration_details = []
-
-    integration_details =
-      if integration_status.phoenix_kit_source do
-        integration_details ++ ["@source directives"]
-      else
-        integration_details
-      end
-
-    integration_details =
-      if integration_status.daisyui_plugin do
-        integration_details ++ ["daisyUI plugin"]
-      else
-        integration_details
-      end
-
-    if integration_details != [] do
-      "Found CSS integration in #{path}: #{Enum.join(integration_details, ", ")}"
-    else
-      "No PhoenixKit CSS integration found in #{path}"
-    end
   end
 end

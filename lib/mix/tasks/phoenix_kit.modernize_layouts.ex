@@ -20,7 +20,7 @@ defmodule Mix.Tasks.PhoenixKit.ModernizeLayouts do
   ## Options
 
       --dry-run         Show what would be changed without making changes
-      --force           Force migration even if already modernized  
+      --force           Force migration even if already modernized
       --verbose         Show detailed output during migration
       --backup          Create backup of modified files
       --skip-templates  Skip template migration (config only)

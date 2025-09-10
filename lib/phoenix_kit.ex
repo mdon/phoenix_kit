@@ -9,7 +9,7 @@ defmodule PhoenixKit do
   ## Examples
 
       iex> PhoenixKit.version()
-      "1.1.0"
+      "1.2.3"
 
   """
   @spec version() :: String.t()
@@ -42,7 +42,7 @@ defmodule PhoenixKit do
   ## Examples
 
       iex> PhoenixKit.config()
-      %{repo: []}
+      %{ecto_repos: []}
 
   """
   @spec config() :: map()

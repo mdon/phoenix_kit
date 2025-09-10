@@ -8,7 +8,7 @@ defmodule PhoenixKit.Admin.Events do
   ## Topics
 
   - `phoenix_kit:admin:users` - User changes (creation, updates, role changes)
-  - `phoenix_kit:admin:roles` - Role changes (creation, updates, deletion) 
+  - `phoenix_kit:admin:roles` - Role changes (creation, updates, deletion)
   - `phoenix_kit:admin:sessions` - Session changes (creation, revocation)
   - `phoenix_kit:admin:presence` - Anonymous and authenticated session presence
   - `phoenix_kit:admin:stats` - Dashboard statistics updates
@@ -35,7 +35,7 @@ defmodule PhoenixKit.Admin.Events do
 
   ### Presence Events
   - `{:anonymous_session_connected, session_id, session_info}` - Anonymous visitor connected
-  - `{:anonymous_session_disconnected, session_id}` - Anonymous visitor disconnected  
+  - `{:anonymous_session_disconnected, session_id}` - Anonymous visitor disconnected
   - `{:user_session_connected, user_id, session_info}` - Authenticated user connected
   - `{:user_session_disconnected, user_id, session_id}` - Authenticated user disconnected
   - `{:presence_stats_updated, stats}` - Real-time presence statistics updated
@@ -47,10 +47,10 @@ defmodule PhoenixKit.Admin.Events do
 
       # Broadcast user creation
       PhoenixKit.Admin.Events.broadcast_user_created(user)
-      
-      # Broadcast role assignment  
+
+      # Broadcast role assignment
       PhoenixKit.Admin.Events.broadcast_user_role_assigned(user, "Admin")
-      
+
       # Broadcast statistics update
       PhoenixKit.Admin.Events.broadcast_stats_updated()
   """

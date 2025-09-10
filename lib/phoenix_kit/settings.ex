@@ -59,7 +59,7 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.get_setting("time_zone")
       "0"
-      
+
       iex> PhoenixKit.Settings.get_setting("non_existent")
       nil
   """
@@ -79,7 +79,7 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.get_setting("time_zone", "0")
       "0"
-      
+
       iex> PhoenixKit.Settings.get_setting("non_existent", "default")
       "default"
   """
@@ -99,7 +99,7 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.update_setting("time_zone", "+1")
       {:ok, %Setting{key: "time_zone", value: "+1"}}
-      
+
       iex> PhoenixKit.Settings.update_setting("", "invalid")
       {:error, %Ecto.Changeset{}}
   """
@@ -128,7 +128,7 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.list_all_settings()
       %{
         "time_zone" => "0",
-        "date_format" => "Y-m-d", 
+        "date_format" => "Y-m-d",
         "time_format" => "H:i"
       }
   """
@@ -219,7 +219,7 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.get_defaults()
       %{
         "time_zone" => "0",
-        "date_format" => "Y-m-d", 
+        "date_format" => "Y-m-d",
         "time_format" => "H:i"
       }
   """
