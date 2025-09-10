@@ -206,33 +206,55 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   defp create_code(socket, code_params) do
-    # Add created_by field from current user
-    code_params_with_creator =
+    # Add created_by field from current user and get user_id for validation
+    {code_params_with_creator, user_id} =
       case socket.assigns.phoenix_kit_current_user do
         user when not is_nil(user) ->
-          Map.put(code_params, "created_by", user.id)
+          {Map.put(code_params, "created_by", user.id), user.id}
         _ ->
           # Try alternative scope pattern
           case socket.assigns do
             %{phoenix_kit_current_scope: %{user_id: user_id}} when not is_nil(user_id) ->
-              Map.put(code_params, "created_by", user_id)
+              {Map.put(code_params, "created_by", user_id), user_id}
             _ ->
               # This should not happen in normal operation
               IO.inspect(socket.assigns, label: "Socket assigns when current_user is nil")
-              code_params
+              {code_params, nil}
           end
       end
 
-    case ReferralCodes.create_code(code_params_with_creator) do
-      {:ok, _code} ->
-        socket
-        |> put_flash(:info, "Referral code created successfully!")
-        |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+    # Check user code creation limit before creating
+    case user_id && ReferralCodes.validate_user_code_limit(user_id) do
+      {:ok, :valid} ->
+        case ReferralCodes.create_code(code_params_with_creator) do
+          {:ok, _code} ->
+            socket
+            |> put_flash(:info, "Referral code created successfully!")
+            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
 
-      {:error, changeset} ->
+          {:error, changeset} ->
+            socket
+            |> assign(:changeset, changeset)
+            |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
+        end
+
+      {:error, limit_message} ->
         socket
-        |> assign(:changeset, changeset)
-        |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
+        |> put_flash(:error, limit_message)
+
+      nil ->
+        # No user_id available, proceed without limit check
+        case ReferralCodes.create_code(code_params_with_creator) do
+          {:ok, _code} ->
+            socket
+            |> put_flash(:info, "Referral code created successfully!")
+            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+
+          {:error, changeset} ->
+            socket
+            |> assign(:changeset, changeset)
+            |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
+        end
     end
     |> then(&{:noreply, &1})
   end

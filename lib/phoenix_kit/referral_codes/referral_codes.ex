@@ -118,6 +118,7 @@ defmodule PhoenixKit.ReferralCodes do
     |> validate_length(:code, min: 3, max: 50)
     |> validate_length(:description, min: 1, max: 255)
     |> validate_number(:max_uses, greater_than: 0)
+    |> validate_max_uses_limit()
     |> validate_number(:number_of_uses, greater_than_or_equal_to: 0)
     |> validate_code_uniqueness()
     |> unique_constraint(:code)
@@ -465,6 +466,72 @@ defmodule PhoenixKit.ReferralCodes do
   end
 
   @doc """
+  Gets the maximum number of uses allowed per referral code.
+
+  Returns the system-wide limit for how many times a single referral code can be used.
+  Defaults to 100 if not set.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_max_uses_per_code()
+      100
+  """
+  def get_max_uses_per_code do
+    Settings.get_integer_setting("max_number_of_uses_per_code", 100)
+  end
+
+  @doc """
+  Gets the maximum number of referral codes a single user can create.
+
+  Returns the system-wide limit for referral code creation per user.
+  Defaults to 10 if not set.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.get_max_codes_per_user()
+      10
+  """
+  def get_max_codes_per_user do
+    Settings.get_integer_setting("max_number_of_codes_per_user", 10)
+  end
+
+  @doc """
+  Sets the maximum number of uses allowed per referral code.
+
+  Updates the system-wide limit for referral code usage.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.set_max_uses_per_code(50)
+      {:ok, %Setting{}}
+  """
+  def set_max_uses_per_code(max_uses) when is_integer(max_uses) and max_uses > 0 do
+    Settings.update_setting_with_module(
+      "max_number_of_uses_per_code",
+      to_string(max_uses),
+      "referral_codes"
+    )
+  end
+
+  @doc """
+  Sets the maximum number of referral codes a single user can create.
+
+  Updates the system-wide limit for referral code creation per user.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.set_max_codes_per_user(5)
+      {:ok, %Setting{}}
+  """
+  def set_max_codes_per_user(max_codes) when is_integer(max_codes) and max_codes > 0 do
+    Settings.update_setting_with_module(
+      "max_number_of_codes_per_user",
+      to_string(max_codes),
+      "referral_codes"
+    )
+  end
+
+  @doc """
   Gets the current referral codes system configuration.
 
   Returns a map with the current settings.
@@ -477,7 +544,9 @@ defmodule PhoenixKit.ReferralCodes do
   def get_config do
     %{
       enabled: enabled?(),
-      required: required?()
+      required: required?(),
+      max_uses_per_code: get_max_uses_per_code(),
+      max_codes_per_user: get_max_codes_per_user()
     }
   end
 
@@ -583,6 +652,60 @@ defmodule PhoenixKit.ReferralCodes do
       nil -> put_change(changeset, :date_created, DateTime.utc_now())
       _id -> changeset
     end
+  end
+
+  defp validate_max_uses_limit(changeset) do
+    case get_field(changeset, :max_uses) do
+      nil ->
+        changeset
+
+      max_uses ->
+        system_limit = get_max_uses_per_code()
+
+        if max_uses <= system_limit do
+          changeset
+        else
+          add_error(changeset, :max_uses, "cannot exceed system limit of #{system_limit}")
+        end
+    end
+  end
+
+  @doc """
+  Validates that a user hasn't exceeded their referral code creation limit.
+
+  Checks the current number of codes created by the user against the system limit.
+  Returns `{:ok, :valid}` if within limits, `{:error, reason}` if limit exceeded.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.validate_user_code_limit(1)
+      {:ok, :valid}
+
+      iex> PhoenixKit.ReferralCodes.validate_user_code_limit(1)
+      {:error, "You have reached the maximum limit of 10 referral codes"}
+  """
+  def validate_user_code_limit(user_id) when is_integer(user_id) do
+    max_codes = get_max_codes_per_user()
+    current_count = count_user_codes(user_id)
+
+    if current_count < max_codes do
+      {:ok, :valid}
+    else
+      {:error, "You have reached the maximum limit of #{max_codes} referral codes"}
+    end
+  end
+
+  @doc """
+  Counts the total number of referral codes created by a user.
+
+  ## Examples
+
+      iex> PhoenixKit.ReferralCodes.count_user_codes(1)
+      5
+  """
+  def count_user_codes(user_id) when is_integer(user_id) do
+    from(r in __MODULE__, where: r.created_by == ^user_id, select: count(r.id))
+    |> repo().one()
   end
 
   defp maybe_set_default_expiration(changeset) do

@@ -310,6 +310,38 @@ defmodule PhoenixKit.Settings do
   end
 
   @doc """
+  Gets an integer setting value by key, with fallback to default.
+
+  Converts the stored string value to an integer. If the setting doesn't exist
+  or cannot be converted to an integer, returns the default value.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_integer_setting("max_items", 10)
+      10
+
+      iex> PhoenixKit.Settings.get_integer_setting("existing_number", 5)
+      25  # if "25" is stored in database
+  """
+  def get_integer_setting(key, default \\ 0) when is_binary(key) and is_integer(default) do
+    raw_value = get_setting(key)
+
+    case raw_value do
+      nil ->
+        default
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {integer_value, _} -> integer_value
+          :error -> default
+        end
+
+      _ ->
+        default
+    end
+  end
+
+  @doc """
   Updates or creates a boolean setting with the given key and boolean value.
 
   Converts boolean values to "true"/"false" strings for storage.

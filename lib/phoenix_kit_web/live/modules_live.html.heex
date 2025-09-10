@@ -66,7 +66,7 @@
             <div class="bg-base-200 rounded-lg p-4 mt-4">
               <h4 class="font-medium text-base-content mb-3">Module Settings</h4>
 
-              <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center justify-between mb-4">
                 <div>
                   <span class="text-sm font-medium text-base-content">
                     Required for Registration
@@ -86,6 +86,58 @@
                       phx-value-required="toggle"
                     />
                   </label>
+                </div>
+              </div>
+
+              <%!-- Max Codes Per User Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Max Codes Per User
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Maximum number of referral codes each user can create
+                  </p>
+                </div>
+
+                <div class="form-control">
+                  <form phx-change="update_max_codes_per_user">
+                    <input
+                      type="number"
+                      name="max_codes_per_user"
+                      class="input input-bordered input-sm w-20 text-center"
+                      value={@max_codes_per_user}
+                      min="1"
+                      max="1000"
+                      phx-debounce="1000"
+                    />
+                  </form>
+                </div>
+              </div>
+
+              <%!-- Max Uses Per Code Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Max Uses Per Code
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Maximum number of times any single referral code can be used
+                  </p>
+                </div>
+
+                <div class="form-control">
+                  <form phx-change="update_max_uses_per_code">
+                    <input
+                      type="number"
+                      name="max_uses_per_code"
+                      class="input input-bordered input-sm w-20 text-center"
+                      value={@max_uses_per_code}
+                      min="1"
+                      max="10000"
+                      phx-debounce="1000"
+                    />
+                  </form>
                 </div>
               </div>
 
