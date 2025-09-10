@@ -162,7 +162,7 @@ defmodule PhoenixKit.ReferralCodes do
   def valid_for_use?(%__MODULE__{} = code) do
     code.status &&
       code.number_of_uses < code.max_uses &&
-      DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt
+      (is_nil(code.expiration_date) || DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt)
   end
 
   @doc """
@@ -174,7 +174,7 @@ defmodule PhoenixKit.ReferralCodes do
       false
   """
   def expired?(%__MODULE__{} = code) do
-    DateTime.compare(DateTime.utc_now(), code.expiration_date) != :lt
+    !is_nil(code.expiration_date) && DateTime.compare(DateTime.utc_now(), code.expiration_date) != :lt
   end
 
   @doc """
@@ -586,20 +586,9 @@ defmodule PhoenixKit.ReferralCodes do
   end
 
   defp maybe_set_default_expiration(changeset) do
-    case get_field(changeset, :expiration_date) do
-      nil ->
-        case get_field(changeset, :id) do
-          nil ->
-            one_week_from_now = DateTime.utc_now() |> DateTime.add(7, :day)
-            put_change(changeset, :expiration_date, one_week_from_now)
-
-          _id ->
-            changeset
-        end
-
-      _existing_date ->
-        changeset
-    end
+    # Respect user's intent to leave expiration empty (nil = no expiration)
+    # Only set default expiration for programmatic creation without explicit intent
+    changeset
   end
 
   # Gets the configured repository for database operations
