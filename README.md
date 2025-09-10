@@ -1,5 +1,7 @@
 # PhoenixKit - The Elixir Phoenix Starter Kit for SaaS apps
 
+[![Hex Version](https://img.shields.io/hexpm/v/phoenix_kit)](https://hex.pm/packages/phoenix_kit)
+
 We are actively building PhoenixKit, a comprehensive SaaS starter kit for the Elixir/Phoenix ecosystem. Our goal is to eliminate the need to reinvent the wheel every time we all start a new SaaS project.
 
 **🚧 Early Access - We Need Your Feedback!**
@@ -295,4 +297,4 @@ MIT License - see [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
-Built with ❤️ for the Elixir Phoenix community
+Built in 🇪🇺🇪🇪 with ❤️ for the Elixir Phoenix community.
