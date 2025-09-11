@@ -184,6 +184,10 @@ defmodule PhoenixKit.Install.MailerConfig do
 
     # STEP 1: Add required dependencies to mix.exs
     # {:gen_smtp, "~> 1.2"}  # Required for AWS SES
+    # {:finch, "~> 0.18"}    # Required for HTTP client
+    #
+    # Also add :finch to extra_applications in mix.exs:
+    # extra_applications: [:logger, :runtime_tools, :finch]
 
     # STEP 2: Add Finch to your application supervisor (lib/your_app/application.ex)
     # Add this to your children list:
@@ -191,11 +195,29 @@ defmodule PhoenixKit.Install.MailerConfig do
 
     # STEP 3: Configure Swoosh API client (config/config.exs)
     # config :swoosh, :api_client, Swoosh.ApiClient.Finch
+    #
+    # ⚠️ IMPORTANT: Check that config/dev.exs does NOT have:
+    # config :swoosh, :api_client, false
+    # This setting will override Finch configuration and break AWS SES!
 
     # STEP 4: Configure AWS SES
+    # For your app's mailer (recommended approach):
+    # config :your_app, YourApp.Mailer,
+    #   adapter: Swoosh.Adapters.AmazonSES,
+    #   region: "eu-north-1",  # or "us-east-1", "us-west-2", etc.
+    #   access_key: System.get_env("AWS_ACCESS_KEY_ID"),
+    #   secret: System.get_env("AWS_SECRET_ACCESS_KEY")
+    #
+    # Then configure PhoenixKit to use your mailer:
+    # config :phoenix_kit,
+    #   mailer: YourApp.Mailer,
+    #   from_email: "noreply@yourcompany.com",
+    #   from_name: "Your Company"
+    #
+    # Legacy approach (using PhoenixKit's built-in mailer):
     # config :phoenix_kit, PhoenixKit.Mailer,
     #   adapter: Swoosh.Adapters.AmazonSES,
-    #   region: "us-east-1",  # or "eu-north-1" for Europe
+    #   region: "eu-north-1",
     #   access_key: System.get_env("AWS_ACCESS_KEY_ID"),
     #   secret: System.get_env("AWS_SECRET_ACCESS_KEY")
 
@@ -215,6 +237,16 @@ defmodule PhoenixKit.Install.MailerConfig do
     # - us-west-2 (Oregon)  
     # - eu-north-1 (Stockholm)
     # - eu-west-1 (Ireland)
+
+    # TROUBLESHOOTING:
+    # If you see "function false.post/4 is undefined":
+    # 1. Check that Finch is in your mix.exs deps: {:finch, "~> 0.18"}
+    # 2. Check that :finch is in extra_applications
+    # 3. Check that Swoosh.Finch is in application.ex children
+    # 4. Make sure there's no "api_client: false" in dev.exs
+    # 5. Restart your Phoenix server after changes
+    #
+    # See full setup guide: docs/AWS_SES_SETUP.md
 
     """
   end
