@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Users.LoginLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Settings
+  alias PhoenixKit.Admin.Presence
 
   def render(assigns) do
     ~H"""
@@ -18,7 +19,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
             <.form
               for={@form}
               id="login_form"
-              action="/phoenix_kit/users/log-in"
+              action={Routes.path("/users/log-in")}
               phx-update="ignore"
             >
               <fieldset class="fieldset">
@@ -29,27 +30,21 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                   id="user_email"
                   name="user[email]"
                   type="email"
-                  class="input input-bordered validator w-full"
+                  class="input input-bordered w-full"
                   placeholder="Email"
                   value={@form.params["email"] || ""}
-                  pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-                  title="Please enter a valid email address"
                   required
                 />
-                <p class="validator-hint">Please enter a valid email address</p>
 
                 <label class="label" for="user_password">Password</label>
                 <input
                   id="user_password"
                   name="user[password]"
                   type="password"
-                  class="input input-bordered validator w-full"
+                  class="input input-bordered w-full"
                   placeholder="Password"
-                  minlength="8"
-                  title="Password must be at least 8 characters long"
                   required
                 />
-                <p class="validator-hint">Password must be at least 8 characters long</p>
 
                 <div class="form-control mt-4">
                   <label class="label cursor-pointer">
@@ -65,7 +60,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
 
                 <div class="text-center mt-2">
                   <.link
-                    href="/phoenix_kit/users/reset-password"
+                    href={Routes.path("/users/reset-password")}
                     class="text-sm font-semibold text-primary hover:underline"
                   >
                     Forgot your password?
@@ -86,7 +81,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
             <div class="text-center mt-4 text-sm">
               <span>New to {@project_title}? </span>
               <.link
-                navigate="/phoenix_kit/users/register"
+                navigate={Routes.path("/users/register")}
                 class="font-semibold text-primary hover:underline"
               >
                 Create an account
@@ -131,7 +126,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
         connected_at: DateTime.utc_now(),
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/users/log-in"
+        current_page: Routes.path("/users/log-in")
       })
     end
 

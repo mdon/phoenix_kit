@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.ConfirmationInstructionsLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
 
   def render(assigns) do
@@ -26,8 +27,8 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructionsLive do
         </.simple_form>
 
         <p class="text-center mt-4">
-          <.link href="/phoenix_kit/users/register">Register</.link>
-          | <.link href="/phoenix_kit/users/log-in">Log in</.link>
+          <.link href={Routes.path("/users/register")}>Register</.link>
+          | <.link href={Routes.path("/users/log-in")}>Log in</.link>
         </p>
       </div>
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
@@ -42,7 +43,7 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructionsLive do
     if user = Auth.get_user_by_email(email) do
       Auth.deliver_user_confirmation_instructions(
         user,
-        &"/phoenix_kit/users/confirm/#{&1}"
+        &Routes.path("/users/confirm/#{&1}")
       )
     end
 

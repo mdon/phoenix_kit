@@ -10,7 +10,7 @@
     <header class="w-full relative mb-6">
       <%!-- Back Button (Left aligned) --%>
       <.link
-        navigate="/phoenix_kit/admin/dashboard"
+        navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,7 +132,7 @@
             <span class="label-text">Quick Actions</span>
           </label>
           <.link
-            navigate="/phoenix_kit/admin/users/new"
+            navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
             class="btn btn-primary w-full"
           >
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,7 +233,7 @@
                     <div class="flex flex-wrap gap-1">
                       <%!-- Edit User --%>
                       <.link
-                        navigate={"/phoenix_kit/admin/users/edit/#{user.id}"}
+                        navigate={PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.id}")}
                         class="btn btn-xs btn-outline btn-secondary"
                       >
                         <svg

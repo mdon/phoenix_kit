@@ -132,11 +132,14 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
       <select
         id={@id}
         name={@name}
-        class="select select-bordered w-full mt-2"
+        class={[
+          "select select-bordered",
+          (@label && @label != "") && "mt-2"
+        ]}
         multiple={@multiple}
         {@rest}
       >
@@ -151,12 +154,13 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(%{type: "textarea"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
       <textarea
         id={@id}
         name={@name}
         class={[
-          "textarea textarea-bordered w-full mt-2 min-h-[6rem]",
+          "textarea textarea-bordered min-h-[6rem]",
+          (@label && @label != "") && "mt-2",
           @errors != [] && "textarea-error"
         ]}
         {@rest}
@@ -170,14 +174,15 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
       <input
         type={@type}
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
-          "input input-bordered w-full mt-2",
+          "input input-bordered",
+          (@label && @label != "") && "mt-2",
           @errors != [] && "input-error"
         ]}
         {@rest}

@@ -13,10 +13,12 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Sessions}
-  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 20
 
@@ -256,7 +258,7 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   end
 
   defp get_current_path(_socket, _session) do
-    "/phoenix_kit/admin/sessions"
+    Routes.path("/admin/sessions")
   end
 
   defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}

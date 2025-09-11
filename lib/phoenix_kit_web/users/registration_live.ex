@@ -1,10 +1,12 @@
 defmodule PhoenixKitWeb.Users.RegistrationLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.ReferralCodes
 
   def render(assigns) do
     ~H"""
@@ -24,7 +26,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
               phx-submit="save"
               phx-change="validate"
               phx-trigger-action={@trigger_submit}
-              action="/phoenix_kit/users/log-in?_action=registered"
+              action={Routes.path("/users/log-in?_action=registered")}
               method="post"
             >
               <fieldset class="fieldset">
@@ -47,32 +49,47 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                   <span>Oops, something went wrong! Please check the errors below.</span>
                 </div>
 
-                <label class="label" for="user_email">Email</label>
-                <input
-                  id="user_email"
-                  name="user[email]"
-                  type="email"
-                  class="input input-bordered validator w-full"
-                  placeholder="Enter your email address"
-                  value={@form.params["email"] || ""}
-                  pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-                  title="Please enter a valid email address"
-                  required
-                />
-                <p class="validator-hint">Please enter a valid email address</p>
+                <div phx-feedback-for="user[email]">
+                  <.label for="user_email">Email</.label>
+                  <.input
+                    field={@form[:email]}
+                    type="email"
+                    placeholder="Enter your email address"
+                    required
+                  />
+                </div>
 
-                <label class="label" for="user_password">Password</label>
-                <input
-                  id="user_password"
-                  name="user[password]"
-                  type="password"
-                  class="input input-bordered validator w-full"
-                  placeholder="Choose a secure password"
-                  minlength="8"
-                  title="Password must be at least 8 characters long"
-                  required
-                />
-                <p class="validator-hint">Password must be at least 8 characters long</p>
+                <%!-- Referral Code Field (shown when referral codes are enabled) --%>
+                <%= if @referral_codes_enabled do %>
+                  <div phx-feedback-for="referral_code">
+                    <.label for="referral_code">Referral Code<%= if @referral_codes_required do %>*<% end %></.label>
+                    <input
+                      id="referral_code"
+                      name="referral_code"
+                      type="text"
+                      class={[
+                        "input input-bordered",
+                        (@referral_code_error || (@check_errors && @referral_codes_required && (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
+                      ]}
+                      placeholder="Enter your referral code"
+                      value={@referral_code || ""}
+                      required={@referral_codes_required}
+                    />
+                    <%= if @referral_code_error do %>
+                      <.error>{@referral_code_error}</.error>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <div phx-feedback-for="user[password]">
+                  <.label for="user_password">Password</.label>
+                  <.input
+                    field={@form[:password]}
+                    type="password"
+                    placeholder="Choose a secure password"
+                    required
+                  />
+                </div>
 
                 <button
                   type="submit"
@@ -88,7 +105,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
             <div class="text-center mt-4 text-sm">
               <span>Already have an account? </span>
               <.link
-                navigate="/phoenix_kit/users/log-in"
+                navigate={Routes.path("/users/log-in")}
                 class="font-semibold text-primary hover:underline"
               >
                 Sign in
@@ -133,12 +150,15 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         connected_at: DateTime.utc_now(),
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/users/register"
+        current_page: Routes.path("/users/register")
       })
     end
 
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
+
+    # Get referral codes configuration
+    referral_codes_config = ReferralCodes.get_config()
 
     changeset = Auth.change_user_registration(%User{})
 
@@ -146,31 +166,75 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       socket
       |> assign(trigger_submit: false, check_errors: false)
       |> assign(project_title: project_title)
+      |> assign(referral_codes_enabled: referral_codes_config.enabled)
+      |> assign(referral_codes_required: referral_codes_config.required)
+      |> assign(referral_code: nil)
+      |> assign(referral_code_error: nil)
       |> assign_form(changeset)
 
     {:ok, socket, temporary_assigns: [form: nil]}
   end
 
-  def handle_event("save", %{"user" => user_params}, socket) do
-    case Auth.register_user(user_params) do
-      {:ok, user} ->
-        {:ok, _} =
-          Auth.deliver_user_confirmation_instructions(
-            user,
-            &"/phoenix_kit/users/confirm/#{&1}"
-          )
+  def handle_event("save", %{"user" => user_params} = params, socket) do
+    referral_code = params["referral_code"]
 
-        changeset = Auth.change_user_registration(user)
-        {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}
+    # Validate referral code if system is enabled
+    case validate_referral_code(referral_code, socket) do
+      {:ok, validated_code} ->
+        case Auth.register_user(user_params) do
+          {:ok, user} ->
+            # Record referral code usage if provided and valid
+            if validated_code do
+              ReferralCodes.use_code(validated_code.code, user.id)
+            end
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}
+            {:ok, _} =
+              Auth.deliver_user_confirmation_instructions(
+                user,
+                &Routes.path("/users/confirm/#{&1}")
+              )
+
+            changeset = Auth.change_user_registration(user)
+            {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}
+        end
+
+      {:error, error_message} ->
+        socket =
+          socket
+          |> assign(referral_code: referral_code)
+          |> assign(referral_code_error: error_message)
+          |> assign(check_errors: true)
+
+        {:noreply, socket}
     end
   end
 
-  def handle_event("validate", %{"user" => user_params}, socket) do
-    changeset = Auth.change_user_registration(%User{}, user_params)
-    {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+  def handle_event("validate", %{"user" => user_params} = params, socket) do
+    referral_code = params["referral_code"]
+
+    # Validate referral code and update error state
+    case validate_referral_code(referral_code, socket) do
+      {:ok, _} ->
+        socket =
+          socket
+          |> assign(referral_code: referral_code)
+          |> assign(referral_code_error: nil)
+
+        changeset = Auth.change_user_registration(%User{}, user_params)
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+
+      {:error, error_message} ->
+        socket =
+          socket
+          |> assign(referral_code: referral_code)
+          |> assign(referral_code_error: error_message)
+
+        changeset = Auth.change_user_registration(%User{}, user_params)
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+    end
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
@@ -180,6 +244,49 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       assign(socket, form: form, check_errors: false)
     else
       assign(socket, form: form)
+    end
+  end
+
+  defp validate_referral_code(referral_code, socket) do
+    cond do
+      # If referral codes are disabled, always allow registration
+      not socket.assigns.referral_codes_enabled ->
+        {:ok, nil}
+
+      # If referral codes are required but none provided
+      socket.assigns.referral_codes_required and
+          (is_nil(referral_code) or String.trim(referral_code) == "") ->
+        {:error, "Referral code is required"}
+
+      # If referral code is provided, validate it
+      referral_code && String.trim(referral_code) != "" ->
+        validate_referral_code_value(String.trim(referral_code))
+
+      # If referral codes are optional and none provided
+      true ->
+        {:ok, nil}
+    end
+  end
+
+  defp validate_referral_code_value(code_string) do
+    case ReferralCodes.get_code_by_string(code_string) do
+      nil ->
+        {:error, "Invalid referral code"}
+
+      code ->
+        cond do
+          not code.status ->
+            {:error, "This referral code is no longer active"}
+
+          PhoenixKit.ReferralCodes.expired?(code) ->
+            {:error, "This referral code has expired"}
+
+          PhoenixKit.ReferralCodes.usage_limit_reached?(code) ->
+            {:error, "This referral code has reached its usage limit"}
+
+          true ->
+            {:ok, code}
+        end
     end
   end
 

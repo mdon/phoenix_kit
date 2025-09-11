@@ -1,3 +1,28 @@
+## 1.2.4 - 2025-09-11
+
+### Added
+- Complete referral codes system with comprehensive management interface
+- Referral code creation, validation, and usage tracking functionality
+- Admin modules page for system-wide module management and configuration
+- Flexible expiration system with optional "no expiration" support for referral codes
+- Advanced admin settings for referral code limits with real-time validation:
+  - Maximum uses per referral code (configurable limit)
+  - Maximum referral codes per user (configurable limit)
+- Beneficiary system allowing referral codes to be assigned to specific users
+- User search functionality with real-time filtering for beneficiary assignment
+- Hierarchical navigation structure with "Modules" parent and nested "Referral System" item
+- Professional referral code generation with confusion-resistant character set
+- Settings persistence system with module-specific organization
+
+### Changed
+- Improved form component alignment and styling in referral code forms
+- Updated core input components to fix layout issues with conditional labels
+- Reorganized admin settings order for better user experience
+- Strengthened form validation with real-time feedback and error handling
+
+### Fixed
+- Settings persistence ensuring values are properly saved and loaded from database
+
 ## 1.2.3 - 2025-09-11
 
 ### Added

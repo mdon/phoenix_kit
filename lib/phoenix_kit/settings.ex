@@ -64,7 +64,9 @@ defmodule PhoenixKit.Settings do
       nil
   """
   def get_setting(key) when is_binary(key) do
-    case repo().get_by(Setting, key: key) do
+    setting_record = repo().get_by(Setting, key: key)
+
+    case setting_record do
       %Setting{value: value} -> value
       nil -> nil
     end
@@ -261,5 +263,128 @@ defmodule PhoenixKit.Settings do
       {label, _value} -> label
       nil -> value
     end
+  end
+
+  @doc """
+  Gets a boolean setting value by key with a default fallback.
+
+  Converts string values "true"/"false" to actual boolean values.
+  Returns the default if the setting is not found or has an invalid value.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_boolean_setting("feature_enabled", false)
+      false
+      
+      iex> PhoenixKit.Settings.get_boolean_setting("feature_enabled", true)
+      true
+  """
+  def get_boolean_setting(key, default \\ false) when is_binary(key) and is_boolean(default) do
+    raw_value = get_setting(key)
+
+    case raw_value do
+      "true" -> true
+      "false" -> false
+      nil -> default
+      _ -> default
+    end
+  end
+
+  @doc """
+  Gets an integer setting value by key, with fallback to default.
+
+  Converts the stored string value to an integer. If the setting doesn't exist
+  or cannot be converted to an integer, returns the default value.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_integer_setting("max_items", 10)
+      10
+
+      iex> PhoenixKit.Settings.get_integer_setting("existing_number", 5)
+      25  # if "25" is stored in database
+  """
+  def get_integer_setting(key, default \\ 0) when is_binary(key) and is_integer(default) do
+    raw_value = get_setting(key)
+
+    case raw_value do
+      nil ->
+        default
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {integer_value, _} -> integer_value
+          :error -> default
+        end
+
+      _ ->
+        default
+    end
+  end
+
+  @doc """
+  Updates or creates a boolean setting with the given key and boolean value.
+
+  Converts boolean values to "true"/"false" strings for storage.
+  If the setting exists, updates its value and timestamp.
+  If the setting doesn't exist, creates a new one.
+
+  Returns `{:ok, setting}` on success, `{:error, changeset}` on failure.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.update_boolean_setting("feature_enabled", true)
+      {:ok, %Setting{key: "feature_enabled", value: "true"}}
+      
+      iex> PhoenixKit.Settings.update_boolean_setting("feature_enabled", false)
+      {:ok, %Setting{key: "feature_enabled", value: "false"}}
+  """
+  def update_boolean_setting(key, boolean_value)
+      when is_binary(key) and is_boolean(boolean_value) do
+    string_value = if boolean_value, do: "true", else: "false"
+    update_setting(key, string_value)
+  end
+
+  @doc """
+  Updates or creates a setting with module association.
+
+  Similar to update_setting/2 but allows specifying which module the setting belongs to.
+  Useful for organizing feature-specific settings.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.update_setting_with_module("codes_enabled", "true", "referral_codes")
+      {:ok, %Setting{key: "codes_enabled", value: "true", module: "referral_codes"}}
+  """
+  def update_setting_with_module(key, value, module) when is_binary(key) and is_binary(value) do
+    existing_setting = repo().get_by(Setting, key: key)
+
+    case existing_setting do
+      %Setting{} = setting ->
+        setting
+        |> Setting.update_changeset(%{value: value, module: module})
+        |> repo().update()
+
+      nil ->
+        %Setting{}
+        |> Setting.changeset(%{key: key, value: value, module: module})
+        |> repo().insert()
+    end
+  end
+
+  @doc """
+  Updates or creates a boolean setting with module association.
+
+  Combines boolean handling with module organization.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.update_boolean_setting_with_module("feature_enabled", true, "referral_codes")
+      {:ok, %Setting{key: "feature_enabled", value: "true", module: "referral_codes"}}
+  """
+  def update_boolean_setting_with_module(key, boolean_value, module)
+      when is_binary(key) and is_boolean(boolean_value) and is_binary(module) do
+    string_value = if boolean_value, do: "true", else: "false"
+    update_setting_with_module(key, string_value, module)
   end
 end

@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Plug.Conn
   import Phoenix.Controller
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
@@ -306,7 +307,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: "/phoenix_kit/users/log-in")
+        |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
 
       {:halt, socket}
     end
@@ -321,7 +322,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: "/phoenix_kit/users/log-in")
+        |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
 
       {:halt, socket}
     end
@@ -463,7 +464,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       conn
       |> put_flash(:error, "You must log in to access this page.")
       |> maybe_store_return_to()
-      |> redirect(to: "/phoenix_kit/users/log-in")
+      |> redirect(to: Routes.path("/users/log-in"))
       |> halt()
     end
   end
@@ -486,7 +487,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           conn
           |> put_flash(:error, "You must log in to access this page.")
           |> maybe_store_return_to()
-          |> redirect(to: "/phoenix_kit/users/log-in")
+          |> redirect(to: Routes.path("/users/log-in"))
           |> halt()
         end
 

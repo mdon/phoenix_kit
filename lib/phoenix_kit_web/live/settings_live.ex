@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Settings
 
   # Embedded schema for form validation
   defmodule SettingsForm do
@@ -136,7 +137,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
 
   defp get_current_path(_socket, _session) do
     # For SettingsLive, always return settings path
-    "/phoenix_kit/admin/settings"
+    Routes.path("/admin/settings")
   end
 
   # Create a changeset for form validation

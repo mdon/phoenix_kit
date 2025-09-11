@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.{Events, Presence}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
@@ -267,7 +268,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
 
       _ ->
         case session["current_path"] do
-          nil -> "/phoenix_kit/admin/live_sessions"
+          nil -> Routes.path("/admin/live_sessions")
           path -> path
         end
     end
@@ -303,7 +304,7 @@ defmodule PhoenixKitWeb.Live.LiveSessionsLive do
         session_id: session_id,
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/admin/live_sessions"
+        current_page: Routes.path("/admin/live_sessions")
       })
     end
   end
