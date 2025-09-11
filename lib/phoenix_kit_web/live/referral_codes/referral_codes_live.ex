@@ -3,6 +3,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   def mount(_params, session, socket) do
     # Get current path for navigation
@@ -78,7 +79,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
   defp format_expiration_date(date) do
     date
     |> DateTime.to_date()
-    |> Date.to_string()
+    |> UtilsDate.format_date_with_user_format()
   end
 
   defp code_status_class(code) do
