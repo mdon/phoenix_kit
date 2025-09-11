@@ -175,14 +175,11 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
               id="magic_link_email"
               name="magic_link[email]"
               type="email"
-              class="input input-bordered validator w-full"
+              class="input input-bordered w-full"
               placeholder="you@example.com"
               value={@form.params["email"] || ""}
-              pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-              title="Please enter a valid email address"
               required
             />
-            <p class="validator-hint">Please enter a valid email address</p>
 
             <button
               type="submit"

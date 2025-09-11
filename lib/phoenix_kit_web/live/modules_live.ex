@@ -14,9 +14,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
     # Load module states
     referral_codes_config = ReferralCodes.get_config()
-    
-    require Logger
-    Logger.info("🔧 MODULES DEBUG: Mount - referral_codes_config = #{inspect(referral_codes_config)}")
 
     socket =
       socket
@@ -91,9 +88,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
   end
 
   def handle_event("update_max_uses_per_code", %{"max_uses_per_code" => value}, socket) do
-    require Logger
-    Logger.info("🔧 MODULES DEBUG: update_max_uses_per_code called with value=#{value}")
-    
     case Integer.parse(value) do
       {max_uses, _} when max_uses > 0 and max_uses <= 10000 ->
         case ReferralCodes.set_max_uses_per_code(max_uses) do
@@ -117,9 +111,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
   end
 
   def handle_event("update_max_codes_per_user", %{"max_codes_per_user" => value}, socket) do
-    require Logger
-    Logger.info("🔧 MODULES DEBUG: update_max_codes_per_user called with value=#{value}")
-    
     case Integer.parse(value) do
       {max_codes, _} when max_codes > 0 and max_codes <= 1000 ->
         case ReferralCodes.set_max_codes_per_user(max_codes) do
@@ -140,13 +131,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
         socket = put_flash(socket, :error, "Please enter a valid number between 1 and 1,000")
         {:noreply, socket}
     end
-  end
-
-  # Catch-all debug handler to see what payloads we're actually receiving
-  def handle_event(event_name, params, socket) do
-    require Logger
-    Logger.info("🔧 MODULES DEBUG: Unknown event '#{event_name}' with params: #{inspect(params)}")
-    {:noreply, socket}
   end
 
   defp get_current_path(_socket, _session) do

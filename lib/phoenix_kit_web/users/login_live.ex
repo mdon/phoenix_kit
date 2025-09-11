@@ -30,27 +30,21 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                   id="user_email"
                   name="user[email]"
                   type="email"
-                  class="input input-bordered validator w-full"
+                  class="input input-bordered w-full"
                   placeholder="Email"
                   value={@form.params["email"] || ""}
-                  pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-                  title="Please enter a valid email address"
                   required
                 />
-                <p class="validator-hint">Please enter a valid email address</p>
 
                 <label class="label" for="user_password">Password</label>
                 <input
                   id="user_password"
                   name="user[password]"
                   type="password"
-                  class="input input-bordered validator w-full"
+                  class="input input-bordered w-full"
                   placeholder="Password"
-                  minlength="8"
-                  title="Password must be at least 8 characters long"
                   required
                 />
-                <p class="validator-hint">Password must be at least 8 characters long</p>
 
                 <div class="form-control mt-4">
                   <label class="label cursor-pointer">

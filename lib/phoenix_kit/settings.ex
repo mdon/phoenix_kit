@@ -64,20 +64,11 @@ defmodule PhoenixKit.Settings do
       nil
   """
   def get_setting(key) when is_binary(key) do
-    require Logger
-    Logger.info("🔧 SETTINGS DEBUG: get_setting called with key=#{key}")
-
     setting_record = repo().get_by(Setting, key: key)
-    Logger.info("🔧 SETTINGS DEBUG: Database record found: #{inspect(setting_record)}")
 
     case setting_record do
-      %Setting{value: value} ->
-        Logger.info("🔧 SETTINGS DEBUG: Returning value: #{inspect(value)}")
-        value
-
-      nil ->
-        Logger.info("🔧 SETTINGS DEBUG: No record found, returning nil")
-        nil
+      %Setting{value: value} -> value
+      nil -> nil
     end
   end
 
@@ -289,24 +280,14 @@ defmodule PhoenixKit.Settings do
       true
   """
   def get_boolean_setting(key, default \\ false) when is_binary(key) and is_boolean(default) do
-    require Logger
-
     raw_value = get_setting(key)
 
-    Logger.info(
-      "🔧 SETTINGS DEBUG: get_boolean_setting - key=#{key}, raw_value=#{inspect(raw_value)}, default=#{default}"
-    )
-
-    result =
-      case raw_value do
-        "true" -> true
-        "false" -> false
-        nil -> default
-        _ -> default
-      end
-
-    Logger.info("🔧 SETTINGS DEBUG: get_boolean_setting - returning: #{result}")
-    result
+    case raw_value do
+      "true" -> true
+      "false" -> false
+      nil -> default
+      _ -> default
+    end
   end
 
   @doc """
@@ -376,33 +357,18 @@ defmodule PhoenixKit.Settings do
       {:ok, %Setting{key: "codes_enabled", value: "true", module: "referral_codes"}}
   """
   def update_setting_with_module(key, value, module) when is_binary(key) and is_binary(value) do
-    require Logger
-
-    Logger.info(
-      "🔧 SETTINGS DEBUG: update_setting_with_module - key=#{key}, value=#{value}, module=#{module}"
-    )
-
     existing_setting = repo().get_by(Setting, key: key)
-    Logger.info("🔧 SETTINGS DEBUG: Existing setting found: #{inspect(existing_setting)}")
 
     case existing_setting do
       %Setting{} = setting ->
-        Logger.info("🔧 SETTINGS DEBUG: Updating existing setting")
-        changeset = Setting.update_changeset(setting, %{value: value, module: module})
-        Logger.info("🔧 SETTINGS DEBUG: Update changeset: #{inspect(changeset)}")
-
-        result = repo().update(changeset)
-        Logger.info("🔧 SETTINGS DEBUG: Update result: #{inspect(result)}")
-        result
+        setting
+        |> Setting.update_changeset(%{value: value, module: module})
+        |> repo().update()
 
       nil ->
-        Logger.info("🔧 SETTINGS DEBUG: Creating new setting")
-        changeset = Setting.changeset(%Setting{}, %{key: key, value: value, module: module})
-        Logger.info("🔧 SETTINGS DEBUG: Insert changeset: #{inspect(changeset)}")
-
-        result = repo().insert(changeset)
-        Logger.info("🔧 SETTINGS DEBUG: Insert result: #{inspect(result)}")
-        result
+        %Setting{}
+        |> Setting.changeset(%{key: key, value: value, module: module})
+        |> repo().insert()
     end
   end
 
@@ -419,19 +385,6 @@ defmodule PhoenixKit.Settings do
   def update_boolean_setting_with_module(key, boolean_value, module)
       when is_binary(key) and is_boolean(boolean_value) and is_binary(module) do
     string_value = if boolean_value, do: "true", else: "false"
-
-    # Debug logging
-    require Logger
-
-    Logger.info(
-      "🔧 SETTINGS DEBUG: update_boolean_setting_with_module called with key=#{key}, boolean_value=#{boolean_value}, module=#{module}"
-    )
-
-    Logger.info("🔧 SETTINGS DEBUG: Converted to string_value=#{string_value}")
-
-    result = update_setting_with_module(key, string_value, module)
-    Logger.info("🔧 SETTINGS DEBUG: update_setting_with_module result: #{inspect(result)}")
-
-    result
+    update_setting_with_module(key, string_value, module)
   end
 end
