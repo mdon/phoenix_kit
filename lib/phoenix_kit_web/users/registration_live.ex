@@ -48,56 +48,44 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                   <span>Oops, something went wrong! Please check the errors below.</span>
                 </div>
 
-                <label class="label" for="user_email">Email</label>
-                <input
-                  id="user_email"
-                  name="user[email]"
-                  type="email"
-                  class="input input-bordered validator w-full"
-                  placeholder="Enter your email address"
-                  value={@form.params["email"] || ""}
-                  pattern="^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$"
-                  title="Please enter a valid email address"
-                  required
-                />
-                <p class="validator-hint">Please enter a valid email address</p>
+                <div phx-feedback-for="user[email]">
+                  <.label for="user_email">Email</.label>
+                  <.input
+                    field={@form[:email]}
+                    type="email"
+                    placeholder="Enter your email address"
+                    required
+                  />
+                </div>
 
                 <%!-- Referral Code Field (shown when referral codes are enabled) --%>
                 <%= if @referral_codes_enabled do %>
-                  <label class="label" for="referral_code">
-                    Referral Code
-                    <%= if @referral_codes_required do %>
-                      <span class="text-error">*</span>
-                    <% else %>
-                      <span class="text-sm text-base-content/60">(optional)</span>
+                  <div phx-feedback-for="referral_code">
+                    <.label for="referral_code">Referral Code<%= if @referral_codes_required do %>*<% end %></.label>
+                    <input
+                      id="referral_code"
+                      name="referral_code"
+                      type="text"
+                      class="input input-bordered"
+                      placeholder="Enter your referral code"
+                      value={@referral_code || ""}
+                      required={@referral_codes_required}
+                    />
+                    <%= if @referral_code_error do %>
+                      <.error>{@referral_code_error}</.error>
                     <% end %>
-                  </label>
-                  <input
-                    id="referral_code"
-                    name="referral_code"
-                    type="text"
-                    class={"input input-bordered w-full #{if @referral_code_error, do: "input-error"}"}
-                    placeholder="Enter your referral code"
-                    value={@referral_code || ""}
-                    required={@referral_codes_required}
-                  />
-                  <%= if @referral_code_error do %>
-                    <p class="text-error text-sm mt-1">{@referral_code_error}</p>
-                  <% end %>
+                  </div>
                 <% end %>
 
-                <label class="label" for="user_password">Password</label>
-                <input
-                  id="user_password"
-                  name="user[password]"
-                  type="password"
-                  class="input input-bordered validator w-full"
-                  placeholder="Choose a secure password"
-                  minlength="8"
-                  title="Password must be at least 8 characters long"
-                  required
-                />
-                <p class="validator-hint">Password must be at least 8 characters long</p>
+                <div phx-feedback-for="user[password]">
+                  <.label for="user_password">Password</.label>
+                  <.input
+                    field={@form[:password]}
+                    type="password"
+                    placeholder="Choose a secure password"
+                    required
+                  />
+                </div>
 
                 <button
                   type="submit"
