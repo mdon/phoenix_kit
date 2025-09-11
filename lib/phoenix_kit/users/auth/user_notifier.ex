@@ -28,18 +28,21 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
 
   alias PhoenixKit.Mailer
 
-  # Delivers the email using the application mailer.
+  # Delivers the email using the appropriate mailer.
+  # Uses the configured parent application mailer if available,
+  # otherwise falls back to PhoenixKit's built-in mailer.
   defp deliver(recipient, subject, body) do
     from_email = get_from_email()
+    from_name = get_from_name()
 
     email =
       new()
       |> to(recipient)
-      |> from({"PhoenixKit", from_email})
+      |> from({from_name, from_email})
       |> subject(subject)
       |> text_body(body)
 
-    with {:ok, _metadata} <- Mailer.deliver(email) do
+    with {:ok, _metadata} <- Mailer.deliver_email(email) do
       {:ok, email}
     end
   end
@@ -49,6 +52,14 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
     case PhoenixKit.Config.get(:from_email) do
       {:ok, email} -> email
       :not_found -> "noreply@localhost"
+    end
+  end
+
+  # Get the from name from configuration or use a default
+  defp get_from_name do
+    case PhoenixKit.Config.get(:from_name) do
+      {:ok, name} -> name
+      :not_found -> "PhoenixKit"
     end
   end
 
