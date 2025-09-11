@@ -13,6 +13,7 @@
 - Hierarchical navigation structure with "Modules" parent and nested "Referral System" item
 - Professional referral code generation with confusion-resistant character set
 - Settings persistence system with module-specific organization
+- Introduced custom prefix in the config (/phoenix_kit to something else)
 
 ### Changed
 - Improved form component alignment and styling in referral code forms
