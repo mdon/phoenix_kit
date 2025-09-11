@@ -375,7 +375,7 @@ end
 1. **Install PhoenixKit**: Run `mix phoenix_kit.install --repo YourApp.Repo`
 2. **Configure Layout**: Optionally set custom layouts in `config/config.exs`
 3. **Add Routes**: Use `phoenix_kit_routes()` macro in your router
-4. **Configure Mailer**: Set up email delivery in `config/config.exs`
+4. **Configure Mailer**: PhoenixKit auto-detects and uses your app's mailer, or set up email delivery in `config/config.exs`
 5. **Run Migrations**: Database tables created automatically
 6. **Theme Support**: Optionally enable with `--theme-enabled` flag
 7. **Settings Management**: Access admin settings at `/phoenix_kit/admin/settings`
@@ -385,10 +385,14 @@ end
 ```elixir
 # In your Phoenix app's config/config.exs
 config :phoenix_kit,
-  repo: MyApp.Repo
+  repo: MyApp.Repo,
+  mailer: MyApp.Mailer  # Optional: Use your app's mailer (auto-detected by installer)
 
-# Configure PhoenixKit Mailer for email delivery
-config :phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Local
+# Configure your app's mailer (PhoenixKit will use it automatically if mailer is set)
+config :my_app, MyApp.Mailer, adapter: Swoosh.Adapters.Local
+
+# Alternative: Configure PhoenixKit's built-in mailer (legacy approach)
+# config :phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure Layout Integration (optional - defaults to PhoenixKit layouts)
 config :phoenix_kit,

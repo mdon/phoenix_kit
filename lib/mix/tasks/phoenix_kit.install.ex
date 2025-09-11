@@ -129,7 +129,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       ✅ PhoenixKit ready! Next:
         • mix ecto.migrate
-        • mix phx.server  
+        • mix phx.server
         • Visit /phoenix_kit/users/register
         • Test: /test-current-user, /test-ensure-auth
       """

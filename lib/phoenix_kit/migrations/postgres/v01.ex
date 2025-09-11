@@ -115,7 +115,7 @@ defmodule PhoenixKit.Migrations.Postgres.V01 do
     # Insert system roles
     execute """
     INSERT INTO #{inspect(prefix)}.phoenix_kit_user_roles (name, description, is_system_role, inserted_at, updated_at)
-    VALUES 
+    VALUES
       ('Owner', 'System owner with full access', true, NOW(), NOW()),
       ('Admin', 'Administrator with elevated privileges', true, NOW(), NOW()),
       ('User', 'Standard user with basic access', true, NOW(), NOW())

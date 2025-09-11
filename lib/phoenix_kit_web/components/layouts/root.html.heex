@@ -23,7 +23,7 @@
       <div class="navbar-end">
         <div class="flex-none gap-2">
           <%= if assigns[:phoenix_kit_current_scope] && PhoenixKit.Users.Auth.Scope.authenticated?(@phoenix_kit_current_scope) do %>
-            <%!-- 
+            <%!--
             Scope-based authentication (recommended approach)
             Better encapsulation and ready for future extensions
             --%>
@@ -56,11 +56,11 @@
         </div>
       </div>
     </nav>
-    <!-- 
+    <!--
     Legacy approach (for backwards compatibility):
-    
+
     If you're still using :phoenix_kit_mount_current_user, this approach works:
-    
+
     <%= if @phoenix_kit_current_user do %>
       <div class="dropdown dropdown-end">
         <label tabindex="0" class="btn btn-ghost btn-circle avatar">
@@ -79,7 +79,7 @@
     <% end %>
 
     To use scope approach, update your router:
-    
+
     live_session :default,
       layout: {MyAppWeb.Layouts, :app},
       on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do

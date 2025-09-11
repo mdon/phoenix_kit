@@ -1,3 +1,42 @@
+## 1.2.3 - 2025-09-11
+
+### Added
+- Enhanced `mix phoenix_kit.status` task with hybrid repository detection and fallback strategies
+- Comprehensive status diagnostics with detailed database connection reporting
+- Application startup management for reliable status checking in various project configurations
+- Intelligent repository detection supporting both configured and auto-detected repositories
+- Mailer delegation support with automatic parent application mailer detection
+- Comprehensive AWS SES configuration with automatic Finch HTTP client setup
+- Finch HTTP client integration for email adapters (SendGrid, Mailgun, AWS SES)
+- Auto-detection of existing mailer modules in parent applications
+- Enhanced email configuration with configurable sender name and email address
+- Production-ready email templates for SMTP, SendGrid, Mailgun, and AWS SES
+- Complete AWS SES setup guide with step-by-step checklist and region configuration
+- Automatic dependency management for gen_smtp when using AWS SES
+- Swoosh API client configuration for HTTP-based email adapters
+
+### Changed
+- Asset rebuild system simplified to consistently recommend rebuilds for better reliability
+- Status task now provides more detailed verbose diagnostics for troubleshooting
+- Update task now delegates status display to dedicated status command for consistency
+- Removed complex asset checking logic in favor of straightforward rebuild recommendations
+- Email system architecture now supports both delegation and built-in modes
+- Mailer configuration defaults to using parent application's existing mailer when available
+- Installation process automatically configures appropriate email dependencies
+- Documentation restructured with detailed provider-specific setup guides
+- PhoenixKit.Mailer module enhanced with delegation capabilities
+
+### Fixed
+- Critical CSS integration bug where regex patterns incorrectly matched file paths containing "phoenix_kit" substring
+- CSS integration now properly detects only exact PhoenixKit dependency paths (../../deps/phoenix_kit) and ignores false matches like "test_phoenix_kit_v1_web"
+- Improved pattern matching specificity to prevent installation failures in projects with similar naming
+- Trailing whitespace issues across multiple files for better code quality
+- Unused alias imports in tasks and modules
+- Dialyzer warnings by updating ignore patterns for better type checking
+- Email sender configuration now properly supports custom from_email and from_name settings
+- Production email setup documentation with comprehensive provider examples
+- Mailer integration patterns for better parent application compatibility
+
 ## 1.2.2 - 2025-09-08
 
 ### Added

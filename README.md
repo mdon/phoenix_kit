@@ -1,5 +1,7 @@
 # PhoenixKit - The Elixir Phoenix Starter Kit for SaaS apps
 
+[![Hex Version](https://img.shields.io/hexpm/v/phoenix_kit)](https://hex.pm/packages/phoenix_kit)
+
 We are actively building PhoenixKit, a comprehensive SaaS starter kit for the Elixir/Phoenix ecosystem. Our goal is to eliminate the need to reinvent the wheel every time we all start a new SaaS project.
 
 **🚧 Early Access - We Need Your Feedback!**
@@ -168,9 +170,12 @@ Visit these URLs after installation:
 ### Basic Setup
 ```elixir
 # config/config.exs (automatically added by installer)
-config :phoenix_kit, repo: YourApp.Repo
+config :phoenix_kit, 
+  repo: YourApp.Repo,
+  from_email: "noreply@yourcompany.com",  # Required for email notifications
+  from_name: "Your Company Name"          # Optional, defaults to "PhoenixKit"
 
-# Production mailer
+# Production mailer (see config/prod.exs for more options)
 config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.SMTP,
   relay: "smtp.your-provider.com",
@@ -185,6 +190,50 @@ config :phoenix_kit, PhoenixKit.Mailer,
 config :phoenix_kit,
   layout: {YourAppWeb.Layouts, :app},
   root_layout: {YourAppWeb.Layouts, :root}
+```
+
+### Email Configuration
+
+PhoenixKit supports multiple email providers with automatic setup assistance:
+
+#### AWS SES (Complete Setup)
+For AWS SES, PhoenixKit automatically configures required dependencies and HTTP client:
+
+```elixir
+# Add to mix.exs dependencies (done automatically by installer when needed)
+{:gen_smtp, "~> 1.2"}
+
+# Application supervisor includes Finch automatically
+{Finch, name: Swoosh.Finch}
+
+# Production configuration
+config :phoenix_kit, PhoenixKit.Mailer,
+  adapter: Swoosh.Adapters.AmazonSES,
+  region: "us-east-1",  # or "eu-north-1", "eu-west-1", etc.
+  access_key: System.get_env("AWS_ACCESS_KEY_ID"),
+  secret: System.get_env("AWS_SECRET_ACCESS_KEY")
+```
+
+**AWS SES Checklist:**
+- ✅ Create AWS IAM user with SES permissions (`ses:*`)
+- ✅ Verify sender email address in AWS SES Console
+- ✅ Verify recipient emails (if in sandbox mode)
+- ✅ Ensure AWS region matches your verification region
+- ✅ Request production access to send to any email
+- ✅ Set environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+#### Other Email Providers
+```elixir
+# SendGrid
+config :phoenix_kit, PhoenixKit.Mailer,
+  adapter: Swoosh.Adapters.Sendgrid,
+  api_key: System.get_env("SENDGRID_API_KEY")
+
+# Mailgun  
+config :phoenix_kit, PhoenixKit.Mailer,
+  adapter: Swoosh.Adapters.Mailgun,
+  api_key: System.get_env("MAILGUN_API_KEY"),
+  domain: System.get_env("MAILGUN_DOMAIN")
 ```
 
 **Note:** Run `mix deps.compile phoenix_kit --force` after changing configuration.
@@ -295,4 +344,4 @@ MIT License - see [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
-Built with ❤️ for the Elixir Phoenix community
+Built in 🇪🇺🇪🇪 with ❤️ for the Elixir Phoenix community.
