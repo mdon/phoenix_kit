@@ -33,16 +33,172 @@
 
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Available Modules</h2>
-        <div class="text-center py-12">
-          <div class="text-6xl mb-4">🧩</div>
-          <h3 class="text-xl font-semibold text-base-content mb-2">
-            Module System Coming Soon
-          </h3>
-          <p class="text-base-content/70 max-w-md mx-auto">
-            This section will allow you to manage and configure system modules,
-            extensions, and integrations for your PhoenixKit application.
-          </p>
+        <h2 class="card-title text-xl mb-6">Available Modules</h2>
+
+        <%!-- Referral Codes Module --%>
+        <div class="border border-base-300 rounded-lg p-6 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center">
+              <div class="text-2xl mr-3">🎫</div>
+              <div>
+                <h3 class="text-lg font-semibold text-base-content">Referral Codes System</h3>
+                <p class="text-sm text-base-content/70">
+                  Manage referral codes for user registration and tracking
+                </p>
+              </div>
+            </div>
+
+            <div class="form-control">
+              <label class="label cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary"
+                  checked={@referral_codes_enabled}
+                  phx-click="toggle_referral_codes"
+                  phx-value-enabled="toggle"
+                />
+              </label>
+            </div>
+          </div>
+
+          <%!-- Module Settings (shown when enabled) --%>
+          <%= if @referral_codes_enabled do %>
+            <div class="bg-base-200 rounded-lg p-4 mt-4">
+              <h4 class="font-medium text-base-content mb-3">Module Settings</h4>
+
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Required for Registration
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    When enabled, users must provide a valid referral code to register
+                  </p>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-secondary toggle-sm"
+                      checked={@referral_codes_required}
+                      phx-click="toggle_referral_codes_required"
+                      phx-value-required="toggle"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <%!-- Max Codes Per User Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Max Codes Per User
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Maximum number of referral codes each user can create
+                  </p>
+                </div>
+
+                <div class="form-control">
+                  <form phx-change="update_max_codes_per_user">
+                    <input
+                      type="number"
+                      name="max_codes_per_user"
+                      class="input input-bordered input-sm w-20 text-center"
+                      value={@max_codes_per_user}
+                      min="1"
+                      max="1000"
+                      phx-debounce="1000"
+                    />
+                  </form>
+                </div>
+              </div>
+
+              <%!-- Max Uses Per Code Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Max Uses Per Code
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Maximum number of times any single referral code can be used
+                  </p>
+                </div>
+
+                <div class="form-control">
+                  <form phx-change="update_max_uses_per_code">
+                    <input
+                      type="number"
+                      name="max_uses_per_code"
+                      class="input input-bordered input-sm w-20 text-center"
+                      value={@max_uses_per_code}
+                      min="1"
+                      max="10000"
+                      phx-debounce="1000"
+                    />
+                  </form>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center mt-4">
+                <div class="text-xs text-base-content/60">
+                  Status:
+                  <span class="font-medium">
+                    {if @referral_codes_required, do: "Required", else: "Optional"}
+                  </span>
+                </div>
+
+                <.link
+                  navigate="/phoenix_kit/admin/referral-codes"
+                  class="btn btn-outline btn-primary btn-sm"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  Manage Codes
+                </.link>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Future Modules Placeholder --%>
+        <div class="border border-base-300 rounded-lg p-6 border-dashed">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div class="text-2xl mr-3 opacity-50">📦</div>
+              <div>
+                <h3 class="text-lg font-semibold text-base-content/50">
+                  More Modules Coming Soon
+                </h3>
+                <p class="text-sm text-base-content/40">
+                  Additional system modules and extensions will be available here
+                </p>
+              </div>
+            </div>
+
+            <div class="form-control">
+              <label class="label cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary opacity-50"
+                  disabled
+                />
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
