@@ -28,6 +28,7 @@ defmodule PhoenixKit.Config do
     scheme: "http",
     host: "localhost",
     port: 4000,
+    url_prefix: "/phoenix_kit",
     layouts_module: nil,
     phoenix_version_strategy: nil
   ]
@@ -70,6 +71,44 @@ defmodule PhoenixKit.Config do
     case get(key) do
       {:ok, value} -> value
       :not_found -> default
+    end
+  end
+
+  @doc """
+  Gets configured host with an optional port or default value.
+  """
+  @spec get_base_url() :: String.t()
+  def get_base_url do
+    host =
+      case get(:host) do
+        {:ok, host} -> host
+        _ -> "localhost"
+      end
+
+    scheme =
+      case get(:scheme) do
+        {:ok, scheme} -> scheme
+        _ -> "http"
+      end
+
+    port =
+      case get(:port) do
+        {:ok, port} when port not in [80, 443] -> ":#{port}"
+        _ -> ":4000"
+      end
+
+    "#{scheme}://#{host}#{port}"
+  end
+
+  @doc """
+  Gets configured prefix for urls or default value.
+  """
+  @spec get_url_prefix() :: String.t()
+  def get_url_prefix do
+    case get(:url_prefix, "/phoenix_kit") do
+      nil -> "/"
+      "" -> "/"
+      value -> value
     end
   end
 

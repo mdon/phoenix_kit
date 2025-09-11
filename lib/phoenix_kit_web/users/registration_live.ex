@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.RegistrationLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
@@ -25,7 +26,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
               phx-submit="save"
               phx-change="validate"
               phx-trigger-action={@trigger_submit}
-              action="/phoenix_kit/users/log-in?_action=registered"
+              action={Routes.path("/users/log-in?_action=registered")}
               method="post"
             >
               <fieldset class="fieldset">
@@ -113,7 +114,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
             <div class="text-center mt-4 text-sm">
               <span>Already have an account? </span>
               <.link
-                navigate="/phoenix_kit/users/log-in"
+                navigate={Routes.path("/users/log-in")}
                 class="font-semibold text-primary hover:underline"
               >
                 Sign in
@@ -158,7 +159,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         connected_at: DateTime.utc_now(),
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/users/register"
+        current_page: Routes.path("/users/register")
       })
     end
 
@@ -199,7 +200,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
             {:ok, _} =
               Auth.deliver_user_confirmation_instructions(
                 user,
-                &"/phoenix_kit/users/confirm/#{&1}"
+                &Routes.path("/users/confirm/#{&1}")
               )
 
             changeset = Auth.change_user_registration(user)

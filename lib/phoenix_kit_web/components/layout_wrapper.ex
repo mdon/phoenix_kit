@@ -31,8 +31,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   import PhoenixKitWeb.CoreComponents, only: [flash_group: 1]
 
-  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.PhoenixVersion
+  alias PhoenixKit.Users.Auth.Scope
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.
@@ -226,14 +227,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </div>
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/dashboard"
+                      href={Routes.path("/admin/dashboard")}
                       icon="dashboard"
                       label="Dashboard"
                       current_path={@current_path || ""}
                     />
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/modules"
+                      href={Routes.path("/admin/modules")}
                       icon="modules"
                       label="Modules"
                       current_path={@current_path || ""}
@@ -250,7 +251,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <% end %>
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/settings"
+                      href={Routes.path("/admin/settings")}
                       icon="settings"
                       label="Settings"
                       current_path={@current_path || ""}
@@ -264,28 +265,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </div>
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/users"
+                      href={Routes.path("/admin/users")}
                       icon="users"
                       label="Users"
                       current_path={@current_path || ""}
                     />
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/live_sessions"
+                      href={Routes.path("/admin/live_sessions")}
                       icon="live_sessions"
                       label="Live Sessions"
                       current_path={@current_path || ""}
                     />
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/sessions"
+                      href={Routes.path("/admin/sessions")}
                       icon="sessions"
                       label="Sessions"
                       current_path={@current_path || ""}
                     />
 
                     <.admin_nav_item
-                      href="/phoenix_kit/admin/roles"
+                      href={Routes.path("/admin/roles")}
                       icon="roles"
                       label="Roles"
                       current_path={@current_path || ""}

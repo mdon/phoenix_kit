@@ -1,11 +1,13 @@
 defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
 
@@ -311,7 +313,7 @@ defmodule PhoenixKitWeb.Live.UsersLive do
 
   defp get_current_path(_socket, _session) do
     # For UsersLive, always return users path
-    "/phoenix_kit/admin/users"
+    Routes.path("/admin/users")
   end
 
   # Optimized function using preloaded roles

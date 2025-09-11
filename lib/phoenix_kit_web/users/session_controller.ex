@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.SessionController do
   use PhoenixKitWeb, :controller
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
@@ -10,7 +11,7 @@ defmodule PhoenixKitWeb.Users.SessionController do
 
   def create(conn, %{"_action" => "password_updated"} = params) do
     conn
-    |> put_session(:user_return_to, "/phoenix_kit/users/settings")
+    |> put_session(:user_return_to, Routes.path("/users/settings"))
     |> create(params, "Password updated successfully!")
   end
 
@@ -30,7 +31,7 @@ defmodule PhoenixKitWeb.Users.SessionController do
       conn
       |> put_flash(:error, "Invalid email or password")
       |> put_flash(:email, String.slice(email, 0, 160))
-      |> redirect(to: "/phoenix_kit/users/log-in")
+      |> redirect(to: Routes.path("/users/log-in"))
     end
   end
 

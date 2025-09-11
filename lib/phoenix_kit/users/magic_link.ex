@@ -55,6 +55,7 @@ defmodule PhoenixKit.Users.MagicLink do
         expiry_minutes: 15  # Default: 15 minutes
   """
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{User, UserToken}
 
@@ -224,13 +225,9 @@ defmodule PhoenixKit.Users.MagicLink do
 
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123")
       "http://localhost:4000/phoenix_kit/users/magic-link/token123"
-
-      iex> PhoenixKit.Users.MagicLink.magic_link_url("token123", "https://myapp.com")
-      "https://myapp.com/phoenix_kit/users/magic-link/token123"
   """
-  def magic_link_url(token, base_url \\ nil) when is_binary(token) do
-    base = base_url || get_base_url()
-    "#{base}/phoenix_kit/users/magic-link/#{token}"
+  def magic_link_url(token) when is_binary(token) do
+    Routes.url("/users/magic-link/#{token}")
   end
 
   @doc """
@@ -273,28 +270,5 @@ defmodule PhoenixKit.Users.MagicLink do
 
       config :phoenix_kit, repo: YourApp.Repo
       """
-  end
-
-  # Get base URL for magic link construction
-  defp get_base_url do
-    host =
-      case PhoenixKit.Config.get(:host) do
-        {:ok, host} -> host
-        _ -> "localhost"
-      end
-
-    scheme =
-      case PhoenixKit.Config.get(:scheme) do
-        {:ok, scheme} -> scheme
-        _ -> "http"
-      end
-
-    port =
-      case PhoenixKit.Config.get(:port) do
-        {:ok, port} when port not in [80, 443] -> ":#{port}"
-        _ -> ":4000"
-      end
-
-    "#{scheme}://#{host}#{port}"
   end
 end

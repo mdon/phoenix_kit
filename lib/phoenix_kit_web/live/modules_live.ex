@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Settings
   alias PhoenixKit.ReferralCodes
 
@@ -150,6 +151,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
   defp get_current_path(_socket, _session) do
     # For ModulesLive, always return modules path
-    "/phoenix_kit/admin/modules"
+    Routes.path("/admin/modules")
   end
 end

@@ -10,7 +10,7 @@
     <header class="w-full relative mb-6">
       <!-- Back Button (Left aligned) -->
       <.link
-        navigate="/phoenix_kit/admin/dashboard"
+        navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -24,14 +24,14 @@
         </svg>
         Back to Dashboard
       </.link>
-      
+
 <!-- Title Section -->
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">Role Management</h1>
         <p class="text-lg text-base-content">Create and manage user roles</p>
       </div>
     </header>
-    
+
 <!-- Action Button -->
     <div class="flex justify-center mb-6">
       <button
@@ -50,7 +50,7 @@
         Create New Role
       </button>
     </div>
-    
+
 <!-- Role Creation/Edit Form Modal -->
     <%= if @show_form do %>
       <div class="modal modal-open">
@@ -108,7 +108,7 @@
         </div>
       </div>
     <% end %>
-    
+
 <!-- Roles List -->
     <div class="bg-base-100 rounded-lg shadow-md overflow-hidden">
       <%= if length(@roles) > 0 do %>
@@ -180,7 +180,7 @@
                           </svg>
                           Edit
                         </button>
-                        
+
 <!-- Delete Button -->
                         <button
                           class="btn btn-xs btn-outline btn-error"
@@ -246,7 +246,7 @@
         </div>
       <% end %>
     </div>
-    
+
 <!-- Role Statistics -->
     <div class="mt-8">
       <h3 class="text-lg font-semibold text-base-content mb-6">Role Statistics</h3>
@@ -266,7 +266,7 @@
             </div>
           </div>
         </div>
-        
+
 <!-- Custom Roles Count -->
         <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
           <div class="flex items-center gap-3">
@@ -281,7 +281,7 @@
             </div>
           </div>
         </div>
-        
+
 <!-- Total Roles Count -->
         <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
           <div class="flex items-center gap-3">

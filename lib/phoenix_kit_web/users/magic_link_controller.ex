@@ -7,6 +7,8 @@ defmodule PhoenixKitWeb.Users.MagicLinkController do
   """
   use PhoenixKitWeb, :controller
 
+  alias PhoenixKit.Utils.Routes
+
   alias PhoenixKit.Users.MagicLink
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
@@ -29,13 +31,13 @@ defmodule PhoenixKitWeb.Users.MagicLinkController do
       {:error, :invalid_token} ->
         conn
         |> put_flash(:error, "Magic link is invalid or has expired. Please request a new one.")
-        |> redirect(to: ~p"/phoenix_kit/users/log-in")
+        |> redirect(to: Routes.path("/users/log-in"))
     end
   end
 
   def verify(conn, _params) do
     conn
     |> put_flash(:error, "Invalid magic link. Please request a new one.")
-    |> redirect(to: ~p"/phoenix_kit/users/log-in")
+    |> redirect(to: Routes.path("/users/log-in"))
   end
 end
