@@ -90,14 +90,12 @@ defmodule PhoenixKit.Install.MailerConfig do
 
   # Check if a mailer module exists in the project
   defp mailer_module_exists?(module) do
-    try do
-      case Code.ensure_compiled(module) do
-        {:module, _} -> function_exported?(module, :deliver, 1)
-        _ -> false
-      end
-    rescue
+    case Code.ensure_compiled(module) do
+      {:module, _} -> function_exported?(module, :deliver, 1)
       _ -> false
     end
+  rescue
+    _ -> false
   end
 
   # Add production mailer configuration template as comments
@@ -141,7 +139,7 @@ defmodule PhoenixKit.Install.MailerConfig do
     # config :phoenix_kit,
     #   from_email: "noreply@yourcompany.com",
     #   from_name: "Your Company Name"
-    
+
     # OPTION 1 (RECOMMENDED): Use your app's existing mailer
     # PhoenixKit will automatically use your app's mailer if configured with:
     # config :phoenix_kit, mailer: MyApp.Mailer
@@ -183,24 +181,24 @@ defmodule PhoenixKit.Install.MailerConfig do
     # ==========================================
     # Amazon SES configuration (COMPLETE SETUP GUIDE)
     # ==========================================
-    
+
     # STEP 1: Add required dependencies to mix.exs
     # {:gen_smtp, "~> 1.2"}  # Required for AWS SES
-    
+
     # STEP 2: Add Finch to your application supervisor (lib/your_app/application.ex)
     # Add this to your children list:
     # {Finch, name: Swoosh.Finch}
-    
+
     # STEP 3: Configure Swoosh API client (config/config.exs)
     # config :swoosh, :api_client, Swoosh.ApiClient.Finch
-    
+
     # STEP 4: Configure AWS SES
     # config :phoenix_kit, PhoenixKit.Mailer,
     #   adapter: Swoosh.Adapters.AmazonSES,
     #   region: "us-east-1",  # or "eu-north-1" for Europe
     #   access_key: System.get_env("AWS_ACCESS_KEY_ID"),
     #   secret: System.get_env("AWS_SECRET_ACCESS_KEY")
-    
+
     # STEP 5: AWS SES Setup Checklist
     # □ Create AWS IAM user with SES permissions (ses:*)
     # □ Verify sender email address in AWS SES Console  
@@ -211,7 +209,7 @@ defmodule PhoenixKit.Install.MailerConfig do
     #   - AWS_ACCESS_KEY_ID
     #   - AWS_SECRET_ACCESS_KEY
     #   - AWS_REGION (optional, defaults to us-east-1)
-    
+
     # Common AWS SES regions:
     # - us-east-1 (N. Virginia)
     # - us-west-2 (Oregon)  

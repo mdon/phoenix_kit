@@ -80,7 +80,7 @@ defmodule PhoenixKit.Install.FinchSetup do
   defp needs_finch?(igniter) do
     http_adapters = [
       "Swoosh.Adapters.AmazonSES",
-      "Swoosh.Adapters.Sendgrid", 
+      "Swoosh.Adapters.Sendgrid",
       "Swoosh.Adapters.Mailgun",
       "Swoosh.Adapters.Postmark",
       "Swoosh.Adapters.Mandrill"
@@ -97,10 +97,12 @@ defmodule PhoenixKit.Install.FinchSetup do
   # Helper to check if any of the specified adapters are configured
   defp check_config_for_adapters(igniter, adapters) do
     config_files = ["config.exs", "dev.exs", "prod.exs"]
-    
+
     Enum.any?(config_files, fn file ->
       case igniter.rewrite.sources[file] do
-        nil -> false
+        nil ->
+          false
+
         source ->
           content = Rewrite.Source.get(source, :content)
           Enum.any?(adapters, &String.contains?(content, &1))
