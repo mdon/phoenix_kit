@@ -8,6 +8,8 @@ defmodule PhoenixKitWeb.AdminNav do
 
   alias Phoenix.LiveView.JS
 
+  alias PhoenixKit.Utils.Routes
+
   @doc """
   Renders an admin navigation item with proper active state styling.
 
@@ -300,7 +302,7 @@ defmodule PhoenixKitWeb.AdminNav do
 
         <div class="flex gap-1">
           <.link
-            href="/phoenix_kit/users/settings"
+            href={Routes.path("/users/settings")}
             class="btn btn-ghost btn-xs flex-1"
           >
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -320,7 +322,7 @@ defmodule PhoenixKitWeb.AdminNav do
           </.link>
 
           <.link
-            href="/phoenix_kit/users/log-out"
+            href={Routes.path("/users/log-out")}
             method="delete"
             class="btn btn-ghost btn-xs flex-1 text-error hover:bg-error hover:text-error-content"
           >
@@ -338,7 +340,7 @@ defmodule PhoenixKitWeb.AdminNav do
     <% else %>
       <div class="bg-base-200 rounded-lg p-3 text-center text-sm">
         <div class="text-base-content/70 mb-2">Not authenticated</div>
-        <.link href="/phoenix_kit/log_in" class="btn btn-primary btn-sm w-full">
+        <.link href={Routes.path("/users/log-in")} class="btn btn-primary btn-sm w-full">
           Login
         </.link>
       </div>

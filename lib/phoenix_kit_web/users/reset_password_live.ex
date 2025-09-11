@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.ResetPasswordLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
 
   def render(assigns) do
@@ -36,8 +37,8 @@ defmodule PhoenixKitWeb.Users.ResetPasswordLive do
         </.simple_form>
 
         <p class="text-center text-sm mt-4">
-          <.link href="/phoenix_kit/users/register">Register</.link>
-          | <.link href="/phoenix_kit/users/log-in">Log in</.link>
+          <.link href={Routes.path("/users/register")}>Register</.link>
+          | <.link href={Routes.path("/users/log-in")}>Log in</.link>
         </p>
       </div>
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
@@ -67,7 +68,7 @@ defmodule PhoenixKitWeb.Users.ResetPasswordLive do
         {:noreply,
          socket
          |> put_flash(:info, "Password reset successfully.")
-         |> redirect(to: "/phoenix_kit/users/log-in")}
+         |> redirect(to: Routes.path("/users/log-in"))}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :insert))}

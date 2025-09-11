@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.UserFormLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
 
   def mount(params, session, socket) do
@@ -47,7 +48,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
   end
 
   def handle_event("cancel", _params, socket) do
-    {:noreply, push_navigate(socket, to: "/phoenix_kit/admin/users")}
+    {:noreply, push_navigate(socket, to: Routes.path("/admin/users"))}
   end
 
   def handle_event("show_reset_password_modal", _params, socket) do
@@ -65,7 +66,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
 
     case Auth.deliver_user_reset_password_instructions(
            user,
-           &"/phoenix_kit/users/reset-password/#{&1}"
+           &Routes.path("/users/reset-password/#{&1}")
          ) do
       {:ok, _} ->
         socket =
@@ -92,7 +93,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
         # Optionally send confirmation email
         case Auth.deliver_user_confirmation_instructions(
                user,
-               &"/phoenix_kit/users/confirm/#{&1}"
+               &Routes.path("/users/confirm/#{&1}")
              ) do
           {:ok, _} -> :ok
           # Continue even if email fails
@@ -102,7 +103,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
         socket =
           socket
           |> put_flash(:info, "User created successfully. Confirmation email sent.")
-          |> push_navigate(to: "/phoenix_kit/admin/users")
+          |> push_navigate(to: Routes.path("/admin/users"))
 
         {:noreply, socket}
 
@@ -122,7 +123,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
         socket =
           socket
           |> put_flash(:info, "User updated successfully.")
-          |> push_navigate(to: "/phoenix_kit/admin/users")
+          |> push_navigate(to: Routes.path("/admin/users"))
 
         {:noreply, socket}
 
@@ -174,10 +175,10 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
   defp page_title(:edit), do: "Edit User"
 
   defp get_current_path(_socket, _session, :new, _user_id) do
-    "/phoenix_kit/admin/users/new"
+    Routes.path("/admin/users/new")
   end
 
   defp get_current_path(_socket, _session, :edit, user_id) do
-    "/phoenix_kit/admin/users/edit/#{user_id}"
+    Routes.path("/admin/users/edit/#{user_id}")
   end
 end

@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Mailer
   alias PhoenixKit.Users.MagicLink
@@ -26,7 +27,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
         connected_at: DateTime.utc_now(),
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/users/magic-link"
+        current_page: Routes.path("/users/magic-link")
       })
     end
 
@@ -246,14 +247,14 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
           </div>
 
           <div class="mt-6 text-center">
-            <.link navigate="/phoenix_kit/users/log-in" class="text-sm text-brand hover:underline">
+            <.link navigate={Routes.path("/users/log-in")} class="text-sm text-brand hover:underline">
               Sign in with password
             </.link>
           </div>
 
           <div class="mt-3 text-center">
             <.link
-              navigate="/phoenix_kit/users/register"
+              navigate={Routes.path("/users/register")}
               class="text-sm text-gray-600 hover:text-gray-500"
             >
               Don't have an account? Sign up

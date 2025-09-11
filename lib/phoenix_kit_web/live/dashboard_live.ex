@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Live.DashboardLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.{Events, Presence}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
@@ -54,7 +55,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
 
   defp get_current_path(_socket, _session) do
     # For DashboardLive, always return dashboard path
-    "/phoenix_kit/admin/dashboard"
+    Routes.path("/admin/dashboard")
   end
 
   def handle_event("refresh_stats", _params, socket) do
@@ -138,7 +139,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
         session_id: session_id,
         ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
         user_agent: get_connect_info(socket, :user_agent),
-        current_page: "/phoenix_kit/admin/dashboard"
+        current_page: Routes.path("/admin/dashboard")
       })
     end
   end

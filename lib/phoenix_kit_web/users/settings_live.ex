@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.SettingsLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
 
   def render(assigns) do
@@ -81,7 +82,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                 <.simple_form
                   for={@password_form}
                   id="password_form"
-                  action="/phoenix_kit/users/log-in?_action=password_updated"
+                  action={Routes.path("/users/log-in?_action=password_updated")}
                   method="post"
                   phx-change="validate_password"
                   phx-submit="update_password"
@@ -161,7 +162,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
           put_flash(socket, :error, "Email change link is invalid or it has expired.")
       end
 
-    {:ok, push_navigate(socket, to: "/phoenix_kit/users/settings")}
+    {:ok, push_navigate(socket, to: Routes.path("/users/settings"))}
   end
 
   def mount(_params, _session, socket) do
@@ -204,7 +205,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
         Auth.deliver_user_update_email_instructions(
           applied_user,
           user.email,
-          &url(~p"/phoenix_kit/users/settings/confirm-email/#{&1}")
+          &Routes.url("/users/settings/confirm-email/#{&1}")
         )
 
         info = "A link to confirm your email change has been sent to the new address."

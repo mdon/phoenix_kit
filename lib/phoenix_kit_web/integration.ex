@@ -12,8 +12,6 @@ defmodule PhoenixKitWeb.Integration do
 
         # Add PhoenixKit routes
         phoenix_kit_routes()  # Default: /phoenix_kit prefix
-        # or with custom prefix
-        phoenix_kit_routes("/auth")
       end
 
   ## Layout Integration
@@ -66,7 +64,9 @@ defmodule PhoenixKitWeb.Integration do
       <% end %>
 
   """
-  defmacro phoenix_kit_routes(prefix \\ "/phoenix_kit") do
+  defmacro phoenix_kit_routes() do
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+
     quote do
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
@@ -82,7 +82,7 @@ defmodule PhoenixKitWeb.Integration do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_require_authenticated_user
       end
 
-      scope unquote(prefix), PhoenixKitWeb do
+      scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
         post "/users/log-in", Users.SessionController, :create
@@ -92,7 +92,7 @@ defmodule PhoenixKitWeb.Integration do
       end
 
       # LiveView routes with proper authentication
-      scope unquote(prefix), PhoenixKitWeb do
+      scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
         live_session :phoenix_kit_redirect_if_user_is_authenticated,
@@ -137,7 +137,9 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  def init(opts), do: opts
+  def init(opts) do
+    opts
+  end
 
   def call(conn, :phoenix_kit_auto_setup) do
     # Add backward compatibility for layouts that use render_slot(@inner_block)
