@@ -66,7 +66,10 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                       id="referral_code"
                       name="referral_code"
                       type="text"
-                      class="input input-bordered"
+                      class={[
+                        "input input-bordered",
+                        (@referral_code_error || (@check_errors && @referral_codes_required && (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
+                      ]}
                       placeholder="Enter your referral code"
                       value={@referral_code || ""}
                       required={@referral_codes_required}
