@@ -20,6 +20,8 @@ defmodule PhoenixKit.Config do
   - `:host` - Application hostname
   - `:port` - Application port
   - `:layout_module` - Custom layout configuration
+  - `:from_email` - Default sender email address for notifications
+  - `:from_name` - Default sender name for notifications (default: "PhoenixKit")
   """
 
   @default_config [
@@ -29,7 +31,9 @@ defmodule PhoenixKit.Config do
     host: "localhost",
     port: 4000,
     layouts_module: nil,
-    phoenix_version_strategy: nil
+    phoenix_version_strategy: nil,
+    from_email: nil,
+    from_name: "PhoenixKit"
   ]
 
   @doc """

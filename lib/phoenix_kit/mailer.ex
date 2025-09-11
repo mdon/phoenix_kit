@@ -4,6 +4,20 @@ defmodule PhoenixKit.Mailer do
 
   This module handles sending emails such as
   confirmation emails, password reset emails, magic link emails, etc.
+
+  It can work in two modes:
+  1. **Built-in mode**: Uses PhoenixKit's own Swoosh mailer (default)
+  2. **Delegation mode**: Uses the parent application's mailer when configured
+
+  ## Configuration
+
+  To use your application's mailer instead of PhoenixKit's built-in one:
+
+      config :phoenix_kit,
+        mailer: MyApp.Mailer
+
+  When delegation is configured, all emails will be sent through your application's 
+  mailer, allowing you to use a single mailer configuration across your entire application.
   """
 
   use Swoosh.Mailer, otp_app: :phoenix_kit
@@ -11,6 +25,42 @@ defmodule PhoenixKit.Mailer do
   import Swoosh.Email
 
   alias PhoenixKit.Users.Auth.User
+
+  @doc """
+  Gets the mailer module to use for sending emails.
+
+  Returns the configured parent application mailer if set,
+  otherwise returns the built-in PhoenixKit.Mailer.
+
+  ## Examples
+
+      iex> PhoenixKit.Mailer.get_mailer()
+      MyApp.Mailer  # if configured
+      
+      iex> PhoenixKit.Mailer.get_mailer()
+      PhoenixKit.Mailer  # default
+  """
+  def get_mailer do
+    PhoenixKit.Config.get(:mailer, __MODULE__)
+  end
+
+  @doc """
+  Delivers an email using the appropriate mailer.
+
+  If a parent application mailer is configured, delegates to it.
+  Otherwise uses the built-in PhoenixKit mailer.
+  """
+  def deliver_email(email) do
+    mailer = get_mailer()
+
+    if mailer == __MODULE__ do
+      # Use built-in mailer
+      __MODULE__.deliver(email)
+    else
+      # Delegate to parent application mailer
+      mailer.deliver(email)
+    end
+  end
 
   @doc """
   Sends a magic link email to the user.
@@ -29,7 +79,7 @@ defmodule PhoenixKit.Mailer do
       |> html_body(magic_link_html_body(user, magic_link_url))
       |> text_body(magic_link_text_body(user, magic_link_url))
 
-    deliver(email)
+    deliver_email(email)
   end
 
   # HTML version of the magic link email

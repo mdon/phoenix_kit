@@ -9,9 +9,14 @@ defmodule PhoenixKit.Install.MailerConfig do
   """
 
   alias Igniter.Project.Config
+  alias PhoenixKit.Install.FinchSetup
 
   @doc """
   Adds PhoenixKit mailer configuration for development and production.
+
+  Now supports both delegation mode and built-in mode:
+  - **Delegation mode**: Configure PhoenixKit to use parent app's mailer
+  - **Built-in mode**: Configure PhoenixKit's own mailer (legacy)
 
   ## Parameters
   - `igniter` - The igniter context
@@ -21,12 +26,34 @@ defmodule PhoenixKit.Install.MailerConfig do
   """
   def add_mailer_configuration(igniter) do
     igniter
-    |> add_dev_mailer_config()
+    |> add_mailer_delegation_config()
     |> add_prod_mailer_config()
+    |> FinchSetup.add_finch_configuration()
     |> add_mailer_production_notice()
   end
 
-  # Add Local mailer adapter for development
+  # Add mailer delegation configuration - detects and uses parent app's mailer
+  defp add_mailer_delegation_config(igniter) do
+    parent_app = get_parent_app_name()
+
+    case detect_parent_mailer(parent_app) do
+      {:ok, parent_mailer} ->
+        # Configure PhoenixKit to use parent app's mailer
+        Config.configure_new(
+          igniter,
+          "config.exs",
+          :phoenix_kit,
+          [:mailer],
+          parent_mailer
+        )
+
+      :not_found ->
+        # Fall back to built-in PhoenixKit mailer
+        add_dev_mailer_config(igniter)
+    end
+  end
+
+  # Legacy: Add Local mailer adapter for development
   defp add_dev_mailer_config(igniter) do
     Config.configure_new(
       igniter,
@@ -35,6 +62,42 @@ defmodule PhoenixKit.Install.MailerConfig do
       [PhoenixKit.Mailer],
       adapter: Swoosh.Adapters.Local
     )
+  end
+
+  # Get the parent application name
+  defp get_parent_app_name do
+    Mix.Project.config()[:app]
+  end
+
+  # Detect parent application's mailer module
+  defp detect_parent_mailer(app_name) do
+    app_module = app_name |> to_string() |> Macro.camelize()
+
+    # Common mailer module patterns
+    mailer_candidates = [
+      Module.concat([app_module, "Mailer"]),
+      Module.concat([app_module <> "Web", "Mailer"])
+    ]
+
+    # Find the first existing mailer module
+    mailer_candidates
+    |> Enum.find(&mailer_module_exists?/1)
+    |> case do
+      nil -> :not_found
+      mailer -> {:ok, mailer}
+    end
+  end
+
+  # Check if a mailer module exists in the project
+  defp mailer_module_exists?(module) do
+    try do
+      case Code.ensure_compiled(module) do
+        {:module, _} -> function_exported?(module, :deliver, 1)
+        _ -> false
+      end
+    rescue
+      _ -> false
+    end
   end
 
   # Add production mailer configuration template as comments
@@ -73,6 +136,27 @@ defmodule PhoenixKit.Install.MailerConfig do
   defp get_prod_mailer_template do
     """
     # Configure PhoenixKit mailer for production
+    # 
+    # IMPORTANT: Configure sender email address
+    # config :phoenix_kit,
+    #   from_email: "noreply@yourcompany.com",
+    #   from_name: "Your Company Name"
+    
+    # OPTION 1 (RECOMMENDED): Use your app's existing mailer
+    # PhoenixKit will automatically use your app's mailer if configured with:
+    # config :phoenix_kit, mailer: MyApp.Mailer
+    #
+    # Then configure your app's mailer as usual:
+    # config :my_app, MyApp.Mailer,
+    #   adapter: Swoosh.Adapters.SMTP,
+    #   relay: "smtp.sendgrid.net",
+    #   username: System.get_env("SENDGRID_USERNAME"),
+    #   password: System.get_env("SENDGRID_PASSWORD"),
+    #   port: 587,
+    #   auth: :always,
+    #   tls: :always
+
+    # OPTION 2 (LEGACY): Configure PhoenixKit's built-in mailer
     # Uncomment and configure the adapter you want to use:
 
     # SMTP configuration (recommended for most providers)
@@ -96,19 +180,59 @@ defmodule PhoenixKit.Install.MailerConfig do
     #   api_key: System.get_env("MAILGUN_API_KEY"),
     #   domain: System.get_env("MAILGUN_DOMAIN")
 
-    # Amazon SES configuration
+    # ==========================================
+    # Amazon SES configuration (COMPLETE SETUP GUIDE)
+    # ==========================================
+    
+    # STEP 1: Add required dependencies to mix.exs
+    # {:gen_smtp, "~> 1.2"}  # Required for AWS SES
+    
+    # STEP 2: Add Finch to your application supervisor (lib/your_app/application.ex)
+    # Add this to your children list:
+    # {Finch, name: Swoosh.Finch}
+    
+    # STEP 3: Configure Swoosh API client (config/config.exs)
+    # config :swoosh, :api_client, Swoosh.ApiClient.Finch
+    
+    # STEP 4: Configure AWS SES
     # config :phoenix_kit, PhoenixKit.Mailer,
     #   adapter: Swoosh.Adapters.AmazonSES,
-    #   region: "us-east-1",
+    #   region: "us-east-1",  # or "eu-north-1" for Europe
     #   access_key: System.get_env("AWS_ACCESS_KEY_ID"),
     #   secret: System.get_env("AWS_SECRET_ACCESS_KEY")
+    
+    # STEP 5: AWS SES Setup Checklist
+    # □ Create AWS IAM user with SES permissions (ses:*)
+    # □ Verify sender email address in AWS SES Console  
+    # □ Verify recipient email addresses (if in sandbox mode)
+    # □ Ensure correct AWS region matches your verification
+    # □ Request production access to send to any email
+    # □ Set environment variables:
+    #   - AWS_ACCESS_KEY_ID
+    #   - AWS_SECRET_ACCESS_KEY
+    #   - AWS_REGION (optional, defaults to us-east-1)
+    
+    # Common AWS SES regions:
+    # - us-east-1 (N. Virginia)
+    # - us-west-2 (Oregon)  
+    # - eu-north-1 (Stockholm)
+    # - eu-west-1 (Ireland)
 
     """
   end
 
   # Add brief notice about mailer configuration
   defp add_mailer_production_notice(igniter) do
-    notice = "📧 Email configured (dev: local, prod: see config/prod.exs)"
+    parent_app = get_parent_app_name()
+
+    notice =
+      case detect_parent_mailer(parent_app) do
+        {:ok, parent_mailer} ->
+          "📧 Email configured to use #{inspect(parent_mailer)} (see config/prod.exs for production setup)"
+
+        :not_found ->
+          "📧 Email configured (built-in PhoenixKit.Mailer, see config/prod.exs)"
+      end
 
     Igniter.add_notice(igniter, notice)
   end
