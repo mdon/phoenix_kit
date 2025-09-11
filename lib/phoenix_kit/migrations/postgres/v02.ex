@@ -127,7 +127,7 @@ defmodule PhoenixKit.Migrations.Postgres.V02 do
     # Check if phoenix_kit_user_role_assignments table exists
     table_exists_query = """
     SELECT EXISTS (
-      SELECT FROM information_schema.tables 
+      SELECT FROM information_schema.tables
       WHERE table_name = 'phoenix_kit_user_role_assignments'
       #{if prefix, do: "AND table_schema = '#{prefix}'", else: ""}
     )

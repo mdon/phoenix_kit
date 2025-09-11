@@ -600,7 +600,7 @@ defmodule PhoenixKit.Users.Auth do
   @doc """
   Assigns roles to existing users who don't have any PhoenixKit roles.
 
-  This is useful for migration scenarios where PhoenixKit is installed 
+  This is useful for migration scenarios where PhoenixKit is installed
   into an existing application with users.
 
   ## Examples

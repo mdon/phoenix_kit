@@ -108,32 +108,22 @@ defmodule PhoenixKit.Migrations.Postgres do
     opts = with_defaults(opts, @initial_version)
     escaped_prefix = Map.fetch!(opts, :escaped_prefix)
 
-    # Get repo from Application config (runtime context)
-    repo = Application.get_env(:phoenix_kit, :repo)
-
-    case repo do
+    # Use hybrid repo detection with fallback strategies
+    case get_repo_with_fallback() do
       nil ->
         0
 
       repo ->
-        # Use Mix.Ecto.ensure_repo to properly start the repo and its dependencies
-        try do
-          if Code.ensure_loaded?(Mix.Ecto) do
-            Mix.Ecto.ensure_repo(repo, [])
-          else
-            # Fallback for cases where Mix.Ecto is not available
-            app = get_repo_app(repo)
+        # Ensure repo is started before querying database
+        case ensure_repo_started(repo) do
+          :ok ->
+            version = detect_version_by_schema(repo, escaped_prefix)
+            version
 
-            if app do
-              Application.ensure_all_started(app)
-            end
-          end
-        rescue
-          _ -> :ok
+          {:error, _reason} ->
+            # If repo can't be started, return 0 (not installed)
+            0
         end
-
-        version = detect_version_by_schema(repo, escaped_prefix)
-        version
     end
   rescue
     _ ->
@@ -333,17 +323,6 @@ defmodule PhoenixKit.Migrations.Postgres do
   end
 
   # Get the application that owns the repo module
-  defp get_repo_app(repo) do
-    case :application.get_application(repo) do
-      {:ok, app} ->
-        app
-
-      :undefined ->
-        # Fallback: try to guess from module name
-        [app_name | _] = Module.split(repo)
-        String.to_atom(Macro.underscore(app_name))
-    end
-  end
 
   defp with_defaults(opts, version) do
     opts = Enum.into(opts, %{prefix: @default_prefix, version: version})
@@ -352,5 +331,101 @@ defmodule PhoenixKit.Migrations.Postgres do
     |> Map.put(:quoted_prefix, inspect(opts.prefix))
     |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
     |> Map.put_new(:create_schema, opts.prefix != @default_prefix)
+  end
+
+  # Hybrid repo detection with fallback strategies (shared with status command)
+  defp get_repo_with_fallback do
+    # Strategy 1: Try to get from PhoenixKit application config
+    case Application.get_env(:phoenix_kit, :repo) do
+      nil ->
+        # Strategy 2: Try to ensure PhoenixKit application is started
+        case ensure_phoenix_kit_started() do
+          repo when not is_nil(repo) ->
+            repo
+
+          nil ->
+            # Strategy 3: Auto-detect from project configuration
+            detect_repo_from_project()
+        end
+
+      repo ->
+        repo
+    end
+  end
+
+  # Try to start PhoenixKit application and get repo config
+  defp ensure_phoenix_kit_started do
+    Application.ensure_all_started(:phoenix_kit)
+    Application.get_env(:phoenix_kit, :repo)
+  rescue
+    _ -> nil
+  end
+
+  # Auto-detect repository from project configuration
+  defp detect_repo_from_project do
+    parent_app_name = Mix.Project.config()[:app]
+
+    # Try :ecto_repos config first
+    case try_ecto_repos_config(parent_app_name) do
+      nil -> try_naming_patterns(parent_app_name)
+      repo -> repo
+    end
+  end
+
+  # Try to get repo from :ecto_repos application config
+  defp try_ecto_repos_config(nil), do: nil
+
+  defp try_ecto_repos_config(app_name) do
+    case Application.get_env(app_name, :ecto_repos, []) do
+      [repo | _] when is_atom(repo) ->
+        if ensure_repo_loaded?(repo), do: repo, else: nil
+
+      [] ->
+        nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  # Try common naming patterns
+  defp try_naming_patterns(nil), do: nil
+
+  defp try_naming_patterns(app_name) do
+    # Try most common pattern: AppName.Repo
+    repo_module = Module.concat([Macro.camelize(to_string(app_name)), "Repo"])
+
+    if ensure_repo_loaded?(repo_module) do
+      repo_module
+    else
+      nil
+    end
+  end
+
+  # Check if repo module exists and is loaded
+  defp ensure_repo_loaded?(repo) when is_atom(repo) and not is_nil(repo) do
+    Code.ensure_loaded?(repo) && function_exported?(repo, :__adapter__, 0)
+  rescue
+    _ -> false
+  end
+
+  defp ensure_repo_loaded?(_), do: false
+
+  # Ensure repo is properly started for database operations
+  # Note: For Mix tasks, the application should already be started
+  defp ensure_repo_started(repo) do
+    # Try Mix.Ecto.ensure_repo if available
+    if Code.ensure_loaded?(Mix.Ecto) do
+      Mix.Ecto.ensure_repo(repo, [])
+      :ok
+    else
+      # Basic check if repo is available
+      if Code.ensure_loaded?(repo) && function_exported?(repo, :__adapter__, 0) do
+        :ok
+      else
+        {:error, "Repository #{inspect(repo)} is not available"}
+      end
+    end
+  rescue
+    error -> {:error, "Failed to start repo: #{inspect(error)}"}
   end
 end

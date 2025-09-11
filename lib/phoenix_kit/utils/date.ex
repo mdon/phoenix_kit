@@ -9,7 +9,7 @@ defmodule PhoenixKit.Utils.Date do
 
   ### Date Formatting
   - `format_date/2` - Format a date using PHP-style format codes
-  - `format_time/2` - Format a time using PHP-style format codes  
+  - `format_time/2` - Format a time using PHP-style format codes
   - `get_date_examples/1` - Generate example formatted dates
   - `get_time_examples/1` - Generate example formatted times
 
@@ -20,7 +20,7 @@ defmodule PhoenixKit.Utils.Date do
   **Date Formats:**
   - `Y-m-d` - 2025-09-02 (ISO format)
   - `m/d/Y` - 09/02/2025 (US format)
-  - `d/m/Y` - 02/09/2025 (European format)  
+  - `d/m/Y` - 02/09/2025 (European format)
   - `d.m.Y` - 02.09.2025 (German format)
   - `d-m-Y` - 02-09-2025 (Alternative European)
   - `F j, Y` - September 2, 2025 (Long format)
@@ -38,7 +38,7 @@ defmodule PhoenixKit.Utils.Date do
 
       # Format a time
       time = Time.utc_now()
-      PhoenixKit.Utils.Date.format_time(time, "h:i A")  
+      PhoenixKit.Utils.Date.format_time(time, "h:i A")
       # => "3:30 PM"
 
       # Get examples for all date formats
@@ -63,10 +63,10 @@ defmodule PhoenixKit.Utils.Date do
 
       iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "Y-m-d")
       "2024-01-15"
-      
+
       iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "m/d/Y")
       "01/15/2024"
-      
+
       iex> PhoenixKit.Utils.Date.format_date(~D[2024-01-15], "F j, Y")
       "January 15, 2024"
   """
@@ -106,7 +106,7 @@ defmodule PhoenixKit.Utils.Date do
 
       iex> PhoenixKit.Utils.Date.format_time(~T[15:30:00], "H:i")
       "15:30"
-      
+
       iex> PhoenixKit.Utils.Date.format_time(~T[15:30:00], "h:i A")
       "3:30 PM"
   """
@@ -138,7 +138,7 @@ defmodule PhoenixKit.Utils.Date do
       iex> PhoenixKit.Utils.Date.get_date_examples(~D[2024-01-15])
       %{
         "Y-m-d" => "2024-01-15",
-        "m/d/Y" => "01/15/2024", 
+        "m/d/Y" => "01/15/2024",
         "d/m/Y" => "15/01/2024",
         "d.m.Y" => "15.01.2024",
         "d-m-Y" => "15-01-2024",
@@ -187,7 +187,7 @@ defmodule PhoenixKit.Utils.Date do
 
       iex> PhoenixKit.Utils.Date.format_datetime(~N[2024-01-15 15:30:00], "F j, Y")
       "January 15, 2024"
-      
+
       iex> PhoenixKit.Utils.Date.format_datetime(nil, "Y-m-d")
       "Never"
   """
