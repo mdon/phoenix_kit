@@ -72,6 +72,9 @@ defmodule PhoenixKit.Migrations.Postgres.V07 do
       add :provider, :string, null: false, default: "unknown"
       # FK to users for auth integration
       add :user_id, :integer, null: true
+
+      # Timestamps for tracking record creation/update
+      timestamps(type: :utc_datetime_usec)
     end
 
     # Create email events table
@@ -96,6 +99,9 @@ defmodule PhoenixKit.Migrations.Postgres.V07 do
       add :bounce_type, :string, null: true
       # abuse, auth-failure, fraud, etc.
       add :complaint_type, :string, null: true
+
+      # Timestamps for tracking record creation/update
+      timestamps(type: :utc_datetime_usec)
     end
 
     # Create indexes for email_logs table

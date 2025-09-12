@@ -33,7 +33,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   def handle_event("validate_code", params, socket) do
-    # Extract referral_codes params (note: plural form), ignoring search params  
+    # Extract referral_codes params (note: plural form), ignoring search params
     code_params = Map.get(params, "referral_codes", %{})
 
     # Add beneficiary if selected

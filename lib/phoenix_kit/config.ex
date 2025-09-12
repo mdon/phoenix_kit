@@ -79,6 +79,25 @@ defmodule PhoenixKit.Config do
   end
 
   @doc """
+  Gets the configured mailer module.
+
+  Returns the configured mailer or falls back to PhoenixKit.Mailer.
+
+  ## Examples
+
+      iex> PhoenixKit.Config.get_mailer()
+      MyApp.Mailer
+
+  """
+  @spec get_mailer() :: module()
+  def get_mailer do
+    case get(:mailer) do
+      {:ok, mailer} when is_atom(mailer) -> mailer
+      _ -> PhoenixKit.Mailer
+    end
+  end
+
+  @doc """
   Gets configured host with an optional port or default value.
   """
   @spec get_base_url() :: String.t()

@@ -35,7 +35,9 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   import PhoenixKitWeb.CoreComponents
 
   alias PhoenixKit.EmailTracking
+  alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   @default_per_page 25
   @max_per_page 100
@@ -43,12 +45,20 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   ## --- Lifecycle Callbacks ---
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     # Check if email tracking is enabled
     if EmailTracking.enabled?() do
+      # Get current path for navigation
+      current_path = get_current_path(socket, session)
+
+      # Get project title from settings
+      project_title = Settings.get_setting("project_title", "PhoenixKit")
+
       socket =
         socket
         |> assign(:page_title, "Email Logs")
+        |> assign(:current_path, current_path)
+        |> assign(:project_title, project_title)
         |> assign(:logs, [])
         |> assign(:total_count, 0)
         |> assign(:stats, %{})
@@ -56,12 +66,12 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
         |> assign_filter_defaults()
         |> assign_pagination_defaults()
 
-      {:ok, socket, temporary_assigns: [logs: []]}
+      {:ok, socket}
     else
       {:ok,
        socket
        |> put_flash(:error, "Email tracking is not enabled")
-       |> redirect(to: ~p"/phoenix_kit/admin/dashboard")}
+       |> push_navigate(to: "/phoenix_kit/admin/dashboard")}
     end
   end
 
@@ -79,35 +89,40 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   ## --- Event Handlers ---
 
   @impl true
-  def handle_event("filter", %{"filter" => filter_params}, socket) do
-    # Convert filter params and update URL
-    new_params = build_url_params(socket.assigns, filter_params)
+  def handle_event("filter", params, socket) do
+    # Handle both search and filter parameters
+    combined_params = %{}
+
+    # Extract search parameters
+    combined_params =
+      case Map.get(params, "search") do
+        %{"query" => query} -> Map.put(combined_params, "search", String.trim(query || ""))
+        _ -> combined_params
+      end
+
+    # Extract filter parameters
+    combined_params =
+      case Map.get(params, "filter") do
+        filter_params when is_map(filter_params) -> Map.merge(combined_params, filter_params)
+        _ -> combined_params
+      end
+
+    # Reset to first page when filtering
+    combined_params = Map.put(combined_params, "page", "1")
+
+    # Build new URL parameters
+    new_params = build_url_params(socket.assigns, combined_params)
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/phoenix_kit/admin/email-logs?#{new_params}")}
-  end
-
-  @impl true
-  def handle_event("search", %{"search" => search_params}, socket) do
-    search_query = String.trim(search_params["query"] || "")
-
-    new_params =
-      socket.assigns
-      |> build_url_params(%{"search" => search_query})
-      # Reset to first page on search
-      |> Map.put("page", "1")
-
-    {:noreply,
-     socket
-     |> push_patch(to: ~p"/phoenix_kit/admin/email-logs?#{new_params}")}
+     |> push_patch(to: "/phoenix_kit/admin/email-logs?#{new_params}")}
   end
 
   @impl true
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      socket
-     |> push_patch(to: ~p"/phoenix_kit/admin/email-logs")}
+     |> push_patch(to: "/phoenix_kit/admin/email-logs")}
   end
 
   @impl true
@@ -124,7 +139,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   def handle_event("view_details", %{"id" => log_id}, socket) do
     {:noreply,
      socket
-     |> redirect(to: ~p"/phoenix_kit/admin/email-logs/#{log_id}")}
+     |> push_navigate(to: "/phoenix_kit/admin/email-logs/#{log_id}")}
   end
 
   @impl true
@@ -162,15 +177,41 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="email-logs-container">
-      <%!-- Page Header --%>
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
-        <div class="mb-4 lg:mb-0">
-          <h1 class="text-2xl font-bold text-gray-900">Email Logs</h1>
-          <p class="text-gray-600 mt-1">Monitor and track all outgoing emails</p>
-        </div>
+    <PhoenixKitWeb.Components.LayoutWrapper.app_layout
+      flash={@flash}
+      phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+      page_title="Email Logs"
+      current_path={@current_path}
+      project_title={@project_title}
+    >
+      <div class="container flex-col mx-auto px-4 py-6">
+        <%!-- Header Section --%>
+        <header class="w-full relative mb-6">
+          <%!-- Back Button (Left aligned) --%>
+          <.link
+            navigate="/phoenix_kit/admin/dashboard"
+            class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to Dashboard
+          </.link>
 
-        <div class="flex gap-2">
+          <%!-- Title Section --%>
+          <div class="text-center">
+            <h1 class="text-4xl font-bold text-base-content mb-3">Email Logs</h1>
+            <p class="text-lg text-base-content">Monitor and track all outgoing emails</p>
+          </div>
+        </header>
+
+        <%!-- Action Buttons --%>
+        <div class="flex justify-end gap-2 mb-6">
           <.button phx-click="export_csv" class="btn btn-outline btn-sm">
             <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
           </.button>
@@ -179,276 +220,283 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
             <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
           </.button>
         </div>
-      </div>
 
-      <%!-- Statistics Summary --%>
-      <div class="stats shadow mb-6">
-        <div class="stat">
-          <div class="stat-title">Total Sent</div>
-          <div class="stat-value text-primary">{@stats[:total_sent] || 0}</div>
-          <div class="stat-desc">Last 30 days</div>
+        <%!-- Statistics Summary --%>
+        <div class="stats shadow mb-6">
+          <div class="stat">
+            <div class="stat-title">Total Sent</div>
+            <div class="stat-value text-primary">{@stats[:total_sent] || 0}</div>
+            <div class="stat-desc">Last 30 days</div>
+          </div>
+
+          <div class="stat">
+            <div class="stat-title">Delivered</div>
+            <div class="stat-value text-success">{@stats[:delivered] || 0}</div>
+            <div class="stat-desc">{@stats[:delivery_rate] || 0}% rate</div>
+          </div>
+
+          <div class="stat">
+            <div class="stat-title">Bounced</div>
+            <div class="stat-value text-error">{@stats[:bounced] || 0}</div>
+            <div class="stat-desc">{@stats[:bounce_rate] || 0}% rate</div>
+          </div>
+
+          <div class="stat">
+            <div class="stat-title">Opened</div>
+            <div class="stat-value text-info">{@stats[:opened] || 0}</div>
+            <div class="stat-desc">{@stats[:open_rate] || 0}% rate</div>
+          </div>
         </div>
 
-        <div class="stat">
-          <div class="stat-title">Delivered</div>
-          <div class="stat-value text-success">{@stats[:delivered] || 0}</div>
-          <div class="stat-desc">{@stats[:delivery_rate] || 0}% rate</div>
-        </div>
+        <%!-- Filters & Search --%>
+        <div class="card bg-base-100 shadow-sm mb-6">
+          <div class="card-body">
+            <.form for={%{}} phx-change="filter" phx-submit="filter" class="space-y-4">
+              <%!-- Search Bar --%>
+              <div class="form-control">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    name="search[query]"
+                    value={@filters.search}
+                    placeholder="Search by recipient, subject, or campaign..."
+                    class="input input-bordered flex-1"
+                  />
+                  <button type="submit" class="btn btn-primary">
+                    <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-        <div class="stat">
-          <div class="stat-title">Bounced</div>
-          <div class="stat-value text-error">{@stats[:bounced] || 0}</div>
-          <div class="stat-desc">{@stats[:bounce_rate] || 0}% rate</div>
-        </div>
+              <%!-- Filter Row --%>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <%!-- Status Filter --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Status</span>
+                  </label>
+                  <select name="filter[status]" class="select select-bordered">
+                    <option value="">All Statuses</option>
+                    <option value="sent" selected={@filters.status == "sent"}>Sent</option>
+                    <option value="delivered" selected={@filters.status == "delivered"}>
+                      Delivered
+                    </option>
+                    <option value="bounced" selected={@filters.status == "bounced"}>Bounced</option>
+                    <option value="opened" selected={@filters.status == "opened"}>Opened</option>
+                    <option value="clicked" selected={@filters.status == "clicked"}>Clicked</option>
+                    <option value="failed" selected={@filters.status == "failed"}>Failed</option>
+                  </select>
+                </div>
 
-        <div class="stat">
-          <div class="stat-title">Opened</div>
-          <div class="stat-value text-info">{@stats[:opened] || 0}</div>
-          <div class="stat-desc">{@stats[:open_rate] || 0}% rate</div>
-        </div>
-      </div>
+                <%!-- Message Tags Filter --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Message Type</span>
+                  </label>
+                  <select name="filter[message_tag]" class="select select-bordered">
+                    <option value="">All Types</option>
+                    <option value="authentication" selected={@filters.message_tag == "authentication"}>
+                      Authentication
+                    </option>
+                    <option value="registration" selected={@filters.message_tag == "registration"}>
+                      Registration
+                    </option>
+                    <option value="marketing" selected={@filters.message_tag == "marketing"}>
+                      Marketing
+                    </option>
+                    <option value="notification" selected={@filters.message_tag == "notification"}>
+                      Notification
+                    </option>
+                    <option value="transactional" selected={@filters.message_tag == "transactional"}>
+                      Transactional
+                    </option>
+                  </select>
+                </div>
 
-      <%!-- Filters & Search --%>
-      <div class="card bg-base-100 shadow-sm mb-6">
-        <div class="card-body">
-          <.form for={%{}} phx-change="filter" phx-submit="filter" class="space-y-4">
-            <%!-- Search Bar --%>
-            <div class="form-control">
-              <div class="input-group">
-                <input
-                  type="text"
-                  name="search[query]"
-                  value={@filters.search}
-                  placeholder="Search by recipient, subject, or campaign..."
-                  class="input input-bordered flex-1"
-                />
-                <button type="submit" class="btn btn-primary">
-                  <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+                <%!-- Date Range --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">From Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="filter[from_date]"
+                    value={@filters.from_date}
+                    class="input input-bordered"
+                  />
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">To Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="filter[to_date]"
+                    value={@filters.to_date}
+                    class="input input-bordered"
+                  />
+                </div>
+              </div>
+
+              <%!-- Action Buttons --%>
+              <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+                <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
+                  Clear
                 </button>
               </div>
-            </div>
-
-            <%!-- Filter Row --%>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <%!-- Status Filter --%>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">Status</span>
-                </label>
-                <select name="filter[status]" class="select select-bordered">
-                  <option value="">All Statuses</option>
-                  <option value="sent" selected={@filters.status == "sent"}>Sent</option>
-                  <option value="delivered" selected={@filters.status == "delivered"}>
-                    Delivered
-                  </option>
-                  <option value="bounced" selected={@filters.status == "bounced"}>Bounced</option>
-                  <option value="opened" selected={@filters.status == "opened"}>Opened</option>
-                  <option value="clicked" selected={@filters.status == "clicked"}>Clicked</option>
-                  <option value="failed" selected={@filters.status == "failed"}>Failed</option>
-                </select>
-              </div>
-
-              <%!-- Provider Filter --%>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">Provider</span>
-                </label>
-                <select name="filter[provider]" class="select select-bordered">
-                  <option value="">All Providers</option>
-                  <option value="aws_ses" selected={@filters.provider == "aws_ses"}>AWS SES</option>
-                  <option value="smtp" selected={@filters.provider == "smtp"}>SMTP</option>
-                  <option value="local" selected={@filters.provider == "local"}>Local</option>
-                  <option value="sendgrid" selected={@filters.provider == "sendgrid"}>
-                    SendGrid
-                  </option>
-                  <option value="mailgun" selected={@filters.provider == "mailgun"}>Mailgun</option>
-                </select>
-              </div>
-
-              <%!-- Date Range --%>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">From Date</span>
-                </label>
-                <input
-                  type="date"
-                  name="filter[from_date]"
-                  value={@filters.from_date}
-                  class="input input-bordered"
-                />
-              </div>
-
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">To Date</span>
-                </label>
-                <input
-                  type="date"
-                  name="filter[to_date]"
-                  value={@filters.to_date}
-                  class="input input-bordered"
-                />
-              </div>
-            </div>
-
-            <%!-- Action Buttons --%>
-            <div class="flex gap-2">
-              <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
-              <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-                Clear
-              </button>
-            </div>
-          </.form>
+            </.form>
+          </div>
         </div>
-      </div>
 
-      <%!-- Email Logs Table --%>
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body p-0">
-          <%= if @loading do %>
-            <div class="flex justify-center items-center h-32">
-              <span class="loading loading-spinner loading-md"></span>
-              <span class="ml-2">Loading email logs...</span>
-            </div>
-          <% else %>
-            <div class="overflow-x-auto">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Recipient</th>
-                    <th>Subject</th>
-                    <th>Status</th>
-                    <th>Provider</th>
-                    <th>Sent At</th>
-                    <th>Campaign</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <%= for log <- @logs do %>
-                    <tr class="hover">
-                      <td>
-                        <div class="flex items-center gap-2">
-                          <div class="font-medium">{log.to}</div>
-                          <%= if log.user_id do %>
-                            <div class="badge badge-ghost badge-sm">User: {log.user_id}</div>
-                          <% end %>
-                        </div>
-                      </td>
-
-                      <td>
-                        <div class="max-w-xs truncate" title={log.subject}>
-                          {log.subject || "(no subject)"}
-                        </div>
-                        <%= if log.template_name do %>
-                          <div class="text-sm text-gray-500">Template: {log.template_name}</div>
-                        <% end %>
-                      </td>
-
-                      <td>
-                        <div class={status_badge_class(log.status)}>
-                          {log.status}
-                        </div>
-                        <%= if log.error_message do %>
-                          <div class="text-xs text-error mt-1" title={log.error_message}>
-                            {String.slice(log.error_message, 0, 30)}...
-                          </div>
-                        <% end %>
-                      </td>
-
-                      <td>
-                        <div class="badge badge-outline badge-sm">
-                          {log.provider}
-                        </div>
-                      </td>
-
-                      <td>
-                        <div class="text-sm">
-                          {UtilsDate.format_datetime_with_user_format(log.sent_at)}
-                        </div>
-                        <%= if log.delivered_at do %>
-                          <div class="text-xs text-success">
-                            Delivered: {UtilsDate.format_datetime_with_user_format(log.delivered_at)}
-                          </div>
-                        <% end %>
-                      </td>
-
-                      <td>
-                        <%= if log.campaign_id do %>
-                          <div class="badge badge-primary badge-sm">
-                            {log.campaign_id}
-                          </div>
-                        <% else %>
-                          <span class="text-gray-400">—</span>
-                        <% end %>
-                      </td>
-
-                      <td>
-                        <div class="dropdown dropdown-end">
-                          <label tabindex="0" class="btn btn-ghost btn-sm">
-                            <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                          </label>
-                          <ul
-                            tabindex="0"
-                            class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-32"
-                          >
-                            <li>
-                              <button phx-click="view_details" phx-value-id={log.id} class="text-sm">
-                                <.icon name="hero-eye" class="w-4 h-4" /> View Details
-                              </button>
-                            </li>
-                          </ul>
-                        </div>
-                      </td>
-                    </tr>
-                  <% end %>
-
-                  <%= if @total_count == 0 and not @loading do %>
+        <%!-- Email Logs Table --%>
+        <div class="card bg-base-100 shadow-sm">
+          <div class="card-body p-0">
+            <%= if @loading do %>
+              <div class="flex justify-center items-center h-32">
+                <span class="loading loading-spinner loading-md"></span>
+                <span class="ml-2">Loading email logs...</span>
+              </div>
+            <% else %>
+              <div class="w-full">
+                <table class="table table-hover w-full">
+                  <thead>
                     <tr>
-                      <td colspan="7" class="text-center py-8 text-gray-500">
-                        No email logs found matching your criteria
-                      </td>
+                      <th class="w-1/4">Email</th>
+                      <th class="w-1/4">Subject</th>
+                      <th class="w-1/8">Status</th>
+                      <th class="w-1/6">Details</th>
+                      <th class="w-1/8">Actions</th>
                     </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    <%= for log <- @logs do %>
+                      <tr class="hover">
+                        <%!-- Email Column --%>
+                        <td>
+                          <div class="space-y-1">
+                            <div class="font-medium text-sm">{log.to}</div>
+                            <%= if log.user_id do %>
+                              <div class="badge badge-ghost badge-xs">User #{log.user_id}</div>
+                            <% end %>
+                          </div>
+                        </td>
 
-            <%!-- Pagination --%>
-            <%= if @total_count > @per_page do %>
-              <div class="border-t bg-gray-50 px-4 py-3 flex items-center justify-between">
-                <div class="text-sm text-gray-700">
-                  Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
-                </div>
+                        <%!-- Subject Column --%>
+                        <td>
+                          <div class="space-y-1">
+                            <div class="text-sm truncate" title={log.subject}>
+                              {log.subject || "(no subject)"}
+                            </div>
+                            <%= if log.template_name do %>
+                              <div class="badge badge-outline badge-xs">
+                                {log.template_name}
+                              </div>
+                            <% end %>
+                          </div>
+                        </td>
 
-                <div class="btn-group">
-                  <%= if @page > 1 do %>
-                    <.link patch={build_page_url(@page - 1, assigns)} class="btn btn-sm">
-                      « Prev
-                    </.link>
-                  <% end %>
+                        <%!-- Status Column --%>
+                        <td>
+                          <div class="space-y-1">
+                            <div class={status_badge_class(log.status)}>
+                              {log.status}
+                            </div>
+                            <%= if log.error_message do %>
+                              <div class="text-xs text-error truncate" title={log.error_message}>
+                                Error
+                              </div>
+                            <% end %>
+                          </div>
+                        </td>
 
-                  <%= for page_num <- pagination_pages(@page, @total_pages) do %>
-                    <.link
-                      patch={build_page_url(page_num, assigns)}
-                      class={pagination_class(page_num, @page)}
-                    >
-                      {page_num}
-                    </.link>
-                  <% end %>
+                        <%!-- Details Column --%>
+                        <td>
+                          <div class="space-y-1 text-xs">
+                            <div class="flex items-center gap-1">
+                              <%= if get_message_tag(log.message_tags) do %>
+                                <div class="badge badge-secondary badge-xs">
+                                  {get_message_tag(log.message_tags)}
+                                </div>
+                              <% else %>
+                                <div class="badge badge-ghost badge-xs">no tag</div>
+                              <% end %>
+                              <%= if log.campaign_id do %>
+                                <div class="badge badge-primary badge-xs">{log.campaign_id}</div>
+                              <% end %>
+                            </div>
+                            <div class="text-base-content/70">
+                              {UtilsDate.format_datetime_with_user_format(log.sent_at)}
+                            </div>
+                            <%= if log.delivered_at do %>
+                              <div class="text-success">
+                                ✓ {UtilsDate.format_datetime_with_user_format(log.delivered_at)}
+                              </div>
+                            <% end %>
+                          </div>
+                        </td>
 
-                  <%= if @page < @total_pages do %>
-                    <.link patch={build_page_url(@page + 1, assigns)} class="btn btn-sm">
-                      Next »
-                    </.link>
-                  <% end %>
-                </div>
+                        <%!-- Actions Column --%>
+                        <td>
+                          <button
+                            phx-click="view_details"
+                            phx-value-id={log.id}
+                            class="btn btn-xs btn-outline btn-primary"
+                          >
+                            <.icon name="hero-eye" class="w-3 h-3 mr-1" /> View
+                          </button>
+                        </td>
+                      </tr>
+                    <% end %>
+
+                    <%= if length(@logs) == 0 and not @loading do %>
+                      <tr>
+                        <td colspan="5" class="text-center py-8 text-base-content/60">
+                          No email logs found matching your criteria
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
               </div>
+
+              <%!-- Pagination --%>
+              <%= if @total_count > @per_page do %>
+                <div class="border-t bg-base-200 px-4 py-3 flex items-center justify-between">
+                  <div class="text-sm text-base-content/70">
+                    Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+                  </div>
+
+                  <div class="btn-group">
+                    <%= if @page > 1 do %>
+                      <.link patch={build_page_url(@page - 1, assigns)} class="btn btn-sm">
+                        « Prev
+                      </.link>
+                    <% end %>
+
+                    <%= for page_num <- pagination_pages(@page, @total_pages) do %>
+                      <.link
+                        patch={build_page_url(page_num, assigns)}
+                        class={pagination_class(page_num, @page)}
+                      >
+                        {page_num}
+                      </.link>
+                    <% end %>
+
+                    <%= if @page < @total_pages do %>
+                      <.link patch={build_page_url(@page + 1, assigns)} class="btn btn-sm">
+                        Next »
+                      </.link>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
             <% end %>
-          <% end %>
+          </div>
         </div>
       </div>
-    </div>
+    </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
   end
 
@@ -459,7 +507,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     filters = %{
       search: "",
       status: "",
-      provider: "",
+      message_tag: "",
       campaign_id: "",
       from_date: "",
       to_date: ""
@@ -481,7 +529,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     filters = %{
       search: params["search"] || "",
       status: params["status"] || "",
-      provider: params["provider"] || "",
+      message_tag: params["message_tag"] || "",
       campaign_id: params["campaign_id"] || "",
       from_date: params["from_date"] || "",
       to_date: params["to_date"] || ""
@@ -505,8 +553,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
     logs = EmailTracking.list_logs(query_filters)
 
-    # Get total count for pagination (separate query without limit/offset)
-    total_count = count_filtered_logs(filters)
+    # Get total count for pagination (efficient count without loading all records)
+    total_count =
+      EmailTracking.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
+
     total_pages = ceil(total_count / per_page)
 
     socket
@@ -535,14 +585,14 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
       filters
       |> Enum.reduce(query_filters, fn
         {:search, search}, acc when search != "" ->
-          # Search in recipient field
-          Map.put(acc, :recipient, search)
+          # Search in recipient, subject, and campaign fields
+          Map.put(acc, :search, search)
 
         {:status, status}, acc when status != "" ->
           Map.put(acc, :status, status)
 
-        {:provider, provider}, acc when provider != "" ->
-          Map.put(acc, :provider, provider)
+        {:message_tag, message_tag}, acc when message_tag != "" ->
+          Map.put(acc, :message_tag, message_tag)
 
         {:campaign_id, campaign_id}, acc when campaign_id != "" ->
           Map.put(acc, :campaign_id, campaign_id)
@@ -566,21 +616,12 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     query_filters
   end
 
-  # Count filtered logs (without pagination)
-  defp count_filtered_logs(filters) do
-    query_filters = build_query_filters(filters, 1, 999_999)
-    query_filters = Map.drop(query_filters, [:limit, :offset])
-
-    logs = EmailTracking.list_logs(query_filters)
-    length(logs)
-  end
-
   # Build URL parameters from current state
   defp build_url_params(assigns, additional_params) do
     base_params = %{
       "search" => assigns.filters.search,
       "status" => assigns.filters.status,
-      "provider" => assigns.filters.provider,
+      "message_tag" => assigns.filters.message_tag,
       "campaign_id" => assigns.filters.campaign_id,
       "from_date" => assigns.filters.from_date,
       "to_date" => assigns.filters.to_date,
@@ -591,13 +632,13 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     Map.merge(base_params, additional_params)
     |> Enum.reject(fn {_key, value} -> value == "" or is_nil(value) end)
     |> Map.new()
+    |> URI.encode_query()
   end
 
   # Generate CSV export data
   defp generate_csv_export(filters) do
     # Load all matching logs (without pagination)
-    query_filters = build_query_filters(filters, 1, 999_999)
-    query_filters = Map.drop(query_filters, [:limit, :offset])
+    query_filters = build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset])
 
     logs = EmailTracking.list_logs(query_filters)
 
@@ -609,6 +650,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
       "From",
       "Subject",
       "Status",
+      "Message Type",
       "Provider",
       "Sent At",
       "Delivered At",
@@ -627,6 +669,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
           log.from,
           log.subject || "",
           log.status,
+          get_message_tag(log.message_tags) || "",
           log.provider,
           log.sent_at |> DateTime.to_iso8601(),
           log.delivered_at |> format_datetime_for_csv(),
@@ -671,9 +714,21 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   defp build_page_url(page, assigns) do
     params = build_url_params(assigns, %{"page" => page})
-    ~p"/phoenix_kit/admin/email-logs?#{params}"
+    "/phoenix_kit/admin/email-logs?#{params}"
   end
 
   defp format_datetime_for_csv(nil), do: ""
   defp format_datetime_for_csv(datetime), do: DateTime.to_iso8601(datetime)
+
+  defp get_current_path(_socket, _session) do
+    # For EmailLogsLive, always return email logs path
+    Routes.path("/admin/email-logs")
+  end
+
+  # Extract email_type from message_tags
+  defp get_message_tag(message_tags) when is_map(message_tags) do
+    Map.get(message_tags, "email_type")
+  end
+
+  defp get_message_tag(_), do: nil
 end

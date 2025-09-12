@@ -134,6 +134,30 @@
         </div>
       </.link>
 
+      <%= if PhoenixKit.EmailTracking.enabled?() do %>
+        <.link
+          navigate={PhoenixKit.Utils.Routes.path("/admin/email-logs")}
+          class="card bg-purple-500 text-white hover:shadow-lg transition-all"
+        >
+          <div class="card-body">
+            <div class="flex items-center">
+              <svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <div>
+                <h3 class="card-title text-lg">Email Tracking</h3>
+                <p class="text-sm opacity-75">Email logs & analytics</p>
+              </div>
+            </div>
+          </div>
+        </.link>
+      <% end %>
+
       <button
         phx-click="refresh_stats"
         class="card bg-accent text-accent-content hover:shadow-lg transition-all cursor-pointer"

@@ -342,6 +342,26 @@ defmodule PhoenixKit.EmailTracking do
   end
 
   @doc """
+  Counts email logs with optional filtering (without loading all records).
+
+  ## Parameters
+
+  - `filters` - Map of filters to apply (optional)
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.count_logs(%{status: "bounced"})
+      42
+  """
+  def count_logs(filters \\ %{}) do
+    if enabled?() do
+      EmailLog.count_logs(filters)
+    else
+      0
+    end
+  end
+
+  @doc """
   Gets a single email log by ID.
 
   Raises `Ecto.NoResultsError` if the log does not exist or system is disabled.

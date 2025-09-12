@@ -89,6 +89,9 @@ defmodule PhoenixKitWeb.Integration do
         delete "/users/log-out", Users.SessionController, :delete
         get "/users/log-out", Users.SessionController, :get_logout
         get "/users/magic-link/:token", Users.MagicLinkController, :verify
+
+        # Email Tracking webhook endpoint (no authentication required)
+        post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
       # LiveView routes with proper authentication

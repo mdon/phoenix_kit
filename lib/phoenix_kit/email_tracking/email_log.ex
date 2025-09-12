@@ -221,6 +221,24 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   end
 
   @doc """
+  Counts email logs with optional filtering (without loading all records).
+
+  ## Parameters
+
+  - `filters` - Map of filters to apply (optional)
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.EmailLog.count_logs(%{status: "bounced"})
+      42
+  """
+  def count_logs(filters \\ %{}) do
+    base_query()
+    |> apply_filters(filters)
+    |> repo().aggregate(:count, :id)
+  end
+
+  @doc """
   Gets a single email log by ID.
 
   Raises `Ecto.NoResultsError` if the log does not exist.
@@ -640,6 +658,14 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
       {:provider, provider}, query when is_binary(provider) ->
         where(query, [log: l], l.provider == ^provider)
 
+      {:message_tag, message_tag}, query when is_binary(message_tag) ->
+        # Filter by message_tags using JSONB operator to check email_type
+        where(
+          query,
+          [log: l],
+          fragment("? ->> ? = ?", l.message_tags, "email_type", ^message_tag)
+        )
+
       {:from_date, from_date}, query ->
         where(query, [log: l], l.sent_at >= ^from_date)
 
@@ -648,6 +674,17 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
 
       {:recipient, email}, query when is_binary(email) ->
         where(query, [log: l], ilike(l.to, ^"%#{email}%"))
+
+      {:search, search_term}, query when is_binary(search_term) ->
+        search_pattern = "%#{search_term}%"
+
+        where(
+          query,
+          [log: l],
+          ilike(l.to, ^search_pattern) or
+            ilike(l.subject, ^search_pattern) or
+            ilike(l.campaign_id, ^search_pattern)
+        )
 
       {:user_id, user_id}, query when is_integer(user_id) ->
         where(query, [log: l], l.user_id == ^user_id)
