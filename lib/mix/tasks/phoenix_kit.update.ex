@@ -51,7 +51,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   - Rollback-capable (can be reverted if needed)
   """
 
-  alias PhoenixKit.Install.Common
+  alias PhoenixKit.Install.{AssetRebuild, Common}
 
   @shortdoc "Updates PhoenixKit to the latest version"
 
@@ -126,12 +126,9 @@ defmodule Mix.Tasks.PhoenixKit.Update do
 
   # Handle update needed scenario
   defp handle_update_needed(prefix, current_version, target_version, force, skip_assets) do
-    create_update_migration(prefix, current_version, target_version, force)
-    suggest_layout_integration_if_needed()
-    # Check and rebuild assets after migration creation (unless skipped)
-    unless skip_assets do
-      suggest_asset_rebuild_if_needed(current_version, target_version)
-    end
+    migration_file = create_update_migration(prefix, current_version, target_version, force)
+    # Run interactive migration execution
+    run_update_migration_interactive(migration_file, skip_assets)
   end
 
   # Perform the actual update
@@ -198,70 +195,141 @@ defmodule Mix.Tasks.PhoenixKit.Update do
     # Write migration file
     File.write!(migration_file, migration_content)
 
-    # Show success notice with version information
-    changes = describe_version_changes(current_version, target_version)
-
-    phoenix_kit_version =
-      case :application.get_key(:phoenix_kit, :vsn) do
-        {:ok, vsn} when is_list(vsn) -> List.to_string(vsn)
-        {:ok, vsn} -> to_string(vsn)
-        :undefined -> "unknown"
-      end
-
-    notice = """
-
-    📦 PhoenixKit Update Migration Created:
-    - PhoenixKit Module Version: #{phoenix_kit_version}
-    - Migration: #{migration_name}
-    - Updating from Migration V#{pad_version(current_version)} to V#{pad_version(target_version)}
-
-    What's new:
-    #{changes}
-
-    Next steps:
-      1. Run: mix ecto.migrate
-      2. Your PhoenixKit installation will be updated!
-
-    #{if current_version > 0 do
-      "Note: This update preserves all existing data and is fully backward compatible."
-    else
-      ""
-    end}
-    """
-
-    Mix.shell().info(notice)
-  end
-
-  # Always suggest asset rebuild after update
-  defp suggest_asset_rebuild_if_needed(_current_version, target_version) do
+    # Show brief success notice
     Mix.shell().info("""
 
-    🎨 Asset Rebuild Recommended:
+    📦 PhoenixKit Update Migration Created: #{migration_name}
+    - Updating from V#{pad_version(current_version)} to V#{pad_version(target_version)}
+    """)
 
-    PhoenixKit V#{pad_version(target_version)} may include CSS/theme changes that
-    require rebuilding your application's assets.
+    # Return migration file for interactive execution
+    migration_name
+  end
 
-    To rebuild assets automatically:
-      mix phoenix_kit.assets.rebuild
+  # Run interactive migration execution (similar to install command)
+  defp run_update_migration_interactive(migration_file, skip_assets) do
+    # Check if we can run migrations safely
+    case check_migration_conditions() do
+      :ok ->
+        run_interactive_migration_prompt(migration_file, skip_assets)
 
-    This ensures your application uses the latest PhoenixKit styles.
+      {:error, reason} ->
+        Mix.shell().info("""
+
+        💡 Migration not run automatically (#{reason}).
+        To run migration manually:
+          mix ecto.migrate
+        """)
+    end
+  end
+
+  # Check if migration can be run interactively
+  defp check_migration_conditions do
+    # Check if we have an app name
+    case Mix.Project.config()[:app] do
+      nil ->
+        {:error, "No app name found"}
+
+      _app ->
+        # Check if we're in interactive environment
+        if System.get_env("CI") || !System.get_env("TERM") do
+          {:error, "Non-interactive environment"}
+        else
+          :ok
+        end
+    end
+  rescue
+    _ -> {:error, "Error checking conditions"}
+  end
+
+  # Prompt user for migration execution
+  defp run_interactive_migration_prompt(_migration_file, skip_assets) do
+    Mix.shell().info("""
+
+    🚀 Would you like to run the database migration now?
+    This will update your PhoenixKit installation.
+
+    Options:
+    - y/yes: Run 'mix ecto.migrate' now
+    - n/no:  Skip migration (you can run it manually later)
+    """)
+
+    case Mix.shell().prompt("Run migration? [Y/n]")
+         |> String.trim()
+         |> String.downcase() do
+      response when response in ["", "y", "yes"] ->
+        run_migration_with_feedback(skip_assets)
+
+      _ ->
+        Mix.shell().info("""
+
+        ⚠️  Migration skipped. To run it manually later:
+          mix ecto.migrate
+        """)
+    end
+  end
+
+  # Execute migration with feedback
+  defp run_migration_with_feedback(skip_assets) do
+    Mix.shell().info("\n⏳ Running database migration...")
+
+    try do
+      case System.cmd("mix", ["ecto.migrate"], stderr_to_stdout: true) do
+        {output, 0} ->
+          Mix.shell().info("\n✅ Migration completed successfully!")
+          Mix.shell().info(output)
+
+          # Rebuild assets after successful migration (unless skipped)
+          unless skip_assets do
+            asset_result = AssetRebuild.check_and_rebuild(verbose: false)
+            show_update_success_notice(asset_result)
+          else
+            show_update_success_notice(:assets_skipped)
+          end
+
+        {output, _} ->
+          Mix.shell().info("\n❌ Migration failed:")
+          Mix.shell().info(output)
+          show_manual_migration_instructions()
+      end
+    rescue
+      error ->
+        Mix.shell().info("\n⚠️  Migration execution failed: #{inspect(error)}")
+        show_manual_migration_instructions()
+    end
+  end
+
+  # Show success notice after update
+  defp show_update_success_notice(:rebuild_completed) do
+    Mix.shell().info("""
+    🎉 PhoenixKit updated successfully! Visit: /phoenix_kit/users/register
     """)
   end
 
-  # Describe what changed between versions
-  @spec describe_version_changes(integer(), integer()) :: String.t()
-  defp describe_version_changes(from_version, to_version) do
-    case {from_version, to_version} do
-      {1, 3} ->
-        "- Remove is_active column from role assignments (simplified role system)\n" <>
-          "- Add settings table with user preferences support"
+  defp show_update_success_notice(:assets_skipped) do
+    Mix.shell().info("""
+    🎉 PhoenixKit updated successfully! Visit: /phoenix_kit/users/register
 
-      {2, 3} ->
-        "- Add settings table with user preferences support"
+    💡 You may want to rebuild assets later:
+      mix phoenix_kit.assets.rebuild
+    """)
+  end
 
-      {_, _} ->
-        "- Various improvements and new features"
-    end
+  defp show_update_success_notice(_) do
+    Mix.shell().info("""
+    🎉 PhoenixKit updated successfully! Visit: /phoenix_kit/users/register
+    """)
+  end
+
+  # Show manual migration instructions
+  defp show_manual_migration_instructions do
+    Mix.shell().info("""
+    Please run the migration manually:
+      mix ecto.migrate
+
+    Then start your server:
+      mix phx.server
+    """)
   end
 
   # Generate timestamp in Ecto migration format (same as phoenix_kit.install.ex)
@@ -276,96 +344,4 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   # Pad version number for consistent naming
   defp pad_version(version) when version < 10, do: "0#{version}"
   defp pad_version(version), do: to_string(version)
-
-  # Suggest layout integration if parent app has layouts but PhoenixKit not configured
-  defp suggest_layout_integration_if_needed do
-    case check_layout_integration_status() do
-      :already_configured ->
-        # Layout integration already configured, do nothing
-        :ok
-
-      {:suggest_integration, layouts_module} ->
-        Mix.shell().info("""
-
-        🎨 Layout Integration Available:
-
-        Your app has layouts (#{inspect(layouts_module)}), but PhoenixKit
-        is using its default layouts. To match your app's design:
-
-        Add to config/config.exs:
-          config :phoenix_kit,
-            layout: {#{inspect(layouts_module)}, :app},
-            root_layout: {#{inspect(layouts_module)}, :root},  # Optional
-            page_title_prefix: "Auth"                          # Optional
-
-        This will make PhoenixKit use your app's design.
-        """)
-
-      :no_layouts_found ->
-        # No parent layouts detected, keep using PhoenixKit defaults
-        :ok
-    end
-  end
-
-  # Check if layout integration should be suggested
-  defp check_layout_integration_status do
-    # Check if PhoenixKit layout is already configured
-    current_layout_config = Application.get_env(:phoenix_kit, :layout)
-
-    case current_layout_config do
-      {_module, _template} ->
-        # Layout integration already configured
-        :already_configured
-
-      _ ->
-        # No layout configured, check if parent app has layouts
-        case detect_parent_app_layouts() do
-          nil -> :no_layouts_found
-          layouts_module -> {:suggest_integration, layouts_module}
-        end
-    end
-  end
-
-  # Detect parent app layouts following Phoenix conventions
-  defp detect_parent_app_layouts do
-    case Mix.Project.get() do
-      nil -> nil
-      project -> detect_layouts_for_project(project)
-    end
-  end
-
-  # Detect layouts for a given project
-  defp detect_layouts_for_project(project) do
-    app_name = project.project()[:app]
-
-    if app_name && app_name != :phoenix_kit do
-      try_layout_module_patterns(app_name)
-    else
-      nil
-    end
-  end
-
-  # Try different layout module patterns for the app
-  defp try_layout_module_patterns(app_name) do
-    # Try common Phoenix layout module patterns
-    app_web_module = Module.concat([Macro.camelize(to_string(app_name)) <> "Web"])
-    layouts_module = Module.concat([app_web_module, "Layouts"])
-
-    if Code.ensure_loaded?(layouts_module) do
-      layouts_module
-    else
-      try_alternative_layout_pattern(app_name)
-    end
-  end
-
-  # Try alternative layout pattern
-  defp try_alternative_layout_pattern(app_name) do
-    alt_layouts = Module.concat([Macro.camelize(to_string(app_name)), "Layouts"])
-
-    if Code.ensure_loaded?(alt_layouts) do
-      alt_layouts
-    else
-      nil
-    end
-  end
 end
