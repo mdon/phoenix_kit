@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Users.SessionController do
   use PhoenixKitWeb, :controller
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
   def create(conn, %{"_action" => "registered"} = params) do

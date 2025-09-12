@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Users.ResetPasswordLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Routes
 
   def render(assigns) do
     ~H"""

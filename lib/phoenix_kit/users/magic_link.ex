@@ -55,9 +55,9 @@ defmodule PhoenixKit.Users.MagicLink do
         expiry_minutes: 15  # Default: 15 minutes
   """
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{User, UserToken}
+  alias PhoenixKit.Utils.Routes
 
   import Ecto.Query
 

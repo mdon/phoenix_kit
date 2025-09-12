@@ -1,12 +1,12 @@
 defmodule PhoenixKitWeb.Users.RegistrationLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
-  alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.Utils.Routes
 
   def render(assigns) do
     ~H"""
@@ -62,14 +62,20 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                 <%!-- Referral Code Field (shown when referral codes are enabled) --%>
                 <%= if @referral_codes_enabled do %>
                   <div phx-feedback-for="referral_code">
-                    <.label for="referral_code">Referral Code<%= if @referral_codes_required do %>*<% end %></.label>
+                    <.label for="referral_code">
+                      Referral Code<%= if @referral_codes_required do %>
+                        *
+                      <% end %>
+                    </.label>
                     <input
                       id="referral_code"
                       name="referral_code"
                       type="text"
                       class={[
                         "input input-bordered",
-                        (@referral_code_error || (@check_errors && @referral_codes_required && (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
+                        (@referral_code_error ||
+                           (@check_errors && @referral_codes_required &&
+                              (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
                       ]}
                       placeholder="Enter your referral code"
                       value={@referral_code || ""}
