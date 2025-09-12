@@ -93,10 +93,9 @@ defmodule PhoenixKit.Install.MigrationStrategy do
             # Check current and target versions using proper DB method
             # Default prefix for install
             prefix = "public"
-            opts = %{prefix: prefix, escaped_prefix: String.replace(prefix, "'", "\\'")}
 
             try do
-              current_version = Postgres.migrated_version(opts)
+              current_version = Common.migrated_version(prefix)
               target_version = Postgres.current_version()
 
               cond do
@@ -180,9 +179,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   # Check if version upgrade is needed by comparing DB version with target
   defp check_version_upgrade_needed(prefix) do
-    opts_map = %{prefix: prefix, escaped_prefix: String.replace(prefix, "'", "\\'")}
-
-    current_version = Postgres.migrated_version(opts_map)
+    current_version = Common.migrated_version(prefix)
     target_version = Postgres.current_version()
 
     cond do

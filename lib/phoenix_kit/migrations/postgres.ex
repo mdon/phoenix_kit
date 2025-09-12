@@ -108,26 +108,98 @@ defmodule PhoenixKit.Migrations.Postgres do
     opts = with_defaults(opts, @initial_version)
     escaped_prefix = Map.fetch!(opts, :escaped_prefix)
 
-    # Use hybrid repo detection with fallback strategies
-    case get_repo_with_fallback() do
-      nil ->
-        0
-
-      repo ->
-        # Ensure repo is started before querying database
-        case ensure_repo_started(repo) do
-          :ok ->
-            version = detect_version_by_schema(repo, escaped_prefix)
-            version
-
-          {:error, _reason} ->
-            # If repo can't be started, return 0 (not installed)
-            0
-        end
-    end
+    # Add retry logic for better reliability
+    retry_version_detection(opts, escaped_prefix, 3)
   rescue
     _ ->
       0
+  end
+  
+  # Retry version detection with exponential backoff
+  defp retry_version_detection(opts, escaped_prefix, retries_left) when retries_left > 0 do
+    try do
+      # Use hybrid repo detection with fallback strategies
+      case get_repo_with_fallback() do
+        nil when retries_left > 1 ->
+          # Wait a bit and retry
+          Process.sleep(100)
+          retry_version_detection(opts, escaped_prefix, retries_left - 1)
+          
+        nil ->
+          0
+
+        repo ->
+          # Ensure repo is started before querying database
+          case ensure_repo_started(repo) do
+            :ok ->
+              case check_version_with_runtime_repo(repo, escaped_prefix) do
+                0 when retries_left > 1 ->
+                  # If we get 0 but repo is available, retry once more
+                  Process.sleep(50)
+                  check_version_with_runtime_repo(repo, escaped_prefix)
+                
+                version ->
+                  version
+              end
+
+            {:error, _reason} when retries_left > 1 ->
+              # If repo can't be started, wait and retry
+              Process.sleep(100)
+              retry_version_detection(opts, escaped_prefix, retries_left - 1)
+              
+            {:error, _reason} ->
+              # Final retry failed - return 0 (not installed)
+              0
+          end
+      end
+    rescue
+      _ ->
+        if retries_left > 1 do
+          Process.sleep(100)
+          retry_version_detection(opts, escaped_prefix, retries_left - 1)
+        else
+          0
+        end
+    end
+  end
+  
+  defp retry_version_detection(_opts, _escaped_prefix, 0), do: 0
+
+  # Check version using runtime repo (same logic as migrated_version)
+  defp check_version_with_runtime_repo(repo, escaped_prefix) do
+    # First check if phoenix_kit table exists
+    table_exists_query = """
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_name = 'phoenix_kit'
+      AND table_schema = '#{escaped_prefix}'
+    )
+    """
+
+    case repo.query(table_exists_query, [], log: false) do
+      {:ok, %{rows: [[true]]}} ->
+        # Table exists, check for version comment
+        version_query = """
+        SELECT pg_catalog.obj_description(pg_class.oid, 'pg_class')
+        FROM pg_class
+        LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE pg_class.relname = 'phoenix_kit'
+        AND pg_namespace.nspname = '#{escaped_prefix}'
+        """
+
+        case repo.query(version_query, [], log: false) do
+          {:ok, %{rows: [[version]]}} when is_binary(version) -> String.to_integer(version)
+          # Table exists but no version comment - assume version 1 (legacy V01 installation)
+          _ -> 1
+        end
+
+      {:ok, %{rows: [[false]]}} ->
+        # Table doesn't exist - no PhoenixKit installed
+        0
+
+      _ ->
+        0
+    end
   end
 
   # Detect version by analyzing database schema

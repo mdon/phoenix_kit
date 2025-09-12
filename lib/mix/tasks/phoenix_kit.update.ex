@@ -37,9 +37,10 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   PhoenixKit uses a versioned migration system similar to Oban. Each version
   contains specific database schema changes that can be applied incrementally.
 
-  Current version: V02 (simplified role system without is_active column)
+  Current version: V07 (latest version with comprehensive features)
   - V01: Basic authentication with role system
   - V02: Remove is_active column from role assignments (direct deletion)
+  - V03-V07: Additional features and improvements (see migration files for details)
 
   ## Safe Updates
 
