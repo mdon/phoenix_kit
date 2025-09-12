@@ -90,8 +90,8 @@ defmodule PhoenixKit.EmailTracking do
         aws_ses_configuration_set: "my-app-tracking"
   """
 
+  alias PhoenixKit.EmailTracking.{EmailEvent, EmailLog}
   alias PhoenixKit.Settings
-  alias PhoenixKit.EmailTracking.{EmailLog, EmailEvent}
 
   ## --- System Settings ---
 
@@ -160,7 +160,11 @@ defmodule PhoenixKit.EmailTracking do
       {:ok, %Setting{}}
   """
   def set_save_body(enabled) when is_boolean(enabled) do
-    Settings.update_boolean_setting_with_module("email_tracking_save_body", enabled, "email_tracking")
+    Settings.update_boolean_setting_with_module(
+      "email_tracking_save_body",
+      enabled,
+      "email_tracking"
+    )
   end
 
   @doc """
@@ -184,7 +188,11 @@ defmodule PhoenixKit.EmailTracking do
       {:ok, %Setting{}}
   """
   def set_ses_events(enabled) when is_boolean(enabled) do
-    Settings.update_boolean_setting_with_module("email_tracking_ses_events", enabled, "email_tracking")
+    Settings.update_boolean_setting_with_module(
+      "email_tracking_ses_events",
+      enabled,
+      "email_tracking"
+    )
   end
 
   @doc """
@@ -263,7 +271,8 @@ defmodule PhoenixKit.EmailTracking do
       iex> PhoenixKit.EmailTracking.set_sampling_rate(80)  # Log 80% of emails
       {:ok, %Setting{}}
   """
-  def set_sampling_rate(percentage) when is_integer(percentage) and percentage >= 0 and percentage <= 100 do
+  def set_sampling_rate(percentage)
+      when is_integer(percentage) and percentage >= 0 and percentage <= 100 do
     Settings.update_setting_with_module(
       "email_tracking_sampling_rate",
       to_string(percentage),
@@ -378,11 +387,13 @@ defmodule PhoenixKit.EmailTracking do
   def create_log(attrs \\ %{}) do
     if enabled?() and should_log_email?(attrs) do
       # Add system-level defaults
-      attrs = Map.merge(attrs, %{
-        configuration_set: get_ses_configuration_set(),
-        body_full: if(save_body_enabled?() and attrs[:body_full], do: attrs[:body_full], else: nil)
-      })
-      
+      attrs =
+        Map.merge(attrs, %{
+          configuration_set: get_ses_configuration_set(),
+          body_full:
+            if(save_body_enabled?() and attrs[:body_full], do: attrs[:body_full], else: nil)
+        })
+
       EmailLog.create_log(attrs)
     else
       {:ok, :skipped}
@@ -459,12 +470,12 @@ defmodule PhoenixKit.EmailTracking do
       case extract_message_id(webhook_data) do
         nil ->
           {:error, :message_id_not_found}
-          
+
         message_id ->
           case get_log_by_message_id(message_id) do
             nil ->
               {:error, :email_log_not_found}
-              
+
             email_log ->
               process_event_for_log(email_log, webhook_data)
           end
@@ -497,9 +508,9 @@ defmodule PhoenixKit.EmailTracking do
   def get_system_stats(period \\ :last_30_days) do
     if enabled?() do
       {start_date, end_date} = get_period_dates(period)
-      
+
       basic_stats = EmailLog.get_stats_for_period(start_date, end_date)
-      
+
       Map.merge(basic_stats, %{
         delivery_rate: safe_percentage(basic_stats.delivered, basic_stats.total_sent),
         bounce_rate: safe_percentage(basic_stats.bounced, basic_stats.total_sent),
@@ -663,7 +674,7 @@ defmodule PhoenixKit.EmailTracking do
     if enabled?() and s3_archival_enabled?() do
       days = days_old || get_retention_days()
       logs_to_archive = EmailLog.get_logs_for_archival(days)
-      
+
       if length(logs_to_archive) > 0 do
         # This would be implemented in a separate Archiver module
         # For now, return a placeholder
@@ -688,7 +699,7 @@ defmodule PhoenixKit.EmailTracking do
   # Determine if an email should be logged based on sampling rate
   defp should_log_email?(_attrs) do
     sampling_rate = get_sampling_rate()
-    
+
     if sampling_rate >= 100 do
       true
     else
@@ -700,8 +711,8 @@ defmodule PhoenixKit.EmailTracking do
   # Extract message ID from webhook data
   defp extract_message_id(webhook_data) do
     webhook_data["mail"]["messageId"] ||
-    webhook_data["messageId"] ||
-    get_in(webhook_data, ["mail", "commonHeaders", "messageId"])
+      webhook_data["messageId"] ||
+      get_in(webhook_data, ["mail", "commonHeaders", "messageId"])
   end
 
   # Process a specific event for an email log
@@ -711,7 +722,7 @@ defmodule PhoenixKit.EmailTracking do
         # Update email log status based on event
         update_log_status_from_event(email_log, event)
         {:ok, event}
-        
+
       error ->
         error
     end
@@ -721,19 +732,22 @@ defmodule PhoenixKit.EmailTracking do
   defp update_log_status_from_event(email_log, %EmailEvent{event_type: "delivery"}) do
     EmailLog.mark_as_delivered(email_log)
   end
-  
-  defp update_log_status_from_event(email_log, %EmailEvent{event_type: "bounce", bounce_type: bounce_type}) do
+
+  defp update_log_status_from_event(email_log, %EmailEvent{
+         event_type: "bounce",
+         bounce_type: bounce_type
+       }) do
     EmailLog.mark_as_bounced(email_log, bounce_type)
   end
-  
+
   defp update_log_status_from_event(email_log, %EmailEvent{event_type: "open"}) do
     EmailLog.mark_as_opened(email_log)
   end
-  
+
   defp update_log_status_from_event(email_log, %EmailEvent{event_type: "click", link_url: url}) do
     EmailLog.mark_as_clicked(email_log, url)
   end
-  
+
   defp update_log_status_from_event(_email_log, _event) do
     # No status update needed for other event types
     :ok
@@ -760,13 +774,13 @@ defmodule PhoenixKit.EmailTracking do
     start_date = DateTime.add(end_date, -7, :day)
     {start_date, end_date}
   end
-  
+
   defp get_period_dates(:last_30_days) do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -30, :day)
     {start_date, end_date}
   end
-  
+
   defp get_period_dates(:last_90_days) do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -90, :day)
@@ -777,5 +791,6 @@ defmodule PhoenixKit.EmailTracking do
   defp safe_percentage(numerator, denominator) when denominator > 0 do
     (numerator / denominator * 100) |> Float.round(1)
   end
+
   defp safe_percentage(_, _), do: 0.0
 end

@@ -23,10 +23,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Plug.Conn
   import Phoenix.Controller
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Routes
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change

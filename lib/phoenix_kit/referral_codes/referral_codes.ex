@@ -163,7 +163,8 @@ defmodule PhoenixKit.ReferralCodes do
   def valid_for_use?(%__MODULE__{} = code) do
     code.status &&
       code.number_of_uses < code.max_uses &&
-      (is_nil(code.expiration_date) || DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt)
+      (is_nil(code.expiration_date) ||
+         DateTime.compare(DateTime.utc_now(), code.expiration_date) == :lt)
   end
 
   @doc """
@@ -175,7 +176,8 @@ defmodule PhoenixKit.ReferralCodes do
       false
   """
   def expired?(%__MODULE__{} = code) do
-    !is_nil(code.expiration_date) && DateTime.compare(DateTime.utc_now(), code.expiration_date) != :lt
+    !is_nil(code.expiration_date) &&
+      DateTime.compare(DateTime.utc_now(), code.expiration_date) != :lt
   end
 
   @doc """
@@ -621,7 +623,7 @@ defmodule PhoenixKit.ReferralCodes do
           existing_code ->
             # Check if this is the same record we're editing
             current_id = get_field(changeset, :id)
-            
+
             if current_id && existing_code.id == current_id do
               # This is the same record, validation passes
               changeset

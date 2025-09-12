@@ -51,7 +51,7 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   """
 
   require Logger
-  
+
   alias PhoenixKit.EmailTracking
   alias PhoenixKit.EmailTracking.EmailLog
   alias Swoosh.Email
@@ -82,14 +82,14 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       case create_email_log(email, opts) do
         {:ok, log} ->
           Logger.debug("Email tracked with ID: #{log.id}, Message ID: #{log.message_id}")
-          
+
           # Add tracking headers to email
           add_tracking_headers(email, log, opts)
-          
-        {:ok, :skipped} ->
+
+        {:error, :skipped} ->
           Logger.debug("Email logging skipped due to sampling")
           email
-          
+
         {:error, reason} ->
           Logger.error("Failed to log email: #{inspect(reason)}")
           email
@@ -109,15 +109,15 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       iex> PhoenixKit.EmailTracking.EmailInterceptor.should_log_email?(email)
       true
   """
-  def should_log_email?(%Email{} = email, opts \\ []) do
+  def should_log_email?(%Email{} = email, _opts \\ []) do
     cond do
       not EmailTracking.enabled?() ->
         false
-        
-      is_system_email?(email) ->
+
+      system_email?(email) ->
         # Always log system emails (errors, bounces, etc.)
         true
-        
+
       true ->
         # Apply sampling rate for regular emails
         sampling_rate = EmailTracking.get_sampling_rate()
@@ -137,13 +137,13 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
     cond do
       provider = Keyword.get(opts, :provider) ->
         provider
-        
+
       has_ses_headers?(email) ->
         "aws_ses"
-        
+
       has_smtp_headers?(email) ->
         "smtp"
-        
+
       true ->
         detect_provider_from_config()
     end
@@ -159,7 +159,7 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   """
   def create_email_log(%Email{} = email, opts \\ []) do
     log_attrs = extract_email_data(email, opts)
-    
+
     EmailTracking.create_log(log_attrs)
   end
 
@@ -176,12 +176,12 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       "X-PhoenixKit-Log-Id" => to_string(log.id),
       "X-PhoenixKit-Message-Id" => log.message_id
     }
-    
+
     # Add AWS SES specific headers
     ses_headers = build_ses_headers(log, opts)
-    
+
     all_headers = Map.merge(tracking_headers, ses_headers)
-    
+
     # Add headers to email
     Enum.reduce(all_headers, email, fn {key, value}, acc_email ->
       Email.header(acc_email, key, value)
@@ -198,28 +198,31 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   """
   def build_ses_headers(%EmailLog{} = log, opts \\ []) do
     headers = %{}
-    
+
     # Add configuration set if available
-    headers = 
+    headers =
       case get_configuration_set(opts) do
         nil -> headers
         config_set -> Map.put(headers, "X-SES-CONFIGURATION-SET", config_set)
       end
-    
+
     # Add message tags for AWS SES
-    headers = 
+    headers =
       case build_message_tags(log, opts) do
         tags when map_size(tags) > 0 ->
           # Convert tags to SES format
-          tag_headers = Enum.with_index(tags, 1)
-          |> Enum.reduce(headers, fn {{key, value}, index}, acc ->
-            Map.put(acc, "X-SES-MESSAGE-TAG-#{index}", "#{key}=#{value}")
-          end)
+          tag_headers =
+            Enum.with_index(tags, 1)
+            |> Enum.reduce(headers, fn {{key, value}, index}, acc ->
+              Map.put(acc, "X-SES-MESSAGE-TAG-#{index}", "#{key}=#{value}")
+            end)
+
           tag_headers
-          
-        _ -> headers
+
+        _ ->
+          headers
       end
-    
+
     headers
   end
 
@@ -238,15 +241,17 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       status: "sent",
       sent_at: DateTime.utc_now()
     }
-    
+
     # Extract additional data from provider response
-    update_attrs = 
+    update_attrs =
       case extract_provider_data(provider_response) do
         %{} = provider_data when map_size(provider_data) > 0 ->
           Map.merge(update_attrs, provider_data)
-        _ -> update_attrs
+
+        _ ->
+          update_attrs
       end
-    
+
     EmailLog.update_log(log, update_attrs)
   end
 
@@ -260,13 +265,13 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   """
   def update_after_failure(%EmailLog{} = log, error) do
     error_message = extract_error_message(error)
-    
+
     update_attrs = %{
       status: "failed",
       error_message: error_message,
       retry_count: log.retry_count + 1
     }
-    
+
     EmailLog.update_log(log, update_attrs)
   end
 
@@ -297,11 +302,11 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   # Generate or extract message ID
   defp generate_message_id(%Email{} = email, opts) do
     # Try to extract from existing headers first
-    existing_id = 
+    existing_id =
       get_in(email.headers, ["Message-ID"]) ||
-      get_in(email.headers, ["message-id"]) ||
-      Keyword.get(opts, :message_id)
-    
+        get_in(email.headers, ["message-id"]) ||
+        Keyword.get(opts, :message_id)
+
     case existing_id do
       nil -> "pk_" <> (:crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower))
       id -> String.trim(id, "<>")
@@ -324,20 +329,22 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   defp extract_headers(%Email{headers: headers}) when is_map(headers) do
     # Remove sensitive headers and normalize
     headers
-    |> Enum.reject(fn {key, _} -> 
+    |> Enum.reject(fn {key, _} ->
       key in ["Authorization", "Authentication-Results", "X-Password", "X-API-Key"]
     end)
     |> Enum.into(%{})
   end
+
   defp extract_headers(_), do: %{}
 
   # Extract body preview (first 500+ characters)
   defp extract_body_preview(%Email{} = email) do
     body = email.text_body || email.html_body || ""
-    
+
     body
     |> strip_html_tags()
-    |> String.slice(0, 1000)  # Increased from 500 to 1000 as per plan
+    # Increased from 500 to 1000 as per plan
+    |> String.slice(0, 1000)
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
   end
@@ -347,7 +354,7 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
     if EmailTracking.save_body_enabled?() or Keyword.get(opts, :save_body, false) do
       text_body = email.text_body || ""
       html_body = email.html_body || ""
-      
+
       if String.length(html_body) > String.length(text_body) do
         html_body
       else
@@ -361,32 +368,38 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   # Estimate email size in bytes
   defp estimate_email_size(%Email{} = email) do
     size = 0
-    
+
     # Headers
     size = size + (email.headers |> inspect() |> byte_size())
-    
+
     # Subject
     size = size + byte_size(email.subject || "")
-    
+
     # Body
     size = size + byte_size(email.text_body || "")
     size = size + byte_size(email.html_body || "")
-    
+
     # Attachments (rough estimate)
-    attachment_size = 
+    attachment_size =
       (email.attachments || [])
       |> Enum.reduce(0, fn attachment, acc ->
         case attachment do
-          %{data: data} when is_binary(data) -> acc + byte_size(data)
-          %{path: path} when is_binary(path) -> 
+          %{data: data} when is_binary(data) ->
+            acc + byte_size(data)
+
+          %{path: path} when is_binary(path) ->
             case File.stat(path) do
               {:ok, %File.Stat{size: file_size}} -> acc + file_size
-              _ -> acc + 10000  # Default estimate
+              # Default estimate
+              _ -> acc + 10_000
             end
-          _ -> acc + 10000  # Default estimate
+
+          # Default estimate
+          _ ->
+            acc + 10_000
         end
       end)
-    
+
     size + attachment_size
   end
 
@@ -403,13 +416,13 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   end
 
   # Check if this is a system/critical email
-  defp is_system_email?(%Email{} = email) do
+  defp system_email?(%Email{} = email) do
     subject = String.downcase(email.subject || "")
     sender = String.downcase(extract_sender(email.from))
-    
+
     # System emails are always logged
     String.contains?(subject, ["error", "bounce", "failure", "alert", "warning", "critical"]) or
-    String.contains?(sender, ["noreply", "no-reply", "system", "admin", "alert"])
+      String.contains?(sender, ["noreply", "no-reply", "system", "admin", "alert"])
   end
 
   # Get AWS SES configuration set
@@ -420,45 +433,46 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   # Build message tags for categorization
   defp build_message_tags(%Email{} = email, opts) do
     base_tags = Keyword.get(opts, :message_tags, %{})
-    
+
     auto_tags = %{}
-    
+
     # Add template tag if available
-    auto_tags = 
+    auto_tags =
       case Keyword.get(opts, :template_name) do
         nil -> auto_tags
         template -> Map.put(auto_tags, "template", template)
       end
-    
+
     # Add campaign tag if available
-    auto_tags = 
+    auto_tags =
       case Keyword.get(opts, :campaign_id) do
         nil -> auto_tags
         campaign -> Map.put(auto_tags, "campaign", campaign)
       end
-    
+
     # Add user context if available
-    auto_tags = 
+    auto_tags =
       case Keyword.get(opts, :user_id) do
         nil -> auto_tags
         user_id -> Map.put(auto_tags, "user_id", to_string(user_id))
       end
-    
+
     # Add email type detection
     auto_tags = Map.put(auto_tags, "email_type", detect_email_type(email))
-    
+
     Map.merge(auto_tags, base_tags)
   end
 
   # Build message tags for log record
-  defp build_message_tags(log_or_email, opts) do
-    build_message_tags(%Email{}, opts)  # Simplified for now
+  defp build_message_tags(_log_or_email, opts) do
+    # Simplified for now
+    build_message_tags(%Email{}, opts)
   end
 
   # Detect email type from content
   defp detect_email_type(%Email{} = email) do
     subject = String.downcase(email.subject || "")
-    
+
     cond do
       String.contains?(subject, ["welcome", "confirm", "verify", "activate"]) -> "authentication"
       String.contains?(subject, ["reset", "password", "forgot"]) -> "password_reset"
@@ -472,15 +486,17 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
   # Check for SES specific headers
   defp has_ses_headers?(%Email{headers: headers}) when is_map(headers) do
     Map.has_key?(headers, "X-SES-CONFIGURATION-SET") or
-    Enum.any?(headers, fn {key, _} -> String.starts_with?(key, "X-SES-") end)
+      Enum.any?(headers, fn {key, _} -> String.starts_with?(key, "X-SES-") end)
   end
+
   defp has_ses_headers?(_), do: false
 
   # Check for SMTP headers
   defp has_smtp_headers?(%Email{headers: headers}) when is_map(headers) do
     Map.has_key?(headers, "X-SMTP-Server") or
-    Map.has_key?(headers, "Received")
+      Map.has_key?(headers, "Received")
   end
+
   defp has_smtp_headers?(_), do: false
 
   # Detect provider from configuration
@@ -491,7 +507,7 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
         # Try to determine provider from mailer configuration
         config = Application.get_env(:phoenix_kit, mailer, [])
         adapter = Keyword.get(config, :adapter)
-        
+
         case adapter do
           Swoosh.Adapters.AmazonSES -> "aws_ses"
           Swoosh.Adapters.SMTP -> "smtp"
@@ -500,8 +516,9 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
           Swoosh.Adapters.Local -> "local"
           _ -> "unknown"
         end
-        
-      _ -> "unknown"
+
+      _ ->
+        "unknown"
     end
   end
 
@@ -514,6 +531,7 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       _ -> %{}
     end
   end
+
   defp extract_provider_data(_), do: %{}
 
   # Extract error message from various error formats
@@ -531,5 +549,6 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
     |> String.replace(~r/<[^>]*>/, " ")
     |> String.replace(~r/&[a-zA-Z0-9#]+;/, " ")
   end
+
   defp strip_html_tags(_), do: ""
 end

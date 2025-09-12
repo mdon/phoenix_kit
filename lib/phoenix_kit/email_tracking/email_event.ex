@@ -105,7 +105,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       :complaint_type
     ])
     |> validate_required([:email_log_id, :event_type])
-    |> validate_inclusion(:event_type, ["send", "delivery", "bounce", "complaint", "open", "click"])
+    |> validate_inclusion(:event_type, [
+      "send",
+      "delivery",
+      "bounce",
+      "complaint",
+      "open",
+      "click"
+    ])
     |> validate_inclusion(:bounce_type, ["hard", "soft"], message: "must be hard or soft")
     |> validate_bounce_type_consistency()
     |> validate_complaint_type_consistency()
@@ -193,7 +200,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.for_email_log_by_type(log_id, "open")
       [%PhoenixKit.EmailTracking.EmailEvent{}, ...]
   """
-  def for_email_log_by_type(email_log_id, event_type) when is_integer(email_log_id) and is_binary(event_type) do
+  def for_email_log_by_type(email_log_id, event_type)
+      when is_integer(email_log_id) and is_binary(event_type) do
     from(e in __MODULE__,
       where: e.email_log_id == ^email_log_id and e.event_type == ^event_type,
       order_by: [desc: e.occurred_at]
@@ -211,7 +219,9 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   """
   def for_period_by_type(start_date, end_date, event_type) do
     from(e in __MODULE__,
-      where: e.occurred_at >= ^start_date and e.occurred_at <= ^end_date and e.event_type == ^event_type,
+      where:
+        e.occurred_at >= ^start_date and e.occurred_at <= ^end_date and
+          e.event_type == ^event_type,
       order_by: [desc: e.occurred_at],
       preload: [:email_log]
     )
@@ -226,12 +236,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.has_event_type?(log_id, "open")
       true
   """
-  def has_event_type?(email_log_id, event_type) when is_integer(email_log_id) and is_binary(event_type) do
-    query = from(e in __MODULE__,
-      where: e.email_log_id == ^email_log_id and e.event_type == ^event_type,
-      limit: 1
-    )
-    
+  def has_event_type?(email_log_id, event_type)
+      when is_integer(email_log_id) and is_binary(event_type) do
+    query =
+      from(e in __MODULE__,
+        where: e.email_log_id == ^email_log_id and e.event_type == ^event_type,
+        limit: 1
+      )
+
     repo().exists?(query)
   end
 
@@ -243,7 +255,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.get_latest_event_by_type(log_id, "open")
       %PhoenixKit.EmailTracking.EmailEvent{}
   """
-  def get_latest_event_by_type(email_log_id, event_type) when is_integer(email_log_id) and is_binary(event_type) do
+  def get_latest_event_by_type(email_log_id, event_type)
+      when is_integer(email_log_id) and is_binary(event_type) do
     from(e in __MODULE__,
       where: e.email_log_id == ^email_log_id and e.event_type == ^event_type,
       order_by: [desc: e.occurred_at],
@@ -267,7 +280,7 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   """
   def create_from_ses_webhook(%EmailLog{} = email_log, webhook_data) when is_map(webhook_data) do
     event_attrs = parse_ses_webhook_data(webhook_data)
-    
+
     create_event(Map.merge(event_attrs, %{email_log_id: email_log.id}))
   end
 
@@ -279,7 +292,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.create_bounce_event(log_id, "hard", "No such user")
       {:ok, %PhoenixKit.EmailTracking.EmailEvent{}}
   """
-  def create_bounce_event(email_log_id, bounce_type, reason \\ nil) when is_integer(email_log_id) do
+  def create_bounce_event(email_log_id, bounce_type, reason \\ nil)
+      when is_integer(email_log_id) do
     create_event(%{
       email_log_id: email_log_id,
       event_type: "bounce",
@@ -300,7 +314,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.create_complaint_event(log_id, "abuse")
       {:ok, %PhoenixKit.EmailTracking.EmailEvent{}}
   """
-  def create_complaint_event(email_log_id, complaint_type \\ "abuse", feedback_id \\ nil) when is_integer(email_log_id) do
+  def create_complaint_event(email_log_id, complaint_type \\ "abuse", feedback_id \\ nil)
+      when is_integer(email_log_id) do
     create_event(%{
       email_log_id: email_log_id,
       event_type: "complaint",
@@ -321,7 +336,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.create_open_event(log_id, "192.168.1.1", "Mozilla/5.0...")
       {:ok, %PhoenixKit.EmailTracking.EmailEvent{}}
   """
-  def create_open_event(email_log_id, ip_address \\ nil, user_agent \\ nil, geo_data \\ %{}) when is_integer(email_log_id) do
+  def create_open_event(email_log_id, ip_address \\ nil, user_agent \\ nil, geo_data \\ %{})
+      when is_integer(email_log_id) do
     create_event(%{
       email_log_id: email_log_id,
       event_type: "open",
@@ -344,7 +360,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
       iex> PhoenixKit.EmailTracking.EmailEvent.create_click_event(log_id, "https://example.com/link", "192.168.1.1")
       {:ok, %PhoenixKit.EmailTracking.EmailEvent{}}
   """
-  def create_click_event(email_log_id, link_url, ip_address \\ nil, user_agent \\ nil, geo_data \\ %{}) when is_integer(email_log_id) do
+  def create_click_event(
+        email_log_id,
+        link_url,
+        ip_address \\ nil,
+        user_agent \\ nil,
+        geo_data \\ %{}
+      )
+      when is_integer(email_log_id) do
     create_event(%{
       email_log_id: email_log_id,
       event_type: "click",
@@ -389,7 +412,9 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   """
   def get_geo_distribution(event_type, start_date, end_date) do
     from(e in __MODULE__,
-      where: e.event_type == ^event_type and e.occurred_at >= ^start_date and e.occurred_at <= ^end_date,
+      where:
+        e.event_type == ^event_type and e.occurred_at >= ^start_date and
+          e.occurred_at <= ^end_date,
       where: fragment("?->>'country' IS NOT NULL", e.geo_location),
       group_by: fragment("?->>'country'", e.geo_location),
       select: %{
@@ -412,7 +437,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   """
   def get_top_clicked_links(start_date, end_date, limit \\ 10) do
     from(e in __MODULE__,
-      where: e.event_type == "click" and e.occurred_at >= ^start_date and e.occurred_at <= ^end_date,
+      where:
+        e.event_type == "click" and e.occurred_at >= ^start_date and e.occurred_at <= ^end_date,
       where: not is_nil(e.link_url),
       group_by: e.link_url,
       select: %{url: e.link_url, clicks: count(e.id)},
@@ -460,14 +486,17 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   defp validate_bounce_type_consistency(changeset) do
     event_type = get_field(changeset, :event_type)
     bounce_type = get_field(changeset, :bounce_type)
-    
+
     case {event_type, bounce_type} do
       {"bounce", nil} ->
         add_error(changeset, :bounce_type, "is required for bounce events")
+
       {"bounce", _} ->
         changeset
+
       {_, nil} ->
         changeset
+
       {_, _} ->
         add_error(changeset, :bounce_type, "can only be set for bounce events")
     end
@@ -477,12 +506,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   defp validate_complaint_type_consistency(changeset) do
     event_type = get_field(changeset, :event_type)
     complaint_type = get_field(changeset, :complaint_type)
-    
+
     case {event_type, complaint_type} do
       {"complaint", _} ->
         changeset
+
       {_, nil} ->
         changeset
+
       {_, _} ->
         add_error(changeset, :complaint_type, "can only be set for complaint events")
     end
@@ -492,12 +523,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   defp validate_click_event_consistency(changeset) do
     event_type = get_field(changeset, :event_type)
     link_url = get_field(changeset, :link_url)
-    
+
     case {event_type, link_url} do
       {"click", nil} ->
         add_error(changeset, :link_url, "is required for click events")
+
       {"click", url} when is_binary(url) ->
         validate_url_format(changeset, :link_url)
+
       {_, _} ->
         changeset
     end
@@ -505,64 +538,78 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
 
   # Validate URL format
   defp validate_url_format(changeset, field) do
-    validate_format(changeset, field, ~r/^https?:\/\/[^\s]+$/, 
-                   message: "must be a valid HTTP or HTTPS URL")
+    validate_format(changeset, field, ~r/^https?:\/\/[^\s]+$/,
+      message: "must be a valid HTTP or HTTPS URL"
+    )
   end
 
   # Validate IP address format (basic validation)
   defp validate_ip_address_format(changeset) do
     case get_field(changeset, :ip_address) do
-      nil -> changeset
+      nil ->
+        changeset
+
       ip when is_binary(ip) ->
         if String.match?(ip, ~r/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[0-9a-fA-F:]+$/) do
           changeset
         else
           add_error(changeset, :ip_address, "must be a valid IPv4 or IPv6 address")
         end
-      _ -> changeset
+
+      _ ->
+        changeset
     end
   end
 
   # Parse AWS SES webhook data into event attributes
   defp parse_ses_webhook_data(webhook_data) do
     event_type = webhook_data["eventType"] || "unknown"
-    
+
     base_attrs = %{
       event_type: normalize_event_type(event_type),
       occurred_at: parse_timestamp(webhook_data),
       event_data: webhook_data
     }
-    
+
     # Add event-specific attributes
     case event_type do
       "bounce" ->
         bounce_data = webhook_data["bounce"] || %{}
+
         Map.merge(base_attrs, %{
           bounce_type: determine_bounce_type(bounce_data),
-          event_data: Map.put(base_attrs.event_data, :parsed_bounce_type, determine_bounce_type(bounce_data))
+          event_data:
+            Map.put(
+              base_attrs.event_data,
+              :parsed_bounce_type,
+              determine_bounce_type(bounce_data)
+            )
         })
-        
+
       "complaint" ->
         complaint_data = webhook_data["complaint"] || %{}
+
         Map.merge(base_attrs, %{
           complaint_type: determine_complaint_type(complaint_data)
         })
-        
+
       "click" ->
         click_data = webhook_data["click"] || %{}
+
         Map.merge(base_attrs, %{
           link_url: click_data["link"],
           ip_address: click_data["ipAddress"],
           user_agent: click_data["userAgent"]
         })
-        
+
       "open" ->
         open_data = webhook_data["open"] || %{}
+
         Map.merge(base_attrs, %{
           ip_address: open_data["ipAddress"],
           user_agent: open_data["userAgent"]
         })
-        
+
       _ ->
         base_attrs
     end
@@ -579,14 +626,14 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
 
   # Parse timestamp from webhook data
   defp parse_timestamp(webhook_data) do
-    timestamp_str = 
+    timestamp_str =
       webhook_data["delivery"]["timestamp"] ||
-      webhook_data["bounce"]["timestamp"] ||
-      webhook_data["complaint"]["timestamp"] ||
-      webhook_data["open"]["timestamp"] ||
-      webhook_data["click"]["timestamp"] ||
-      DateTime.utc_now() |> DateTime.to_iso8601()
-    
+        webhook_data["bounce"]["timestamp"] ||
+        webhook_data["complaint"]["timestamp"] ||
+        webhook_data["open"]["timestamp"] ||
+        webhook_data["click"]["timestamp"] ||
+        DateTime.utc_now() |> DateTime.to_iso8601()
+
     case DateTime.from_iso8601(timestamp_str) do
       {:ok, datetime, _} -> datetime
       _ -> DateTime.utc_now()

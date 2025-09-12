@@ -64,7 +64,7 @@ defmodule PhoenixKitWeb.Integration do
       <% end %>
 
   """
-  defmacro phoenix_kit_routes() do
+  defmacro phoenix_kit_routes do
     url_prefix = PhoenixKit.Config.get_url_prefix()
 
     quote do
@@ -132,6 +132,8 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/referral-codes", Live.ReferralCodesLive, :index
           live "/admin/referral-codes/new", Live.ReferralCodeFormLive, :new
           live "/admin/referral-codes/edit/:id", Live.ReferralCodeFormLive, :edit
+          live "/admin/email-logs", Live.EmailTracking.EmailLogsLive, :index
+          live "/admin/email-logs/:id", Live.EmailTracking.EmailDetailsLive, :show
         end
       end
     end

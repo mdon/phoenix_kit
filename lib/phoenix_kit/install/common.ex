@@ -93,121 +93,84 @@ defmodule PhoenixKit.Install.Common do
         check_alternative_version_detection(prefix, opts)
     end
   end
-  
+
   # Alternative version detection when primary method fails
   defp check_alternative_version_detection(prefix, opts) do
     # Strategy 1: Try direct database query (like status command does)
     case try_direct_database_version_check(opts) do
       version when version > 0 ->
         {:current_version, version}
-        
+
       _ ->
         # Strategy 2: Check if tables exist and try to infer version
         case check_installation_from_tables(prefix) do
           {:current_version, version} ->
             {:current_version, version}
-            
+
           {:not_installed} ->
             {:not_installed}
         end
     end
   end
-  
+
   # Try direct database connection (similar to what status command does)
   defp try_direct_database_version_check(opts) do
-    try do
-      # Try to get the repo from application config first (same as status command)
-      repo = Application.get_env(:phoenix_kit, :repo)
-      if repo do
-        escaped_prefix = Map.fetch!(opts, :escaped_prefix)
-        query_version_directly(repo, escaped_prefix)
-      else
-        0
-      end
-    rescue
-      _ -> 0
+    # Try to get the repo from application config first (same as status command)
+    repo = Application.get_env(:phoenix_kit, :repo)
+
+    if repo do
+      escaped_prefix = Map.fetch!(opts, :escaped_prefix)
+      query_version_directly(repo, escaped_prefix)
+    else
+      0
     end
+  rescue
+    _ -> 0
   end
-  
+
   # Direct version query (simplified version of the runtime check)
   defp query_version_directly(repo, escaped_prefix) do
-    try do
-      # Check if phoenix_kit table exists first
-      table_check = "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = '#{escaped_prefix}')"
-      
-      case repo.query(table_check, [], log: false) do
-        {:ok, %{rows: [[true]]}} ->
-          # Table exists, get version comment
-          version_query = """
-          SELECT pg_catalog.obj_description(pg_class.oid, 'pg_class')
-          FROM pg_class
-          LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-          WHERE pg_class.relname = 'phoenix_kit'
-          AND pg_namespace.nspname = '#{escaped_prefix}'
-          """
-          
-          case repo.query(version_query, [], log: false) do
-            {:ok, %{rows: [[version]]}} when is_binary(version) ->
-              String.to_integer(version)
-            _ ->
-              # Table exists but no version comment - assume version 6 based on observed behavior
-              6
-          end
-          
-        _ ->
-          0
-      end
-    rescue
-      _ -> 0
+    # Check if phoenix_kit table exists first
+    table_check =
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = '#{escaped_prefix}')"
+
+    case repo.query(table_check, [], log: false) do
+      {:ok, %{rows: [[true]]}} ->
+        # Table exists, get version comment
+        version_query = """
+        SELECT pg_catalog.obj_description(pg_class.oid, 'pg_class')
+        FROM pg_class
+        LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE pg_class.relname = 'phoenix_kit'
+        AND pg_namespace.nspname = '#{escaped_prefix}'
+        """
+
+        case repo.query(version_query, [], log: false) do
+          {:ok, %{rows: [[version]]}} when is_binary(version) ->
+            String.to_integer(version)
+
+          _ ->
+            # Table exists but no version comment - assume version 6 based on observed behavior
+            6
+        end
+
+      _ ->
+        0
     end
+  rescue
+    _ -> 0
   end
-  
+
   # Check installation based on table presence and schema analysis
-  defp check_installation_from_tables(prefix) do
+  defp check_installation_from_tables(_prefix) do
     case find_existing_phoenix_kit_migrations() do
       [] ->
         {:not_installed}
-        
+
       _migrations ->
         # Migration files exist - try to determine actual version from database
         # This is a last resort, assume recent version if tables are expected to exist
         {:current_version, 6}
-    end
-  end
-
-  # Check if this is a legacy installation without version comments or truly not installed
-  defp check_legacy_installation_or_not_installed do
-    case find_existing_phoenix_kit_migrations() do
-      [] ->
-        # No migration files found - not installed
-        {:not_installed}
-
-      _migrations ->
-        # Migration files exist but database returned 0
-        # This suggests tables don't exist yet (migrations not run)
-        # OR it's a legacy V01 installation without version comments
-        # We should return not installed since if tables existed, 
-        # migrated_version_runtime would return at least 1
-        {:not_installed}
-    end
-  end
-
-  # Fallback when database is genuinely inaccessible
-  defp check_migration_files_as_fallback do
-    case find_existing_phoenix_kit_migrations() do
-      [] ->
-        {:not_installed}
-
-      migrations ->
-        # Database is inaccessible but migration files exist
-        # We cannot determine the actual version without database access
-        # Log this situation for debugging
-        IO.puts(
-          "Warning: Found #{length(migrations)} PhoenixKit migration files but cannot access database to determine actual version."
-        )
-
-        IO.puts("Assuming not installed. Please check database connectivity.")
-        {:not_installed}
     end
   end
 

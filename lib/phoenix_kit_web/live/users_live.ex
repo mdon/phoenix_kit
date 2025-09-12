@@ -1,13 +1,12 @@
 defmodule PhoenixKitWeb.Live.UsersLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Utils.Date, as: UtilsDate
-
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   @per_page 10
 

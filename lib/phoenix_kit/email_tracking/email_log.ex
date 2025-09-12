@@ -152,7 +152,8 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     |> validate_required([:message_id, :to, :from, :provider])
     |> validate_email_format(:to)
     |> validate_email_format(:from)
-    |> validate_length(:subject, max: 998) # RFC 2822 limit
+    # RFC 2822 limit
+    |> validate_length(:subject, max: 998)
     |> validate_number(:attachments_count, greater_than_or_equal_to: 0)
     |> validate_number(:size_bytes, greater_than_or_equal_to: 0)
     |> validate_number(:retry_count, greater_than_or_equal_to: 0)
@@ -183,8 +184,9 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   Validates email format using basic regex pattern.
   """
   def validate_email_format(changeset, field) do
-    validate_format(changeset, field, ~r/^[^\s]+@[^\s]+\.[^\s]+$/, 
-                   message: "must be a valid email address")
+    validate_format(changeset, field, ~r/^[^\s]+@[^\s]+\.[^\s]+$/,
+      message: "must be a valid email address"
+    )
   end
 
   ## --- Business Logic Functions ---
@@ -313,7 +315,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def mark_as_delivered(%__MODULE__{} = email_log, delivered_at \\ nil) do
     delivered_at = delivered_at || DateTime.utc_now()
-    
+
     update_log(email_log, %{
       status: "delivered",
       delivered_at: delivered_at
@@ -332,7 +334,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     repo().transaction(fn ->
       # Update log status
       {:ok, updated_log} = update_log(email_log, %{status: "bounced"})
-      
+
       # Create bounce event
       EmailEvent.create_event(%{
         email_log_id: updated_log.id,
@@ -343,7 +345,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
         },
         bounce_type: bounce_type
       })
-      
+
       updated_log
     end)
   end
@@ -359,17 +361,18 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   def mark_as_opened(%__MODULE__{} = email_log, opened_at \\ nil) do
     repo().transaction(fn ->
       # Only update status if not already at a higher engagement level
-      new_status = if email_log.status in ["sent", "delivered"], do: "opened", else: email_log.status
-      
+      new_status =
+        if email_log.status in ["sent", "delivered"], do: "opened", else: email_log.status
+
       {:ok, updated_log} = update_log(email_log, %{status: new_status})
-      
+
       # Create open event
       EmailEvent.create_event(%{
         email_log_id: updated_log.id,
         event_type: "open",
         occurred_at: opened_at || DateTime.utc_now()
       })
-      
+
       updated_log
     end)
   end
@@ -386,7 +389,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     repo().transaction(fn ->
       # Clicked is the highest engagement level
       {:ok, updated_log} = update_log(email_log, %{status: "clicked"})
-      
+
       # Create click event
       EmailEvent.create_event(%{
         email_log_id: updated_log.id,
@@ -394,7 +397,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
         occurred_at: clicked_at || DateTime.utc_now(),
         link_url: link_url
       })
-      
+
       updated_log
     end)
   end
@@ -437,14 +440,25 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
       %{total_sent: 1500, delivered: 1450, bounced: 30, opened: 800, clicked: 200}
   """
   def get_stats_for_period(start_date, end_date) do
-    base_period_query = from(l in __MODULE__, where: l.sent_at >= ^start_date and l.sent_at <= ^end_date)
-    
+    base_period_query =
+      from(l in __MODULE__, where: l.sent_at >= ^start_date and l.sent_at <= ^end_date)
+
     %{
       total_sent: repo().aggregate(base_period_query, :count),
-      delivered: repo().aggregate(from(l in base_period_query, where: l.status in ["delivered", "opened", "clicked"]), :count),
-      bounced: repo().aggregate(from(l in base_period_query, where: l.status == "bounced"), :count),
-      opened: repo().aggregate(from(l in base_period_query, where: l.status in ["opened", "clicked"]), :count),
-      clicked: repo().aggregate(from(l in base_period_query, where: l.status == "clicked"), :count),
+      delivered:
+        repo().aggregate(
+          from(l in base_period_query, where: l.status in ["delivered", "opened", "clicked"]),
+          :count
+        ),
+      bounced:
+        repo().aggregate(from(l in base_period_query, where: l.status == "bounced"), :count),
+      opened:
+        repo().aggregate(
+          from(l in base_period_query, where: l.status in ["opened", "clicked"]),
+          :count
+        ),
+      clicked:
+        repo().aggregate(from(l in base_period_query, where: l.status == "clicked"), :count),
       failed: repo().aggregate(from(l in base_period_query, where: l.status == "failed"), :count)
     }
   end
@@ -459,10 +473,18 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def get_campaign_stats(campaign_id) when is_binary(campaign_id) do
     base_query = from(l in __MODULE__, where: l.campaign_id == ^campaign_id)
-    
+
     total = repo().aggregate(base_query, :count)
-    delivered = repo().aggregate(from(l in base_query, where: l.status in ["delivered", "opened", "clicked"]), :count)
-    opened = repo().aggregate(from(l in base_query, where: l.status in ["opened", "clicked"]), :count)
+
+    delivered =
+      repo().aggregate(
+        from(l in base_query, where: l.status in ["delivered", "opened", "clicked"]),
+        :count
+      )
+
+    opened =
+      repo().aggregate(from(l in base_query, where: l.status in ["opened", "clicked"]), :count)
+
     clicked = repo().aggregate(from(l in base_query, where: l.status == "clicked"), :count)
     bounced = repo().aggregate(from(l in base_query, where: l.status == "bounced"), :count)
 
@@ -489,12 +511,12 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def get_engagement_metrics(period \\ :last_30_days) do
     {start_date, end_date} = get_period_dates(period)
-    
+
     # Get daily stats for trend analysis
     daily_stats = get_daily_engagement_stats(start_date, end_date)
-    
+
     total_stats = get_stats_for_period(start_date, end_date)
-    
+
     %{
       avg_open_rate: safe_percentage(total_stats.opened, total_stats.delivered),
       avg_click_rate: safe_percentage(total_stats.clicked, total_stats.opened),
@@ -514,26 +536,30 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def get_provider_performance(period \\ :last_7_days) do
     {start_date, end_date} = get_period_dates(period)
-    
+
     from(l in __MODULE__,
       where: l.sent_at >= ^start_date and l.sent_at <= ^end_date,
       group_by: l.provider,
       select: %{
         provider: l.provider,
         total: count(l.id),
-        delivered: count(fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)),
+        delivered:
+          count(
+            fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)
+          ),
         bounced: count(fragment("CASE WHEN ? = 'bounced' THEN 1 END", l.status)),
         failed: count(fragment("CASE WHEN ? = 'failed' THEN 1 END", l.status))
       }
     )
     |> repo().all()
     |> Enum.into(%{}, fn stats ->
-      {stats.provider, %{
-        total_sent: stats.total,
-        delivery_rate: safe_percentage(stats.delivered, stats.total),
-        bounce_rate: safe_percentage(stats.bounced, stats.total),
-        failure_rate: safe_percentage(stats.failed, stats.total)
-      }}
+      {stats.provider,
+       %{
+         total_sent: stats.total,
+         delivery_rate: safe_percentage(stats.delivered, stats.total),
+         bounce_rate: safe_percentage(stats.bounced, stats.total),
+         failure_rate: safe_percentage(stats.failed, stats.total)
+       }}
     end)
   end
 
@@ -549,7 +575,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def cleanup_old_logs(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)
-    
+
     from(l in __MODULE__, where: l.sent_at < ^cutoff_date)
     |> repo().delete_all()
   end
@@ -565,8 +591,8 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def compress_old_bodies(days_old \\ 30) when is_integer(days_old) and days_old > 0 do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)
-    
-    from(l in __MODULE__, 
+
+    from(l in __MODULE__,
       where: l.sent_at < ^cutoff_date and not is_nil(l.body_full),
       update: [set: [body_full: nil]]
     )
@@ -583,8 +609,8 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   """
   def get_logs_for_archival(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)
-    
-    from(l in __MODULE__, 
+
+    from(l in __MODULE__,
       where: l.sent_at < ^cutoff_date,
       preload: [:events],
       order_by: [asc: l.sent_at]
@@ -604,28 +630,28 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     Enum.reduce(filters, query, fn
       {:status, status}, query when is_binary(status) ->
         where(query, [log: l], l.status == ^status)
-      
+
       {:campaign_id, campaign}, query when is_binary(campaign) ->
         where(query, [log: l], l.campaign_id == ^campaign)
-      
+
       {:template_name, template}, query when is_binary(template) ->
         where(query, [log: l], l.template_name == ^template)
-      
+
       {:provider, provider}, query when is_binary(provider) ->
         where(query, [log: l], l.provider == ^provider)
-      
+
       {:from_date, from_date}, query ->
         where(query, [log: l], l.sent_at >= ^from_date)
-      
+
       {:to_date, to_date}, query ->
         where(query, [log: l], l.sent_at <= ^to_date)
-      
+
       {:recipient, email}, query when is_binary(email) ->
         where(query, [log: l], ilike(l.to, ^"%#{email}%"))
-      
+
       {:user_id, user_id}, query when is_integer(user_id) ->
         where(query, [log: l], l.user_id == ^user_id)
-      
+
       _other, query ->
         query
     end)
@@ -635,7 +661,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   defp apply_pagination(query, filters) do
     limit = Map.get(filters, :limit, 50)
     offset = Map.get(filters, :offset, 0)
-    
+
     query
     |> limit(^limit)
     |> offset(^offset)
@@ -645,7 +671,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   defp apply_ordering(query, filters) do
     order_by = Map.get(filters, :order_by, :sent_at)
     order_dir = Map.get(filters, :order_dir, :desc)
-    
+
     order_by(query, [log: l], [{^order_dir, field(l, ^order_by)}])
   end
 
@@ -690,7 +716,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   # Extract body preview (first 500 characters)
   defp extract_body_preview(email) do
     body = email.text_body || email.html_body || ""
-    
+
     body
     |> String.slice(0, 500)
     |> String.replace(~r/\s+/, " ")
@@ -709,8 +735,12 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   # Validate message_id uniqueness
   defp validate_message_id_uniqueness(changeset) do
     case get_field(changeset, :message_id) do
-      nil -> changeset
-      "" -> changeset
+      nil ->
+        changeset
+
+      "" ->
+        changeset
+
       message_id ->
         if get_log_by_message_id(message_id) do
           add_error(changeset, :message_id, "has already been taken")
@@ -731,10 +761,15 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   # Validate body size for storage efficiency
   defp validate_body_size(changeset) do
     case get_field(changeset, :body_full) do
-      nil -> changeset
-      body when byte_size(body) > 1_000_000 -> # 1MB limit
+      nil ->
+        changeset
+
+      # 1MB limit
+      body when byte_size(body) > 1_000_000 ->
         add_error(changeset, :body_full, "is too large (max 1MB)")
-      _ -> changeset
+
+      _ ->
+        changeset
     end
   end
 
@@ -742,6 +777,7 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   defp safe_percentage(numerator, denominator) when denominator > 0 do
     (numerator / denominator * 100) |> Float.round(1)
   end
+
   defp safe_percentage(_, _), do: 0.0
 
   # Get period start/end dates
@@ -750,13 +786,13 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     start_date = DateTime.add(end_date, -7, :day)
     {start_date, end_date}
   end
-  
+
   defp get_period_dates(:last_30_days) do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -30, :day)
     {start_date, end_date}
   end
-  
+
   defp get_period_dates(:last_90_days) do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -90, :day)
@@ -772,7 +808,10 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
       select: %{
         date: fragment("DATE(?)", l.sent_at),
         total_sent: count(l.id),
-        delivered: count(fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)),
+        delivered:
+          count(
+            fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)
+          ),
         opened: count(fragment("CASE WHEN ? IN ('opened', 'clicked') THEN 1 END", l.status)),
         clicked: count(fragment("CASE WHEN ? = 'clicked' THEN 1 END", l.status))
       }
@@ -783,16 +822,17 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   # Calculate engagement trend
   defp calculate_engagement_trend([]), do: :stable
   defp calculate_engagement_trend(daily_stats) when length(daily_stats) < 3, do: :stable
+
   defp calculate_engagement_trend(daily_stats) do
     # Simple trend calculation based on first half vs second half
     mid_point = div(length(daily_stats), 2)
     {first_half, second_half} = Enum.split(daily_stats, mid_point)
-    
+
     first_avg = calculate_average_engagement(first_half)
     second_avg = calculate_average_engagement(second_half)
-    
+
     diff = second_avg - first_avg
-    
+
     cond do
       diff > 2.0 -> :increasing
       diff < -2.0 -> :decreasing

@@ -1,10 +1,10 @@
 defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Settings
-  alias PhoenixKit.ReferralCodes
   alias PhoenixKit.EmailTracking
+  alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, session, socket) do
     # Get current path for navigation
@@ -95,7 +95,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
   def handle_event("update_max_uses_per_code", %{"max_uses_per_code" => value}, socket) do
     case Integer.parse(value) do
-      {max_uses, _} when max_uses > 0 and max_uses <= 10000 ->
+      {max_uses, _} when max_uses > 0 and max_uses <= 10_000 ->
         case ReferralCodes.set_max_uses_per_code(max_uses) do
           {:ok, _setting} ->
             socket =

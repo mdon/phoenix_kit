@@ -69,19 +69,6 @@ defmodule PhoenixKit.Install.FinchSetup do
     )
   end
 
-  # Check if any HTTP-based email adapters are configured
-  defp needs_finch?(igniter) do
-    http_adapters = [
-      "Swoosh.Adapters.AmazonSES",
-      "Swoosh.Adapters.Sendgrid",
-      "Swoosh.Adapters.Mailgun",
-      "Swoosh.Adapters.Postmark",
-      "Swoosh.Adapters.Mandrill"
-    ]
-
-    check_config_for_adapters(igniter, http_adapters)
-  end
-
   # Check if AWS SES is being used (needs gen_smtp)
   defp needs_gen_smtp?(igniter) do
     check_config_for_adapters(igniter, ["Swoosh.Adapters.AmazonSES"])

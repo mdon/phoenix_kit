@@ -13,11 +13,10 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Utils.Date, as: UtilsDate
-
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.{Auth, Sessions}
 
   @per_page 20

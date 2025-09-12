@@ -280,11 +280,11 @@ defmodule Mix.Tasks.PhoenixKit.Update do
           Mix.shell().info(output)
 
           # Rebuild assets after successful migration (unless skipped)
-          unless skip_assets do
+          if skip_assets do
+            show_update_success_notice(:assets_skipped)
+          else
             asset_result = AssetRebuild.check_and_rebuild(verbose: false)
             show_update_success_notice(asset_result)
-          else
-            show_update_success_notice(:assets_skipped)
           end
 
         {output, _} ->
@@ -312,12 +312,6 @@ defmodule Mix.Tasks.PhoenixKit.Update do
 
     💡 You may want to rebuild assets later:
       mix phoenix_kit.assets.rebuild
-    """)
-  end
-
-  defp show_update_success_notice(_) do
-    Mix.shell().info("""
-    🎉 PhoenixKit updated successfully! Visit: /phoenix_kit/users/register
     """)
   end
 

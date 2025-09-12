@@ -1,10 +1,10 @@
 defmodule PhoenixKitWeb.Live.RolesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Role, Roles}
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Subscribe to role events for live updates
