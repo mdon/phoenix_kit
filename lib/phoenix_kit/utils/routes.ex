@@ -17,6 +17,9 @@ defmodule PhoenixKit.Utils.Routes do
     end
   end
 
+  @doc """
+  Returns a full url with preconfigured prefix.
+  """
   def url(url_path) do
     base_url = PhoenixKit.Config.get_base_url()
     full_path = path(url_path)

@@ -16,7 +16,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   ## Usage
 
   The plugs in this module are automatically configured when using
-  `PhoenixKitWeb.Integration.phoenix_kit_routes/1` macro in your router.
+  `PhoenixKitWeb.Integration.phoenix_kit_routes/0` macro in your router.
   """
   use PhoenixKitWeb, :verified_routes
 

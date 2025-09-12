@@ -18,6 +18,8 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.{Auth, Sessions}
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   @per_page 20
 
