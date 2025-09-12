@@ -1,9 +1,9 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   # Embedded schema for form validation
   defmodule SettingsForm do

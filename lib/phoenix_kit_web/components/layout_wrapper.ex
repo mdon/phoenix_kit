@@ -31,9 +31,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   import PhoenixKitWeb.CoreComponents, only: [flash_group: 1]
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.PhoenixVersion
+  alias PhoenixKit.Utils.Routes
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.

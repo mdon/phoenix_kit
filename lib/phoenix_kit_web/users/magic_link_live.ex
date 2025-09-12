@@ -12,10 +12,10 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.Presence
   alias PhoenixKit.Mailer
   alias PhoenixKit.Users.MagicLink
+  alias PhoenixKit.Utils.Routes
 
   @impl true
   def mount(_params, session, socket) do

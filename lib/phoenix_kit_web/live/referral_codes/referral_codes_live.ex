@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.ReferralCodesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Settings
   alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   def mount(_params, session, socket) do
