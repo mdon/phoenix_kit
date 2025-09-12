@@ -64,7 +64,7 @@ defmodule PhoenixKitWeb.Integration do
       <% end %>
 
   """
-  defmacro phoenix_kit_routes() do
+  defmacro phoenix_kit_routes do
     url_prefix = PhoenixKit.Config.get_url_prefix()
 
     quote do
