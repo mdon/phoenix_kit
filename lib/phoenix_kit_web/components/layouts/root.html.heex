@@ -37,7 +37,9 @@
                 tabindex="0"
                 class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52"
               >
-                <li><.link href={PhoenixKit.Utils.Routes.path("/users/settings")}>Settings</.link></li>
+                <li>
+                  <.link href={PhoenixKit.Utils.Routes.path("/users/settings")}>Settings</.link>
+                </li>
                 <li>
                   <.link
                     href={PhoenixKit.Utils.Routes.path("/users/log-out")}
@@ -50,13 +52,23 @@
               </ul>
             </div>
           <% else %>
-            <.link href={PhoenixKit.Utils.Routes.path("/users/register")} class="btn btn-primary btn-sm">Sign Up</.link>
-            <.link href={PhoenixKit.Utils.Routes.path("/users/log-in")} class="btn btn-ghost btn-sm">Login</.link>
+            <.link
+              href={PhoenixKit.Utils.Routes.path("/users/register")}
+              class="btn btn-primary btn-sm"
+            >
+              Sign Up
+            </.link>
+            <.link
+              href={PhoenixKit.Utils.Routes.path("/users/log-in")}
+              class="btn btn-ghost btn-sm"
+            >
+              Login
+            </.link>
           <% end %>
         </div>
       </div>
     </nav>
-    <!--
+    <%!--
     Legacy approach (for backwards compatibility):
 
     If you're still using :phoenix_kit_mount_current_user, this approach works:
@@ -86,9 +98,9 @@
       # your routes
     end
 
-    Additional scope-based examples -->
+    Additional scope-based examples --%>
 
-    <!-- Check if user is authenticated -->
+    <%!-- Check if user is authenticated --%>
     <%!-- <%= if assigns[:phoenix_kit_current_scope] && PhoenixKit.Users.Auth.Scope.authenticated?(@phoenix_kit_current_scope) do %>
       <p>Welcome back, {PhoenixKit.Users.Auth.Scope.user_email(@phoenix_kit_current_scope)}!</p>
     <% end %> --%>
