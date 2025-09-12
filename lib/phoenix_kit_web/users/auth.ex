@@ -22,6 +22,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   import Plug.Conn
   import Phoenix.Controller
+  import Phoenix.LiveView, only: [attach_hook: 4]
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
@@ -380,7 +381,23 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
+  defp set_routing_info(_params, url, socket) do
+    %{path: path} = URI.parse(url)
+
+    socket = Phoenix.Component.assign(socket, :url_path, path)
+
+    {:cont, socket}
+  end
+
   defp mount_phoenix_kit_current_user(socket, session) do
+    socket =
+      attach_hook(
+        socket,
+        :current_page,
+        :handle_params,
+        &set_routing_info(&1, &2, &3)
+      )
+
     Phoenix.Component.assign_new(socket, :phoenix_kit_current_user, fn ->
       case session["user_token"] do
         nil -> nil
