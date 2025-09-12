@@ -8,7 +8,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias Ecto.Adapters.SQL
 
   @initial_version 1
-  @current_version 6
+  @current_version 7
   @default_prefix "public"
 
   @doc false
