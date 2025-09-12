@@ -1,9 +1,9 @@
 defmodule PhoenixKitWeb.Users.LoginLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Settings
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def render(assigns) do
     ~H"""

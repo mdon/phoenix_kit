@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Users.UserFormLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Routes
 
   def mount(params, session, socket) do
     user_id = params["id"]

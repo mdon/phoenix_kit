@@ -1,9 +1,9 @@
 defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Settings
   alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, session, socket) do
     # Get current path for navigation
