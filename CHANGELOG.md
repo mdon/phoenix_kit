@@ -1,3 +1,38 @@
+## 1.2.5 - 2025-09-12
+
+### Added
+- **Email Tracking System Foundation** with email logging and event tracking schemas
+- **Email Rate Limiting Core** with basic rate limiting functionality and blocklist management
+- **Email Tracking Database Schema (V07)** with optimized tables and proper indexing
+- **Email Interceptor System** for pre-send filtering and validation capabilities
+- **Webhook Processing Foundation** for AWS SES event handling (bounces, complaints, opens, clicks)
+- **get_mailer/0 function** in PhoenixKit.Config for improved mailer integration
+- **RepoHelper Integration** for proper database access patterns in email tracking modules
+
+### Fixed
+- **All compilation warnings (40 → 0)** - 100% improvement in code cleanliness
+- **PhoenixKit.Repo undefined references** - proper integration with PhoenixKit.RepoHelper
+- **Unused variable warnings** throughout the codebase
+- **Pattern matching issues** in error handling code
+- **Missing @moduledoc** for EmailBlocklist schema
+
+### Improved
+- **Credo warnings (30 → 5)** - 83% improvement in code quality metrics
+- **Dialyzer warnings (40 → 4)** - 90% improvement in type checking
+- **Code formatting** with proper number formatting (86_400 vs 86400)
+- **Code efficiency** with optimized Enum operations (map_join vs map + join)
+- **Function complexity** by extracting nested logic into helper functions
+- **Error handling** by replacing explicit try blocks with case/with patterns
+- **Alias ordering** alphabetically in imports
+- **Trailing whitespace** removal across codebase
+
+### Technical Improvements
+- **Memory-efficient patterns** preparation for future batch processing
+- **Comprehensive input validation** for email tracking data
+- **SQL injection protection** with parameterized queries
+- **Professional code structure** following PhoenixKit conventions
+- **Enhanced error handling** with proper rescue clauses and pattern matching
+
 ## 1.2.4 - 2025-09-11
 
 ### Added
