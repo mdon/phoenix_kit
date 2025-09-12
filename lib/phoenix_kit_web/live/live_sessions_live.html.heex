@@ -6,23 +6,23 @@
   project_title={@project_title}
 >
   <div class="container mx-auto px-4 py-8">
-    <!-- Header with Live Indicator -->
+    <%!-- Header with Live Indicator --%>
     <div class="mb-8">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <h1 class="text-3xl font-bold text-base-content">
             Live Sessions
           </h1>
-          <!-- Live Indicator -->
+          <%!-- Live Indicator --%>
           <div class="flex items-center gap-2 px-3 py-1 bg-success/10 text-success rounded-full">
             <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
             <span class="text-xs font-medium">LIVE</span>
           </div>
         </div>
-        
-<!-- Controls -->
+
+        <%!-- Controls --%>
         <div class="flex items-center gap-2">
-          <!-- Auto-refresh toggle -->
+          <%!-- Auto-refresh toggle --%>
           <button
             phx-click="toggle_auto_refresh"
             class={[
@@ -52,8 +52,8 @@
               Auto-refresh OFF
             <% end %>
           </button>
-          
-<!-- Manual refresh -->
+
+          <%!-- Manual refresh --%>
           <button
             phx-click="refresh_now"
             class="btn btn-sm btn-outline"
@@ -76,10 +76,10 @@
         Last updated: {Calendar.strftime(@last_updated, "%H:%M:%S")}
       </p>
     </div>
-    
-<!-- Statistics Cards -->
+
+    <%!-- Statistics Cards --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <!-- Total Sessions -->
+      <%!-- Total Sessions --%>
       <div class="card bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl">
         <div class="card-body p-4">
           <div class="flex items-center justify-between">
@@ -97,8 +97,8 @@
           </div>
         </div>
       </div>
-      
-<!-- Anonymous Sessions -->
+
+      <%!-- Anonymous Sessions --%>
       <div class="card bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl">
         <div class="card-body p-4">
           <div class="flex items-center justify-between">
@@ -121,8 +121,8 @@
           </div>
         </div>
       </div>
-      
-<!-- Authenticated Sessions -->
+
+      <%!-- Authenticated Sessions --%>
       <div class="card bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xl">
         <div class="card-body p-4">
           <div class="flex items-center justify-between">
@@ -145,8 +145,8 @@
           </div>
         </div>
       </div>
-      
-<!-- Unique Visitors -->
+
+      <%!-- Unique Visitors --%>
       <div class="card bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl">
         <div class="card-body p-4">
           <div class="flex items-center justify-between">
@@ -176,12 +176,12 @@
         </div>
       </div>
     </div>
-    
-<!-- Filters and Search -->
+
+    <%!-- Filters and Search --%>
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body p-4">
         <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <!-- Search -->
+          <%!-- Search --%>
           <div class="flex-1 max-w-md">
             <form phx-submit="search" phx-change="search" class="form-control">
               <div class="input-group">
@@ -205,8 +205,8 @@
               </div>
             </form>
           </div>
-          
-<!-- Filter Tabs -->
+
+          <%!-- Filter Tabs --%>
           <div class="tabs tabs-boxed">
             <button
               phx-click="filter_by"
@@ -233,8 +233,8 @@
         </div>
       </div>
     </div>
-    
-<!-- Sessions Table -->
+
+    <%!-- Sessions Table --%>
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body p-0">
         <div class="overflow-x-auto">
@@ -432,8 +432,8 @@
         </div>
       </div>
     </div>
-    
-<!-- Pagination -->
+
+    <%!-- Pagination --%>
     <%= if @total_pages > 1 do %>
       <div class="flex justify-center mt-6">
         <div class="btn-group">

@@ -138,7 +138,7 @@ defmodule PhoenixKitWeb.CoreComponents do
         name={@name}
         class={[
           "select select-bordered",
-          (@label && @label != "") && "mt-2"
+          @label && @label != "" && "mt-2"
         ]}
         multiple={@multiple}
         {@rest}
@@ -160,7 +160,7 @@ defmodule PhoenixKitWeb.CoreComponents do
         name={@name}
         class={[
           "textarea textarea-bordered min-h-[6rem]",
-          (@label && @label != "") && "mt-2",
+          @label && @label != "" && "mt-2",
           @errors != [] && "textarea-error"
         ]}
         {@rest}
@@ -182,7 +182,7 @@ defmodule PhoenixKitWeb.CoreComponents do
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
           "input input-bordered",
-          (@label && @label != "") && "mt-2",
+          @label && @label != "" && "mt-2",
           @errors != [] && "input-error"
         ]}
         {@rest}

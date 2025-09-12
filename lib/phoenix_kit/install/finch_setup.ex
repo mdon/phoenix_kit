@@ -27,22 +27,24 @@ defmodule PhoenixKit.Install.FinchSetup do
   """
   def add_finch_configuration(igniter) do
     igniter
+    |> maybe_add_finch_dependency()
     |> maybe_add_finch_supervisor()
     |> maybe_add_gen_smtp_dependency()
     |> add_swoosh_api_client_config()
   end
 
-  # Check if HTTP-based email adapters are being used and add Finch to supervisor
+  # Always add Finch to supervisor - it's lightweight and allows future HTTP adapter use
   defp maybe_add_finch_supervisor(igniter) do
-    if needs_finch?(igniter) do
-      Application.add_new_child(
-        igniter,
-        {Finch, name: Swoosh.Finch},
-        opts: [after: [:telemetry_supervisor, :pubsub]]
-      )
-    else
-      igniter
-    end
+    Application.add_new_child(
+      igniter,
+      {Finch, name: Swoosh.Finch},
+      opts: [after: [:telemetry_supervisor, :pubsub]]
+    )
+  end
+
+  # Always add Finch dependency for HTTP email adapters
+  defp maybe_add_finch_dependency(igniter) do
+    Deps.add_dep(igniter, {:finch, "~> 0.18"})
   end
 
   # Check if AWS SES is being used and add gen_smtp dependency
@@ -56,37 +58,15 @@ defmodule PhoenixKit.Install.FinchSetup do
 
   # Configure Swoosh API client to use Finch
   defp add_swoosh_api_client_config(igniter) do
-    if needs_finch?(igniter) do
-      Config.configure_new(
-        igniter,
-        "config.exs",
-        :swoosh,
-        [:api_client],
-        Swoosh.ApiClient.Finch
-      )
-    else
-      # Disable API client for local adapters
-      Config.configure_new(
-        igniter,
-        "dev.exs",
-        :swoosh,
-        [:api_client],
-        false
-      )
-    end
-  end
-
-  # Check if any HTTP-based email adapters are configured
-  defp needs_finch?(igniter) do
-    http_adapters = [
-      "Swoosh.Adapters.AmazonSES",
-      "Swoosh.Adapters.Sendgrid",
-      "Swoosh.Adapters.Mailgun",
-      "Swoosh.Adapters.Postmark",
-      "Swoosh.Adapters.Mandrill"
-    ]
-
-    check_config_for_adapters(igniter, http_adapters)
+    # Always configure Finch as the API client in config.exs
+    # This allows users to switch to HTTP-based adapters later without conflicts
+    Config.configure_new(
+      igniter,
+      "config.exs",
+      :swoosh,
+      [:api_client],
+      Swoosh.ApiClient.Finch
+    )
   end
 
   # Check if AWS SES is being used (needs gen_smtp)

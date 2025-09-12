@@ -15,6 +15,8 @@ defmodule PhoenixKitWeb.Live.SessionsLive do
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.{Auth, Sessions}
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes

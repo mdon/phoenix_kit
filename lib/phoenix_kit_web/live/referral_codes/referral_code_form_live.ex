@@ -1,6 +1,8 @@
 defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   use PhoenixKitWeb, :live_view
 
+  require Logger
+
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
@@ -31,15 +33,16 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   def handle_event("validate_code", params, socket) do
-    # Extract referral_codes params (note: plural form), ignoring search params  
+    # Extract referral_codes params (note: plural form), ignoring search params
     code_params = Map.get(params, "referral_codes", %{})
-    
+
     # Add beneficiary if selected
-    updated_params = case socket.assigns.selected_beneficiary do
-      nil -> code_params
-      beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
-    end
-    
+    updated_params =
+      case socket.assigns.selected_beneficiary do
+        nil -> code_params
+        beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
+      end
+
     # Create changeset for validation
     changeset =
       case socket.assigns.mode do
@@ -58,13 +61,14 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   def handle_event("save_code", params, socket) do
     # Extract referral_codes params (note: plural form) and add selected beneficiary
     code_params = Map.get(params, "referral_codes", %{})
-    
+
     # Ensure beneficiary is included if selected
-    updated_code_params = case socket.assigns.selected_beneficiary do
-      nil -> code_params
-      beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
-    end
-    
+    updated_code_params =
+      case socket.assigns.selected_beneficiary do
+        nil -> code_params
+        beneficiary -> Map.put(code_params, "beneficiary", beneficiary.id)
+      end
+
     case socket.assigns.mode do
       :new -> create_code(socket, updated_code_params)
       :edit -> update_code(socket, updated_code_params)
@@ -79,10 +83,11 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
     updated_changes = Map.put(current_changes, :code, random_code)
 
     # Add beneficiary if selected
-    final_changes = case socket.assigns.selected_beneficiary do
-      nil -> updated_changes
-      beneficiary -> Map.put(updated_changes, :beneficiary, beneficiary.id)
-    end
+    final_changes =
+      case socket.assigns.selected_beneficiary do
+        nil -> updated_changes
+        beneficiary -> Map.put(updated_changes, :beneficiary, beneficiary.id)
+      end
 
     changeset =
       case socket.assigns.mode do
@@ -177,20 +182,24 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
 
   defp load_form_data(socket) do
     code = socket.assigns.code || %ReferralCodes{}
-    
+
     # For new codes, initialize with empty changeset
     # For edit mode, initialize changeset with current code data to pre-populate form
-    initial_params = case socket.assigns.mode do
-      :new -> %{}
-      :edit -> %{
-        "code" => code.code,
-        "description" => code.description,
-        "max_uses" => code.max_uses,
-        "expiration_date" => code.expiration_date,
-        "status" => code.status
-      }
-    end
-    
+    initial_params =
+      case socket.assigns.mode do
+        :new ->
+          %{}
+
+        :edit ->
+          %{
+            "code" => code.code,
+            "description" => code.description,
+            "max_uses" => code.max_uses,
+            "expiration_date" => code.expiration_date,
+            "status" => code.status
+          }
+      end
+
     changeset = ReferralCodes.changeset(code, initial_params)
 
     # Load selected beneficiary if editing existing code with beneficiary ID
@@ -211,14 +220,19 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
       case socket.assigns.phoenix_kit_current_user do
         user when not is_nil(user) ->
           {Map.put(code_params, "created_by", user.id), user.id}
+
         _ ->
           # Try alternative scope pattern
           case socket.assigns do
             %{phoenix_kit_current_scope: %{user_id: user_id}} when not is_nil(user_id) ->
               {Map.put(code_params, "created_by", user_id), user_id}
+
             _ ->
               # This should not happen in normal operation
-              IO.inspect(socket.assigns, label: "Socket assigns when current_user is nil")
+              Logger.warning(
+                "Socket assigns when current_user is nil: #{inspect(socket.assigns)}"
+              )
+
               {code_params, nil}
           end
       end

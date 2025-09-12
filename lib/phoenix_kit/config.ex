@@ -79,6 +79,25 @@ defmodule PhoenixKit.Config do
   end
 
   @doc """
+  Gets the configured mailer module.
+
+  Returns the configured mailer or falls back to PhoenixKit.Mailer.
+
+  ## Examples
+
+      iex> PhoenixKit.Config.get_mailer()
+      MyApp.Mailer
+
+  """
+  @spec get_mailer() :: module()
+  def get_mailer do
+    case get(:mailer) do
+      {:ok, mailer} when is_atom(mailer) -> mailer
+      _ -> PhoenixKit.Mailer
+    end
+  end
+
+  @doc """
   Gets configured host with an optional port or default value.
   """
   @spec get_base_url() :: String.t()
@@ -113,6 +132,41 @@ defmodule PhoenixKit.Config do
       nil -> ""
       "/" -> ""
       value -> value
+    end
+  end
+
+  @doc """
+  Gets the parent application name that is using PhoenixKit.
+
+  This function attempts to detect the main application that has included
+  PhoenixKit as a dependency.
+  """
+  @spec get_parent_app() :: atom() | nil
+  def get_parent_app do
+    # Get the application of the configured repo to determine parent app
+    case get(:repo) do
+      {:ok, repo_module} when is_atom(repo_module) ->
+        # Extract app name from repo module (e.g. MyApp.Repo -> :my_app)
+        repo_module
+        |> Module.split()
+        |> hd()
+        |> Macro.underscore()
+        |> String.to_atom()
+
+      _ ->
+        # Fallback: try to find the main application from the loaded applications
+        Application.loaded_applications()
+        |> Enum.find(fn {app, _, _} ->
+          app != :phoenix_kit and
+            app != :kernel and
+            app != :stdlib and
+            app != :elixir and
+            not String.starts_with?(to_string(app), "ex_")
+        end)
+        |> case do
+          {app, _, _} -> app
+          nil -> nil
+        end
     end
   end
 

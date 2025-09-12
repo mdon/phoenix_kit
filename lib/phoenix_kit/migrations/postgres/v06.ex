@@ -41,7 +41,7 @@ defmodule PhoenixKit.Migrations.Postgres.V06 do
     # Note: Rolling back this migration requires setting all NULL expiration_date
     # values to some default date before making the column NOT NULL again.
     # We'll set them to a far future date to maintain functionality.
-    
+
     # Update any NULL expiration dates to a default future date
     execute """
     UPDATE #{prefix_table_name("phoenix_kit_referral_codes", prefix)}

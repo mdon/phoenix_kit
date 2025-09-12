@@ -6,9 +6,9 @@
   project_title={@project_title}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <!-- Header Section -->
+    <%!-- Header Section --%>
     <header class="w-full relative mb-6">
-      <!-- Back Button (Left aligned) -->
+      <%!-- Back Button (Left aligned) --%>
       <.link
         navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
@@ -24,7 +24,7 @@
         Back to Dashboard
       </.link>
 
-<!-- Title Section -->
+      <%!-- Title Section --%>
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">Modules Management</h1>
         <p class="text-lg text-base-content">Manage system modules and extensions</p>
@@ -168,6 +168,128 @@
                     />
                   </svg>
                   Manage Codes
+                </.link>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Email Tracking Module --%>
+        <div class="border border-base-300 rounded-lg p-6 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center">
+              <div class="text-2xl mr-3">📧</div>
+              <div>
+                <h3 class="text-lg font-semibold text-base-content">Email Tracking System</h3>
+                <p class="text-sm text-base-content/70">
+                  Track and analyze all outgoing emails with delivery events
+                </p>
+              </div>
+            </div>
+
+            <div class="form-control">
+              <label class="label cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary"
+                  checked={@email_tracking_enabled}
+                  phx-click="toggle_email_tracking"
+                />
+              </label>
+            </div>
+          </div>
+
+          <%!-- Module Settings (shown when enabled) --%>
+          <%= if @email_tracking_enabled do %>
+            <div class="bg-base-200 rounded-lg p-4 mt-4">
+              <h4 class="font-medium text-base-content mb-3">Module Settings</h4>
+
+              <%!-- Save Email Body Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Save Full Email Body
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Store complete email content for debugging (uses more storage)
+                  </p>
+                </div>
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-secondary toggle-sm"
+                      checked={@email_tracking_save_body}
+                      phx-click="toggle_email_tracking_save_body"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <%!-- SES Events Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Track AWS SES Events
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    Receive delivery, bounce, and complaint events from AWS SES
+                  </p>
+                </div>
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-secondary toggle-sm"
+                      checked={@email_tracking_ses_events}
+                      phx-click="toggle_email_tracking_ses_events"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <%!-- Retention Days Setting --%>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <span class="text-sm font-medium text-base-content">
+                    Retention Days
+                  </span>
+                  <p class="text-xs text-base-content/70">
+                    How long to keep email logs before automatic cleanup
+                  </p>
+                </div>
+                <div class="form-control">
+                  <form phx-change="update_email_tracking_retention">
+                    <input
+                      type="number"
+                      name="retention_days"
+                      class="input input-bordered input-sm w-20 text-center"
+                      value={@email_tracking_retention_days}
+                      min="7"
+                      max="365"
+                      phx-debounce="1000"
+                    />
+                  </form>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center mt-4">
+                <div class="text-xs text-base-content/60">
+                  Status: <span class="font-medium text-success">Active</span>
+                </div>
+                <.link
+                  navigate="/phoenix_kit/admin/email-logs"
+                  class="btn btn-outline btn-primary btn-sm"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  View Email Logs
                 </.link>
               </div>
             </div>

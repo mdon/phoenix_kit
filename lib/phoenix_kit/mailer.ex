@@ -24,6 +24,8 @@ defmodule PhoenixKit.Mailer do
 
   import Swoosh.Email
 
+  alias PhoenixKit.EmailTracking.EmailInterceptor
+
   alias PhoenixKit.Users.Auth.User
 
   @doc """
@@ -49,17 +51,29 @@ defmodule PhoenixKit.Mailer do
 
   If a parent application mailer is configured, delegates to it.
   Otherwise uses the built-in PhoenixKit mailer.
+
+  This function also integrates with the email tracking system to log
+  outgoing emails when tracking is enabled.
   """
-  def deliver_email(email) do
+  def deliver_email(email, opts \\ []) do
+    # Intercept email for tracking before sending
+    tracked_email = EmailInterceptor.intercept_before_send(email, opts)
+
     mailer = get_mailer()
 
-    if mailer == __MODULE__ do
-      # Use built-in mailer
-      __MODULE__.deliver(email)
-    else
-      # Delegate to parent application mailer
-      mailer.deliver(email)
-    end
+    result =
+      if mailer == __MODULE__ do
+        # Use built-in mailer
+        __MODULE__.deliver(tracked_email)
+      else
+        # Delegate to parent application mailer
+        mailer.deliver(tracked_email)
+      end
+
+    # Handle post-send tracking updates
+    handle_delivery_result(tracked_email, result, opts)
+
+    result
   end
 
   @doc """
@@ -79,7 +93,12 @@ defmodule PhoenixKit.Mailer do
       |> html_body(magic_link_html_body(user, magic_link_url))
       |> text_body(magic_link_text_body(user, magic_link_url))
 
-    deliver_email(email)
+    deliver_email(email,
+      user_id: user.id,
+      template_name: "magic_link",
+      campaign_id: "authentication",
+      provider: detect_provider()
+    )
   end
 
   # HTML version of the magic link email
@@ -150,6 +169,98 @@ defmodule PhoenixKit.Mailer do
 
     For your security, never share this link with anyone.
     """
+  end
+
+  # Handle delivery result for email tracking updates
+  defp handle_delivery_result(email, result, opts) do
+    # Only process if email tracking is enabled
+    if PhoenixKit.EmailTracking.enabled?() do
+      case extract_log_id_from_email(email) do
+        nil ->
+          # No log ID found, skip tracking
+          :ok
+
+        log_id ->
+          case PhoenixKit.EmailTracking.get_log!(log_id) do
+            nil -> :ok
+            log -> update_log_after_delivery(log, result, opts)
+          end
+      end
+    end
+  rescue
+    # Don't fail email delivery if tracking update fails
+    error ->
+      require Logger
+      Logger.error("Failed to update email tracking after delivery: #{inspect(error)}")
+      :ok
+  end
+
+  # Extract log ID from email headers
+  defp extract_log_id_from_email(email) do
+    case get_in(email.headers, ["X-PhoenixKit-Log-Id"]) do
+      nil ->
+        nil
+
+      log_id_str ->
+        case Integer.parse(log_id_str) do
+          {log_id, _} -> log_id
+          _ -> nil
+        end
+    end
+  end
+
+  # Update email log based on delivery result
+  defp update_log_after_delivery(log, {:ok, response}, _opts) do
+    EmailInterceptor.update_after_send(log, response)
+  end
+
+  defp update_log_after_delivery(log, {:error, error}, _opts) do
+    EmailInterceptor.update_after_failure(log, error)
+  end
+
+  defp update_log_after_delivery(_log, _result, _opts) do
+    # Unknown result format, skip update
+    :ok
+  end
+
+  # Detect current email provider from configuration
+  defp detect_provider do
+    mailer = get_mailer()
+
+    if mailer == __MODULE__ do
+      # Using built-in PhoenixKit mailer, check its configuration
+      config = Application.get_env(:phoenix_kit, __MODULE__, [])
+      adapter = Keyword.get(config, :adapter)
+
+      case adapter do
+        Swoosh.Adapters.AmazonSES -> "aws_ses"
+        Swoosh.Adapters.SMTP -> "smtp"
+        Swoosh.Adapters.Sendgrid -> "sendgrid"
+        Swoosh.Adapters.Mailgun -> "mailgun"
+        Swoosh.Adapters.Local -> "local"
+        _ -> "phoenix_kit_builtin"
+      end
+    else
+      # Using parent application mailer, try to detect its adapter
+      case mailer do
+        module when is_atom(module) ->
+          app = PhoenixKit.Config.get_parent_app()
+          config = Application.get_env(app, module, [])
+          adapter = Keyword.get(config, :adapter)
+
+          case adapter do
+            Swoosh.Adapters.AmazonSES -> "aws_ses"
+            Swoosh.Adapters.SMTP -> "smtp"
+            Swoosh.Adapters.Sendgrid -> "sendgrid"
+            Swoosh.Adapters.Mailgun -> "mailgun"
+            Swoosh.Adapters.Local -> "local"
+            _ -> "parent_app_mailer"
+          end
+
+        _ ->
+          "unknown"
+      end
+    end
   end
 
   # Get the from email address from configuration or use a default

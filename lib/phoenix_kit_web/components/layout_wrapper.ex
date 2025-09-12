@@ -142,7 +142,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
             ~H"""
             <!-- PhoenixKit Admin Layout following EZNews pattern -->
-            <!-- Mobile Header (показывается только на мобильных в админке) -->
+            <!-- Mobile Header (shown only on mobile in admin panel) -->
             <header class="bg-base-100 shadow-sm border-b border-base-300 lg:hidden">
               <div class="flex items-center justify-between h-16 px-4">
                 <!-- Mobile Menu Button -->
@@ -191,11 +191,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 {render_slot(@original_inner_block)}
               </div>
               
-            <!-- Desktop/Mobile Sidebar (БЕЗ overlay на десктопе) -->
+            <!-- Desktop/Mobile Sidebar (without overlay on desktop) -->
               <div class="drawer-side">
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
                 <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col">
-                  <!-- Sidebar header (только на десктопе) -->
+                  <!-- Sidebar header (desktop only) -->
                   <div class="px-4 py-6 border-b border-base-300 hidden lg:block">
                     <div class="flex items-center gap-3">
                       <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -219,7 +219,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </div>
                   </div>
                   
-            <!-- Navigation (заполняет доступное пространство) -->
+            <!-- Navigation (fills available space) -->
                   <nav class="px-4 py-6 space-y-2 flex-1">
                     <!-- System Section -->
                     <div class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">
@@ -245,6 +245,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         href="/phoenix_kit/admin/referral-codes"
                         icon="referral_codes"
                         label="Referral System"
+                        current_path={@current_path || ""}
+                        nested={true}
+                      />
+                    <% end %>
+
+                    <%= if Code.ensure_loaded?(PhoenixKit.EmailTracking) do %>
+                      <.admin_nav_item
+                        href={Routes.path("/admin/email-logs")}
+                        icon="email"
+                        label="Email Tracking"
                         current_path={@current_path || ""}
                         nested={true}
                       />
@@ -295,7 +305,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   
             <!-- Bottom Section: Theme & User Info -->
                   <div class="p-4 border-t border-base-300 space-y-3">
-                    <!-- Theme Controller (только на десктопе) -->
+                    <!-- Theme Controller (desktop only) -->
                     <div class="hidden lg:block">
                       <.admin_theme_controller mobile={false} />
                     </div>
