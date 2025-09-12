@@ -110,8 +110,8 @@ defmodule PhoenixKit.Config do
   @spec get_url_prefix() :: String.t()
   def get_url_prefix do
     case get(:url_prefix, "/phoenix_kit") do
-      nil -> "/"
-      "" -> "/"
+      nil -> ""
+      "/" -> ""
       value -> value
     end
   end
