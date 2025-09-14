@@ -10,7 +10,8 @@ PhoenixKit is under heavy development and we're looking for early adopters to te
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
 ## 📦 Current PhoenixKit Features / Modules:
-- [x] Simple installation with Igniter
+- [x] Simple installation using Igniter
+- [x] Tailwind and DaisyUI integration
 - [x] App layout integration
 - [x] App database integration (Postgres only for now)
 - [ ] User Module
@@ -24,18 +25,20 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [ ] Modules Manager (in progress)
   - [x] Session Manager Module
   - [ ] Settings (in progress)
+    - [x] Global app title
     - [x] Global app timezone (using timex)
     - [x] Global time format (using timex)
   - [x] User management
   - [x] Role management
+  - [x] Referral Program
 
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
   - Magic link
   - OAuth (google, facebook, twitter, github, etc...)
   - 2FA
-  - User's locale / timezone
-  - Referral Program
+  - User's locale
+  - User's timezone (mismatch detection)
   - Fail2ban
 - Backend admin
   - Modules manager
@@ -47,12 +50,13 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Notifications Module
     - Integration with notification providers (Twilio, etc...)
   - Content publishing Module
-    - Media / Gallery (with s3 backend)
+    - Media / Gallery
+    - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
     - CDN
     - Static pages
     - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
     - Blog
-    - Video
+    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
     - Comments
     - Search
     - Blocks
@@ -95,6 +99,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Jobs Module (Oban)
   - Testimonials Module
   - Team Module
+  - FAQ
   - Forms Module
   - Cluster Module
   

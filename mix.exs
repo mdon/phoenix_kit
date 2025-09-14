@@ -55,10 +55,10 @@ defmodule PhoenixKit.MixProject do
       {:postgrex, "~> 0.21.1"},
 
       # Phoenix web layer
-      {:phoenix, "~> 1.8.0"},
+      {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.6"},
       {:phoenix_html, "~> 4.0"},
-      {:phoenix_live_view, "~> 1.1.8"},
+      {:phoenix_live_view, "~> 1.1.12"},
 
       # Web functionality
       {:gettext, "~> 0.24"},
@@ -66,15 +66,15 @@ defmodule PhoenixKit.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:plug_cowboy, "~> 2.5"},
       {:esbuild, "~> 0.8", only: :dev},
-      {:tailwind, "~> 0.2", only: :dev},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:tailwind, "~> 0.4.0", only: :dev},
+      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
 
       # Authentication
       {:bcrypt_elixir, "~> 3.0"},
       {:swoosh, "~> 1.19.5"},
 
       # Development and testing
-      {:ex_doc, "~> 0.38.3", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.38.4", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.6", only: [:dev, :test], runtime: false},
