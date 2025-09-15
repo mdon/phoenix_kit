@@ -1,3 +1,19 @@
+## 1.2.6 - 2025-09-15
+
+### Added
+- **Admin Password Change Feature** - Direct password change capability for administrators in user edit form
+- **Username Search Integration** - Added username search to referral code beneficiary selection and main user dashboard
+- **Username Implementation** - Added optional username field with automatic generation from email for new user registrations
+
+### Fixed
+- **Form Validation Display Issues** - Replaced static validator hints with proper Phoenix LiveView components using phx-no-feedback:hidden
+- **Dark Theme Compatibility** - Improved password management sections with theme-adaptive styling
+
+### Improved
+- **Date Formatting** - Updated referral dashboard to use user settings-aware date formatting
+- **Dynamic Routing** - Replaced hardcoded /phoenix_kit/ paths with PhoenixKit.Utils.Routes.path() throughout referral system
+- **Admin UI Experience** - Enhanced password management with both direct change and email reset options
+
 ## 1.2.5 - 2025-09-12
 
 ### Added

@@ -59,6 +59,19 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                   />
                 </div>
 
+                <%!-- Username Field (optional) --%>
+                <div phx-feedback-for="user[username]">
+                  <.label for="user_username">Username</.label>
+                  <.input
+                    field={@form[:username]}
+                    type="text"
+                    placeholder="Choose a unique username (optional)"
+                  />
+                  <div class="text-xs text-base-content/60 mt-1">
+                    If not provided, we'll generate one from your email
+                  </div>
+                </div>
+
                 <%!-- Referral Code Field (shown when referral codes are enabled) --%>
                 <%= if @referral_codes_enabled do %>
                   <div phx-feedback-for="referral_code">

@@ -322,6 +322,32 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
+  @doc """
+  Updates the user password as an admin (bypasses current password validation).
+
+  ## Examples
+
+      iex> admin_update_user_password(user, %{password: "new_password", password_confirmation: "new_password"})
+      {:ok, %User{}}
+
+      iex> admin_update_user_password(user, %{password: "short"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def admin_update_user_password(user, attrs) do
+    changeset = User.password_changeset(user, attrs)
+
+    multi = Ecto.Multi.new()
+    multi = Ecto.Multi.update(multi, :user, changeset)
+
+    Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, :user, changeset, _} -> {:error, changeset}
+    end
+  end
+
   ## Session
 
   @doc """
@@ -777,6 +803,7 @@ defmodule PhoenixKit.Users.Auth do
     from [u] in query,
       where:
         ilike(u.email, ^search_pattern) or
+          ilike(u.username, ^search_pattern) or
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
   end
@@ -806,11 +833,12 @@ defmodule PhoenixKit.Users.Auth do
         from(u in User,
           where:
             ilike(u.email, ^search_pattern) or
+              ilike(u.username, ^search_pattern) or
               ilike(u.first_name, ^search_pattern) or
               ilike(u.last_name, ^search_pattern),
           order_by: [asc: u.email],
           limit: 10,
-          select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+          select: %{id: u.id, email: u.email, username: u.username, first_name: u.first_name, last_name: u.last_name}
         )
         |> Repo.all()
 
@@ -836,7 +864,7 @@ defmodule PhoenixKit.Users.Auth do
   def get_user_for_selection(user_id) when is_integer(user_id) do
     from(u in User,
       where: u.id == ^user_id,
-      select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+      select: %{id: u.id, email: u.email, username: u.username, first_name: u.first_name, last_name: u.last_name}
     )
     |> Repo.one()
   end
