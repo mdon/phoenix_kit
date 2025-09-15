@@ -71,7 +71,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodesLive do
   end
 
   defp get_current_path(_socket, _session) do
-    "/phoenix_kit/admin/referral-codes"
+    PhoenixKit.Utils.Routes.path("/admin/referral-codes")
   end
 
   defp format_expiration_date(nil), do: "No expiration"
