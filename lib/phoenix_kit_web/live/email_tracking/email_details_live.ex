@@ -373,7 +373,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                       <% end %>
 
                       <%!-- Headers (collapsible) --%>
-                      <%= if assigns[:show_headers] and map_size(@email_log.headers) > 0 do %>
+                      <%= if assigns[:show_headers] and @email_log.headers && map_size(@email_log.headers) > 0 do %>
                         <div>
                           <label class="text-sm font-medium text-base-content/70 block mb-2">
                             Headers
@@ -395,6 +395,18 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                                 <% end %>
                               </tbody>
                             </table>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%!-- Show message when headers are empty but toggle is on --%>
+                      <%= if assigns[:show_headers] and (is_nil(@email_log.headers) or map_size(@email_log.headers) == 0) do %>
+                        <div>
+                          <label class="text-sm font-medium text-base-content/70 block mb-2">
+                            Headers
+                          </label>
+                          <div class="bg-base-200 p-3 rounded text-sm text-base-content/60 italic">
+                            No headers available for this email
                           </div>
                         </div>
                       <% end %>

@@ -343,13 +343,31 @@ defmodule PhoenixKitWeb.Controllers.EmailWebhookController do
         {:ok, :skipped} ->
           {:ok, :event_skipped}
 
-        {:ok, _event} ->
+        {:ok, event} ->
+          Logger.info("Email webhook event processed successfully", %{
+            event_type: event_data["eventType"],
+            message_id: get_in(event_data, ["mail", "messageId"]),
+            event_id: event.id,
+            recipient: get_in(event_data, ["mail", "commonHeaders", "to"]) |> List.first()
+          })
+
           {:ok, :event_processed}
 
         {:error, :message_id_not_found} ->
-          Logger.info("Email log not found for webhook event", %{
+          Logger.warning("Email log not found for webhook event", %{
             event_type: event_data["eventType"],
-            message_id: get_in(event_data, ["mail", "messageId"])
+            message_id: get_in(event_data, ["mail", "messageId"]),
+            available_mail_fields: Map.keys(event_data["mail"] || %{}),
+            timestamp: event_data["timestamp"]
+          })
+
+          {:ok, :log_not_found}
+
+        {:error, :email_log_not_found} ->
+          Logger.warning("Email log not found in database for webhook event", %{
+            event_type: event_data["eventType"],
+            message_id: get_in(event_data, ["mail", "messageId"]),
+            suggestion: "Check if email was logged with a different message_id format"
           })
 
           {:ok, :log_not_found}
@@ -465,8 +483,9 @@ defmodule PhoenixKitWeb.Controllers.EmailWebhookController do
 
     case {signature, signing_cert_url} do
       {sig, cert_url} when is_binary(sig) and is_binary(cert_url) ->
-        # TODO: Implement full signature verification
-        # For now, just check that required fields are present
+        # NOTE: Full SNS signature verification should be implemented for production security.
+        # Currently only verifying that signature and certificate URL are present.
+        # See: https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html
         :ok
 
       _ ->

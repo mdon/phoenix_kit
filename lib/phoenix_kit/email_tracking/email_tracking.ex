@@ -532,8 +532,14 @@ defmodule PhoenixKit.EmailTracking do
       basic_stats = EmailLog.get_stats_for_period(start_date, end_date)
 
       Map.merge(basic_stats, %{
+        # Add aliases for email_stats.ex compatibility
+        complaints: basic_stats.complained,
+        total_opened: basic_stats.opened,
+        total_clicked: basic_stats.clicked,
+        # Calculate percentages
         delivery_rate: safe_percentage(basic_stats.delivered, basic_stats.total_sent),
         bounce_rate: safe_percentage(basic_stats.bounced, basic_stats.total_sent),
+        complaint_rate: safe_percentage(basic_stats.complained, basic_stats.total_sent),
         open_rate: safe_percentage(basic_stats.opened, basic_stats.delivered),
         click_rate: safe_percentage(basic_stats.clicked, basic_stats.opened),
         failure_rate: safe_percentage(basic_stats.failed, basic_stats.total_sent)
@@ -805,6 +811,19 @@ defmodule PhoenixKit.EmailTracking do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -90, :day)
     {start_date, end_date}
+  end
+
+  defp get_period_dates(:last_24_hours) do
+    end_date = DateTime.utc_now()
+    start_date = DateTime.add(end_date, -1, :day)
+    {start_date, end_date}
+  end
+
+  defp get_period_dates({:date_range, start_date, end_date})
+       when is_struct(start_date, Date) and is_struct(end_date, Date) do
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+    end_datetime = DateTime.new!(end_date, ~T[23:59:59])
+    {start_datetime, end_datetime}
   end
 
   # Calculate safe percentage

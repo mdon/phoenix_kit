@@ -82,7 +82,9 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
 
   use Ecto.Schema
   import Ecto.Changeset
-  import Ecto.Query, warn: false
+  import Ecto.Query
+
+  @derive {Jason.Encoder, except: [:__meta__, :user, :events]}
 
   alias PhoenixKit.EmailTracking.EmailEvent
 
@@ -470,6 +472,8 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
         ),
       bounced:
         repo().aggregate(from(l in base_period_query, where: l.status == "bounced"), :count),
+      complained:
+        repo().aggregate(from(l in base_period_query, where: l.status == "complained"), :count),
       opened:
         repo().aggregate(
           from(l in base_period_query, where: l.status in ["opened", "clicked"]),
@@ -834,6 +838,19 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
     end_date = DateTime.utc_now()
     start_date = DateTime.add(end_date, -90, :day)
     {start_date, end_date}
+  end
+
+  defp get_period_dates(:last_24_hours) do
+    end_date = DateTime.utc_now()
+    start_date = DateTime.add(end_date, -1, :day)
+    {start_date, end_date}
+  end
+
+  defp get_period_dates({:date_range, start_date, end_date})
+       when is_struct(start_date, Date) and is_struct(end_date, Date) do
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+    end_datetime = DateTime.new!(end_date, ~T[23:59:59])
+    {start_datetime, end_datetime}
   end
 
   # Get daily engagement statistics for trend analysis
