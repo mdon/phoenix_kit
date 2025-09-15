@@ -9,7 +9,12 @@ defmodule PhoenixKit.Utils.Routes do
   def path(url_path) do
     if String.starts_with?(url_path, "/") do
       url_prefix = PhoenixKit.Config.get_url_prefix()
-      "#{url_prefix}#{url_path}"
+
+      if url_prefix === "/" do
+        url_path
+      else
+        "#{url_prefix}#{url_path}"
+      end
     else
       raise """
       Url path must start with "/".
