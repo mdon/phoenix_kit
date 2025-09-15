@@ -322,6 +322,32 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
+  @doc """
+  Updates the user password as an admin (bypasses current password validation).
+
+  ## Examples
+
+      iex> admin_update_user_password(user, %{password: "new_password", password_confirmation: "new_password"})
+      {:ok, %User{}}
+
+      iex> admin_update_user_password(user, %{password: "short"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def admin_update_user_password(user, attrs) do
+    changeset = User.password_changeset(user, attrs)
+
+    multi = Ecto.Multi.new()
+    multi = Ecto.Multi.update(multi, :user, changeset)
+
+    Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, :user, changeset, _} -> {:error, changeset}
+    end
+  end
+
   ## Session
 
   @doc """
