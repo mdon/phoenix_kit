@@ -98,14 +98,14 @@
         <%!-- Search --%>
         <div class="flex-1">
           <label class="label">
-            <span class="label-text">Search by email or name</span>
+            <span class="label-text">Search by email, username, or name</span>
           </label>
           <form phx-submit="search" phx-change="search">
             <input
               type="text"
               name="search"
               value={@search_query}
-              placeholder="Enter email or name to search..."
+              placeholder="Enter email, username, or name to search..."
               class="input input-bordered w-full"
             />
           </form>

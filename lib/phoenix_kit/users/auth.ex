@@ -777,6 +777,7 @@ defmodule PhoenixKit.Users.Auth do
     from [u] in query,
       where:
         ilike(u.email, ^search_pattern) or
+          ilike(u.username, ^search_pattern) or
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
   end
