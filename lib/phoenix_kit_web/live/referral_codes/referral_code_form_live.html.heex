@@ -112,6 +112,11 @@
               <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg border">
                 <div class="flex-1">
                   <div class="font-medium">{@selected_beneficiary.email}</div>
+                  <%= if @selected_beneficiary.username do %>
+                    <div class="text-sm text-base-content/60">
+                      @{@selected_beneficiary.username}
+                    </div>
+                  <% end %>
                   <%= if @selected_beneficiary.first_name || @selected_beneficiary.last_name do %>
                     <div class="text-sm text-base-content/70">
                       {@selected_beneficiary.first_name} {@selected_beneficiary.last_name}
@@ -146,7 +151,7 @@
                 <input
                   type="text"
                   class="input input-bordered w-full"
-                  placeholder="Search users by email or name..."
+                  placeholder="Search users by email, username, or name..."
                   phx-change="search_beneficiary"
                   phx-debounce="300"
                   name="search"
@@ -164,6 +169,11 @@
                         phx-value-user_id={user.id}
                       >
                         <div class="font-medium">{user.email}</div>
+                        <%= if user.username do %>
+                          <div class="text-sm text-base-content/60">
+                            @{user.username}
+                          </div>
+                        <% end %>
                         <%= if user.first_name || user.last_name do %>
                           <div class="text-sm text-base-content/70">
                             {user.first_name} {user.last_name}

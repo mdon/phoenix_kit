@@ -806,11 +806,12 @@ defmodule PhoenixKit.Users.Auth do
         from(u in User,
           where:
             ilike(u.email, ^search_pattern) or
+              ilike(u.username, ^search_pattern) or
               ilike(u.first_name, ^search_pattern) or
               ilike(u.last_name, ^search_pattern),
           order_by: [asc: u.email],
           limit: 10,
-          select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+          select: %{id: u.id, email: u.email, username: u.username, first_name: u.first_name, last_name: u.last_name}
         )
         |> Repo.all()
 
@@ -836,7 +837,7 @@ defmodule PhoenixKit.Users.Auth do
   def get_user_for_selection(user_id) when is_integer(user_id) do
     from(u in User,
       where: u.id == ^user_id,
-      select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+      select: %{id: u.id, email: u.email, username: u.username, first_name: u.first_name, last_name: u.last_name}
     )
     |> Repo.one()
   end
