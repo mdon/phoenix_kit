@@ -28,6 +28,7 @@ defmodule PhoenixKit.Users.Auth.User do
   @type t :: %__MODULE__{
           id: integer() | nil,
           email: String.t(),
+          username: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t(),
           current_password: String.t() | nil,
@@ -41,6 +42,7 @@ defmodule PhoenixKit.Users.Auth.User do
 
   schema "phoenix_kit_users" do
     field :email, :string
+    field :username, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :current_password, :string, virtual: true, redact: true
@@ -80,10 +82,12 @@ defmodule PhoenixKit.Users.Auth.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :password, :first_name, :last_name])
+    |> cast(attrs, [:email, :username, :password, :first_name, :last_name])
     |> validate_email(opts)
+    |> validate_username(opts)
     |> validate_password(opts)
     |> validate_names()
+    |> maybe_generate_username_from_email()
   end
 
   defp validate_email(changeset, opts) do
@@ -216,9 +220,10 @@ defmodule PhoenixKit.Users.Auth.User do
   """
   def profile_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:first_name, :last_name, :email])
+    |> cast(attrs, [:first_name, :last_name, :email, :username])
     |> validate_names()
     |> validate_email(opts)
+    |> validate_username(opts)
   end
 
   @doc """
@@ -310,6 +315,89 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_length(:first_name, max: 100)
     |> validate_length(:last_name, max: 100)
   end
+
+  defp validate_username(changeset, opts) do
+    changeset
+    |> validate_length(:username, min: 3, max: 30)
+    |> validate_format(:username, ~r/^[a-zA-Z][a-zA-Z0-9_]*$/, 
+         message: "must start with a letter and contain only letters, numbers, and underscores")
+    |> maybe_validate_unique_username(opts)
+  end
+
+  defp maybe_validate_unique_username(changeset, opts) do
+    if Keyword.get(opts, :validate_email, true) do
+      # Only validate uniqueness if username is provided
+      case get_change(changeset, :username) do
+        nil -> changeset
+        _username -> 
+          changeset
+          |> unsafe_validate_unique(:username, PhoenixKit.RepoHelper.repo())
+          |> unique_constraint(:username)
+      end
+    else
+      changeset
+    end
+  end
+
+  defp maybe_generate_username_from_email(changeset) do
+    username = get_change(changeset, :username)
+    email = get_change(changeset, :email) || get_field(changeset, :email)
+
+    # Only generate username if not provided and email is present
+    case {username, email} do
+      {nil, email} when is_binary(email) ->
+        generated_username = generate_username_from_email(email)
+        put_change(changeset, :username, generated_username)
+      
+      _ ->
+        changeset
+    end
+  end
+
+  @doc """
+  Generate a username from an email address.
+  
+  Takes the part before @ symbol, converts to lowercase, replaces dots with underscores,
+  and ensures it meets validation requirements.
+  
+  ## Examples
+  
+      iex> generate_username_from_email("john.doe@example.com")
+      "john_doe"
+      
+      iex> generate_username_from_email("user@example.com")
+      "user"
+  """
+  def generate_username_from_email(email) when is_binary(email) do
+    email
+    |> String.split("@")
+    |> List.first()
+    |> String.downcase()
+    |> String.replace(".", "_")
+    |> clean_username()
+  end
+
+  def generate_username_from_email(_), do: nil
+
+  # Clean username to ensure it meets validation rules
+  defp clean_username(username) do
+    # Remove any invalid characters and ensure it starts with a letter
+    cleaned = 
+      username
+      |> String.replace(~r/[^a-zA-Z0-9_]/, "")
+      |> String.slice(0, 30) # Max length
+
+    # Ensure it starts with a letter
+    case String.match?(cleaned, ~r/^[a-zA-Z]/) do
+      true -> cleaned
+      false -> "user_" <> String.slice(cleaned, 0, 25) # Leave room for "user_" prefix
+    end
+    |> ensure_minimum_username_length()
+  end
+
+  # Ensure username meets minimum length requirement
+  defp ensure_minimum_username_length(username) when byte_size(username) >= 3, do: username
+  defp ensure_minimum_username_length(username), do: username <> "_1"
 
   # Prevent deactivating Owner users
   defp validate_owner_cannot_be_deactivated(changeset) do

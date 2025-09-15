@@ -60,6 +60,19 @@
               />
             </div>
 
+            <%!-- Username --%>
+            <div class="md:col-span-2">
+              <.input
+                field={form[:username]}
+                type="text"
+                label="Username"
+                placeholder="unique_username"
+              />
+              <div class="text-xs text-base-content/60 mt-1">
+                Unique username (3-30 characters, letters, numbers, and underscores only)
+              </div>
+            </div>
+
             <%!-- Password (only for new users) --%>
             <%= if @mode == :new do %>
               <div class="md:col-span-2">
