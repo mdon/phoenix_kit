@@ -26,6 +26,9 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
   """
   use Ecto.Migration
 
+  alias Ecto.Adapters.SQL
+  alias PhoenixKit.RepoHelper
+
   @doc """
   Run the V08 migration to add username support.
   """
@@ -61,7 +64,7 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
     ORDER BY id ASC
     """
 
-    {:ok, result} = Ecto.Adapters.SQL.query(PhoenixKit.RepoHelper.repo(), users_query, [])
+    {:ok, result} = SQL.query(RepoHelper.repo(), users_query, [])
     users = Enum.map(result.rows, fn [id, email] -> {id, email} end)
 
     # Generate and assign usernames with a simple counter for duplicates
@@ -77,7 +80,7 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
         WHERE id = $2
         """
 
-        Ecto.Adapters.SQL.query!(PhoenixKit.RepoHelper.repo(), update_query, [username, user_id])
+        SQL.query!(RepoHelper.repo(), update_query, [username, user_id])
 
         # Return updated used_usernames set for next iteration
         {MapSet.put(used_usernames, username), 0}

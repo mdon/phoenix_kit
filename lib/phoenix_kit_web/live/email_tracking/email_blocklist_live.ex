@@ -842,7 +842,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
 
   defp load_blocklist_statistics do
     # This would load real statistics from RateLimiter
-    RateLimiter.get_rate_limit_status().blocklist || %{active_blocks: 0, expired_today: 0}
+    status = RateLimiter.get_rate_limit_status()
+    Map.get(status, :blocklist, %{active_blocks: 0, expired_today: 0})
   end
 
   defp execute_bulk_remove(socket) do
@@ -850,10 +851,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
 
     success_count =
       Enum.reduce(selected_emails, 0, fn email, acc ->
-        case RateLimiter.remove_from_blocklist(email) do
-          :ok -> acc + 1
-          _ -> acc
-        end
+        RateLimiter.remove_from_blocklist(email)
+        acc + 1
       end)
 
     message = "Removed #{success_count} of #{length(selected_emails)} emails from blocklist"

@@ -228,38 +228,38 @@ defmodule PhoenixKit.Mailer do
     mailer = get_mailer()
 
     if mailer == __MODULE__ do
-      # Using built-in PhoenixKit mailer, check its configuration
-      config = Application.get_env(:phoenix_kit, __MODULE__, [])
-      adapter = Keyword.get(config, :adapter)
-
-      case adapter do
-        Swoosh.Adapters.AmazonSES -> "aws_ses"
-        Swoosh.Adapters.SMTP -> "smtp"
-        Swoosh.Adapters.Sendgrid -> "sendgrid"
-        Swoosh.Adapters.Mailgun -> "mailgun"
-        Swoosh.Adapters.Local -> "local"
-        _ -> "phoenix_kit_builtin"
-      end
+      detect_builtin_provider()
     else
-      # Using parent application mailer, try to detect its adapter
-      case mailer do
-        module when is_atom(module) ->
-          app = PhoenixKit.Config.get_parent_app()
-          config = Application.get_env(app, module, [])
-          adapter = Keyword.get(config, :adapter)
+      detect_parent_app_provider(mailer)
+    end
+  end
 
-          case adapter do
-            Swoosh.Adapters.AmazonSES -> "aws_ses"
-            Swoosh.Adapters.SMTP -> "smtp"
-            Swoosh.Adapters.Sendgrid -> "sendgrid"
-            Swoosh.Adapters.Mailgun -> "mailgun"
-            Swoosh.Adapters.Local -> "local"
-            _ -> "parent_app_mailer"
-          end
+  # Detect provider for built-in PhoenixKit mailer
+  defp detect_builtin_provider do
+    config = Application.get_env(:phoenix_kit, __MODULE__, [])
+    adapter = Keyword.get(config, :adapter)
+    adapter_to_provider_name(adapter, "phoenix_kit_builtin")
+  end
 
-        _ ->
-          "unknown"
-      end
+  # Detect provider for parent application mailer
+  defp detect_parent_app_provider(mailer) when is_atom(mailer) do
+    app = PhoenixKit.Config.get_parent_app()
+    config = Application.get_env(app, mailer, [])
+    adapter = Keyword.get(config, :adapter)
+    adapter_to_provider_name(adapter, "parent_app_mailer")
+  end
+
+  defp detect_parent_app_provider(_mailer), do: "unknown"
+
+  # Convert adapter module to provider name
+  defp adapter_to_provider_name(adapter, default_name) do
+    case adapter do
+      Swoosh.Adapters.AmazonSES -> "aws_ses"
+      Swoosh.Adapters.SMTP -> "smtp"
+      Swoosh.Adapters.Sendgrid -> "sendgrid"
+      Swoosh.Adapters.Mailgun -> "mailgun"
+      Swoosh.Adapters.Local -> "local"
+      _ -> default_name
     end
   end
 

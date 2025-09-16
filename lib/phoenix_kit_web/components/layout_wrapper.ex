@@ -240,26 +240,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
-                    <%= if PhoenixKit.ReferralCodes.enabled?() do %>
-                      <.admin_nav_item
-                        href={Routes.path("/admin/referral-codes")}
-                        icon="referral_codes"
-                        label="Referral System"
-                        current_path={@current_path || ""}
-                        nested={true}
-                      />
-                    <% end %>
-
-                    <%= if Code.ensure_loaded?(PhoenixKit.EmailTracking) do %>
-                      <.admin_nav_item
-                        href={Routes.path("/admin/email-logs")}
-                        icon="email"
-                        label="Email Tracking"
-                        current_path={@current_path || ""}
-                        nested={true}
-                      />
-                    <% end %>
-
                     <.admin_nav_item
                       href={Routes.path("/admin/settings")}
                       icon="settings"
@@ -271,7 +251,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     
             <!-- User Management Section -->
                     <div class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">
-                      User Management
+                      Modules Management
                     </div>
 
                     <%!-- Users with expandable submenu using HTML5 details/summary --%>
@@ -327,8 +307,52 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           current_path={@current_path || ""}
                           nested={true}
                         />
+
+                        <%= if PhoenixKit.ReferralCodes.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/referral-codes")}
+                            icon="referral_codes"
+                            label="Referral System"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
                       </div>
                     </details>
+
+                    <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                      <%!-- Email with expandable submenu using HTML5 details/summary --%>
+                      <details class="group" open>
+                        <summary class="flex items-center py-2 rounded-lg text-sm font-medium transition-colors hover:bg-base-200 cursor-pointer px-3 list-none">
+                          <.admin_nav_icon icon="email" active={false} />
+                          <span class="ml-3 font-medium flex-1">Email</span>
+                          <svg
+                            class="w-4 h-4 transition-transform group-open:rotate-90"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </summary>
+
+                        <%!-- Email submenu items --%>
+                        <div class="mt-1">
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-logs")}
+                            icon="email"
+                            label="Email Tracking"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        </div>
+                      </details>
+                    <% end %>
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->

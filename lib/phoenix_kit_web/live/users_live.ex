@@ -42,7 +42,15 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     {:ok, socket}
   end
 
+  def handle_params(%{"action" => "add"} = _params, _url, socket) do
+    # Open user registration form for adding new user
+    socket = assign(socket, :show_add_user_modal, true)
+    {:noreply, socket}
+  end
+
   def handle_params(_params, _url, socket) do
+    # Default case - no action specified
+    socket = assign(socket, :show_add_user_modal, false)
     {:noreply, socket}
   end
 
