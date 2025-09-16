@@ -150,8 +150,8 @@ defmodule PhoenixKit.Install.Common do
             String.to_integer(version)
 
           _ ->
-            # Table exists but no version comment - assume version 6 based on observed behavior
-            6
+            # Table exists but no version comment - assume version 1
+            1
         end
 
       _ ->
@@ -170,7 +170,7 @@ defmodule PhoenixKit.Install.Common do
       _migrations ->
         # Migration files exist - try to determine actual version from database
         # This is a last resort, assume recent version if tables are expected to exist
-        {:current_version, 6}
+        {:current_version, 1}
     end
   end
 

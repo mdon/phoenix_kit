@@ -219,7 +219,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
           <%!-- Title Section --%>
           <div class="text-center">
             <h1 class="text-4xl font-bold text-base-content mb-3">
-              📊 Email Analytics
+              Email Dashboard
             </h1>
             <p class="text-lg text-base-content/70">
               Comprehensive email performance metrics and insights

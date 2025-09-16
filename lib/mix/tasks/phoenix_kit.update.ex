@@ -70,6 +70,9 @@ defmodule Mix.Tasks.PhoenixKit.Update do
 
   @impl Mix.Task
   def run(argv) do
+    # Ensure application is started for proper version detection
+    Mix.Task.run("app.start")
+
     {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
 
     if opts[:status] do

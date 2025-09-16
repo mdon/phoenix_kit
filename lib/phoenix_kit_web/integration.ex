@@ -150,6 +150,9 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/referral-codes/edit/:id", Live.ReferralCodeFormLive, :edit
           live "/admin/email-logs", Live.EmailTracking.EmailLogsLive, :index
           live "/admin/email-logs/:id", Live.EmailTracking.EmailDetailsLive, :show
+          live "/admin/email-metrics", Live.EmailTracking.EmailMetricsLive, :index
+          live "/admin/email-queue", Live.EmailTracking.EmailQueueLive, :index
+          live "/admin/email-blocklist", Live.EmailTracking.EmailBlocklistLive, :index
         end
       end
     end

@@ -1,3 +1,22 @@
+## 1.2.7 - 2025-09-16
+
+### Added
+- **Email Tracking Navigation** - Added Email Metrics, Email Queue, and Email Blocklist pages to admin navigation menu
+- **Email Blocklist System (V09 Migration)** - Complete email blocklist functionality with temporary/permanent blocks, reason tracking, and audit trail
+- **Email Tracking Routes** - Added routes for all Email Tracking LiveView pages in admin integration
+- **Users Menu Grouping** - Reorganized admin navigation with expandable Users and Email groups using HTML5 details/summary
+- **Migration Documentation** - Comprehensive migration system documentation with all version paths and rollback options
+
+### Fixed
+- **Email Cleanup Task Pattern Matching** - Fixed Dialyzer warning about EmailTracking.enabled?() pattern matching
+- **Dashboard Add User Button** - Corrected navigation from dashboard Add User button to proper /admin/users/new route
+- **Migration V09 Primary Key** - Fixed duplicate column 'id' error in phoenix_kit_email_blocklist table creation
+
+### Improved
+- **Navigation Menu Structure** - Replaced custom JavaScript with native HTML5 details/summary for better reliability and performance
+- **Email Group Organization** - Email Tracking, Email Metrics, Email Queue, and Email Blocklist now properly grouped under Email section 
+
+
 ## 1.2.6 - 2025-09-15
 
 ### Added

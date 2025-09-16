@@ -254,26 +254,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       Modules Management
                     </div>
 
-                    <%!-- Users with expandable submenu using HTML5 details/summary --%>
-                    <details class="group" open>
-                      <summary class="flex items-center py-2 rounded-lg text-sm font-medium transition-colors hover:bg-base-200 cursor-pointer px-3 list-none">
-                        <.admin_nav_icon icon="users" active={false} />
-                        <span class="ml-3 font-medium flex-1">Users</span>
-                        <svg
-                          class="w-4 h-4 transition-transform group-open:rotate-90"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </summary>
+                    <%!-- Users section with direct link and conditional submenu --%>
+                    <.admin_nav_item
+                      href={Routes.path("/admin/users")}
+                      icon="users"
+                      label="Users"
+                      current_path={@current_path || ""}
+                      disable_active={true}
+                    />
 
+                    <%= if submenu_open?(@current_path, ["/admin/users", "/admin/live_sessions", "/admin/sessions", "/admin/roles", "/admin/referral-codes"]) do %>
                       <%!-- Submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -318,40 +308,54 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
                       </div>
-                    </details>
+                    <% end %>
 
                     <%= if PhoenixKit.EmailTracking.enabled?() do %>
-                      <%!-- Email with expandable submenu using HTML5 details/summary --%>
-                      <details class="group" open>
-                        <summary class="flex items-center py-2 rounded-lg text-sm font-medium transition-colors hover:bg-base-200 cursor-pointer px-3 list-none">
-                          <.admin_nav_icon icon="email" active={false} />
-                          <span class="ml-3 font-medium flex-1">Email</span>
-                          <svg
-                            class="w-4 h-4 transition-transform group-open:rotate-90"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                        </summary>
+                      <%!-- Email section with direct link and conditional submenu --%>
+                      <.admin_nav_item
+                        href={Routes.path("/admin/email-metrics")}
+                        icon="email"
+                        label="Emails"
+                        current_path={@current_path || ""}
+                        disable_active={true}
+                      />
 
+                      <%= if submenu_open?(@current_path, ["/admin/email-logs", "/admin/email-metrics", "/admin/email-queue", "/admin/email-blocklist"]) do %>
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
+                            href={Routes.path("/admin/email-metrics")}
+                            icon="email"
+                            label="Dashboard"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
                             href={Routes.path("/admin/email-logs")}
                             icon="email"
-                            label="Email Tracking"
+                            label="Emails"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-queue")}
+                            icon="email"
+                            label="Queue"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-blocklist")}
+                            icon="email"
+                            label="Blocklist"
                             current_path={@current_path || ""}
                             nested={true}
                           />
                         </div>
-                      </details>
+                      <% end %>
                     <% end %>
                   </nav>
                   
@@ -369,14 +373,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               </div>
             </div>
 
-            <%!-- HTML5 details/summary uses native styling - no custom CSS needed --%>
-
             <!-- Auto-close mobile drawer on navigation -->
             <script>
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
-                // Only close mobile drawer for main navigation links, not submenu items
-                const mainNavLinks = document.querySelectorAll('.drawer-side a:not(#users-submenu a)');
+                // Close mobile drawer on navigation
+                const mainNavLinks = document.querySelectorAll('.drawer-side a');
 
                 mainNavLinks.forEach(link => {
                   link.addEventListener('click', () => {
@@ -385,8 +387,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     }
                   });
                 });
-
-                // No special handling needed for details/summary submenu - it's native HTML
               });
 
               // Admin theme controller for PhoenixKit with animated slider
@@ -437,6 +437,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       assigns
     end
   end
+
+  # Check if a submenu should be open based on current path
+  defp submenu_open?(current_path, paths) when is_binary(current_path) do
+    normalized_path = String.replace_prefix(current_path, "/phoenix_kit", "")
+    Enum.any?(paths, fn path -> String.starts_with?(normalized_path, path) end)
+  end
+
+  defp submenu_open?(_, _), do: false
 
   # Render with parent application layout (Phoenix v1.8+ function component approach)
   defp render_with_parent_layout(assigns, module, function) do

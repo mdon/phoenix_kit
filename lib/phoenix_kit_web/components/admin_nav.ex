@@ -37,9 +37,13 @@ defmodule PhoenixKitWeb.AdminNav do
   attr :current_path, :string, required: true
   attr :mobile, :boolean, default: false
   attr :nested, :boolean, default: false
+  attr :disable_active, :boolean, default: false
 
   def admin_nav_item(assigns) do
-    active = nav_item_active?(assigns.current_path, assigns.href)
+    active =
+      if assigns.disable_active,
+        do: false,
+        else: nav_item_active?(assigns.current_path, assigns.href)
 
     assigns = assign(assigns, :active, active)
 
