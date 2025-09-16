@@ -43,10 +43,10 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
 
     # Create unique index on username (for non-null values only) - after data is populated
     create_if_not_exists unique_index(:phoenix_kit_users, [:username],
-                       prefix: prefix,
-                       name: :phoenix_kit_users_username_uidx,
-                       where: "username IS NOT NULL"
-                     )
+                           prefix: prefix,
+                           name: :phoenix_kit_users_username_uidx,
+                           where: "username IS NOT NULL"
+                         )
 
     # Set version comment on phoenix_kit table for version tracking
     execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '8'"
@@ -65,20 +65,20 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
     users = Enum.map(result.rows, fn [id, email] -> {id, email} end)
 
     # Generate and assign usernames with a simple counter for duplicates
-    {_final_used_set, _} = 
+    {_final_used_set, _} =
       Enum.reduce(users, {MapSet.new(), 0}, fn {user_id, email}, {used_usernames, _count} ->
         base_username = generate_base_username_from_email(email)
         username = ensure_unique_username_simple(base_username, used_usernames)
-        
+
         # Update the database
         update_query = """
         UPDATE #{prefix_table_name("phoenix_kit_users", prefix)} 
         SET username = $1 
         WHERE id = $2
         """
-        
+
         Ecto.Adapters.SQL.query!(PhoenixKit.RepoHelper.repo(), update_query, [username, user_id])
-        
+
         # Return updated used_usernames set for next iteration
         {MapSet.put(used_usernames, username), 0}
       end)
@@ -99,15 +99,17 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
   # Clean username to ensure it meets validation rules.
   defp clean_username(username) do
     # Remove any invalid characters and ensure it starts with a letter
-    cleaned = 
+    cleaned =
       username
       |> String.replace(~r/[^a-zA-Z0-9_]/, "")
-      |> String.slice(0, 30) # Max length
+      # Max length
+      |> String.slice(0, 30)
 
     # Ensure it starts with a letter
     case String.match?(cleaned, ~r/^[a-zA-Z]/) do
       true -> cleaned
-      false -> "user_" <> String.slice(cleaned, 0, 25) # Leave room for "user_" prefix
+      # Leave room for "user_" prefix
+      false -> "user_" <> String.slice(cleaned, 0, 25)
     end
     |> ensure_minimum_length()
   end
@@ -118,7 +120,7 @@ defmodule PhoenixKit.Migrations.Postgres.V08 do
 
   # Simple uniqueness check using in-memory set (for migration only).
   defp ensure_unique_username_simple(base_username, used_usernames, attempt \\ 0) do
-    candidate = 
+    candidate =
       case attempt do
         0 -> base_username
         n -> "#{base_username}_#{n}"

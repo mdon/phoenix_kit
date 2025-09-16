@@ -215,7 +215,11 @@
                       <td>
                         <div class="flex gap-2">
                           <.link
-                            navigate={PhoenixKit.Utils.Routes.path("/admin/referral-codes/edit/#{code.id}")}
+                            navigate={
+                              PhoenixKit.Utils.Routes.path(
+                                "/admin/referral-codes/edit/#{code.id}"
+                              )
+                            }
                             class="btn btn-sm btn-outline"
                           >
                             <svg
