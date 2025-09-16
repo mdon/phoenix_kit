@@ -164,7 +164,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   def handle_event("cancel", _params, socket) do
-    {:noreply, push_navigate(socket, to: "/phoenix_kit/admin/referral-codes")}
+    {:noreply, push_navigate(socket, to: PhoenixKit.Utils.Routes.path("/admin/referral-codes"))}
   end
 
   # Private functions
@@ -244,7 +244,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
           {:ok, _code} ->
             socket
             |> put_flash(:info, "Referral code created successfully!")
-            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+            |> push_navigate(to: PhoenixKit.Utils.Routes.path("/admin/referral-codes"))
 
           {:error, changeset} ->
             socket
@@ -262,7 +262,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
           {:ok, _code} ->
             socket
             |> put_flash(:info, "Referral code created successfully!")
-            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+            |> push_navigate(to: PhoenixKit.Utils.Routes.path("/admin/referral-codes"))
 
           {:error, changeset} ->
             socket
@@ -278,7 +278,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
       {:ok, _code} ->
         socket
         |> put_flash(:info, "Referral code updated successfully!")
-        |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+        |> push_navigate(to: PhoenixKit.Utils.Routes.path("/admin/referral-codes"))
 
       {:error, changeset} ->
         socket
@@ -293,8 +293,8 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
 
   defp get_current_path(_socket, _session, mode, code_id) do
     case mode do
-      :new -> "/phoenix_kit/admin/referral-codes/new"
-      :edit -> "/phoenix_kit/admin/referral-codes/edit/#{code_id}"
+      :new -> PhoenixKit.Utils.Routes.path("/admin/referral-codes/new")
+      :edit -> PhoenixKit.Utils.Routes.path("/admin/referral-codes/edit/#{code_id}")
     end
   end
 end

@@ -10,7 +10,7 @@
     <header class="w-full relative mb-6">
       <%!-- Back Button (Left aligned) --%>
       <.link
-        navigate="/phoenix_kit/admin/modules"
+        navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,7 +106,7 @@
 
           <%= if @config.enabled do %>
             <.link
-              navigate="/phoenix_kit/admin/referral-codes/new"
+              navigate={PhoenixKit.Utils.Routes.path("/admin/referral-codes/new")}
               class="btn btn-primary"
             >
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,7 +142,7 @@
                 Create your first referral code to start tracking user registrations.
               </p>
               <.link
-                navigate="/phoenix_kit/admin/referral-codes/new"
+                navigate={PhoenixKit.Utils.Routes.path("/admin/referral-codes/new")}
                 class="btn btn-primary"
               >
                 Create First Code
@@ -215,7 +215,11 @@
                       <td>
                         <div class="flex gap-2">
                           <.link
-                            navigate={"/phoenix_kit/admin/referral-codes/edit/#{code.id}"}
+                            navigate={
+                              PhoenixKit.Utils.Routes.path(
+                                "/admin/referral-codes/edit/#{code.id}"
+                              )
+                            }
                             class="btn btn-sm btn-outline"
                           >
                             <svg
@@ -283,7 +287,7 @@
             The referral codes system is currently disabled. Enable it in the Modules page to start creating and managing referral codes.
           </p>
           <.link
-            navigate="/phoenix_kit/admin/modules"
+            navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
             class="btn btn-primary"
           >
             Go to Modules

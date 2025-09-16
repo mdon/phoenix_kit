@@ -242,7 +242,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                     <%= if PhoenixKit.ReferralCodes.enabled?() do %>
                       <.admin_nav_item
-                        href="/phoenix_kit/admin/referral-codes"
+                        href={Routes.path("/admin/referral-codes")}
                         icon="referral_codes"
                         label="Referral System"
                         current_path={@current_path || ""}
@@ -274,33 +274,61 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       User Management
                     </div>
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/users")}
-                      icon="users"
-                      label="Users"
-                      current_path={@current_path || ""}
-                    />
+                    <%!-- Users with expandable submenu using HTML5 details/summary --%>
+                    <details class="group" open>
+                      <summary class="flex items-center py-2 rounded-lg text-sm font-medium transition-colors hover:bg-base-200 cursor-pointer px-3 list-none">
+                        <.admin_nav_icon icon="users" active={false} />
+                        <span class="ml-3 font-medium flex-1">Users</span>
+                        <svg
+                          class="w-4 h-4 transition-transform group-open:rotate-90"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </summary>
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/live_sessions")}
-                      icon="live_sessions"
-                      label="Live Sessions"
-                      current_path={@current_path || ""}
-                    />
+                      <%!-- Submenu items --%>
+                      <div class="mt-1">
+                        <.admin_nav_item
+                          href={Routes.path("/admin/users")}
+                          icon="users"
+                          label="Manage Users"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/sessions")}
-                      icon="sessions"
-                      label="Sessions"
-                      current_path={@current_path || ""}
-                    />
+                        <.admin_nav_item
+                          href={Routes.path("/admin/live_sessions")}
+                          icon="live_sessions"
+                          label="Live Sessions"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/roles")}
-                      icon="roles"
-                      label="Roles"
-                      current_path={@current_path || ""}
-                    />
+                        <.admin_nav_item
+                          href={Routes.path("/admin/sessions")}
+                          icon="sessions"
+                          label="Sessions"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <.admin_nav_item
+                          href={Routes.path("/admin/roles")}
+                          icon="roles"
+                          label="Roles"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+                      </div>
+                    </details>
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->
@@ -317,19 +345,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               </div>
             </div>
 
+            <%!-- HTML5 details/summary uses native styling - no custom CSS needed --%>
+
             <!-- Auto-close mobile drawer on navigation -->
             <script>
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
-                const navLinks = document.querySelectorAll('.drawer-side a');
+                // Only close mobile drawer for main navigation links, not submenu items
+                const mainNavLinks = document.querySelectorAll('.drawer-side a:not(#users-submenu a)');
 
-                navLinks.forEach(link => {
+                mainNavLinks.forEach(link => {
                   link.addEventListener('click', () => {
                     if (drawerToggle && window.innerWidth < 1024) {
                       drawerToggle.checked = false;
                     }
                   });
                 });
+
+                // No special handling needed for details/summary submenu - it's native HTML
               });
 
               // Admin theme controller for PhoenixKit with animated slider

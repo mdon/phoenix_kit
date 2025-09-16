@@ -224,7 +224,7 @@ defmodule PhoenixKit.Users.MagicLink do
   ## Examples
 
       iex> PhoenixKit.Users.MagicLink.magic_link_url("token123")
-      "http://localhost:4000/phoenix_kit/users/magic-link/token123"
+      "/phoenix_kit/users/magic-link/token123"
   """
   def magic_link_url(token) when is_binary(token) do
     Routes.url("/users/magic-link/#{token}")

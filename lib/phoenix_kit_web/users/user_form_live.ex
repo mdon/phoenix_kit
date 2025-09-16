@@ -18,6 +18,8 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
       |> assign(:current_path, current_path)
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
+      |> assign(:show_password_change_modal, false)
+      |> assign(:password_changeset, nil)
       |> load_user_data(mode, user_id)
       |> load_form_data()
 
@@ -82,6 +84,59 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
       {:error, _reason} ->
         socket =
           put_flash(socket, :error, "Failed to send password reset email. Please try again.")
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("show_password_change_modal", _params, socket) do
+    changeset = Auth.change_user_password(socket.assigns.user, %{})
+
+    socket =
+      socket
+      |> assign(:show_password_change_modal, true)
+      |> assign(:password_changeset, changeset)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("hide_password_change_modal", _params, socket) do
+    socket =
+      socket
+      |> assign(:show_password_change_modal, false)
+      |> assign(:password_changeset, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("validate_password", %{"user" => password_params}, socket) do
+    changeset =
+      socket.assigns.user
+      |> Auth.change_user_password(password_params)
+      |> Map.put(:action, :validate)
+
+    socket = assign(socket, :password_changeset, changeset)
+    {:noreply, socket}
+  end
+
+  def handle_event("admin_change_password", %{"user" => password_params}, socket) do
+    user = socket.assigns.user
+
+    case Auth.admin_update_user_password(user, password_params) do
+      {:ok, _user} ->
+        socket =
+          socket
+          |> put_flash(:info, "Password updated successfully for #{user.email}.")
+          |> assign(:show_password_change_modal, false)
+          |> assign(:password_changeset, nil)
+
+        {:noreply, socket}
+
+      {:error, changeset} ->
+        socket =
+          socket
+          |> assign(:password_changeset, changeset)
+          |> put_flash(:error, "Failed to update password. Please check the errors below.")
 
         {:noreply, socket}
     end

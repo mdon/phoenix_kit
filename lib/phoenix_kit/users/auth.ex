@@ -322,6 +322,32 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
+  @doc """
+  Updates the user password as an admin (bypasses current password validation).
+
+  ## Examples
+
+      iex> admin_update_user_password(user, %{password: "new_password", password_confirmation: "new_password"})
+      {:ok, %User{}}
+
+      iex> admin_update_user_password(user, %{password: "short"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def admin_update_user_password(user, attrs) do
+    changeset = User.password_changeset(user, attrs)
+
+    multi = Ecto.Multi.new()
+    multi = Ecto.Multi.update(multi, :user, changeset)
+
+    Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, :user, changeset, _} -> {:error, changeset}
+    end
+  end
+
   ## Session
 
   @doc """
@@ -413,8 +439,11 @@ defmodule PhoenixKit.Users.Auth do
   def confirm_user(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm"),
          %User{} = user <- Repo.one(query),
-         {:ok, %{user: user}} <- Repo.transaction(confirm_user_multi(user)) do
-      {:ok, user}
+         {:ok, %{user: updated_user}} <- Repo.transaction(confirm_user_multi(user)) do
+      # Broadcast confirmation event
+      alias PhoenixKit.Admin.Events
+      Events.broadcast_user_confirmed(updated_user)
+      {:ok, updated_user}
     else
       _ -> :error
     end
@@ -424,6 +453,75 @@ defmodule PhoenixKit.Users.Auth do
     multi = Ecto.Multi.new()
     multi = Ecto.Multi.update(multi, :user, User.confirm_changeset(user))
     Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
+  end
+
+  @doc """
+  Manually confirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_confirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_confirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_confirm_user(%User{} = user) do
+    changeset = User.confirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_confirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Manually unconfirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_unconfirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_unconfirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_unconfirm_user(%User{} = user) do
+    changeset = User.unconfirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_unconfirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Toggles user confirmation status (admin function).
+
+  ## Examples
+
+      iex> toggle_user_confirmation(confirmed_user)
+      {:ok, %User{confirmed_at: nil}}
+
+      iex> toggle_user_confirmation(unconfirmed_user)
+      {:ok, %User{confirmed_at: ~N[2023-01-01 12:00:00]}}
+  """
+  def toggle_user_confirmation(%User{confirmed_at: nil} = user) do
+    admin_confirm_user(user)
+  end
+
+  def toggle_user_confirmation(%User{} = user) do
+    admin_unconfirm_user(user)
   end
 
   ## Reset password
@@ -777,6 +875,7 @@ defmodule PhoenixKit.Users.Auth do
     from [u] in query,
       where:
         ilike(u.email, ^search_pattern) or
+          ilike(u.username, ^search_pattern) or
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
   end
@@ -806,11 +905,18 @@ defmodule PhoenixKit.Users.Auth do
         from(u in User,
           where:
             ilike(u.email, ^search_pattern) or
+              ilike(u.username, ^search_pattern) or
               ilike(u.first_name, ^search_pattern) or
               ilike(u.last_name, ^search_pattern),
           order_by: [asc: u.email],
           limit: 10,
-          select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+          select: %{
+            id: u.id,
+            email: u.email,
+            username: u.username,
+            first_name: u.first_name,
+            last_name: u.last_name
+          }
         )
         |> Repo.all()
 
@@ -836,7 +942,13 @@ defmodule PhoenixKit.Users.Auth do
   def get_user_for_selection(user_id) when is_integer(user_id) do
     from(u in User,
       where: u.id == ^user_id,
-      select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+      select: %{
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        first_name: u.first_name,
+        last_name: u.last_name
+      }
     )
     |> Repo.one()
   end
