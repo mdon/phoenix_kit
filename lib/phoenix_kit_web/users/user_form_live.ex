@@ -91,7 +91,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
 
   def handle_event("show_password_change_modal", _params, socket) do
     changeset = Auth.change_user_password(socket.assigns.user, %{})
-    
+
     socket =
       socket
       |> assign(:show_password_change_modal, true)

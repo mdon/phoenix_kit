@@ -319,8 +319,9 @@ defmodule PhoenixKit.Users.Auth.User do
   defp validate_username(changeset, opts) do
     changeset
     |> validate_length(:username, min: 3, max: 30)
-    |> validate_format(:username, ~r/^[a-zA-Z][a-zA-Z0-9_]*$/, 
-         message: "must start with a letter and contain only letters, numbers, and underscores")
+    |> validate_format(:username, ~r/^[a-zA-Z][a-zA-Z0-9_]*$/,
+      message: "must start with a letter and contain only letters, numbers, and underscores"
+    )
     |> maybe_validate_unique_username(opts)
   end
 
@@ -328,8 +329,10 @@ defmodule PhoenixKit.Users.Auth.User do
     if Keyword.get(opts, :validate_email, true) do
       # Only validate uniqueness if username is provided
       case get_change(changeset, :username) do
-        nil -> changeset
-        _username -> 
+        nil ->
+          changeset
+
+        _username ->
           changeset
           |> unsafe_validate_unique(:username, PhoenixKit.RepoHelper.repo())
           |> unique_constraint(:username)
@@ -348,7 +351,7 @@ defmodule PhoenixKit.Users.Auth.User do
       {nil, email} when is_binary(email) ->
         generated_username = generate_username_from_email(email)
         put_change(changeset, :username, generated_username)
-      
+
       _ ->
         changeset
     end
@@ -356,12 +359,12 @@ defmodule PhoenixKit.Users.Auth.User do
 
   @doc """
   Generate a username from an email address.
-  
+
   Takes the part before @ symbol, converts to lowercase, replaces dots with underscores,
   and ensures it meets validation requirements.
-  
+
   ## Examples
-  
+
       iex> generate_username_from_email("john.doe@example.com")
       "john_doe"
       
@@ -382,15 +385,17 @@ defmodule PhoenixKit.Users.Auth.User do
   # Clean username to ensure it meets validation rules
   defp clean_username(username) do
     # Remove any invalid characters and ensure it starts with a letter
-    cleaned = 
+    cleaned =
       username
       |> String.replace(~r/[^a-zA-Z0-9_]/, "")
-      |> String.slice(0, 30) # Max length
+      # Max length
+      |> String.slice(0, 30)
 
     # Ensure it starts with a letter
     case String.match?(cleaned, ~r/^[a-zA-Z]/) do
       true -> cleaned
-      false -> "user_" <> String.slice(cleaned, 0, 25) # Leave room for "user_" prefix
+      # Leave room for "user_" prefix
+      false -> "user_" <> String.slice(cleaned, 0, 25)
     end
     |> ensure_minimum_username_length()
   end
