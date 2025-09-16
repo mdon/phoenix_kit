@@ -233,27 +233,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/modules")}
-                      icon="modules"
-                      label="Modules"
-                      current_path={@current_path || ""}
-                    />
-
-                    <.admin_nav_item
-                      href={Routes.path("/admin/settings")}
-                      icon="settings"
-                      label="Settings"
-                      current_path={@current_path || ""}
-                    />
-
-                    <div class="divider my-3"></div>
-                    
-            <!-- User Management Section -->
-                    <div class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">
-                      Modules Management
-                    </div>
-
                     <%!-- Users section with direct link and conditional submenu --%>
                     <.admin_nav_item
                       href={Routes.path("/admin/users")}
@@ -357,6 +336,20 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         </div>
                       <% end %>
                     <% end %>
+
+                    <.admin_nav_item
+                      href={Routes.path("/admin/modules")}
+                      icon="modules"
+                      label="Modules"
+                      current_path={@current_path || ""}
+                    />
+
+                    <.admin_nav_item
+                      href={Routes.path("/admin/settings")}
+                      icon="settings"
+                      label="Settings"
+                      current_path={@current_path || ""}
+                    />
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->
