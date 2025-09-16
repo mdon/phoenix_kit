@@ -18,8 +18,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
       |> assign(:current_path, current_path)
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
-      |> assign(:show_password_change_modal, false)
-      |> assign(:password_changeset, nil)
+      |> assign(:show_password_field, false)
       |> load_user_data(mode, user_id)
       |> load_form_data()
 
@@ -27,10 +26,17 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
   end
 
   def handle_event("validate_user", %{"user" => user_params}, socket) do
+    # Filter password from params if password field is not shown
+    filtered_params = if socket.assigns.mode == :edit and not socket.assigns.show_password_field do
+      Map.delete(user_params, "password")
+    else
+      user_params
+    end
+    
     changeset =
       case socket.assigns.mode do
-        :new -> Auth.change_user_registration(%Auth.User{}, user_params)
-        :edit -> Auth.change_user_registration(socket.assigns.user, user_params)
+        :new -> Auth.change_user_registration(%Auth.User{}, filtered_params)
+        :edit -> Auth.change_user_registration(socket.assigns.user, filtered_params)
       end
       |> Map.put(:action, :validate)
 
@@ -89,58 +95,17 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
     end
   end
 
-  def handle_event("show_password_change_modal", _params, socket) do
-    changeset = Auth.change_user_password(socket.assigns.user, %{})
-
+  def handle_event("toggle_password_field", _params, socket) do
+    new_show_password_field = !socket.assigns.show_password_field
+    
     socket =
       socket
-      |> assign(:show_password_change_modal, true)
-      |> assign(:password_changeset, changeset)
+      |> assign(:show_password_field, new_show_password_field)
+      |> reload_changeset_with_password(new_show_password_field)
 
     {:noreply, socket}
   end
 
-  def handle_event("hide_password_change_modal", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_password_change_modal, false)
-      |> assign(:password_changeset, nil)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("validate_password", %{"user" => password_params}, socket) do
-    changeset =
-      socket.assigns.user
-      |> Auth.change_user_password(password_params)
-      |> Map.put(:action, :validate)
-
-    socket = assign(socket, :password_changeset, changeset)
-    {:noreply, socket}
-  end
-
-  def handle_event("admin_change_password", %{"user" => password_params}, socket) do
-    user = socket.assigns.user
-
-    case Auth.admin_update_user_password(user, password_params) do
-      {:ok, _user} ->
-        socket =
-          socket
-          |> put_flash(:info, "Password updated successfully for #{user.email}.")
-          |> assign(:show_password_change_modal, false)
-          |> assign(:password_changeset, nil)
-
-        {:noreply, socket}
-
-      {:error, changeset} ->
-        socket =
-          socket
-          |> assign(:password_changeset, changeset)
-          |> put_flash(:error, "Failed to update password. Please check the errors below.")
-
-        {:noreply, socket}
-    end
-  end
 
   defp create_user(socket, user_params) do
     case Auth.register_user(user_params) do
@@ -173,22 +138,53 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
   end
 
   defp update_user(socket, user_params) do
-    case Auth.update_user_profile(socket.assigns.user, user_params) do
-      {:ok, _user} ->
-        socket =
-          socket
-          |> put_flash(:info, "User updated successfully.")
-          |> push_navigate(to: Routes.path("/admin/users"))
+    user = socket.assigns.user
+    show_password_field = socket.assigns.show_password_field
+    
+    # Check if password update is needed
+    password_provided = show_password_field and Map.has_key?(user_params, "password") and 
+                       user_params["password"] != nil and String.trim(user_params["password"]) != ""
 
-        {:noreply, socket}
+    if password_provided do
+      # Update both profile and password
+      case update_profile_and_password(user, user_params) do
+        {:ok, _updated_user} ->
+          socket =
+            socket
+            |> put_flash(:info, "User profile and password updated successfully.")
+            |> push_navigate(to: Routes.path("/admin/users"))
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        socket =
-          socket
-          |> assign(:changeset, changeset)
-          |> assign(:form_data, user_params)
+          {:noreply, socket}
 
-        {:noreply, socket}
+        {:error, changeset} ->
+          socket =
+            socket
+            |> assign(:changeset, changeset)
+            |> assign(:form_data, user_params)
+
+          {:noreply, socket}
+      end
+    else
+      # Update profile only (exclude password)
+      profile_params = Map.delete(user_params, "password")
+      
+      case Auth.update_user_profile(user, profile_params) do
+        {:ok, _user} ->
+          socket =
+            socket
+            |> put_flash(:info, "User updated successfully.")
+            |> push_navigate(to: Routes.path("/admin/users"))
+
+          {:noreply, socket}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          socket =
+            socket
+            |> assign(:changeset, changeset)
+            |> assign(:form_data, user_params)
+
+          {:noreply, socket}
+      end
     end
   end
 
@@ -235,5 +231,63 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
 
   defp get_current_path(_socket, _session, :edit, user_id) do
     Routes.path("/admin/users/edit/#{user_id}")
+  end
+
+  defp reload_changeset_with_password(socket, show_password_field) do
+    case socket.assigns.mode do
+      :new -> 
+        # For new users, password is always required
+        socket
+      :edit -> 
+        # For edit mode, reload changeset to include/exclude password field
+        user = socket.assigns.user
+        form_data = socket.assigns.form_data || %{}
+        
+        # Create changeset with or without password validation
+        changeset = if show_password_field do
+          # Include password in changeset when field is shown
+          Auth.change_user_registration(user, form_data)
+        else
+          # Standard profile changeset when password field is hidden
+          Auth.change_user_registration(user, Map.delete(form_data, "password"))
+        end
+        
+        assign(socket, :changeset, changeset)
+    end
+  end
+
+  defp update_profile_and_password(user, user_params) do
+    # First validate profile update
+    profile_params = Map.delete(user_params, "password")
+    
+    case Auth.update_user_profile(user, profile_params) do
+      {:ok, updated_user} ->
+        # If profile update succeeded, update password
+        password_params = Map.take(user_params, ["password"])
+        
+        case Auth.admin_update_user_password(updated_user, password_params) do
+          {:ok, final_user} ->
+            {:ok, final_user}
+          
+          {:error, password_changeset} ->
+            # If password update failed, return a combined changeset
+            profile_changeset = Auth.change_user_registration(user, user_params)
+            combined_changeset = merge_password_errors(profile_changeset, password_changeset)
+            {:error, combined_changeset}
+        end
+      
+      {:error, profile_changeset} ->
+        # Profile update failed, return the profile changeset with password field
+        {:error, profile_changeset}
+    end
+  end
+
+  defp merge_password_errors(profile_changeset, password_changeset) do
+    # Merge password errors into the profile changeset
+    password_errors = password_changeset.errors
+    
+    Enum.reduce(password_errors, profile_changeset, fn {field, error}, acc ->
+      Ecto.Changeset.add_error(acc, field, elem(error, 0), elem(error, 1))
+    end)
   end
 end
