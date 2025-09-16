@@ -179,6 +179,13 @@ defmodule PhoenixKit.Users.Auth.User do
   end
 
   @doc """
+  Unconfirms the account by setting `confirmed_at` to nil.
+  """
+  def unconfirm_changeset(user) do
+    change(user, confirmed_at: nil)
+  end
+
+  @doc """
   Verifies the password.
 
   If there is no user or the user doesn't have a password, we call
@@ -335,7 +342,7 @@ defmodule PhoenixKit.Users.Auth.User do
         _username ->
           changeset
           |> unsafe_validate_unique(:username, PhoenixKit.RepoHelper.repo())
-          |> unique_constraint(:username)
+          |> unique_constraint(:username, name: :phoenix_kit_users_username_uidx)
       end
     else
       changeset

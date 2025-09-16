@@ -207,11 +207,20 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
               ReferralCodes.use_code(validated_code.code, user.id)
             end
 
-            {:ok, _} =
-              Auth.deliver_user_confirmation_instructions(
-                user,
-                &Routes.path("/users/confirm/#{&1}")
-              )
+            case Auth.deliver_user_confirmation_instructions(
+                   user,
+                   &Routes.url("/users/confirm/#{&1}")
+                 ) do
+              {:ok, _} ->
+                # Email sent successfully
+                :ok
+
+              {:error, error} ->
+                # Log error but don't fail registration
+                require Logger
+                Logger.error("Failed to send confirmation email: #{inspect(error)}")
+                :ok
+            end
 
             changeset = Auth.change_user_registration(user)
             {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}

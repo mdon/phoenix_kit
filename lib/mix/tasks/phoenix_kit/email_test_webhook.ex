@@ -41,7 +41,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.TestWebhook do
       mix phoenix_kit.email.test_webhook --event bounce --message-id test-123
 
       # Test all events with custom endpoint
-      mix phoenix_kit.email.test_webhook --all --endpoint http://localhost:4000/phoenix_kit/webhooks/email
+      mix phoenix_kit.email.test_webhook --all --endpoint /phoenix_kit/webhooks/email
 
       # Quick delivery test
       mix phoenix_kit.email.test_webhook --event delivery

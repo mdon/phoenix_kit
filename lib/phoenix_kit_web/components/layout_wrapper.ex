@@ -240,26 +240,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
-                    <%= if PhoenixKit.ReferralCodes.enabled?() do %>
-                      <.admin_nav_item
-                        href={Routes.path("/admin/referral-codes")}
-                        icon="referral_codes"
-                        label="Referral System"
-                        current_path={@current_path || ""}
-                        nested={true}
-                      />
-                    <% end %>
-
-                    <%= if Code.ensure_loaded?(PhoenixKit.EmailTracking) do %>
-                      <.admin_nav_item
-                        href={Routes.path("/admin/email-logs")}
-                        icon="email"
-                        label="Email Tracking"
-                        current_path={@current_path || ""}
-                        nested={true}
-                      />
-                    <% end %>
-
                     <.admin_nav_item
                       href={Routes.path("/admin/settings")}
                       icon="settings"
@@ -271,36 +251,112 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     
             <!-- User Management Section -->
                     <div class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">
-                      User Management
+                      Modules Management
                     </div>
 
+                    <%!-- Users section with direct link and conditional submenu --%>
                     <.admin_nav_item
                       href={Routes.path("/admin/users")}
                       icon="users"
                       label="Users"
                       current_path={@current_path || ""}
+                      disable_active={true}
                     />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/live_sessions")}
-                      icon="live_sessions"
-                      label="Live Sessions"
-                      current_path={@current_path || ""}
-                    />
+                    <%= if submenu_open?(@current_path, ["/admin/users", "/admin/live_sessions", "/admin/sessions", "/admin/roles", "/admin/referral-codes"]) do %>
+                      <%!-- Submenu items --%>
+                      <div class="mt-1">
+                        <.admin_nav_item
+                          href={Routes.path("/admin/users")}
+                          icon="users"
+                          label="Manage Users"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/sessions")}
-                      icon="sessions"
-                      label="Sessions"
-                      current_path={@current_path || ""}
-                    />
+                        <.admin_nav_item
+                          href={Routes.path("/admin/live_sessions")}
+                          icon="live_sessions"
+                          label="Live Sessions"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
 
-                    <.admin_nav_item
-                      href={Routes.path("/admin/roles")}
-                      icon="roles"
-                      label="Roles"
-                      current_path={@current_path || ""}
-                    />
+                        <.admin_nav_item
+                          href={Routes.path("/admin/sessions")}
+                          icon="sessions"
+                          label="Sessions"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <.admin_nav_item
+                          href={Routes.path("/admin/roles")}
+                          icon="roles"
+                          label="Roles"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <%= if PhoenixKit.ReferralCodes.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/referral-codes")}
+                            icon="referral_codes"
+                            label="Referral System"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+                      </div>
+                    <% end %>
+
+                    <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                      <%!-- Email section with direct link and conditional submenu --%>
+                      <.admin_nav_item
+                        href={Routes.path("/admin/email-metrics")}
+                        icon="email"
+                        label="Emails"
+                        current_path={@current_path || ""}
+                        disable_active={true}
+                      />
+
+                      <%= if submenu_open?(@current_path, ["/admin/email-logs", "/admin/email-metrics", "/admin/email-queue", "/admin/email-blocklist"]) do %>
+                        <%!-- Email submenu items --%>
+                        <div class="mt-1">
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-metrics")}
+                            icon="email"
+                            label="Dashboard"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-logs")}
+                            icon="email"
+                            label="Emails"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-queue")}
+                            icon="email"
+                            label="Queue"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/email-blocklist")}
+                            icon="email"
+                            label="Blocklist"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        </div>
+                      <% end %>
+                    <% end %>
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->
@@ -321,9 +377,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <script>
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
-                const navLinks = document.querySelectorAll('.drawer-side a');
+                // Close mobile drawer on navigation
+                const mainNavLinks = document.querySelectorAll('.drawer-side a');
 
-                navLinks.forEach(link => {
+                mainNavLinks.forEach(link => {
                   link.addEventListener('click', () => {
                     if (drawerToggle && window.innerWidth < 1024) {
                       drawerToggle.checked = false;
@@ -380,6 +437,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       assigns
     end
   end
+
+  # Check if a submenu should be open based on current path
+  defp submenu_open?(current_path, paths) when is_binary(current_path) do
+    normalized_path = String.replace_prefix(current_path, "/phoenix_kit", "")
+    Enum.any?(paths, fn path -> String.starts_with?(normalized_path, path) end)
+  end
+
+  defp submenu_open?(_, _), do: false
 
   # Render with parent application layout (Phoenix v1.8+ function component approach)
   defp render_with_parent_layout(assigns, module, function) do

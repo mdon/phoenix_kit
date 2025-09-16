@@ -42,7 +42,7 @@ defmodule PhoenixKitWeb.Users.ForgotPasswordLive do
     if user = Auth.get_user_by_email(email) do
       Auth.deliver_user_reset_password_instructions(
         user,
-        &Routes.path("/users/reset-password/#{&1}")
+        &Routes.url("/users/reset-password/#{&1}")
       )
     end
 

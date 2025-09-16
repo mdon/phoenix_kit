@@ -255,7 +255,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.path("/users/settings/confirm_email/#{&1}"))
+      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.url("/users/settings/confirm_email/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """
@@ -412,10 +412,10 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
-      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:error, :already_confirmed}
 
   """
@@ -439,8 +439,11 @@ defmodule PhoenixKit.Users.Auth do
   def confirm_user(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm"),
          %User{} = user <- Repo.one(query),
-         {:ok, %{user: user}} <- Repo.transaction(confirm_user_multi(user)) do
-      {:ok, user}
+         {:ok, %{user: updated_user}} <- Repo.transaction(confirm_user_multi(user)) do
+      # Broadcast confirmation event
+      alias PhoenixKit.Admin.Events
+      Events.broadcast_user_confirmed(updated_user)
+      {:ok, updated_user}
     else
       _ -> :error
     end
@@ -452,6 +455,75 @@ defmodule PhoenixKit.Users.Auth do
     Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
   end
 
+  @doc """
+  Manually confirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_confirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_confirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_confirm_user(%User{} = user) do
+    changeset = User.confirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_confirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Manually unconfirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_unconfirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_unconfirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_unconfirm_user(%User{} = user) do
+    changeset = User.unconfirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_unconfirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Toggles user confirmation status (admin function).
+
+  ## Examples
+
+      iex> toggle_user_confirmation(confirmed_user)
+      {:ok, %User{confirmed_at: nil}}
+
+      iex> toggle_user_confirmation(unconfirmed_user)
+      {:ok, %User{confirmed_at: ~N[2023-01-01 12:00:00]}}
+  """
+  def toggle_user_confirmation(%User{confirmed_at: nil} = user) do
+    admin_confirm_user(user)
+  end
+
+  def toggle_user_confirmation(%User{} = user) do
+    admin_unconfirm_user(user)
+  end
+
   ## Reset password
 
   @doc ~S"""
@@ -459,7 +531,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.path("/users/reset-password/#{&1}"))
+      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.url("/users/reset-password/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """

@@ -66,21 +66,18 @@ defmodule PhoenixKitWeb.Integration do
   """
   defmacro phoenix_kit_routes do
     # Get URL prefix at compile time and handle empty string case for router compatibility
-    raw_prefix =
-      try do
-        PhoenixKit.Config.get_url_prefix()
-      rescue
-        # Fallback if config not available at compile time
-        _ -> "/phoenix_kit"
-      end
-
-    url_prefix =
-      case raw_prefix do
-        "" -> "/"
-        nil -> "/"
-        prefix when is_binary(prefix) -> prefix
-        _ -> "/"
-      end
+    raw_prefix = try do
+      PhoenixKit.Config.get_url_prefix()
+    rescue
+      _ -> "/phoenix_kit"  # Fallback if config not available at compile time
+    end
+    
+    url_prefix = case raw_prefix do
+      "" -> "/"
+      nil -> "/"
+      prefix when is_binary(prefix) -> prefix
+      _ -> "/"
+    end
 
     quote do
       # Define the auto-setup pipeline
@@ -152,6 +149,9 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/referral-codes/edit/:id", Live.ReferralCodeFormLive, :edit
           live "/admin/email-logs", Live.EmailTracking.EmailLogsLive, :index
           live "/admin/email-logs/:id", Live.EmailTracking.EmailDetailsLive, :show
+          live "/admin/email-metrics", Live.EmailTracking.EmailMetricsLive, :index
+          live "/admin/email-queue", Live.EmailTracking.EmailQueueLive, :index
+          live "/admin/email-blocklist", Live.EmailTracking.EmailBlocklistLive, :index
         end
       end
     end

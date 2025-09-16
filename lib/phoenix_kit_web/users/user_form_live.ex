@@ -68,7 +68,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
 
     case Auth.deliver_user_reset_password_instructions(
            user,
-           &Routes.path("/users/reset-password/#{&1}")
+           &Routes.url("/users/reset-password/#{&1}")
          ) do
       {:ok, _} ->
         socket =
@@ -148,7 +148,7 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
         # Optionally send confirmation email
         case Auth.deliver_user_confirmation_instructions(
                user,
-               &Routes.path("/users/confirm/#{&1}")
+               &Routes.url("/users/confirm/#{&1}")
              ) do
           {:ok, _} -> :ok
           # Continue even if email fails

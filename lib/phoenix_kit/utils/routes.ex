@@ -24,9 +24,14 @@ defmodule PhoenixKit.Utils.Routes do
 
   @doc """
   Returns a full url with preconfigured prefix.
+
+  This function automatically detects the correct URL from the running Phoenix
+  application endpoint when possible, falling back to static configuration.
+  This ensures that magic links and other email links work correctly in both
+  development and production environments.
   """
   def url(url_path) do
-    base_url = PhoenixKit.Config.get_base_url()
+    base_url = PhoenixKit.Config.get_dynamic_base_url()
     full_path = path(url_path)
 
     "#{base_url}#{full_path}"

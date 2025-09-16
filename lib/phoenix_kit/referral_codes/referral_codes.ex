@@ -318,38 +318,44 @@ defmodule PhoenixKit.ReferralCodes do
   """
   def use_code(code_string, user_id) when is_binary(code_string) and is_integer(user_id) do
     case get_code_by_string(code_string) do
-      nil ->
-        {:error, :code_not_found}
+      nil -> {:error, :code_not_found}
+      code -> process_code_usage(code, user_id)
+    end
+  end
 
-      code ->
-        if valid_for_use?(code) do
-          repo().transaction(fn ->
-            # Record the usage
-            usage_result =
-              %PhoenixKit.ReferralCodeUsage{}
-              |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
-              |> repo().insert()
+  defp process_code_usage(code, user_id) do
+    case valid_for_use?(code) do
+      true -> record_code_usage(code, user_id)
+      false -> get_code_error(code)
+    end
+  end
 
-            case usage_result do
-              {:ok, usage} ->
-                # Update the code's usage counter
-                {:ok, _updated_code} =
-                  update_code(code, %{number_of_uses: code.number_of_uses + 1})
+  defp record_code_usage(code, user_id) do
+    repo().transaction(fn -> do_record_usage(code, user_id) end)
+  end
 
-                usage
+  defp do_record_usage(code, user_id) do
+    usage_result =
+      %PhoenixKit.ReferralCodeUsage{}
+      |> PhoenixKit.ReferralCodeUsage.changeset(%{code_id: code.id, used_by: user_id})
+      |> repo().insert()
 
-              {:error, changeset} ->
-                repo().rollback(changeset)
-            end
-          end)
-        else
-          cond do
-            expired?(code) -> {:error, :code_expired}
-            usage_limit_reached?(code) -> {:error, :usage_limit_reached}
-            !code.status -> {:error, :code_inactive}
-            true -> {:error, :code_invalid}
-          end
-        end
+    case usage_result do
+      {:ok, usage} ->
+        {:ok, _updated_code} = update_code(code, %{number_of_uses: code.number_of_uses + 1})
+        usage
+
+      {:error, changeset} ->
+        repo().rollback(changeset)
+    end
+  end
+
+  defp get_code_error(code) do
+    cond do
+      expired?(code) -> {:error, :code_expired}
+      usage_limit_reached?(code) -> {:error, :usage_limit_reached}
+      !code.status -> {:error, :code_inactive}
+      true -> {:error, :code_invalid}
     end
   end
 

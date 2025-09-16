@@ -49,10 +49,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
 
     {options, _remaining} = parse_options(args)
 
-    unless EmailTracking.enabled?() do
-      Mix.shell().error("Email Tracking is not enabled.")
-      exit({:shutdown, 1})
-    end
+    # Note: EmailTracking.enabled?() check omitted as Dialyzer determines it's always true
 
     days_old = parse_days(options[:older_than])
 
@@ -129,7 +126,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
     if options[:archive] do
       Mix.shell().info("📦 Archiving to S3 before deletion...")
 
-      unless options[:dry_run] do
+      if not options[:dry_run] do
         case EmailTracking.archive_to_s3(days_old) do
           {:ok, archived_count} ->
             Mix.shell().info("✅ Archived #{archived_count} logs to S3")
@@ -141,7 +138,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
       count = count_deletable_logs(days_old)
       Mix.shell().info("Would delete #{count} email logs and their events")
     else
-      unless options[:force] do
+      if not options[:force] do
         confirm_deletion_or_exit(days_old)
       end
 

@@ -43,7 +43,7 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructionsLive do
     if user = Auth.get_user_by_email(email) do
       Auth.deliver_user_confirmation_instructions(
         user,
-        &Routes.path("/users/confirm/#{&1}")
+        &Routes.url("/users/confirm/#{&1}")
       )
     end
 

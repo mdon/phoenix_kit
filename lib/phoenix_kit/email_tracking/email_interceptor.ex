@@ -427,7 +427,43 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
 
   # Get AWS SES configuration set
   defp get_configuration_set(opts) do
-    Keyword.get(opts, :configuration_set) || EmailTracking.get_ses_configuration_set()
+    config_set =
+      Keyword.get(opts, :configuration_set) || EmailTracking.get_ses_configuration_set()
+
+    # Only return config set if it's properly configured and not empty
+    case config_set do
+      nil ->
+        nil
+
+      "" ->
+        nil
+
+      "phoenixkit-tracking" ->
+        # Default hardcoded value - only use if explicitly confirmed to exist
+        if validate_ses_configuration_set("phoenixkit-tracking") do
+          "phoenixkit-tracking"
+        else
+          nil
+        end
+
+      other when is_binary(other) ->
+        # Custom config set - validate before using
+        if validate_ses_configuration_set(other) do
+          other
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # Validate that SES configuration set exists (stub for now)
+  defp validate_ses_configuration_set(_config_set) do
+    # For now, always return false to disable configuration sets
+    # until they are properly configured in AWS
+    false
   end
 
   # Build message tags for categorization
