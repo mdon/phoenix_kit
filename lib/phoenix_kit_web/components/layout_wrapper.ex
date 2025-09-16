@@ -221,11 +221,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   
             <!-- Navigation (fills available space) -->
                   <nav class="px-4 py-6 space-y-2 flex-1">
-                    <!-- System Section -->
-                    <div class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">
-                      System
-                    </div>
-
                     <.admin_nav_item
                       href={Routes.path("/admin/dashboard")}
                       icon="dashboard"
