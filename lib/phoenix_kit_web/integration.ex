@@ -66,19 +66,18 @@ defmodule PhoenixKitWeb.Integration do
   """
   defmacro phoenix_kit_routes do
     # Get URL prefix at compile time and handle empty string case for router compatibility
-    raw_prefix =
-      try do
-        PhoenixKit.Config.get_url_prefix()
-      rescue
-        # Fallback if config not available at compile time
-        _ -> "/phoenix_kit"
-      end
-
-    url_prefix =
-      case raw_prefix do
-        prefix when is_binary(prefix) and prefix != "" -> prefix
-        _ -> "/"
-      end
+    raw_prefix = try do
+      PhoenixKit.Config.get_url_prefix()
+    rescue
+      _ -> "/phoenix_kit"  # Fallback if config not available at compile time
+    end
+    
+    url_prefix = case raw_prefix do
+      "" -> "/"
+      nil -> "/"
+      prefix when is_binary(prefix) -> prefix
+      _ -> "/"
+    end
 
     quote do
       # Define the auto-setup pipeline

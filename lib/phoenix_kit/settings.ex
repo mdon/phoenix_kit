@@ -40,8 +40,10 @@ defmodule PhoenixKit.Settings do
   """
 
   import Ecto.Query, warn: false
+  import Ecto.Changeset, only: [add_error: 3]
 
   alias PhoenixKit.Settings.Setting
+  alias PhoenixKit.Settings.Setting.SettingsForm
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   # Gets the configured repository for database operations.
@@ -386,5 +388,115 @@ defmodule PhoenixKit.Settings do
       when is_binary(key) and is_boolean(boolean_value) and is_binary(module) do
     string_value = if boolean_value, do: "true", else: "false"
     update_setting_with_module(key, string_value, module)
+  end
+
+  ## Settings Form Functions
+
+  @doc """
+  Creates a changeset for settings form validation.
+
+  Takes a map of settings and returns a changeset that can be used in Phoenix forms.
+  This function handles the conversion from string keys to atoms and creates the proper
+  embedded schema structure for form validation.
+
+  ## Examples
+
+      iex> settings = %{"project_title" => "My App", "time_zone" => "0"}
+      iex> PhoenixKit.Settings.change_settings(settings)
+      %Ecto.Changeset{data: %SettingsForm{}, valid?: true}
+
+      iex> PhoenixKit.Settings.change_settings(%{})
+      %Ecto.Changeset{data: %SettingsForm{}, valid?: false}
+  """
+  def change_settings(settings \\ %{}) do
+    # Convert string keys to atoms for the embedded schema
+    attrs = atomize_keys(settings)
+
+    # Create the form struct with current values
+    form_data = struct(SettingsForm, attrs)
+
+    # Create changeset without validation action
+    SettingsForm.changeset(form_data, attrs)
+  end
+
+  @doc """
+  Validates settings parameters and returns a changeset.
+
+  Similar to change_settings/1 but sets the action to :validate to trigger
+  error display in forms.
+
+  ## Examples
+
+      iex> settings = %{"project_title" => "", "time_zone" => "invalid"}
+      iex> changeset = PhoenixKit.Settings.validate_settings(settings)
+      iex> changeset.action
+      :validate
+      iex> changeset.valid?
+      false
+  """
+  def validate_settings(settings) do
+    settings
+    |> change_settings()
+    |> Map.put(:action, :validate)
+  end
+
+  @doc """
+  Updates multiple settings at once using form parameters.
+
+  Takes a map of settings parameters, validates them, and if valid, updates
+  all settings in the database. This is typically used from the settings form
+  in the admin panel.
+
+  Returns `{:ok, updated_settings_map}` on success or `{:error, changeset}` on failure.
+
+  ## Examples
+
+      iex> params = %{"project_title" => "My App", "time_zone" => "+1"}
+      iex> PhoenixKit.Settings.update_settings(params)
+      {:ok, %{"project_title" => "My App", "time_zone" => "+1"}}
+
+      iex> PhoenixKit.Settings.update_settings(%{"time_zone" => "invalid"})
+      {:error, %Ecto.Changeset{}}
+  """
+  def update_settings(settings_params) do
+    changeset = validate_settings(settings_params)
+
+    if changeset.valid? do
+      case update_all_settings_from_changeset(changeset) do
+        {:ok, updated_settings} -> {:ok, updated_settings}
+        {:error, errors} -> {:error, add_error(changeset, :base, errors)}
+      end
+    else
+      {:error, changeset}
+    end
+  end
+
+  # Private helper to convert string keys to atoms for changeset
+  defp atomize_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {String.to_atom(k), v} end)
+  end
+
+  # Private helper to update all settings from a valid changeset
+  defp update_all_settings_from_changeset(changeset) do
+    # Extract the changes from the changeset
+    settings_to_update =
+      changeset.changes
+      |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+
+    # Update each setting in the database
+    updated_settings =
+      Enum.reduce(settings_to_update, %{}, fn {key, value}, acc ->
+        case update_setting(key, value) do
+          {:ok, _setting} -> Map.put(acc, key, value)
+          {:error, _changeset} -> acc
+        end
+      end)
+
+    # Check if all settings were updated successfully
+    if map_size(updated_settings) == map_size(settings_to_update) do
+      {:ok, updated_settings}
+    else
+      {:error, "Some settings failed to update"}
+    end
   end
 end
