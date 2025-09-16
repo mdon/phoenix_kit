@@ -255,7 +255,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.path("/users/settings/confirm_email/#{&1}"))
+      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.url("/users/settings/confirm_email/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """
@@ -412,10 +412,10 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
-      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:error, :already_confirmed}
 
   """
@@ -531,7 +531,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.path("/users/reset-password/#{&1}"))
+      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.url("/users/reset-password/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """

@@ -209,7 +209,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
 
             case Auth.deliver_user_confirmation_instructions(
                    user,
-                   &Routes.path("/users/confirm/#{&1}")
+                   &Routes.url("/users/confirm/#{&1}")
                  ) do
               {:ok, _} ->
                 # Email sent successfully
