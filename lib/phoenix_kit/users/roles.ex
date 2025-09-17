@@ -75,8 +75,10 @@ defmodule PhoenixKit.Users.Roles do
       {:error, :role_not_found}
   """
   def assign_role(%User{} = user, role_name, assigned_by \\ nil) when is_binary(role_name) do
+    roles = Role.system_roles()
+
     # Prevent manual assignment of Owner role
-    if role_name == "Owner" do
+    if role_name == roles.owner do
       {:error, :owner_role_protected}
     else
       assign_role_internal(user, role_name, assigned_by)
@@ -192,6 +194,40 @@ defmodule PhoenixKit.Users.Roles do
         where: role.name == ^role_name
 
     repo.exists?(query)
+  end
+
+  @doc """
+  Checks if a user has an "Owner" role.
+
+  ## Parameters
+
+  - `user`: The user to check
+
+  ## Examples
+
+      iex> user_has_role_owner?(user)
+      true
+  """
+  def user_has_role_owner?(%User{} = user) do
+    roles = Role.system_roles()
+    user_has_role?(user, roles.owner)
+  end
+
+  @doc """
+  Checks if a user has an "Admin" role.
+
+  ## Parameters
+
+  - `user`: The user to check
+
+  ## Examples
+
+      iex> user_has_role_admin?(user)
+      true
+  """
+  def user_has_role_admin?(%User{} = user) do
+    roles = Role.system_roles()
+    user_has_role?(user, roles.admin)
   end
 
   @doc """
@@ -336,12 +372,14 @@ defmodule PhoenixKit.Users.Roles do
   def get_role_stats do
     repo = RepoHelper.repo()
 
+    roles = Role.system_roles()
+
     total_users_query = from(u in User, select: count(u.id))
     total_users = repo.one(total_users_query)
 
-    owner_count = count_users_with_role("Owner")
-    admin_count = count_users_with_role("Admin")
-    user_count = count_users_with_role("User")
+    owner_count = count_users_with_role(roles.owner)
+    admin_count = count_users_with_role(roles.admin)
+    user_count = count_users_with_role(roles.user)
 
     %{
       total_users: total_users,
@@ -383,24 +421,31 @@ defmodule PhoenixKit.Users.Roles do
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'Owner'
+        WHERE r.name = $1
       ), 0) as owner_count,
       COALESCE((
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'Admin'
+        WHERE r.name = $2
       ), 0) as admin_count,
       COALESCE((
         SELECT COUNT(*)
         FROM phoenix_kit_user_role_assignments ra
         JOIN phoenix_kit_user_roles r ON r.id = ra.role_id
-        WHERE r.name = 'User'
+        WHERE r.name = $3
       ), 0) as user_count
     FROM phoenix_kit_users;
     """
 
-    result = SQL.query!(repo, query, [])
+    roles = Role.system_roles()
+
+    result =
+      SQL.query!(repo, query, [
+        roles.owner,
+        roles.admin,
+        roles.user
+      ])
 
     case result.rows do
       [
@@ -496,7 +541,8 @@ defmodule PhoenixKit.Users.Roles do
   """
   def promote_to_admin(%User{} = user, assigned_by \\ nil) do
     # Admin role can be assigned through normal process
-    assign_role_internal(user, "Admin", assigned_by)
+    roles = Role.system_roles()
+    assign_role_internal(user, roles.admin, assigned_by)
   end
 
   @doc """
@@ -517,14 +563,16 @@ defmodule PhoenixKit.Users.Roles do
       {:error, :cannot_demote_last_owner}
   """
   def demote_to_user(%User{} = user) do
-    cond do
-      user_has_role?(user, "Owner") ->
-        # Use safe removal for Owner role
-        safely_remove_role(user, "Owner")
+    roles = Role.system_roles()
 
-      user_has_role?(user, "Admin") ->
+    cond do
+      user_has_role?(user, roles.owner) ->
+        # Use safe removal for Owner role
+        safely_remove_role(user, roles.owner)
+
+      user_has_role?(user, roles.admin) ->
         # Admin can be demoted safely
-        remove_role(user, "Admin")
+        remove_role(user, roles.admin)
 
       true ->
         # User has no roles to demote from
@@ -545,11 +593,13 @@ defmodule PhoenixKit.Users.Roles do
   def count_active_owners do
     repo = RepoHelper.repo()
 
+    roles = Role.system_roles()
+
     query =
       from user in User,
         join: assignment in assoc(user, :role_assignments),
         join: role in assoc(assignment, :role),
-        where: role.name == "Owner",
+        where: role.name == ^roles.owner,
         where: user.is_active == true,
         select: count(user.id)
 
@@ -614,11 +664,13 @@ defmodule PhoenixKit.Users.Roles do
 
   # Private helper to assign roles to users with reduced nesting
   defp assign_roles_to_users(users, make_first_owner, existing_owner_count) do
+    roles = Role.system_roles()
+
     if make_first_owner && existing_owner_count == 0 do
       # Assign Owner to first user, User to rest
       [first_user | rest_users] = users
-      owner_result = assign_role_internal(first_user, "Owner")
-      user_results = Enum.map(rest_users, &assign_role_internal(&1, "User"))
+      owner_result = assign_role_internal(first_user, roles.owner)
+      user_results = Enum.map(rest_users, &assign_role_internal(&1, roles.user))
 
       {
         if(match?({:ok, _}, owner_result), do: 1, else: 0),
@@ -626,7 +678,7 @@ defmodule PhoenixKit.Users.Roles do
       }
     else
       # Assign User role to all
-      user_results = Enum.map(users, &assign_role_internal(&1, "User"))
+      user_results = Enum.map(users, &assign_role_internal(&1, roles.user))
       {0, Enum.count(user_results, &match?({:ok, _}, &1))}
     end
   end
@@ -654,13 +706,15 @@ defmodule PhoenixKit.Users.Roles do
   def ensure_first_user_is_owner(%User{} = user) do
     repo = RepoHelper.repo()
 
+    roles = Role.system_roles()
+
     repo.transaction(fn ->
       # Lock the phoenix_kit_user_roles table to prevent race conditions
       # Use a simpler approach - lock the Owner role and check for existing assignments
       owner_role =
         repo.one(
           from r in Role,
-            where: r.name == "Owner",
+            where: r.name == ^roles.owner,
             lock: "FOR UPDATE"
         )
 
@@ -675,7 +729,7 @@ defmodule PhoenixKit.Users.Roles do
             limit: 1
         )
 
-      role_name = if is_nil(existing_owner), do: "Owner", else: "User"
+      role_name = if is_nil(existing_owner), do: roles.owner, else: roles.user
       role_type = if is_nil(existing_owner), do: :owner, else: :user
 
       case assign_role_internal(user, role_name) do
@@ -740,7 +794,9 @@ defmodule PhoenixKit.Users.Roles do
       :ok
   """
   def can_deactivate_user?(%User{} = user) do
-    if user_has_role?(user, "Owner") do
+    roles = Role.system_roles()
+
+    if user_has_role?(user, roles.owner) do
       case count_active_owners() do
         count when count <= 1 -> {:error, :cannot_deactivate_last_owner}
         _ -> :ok
@@ -760,11 +816,13 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   defp count_remaining_owners(repo, excluding_user_id) do
+    roles = Role.system_roles()
+
     repo.one(
       from u in User,
         join: assignment in assoc(u, :role_assignments),
         join: role in assoc(assignment, :role),
-        where: role.name == "Owner",
+        where: role.name == ^roles.owner,
         where: u.is_active == true,
         where: u.id != ^excluding_user_id,
         select: count(u.id)
