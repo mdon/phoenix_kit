@@ -66,18 +66,19 @@ defmodule PhoenixKitWeb.Integration do
   """
   defmacro phoenix_kit_routes do
     # Get URL prefix at compile time and handle empty string case for router compatibility
-    raw_prefix = try do
-      PhoenixKit.Config.get_url_prefix()
-    rescue
-      _ -> "/phoenix_kit"  # Fallback if config not available at compile time
-    end
-    
-    url_prefix = case raw_prefix do
-      "" -> "/"
-      nil -> "/"
-      prefix when is_binary(prefix) -> prefix
-      _ -> "/"
-    end
+    raw_prefix =
+      try do
+        PhoenixKit.Config.get_url_prefix()
+      rescue
+        # Fallback if config not available at compile time
+        _ -> "/phoenix_kit"
+      end
+
+    url_prefix =
+      case raw_prefix do
+        "" -> "/"
+        prefix -> prefix
+      end
 
     quote do
       # Define the auto-setup pipeline
@@ -102,7 +103,7 @@ defmodule PhoenixKitWeb.Integration do
         get "/users/log-out", Users.SessionController, :get_logout
         get "/users/magic-link/:token", Users.MagicLinkController, :verify
 
-        # Email Tracking webhook endpoint (no authentication required)
+        # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
