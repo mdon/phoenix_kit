@@ -13,14 +13,7 @@
         navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M10 19l-7-7m0 0l7-7m-7 7h18"
-          />
-        </svg>
+        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left />
         Back to Dashboard
       </.link>
 
@@ -72,6 +65,175 @@
                     </span>
                   <% else %>
                     Saved: {@settings["project_title"]}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+
+            <%!-- Site Address URL Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Site Address (URL)</span>
+              </label>
+              <input
+                name="settings[site_url]"
+                type="url"
+                value={@settings["site_url"]}
+                class="input input-bordered w-full focus:input-primary"
+                placeholder="https://site.com"
+                phx-debounce="500"
+              />
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["site_url"] != @saved_settings["site_url"] do %>
+                    <span class="text-warning">
+                      Selected: {if @settings["site_url"] != "", do: @settings["site_url"], else: "(empty)"}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {if @saved_settings["site_url"] != "", do: @saved_settings["site_url"], else: "(empty)"}
+                    </span>
+                  <% else %>
+                    Saved: {if @settings["site_url"] != "", do: @settings["site_url"], else: "(empty)"}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+
+            <%!-- Registration Control Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Registration Settings</span>
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  name="settings[allow_registration]"
+                  type="hidden"
+                  value="false"
+                />
+                <input
+                  name="settings[allow_registration]"
+                  type="checkbox"
+                  value="true"
+                  checked={@settings["allow_registration"] == "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">Anyone can register</span>
+              </div>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["allow_registration"] != @saved_settings["allow_registration"] do %>
+                    <span class="text-warning">
+                      Selected: {if @settings["allow_registration"] == "true", do: "Enabled", else: "Disabled"}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {if @saved_settings["allow_registration"] == "true", do: "Enabled", else: "Disabled"}
+                    </span>
+                  <% else %>
+                    Saved: {if @settings["allow_registration"] == "true", do: "Enabled", else: "Disabled"}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+
+            <%!-- New User Default Role Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">New User Default Role</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  Role assigned to new user registrations
+                </span>
+              </label>
+              <select
+                name="settings[new_user_default_role]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["new_user_default_role"] do %>
+                  <option value={value} selected={value == @settings["new_user_default_role"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["new_user_default_role"] != @saved_settings["new_user_default_role"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["new_user_default_role"],
+                        @setting_options["new_user_default_role"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["new_user_default_role"],
+                        @setting_options["new_user_default_role"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["new_user_default_role"],
+                      @setting_options["new_user_default_role"]
+                    )}
+                  <% end %>
+                </span>
+              </div>
+              
+              <%!-- Security Warning for Admin Role --%>
+              <%= if @settings["new_user_default_role"] == "Admin" do %>
+                <div class="alert alert-warning text-sm mt-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <div>
+                    <div class="font-semibold">
+                      Security Notice: Medium Risk
+                    </div>
+                    <div class="text-xs">
+                      All new users will receive administrative privileges and access to the admin panel.
+                      Consider "User" for most installations to maintain security.
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <%!-- Week Start Day Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Week Start On</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  First day of the week
+                </span>
+              </label>
+              <select
+                name="settings[week_start_day]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["week_start_day"] do %>
+                  <option value={value} selected={value == @settings["week_start_day"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["week_start_day"] != @saved_settings["week_start_day"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["week_start_day"],
+                        @setting_options["week_start_day"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["week_start_day"],
+                        @setting_options["week_start_day"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["week_start_day"],
+                      @setting_options["week_start_day"]
+                    )}
                   <% end %>
                 </span>
               </div>
@@ -247,6 +409,8 @@
                 <ul class="text-sm text-base-content/70 space-y-1">
                   <li>• Make changes to dropdowns and click "Save All Settings" to apply</li>
                   <li>• Changes show "Selected" vs "Saved" values until you click Save</li>
+                  <li>• New user default role determines privileges for new registrations (first user always becomes Owner)</li>
+                  <li>• Week start day controls which day begins the week (useful for calendar features)</li>
                   <li>• Time zone affects date/time display throughout the system</li>
                   <li>
                     • Date formats control how dates appear (e.g. Users dashboard "Registered" field)

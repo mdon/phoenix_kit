@@ -77,7 +77,9 @@ defmodule PhoenixKitWeb.Integration do
     url_prefix =
       case raw_prefix do
         "" -> "/"
-        prefix -> prefix
+        nil -> "/"
+        prefix when is_binary(prefix) -> prefix
+        _ -> "/"
       end
 
     quote do

@@ -161,37 +161,49 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
   end
 
   def mount(_params, session, socket) do
-    # Track anonymous visitor session
-    if connected?(socket) do
-      session_id = session["live_socket_id"] || generate_session_id()
+    # Check if registration is allowed
+    allow_registration = Settings.get_boolean_setting("allow_registration", true)
+    
+    if not allow_registration do
+      socket =
+        socket
+        |> put_flash(:error, "User registration is currently disabled. Please contact an administrator.")
+        |> redirect(to: Routes.path("/users/log-in"))
+        
+      {:ok, socket}
+    else
+      # Track anonymous visitor session
+      if connected?(socket) do
+        session_id = session["live_socket_id"] || generate_session_id()
 
-      Presence.track_anonymous(session_id, %{
-        connected_at: DateTime.utc_now(),
-        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
-        user_agent: get_connect_info(socket, :user_agent),
-        current_page: Routes.path("/users/register")
-      })
+        Presence.track_anonymous(session_id, %{
+          connected_at: DateTime.utc_now(),
+          ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+          user_agent: get_connect_info(socket, :user_agent),
+          current_page: Routes.path("/users/register")
+        })
+      end
+
+      # Get project title from settings
+      project_title = Settings.get_setting("project_title", "PhoenixKit")
+
+      # Get referral codes configuration
+      referral_codes_config = ReferralCodes.get_config()
+
+      changeset = Auth.change_user_registration(%User{})
+
+      socket =
+        socket
+        |> assign(trigger_submit: false, check_errors: false)
+        |> assign(project_title: project_title)
+        |> assign(referral_codes_enabled: referral_codes_config.enabled)
+        |> assign(referral_codes_required: referral_codes_config.required)
+        |> assign(referral_code: nil)
+        |> assign(referral_code_error: nil)
+        |> assign_form(changeset)
+
+      {:ok, socket, temporary_assigns: [form: nil]}
     end
-
-    # Get project title from settings
-    project_title = Settings.get_setting("project_title", "PhoenixKit")
-
-    # Get referral codes configuration
-    referral_codes_config = ReferralCodes.get_config()
-
-    changeset = Auth.change_user_registration(%User{})
-
-    socket =
-      socket
-      |> assign(trigger_submit: false, check_errors: false)
-      |> assign(project_title: project_title)
-      |> assign(referral_codes_enabled: referral_codes_config.enabled)
-      |> assign(referral_codes_required: referral_codes_config.required)
-      |> assign(referral_code: nil)
-      |> assign(referral_code_error: nil)
-      |> assign_form(changeset)
-
-    {:ok, socket, temporary_assigns: [form: nil]}
   end
 
   def handle_event("save", %{"user" => user_params} = params, socket) do

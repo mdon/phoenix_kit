@@ -267,7 +267,7 @@ defmodule PhoenixKit.Users.Auth.User do
       true
   """
   def owner?(%__MODULE__{} = user) do
-    has_role?(user, "Owner")
+    Roles.user_has_role_owner?(user)
   end
 
   @doc """
@@ -279,7 +279,7 @@ defmodule PhoenixKit.Users.Auth.User do
       true
   """
   def admin?(%__MODULE__{} = user) do
-    has_role?(user, "Admin") || owner?(user)
+    Roles.user_has_role_admin?(user)
   end
 
   @doc """
@@ -374,7 +374,7 @@ defmodule PhoenixKit.Users.Auth.User do
 
       iex> generate_username_from_email("john.doe@example.com")
       "john_doe"
-      
+
       iex> generate_username_from_email("user@example.com")
       "user"
   """

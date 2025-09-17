@@ -41,6 +41,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
+  import PhoenixKitWeb.Components.Core.Icons, only: [icon_arrow_left: 1]
+
   # Auto-refresh every 10 seconds for real-time monitoring
   @refresh_interval 10_000
 
@@ -220,14 +222,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
             navigate={Routes.path("/admin")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
+            <.icon_arrow_left />
             Back to Admin
           </.link>
 
