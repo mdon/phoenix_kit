@@ -16,7 +16,10 @@ defmodule PhoenixKit.Settings do
 
   ### Default Settings
 
-  The system includes three core settings:
+  The system includes core settings:
+  - `project_title`: Application/project title
+  - `site_url`: Website URL for the application (optional)
+  - `allow_registration`: Allow public user registration (default: true)
   - `time_zone`: System timezone offset
   - `date_format`: Date display format
   - `time_format`: Time display format
@@ -107,16 +110,18 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_setting("", "invalid")
       {:error, %Ecto.Changeset{}}
   """
-  def update_setting(key, value) when is_binary(key) and is_binary(value) do
+  def update_setting(key, value) when is_binary(key) and (is_binary(value) or is_nil(value)) do
+    # Convert nil to empty string for storage
+    stored_value = value || ""
     case repo().get_by(Setting, key: key) do
       %Setting{} = setting ->
         setting
-        |> Setting.update_changeset(%{value: value})
+        |> Setting.update_changeset(%{value: stored_value})
         |> repo().update()
 
       nil ->
         %Setting{}
-        |> Setting.changeset(%{key: key, value: value})
+        |> Setting.changeset(%{key: key, value: stored_value})
         |> repo().insert()
     end
   end
@@ -230,6 +235,8 @@ defmodule PhoenixKit.Settings do
   def get_defaults do
     %{
       "project_title" => "PhoenixKit",
+      "site_url" => "",
+      "allow_registration" => "true",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
       "time_format" => "H:i"
@@ -478,10 +485,14 @@ defmodule PhoenixKit.Settings do
 
   # Private helper to update all settings from a valid changeset
   defp update_all_settings_from_changeset(changeset) do
-    # Extract the changes from the changeset
+    # Extract all data from the changeset (not just changes)
+    # This ensures all form fields are saved, even if unchanged
+    changeset_data = Ecto.Changeset.apply_changes(changeset)
+    
     settings_to_update =
-      changeset.changes
-      |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+      changeset_data
+      |> Map.from_struct()
+      |> Map.new(fn {k, v} -> {Atom.to_string(k), v || ""} end)
 
     # Update each setting in the database
     updated_settings =
