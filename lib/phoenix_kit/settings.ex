@@ -16,7 +16,10 @@ defmodule PhoenixKit.Settings do
 
   ### Default Settings
 
-  The system includes three core settings:
+  The system includes core settings:
+  - `project_title`: Application/project title
+  - `site_url`: Website URL for the application (optional)
+  - `allow_registration`: Allow public user registration (default: true)
   - `time_zone`: System timezone offset
   - `date_format`: Date display format
   - `time_format`: Time display format
@@ -107,16 +110,18 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_setting("", "invalid")
       {:error, %Ecto.Changeset{}}
   """
-  def update_setting(key, value) when is_binary(key) and is_binary(value) do
+  def update_setting(key, value) when is_binary(key) and (is_binary(value) or is_nil(value)) do
+    # Convert nil to empty string for storage
+    stored_value = value || ""
     case repo().get_by(Setting, key: key) do
       %Setting{} = setting ->
         setting
-        |> Setting.update_changeset(%{value: value})
+        |> Setting.update_changeset(%{value: stored_value})
         |> repo().update()
 
       nil ->
         %Setting{}
-        |> Setting.changeset(%{key: key, value: value})
+        |> Setting.changeset(%{key: key, value: stored_value})
         |> repo().insert()
     end
   end
@@ -180,6 +185,16 @@ defmodule PhoenixKit.Settings do
   """
   def get_setting_options do
     %{
+      "new_user_default_role" => get_role_options(),
+      "week_start_day" => [
+        {"Monday", "1"},
+        {"Tuesday", "2"},
+        {"Wednesday", "3"},
+        {"Thursday", "4"},
+        {"Friday", "5"},
+        {"Saturday", "6"},
+        {"Sunday", "7"}
+      ],
       "time_zone" => [
         {"UTC-12 (Baker Island)", "-12"},
         {"UTC-11 (American Samoa)", "-11"},
@@ -230,6 +245,10 @@ defmodule PhoenixKit.Settings do
   def get_defaults do
     %{
       "project_title" => "PhoenixKit",
+      "site_url" => "",
+      "allow_registration" => "true",
+      "new_user_default_role" => "User",
+      "week_start_day" => "1",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
       "time_format" => "H:i"
@@ -412,8 +431,8 @@ defmodule PhoenixKit.Settings do
     # Convert string keys to atoms for the embedded schema
     attrs = atomize_keys(settings)
 
-    # Create the form struct with current values
-    form_data = struct(SettingsForm, attrs)
+    # Create empty form struct to ensure validation runs properly
+    form_data = %SettingsForm{}
 
     # Create changeset without validation action
     SettingsForm.changeset(form_data, attrs)
@@ -471,6 +490,28 @@ defmodule PhoenixKit.Settings do
     end
   end
 
+  @doc """
+  Gets the available role options for the new user default role setting.
+
+  Returns all roles from database except Owner, ordered by system roles first, then custom roles.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_role_options()
+      [{"User", "User"}, {"Admin", "Admin"}, {"Manager", "Manager"}]
+  """
+  def get_role_options do
+    owner_role = PhoenixKit.Users.Role.system_roles().owner
+    
+    # Get all roles from database except Owner role
+    all_roles = PhoenixKit.Users.Roles.list_roles()
+    
+    # Filter out Owner role and convert to {label, value} format
+    all_roles
+    |> Enum.reject(fn role -> role.name == owner_role end)
+    |> Enum.map(fn role -> {role.name, role.name} end)
+  end
+
   # Private helper to convert string keys to atoms for changeset
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn {k, v} -> {String.to_atom(k), v} end)
@@ -478,10 +519,14 @@ defmodule PhoenixKit.Settings do
 
   # Private helper to update all settings from a valid changeset
   defp update_all_settings_from_changeset(changeset) do
-    # Extract the changes from the changeset
+    # Extract all data from the changeset (not just changes)
+    # This ensures all form fields are saved, even if unchanged
+    changeset_data = Ecto.Changeset.apply_changes(changeset)
+    
     settings_to_update =
-      changeset.changes
-      |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+      changeset_data
+      |> Map.from_struct()
+      |> Map.new(fn {k, v} -> {Atom.to_string(k), v || ""} end)
 
     # Update each setting in the database
     updated_settings =
