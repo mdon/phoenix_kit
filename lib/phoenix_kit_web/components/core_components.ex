@@ -132,13 +132,13 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id} class="block mb-2">{@label}</.label>
       <select
         id={@id}
         name={@name}
         class={[
-          "select select-bordered",
-          @label && @label != "" && "mt-2"
+          "select select-bordered w-full",
+          @errors != [] && "select-error"
         ]}
         multiple={@multiple}
         {@rest}
@@ -154,13 +154,12 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(%{type: "textarea"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id} class="block mb-2">{@label}</.label>
       <textarea
         id={@id}
         name={@name}
         class={[
-          "textarea textarea-bordered min-h-[6rem]",
-          @label && @label != "" && "mt-2",
+          "textarea textarea-bordered min-h-[6rem] w-full",
           @errors != [] && "textarea-error"
         ]}
         {@rest}
@@ -174,15 +173,14 @@ defmodule PhoenixKitWeb.CoreComponents do
   def input(assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label :if={@label && @label != ""} for={@id}>{@label}</.label>
+      <.label :if={@label && @label != ""} for={@id} class="block mb-2">{@label}</.label>
       <input
         type={@type}
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
-          "input input-bordered",
-          @label && @label != "" && "mt-2",
+          "input input-bordered w-full",
           @errors != [] && "input-error"
         ]}
         {@rest}
@@ -196,11 +194,12 @@ defmodule PhoenixKitWeb.CoreComponents do
   Renders a label.
   """
   attr :for, :string, default: nil
+  attr :class, :string, default: nil
   slot :inner_block, required: true
 
   def label(assigns) do
     ~H"""
-    <label for={@for} class="label">
+    <label for={@for} class={["label", @class]}>
       <span class="label-text font-semibold">{render_slot(@inner_block)}</span>
     </label>
     """

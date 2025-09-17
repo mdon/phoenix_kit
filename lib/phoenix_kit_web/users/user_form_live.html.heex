@@ -48,9 +48,9 @@
           phx-change="validate_user"
           class="space-y-6"
         >
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-4">
             <%!-- Email --%>
-            <div class="md:col-span-2">
+            <div class="w-full">
               <.input
                 field={form[:email]}
                 type="email"
@@ -61,21 +61,21 @@
             </div>
 
             <%!-- Username --%>
-            <div class="md:col-span-2">
+            <div class="w-full">
               <.input
                 field={form[:username]}
                 type="text"
                 label="Username"
                 placeholder="unique_username"
               />
-              <div class="text-xs text-base-content/60 mt-1">
+              <div class="text-xs text-base-content/60 mt-2">
                 Unique username (3-30 characters, letters, numbers, and underscores only)
               </div>
             </div>
 
             <%!-- Password (only for new users) --%>
             <%= if @mode == :new do %>
-              <div class="md:col-span-2">
+              <div class="w-full">
                 <.input
                   field={form[:password]}
                   type="password"
@@ -86,24 +86,27 @@
               </div>
             <% end %>
 
-            <%!-- First Name --%>
-            <div>
-              <.input
-                field={form[:first_name]}
-                type="text"
-                label="First Name"
-                placeholder="Optional"
-              />
-            </div>
+            <%!-- Name Fields --%>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <%!-- First Name --%>
+              <div class="w-full">
+                <.input
+                  field={form[:first_name]}
+                  type="text"
+                  label="First Name"
+                  placeholder="Optional"
+                />
+              </div>
 
-            <%!-- Last Name --%>
-            <div>
-              <.input
-                field={form[:last_name]}
-                type="text"
-                label="Last Name"
-                placeholder="Optional"
-              />
+              <%!-- Last Name --%>
+              <div class="w-full">
+                <.input
+                  field={form[:last_name]}
+                  type="text"
+                  label="Last Name"
+                  placeholder="Optional"
+                />
+              </div>
             </div>
           </div>
 
@@ -116,16 +119,44 @@
               <div class="flex items-center gap-4 mt-2">
                 <button
                   type="button"
-                  phx-click="show_password_change_modal"
+                  phx-click="toggle_password_field"
                   class="btn btn-outline btn-sm"
                 >
-                  Change Password
+                  <%= if @show_password_field do %>
+                    Hide Password Field
+                  <% else %>
+                    Change Password
+                  <% end %>
                 </button>
                 <span class="text-sm text-base-content/70">
                   Set a new password for this user (Admin privilege required)
                 </span>
               </div>
             </div>
+
+            <%!-- Inline Password Field --%>
+            <%= if @show_password_field do %>
+              <div class="w-full mt-4">
+                <.input
+                  field={form[:password]}
+                  type="password"
+                  label="New Password *"
+                  placeholder="Enter new password (minimum 8 characters)"
+                  required
+                />
+                <div class="text-xs text-base-content/60 mt-2">
+                  <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fill-rule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <strong>Note:</strong>
+                  This will immediately invalidate all current sessions for this user.
+                </div>
+              </div>
+            <% end %>
           <% end %>
 
           <%= if @mode == :new do %>
@@ -157,13 +188,6 @@
           <%!-- Form Actions --%>
           <div class="flex justify-end gap-3 pt-6 border-t border-base-300">
             <button
-              type="button"
-              phx-click="cancel"
-              class="btn btn-outline"
-            >
-              Cancel
-            </button>
-            <button
               type="submit"
               class="btn btn-primary"
               phx-disable-with={
@@ -175,6 +199,13 @@
               <% else %>
                 Update User
               <% end %>
+            </button>
+            <button
+              type="button"
+              phx-click="cancel"
+              class="btn btn-outline"
+            >
+              Cancel
             </button>
           </div>
         </.form>
@@ -308,99 +339,5 @@
       </div>
     <% end %>
 
-    <%!-- Password Change Modal --%>
-    <%= if @mode == :edit && @show_password_change_modal && @password_changeset do %>
-      <div class="modal modal-open">
-        <div class="modal-box max-w-lg">
-          <div class="flex items-center gap-3 mb-4">
-            <svg
-              class="w-8 h-8 text-primary"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"
-              />
-            </svg>
-            <h3 class="font-bold text-xl text-primary">Change User Password</h3>
-          </div>
-
-          <div class="space-y-4 mb-6">
-            <div class="space-y-2 text-sm">
-              <p>Setting new password for:</p>
-              <div class="bg-base-200 p-3 rounded font-mono text-primary">
-                {@user.email || "Unknown user"}
-              </div>
-            </div>
-
-            <.form
-              :let={f}
-              for={@password_changeset}
-              id="password_change_form"
-              phx-submit="admin_change_password"
-              phx-change="validate_password"
-              phx-debounce="300"
-              class="space-y-4"
-            >
-              <%!-- New Password Field --%>
-              <div>
-                <.input
-                  field={f[:password]}
-                  type="password"
-                  label="New Password *"
-                  placeholder="Enter new password (minimum 8 characters)"
-                  required
-                  autocomplete="new-password"
-                />
-              </div>
-
-              <div class="bg-info/10 border border-info/20 rounded-lg p-4">
-                <p class="text-sm">
-                  <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fill-rule="evenodd"
-                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  <strong>Note:</strong>
-                  This will immediately invalidate all current sessions for this user.
-                </p>
-              </div>
-
-              <div class="modal-action">
-                <button
-                  type="button"
-                  phx-click="hide_password_change_modal"
-                  class="btn btn-outline"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  disabled={!@password_changeset.valid?}
-                  phx-disable-with="Updating password..."
-                >
-                  <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Update Password
-                </button>
-              </div>
-            </.form>
-          </div>
-        </div>
-      </div>
-    <% end %>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
