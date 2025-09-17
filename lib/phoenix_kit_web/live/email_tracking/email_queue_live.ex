@@ -16,8 +16,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
 
   ## Route
 
-  This LiveView is mounted at `/phoenix_kit/admin/email-queue` and requires
+  This LiveView is mounted at `{prefix}/admin/email-queue` and requires
   appropriate admin permissions.
+
+  Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 
   ## Usage
 
@@ -37,6 +39,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
   alias PhoenixKit.EmailTracking.{EmailLog, RateLimiter}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   # Auto-refresh every 10 seconds for real-time monitoring
   @refresh_interval 10_000
@@ -77,7 +80,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
       {:ok,
        socket
        |> put_flash(:error, "Email tracking is not enabled")
-       |> push_navigate(to: "/phoenix_kit/admin")}
+       |> push_navigate(to: Routes.path("/admin"))}
     end
   end
 
@@ -214,7 +217,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
         <header class="w-full relative mb-6">
           <%!-- Back Button --%>
           <.link
-            navigate="/phoenix_kit/admin"
+            navigate={Routes.path("/admin")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -514,7 +517,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailQueueLive do
   ## --- Private Functions ---
 
   defp get_current_path(_socket, _session) do
-    "/phoenix_kit/admin/email-queue"
+    Routes.path("/admin/email-queue")
   end
 
   defp load_queue_data(socket) do
