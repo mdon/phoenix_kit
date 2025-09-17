@@ -37,6 +37,12 @@ defmodule PhoenixKit.Users.Role do
           updated_at: NaiveDateTime.t()
         }
 
+  @roles %{
+    owner: "Owner",
+    admin: "Admin",
+    user: "User"
+  }
+
   schema "phoenix_kit_user_roles" do
     field :name, :string
     field :description, :string
@@ -75,21 +81,23 @@ defmodule PhoenixKit.Users.Role do
   end
 
   @doc """
-  Returns the list of system role names.
+  Returns the map of system role names.
 
   ## Examples
 
       iex> system_roles()
-      ["Owner", "Admin", "User"]
+      %{owner: "Owner", admin: "Admin", user: "User"}
   """
   def system_roles do
-    ["Owner", "Admin", "User"]
+    @roles
   end
 
   @doc """
   Checks if a role name is a system role.
 
   ## Examples
+      iex> system_role?(system_roles().owner)
+      true
 
       iex> system_role?("Owner")
       true
@@ -98,7 +106,7 @@ defmodule PhoenixKit.Users.Role do
       false
   """
   def system_role?(role_name) when is_binary(role_name) do
-    role_name in system_roles()
+    role_name in Map.values(system_roles())
   end
 
   # Protect system roles from being modified

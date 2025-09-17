@@ -29,6 +29,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   """
 
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Role
 
   @type t :: %__MODULE__{
           user: User.t() | nil,
@@ -200,8 +201,10 @@ defmodule PhoenixKit.Users.Auth.Scope do
       false
   """
   @spec owner?(t()) :: boolean()
-  def owner?(%__MODULE__{cached_roles: cached_roles}) when is_list(cached_roles) do
-    "Owner" in cached_roles
+  def owner?(%__MODULE__{cached_roles: cached_roles})
+      when is_list(cached_roles) do
+    roles = Role.system_roles()
+    roles.owner in cached_roles
   end
 
   def owner?(%__MODULE__{user: nil}), do: false
@@ -222,7 +225,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
   """
   @spec admin?(t()) :: boolean()
   def admin?(%__MODULE__{cached_roles: cached_roles}) when is_list(cached_roles) do
-    "Admin" in cached_roles or "Owner" in cached_roles
+    roles = Role.system_roles()
+    roles.admin in cached_roles or roles.owner in cached_roles
   end
 
   def admin?(%__MODULE__{user: nil}), do: false
