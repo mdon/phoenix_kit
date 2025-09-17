@@ -185,6 +185,7 @@ defmodule PhoenixKit.Settings do
   """
   def get_setting_options do
     %{
+      "new_user_default_role" => get_role_options(),
       "week_start_day" => [
         {"Monday", "1"},
         {"Tuesday", "2"},
@@ -246,6 +247,7 @@ defmodule PhoenixKit.Settings do
       "project_title" => "PhoenixKit",
       "site_url" => "",
       "allow_registration" => "true",
+      "new_user_default_role" => "User",
       "week_start_day" => "1",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
@@ -486,6 +488,28 @@ defmodule PhoenixKit.Settings do
     else
       {:error, changeset}
     end
+  end
+
+  @doc """
+  Gets the available role options for the new user default role setting.
+
+  Returns all roles from database except Owner, ordered by system roles first, then custom roles.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_role_options()
+      [{"User", "User"}, {"Admin", "Admin"}, {"Manager", "Manager"}]
+  """
+  def get_role_options do
+    owner_role = PhoenixKit.Users.Role.system_roles().owner
+    
+    # Get all roles from database except Owner role
+    all_roles = PhoenixKit.Users.Roles.list_roles()
+    
+    # Filter out Owner role and convert to {label, value} format
+    all_roles
+    |> Enum.reject(fn role -> role.name == owner_role end)
+    |> Enum.map(fn role -> {role.name, role.name} end)
   end
 
   # Private helper to convert string keys to atoms for changeset

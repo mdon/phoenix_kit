@@ -150,6 +150,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :project_title, :string
       field :site_url, :string
       field :allow_registration, :string
+      field :new_user_default_role, :string
       field :week_start_day, :string
       field :time_zone, :string
       field :date_format, :string
@@ -185,11 +186,12 @@ defmodule PhoenixKit.Settings.Setting do
     """
     def changeset(form, attrs) do
       form
-      |> cast(attrs, [:project_title, :site_url, :allow_registration, :week_start_day, :time_zone, :date_format, :time_format])
-      |> validate_required([:project_title, :week_start_day, :time_zone, :date_format, :time_format])
+      |> cast(attrs, [:project_title, :site_url, :allow_registration, :new_user_default_role, :week_start_day, :time_zone, :date_format, :time_format])
+      |> validate_required([:project_title, :new_user_default_role, :week_start_day, :time_zone, :date_format, :time_format])
       |> validate_length(:project_title, min: 1, max: 100)
       |> validate_url()
       |> validate_allow_registration()
+      |> validate_new_user_default_role()
       |> validate_week_start_day()
       |> validate_timezone()
       |> validate_date_format()
@@ -224,6 +226,22 @@ defmodule PhoenixKit.Settings.Setting do
     defp validate_allow_registration(changeset) do
       validate_inclusion(changeset, :allow_registration, ["true", "false"],
         message: "must be either 'true' or 'false'"
+      )
+    end
+
+    # Validates new_user_default_role is a valid non-Owner role
+    defp validate_new_user_default_role(changeset) do
+      owner_role = PhoenixKit.Users.Role.system_roles().owner
+      
+      # Get all valid role names except Owner
+      all_roles = PhoenixKit.Users.Roles.list_roles()
+      valid_roles = 
+        all_roles
+        |> Enum.reject(fn role -> role.name == owner_role end)
+        |> Enum.map(fn role -> role.name end)
+      
+      validate_inclusion(changeset, :new_user_default_role, valid_roles,
+        message: "must be a valid role (Owner is reserved for first user)"
       )
     end
 
