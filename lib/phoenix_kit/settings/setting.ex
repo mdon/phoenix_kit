@@ -55,7 +55,7 @@ defmodule PhoenixKit.Settings.Setting do
   def changeset(setting, attrs) do
     setting
     |> cast(attrs, [:key, :value, :module, :date_added, :date_updated])
-    |> validate_required([:key, :value])
+    |> validate_required([:key])
     |> validate_length(:key, min: 1, max: 255)
     |> validate_setting_value()
     |> validate_length(:module, max: 255)
@@ -72,7 +72,6 @@ defmodule PhoenixKit.Settings.Setting do
   def update_changeset(setting, attrs) do
     setting
     |> cast(attrs, [:value, :module])
-    |> validate_required([:value])
     |> validate_setting_value()
     |> validate_length(:module, max: 255)
     |> put_change(:date_updated, DateTime.utc_now())
@@ -96,11 +95,16 @@ defmodule PhoenixKit.Settings.Setting do
   # Validates setting values with special handling for optional fields
   defp validate_setting_value(changeset) do
     key = get_field(changeset, :key)
+    value = get_field(changeset, :value)
     
     case key do
       "site_url" ->
         # site_url can be empty, but max 1000 characters
-        validate_length(changeset, :value, max: 1000)
+        # Ensure empty string is preserved, not converted to nil
+        case value do
+          nil -> put_change(changeset, :value, "")
+          _ -> validate_length(changeset, :value, max: 1000)
+        end
       _ ->
         # All other settings require non-empty values
         validate_length(changeset, :value, min: 1, max: 1000)
@@ -146,6 +150,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :project_title, :string
       field :site_url, :string
       field :allow_registration, :string
+      field :week_start_day, :string
       field :time_zone, :string
       field :date_format, :string
       field :time_format, :string
@@ -180,11 +185,12 @@ defmodule PhoenixKit.Settings.Setting do
     """
     def changeset(form, attrs) do
       form
-      |> cast(attrs, [:project_title, :site_url, :allow_registration, :time_zone, :date_format, :time_format])
-      |> validate_required([:project_title, :time_zone, :date_format, :time_format])
+      |> cast(attrs, [:project_title, :site_url, :allow_registration, :week_start_day, :time_zone, :date_format, :time_format])
+      |> validate_required([:project_title, :week_start_day, :time_zone, :date_format, :time_format])
       |> validate_length(:project_title, min: 1, max: 100)
       |> validate_url()
       |> validate_allow_registration()
+      |> validate_week_start_day()
       |> validate_timezone()
       |> validate_date_format()
       |> validate_time_format()
@@ -218,6 +224,13 @@ defmodule PhoenixKit.Settings.Setting do
     defp validate_allow_registration(changeset) do
       validate_inclusion(changeset, :allow_registration, ["true", "false"],
         message: "must be either 'true' or 'false'"
+      )
+    end
+
+    # Validates week_start_day is a valid weekday number (1-7)
+    defp validate_week_start_day(changeset) do
+      validate_inclusion(changeset, :week_start_day, ["1", "2", "3", "4", "5", "6", "7"],
+        message: "must be a valid weekday (1-7)"
       )
     end
 

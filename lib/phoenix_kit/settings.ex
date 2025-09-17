@@ -185,6 +185,15 @@ defmodule PhoenixKit.Settings do
   """
   def get_setting_options do
     %{
+      "week_start_day" => [
+        {"Monday", "1"},
+        {"Tuesday", "2"},
+        {"Wednesday", "3"},
+        {"Thursday", "4"},
+        {"Friday", "5"},
+        {"Saturday", "6"},
+        {"Sunday", "7"}
+      ],
       "time_zone" => [
         {"UTC-12 (Baker Island)", "-12"},
         {"UTC-11 (American Samoa)", "-11"},
@@ -237,6 +246,7 @@ defmodule PhoenixKit.Settings do
       "project_title" => "PhoenixKit",
       "site_url" => "",
       "allow_registration" => "true",
+      "week_start_day" => "1",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
       "time_format" => "H:i"
@@ -419,8 +429,8 @@ defmodule PhoenixKit.Settings do
     # Convert string keys to atoms for the embedded schema
     attrs = atomize_keys(settings)
 
-    # Create the form struct with current values
-    form_data = struct(SettingsForm, attrs)
+    # Create empty form struct to ensure validation runs properly
+    form_data = %SettingsForm{}
 
     # Create changeset without validation action
     SettingsForm.changeset(form_data, attrs)

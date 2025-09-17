@@ -135,6 +135,49 @@
               </div>
             </div>
 
+            <%!-- Week Start Day Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Week Start On</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  First day of the week
+                </span>
+              </label>
+              <select
+                name="settings[week_start_day]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["week_start_day"] do %>
+                  <option value={value} selected={value == @settings["week_start_day"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["week_start_day"] != @saved_settings["week_start_day"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["week_start_day"],
+                        @setting_options["week_start_day"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["week_start_day"],
+                        @setting_options["week_start_day"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["week_start_day"],
+                      @setting_options["week_start_day"]
+                    )}
+                  <% end %>
+                </span>
+              </div>
+            </div>
+
             <%!-- Time Zone Setting --%>
             <div class="form-control w-full">
               <label class="label">
@@ -305,6 +348,7 @@
                 <ul class="text-sm text-base-content/70 space-y-1">
                   <li>• Make changes to dropdowns and click "Save All Settings" to apply</li>
                   <li>• Changes show "Selected" vs "Saved" values until you click Save</li>
+                  <li>• Week start day controls which day begins the week (useful for calendar features)</li>
                   <li>• Time zone affects date/time display throughout the system</li>
                   <li>
                     • Date formats control how dates appear (e.g. Users dashboard "Registered" field)
