@@ -12,15 +12,7 @@
         navigate={PhoenixKit.Utils.Routes.path("/admin/users")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M10 19l-7-7m0 0l7-7m-7 7h18"
-          >
-          </path>
-        </svg>
+        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left />
         Back to Users
       </.link>
 
@@ -111,7 +103,7 @@
           </div>
 
           <%!-- Password Change Section (Edit mode, Admin/Owner only) --%>
-          <%= if @mode == :edit and (PhoenixKit.Users.Auth.Scope.has_role?(@phoenix_kit_current_scope, "Admin") or PhoenixKit.Users.Auth.Scope.has_role?(@phoenix_kit_current_scope, "Owner")) do %>
+          <%= if @mode == :edit and (PhoenixKit.Users.Auth.Scope.admin?(@phoenix_kit_current_scope) or PhoenixKit.Users.Auth.Scope.owner?(@phoenix_kit_current_scope)) do %>
             <div class="form-control">
               <label class="label">
                 <span class="label-text font-semibold">Password Management</span>

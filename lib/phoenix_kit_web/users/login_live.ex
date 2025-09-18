@@ -78,15 +78,17 @@ defmodule PhoenixKitWeb.Users.LoginLive do
             </.form>
             
     <!-- Registration link -->
-            <div class="text-center mt-4 text-sm">
-              <span>New to {@project_title}? </span>
-              <.link
-                navigate={Routes.path("/users/register")}
-                class="font-semibold text-primary hover:underline"
-              >
-                Create an account
-              </.link>
-            </div>
+            <%= if @allow_registration do %>
+              <div class="text-center mt-4 text-sm">
+                <span>New to {@project_title}? </span>
+                <.link
+                  navigate={Routes.path("/users/register")}
+                  class="font-semibold text-primary hover:underline"
+                >
+                  Create an account
+                </.link>
+              </div>
+            <% end %>
             
     <!-- Development Mode Notice -->
             <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
@@ -130,13 +132,14 @@ defmodule PhoenixKitWeb.Users.LoginLive do
       })
     end
 
-    # Get project title from settings
+    # Get project title and registration setting from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
+    allow_registration = Settings.get_boolean_setting("allow_registration", true)
 
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, project_title: project_title),
+    {:ok, assign(socket, form: form, project_title: project_title, allow_registration: allow_registration),
      temporary_assigns: [form: form]}
   end
 
