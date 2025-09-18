@@ -17,7 +17,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   ## Route
 
-  This LiveView is mounted at `{prefix}/admin/email-logs` and requires
+  This LiveView is mounted at `{prefix}/admin/emails` and requires
   appropriate admin permissions.
 
   Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
@@ -119,14 +119,14 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: Routes.path("/admin/email-logs?#{new_params}"))}
+     |> push_patch(to: Routes.path("/admin/emails?#{new_params}"))}
   end
 
   @impl true
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      socket
-     |> push_patch(to: Routes.path("/admin/email-logs"))}
+     |> push_patch(to: Routes.path("/admin/emails"))}
   end
 
   @impl true
@@ -143,7 +143,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   def handle_event("view_details", %{"id" => log_id}, socket) do
     {:noreply,
      socket
-     |> push_navigate(to: Routes.path("/admin/email-logs/#{log_id}"))}
+     |> push_navigate(to: Routes.path("/admin/emails/email/#{log_id}"))}
   end
 
   @impl true
@@ -196,8 +196,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
             navigate={Routes.path("/admin/dashboard")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
-            <.icon_arrow_left />
-            Back to Dashboard
+            <.icon_arrow_left /> Back to Dashboard
           </.link>
 
           <%!-- Title Section --%>
@@ -711,7 +710,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   defp build_page_url(page, assigns) do
     params = build_url_params(assigns, %{"page" => page})
-    Routes.path("/admin/email-logs?#{params}")
+    Routes.path("/admin/emails?#{params}")
   end
 
   defp format_datetime_for_csv(nil), do: ""
@@ -719,7 +718,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   defp get_current_path(_socket, _session) do
     # For EmailLogsLive, always return email logs path
-    Routes.path("/admin/email-logs")
+    Routes.path("/admin/emails")
   end
 
   # Extract email_type from message_tags

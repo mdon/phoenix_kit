@@ -1,3 +1,38 @@
+## 1.2.9 - 2025-09-18
+
+### Improved
+- **Icon System Centralization** - Consolidated all inline SVG icons across the codebase into centralized PhoenixKitWeb.Components.Core.Icons module for better maintainability and consistency
+- **Authentication Pages Icons** - Migrated 10 inline SVG icons from login, registration, and magic link pages to centralized icon components (email, lock, user profile, user add, login icons)
+- **Component Reusability** - Migrated 50+ SVG icons from 20+ template files to reusable component functions with configurable CSS classes
+- **Code Quality** - Eliminated duplicate SVG code and standardized icon usage patterns throughout admin interfaces, forms, and user authentication flows
+- **LiveView Module Organization** - Reorganized LiveView modules into logical subfolders for better structure
+- **Route Organization** - Restructured admin routes with improved hierarchical organization
+- **Email URL Generation** - Enhanced Routes.url/1 function to prioritize site_url setting from Settings over dynamic endpoint detection, ensuring consistent email links across PROD and DEV environments
+
+### Changed
+- **User Routes** - Moved all user-related routes under `/admin/users/` prefix:
+  - `/admin/roles` → `/admin/users/roles`
+  - `/admin/live_sessions` → `/admin/users/live_sessions`
+  - `/admin/sessions` → `/admin/users/sessions`
+  - `/admin/referral-codes` → `/admin/users/referral-codes`
+- **Email Routes** - Reorganized email routes for better clarity:
+  - `/admin/email-logs` → `/admin/emails`
+  - `/admin/email-logs/:id` → `/admin/emails/email/:id`
+  - `/admin/email-metrics` → `/admin/emails/dashboard`
+  - `/admin/email-queue` → `/admin/emails/queue`
+  - `/admin/email-blocklist` → `/admin/emails/blocklist`
+
+### Added
+- **icon_login Component** - Added new login icon component (arrow entering door) to Icons module for authentication pages
+- **New Icon Components** - Added icon_download, icon_lock, and icon_search components to Icons module for comprehensive coverage
+- **Icon Documentation** - Enhanced Icons module with detailed component documentation and usage examples
+- **HTML Email Templates** - Added professional HTML versions for all authentication emails (confirmation, password reset, email update) with responsive design and consistent branding
+- **Site URL Configuration** - Email links now use site_url setting from Settings panel when configured, providing full control over email URLs in production environments
+
+### Fixed
+- **Icon Reference** - Fixed incorrect icon_check_circle reference to icon_check_circle_filled in magic_link_live.ex
+- **Code Readability** - Removed unnecessary alias expansion braces for single module imports
+
 ## 1.2.8 - 2025-09-17
 
 ### Improved

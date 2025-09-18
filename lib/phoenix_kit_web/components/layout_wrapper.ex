@@ -147,32 +147,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               <div class="flex items-center justify-between h-16 px-4">
                 <!-- Mobile Menu Button -->
                 <label for="admin-mobile-menu" class="btn btn-square btn-primary drawer-button p-0">
-                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_menu />
                 </label>
                 
             <!-- Logo -->
                 <div class="flex items-center">
                   <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-2">
-                    <svg
-                      class="w-5 h-5 text-primary-content"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                      />
-                    </svg>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_shield />
                   </div>
                   <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
@@ -199,19 +180,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <div class="px-4 py-6 border-b border-base-300 hidden lg:block">
                     <div class="flex items-center gap-3">
                       <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                        <svg
-                          class="w-5 h-5 text-primary-content"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                          />
-                        </svg>
+                        <PhoenixKitWeb.Components.Core.Icons.icon_shield />
                       </div>
                       <div>
                         <h2 class="font-bold text-base-content">{@project_title} Admin</h2>
@@ -237,7 +206,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/users", "/admin/live_sessions", "/admin/sessions", "/admin/roles", "/admin/referral-codes"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/users", "/admin/users/live_sessions", "/admin/users/sessions", "/admin/users/roles", "/admin/users/referral-codes"]) do %>
                       <%!-- Submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -249,7 +218,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/live_sessions")}
+                          href={Routes.path("/admin/users/live_sessions")}
                           icon="live_sessions"
                           label="Live Sessions"
                           current_path={@current_path || ""}
@@ -257,7 +226,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/sessions")}
+                          href={Routes.path("/admin/users/sessions")}
                           icon="sessions"
                           label="Sessions"
                           current_path={@current_path || ""}
@@ -265,7 +234,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/roles")}
+                          href={Routes.path("/admin/users/roles")}
                           icon="roles"
                           label="Roles"
                           current_path={@current_path || ""}
@@ -274,7 +243,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                         <%= if PhoenixKit.ReferralCodes.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/referral-codes")}
+                            href={Routes.path("/admin/users/referral-codes")}
                             icon="referral_codes"
                             label="Referral System"
                             current_path={@current_path || ""}
@@ -287,18 +256,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <%= if PhoenixKit.EmailTracking.enabled?() do %>
                       <%!-- Email section with direct link and conditional submenu --%>
                       <.admin_nav_item
-                        href={Routes.path("/admin/email-metrics")}
+                        href={Routes.path("/admin/emails/dashboard")}
                         icon="email"
                         label="Emails"
                         current_path={@current_path || ""}
                         disable_active={true}
                       />
 
-                      <%= if submenu_open?(@current_path, ["/admin/email-logs", "/admin/email-metrics", "/admin/email-queue", "/admin/email-blocklist"]) do %>
+                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
-                            href={Routes.path("/admin/email-metrics")}
+                            href={Routes.path("/admin/emails/dashboard")}
                             icon="email"
                             label="Dashboard"
                             current_path={@current_path || ""}
@@ -306,7 +275,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/email-logs")}
+                            href={Routes.path("/admin/emails")}
                             icon="email"
                             label="Emails"
                             current_path={@current_path || ""}
@@ -314,7 +283,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/email-queue")}
+                            href={Routes.path("/admin/emails/queue")}
                             icon="email"
                             label="Queue"
                             current_path={@current_path || ""}
@@ -322,7 +291,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/email-blocklist")}
+                            href={Routes.path("/admin/emails/blocklist")}
                             icon="email"
                             label="Blocklist"
                             current_path={@current_path || ""}

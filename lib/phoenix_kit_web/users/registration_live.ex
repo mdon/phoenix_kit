@@ -15,7 +15,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
       page_title="{@project_title} - Create account"
     >
-      <div class="flex items-center justify-center py-8 min-h-[80vh] bg-base-200">
+      <div class="flex items-center justify-center py-8 min-h-[80vh]">
         <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
           <div class="card-body">
             <h1 class="text-2xl font-bold text-center mb-6">{@project_title} Create account</h1>
@@ -33,39 +33,38 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                 <legend class="fieldset-legend sr-only">Account Information</legend>
 
                 <div :if={@check_errors} class="alert alert-error text-sm mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="stroke-current shrink-0 h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_error_circle class="stroke-current shrink-0 h-6 w-6" />
                   <span>Oops, something went wrong! Please check the errors below.</span>
                 </div>
 
                 <div phx-feedback-for="user[email]">
-                  <.label for="user_email">Email</.label>
+                  <label class="label" for="user_email">
+                    <span class="label-text flex items-center">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> Email
+                    </span>
+                  </label>
                   <.input
                     field={@form[:email]}
                     type="email"
                     placeholder="Enter your email address"
+                    class="transition-colors focus:input-primary"
                     required
                   />
                 </div>
 
                 <%!-- Username Field (optional) --%>
                 <div phx-feedback-for="user[username]">
-                  <.label for="user_username">Username</.label>
+                  <label class="label" for="user_username">
+                    <span class="label-text flex items-center">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
+                      Username
+                    </span>
+                  </label>
                   <.input
                     field={@form[:username]}
                     type="text"
                     placeholder="Choose a unique username (optional)"
+                    class="transition-colors focus:input-primary"
                   />
                   <div class="text-xs text-base-content/60 mt-1">
                     If not provided, we'll generate one from your email
@@ -101,11 +100,16 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                 <% end %>
 
                 <div phx-feedback-for="user[password]">
-                  <.label for="user_password">Password</.label>
+                  <label class="label" for="user_password">
+                    <span class="label-text flex items-center">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> Password
+                    </span>
+                  </label>
                   <.input
                     field={@form[:password]}
                     type="password"
                     placeholder="Choose a secure password"
+                    class="transition-colors focus:input-primary"
                     required
                   />
                 </div>
@@ -113,8 +117,9 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
                 <button
                   type="submit"
                   phx-disable-with="Creating account..."
-                  class="btn btn-primary w-full mt-4"
+                  class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
                 >
+                  <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-5 h-5 mr-2" />
                   Create account <span aria-hidden="true">→</span>
                 </button>
               </fieldset>
@@ -133,20 +138,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
             
     <!-- Development Mode Notice -->
             <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="stroke-current shrink-0 h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                >
-                </path>
-              </svg>
+              <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-6 w-6" />
               <span>
                 Development mode: Check
                 <.link href="/dev/mailbox" class="font-semibold underline">mailbox</.link>
@@ -163,15 +155,8 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
   def mount(_params, session, socket) do
     # Check if registration is allowed
     allow_registration = Settings.get_boolean_setting("allow_registration", true)
-    
-    if not allow_registration do
-      socket =
-        socket
-        |> put_flash(:error, "User registration is currently disabled. Please contact an administrator.")
-        |> redirect(to: Routes.path("/users/log-in"))
-        
-      {:ok, socket}
-    else
+
+    if allow_registration do
       # Track anonymous visitor session
       if connected?(socket) do
         session_id = session["live_socket_id"] || generate_session_id()
@@ -203,6 +188,16 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         |> assign_form(changeset)
 
       {:ok, socket, temporary_assigns: [form: nil]}
+    else
+      socket =
+        socket
+        |> put_flash(
+          :error,
+          "User registration is currently disabled. Please contact an administrator."
+        )
+        |> redirect(to: Routes.path("/users/log-in"))
+
+      {:ok, socket}
     end
   end
 
