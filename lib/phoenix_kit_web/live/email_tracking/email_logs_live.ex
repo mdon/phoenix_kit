@@ -196,8 +196,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
             navigate={Routes.path("/admin/dashboard")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
-            <.icon_arrow_left />
-            Back to Dashboard
+            <.icon_arrow_left /> Back to Dashboard
           </.link>
 
           <%!-- Title Section --%>
