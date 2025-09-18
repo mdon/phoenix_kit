@@ -42,7 +42,9 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - User's locale
   - User's timezone (mismatch detection)
   - Fail2ban
+  - Location of registration
 - Backend admin
+  - Design / templates / themes
   - Modules manager
   - Settings
     - General
