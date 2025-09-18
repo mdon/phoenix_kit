@@ -17,6 +17,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
 - [ ] User Module
   - [x] Registration
   - [x] Login
+    - [ ] Login screen customizations
   - [x] Logout
   - [x] Magic link
   - [x] Email confirmation (waiting Email Module)
