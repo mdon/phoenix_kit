@@ -5,7 +5,7 @@
 - **Icon Integration** - Added icon slot support to input component enabling consistent iconography throughout forms using PhoenixKit's centralized icon system
 - **User Experience** - Enhanced interaction feedback with hover scale animations and focus transitions on buttons and form elements
 - **Visual Cohesion** - Removed background color inconsistencies and standardized visual hierarchy across all authentication flows
-- **Development Documentation** - Comprehensive contributor guide with live reloading setup, GitHub workflow, and CONTRIBUTING.md documentation
+- **Development Documentation** - Comprehensive contributor guide with Phoenix built-in live reloading (primary method), custom FileWatcher fallback, GitHub workflow, and complete CONTRIBUTING.md documentation
 
 ### Added
 - **Magic Link Integration** - Added Magic Link authentication option to login page with elegant divider and themed button

@@ -108,11 +108,58 @@ You can now visit [`localhost:4000`](http://localhost:4000) to see your developm
 
 ## Development with Live Reloading
 
-The basic setup above requires manually recompiling PhoenixKit after each change. To enable automatic hot reloading that detects changes and recompiles automatically, follow these additional steps:
+The basic setup above requires manually recompiling PhoenixKit after each change. To enable automatic hot reloading that detects changes and recompiles automatically, follow these steps:
 
-### Enable Live Reloading
+### Method 1: Phoenix Built-in Systems (Recommended)
 
-**Note**: The following steps are performed in your Phoenix development project (not in the phoenix_kit directory). Replace `YourApp` with the actual name of your Phoenix application throughout the code examples.
+**Note**: The following steps are performed in your Phoenix development project (not in the phoenix_kit directory).
+
+This method uses Phoenix's built-in CodeReloader and LiveReloader systems for automatic recompilation and browser refresh.
+
+1. **Configure Phoenix.CodeReloader**: Add to your `config/dev.exs`:
+
+```elixir
+config :your_app, YourAppWeb.Endpoint,
+  # ... existing config ...
+  reloadable_apps: [:your_app, :phoenix_kit],
+  reload_lib_dirs: ["lib", "../phoenix_kit/lib"]
+```
+
+2. **Configure Phoenix.LiveReloader**: Add to your `config/dev.exs`:
+
+```elixir
+# Configure Phoenix LiveReloader to watch the phoenix_kit library (sibling project)
+config :phoenix_live_reload, :dirs, ["", "../phoenix_kit"]
+
+# Add phoenix_kit pattern to live reload patterns
+config :your_app, YourAppWeb.Endpoint,
+  live_reload: [
+    patterns: [
+      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/gettext/.*(po)$",
+      ~r"lib/your_app_web/(?:controllers|live|components|router)/?.*\.(ex|heex)$",
+      ~r"../phoenix_kit/lib/.*\.(ex|heex)$"  # Add this line
+    ]
+  ]
+```
+
+3. **Restart your Phoenix server**:
+
+```bash
+# In your development project directory
+iex -S mix phx.server
+```
+
+**How it works:**
+- When you edit phoenix_kit files, Phoenix.LiveReloader detects changes and triggers browser refresh
+- During the refresh request, Phoenix.CodeReloader automatically recompiles changed files
+- You see updated code immediately without manual recompilation
+
+### Method 2: Custom FileWatcher (Fallback)
+
+If the Phoenix built-in method doesn't work for your setup, you can use this custom approach:
+
+**Note**: This method requires more custom code but provides the same user experience as Method 1. Use this only if the Phoenix built-in method doesn't work for your specific project structure or setup.
 
 1. **Add FileWatcher Module**: Create a GenServer that monitors file changes in your development app at `lib/your_app/file_watcher.ex`:
 
@@ -219,15 +266,22 @@ defp file_watcher_child do
 end
 ```
 
-### How It Works
+## How Live Reloading Works
 
-The FileWatcher:
-- **Monitors** all Elixir files (`.ex`, `.exs`) and templates (`.heex`, `.eex`, `.leex`)
-- **Recompiles** the phoenix_kit dependency when changes are detected
-- **Purges** loaded PhoenixKit modules to ensure fresh code is loaded
-- **Triggers** automatic browser refresh via Phoenix LiveReload
+### Method 1 (Phoenix Built-in):
+- **Phoenix.LiveReloader** monitors file changes and triggers browser refresh
+- **Phoenix.CodeReloader** recompiles during the browser refresh request
+- **Zero custom code** - uses standard Phoenix development workflow
+- **Same user experience** - automatic refresh with updated code
 
-### Benefits
+### Method 2 (Custom FileWatcher):
+- **FileWatcher** monitors all Elixir files and templates
+- **Background recompilation** when files change (before browser refresh)
+- **Module purging** to ensure fresh code is loaded
+- **Custom browser refresh triggering** via file system manipulation
+- **Same user experience** - automatic refresh with updated code
+
+## Benefits of Live Reloading
 
 - **Instant Feedback**: See your changes immediately in the browser
 - **No Manual Steps**: No need to manually run `mix deps.compile` or restart the server
