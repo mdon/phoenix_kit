@@ -59,13 +59,13 @@ mix phoenix_kit.install
 
 This replaces the default deps folder path with your local phoenix_kit development folder, ensuring Tailwind processes your local changes.
 
-8. **Rebuild and deploy assets*:
+8. **Rebuild and deploy assets**:
 ```bash
 mix assets.build
 mix assets.deploy
 ```
 
-8. **Start Your Development Server**:
+9. **Start Your Development Server**:
 ```bash
 mix phx.server
 ```
