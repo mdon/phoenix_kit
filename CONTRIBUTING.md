@@ -44,8 +44,7 @@ mix ecto.create
 
 6. **Run PhoenixKit Installation**:
 ```bash
-mix phoenix_kit.install --repo YourApp.Repo  # Use your app's actual repo module
-mix ecto.migrate
+mix phoenix_kit.install
 ```
 
 7. **Configure Tailwind CSS** (if using Tailwind CSS 4): Update your `assets/css/app.css` to point to your local PhoenixKit. Find the `@source` directives section and replace the phoenix_kit deps path:
