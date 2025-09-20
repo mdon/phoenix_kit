@@ -66,9 +66,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
 
     {options, _remaining} = parse_options(args)
 
-    Mix.shell().info(
-      IO.ANSI.cyan() <> "\n🔍 Email Tracking Configuration Verification" <> IO.ANSI.reset()
-    )
+    Mix.shell().info(IO.ANSI.cyan() <> "\n🔍 Email Configuration Verification" <> IO.ANSI.reset())
 
     Mix.shell().info(String.duplicate("=", 55))
 
@@ -241,13 +239,13 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
 
     case mailer_config do
       nil ->
-        {:error, "No mailer configured. Set up your mailer in config.exs"}
+        {:warning, "No mailer configured. Set up your mailer in config.exs"}
 
-      {module, _opts} ->
+      module when is_atom(module) ->
         if Code.ensure_loaded?(module) do
           {:ok, "Mailer #{module} is configured"}
         else
-          {:error, "Configured mailer module #{module} not found"}
+          {:warning, "Configured mailer module #{module} not found"}
         end
     end
   end

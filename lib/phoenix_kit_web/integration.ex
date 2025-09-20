@@ -39,8 +39,8 @@ defmodule PhoenixKitWeb.Integration do
   - /users/log-out (GET/DELETE)
 
   Admin routes (Owner/Admin only):
-  - /admin/dashboard, /admin/users, /admin/roles
-  - /admin/live_sessions, /admin/sessions
+  - /admin/dashboard, /admin/users, /admin/users/roles
+  - /admin/users/live_sessions, /admin/users/sessions
   - /admin/settings, /admin/modules
 
   ## DaisyUI Setup
@@ -65,7 +65,20 @@ defmodule PhoenixKitWeb.Integration do
 
   """
   defmacro phoenix_kit_routes do
-    url_prefix = PhoenixKit.Config.get_url_prefix()
+    # Get URL prefix at compile time and handle empty string case for router compatibility
+    raw_prefix =
+      try do
+        PhoenixKit.Config.get_url_prefix()
+      rescue
+        # Fallback if config not available at compile time
+        _ -> "/phoenix_kit"
+      end
+
+    url_prefix =
+      case raw_prefix do
+        "" -> "/"
+        prefix -> prefix
+      end
 
     quote do
       # Define the auto-setup pipeline
@@ -90,7 +103,7 @@ defmodule PhoenixKitWeb.Integration do
         get "/users/log-out", Users.SessionController, :get_logout
         get "/users/magic-link/:token", Users.MagicLinkController, :verify
 
-        # Email Tracking webhook endpoint (no authentication required)
+        # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
@@ -124,19 +137,22 @@ defmodule PhoenixKitWeb.Integration do
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
           live "/admin/dashboard", Live.DashboardLive, :index
           live "/admin", Live.DashboardLive, :index
-          live "/admin/users", Live.UsersLive, :index
+          live "/admin/users", Live.Users.UsersLive, :index
           live "/admin/users/new", Users.UserFormLive, :new
           live "/admin/users/edit/:id", Users.UserFormLive, :edit
-          live "/admin/roles", Live.RolesLive, :index
-          live "/admin/live_sessions", Live.LiveSessionsLive, :index
-          live "/admin/sessions", Live.SessionsLive, :index
+          live "/admin/users/roles", Live.Users.RolesLive, :index
+          live "/admin/users/live_sessions", Live.Users.LiveSessionsLive, :index
+          live "/admin/users/sessions", Live.Users.SessionsLive, :index
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
-          live "/admin/referral-codes", Live.ReferralCodesLive, :index
-          live "/admin/referral-codes/new", Live.ReferralCodeFormLive, :new
-          live "/admin/referral-codes/edit/:id", Live.ReferralCodeFormLive, :edit
-          live "/admin/email-logs", Live.EmailTracking.EmailLogsLive, :index
-          live "/admin/email-logs/:id", Live.EmailTracking.EmailDetailsLive, :show
+          live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
+          live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
+          live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
+          live "/admin/emails/dashboard", Live.EmailTracking.EmailMetricsLive, :index
+          live "/admin/emails", Live.EmailTracking.EmailLogsLive, :index
+          live "/admin/emails/email/:id", Live.EmailTracking.EmailDetailsLive, :show
+          live "/admin/emails/queue", Live.EmailTracking.EmailQueueLive, :index
+          live "/admin/emails/blocklist", Live.EmailTracking.EmailBlocklistLive, :index
         end
       end
     end

@@ -10,18 +10,10 @@
     <header class="w-full relative mb-6">
       <%!-- Back Button (Left aligned) --%>
       <.link
-        navigate="/phoenix_kit/admin/referral-codes"
+        navigate={PhoenixKit.Utils.Routes.path("/admin/users/referral-codes")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M10 19l-7-7m0 0l7-7m-7 7h18"
-          />
-        </svg>
-        Back to Referral Codes
+        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> Back to Referral Codes
       </.link>
 
       <%!-- Title Section --%>
@@ -67,15 +59,7 @@
                 class="btn btn-outline btn-secondary"
                 phx-click="generate_code"
               >
-                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                Generate
+                <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-4 h-4 mr-1" /> Generate
               </button>
             </div>
             <%= if form[:code].errors != [] do %>
@@ -112,6 +96,11 @@
               <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg border">
                 <div class="flex-1">
                   <div class="font-medium">{@selected_beneficiary.email}</div>
+                  <%= if @selected_beneficiary.username do %>
+                    <div class="text-sm text-base-content/60">
+                      @{@selected_beneficiary.username}
+                    </div>
+                  <% end %>
                   <%= if @selected_beneficiary.first_name || @selected_beneficiary.last_name do %>
                     <div class="text-sm text-base-content/70">
                       {@selected_beneficiary.first_name} {@selected_beneficiary.last_name}
@@ -124,14 +113,7 @@
                   phx-click="clear_beneficiary"
                   title="Clear selection"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_x class="w-4 h-4" />
                 </button>
               </div>
               <%!-- Hidden field to store the beneficiary ID --%>
@@ -146,7 +128,7 @@
                 <input
                   type="text"
                   class="input input-bordered w-full"
-                  placeholder="Search users by email or name..."
+                  placeholder="Search users by email, username, or name..."
                   phx-change="search_beneficiary"
                   phx-debounce="300"
                   name="search"
@@ -164,6 +146,11 @@
                         phx-value-user_id={user.id}
                       >
                         <div class="font-medium">{user.email}</div>
+                        <%= if user.username do %>
+                          <div class="text-sm text-base-content/60">
+                            @{user.username}
+                          </div>
+                        <% end %>
                         <%= if user.first_name || user.last_name do %>
                           <div class="text-sm text-base-content/70">
                             {user.first_name} {user.last_name}
@@ -243,14 +230,7 @@
               class="btn btn-primary"
               disabled={!@changeset.valid?}
             >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 mr-2" />
               {if @mode == :edit, do: "Update Code", else: "Create Code"}
             </button>
             <button
@@ -258,15 +238,7 @@
               class="btn btn-ghost"
               phx-click="cancel"
             >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-              Cancel
+              <PhoenixKitWeb.Components.Core.Icons.icon_x class="w-4 h-4 mr-2" /> Cancel
             </button>
           </div>
         </.form>

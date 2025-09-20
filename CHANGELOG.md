@@ -1,9 +1,114 @@
+## 1.2.10 - 2025-09-20
+
+### Improved
+- **Authentication UI Consistency** - Unified design across all authentication pages (login, registration, magic link, account settings) with consistent card layouts, shadows, and spacing
+- **Icon Integration** - Added icon slot support to input component enabling consistent iconography throughout forms using PhoenixKit's centralized icon system
+- **User Experience** - Enhanced interaction feedback with hover scale animations and focus transitions on buttons and form elements
+- **Visual Cohesion** - Removed background color inconsistencies and standardized visual hierarchy across all authentication flows
+- **Development Documentation** - Comprehensive contributor guide with Phoenix built-in live reloading (primary method), custom FileWatcher fallback, GitHub workflow, and complete CONTRIBUTING.md documentation
+
+### Added
+- **Magic Link Integration** - Added Magic Link authentication option to login page with elegant divider and themed button
+- **Account Settings Redesign** - Complete visual overhaul of settings page to match authentication pages design language
+- **Flash Message Auto-dismiss** - Implemented automatic flash message dismissal after 10 seconds for improved user experience
+- **Form Field Icons** - Email, password, and profile fields now display contextual icons (email, lock, user profile) for better visual clarity
+
+### Changed
+- **Magic Link Page Layout** - Redesigned magic link page with card-based layout matching login and registration pages
+- **Settings Page Structure** - Restructured account settings with centered layout, improved typography, and consistent spacing
+- **Input Component Enhancement** - Extended core input component to support icon slots while maintaining backward compatibility
+
+## 1.2.9 - 2025-09-18
+
+### Improved
+- **Icon System Centralization** - Consolidated all inline SVG icons across the codebase into centralized PhoenixKitWeb.Components.Core.Icons module for better maintainability and consistency
+- **Authentication Pages Icons** - Migrated 10 inline SVG icons from login, registration, and magic link pages to centralized icon components (email, lock, user profile, user add, login icons)
+- **Component Reusability** - Migrated 50+ SVG icons from 20+ template files to reusable component functions with configurable CSS classes
+- **Code Quality** - Eliminated duplicate SVG code and standardized icon usage patterns throughout admin interfaces, forms, and user authentication flows
+- **LiveView Module Organization** - Reorganized LiveView modules into logical subfolders for better structure
+- **Route Organization** - Restructured admin routes with improved hierarchical organization
+- **Email URL Generation** - Enhanced Routes.url/1 function to prioritize site_url setting from Settings over dynamic endpoint detection, ensuring consistent email links across PROD and DEV environments
+
+### Changed
+- **User Routes** - Moved all user-related routes under `/admin/users/` prefix:
+  - `/admin/roles` → `/admin/users/roles`
+  - `/admin/live_sessions` → `/admin/users/live_sessions`
+  - `/admin/sessions` → `/admin/users/sessions`
+  - `/admin/referral-codes` → `/admin/users/referral-codes`
+- **Email Routes** - Reorganized email routes for better clarity:
+  - `/admin/email-logs` → `/admin/emails`
+  - `/admin/email-logs/:id` → `/admin/emails/email/:id`
+  - `/admin/email-metrics` → `/admin/emails/dashboard`
+  - `/admin/email-queue` → `/admin/emails/queue`
+  - `/admin/email-blocklist` → `/admin/emails/blocklist`
+
+### Added
+- **icon_login Component** - Added new login icon component (arrow entering door) to Icons module for authentication pages
+- **New Icon Components** - Added icon_download, icon_lock, and icon_search components to Icons module for comprehensive coverage
+- **Icon Documentation** - Enhanced Icons module with detailed component documentation and usage examples
+- **HTML Email Templates** - Added professional HTML versions for all authentication emails (confirmation, password reset, email update) with responsive design and consistent branding
+- **Site URL Configuration** - Email links now use site_url setting from Settings panel when configured, providing full control over email URLs in production environments
+
+### Fixed
+- **Icon Reference** - Fixed incorrect icon_check_circle reference to icon_check_circle_filled in magic_link_live.ex
+- **Code Readability** - Removed unnecessary alias expansion braces for single module imports
+
+## 1.2.8 - 2025-09-17
+
+### Improved
+- **Asset Build Pipeline** - Enhanced asset rebuilding using standard Phoenix asset pipeline (mix assets.build) with intelligent fallbacks to esbuild, tailwind, and npm commands for better compatibility
+- **Dynamic URL Prefix Handling** - Replaced hardcoded /phoenix_kit/ paths with dynamic Routes.path() throughout the codebase for proper prefix support
+- **Code Quality** - Improved code formatting, comment alignment, and whitespace consistency across all modules
+- **Installation Messages** - Enhanced user feedback messages with dynamic prefix support and clearer instructions
+
+### Fixed
+- **Hardcoded Paths** - Replaced static URL paths with dynamic prefix resolution using PhoenixKit.Utils.Routes
+- **Asset Rebuild Process** - Asset builder now tries multiple commands in order of preference for maximum compatibility
+
+### Removed
+- **SimpleTest File** - Removed unused development test artifact (simple_test.ex)
+
+## 1.2.7 - 2025-09-16
+
+### Added
+- **Email Navigation** - Added Email Metrics, Email Queue, and Email Blocklist pages to admin navigation menu
+- **Email Blocklist System (V09 Migration)** - Complete email blocklist functionality with temporary/permanent blocks, reason tracking, and audit trail
+- **Email Routes** - Added routes for all Email LiveView pages in admin integration
+- **Users Menu Grouping** - Reorganized admin navigation with expandable Users and Email groups using HTML5 details/summary
+- **Migration Documentation** - Comprehensive migration system documentation with all version paths and rollback options
+
+### Fixed
+- **Email Cleanup Task Pattern Matching** - Fixed Dialyzer warning about EmailTracking.enabled?() pattern matching
+- **Dashboard Add User Button** - Corrected navigation from dashboard Add User button to proper /admin/users/new route
+- **Migration V09 Primary Key** - Fixed duplicate column 'id' error in phoenix_kit_email_blocklist table creation
+
+### Improved
+- **Navigation Menu Structure** - Replaced custom JavaScript with native HTML5 details/summary for better reliability and performance
+- **Email Group Organization** - Email, Metrics, Queue, and Blocklist now properly grouped under Email section
+
+
+## 1.2.6 - 2025-09-15
+
+### Added
+- **Admin Password Change Feature** - Direct password change capability for administrators in user edit form
+- **Username Search Integration** - Added username search to referral code beneficiary selection and main user dashboard
+- **Username Implementation** - Added optional username field with automatic generation from email for new user registrations
+
+### Fixed
+- **Form Validation Display Issues** - Replaced static validator hints with proper Phoenix LiveView components using phx-no-feedback:hidden
+- **Dark Theme Compatibility** - Improved password management sections with theme-adaptive styling
+
+### Improved
+- **Date Formatting** - Updated referral dashboard to use user settings-aware date formatting
+- **Dynamic Routing** - Replaced hardcoded /phoenix_kit/ paths with PhoenixKit.Utils.Routes.path() throughout referral system
+- **Admin UI Experience** - Enhanced password management with both direct change and email reset options
+
 ## 1.2.5 - 2025-09-12
 
 ### Added
-- **Email Tracking System Foundation** with email logging and event tracking schemas
+- **Email System Foundation** with email logging and event tracking schemas
 - **Email Rate Limiting Core** with basic rate limiting functionality and blocklist management
-- **Email Tracking Database Schema (V07)** with optimized tables and proper indexing
+- **Email Database Schema (V07)** with optimized tables and proper indexing
 - **Email Interceptor System** for pre-send filtering and validation capabilities
 - **Webhook Processing Foundation** for AWS SES event handling (bounces, complaints, opens, clicks)
 - **get_mailer/0 function** in PhoenixKit.Config for improved mailer integration

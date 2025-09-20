@@ -124,13 +124,90 @@ defmodule PhoenixKit.Config do
   end
 
   @doc """
+  Gets the base URL dynamically from the parent Phoenix Endpoint if available,
+  otherwise falls back to the static configuration.
+
+  This function automatically detects the correct URL from the running Phoenix
+  application, which is especially useful in development mode where the port
+  might be different from the default configuration.
+
+  ## Examples
+
+      iex> PhoenixKit.Config.get_dynamic_base_url()
+      "http://localhost:4001"  # from Phoenix Endpoint
+
+      iex> PhoenixKit.Config.get_dynamic_base_url()
+      "http://localhost:4000"  # fallback to static config
+  """
+  @spec get_dynamic_base_url() :: String.t()
+  def get_dynamic_base_url do
+    case get_parent_endpoint_url() do
+      {:ok, url} -> url
+      :error -> get_base_url()
+    end
+  end
+
+  @doc """
+  Gets the parent Phoenix Endpoint URL if the endpoint is available and running.
+
+  Returns `{:ok, url}` if successful, `:error` if the endpoint cannot be found
+  or accessed.
+  """
+  @spec get_parent_endpoint_url() :: {:ok, String.t()} | :error
+  def get_parent_endpoint_url do
+    with {:ok, endpoint} <- get_parent_endpoint(),
+         true <- function_exported?(endpoint, :url, 0) do
+      try do
+        url = endpoint.url()
+        {:ok, url}
+      rescue
+        _ -> :error
+      end
+    else
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Gets the parent application's Phoenix Endpoint module.
+
+  This function attempts to detect the main application's endpoint that is using
+  PhoenixKit as a dependency.
+
+  Returns `{:ok, endpoint_module}` if found, `:error` otherwise.
+  """
+  @spec get_parent_endpoint() :: {:ok, module()} | :error
+  def get_parent_endpoint do
+    case get_parent_app() do
+      nil ->
+        :error
+
+      app_name ->
+        base_module = app_name |> to_string() |> Macro.camelize()
+
+        potential_endpoints = [
+          Module.concat([base_module <> "Web", "Endpoint"]),
+          Module.concat([base_module, "Endpoint"])
+        ]
+
+        Enum.reduce_while(potential_endpoints, :error, fn endpoint, _acc ->
+          if Code.ensure_loaded?(endpoint) and function_exported?(endpoint, :url, 0) do
+            {:halt, {:ok, endpoint}}
+          else
+            {:cont, :error}
+          end
+        end)
+    end
+  end
+
+  @doc """
   Gets configured prefix for urls or default value.
   """
   @spec get_url_prefix() :: String.t()
   def get_url_prefix do
     case get(:url_prefix, "/phoenix_kit") do
-      nil -> ""
-      "/" -> ""
+      nil -> "/"
+      "" -> "/"
       value -> value
     end
   end

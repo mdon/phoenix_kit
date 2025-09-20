@@ -10,35 +10,42 @@ PhoenixKit is under heavy development and we're looking for early adopters to te
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
 ## 📦 Current PhoenixKit Features / Modules:
-- [x] Simple installation with Igniter
+- [x] Simple installation using Igniter
+- [x] Tailwind and DaisyUI integration
 - [x] App layout integration
 - [x] App database integration (Postgres only for now)
 - [ ] User Module
   - [x] Registration
   - [x] Login
+    - [ ] Login screen customizations
   - [x] Logout
-  - [ ] Email confirmation (waiting Email Module)
+  - [x] Magic link
+  - [x] Email confirmation (waiting Email Module)
   - [x] Password reset
   - [x] User roles
 - [ ] Backend Admin module
   - [ ] Modules Manager (in progress)
   - [x] Session Manager Module
   - [ ] Settings (in progress)
+    - [x] Global app title
     - [x] Global app timezone (using timex)
     - [x] Global time format (using timex)
   - [x] User management
   - [x] Role management
+  - [x] Referral Program
+- [x] Email Module
 
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
-  - Magic link
+  - User's timezone (mismatch detection)
+  - Location of registration (ip, country, region, city)
   - OAuth (google, facebook, twitter, github, etc...)
+  - User's locale (needs global language settings, in works)
   - 2FA
-  - User's locale / timezone
-  - Referral Program
   - Fail2ban
 - Backend admin
   - Modules manager
+  - Design / templates / themes
   - Settings
     - General
     - Languages
@@ -48,8 +55,10 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Integration with notification providers (Twilio, etc...)
   - Content publishing Module
     - Media / Gallery (with s3 backend)
-    - Video
+    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
     - Audio
+    - Media / Gallery
+    - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
     - CDN
     - Static pages
     - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
@@ -84,7 +93,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Backups
     - Custom entities and fields
   - Customer service Module
-    - Chat 
+    - Chat
   - Feedback Module
   - Roadmap / Ideas Module
   - CRM Module
@@ -96,9 +105,10 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Jobs Module (Oban)
   - Testimonials Module
   - Team Module
+  - FAQ
   - Forms Module
   - Cluster Module
-  
+
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
 ## Installation
@@ -163,15 +173,17 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 ## Quick Start
 
 Visit these URLs after installation:
-- `http://localhost:4000/phoenix_kit/users/register` - User registration
-- `http://localhost:4000/phoenix_kit/users/log-in` - User login
+- `http://localhost:4000{prefix}/users/register` - User registration
+- `http://localhost:4000{prefix}/users/log-in` - User login
+
+Where `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 
 ## Configuration
 
 ### Basic Setup
 ```elixir
 # config/config.exs (automatically added by installer)
-config :phoenix_kit, 
+config :phoenix_kit,
   repo: YourApp.Repo,
   from_email: "noreply@yourcompany.com",  # Required for email notifications
   from_name: "Your Company Name"          # Optional, defaults to "PhoenixKit"
@@ -230,7 +242,7 @@ config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.Sendgrid,
   api_key: System.get_env("SENDGRID_API_KEY")
 
-# Mailgun  
+# Mailgun
 config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.Mailgun,
   api_key: System.get_env("MAILGUN_API_KEY"),
@@ -247,17 +259,17 @@ config :phoenix_kit, PhoenixKit.Mailer,
 ## Routes
 
 ### Public Routes
-- `GET /phoenix_kit/users/register` - Registration form
-- `GET /phoenix_kit/users/log-in` - Login form
-- `GET /phoenix_kit/users/reset-password` - Password reset
-- `GET /phoenix_kit/users/confirm/:token` - Email confirmation
+- `GET {prefix}/users/register` - Registration form
+- `GET {prefix}/users/log-in` - Login form
+- `GET {prefix}/users/reset-password` - Password reset
+- `GET {prefix}/users/confirm/:token` - Email confirmation
 
 ### Authenticated Routes
-- `GET /phoenix_kit/users/settings` - User settings
+- `GET {prefix}/users/settings` - User settings
 
 ### Admin Routes (Owner/Admin only)
-- `GET /phoenix_kit/admin/dashboard` - Admin dashboard
-- `GET /phoenix_kit/admin/users` - User management
+- `GET {prefix}/admin/dashboard` - Admin dashboard
+- `GET {prefix}/admin/users` - User management
 
 ## API Usage
 
@@ -303,7 +315,7 @@ PhoenixKit creates these PostgreSQL tables:
 
 ### System Roles
 - **Owner** - Full system access (first user)
-- **Admin** - Management privileges  
+- **Admin** - Management privileges
 - **User** - Standard access (default)
 
 ### Role Management
@@ -321,8 +333,8 @@ PhoenixKit.Users.Roles.create_role(%{name: "Manager", description: "Team lead"})
 ```
 
 ### Built-in Admin Interface
-- `/phoenix_kit/admin/dashboard` - System statistics
-- `/phoenix_kit/admin/users` - User management with role controls
+- `{prefix}/admin/dashboard` - System statistics
+- `{prefix}/admin/users` - User management with role controls
 
 ## Architecture
 
@@ -334,10 +346,7 @@ PhoenixKit follows professional library patterns:
 
 ## Contributing
 
-1. Fork and create feature branch
-2. Add tests: `mix test`
-3. Run quality checks: `mix quality`
-4. Submit pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on setting up a development environment and contributing to PhoenixKit.
 
 ## License
 

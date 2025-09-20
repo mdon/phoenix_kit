@@ -52,12 +52,14 @@
               </ul>
             </div>
           <% else %>
-            <.link
-              href={PhoenixKit.Utils.Routes.path("/users/register")}
-              class="btn btn-primary btn-sm"
-            >
-              Sign Up
-            </.link>
+            <%= if PhoenixKit.Settings.get_boolean_setting("allow_registration", true) do %>
+              <.link
+                href={PhoenixKit.Utils.Routes.path("/users/register")}
+                class="btn btn-primary btn-sm"
+              >
+                Sign Up
+              </.link>
+            <% end %>
             <.link
               href={PhoenixKit.Utils.Routes.path("/users/log-in")}
               class="btn btn-ghost btn-sm"

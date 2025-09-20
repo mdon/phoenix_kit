@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
+defmodule PhoenixKitWeb.Live.Users.ReferralCodeFormLive do
   use PhoenixKitWeb, :live_view
 
   require Logger
@@ -6,6 +6,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Routes
 
   def mount(params, session, socket) do
     code_id = params["id"]
@@ -164,7 +165,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   def handle_event("cancel", _params, socket) do
-    {:noreply, push_navigate(socket, to: "/phoenix_kit/admin/referral-codes")}
+    {:noreply, push_navigate(socket, to: Routes.path("/admin/users/referral-codes"))}
   end
 
   # Private functions
@@ -174,9 +175,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   defp load_code_data(socket, :edit, code_id) do
-    # Use repo query to preload beneficiary_user
     code = ReferralCodes.get_code!(code_id)
-    # TODO: Add preload for beneficiary_user - for now we'll handle it in the loading
     assign(socket, :code, code)
   end
 
@@ -215,62 +214,57 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
   end
 
   defp create_code(socket, code_params) do
-    # Add created_by field from current user and get user_id for validation
-    {code_params_with_creator, user_id} =
-      case socket.assigns.phoenix_kit_current_user do
-        user when not is_nil(user) ->
-          {Map.put(code_params, "created_by", user.id), user.id}
+    {code_params_with_creator, user_id} = extract_user_info(socket, code_params)
 
-        _ ->
-          # Try alternative scope pattern
-          case socket.assigns do
-            %{phoenix_kit_current_scope: %{user_id: user_id}} when not is_nil(user_id) ->
-              {Map.put(code_params, "created_by", user_id), user_id}
-
-            _ ->
-              # This should not happen in normal operation
-              Logger.warning(
-                "Socket assigns when current_user is nil: #{inspect(socket.assigns)}"
-              )
-
-              {code_params, nil}
-          end
-      end
-
-    # Check user code creation limit before creating
-    case user_id && ReferralCodes.validate_user_code_limit(user_id) do
-      {:ok, :valid} ->
-        case ReferralCodes.create_code(code_params_with_creator) do
-          {:ok, _code} ->
-            socket
-            |> put_flash(:info, "Referral code created successfully!")
-            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
-
-          {:error, changeset} ->
-            socket
-            |> assign(:changeset, changeset)
-            |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
-        end
-
-      {:error, limit_message} ->
-        socket
-        |> put_flash(:error, limit_message)
-
-      nil ->
-        # No user_id available, proceed without limit check
-        case ReferralCodes.create_code(code_params_with_creator) do
-          {:ok, _code} ->
-            socket
-            |> put_flash(:info, "Referral code created successfully!")
-            |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
-
-          {:error, changeset} ->
-            socket
-            |> assign(:changeset, changeset)
-            |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
-        end
-    end
+    socket
+    |> create_code_with_validation(code_params_with_creator, user_id)
     |> then(&{:noreply, &1})
+  end
+
+  defp extract_user_info(socket, code_params) do
+    case socket.assigns.phoenix_kit_current_user do
+      user when not is_nil(user) ->
+        {Map.put(code_params, "created_by", user.id), user.id}
+
+      _ ->
+        extract_user_from_scope(socket, code_params)
+    end
+  end
+
+  defp extract_user_from_scope(socket, code_params) do
+    case socket.assigns do
+      %{phoenix_kit_current_scope: %{user_id: user_id}} when not is_nil(user_id) ->
+        {Map.put(code_params, "created_by", user_id), user_id}
+
+      _ ->
+        Logger.warning("Socket assigns when current_user is nil: #{inspect(socket.assigns)}")
+        {code_params, nil}
+    end
+  end
+
+  defp create_code_with_validation(socket, code_params_with_creator, user_id) do
+    case validate_user_limit(user_id) do
+      {:ok, :valid} -> do_create_code(socket, code_params_with_creator)
+      {:error, limit_message} -> put_flash(socket, :error, limit_message)
+      nil -> do_create_code(socket, code_params_with_creator)
+    end
+  end
+
+  defp validate_user_limit(nil), do: nil
+  defp validate_user_limit(user_id), do: ReferralCodes.validate_user_code_limit(user_id)
+
+  defp do_create_code(socket, code_params_with_creator) do
+    case ReferralCodes.create_code(code_params_with_creator) do
+      {:ok, _code} ->
+        socket
+        |> put_flash(:info, "Referral code created successfully!")
+        |> push_navigate(to: Routes.path("/admin/users/referral-codes"))
+
+      {:error, changeset} ->
+        socket
+        |> assign(:changeset, changeset)
+        |> put_flash(:error, "Failed to create referral code. Please check the errors below.")
+    end
   end
 
   defp update_code(socket, code_params) do
@@ -278,7 +272,7 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
       {:ok, _code} ->
         socket
         |> put_flash(:info, "Referral code updated successfully!")
-        |> push_navigate(to: "/phoenix_kit/admin/referral-codes")
+        |> push_navigate(to: Routes.path("/admin/users/referral-codes"))
 
       {:error, changeset} ->
         socket
@@ -293,8 +287,8 @@ defmodule PhoenixKitWeb.Live.ReferralCodeFormLive do
 
   defp get_current_path(_socket, _session, mode, code_id) do
     case mode do
-      :new -> "/phoenix_kit/admin/referral-codes/new"
-      :edit -> "/phoenix_kit/admin/referral-codes/edit/#{code_id}"
+      :new -> Routes.path("/admin/users/referral-codes/new")
+      :edit -> Routes.path("/admin/users/referral-codes/edit/#{code_id}")
     end
   end
 end

@@ -174,6 +174,55 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Registers a user with IP geolocation data.
+
+  This function attempts to look up geographical location information
+  based on the provided IP address and includes it in the user registration.
+  If geolocation lookup fails, the user is still registered with just the IP address.
+
+  ## Examples
+
+      iex> register_user_with_geolocation(%{email: "user@example.com", password: "password"}, "192.168.1.1")
+      {:ok, %User{registration_ip: "192.168.1.1", registration_country: "United States"}}
+
+      iex> register_user_with_geolocation(%{email: "invalid"}, "192.168.1.1")
+      {:error, %Ecto.Changeset{}}
+  """
+  def register_user_with_geolocation(attrs, ip_address) when is_binary(ip_address) do
+    # Start with the IP address
+    enhanced_attrs = Map.put(attrs, "registration_ip", ip_address)
+
+    # Attempt geolocation lookup
+    case PhoenixKit.Utils.Geolocation.lookup_location(ip_address) do
+      {:ok, location} ->
+        # Add geolocation data to registration
+        enhanced_attrs =
+          enhanced_attrs
+          |> Map.put("registration_country", location["country"])
+          |> Map.put("registration_region", location["region"])
+          |> Map.put("registration_city", location["city"])
+
+        require Logger
+        Logger.info("PhoenixKit: Successful geolocation lookup for IP #{ip_address}")
+
+        register_user(enhanced_attrs)
+
+      {:error, reason} ->
+        # Log the error but continue with registration
+        require Logger
+        Logger.warning("PhoenixKit: Geolocation lookup failed for IP #{ip_address}: #{reason}")
+
+        # Register user with just IP address
+        register_user(enhanced_attrs)
+    end
+  end
+
+  def register_user_with_geolocation(attrs, _invalid_ip) do
+    # Invalid IP provided, register without geolocation data
+    register_user(attrs)
+  end
+
+  @doc """
   Returns an `%Ecto.Changeset{}` for tracking user changes.
 
   ## Examples
@@ -255,7 +304,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.path("/users/settings/confirm_email/#{&1}"))
+      iex> deliver_user_update_email_instructions(user, current_email, &PhoenixKit.Utils.Routes.url("/users/settings/confirm_email/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """
@@ -310,6 +359,32 @@ defmodule PhoenixKit.Users.Auth do
       user
       |> User.password_changeset(attrs)
       |> User.validate_current_password(password)
+
+    multi = Ecto.Multi.new()
+    multi = Ecto.Multi.update(multi, :user, changeset)
+
+    Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, :user, changeset, _} -> {:error, changeset}
+    end
+  end
+
+  @doc """
+  Updates the user password as an admin (bypasses current password validation).
+
+  ## Examples
+
+      iex> admin_update_user_password(user, %{password: "new_password", password_confirmation: "new_password"})
+      {:ok, %User{}}
+
+      iex> admin_update_user_password(user, %{password: "short"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def admin_update_user_password(user, attrs) do
+    changeset = User.password_changeset(user, attrs)
 
     multi = Ecto.Multi.new()
     multi = Ecto.Multi.update(multi, :user, changeset)
@@ -386,10 +461,10 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
-      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.path("/users/confirm/#{&1}"))
+      iex> deliver_user_confirmation_instructions(confirmed_user, &PhoenixKit.Utils.Routes.url("/users/confirm/#{&1}"))
       {:error, :already_confirmed}
 
   """
@@ -413,8 +488,11 @@ defmodule PhoenixKit.Users.Auth do
   def confirm_user(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm"),
          %User{} = user <- Repo.one(query),
-         {:ok, %{user: user}} <- Repo.transaction(confirm_user_multi(user)) do
-      {:ok, user}
+         {:ok, %{user: updated_user}} <- Repo.transaction(confirm_user_multi(user)) do
+      # Broadcast confirmation event
+      alias PhoenixKit.Admin.Events
+      Events.broadcast_user_confirmed(updated_user)
+      {:ok, updated_user}
     else
       _ -> :error
     end
@@ -426,6 +504,75 @@ defmodule PhoenixKit.Users.Auth do
     Ecto.Multi.delete_all(multi, :tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
   end
 
+  @doc """
+  Manually confirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_confirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_confirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_confirm_user(%User{} = user) do
+    changeset = User.confirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_confirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Manually unconfirms a user account (admin function).
+
+  ## Examples
+
+      iex> admin_unconfirm_user(user)
+      {:ok, %User{}}
+
+      iex> admin_unconfirm_user(invalid_user)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_unconfirm_user(%User{} = user) do
+    changeset = User.unconfirm_changeset(user)
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} = result ->
+        alias PhoenixKit.Admin.Events
+        Events.broadcast_user_unconfirmed(updated_user)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Toggles user confirmation status (admin function).
+
+  ## Examples
+
+      iex> toggle_user_confirmation(confirmed_user)
+      {:ok, %User{confirmed_at: nil}}
+
+      iex> toggle_user_confirmation(unconfirmed_user)
+      {:ok, %User{confirmed_at: ~N[2023-01-01 12:00:00]}}
+  """
+  def toggle_user_confirmation(%User{confirmed_at: nil} = user) do
+    admin_confirm_user(user)
+  end
+
+  def toggle_user_confirmation(%User{} = user) do
+    admin_unconfirm_user(user)
+  end
+
   ## Reset password
 
   @doc ~S"""
@@ -433,7 +580,7 @@ defmodule PhoenixKit.Users.Auth do
 
   ## Examples
 
-      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.path("/users/reset-password/#{&1}"))
+      iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.url("/users/reset-password/#{&1}"))
       {:ok, %{to: ..., body: ...}}
 
   """
@@ -777,6 +924,7 @@ defmodule PhoenixKit.Users.Auth do
     from [u] in query,
       where:
         ilike(u.email, ^search_pattern) or
+          ilike(u.username, ^search_pattern) or
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
   end
@@ -806,11 +954,18 @@ defmodule PhoenixKit.Users.Auth do
         from(u in User,
           where:
             ilike(u.email, ^search_pattern) or
+              ilike(u.username, ^search_pattern) or
               ilike(u.first_name, ^search_pattern) or
               ilike(u.last_name, ^search_pattern),
           order_by: [asc: u.email],
           limit: 10,
-          select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+          select: %{
+            id: u.id,
+            email: u.email,
+            username: u.username,
+            first_name: u.first_name,
+            last_name: u.last_name
+          }
         )
         |> Repo.all()
 
@@ -836,7 +991,13 @@ defmodule PhoenixKit.Users.Auth do
   def get_user_for_selection(user_id) when is_integer(user_id) do
     from(u in User,
       where: u.id == ^user_id,
-      select: %{id: u.id, email: u.email, first_name: u.first_name, last_name: u.last_name}
+      select: %{
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        first_name: u.first_name,
+        last_name: u.last_name
+      }
     )
     |> Repo.one()
   end

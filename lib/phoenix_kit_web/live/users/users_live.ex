@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.UsersLive do
+defmodule PhoenixKitWeb.Live.Users.UsersLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Admin.Events
@@ -42,7 +42,15 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     {:ok, socket}
   end
 
+  def handle_params(%{"action" => "add"} = _params, _url, socket) do
+    # Open user registration form for adding new user
+    socket = assign(socket, :show_add_user_modal, true)
+    {:noreply, socket}
+  end
+
   def handle_params(_params, _url, socket) do
+    # Default case - no action specified
+    socket = assign(socket, :show_add_user_modal, false)
     {:noreply, socket}
   end
 
@@ -180,6 +188,18 @@ defmodule PhoenixKitWeb.Live.UsersLive do
     end
   end
 
+  def handle_event("toggle_user_confirmation", %{"user_id" => user_id}, socket) do
+    current_user = socket.assigns.phoenix_kit_current_user
+    user = Auth.get_user!(user_id)
+
+    if current_user.id == user.id do
+      socket = put_flash(socket, :error, "Cannot modify your own confirmation status")
+      {:noreply, socket}
+    else
+      toggle_user_confirmation_safely(socket, user)
+    end
+  end
+
   defp toggle_user_status_safely(socket, user) do
     new_status = !user.is_active
 
@@ -201,6 +221,25 @@ defmodule PhoenixKitWeb.Live.UsersLive do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update user status")
+        {:noreply, socket}
+    end
+  end
+
+  defp toggle_user_confirmation_safely(socket, user) do
+    case Auth.toggle_user_confirmation(user) do
+      {:ok, updated_user} ->
+        status_text = if updated_user.confirmed_at, do: "confirmed", else: "unconfirmed"
+
+        socket =
+          socket
+          |> put_flash(:info, "User email #{status_text} successfully")
+          |> load_users()
+          |> load_stats()
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update user confirmation status")
         {:noreply, socket}
     end
   end
@@ -365,6 +404,24 @@ defmodule PhoenixKitWeb.Live.UsersLive do
   end
 
   def handle_info({:user_roles_synced, _user, _new_roles}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_confirmed, _user}, socket) do
+    socket =
+      socket
+      |> load_users()
+      |> load_stats()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:user_unconfirmed, _user}, socket) do
     socket =
       socket
       |> load_users()

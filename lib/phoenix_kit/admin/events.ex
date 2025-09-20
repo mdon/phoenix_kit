@@ -18,6 +18,8 @@ defmodule PhoenixKit.Admin.Events do
   ### User Events
   - `{:user_created, user}` - New user registered
   - `{:user_updated, user}` - User profile/status updated
+  - `{:user_confirmed, user}` - User email confirmed
+  - `{:user_unconfirmed, user}` - User email unconfirmed
   - `{:user_role_assigned, user, role_name}` - Role assigned to user
   - `{:user_role_removed, user, role_name}` - Role removed from user
   - `{:user_roles_synced, user, new_roles}` - User roles synchronized
@@ -104,6 +106,22 @@ defmodule PhoenixKit.Admin.Events do
   """
   def broadcast_user_roles_synced(user, new_roles) do
     broadcast(@topic_users, {:user_roles_synced, user, new_roles})
+    maybe_broadcast_stats_updated()
+  end
+
+  @doc """
+  Broadcasts user confirmation event to admin panels.
+  """
+  def broadcast_user_confirmed(user) do
+    broadcast(@topic_users, {:user_confirmed, user})
+    maybe_broadcast_stats_updated()
+  end
+
+  @doc """
+  Broadcasts user unconfirmation event to admin panels.
+  """
+  def broadcast_user_unconfirmed(user) do
+    broadcast(@topic_users, {:user_unconfirmed, user})
     maybe_broadcast_stats_updated()
   end
 

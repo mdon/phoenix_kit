@@ -1,12 +1,104 @@
 defmodule PhoenixKit.Migrations.Postgres do
-  @moduledoc false
+  @moduledoc """
+  PhoenixKit PostgreSQL Migration System
+
+  This module handles versioned migrations for PhoenixKit, supporting incremental
+  updates and rollbacks between different schema versions.
+
+  ## Migration Versions
+
+  ### V01 - Initial Setup (Foundation)
+  - Creates basic authentication system
+  - Phoenix_kit_users table with email/password authentication
+  - Phoenix_kit_user_tokens for email confirmation and password reset
+  - CITEXT extension for case-insensitive email storage
+  - Version tracking table (phoenix_kit)
+
+  ### V02 - Role System Foundation
+  - Phoenix_kit_user_roles table for role definitions
+  - Phoenix_kit_user_role_assignments for user-role relationships
+  - System roles (Owner, Admin, User) with protection
+  - Automatic Owner assignment for first user
+
+  ### V03 - Settings System
+  - Phoenix_kit_settings table for system configuration
+  - Key/value storage with timestamps
+  - Default settings for time zones, date formats
+
+  ### V04 - Role System Enhancements
+  - Enhanced role assignments with audit trail
+  - Assigned_by and assigned_at tracking
+  - Active/inactive role states
+
+  ### V05 - Settings Enhancements
+  - Extended settings with better validation
+  - Additional configuration options
+
+  ### V06 - Additional System Tables
+  - Extended system configuration
+  - Performance optimizations
+
+  ### V07 - Email System
+  - Phoenix_kit_email_logs for comprehensive email logging
+  - Phoenix_kit_email_events for delivery event tracking (open, click, bounce)
+  - Advanced email analytics and monitoring
+  - Provider integration and webhook support
+
+  ### V08 - Username Support
+  - Username field for phoenix_kit_users
+  - Unique username constraints
+  - Email-based username generation for existing users
+
+  ### V09 - Email Blocklist System ⚡ NEW
+  - Phoenix_kit_email_blocklist for blocked email addresses
+  - Temporary and permanent blocks with expiration
+  - Reason tracking and audit trail
+  - Efficient indexes for rate limiting and spam prevention
+
+  ## Migration Paths
+
+  ### Fresh Installation (0 → Current)
+  Runs all migrations V01 through V09 in sequence.
+
+  ### Incremental Updates
+  - V01 → V09: Runs V02, V03, V04, V05, V06, V07, V08, V09
+  - V07 → V09: Runs V08, V09 (adds username and blocklist)
+  - V08 → V09: Runs V09 only (adds email blocklist)
+
+  ### Rollback Support
+  - V09 → V08: Removes email blocklist system
+  - V08 → V07: Removes username support
+  - V07 → V06: Removes email tracking system
+  - Full rollback to V01: Keeps only basic authentication
+
+  ## Usage Examples
+
+      # Update to latest version
+      PhoenixKit.Migrations.Postgres.up(prefix: "myapp")
+
+      # Update to specific version
+      PhoenixKit.Migrations.Postgres.up(prefix: "myapp", version: 8)
+
+      # Rollback to specific version
+      PhoenixKit.Migrations.Postgres.down(prefix: "myapp", version: 7)
+
+      # Complete rollback
+      PhoenixKit.Migrations.Postgres.down(prefix: "myapp", version: 0)
+
+  ## PostgreSQL Features
+  - Schema prefix support for multi-tenant applications
+  - Optimized indexes for performance
+  - Foreign key constraints with proper cascading
+  - Extension support (citext)
+  - Version tracking with table comments
+  """
 
   @behaviour PhoenixKit.Migration
 
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 7
+  @current_version 10
   @default_prefix "public"
 
   @doc false

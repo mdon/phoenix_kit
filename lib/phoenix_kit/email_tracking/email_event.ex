@@ -61,6 +61,8 @@ defmodule PhoenixKit.EmailTracking.EmailEvent do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
+  @derive {Jason.Encoder, except: [:__meta__, :email_log]}
+
   alias PhoenixKit.EmailTracking.EmailLog
 
   @primary_key {:id, :id, autogenerate: true}

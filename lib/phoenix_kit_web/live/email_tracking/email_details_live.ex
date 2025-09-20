@@ -17,8 +17,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
 
   ## Route
 
-  This LiveView is mounted at `/phoenix_kit/admin/email-logs/:id` and requires
+  This LiveView is mounted at `{prefix}/admin/emails/:id` and requires
   appropriate admin permissions.
+
+  Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 
   ## Usage
 
@@ -40,6 +42,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+
+  import PhoenixKitWeb.Components.Core.Icons, only: [icon_arrow_left: 1]
 
   ## --- Lifecycle Callbacks ---
 
@@ -72,13 +76,13 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
           {:ok,
            socket
            |> put_flash(:error, "Invalid email ID")
-           |> push_navigate(to: "/phoenix_kit/admin/email-logs")}
+           |> push_navigate(to: Routes.path("/admin/emails"))}
       end
     else
       {:ok,
        socket
        |> put_flash(:error, "Email tracking is not enabled")
-       |> push_navigate(to: "/phoenix_kit/admin/email-logs")}
+       |> push_navigate(to: Routes.path("/admin/emails"))}
     end
   end
 
@@ -131,14 +135,14 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
   def handle_event("view_related", %{"campaign_id" => campaign_id}, socket) do
     {:noreply,
      socket
-     |> push_navigate(to: "/phoenix_kit/admin/email-logs?campaign_id=#{campaign_id}")}
+     |> push_navigate(to: Routes.path("/admin/emails?campaign_id=#{campaign_id}"))}
   end
 
   @impl true
   def handle_event("view_related", %{"template_name" => template_name}, socket) do
     {:noreply,
      socket
-     |> push_navigate(to: "/phoenix_kit/admin/email-logs?template_name=#{template_name}")}
+     |> push_navigate(to: Routes.path("/admin/emails?template_name=#{template_name}"))}
   end
 
   ## --- Template ---
@@ -158,18 +162,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
         <header class="w-full relative mb-6">
           <%!-- Back Button (Left aligned) --%>
           <.link
-            navigate="/phoenix_kit/admin/email-logs"
+            navigate={Routes.path("/admin/emails")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            Back to Email Logs
+            <.icon_arrow_left /> Back to Email Logs
           </.link>
 
           <%!-- Title Section --%>
@@ -373,7 +369,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                       <% end %>
 
                       <%!-- Headers (collapsible) --%>
-                      <%= if assigns[:show_headers] and map_size(@email_log.headers) > 0 do %>
+                      <%= if assigns[:show_headers] and @email_log.headers && map_size(@email_log.headers) > 0 do %>
                         <div>
                           <label class="text-sm font-medium text-base-content/70 block mb-2">
                             Headers
@@ -395,6 +391,18 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                                 <% end %>
                               </tbody>
                             </table>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%!-- Show message when headers are empty but toggle is on --%>
+                      <%= if assigns[:show_headers] and (is_nil(@email_log.headers) or map_size(@email_log.headers) == 0) do %>
+                        <div>
+                          <label class="text-sm font-medium text-base-content/70 block mb-2">
+                            Headers
+                          </label>
+                          <div class="bg-base-200 p-3 rounded text-sm text-base-content/60 italic">
+                            No headers available for this email
                           </div>
                         </div>
                       <% end %>
@@ -522,7 +530,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                         <div class="space-y-2">
                           <%= for related <- Enum.take(@related_emails, 5) do %>
                             <.link
-                              navigate="/phoenix_kit/admin/email-logs/#{related.id}"
+                              navigate={Routes.path("/admin/emails/email/#{related.id}")}
                               class="block p-2 rounded hover:bg-base-200 text-sm"
                             >
                               <div class="font-medium truncate">{related.to}</div>
@@ -561,7 +569,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                 <p class="text-base-content/60 mb-4">
                   The email with ID {@email_id} could not be found.
                 </p>
-                <.link navigate="/phoenix_kit/admin/email-logs" class="btn btn-primary">
+                <.link navigate={Routes.path("/admin/emails")} class="btn btn-primary">
                   Back to Email Logs
                 </.link>
               </div>
@@ -778,6 +786,6 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
 
   defp get_current_path(_socket, _session, email_id) do
     # For EmailDetailsLive, return email details path with ID
-    Routes.path("/admin/email-logs/#{email_id}")
+    Routes.path("/admin/emails/email/#{email_id}")
   end
 end

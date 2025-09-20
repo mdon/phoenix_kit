@@ -16,7 +16,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
       mix phoenix_kit.email.export --from 2025-01-01 --to 2025-01-31
 
       # Export with custom filters
-      mix phoenix_kit.email.export --status delivered --provider aws_ses
+      mix phoenix_kit.email.export --status delivered --tag authentication --provider aws_ses
 
   ## Options
 
@@ -26,7 +26,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
       --to DATE             End date (YYYY-MM-DD)
       --campaign ID         Filter by campaign ID
       --status STATUS       Filter by status (sent, delivered, bounced, etc.)
-      --provider PROVIDER   Filter by email provider
+      --tag TAG             Filter by message tag/type (authentication, marketing, etc.)
+      --provider PROVIDER   Filter by email provider (aws_ses, smtp, local, etc.)
       --limit NUMBER        Limit number of records (default: no limit)
       --include-events      Include email events (opens, clicks) in export
 
@@ -49,6 +50,9 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
       # Recent bounced emails for investigation
       mix phoenix_kit.email.export --status bounced --from $(date -d '7 days ago' '+%Y-%m-%d') --format csv > recent_bounces.csv
 
+      # Authentication emails analysis
+      mix phoenix_kit.email.export --tag authentication --from 2025-01-01 --include-events > auth_emails.csv
+
       # Provider performance comparison
       mix phoenix_kit.email.export --provider aws_ses --from 2025-01-01 --include-events > ses_performance.csv
   """
@@ -62,7 +66,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
     {options, _remaining} = parse_options(args)
 
     unless EmailTracking.enabled?() do
-      Mix.shell().error("Email Tracking is not enabled.")
+      Mix.shell().error("Email is not enabled.")
       exit({:shutdown, 1})
     end
 
@@ -91,6 +95,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
           to: :string,
           campaign: :string,
           status: :string,
+          tag: :string,
           provider: :string,
           limit: :integer,
           include_events: :boolean
@@ -133,6 +138,13 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
     filters =
       if options[:status] do
         Map.put(filters, :status, options[:status])
+      else
+        filters
+      end
+
+    filters =
+      if options[:tag] do
+        Map.put(filters, :message_tag, options[:tag])
       else
         filters
       end
@@ -299,10 +311,10 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
     count = length(logs)
     format = options[:format] || "csv"
 
-    Mix.shell().info("✅ Exported #{count} email logs to #{format} format", [:stderr])
+    Mix.shell().error("✅ Exported #{count} email logs to #{format} format")
 
     if options[:output] do
-      Mix.shell().info("📄 Output saved to: #{options[:output]}", [:stderr])
+      Mix.shell().error("📄 Output saved to: #{options[:output]}")
     end
 
     # Basic stats summary
@@ -313,15 +325,12 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
         |> Enum.map(fn {status, logs} -> {status, length(logs)} end)
         |> Enum.sort_by(fn {_status, count} -> count end, :desc)
 
-      Mix.shell().info("📊 Status breakdown:", [:stderr])
+      Mix.shell().error("📊 Status breakdown:")
 
       for {status, status_count} <- status_counts do
         percentage = Float.round(status_count / count * 100, 1)
 
-        Mix.shell().info(
-          "  #{String.pad_trailing(status, 12)} #{status_count} (#{percentage}%)",
-          [:stderr]
-        )
+        Mix.shell().error("  #{String.pad_trailing(status, 12)} #{status_count} (#{percentage}%)")
       end
     end
   end
