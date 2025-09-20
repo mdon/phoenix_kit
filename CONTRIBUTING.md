@@ -74,32 +74,21 @@ You can now visit [`http://localhost:4000`](http://localhost:4000) to see your d
 
 ## Contribution Workflow
 
-1. **Make your changes** in the `phoenix_kit` directory
+1. **Switch to dev branch**:
+```bash
+git checkout dev
+```
 
-2. **Sync your fork with upstream**: Before finalizing your changes, ensure your fork is up to date:
-   - Navigate to your fork on GitHub
-   - Switch to the `dev` branch using the branch dropdown
-   - Click the "Sync fork" button and then "Update branch"
-   - In your local repository, pull the latest changes:
-   ```bash
-   git checkout dev
-   git pull origin dev
-   ```
+2. **Make your first test change** in the `phoenix_kit` directory
 
-3. **Update CHANGELOG.md**: Add an entry for your changes in the appropriate section:
-   ```bash
-   # Edit CHANGELOG.md to document your changes
-   # Add your entry under the appropriate category (Added, Changed, Fixed, etc.)
-   ```
+3. **Commit and push** your changes:
+```bash
+git add changed_file
+git commit
+git push
+```
 
-4. **Commit and push** your changes:
-   ```bash
-   git add .
-   git commit -m "Add your descriptive commit message"
-   git push origin dev
-   ```
-
-5. **Create Pull Request**:
+4. **Create Pull Request**:
    - After pushing, you'll see a banner on GitHub indicating that your branch is ahead of the main repository
    - Click "Contribute" and then "Open a pull request"
    - GitHub will show the differences between your fork and the main repository
