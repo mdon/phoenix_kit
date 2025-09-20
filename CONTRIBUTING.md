@@ -47,7 +47,7 @@ mix ecto.create
 mix phoenix_kit.install
 ```
 
-7. **Configure Tailwind CSS** (if using Tailwind CSS 4): Update your `assets/css/app.css` to point to your local PhoenixKit. Find the `@source` directives section and replace the phoenix_kit deps path:
+7. **Configure Tailwind CSS**: Update your `assets/css/app.css` to point to your local PhoenixKit git clone. Find the `@source` directives section and replace the phoenix_kit deps path:
 ```css
 @import "tailwindcss" source(none);
 @source "../css";
@@ -59,12 +59,18 @@ mix phoenix_kit.install
 
 This replaces the default deps folder path with your local phoenix_kit development folder, ensuring Tailwind processes your local changes.
 
+8. **Rebuild and deploy assets*:
+```bash
+mix assets.build
+mix assets.deploy
+```
+
 8. **Start Your Development Server**:
 ```bash
 mix phx.server
 ```
 
-You can now visit [`localhost:4000`](http://localhost:4000) to see your development app running with PhoenixKit. Any changes you make to files in the `phoenix_kit` directory will require manually running `mix deps.compile phoenix_kit --force` and refreshing your browser to see the changes.
+You can now visit [`http://localhost:4000`](http://localhost:4000) to see your development app running with PhoenixKit. Keep in mind, that any changes you make to files in the `phoenix_kit` directory will require manually running `mix deps.compile phoenix_kit --force` and refreshing your browser to see the changes.
 
 ## Contribution Workflow
 
