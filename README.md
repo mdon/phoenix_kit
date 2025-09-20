@@ -48,11 +48,12 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Integration with notification providers (Twilio, etc...)
   - Content publishing Module
     - Media / Gallery (with s3 backend)
+    - Video
+    - Audio
     - CDN
     - Static pages
     - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
     - Blog
-    - Video
     - Comments
     - Search
     - Blocks
