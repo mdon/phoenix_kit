@@ -11,10 +11,7 @@ To contribute to PhoenixKit, you'll need to set up a local development environme
 
 2. **Clone Your Fork**:
 ```bash
-# Using SSH (recommended if you have SSH keys set up)
 git clone git@github.com:yourusername/phoenix_kit.git
-# OR using HTTPS
-git clone https://github.com/yourusername/phoenix_kit.git
 
 cd phoenix_kit
 ```
