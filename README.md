@@ -23,6 +23,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] Email confirmation (waiting Email Module)
   - [x] Password reset
   - [x] User roles
+  - [x] Location of registration (ip, country, region, city)
 - [ ] Backend Admin module
   - [ ] Modules Manager (in progress)
   - [x] Session Manager Module
@@ -38,7 +39,6 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
   - User's timezone (mismatch detection)
-  - Location of registration (ip, country, region, city)
   - OAuth (google, facebook, twitter, github, etc...)
   - User's locale (needs global language settings, in works)
   - 2FA
