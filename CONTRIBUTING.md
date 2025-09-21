@@ -70,13 +70,18 @@ mix assets.deploy
 mix phx.server
 ```
 
-You can now visit [`http://localhost:4000`](http://localhost:4000) to see your development app running with PhoenixKit. Keep in mind, that any changes you make to files in the `phoenix_kit` directory will require manually running `mix deps.compile phoenix_kit --force` and refreshing your browser to see the changes.
+You can now visit [`http://localhost:4000`](http://localhost:4000) to see your development app running with PhoenixKit, and you can visit PhoenixKit powered pages:
+- http://localhost:4000/phoenix_kit/users/register (first registered user will become admin and a product owner)
+- http://localhost:4000/phoenix_kit/users/log-in (you should be able to login)
+- http://localhost:4000/phoenix_kit/admin/dashboard (and access phoenix_kit admin panel)
 
-10. **Configure Live Reloading**: The basic setup above requires manually recompiling PhoenixKit after each change. To enable automatic hot reloading that detects changes and recompiles automatically, configure Phoenix's built-in systems:
+Keep in mind, that any changes you make to files in the `phoenix_kit` directory will require manually running `mix deps.compile phoenix_kit --force` and refreshing your browser to see the changes, so let's configure live reloading for a better development experience.
+
+10. **Configure Live Reloading**: To enable automatic hot reloading that detects changes and recompiles automatically, configure Phoenix's built-in systems:
 
 **Note**: The following configuration is added to your Phoenix development project (not in the phoenix_kit directory).
 
-   a. **Configure Phoenix.CodeReloader**: Add to your `config/dev.exs`:
+   10.1. **Configure Phoenix.CodeReloader**: Add to your `config/dev.exs`:
 
    ```elixir
    config :your_app, YourAppWeb.Endpoint,
@@ -85,7 +90,7 @@ You can now visit [`http://localhost:4000`](http://localhost:4000) to see your d
      reload_lib_dirs: ["lib", "../phoenix_kit/lib"]
    ```
 
-   b. **Configure Phoenix.LiveReloader**: Add to your `config/dev.exs`:
+   10.2. **Configure Phoenix.LiveReloader**: Add to your `config/dev.exs`:
 
    ```elixir
    # Configure Phoenix LiveReloader to watch the phoenix_kit library (sibling project)
@@ -103,7 +108,9 @@ You can now visit [`http://localhost:4000`](http://localhost:4000) to see your d
      ]
    ```
 
-   c. **Restart your Phoenix server**:
+   10.3. **Restart your Phoenix app**:
+
+   Ctrl+C couple of times to break out from running app and start your app again:
 
    ```bash
    # In your development project directory
