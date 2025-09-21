@@ -1,4 +1,4 @@
-## 1.2.10 - 2025-09-20
+## 1.2.10 - 2025-09-21
 
 ### Improved
 - **Authentication UI Consistency** - Unified design across all authentication pages (login, registration, magic link, account settings) with consistent card layouts, shadows, and spacing
