@@ -25,9 +25,9 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] User roles
   - [x] Location of registration (ip, country, region, city)
 - [ ] Backend Admin module
-  - [ ] Modules Manager (in progress)
+  - [x] Modules Manager (in progress)
   - [x] Session Manager Module
-  - [ ] Settings (in progress)
+  - [x] Settings (in progress)
     - [x] Global app title
     - [x] Global app timezone (using timex)
     - [x] Global time format (using timex)
@@ -39,12 +39,11 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
   - User's timezone (mismatch detection)
-  - OAuth (google, facebook, twitter, github, etc...)
   - User's locale (needs global language settings, in works)
+  - OAuth (google, facebook, twitter, github, etc...)
   - 2FA
   - Fail2ban
 - Backend admin
-  - Modules manager
   - Design / templates / themes
   - Settings
     - General
