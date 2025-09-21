@@ -12,14 +12,15 @@ To contribute to PhoenixKit, you'll need to set up a local development environme
 2. **Clone Your Fork**:
 ```bash
 git clone git@github.com:yourusername/phoenix_kit.git
-
-cd phoenix_kit
 ```
 
 3. **Create a Development Phoenix App**: Set up a Phoenix application for testing your PhoenixKit changes:
+Make sure you have latest [Elixir Phoenix Framework](https://hexdocs.pm/phoenix/installation.html).
 ```bash
-# Create a new Phoenix app adjacent to your phoenix_kit directory
-cd ..
+mix archive.install hex phx_new
+```
+Then create a new Phoenix app adjacent to your phoenix_kit directory.
+```bash
 mix phx.new your_app_name  # Choose any name for your development app
 cd your_app_name
 ```
