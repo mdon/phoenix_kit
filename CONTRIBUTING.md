@@ -77,50 +77,66 @@ You can now visit [`http://localhost:4000`](http://localhost:4000) to see your d
 
 Keep in mind, that any changes you make to files in the `phoenix_kit` directory will require manually running `mix deps.compile phoenix_kit --force` and refreshing your browser to see the changes, so let's configure live reloading for a better development experience.
 
-10. **Configure Live Reloading**: To enable automatic hot reloading that detects changes and recompiles automatically, configure Phoenix's built-in systems:
+10. **Configure Live Reloading**:
+To enable automatic hot reloading that detects changes and recompiles automatically, configure Phoenix's built-in systems:
 
 **Note**: The following configuration is added to your Phoenix development project (not in the phoenix_kit directory).
 
-   10.1. **Configure Phoenix.CodeReloader**: Add to your `config/dev.exs`:
+10.1. **Configure your Endpoint**:
+Edit your `config/dev.exs` file, and find your Endpoint configuration, which starts something like this:
+```elixir
+config :your_app, YourAppWeb.Endpoint,
+```
 
-   ```elixir
-   config :your_app, YourAppWeb.Endpoint,
-     # ... existing config ...
-     reloadable_apps: [:your_app, :phoenix_kit],
-     reload_lib_dirs: ["lib", "../phoenix_kit/lib"]
-   ```
+And inside of Endpoint configuration, just before watchers list, add these 2 lines (and don't forget to change `:your_app`)
+```elixir
+reloadable_apps: [:your_app, :phoenix_kit],
+reload_lib_dirs: ["lib", "../phoenix_kit/lib"],
+```
 
-   10.2. **Configure Phoenix.LiveReloader**: Add to your `config/dev.exs`:
+10.2. **Configure Phoenix LiveReloader to watch the phoenix_kit library**:
 
-   ```elixir
-   # Configure Phoenix LiveReloader to watch the phoenix_kit library (sibling project)
-   config :phoenix_live_reload, :dirs, ["", "../phoenix_kit"]
+Just below Endpoint configuration, in your `config/dev.exs` file add:
 
-   # Add phoenix_kit pattern to live reload patterns
-   config :your_app, YourAppWeb.Endpoint,
-     live_reload: [
-       patterns: [
-         ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-         ~r"priv/gettext/.*(po)$",
-         ~r"lib/your_app_web/(?:controllers|live|components|router)/?.*\.(ex|heex)$",
-         ~r"../phoenix_kit/lib/.*\.(ex|heex)$"  # Add this line
-       ]
-     ]
-   ```
+```elixir
+config :phoenix_live_reload, :dirs, ["", "../phoenix_kit"]
+```
 
-   10.3. **Restart your Phoenix app**:
+Find live_reload configuration and add extra line to patterns list:
 
-   Ctrl+C couple of times to break out from running app and start your app again:
+```elixir
+~r"../phoenix_kit/lib/.*\.(ex|heex)$"
+```
 
-   ```bash
-   # In your development project directory
-   mix phx.server
-   ```
+So, live_reload configration should look like this:
 
-   **How it works:**
-   - When you edit phoenix_kit files, Phoenix.LiveReloader detects changes and triggers browser refresh
-   - During the refresh request, Phoenix.CodeReloader automatically recompiles changed files
-   - You see updated code immediately without manual recompilation
+```elixir
+# Watch static and templates for browser reloading.
+config :pk_test, PkTestWeb.Endpoint,
+  live_reload: [
+    web_console_logger: true,
+    patterns: [
+      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/gettext/.*(po)$",
+      ~r"lib/pk_test_web/(?:controllers|live|components|router)/?.*\.(ex|heex)$",
+      ~r"../phoenix_kit/lib/.*\.(ex|heex)$"
+    ]
+  ]
+```
+
+10.3. **Restart your Phoenix app**:
+
+Ctrl+C couple of times to break out from running app and start your app again:
+
+```bash
+# In your development project directory
+mix phx.server
+```
+
+**How it works:**
+- When you edit phoenix_kit files, Phoenix.LiveReloader detects changes and triggers browser refresh
+- During the refresh request, Phoenix.CodeReloader automatically recompiles changed files
+- You see updated code immediately without manual recompilation
 
 ## Contribution Workflow
 
