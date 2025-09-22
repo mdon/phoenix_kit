@@ -1,6 +1,7 @@
 defmodule PhoenixKitWeb.Users.SettingsLive do
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
@@ -84,7 +85,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                   <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-6 h-6 text-primary mr-3" />
                   <div>
                     <h2 class="text-xl font-bold">Profile Information</h2>
-                    <p class="text-sm text-base-content/60">Update your personal information</p>
+                    <p class="text-sm text-base-content/60">Update your personal information and timezone preference</p>
                   </div>
                 </div>
 
@@ -106,6 +107,16 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                   <.input field={@profile_form[:last_name]} type="text" label="Last Name">
                     <:icon>
                       <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
+                    </:icon>
+                  </.input>
+                  <.input
+                    field={@profile_form[:user_timezone]}
+                    type="select"
+                    label="Personal Timezone"
+                    options={@timezone_options}
+                  >
+                    <:icon>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_clock class="w-4 h-4 mr-2" />
                     </:icon>
                   </.input>
                   <:actions>
@@ -227,6 +238,10 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
     password_changeset = Auth.change_user_password(user)
     profile_changeset = Auth.change_user_profile(user)
 
+    # Get timezone options from Settings module
+    setting_options = Settings.get_setting_options()
+    timezone_options = [{"Use System Default", nil} | setting_options["time_zone"]]
+
     socket =
       socket
       |> assign(:current_password, nil)
@@ -235,6 +250,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:profile_form, to_form(profile_changeset))
+      |> assign(:timezone_options, timezone_options)
       |> assign(:trigger_submit, false)
 
     {:ok, socket}

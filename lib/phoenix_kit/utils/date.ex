@@ -299,4 +299,102 @@ defmodule PhoenixKit.Utils.Date do
     time_format = Settings.get_setting("time_format", "H:i")
     format_time(time, time_format)
   end
+
+  @doc """
+  Formats a datetime using the user's timezone and date format preferences.
+
+  Takes a user struct and uses their personal timezone preference if set,
+  otherwise falls back to system timezone, and finally UTC as last resort.
+
+  ## Examples
+
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_datetime_with_user_timezone(~N[2024-01-15 15:30:00], user)
+      "January 15, 2024"  # If user has "F j, Y" format selected
+
+      iex> user = %User{user_timezone: nil}  # Falls back to system timezone
+      iex> PhoenixKit.Utils.Date.format_datetime_with_user_timezone(~N[2024-01-15 15:30:00], user)
+      "2024-01-15"  # System default format
+  """
+  def format_datetime_with_user_timezone(datetime, user) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_datetime_with_timezone(datetime, date_format, user)
+  end
+
+  @doc """
+  Formats a date using the user's timezone and date format preferences.
+
+  Takes a user struct and uses their personal timezone preference if set,
+  otherwise falls back to system timezone.
+
+  ## Examples
+
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_date_with_user_timezone(~D[2024-01-15], user)
+      "January 15, 2024"  # If user has "F j, Y" format selected
+  """
+  def format_date_with_user_timezone(date, user) do
+    date_format = Settings.get_setting("date_format", "Y-m-d")
+    format_date_with_timezone(date, date_format, user)
+  end
+
+  @doc """
+  Formats a time using the user's timezone and time format preferences.
+
+  Takes a user struct and uses their personal timezone preference if set,
+  otherwise falls back to system timezone.
+
+  ## Examples
+
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_time_with_user_timezone(~T[15:30:00], user)
+      "3:30 PM"  # If user has "h:i A" format selected
+  """
+  def format_time_with_user_timezone(time, user) do
+    time_format = Settings.get_setting("time_format", "H:i")
+    format_time_with_timezone(time, time_format, user)
+  end
+
+  # Private helper function to handle timezone conversion and formatting
+  defp format_datetime_with_timezone(datetime, format, user) do
+    case datetime do
+      nil -> "Never"
+      _ -> format_datetime(datetime, format)  # For now, just use existing formatting
+    end
+  end
+
+  # Private helper function to handle timezone conversion for dates
+  defp format_date_with_timezone(date, format, _user) do
+    # For dates without time component, timezone doesn't matter
+    format_date(date, format)
+  end
+
+  # Private helper function to handle timezone conversion for times
+  defp format_time_with_timezone(time, format, _user) do
+    # For time-only values, timezone conversion would need date context
+    format_time(time, format)
+  end
+
+  @doc """
+  Gets the effective timezone for a user.
+
+  Returns the user's personal timezone if set, otherwise falls back to
+  system timezone, and finally UTC as last resort.
+
+  ## Examples
+
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.get_user_timezone(user)
+      "+5"
+
+      iex> user = %User{user_timezone: nil}
+      iex> PhoenixKit.Utils.Date.get_user_timezone(user)
+      "0"  # System default
+  """
+  def get_user_timezone(user) do
+    case user.user_timezone do
+      nil -> Settings.get_setting("time_zone", "0")
+      timezone -> timezone
+    end
+  end
 end

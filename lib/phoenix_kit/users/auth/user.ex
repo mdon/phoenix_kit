@@ -36,6 +36,7 @@ defmodule PhoenixKit.Users.Auth.User do
           last_name: String.t() | nil,
           is_active: boolean(),
           confirmed_at: NaiveDateTime.t() | nil,
+          user_timezone: String.t() | nil,
           registration_ip: String.t() | nil,
           registration_country: String.t() | nil,
           registration_region: String.t() | nil,
@@ -54,6 +55,7 @@ defmodule PhoenixKit.Users.Auth.User do
     field :last_name, :string
     field :is_active, :boolean, default: true
     field :confirmed_at, :naive_datetime
+    field :user_timezone, :string
     field :registration_ip, :string
     field :registration_country, :string
     field :registration_region, :string
@@ -236,10 +238,11 @@ defmodule PhoenixKit.Users.Auth.User do
   """
   def profile_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:first_name, :last_name, :email, :username])
+    |> cast(attrs, [:first_name, :last_name, :email, :username, :user_timezone])
     |> validate_names()
     |> validate_email(opts)
     |> validate_username(opts)
+    |> validate_user_timezone()
   end
 
   @doc """
@@ -250,6 +253,23 @@ defmodule PhoenixKit.Users.Auth.User do
     |> cast(attrs, [:is_active])
     |> validate_inclusion(:is_active, [true, false])
     |> validate_owner_cannot_be_deactivated()
+  end
+
+  @doc """
+  A user changeset for updating timezone preference.
+
+  ## Examples
+
+      iex> timezone_changeset(user, %{"user_timezone" => "+5"})
+      %Ecto.Changeset{valid?: true}
+
+      iex> timezone_changeset(user, %{"user_timezone" => "invalid"})
+      %Ecto.Changeset{valid?: false}
+  """
+  def timezone_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:user_timezone])
+    |> validate_user_timezone()
   end
 
   @doc """
@@ -437,6 +457,42 @@ defmodule PhoenixKit.Users.Auth.User do
       add_error(changeset, :is_active, "owner cannot be deactivated")
     else
       changeset
+    end
+  end
+
+  # Validates user timezone offset is within acceptable range or nil
+  defp validate_user_timezone(changeset) do
+    case get_change(changeset, :user_timezone) do
+      nil ->
+        # Allow nil (fallback to system timezone)
+        changeset
+
+      "" ->
+        # Convert empty string to nil for consistent storage
+        put_change(changeset, :user_timezone, nil)
+
+      timezone when is_binary(timezone) ->
+        trimmed_timezone = String.trim(timezone)
+
+        if trimmed_timezone == "" do
+          put_change(changeset, :user_timezone, nil)
+        else
+          validate_timezone_offset(changeset, trimmed_timezone)
+        end
+
+      _ ->
+        add_error(changeset, :user_timezone, "must be a valid timezone offset")
+    end
+  end
+
+  # Helper function to validate timezone offset format and range
+  defp validate_timezone_offset(changeset, timezone) do
+    case Integer.parse(timezone) do
+      {offset, ""} when offset >= -12 and offset <= 12 ->
+        changeset
+
+      _ ->
+        add_error(changeset, :user_timezone, "must be a valid timezone offset between -12 and +12")
     end
   end
 end
