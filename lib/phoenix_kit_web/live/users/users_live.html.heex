@@ -200,9 +200,9 @@
                   </td>
                   <td class="text-sm">
                     <div class="flex flex-col gap-1">
-                      <div>{UtilsDate.format_date_with_user_timezone(user.inserted_at, user)}</div>
+                      <div>{UtilsDate.format_date_with_user_timezone(user.inserted_at, @phoenix_kit_current_user)}</div>
                       <div class="text-xs text-base-content/70">
-                        {UtilsDate.format_time_with_user_timezone(user.inserted_at, user)}
+                        {UtilsDate.format_time_with_user_timezone(user.inserted_at, @phoenix_kit_current_user)}
                       </div>
                     </div>
                   </td>
@@ -239,9 +239,9 @@
                   <td class="text-sm">
                     <div class="flex flex-col gap-1">
                       <%= if user.confirmed_at do %>
-                        <div>{UtilsDate.format_date_with_user_timezone(user.confirmed_at, user)}</div>
+                        <div>{UtilsDate.format_date_with_user_timezone(user.confirmed_at, @phoenix_kit_current_user)}</div>
                         <div class="text-xs text-base-content/70">
-                          {UtilsDate.format_time_with_user_timezone(user.confirmed_at, user)}
+                          {UtilsDate.format_time_with_user_timezone(user.confirmed_at, @phoenix_kit_current_user)}
                         </div>
                       <% else %>
                         <div>Never</div>

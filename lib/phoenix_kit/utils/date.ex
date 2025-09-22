@@ -358,21 +358,92 @@ defmodule PhoenixKit.Utils.Date do
   # Private helper function to handle timezone conversion and formatting
   defp format_datetime_with_timezone(datetime, format, user) do
     case datetime do
-      nil -> "Never"
-      _ -> format_datetime(datetime, format)  # For now, just use existing formatting
+      nil ->
+        "Never"
+
+      %NaiveDateTime{} = naive_dt ->
+        # Convert NaiveDateTime to UTC DateTime first, then shift timezone
+        utc_datetime = DateTime.from_naive!(naive_dt, "Etc/UTC")
+        shifted_datetime = shift_to_user_timezone(utc_datetime, user)
+        format_datetime(shifted_datetime, format)
+
+      %DateTime{} = dt ->
+        # Already a DateTime, shift to user timezone
+        shifted_datetime = shift_to_user_timezone(dt, user)
+        format_datetime(shifted_datetime, format)
+
+      _ ->
+        # Fallback for other types
+        format_datetime(datetime, format)
     end
   end
 
   # Private helper function to handle timezone conversion for dates
-  defp format_date_with_timezone(date, format, _user) do
-    # For dates without time component, timezone doesn't matter
-    format_date(date, format)
+  defp format_date_with_timezone(date, format, user) do
+    case date do
+      %Date{} = d ->
+        # Pure dates don't need timezone conversion
+        format_date(d, format)
+
+      %NaiveDateTime{} = naive_dt ->
+        # Convert to user's timezone first, then extract date
+        utc_datetime = DateTime.from_naive!(naive_dt, "Etc/UTC")
+        shifted_datetime = shift_to_user_timezone(utc_datetime, user)
+        format_date(DateTime.to_date(shifted_datetime), format)
+
+      %DateTime{} = dt ->
+        # Shift to user timezone, then extract date
+        shifted_datetime = shift_to_user_timezone(dt, user)
+        format_date(DateTime.to_date(shifted_datetime), format)
+
+      _ ->
+        # Fallback
+        format_date(date, format)
+    end
   end
 
   # Private helper function to handle timezone conversion for times
-  defp format_time_with_timezone(time, format, _user) do
-    # For time-only values, timezone conversion would need date context
-    format_time(time, format)
+  defp format_time_with_timezone(time, format, user) do
+    case time do
+      %Time{} = t ->
+        # Pure times don't have timezone context
+        format_time(t, format)
+
+      %NaiveDateTime{} = naive_dt ->
+        # Convert to user's timezone first, then extract time
+        utc_datetime = DateTime.from_naive!(naive_dt, "Etc/UTC")
+        shifted_datetime = shift_to_user_timezone(utc_datetime, user)
+        format_time(DateTime.to_time(shifted_datetime), format)
+
+      %DateTime{} = dt ->
+        # Shift to user timezone, then extract time
+        shifted_datetime = shift_to_user_timezone(dt, user)
+        format_time(DateTime.to_time(shifted_datetime), format)
+
+      _ ->
+        # Fallback
+        format_time(time, format)
+    end
+  end
+
+  # Private helper to shift datetime to user's timezone
+  defp shift_to_user_timezone(datetime, user) do
+    user_timezone_offset = get_user_timezone(user)
+    shift_to_timezone_offset(datetime, user_timezone_offset)
+  end
+
+  # Private helper to apply timezone offset to datetime
+  defp shift_to_timezone_offset(datetime, timezone_offset) do
+    case Integer.parse(timezone_offset) do
+      {offset_hours, ""} ->
+        # Convert offset hours to seconds and shift
+        offset_seconds = offset_hours * 3600
+        DateTime.add(datetime, offset_seconds, :second)
+
+      _ ->
+        # Invalid timezone offset, return original datetime
+        datetime
+    end
   end
 
   @doc """
