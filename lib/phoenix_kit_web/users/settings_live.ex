@@ -496,7 +496,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
 
 
   # Check for timezone mismatch based on current form values
-  defp check_timezone_mismatch(socket, selected_timezone \\ nil) do
+  defp check_timezone_mismatch(socket, selected_timezone) do
     browser_offset = socket.assigns[:browser_timezone_offset]
     browser_name = socket.assigns[:browser_timezone_name]
 
