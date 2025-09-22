@@ -308,12 +308,47 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
+                    <%!-- Settings section with direct link and conditional submenu --%>
                     <.admin_nav_item
                       href={Routes.path("/admin/settings")}
                       icon="settings"
                       label="Settings"
                       current_path={@current_path || ""}
+                      disable_active={true}
                     />
+
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking"]) do %>
+                      <%!-- Settings submenu items --%>
+                      <div class="mt-1">
+                        <.admin_nav_item
+                          href={Routes.path("/admin/settings")}
+                          icon="settings"
+                          label="General Settings"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <%= if PhoenixKit.ReferralCodes.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/referral-codes")}
+                            icon="referral_codes"
+                            label="Referral Codes"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
+                        <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/email-tracking")}
+                            icon="email"
+                            label="Email Tracking"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+                      </div>
+                    <% end %>
                   </nav>
                   
             <!-- Bottom Section: Theme & User Info -->
