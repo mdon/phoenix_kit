@@ -147,13 +147,13 @@ Once you have your development environment set up with live reloading, follow th
 git checkout dev
 ```
 
-2. **Make your changes** in the `phoenix_kit` directory - you'll see them live in your browser thanks to the live reloading setup
+2. **Make your changes** in the `phoenix_kit` directory - you'll see them live in your browser, if live reloading setup was done correctly.
 
 3. **Commit and push** your changes:
 ```bash
-git add .
-git commit -m "Your descriptive commit message"
-git push origin dev
+git add file_you_changed
+git commit
+git push dev
 ```
 
 4. **Create Pull Request**:
