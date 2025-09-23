@@ -29,7 +29,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   use Phoenix.Component
   use PhoenixKitWeb, :verified_routes
 
-  import PhoenixKitWeb.CoreComponents, only: [flash_group: 1]
+  import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
 
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
