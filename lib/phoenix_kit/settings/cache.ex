@@ -45,7 +45,8 @@ defmodule PhoenixKit.Settings.Cache do
   alias PhoenixKit.RepoHelper
 
   @table_name :phoenix_kit_settings_cache
-  @cache_ttl :timer.minutes(60)  # Refresh cache every hour as backup
+  # Refresh cache every hour as backup
+  @cache_ttl :timer.minutes(60)
 
   ## Client API
 
@@ -90,6 +91,7 @@ defmodule PhoenixKit.Settings.Cache do
             [{^key, value, _timestamp}] -> value || default
             [] -> query_and_cache_setting(key) || default
           end
+
         :error ->
           # Fallback to database if cache can't be started
           Logger.warning("Settings cache not available, falling back to database")
@@ -181,12 +183,13 @@ defmodule PhoenixKit.Settings.Cache do
   @impl true
   def init(_opts) do
     # Create ETS table for fast concurrent reads
-    table = :ets.new(@table_name, [
-      :set,
-      :named_table,
-      :public,
-      read_concurrency: true
-    ])
+    table =
+      :ets.new(@table_name, [
+        :set,
+        :named_table,
+        :public,
+        read_concurrency: true
+      ])
 
     # Warm cache from database
     case warm_cache() do
@@ -227,11 +230,13 @@ defmodule PhoenixKit.Settings.Cache do
   @impl true
   def handle_call(:stats, _from, state) do
     table_info = :ets.info(@table_name)
+
     stats = %{
       cache_size: :ets.info(@table_name, :size),
       table_info: Keyword.take(table_info, [:size, :memory]),
       last_refresh: state.last_refresh
     }
+
     {:reply, stats, state}
   end
 
@@ -269,6 +274,7 @@ defmodule PhoenixKit.Settings.Cache do
   defp query_and_cache_setting(key) do
     try do
       repo = RepoHelper.repo()
+
       case repo.get_by(Setting, key: key) do
         %Setting{value: value} ->
           timestamp = DateTime.utc_now()
@@ -292,6 +298,7 @@ defmodule PhoenixKit.Settings.Cache do
   defp query_database_directly(key) do
     try do
       repo = RepoHelper.repo()
+
       case repo.get_by(Setting, key: key) do
         %Setting{value: value} -> value
         nil -> nil
@@ -316,6 +323,7 @@ defmodule PhoenixKit.Settings.Cache do
           {:error, {:already_started, _pid}} -> :ok
           _ -> :error
         end
+
       _pid ->
         :ok
     end

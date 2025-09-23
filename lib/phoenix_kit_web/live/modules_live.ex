@@ -66,7 +66,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
     end
   end
 
-
   def handle_event("toggle_email_tracking", _params, socket) do
     # Toggle email tracking system
     new_enabled = !socket.assigns.email_tracking_enabled
@@ -98,7 +97,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
         {:noreply, socket}
     end
   end
-
 
   defp get_current_path(_socket, _session) do
     # For ModulesLive, always return modules path

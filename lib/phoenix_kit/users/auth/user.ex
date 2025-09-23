@@ -92,7 +92,17 @@ defmodule PhoenixKit.Users.Auth.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :username, :password, :first_name, :last_name, :registration_ip, :registration_country, :registration_region, :registration_city])
+    |> cast(attrs, [
+      :email,
+      :username,
+      :password,
+      :first_name,
+      :last_name,
+      :registration_ip,
+      :registration_country,
+      :registration_region,
+      :registration_city
+    ])
     |> validate_email(opts)
     |> validate_username(opts)
     |> validate_password(opts)
@@ -492,7 +502,11 @@ defmodule PhoenixKit.Users.Auth.User do
         changeset
 
       _ ->
-        add_error(changeset, :user_timezone, "must be a valid timezone offset between -12 and +12")
+        add_error(
+          changeset,
+          :user_timezone,
+          "must be a valid timezone offset between -12 and +12"
+        )
     end
   end
 end

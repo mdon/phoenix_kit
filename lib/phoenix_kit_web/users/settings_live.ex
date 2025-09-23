@@ -85,7 +85,9 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                   <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-6 h-6 text-primary mr-3" />
                   <div>
                     <h2 class="text-xl font-bold">Profile Information</h2>
-                    <p class="text-sm text-base-content/60">Update your personal information and timezone preference</p>
+                    <p class="text-sm text-base-content/60">
+                      Update your personal information and timezone preference
+                    </p>
                   </div>
                 </div>
 
@@ -436,6 +438,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
           socket
           |> assign(:browser_timezone_name, name)
           |> assign(:browser_timezone_offset, offset)
+
         _ ->
           socket
       end
@@ -468,7 +471,6 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
     end
   end
 
-
   def handle_event("use_browser_timezone", _params, socket) do
     browser_offset = socket.assigns.browser_timezone_offset
 
@@ -492,8 +494,6 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
       {:noreply, socket}
     end
   end
-
-
 
   # Check for timezone mismatch based on current form values
   defp check_timezone_mismatch(socket, selected_timezone) do
@@ -551,9 +551,15 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
   # Format timezone offset for display
   defp format_timezone_offset(offset) do
     case offset do
-      "0" -> "UTC+0"
-      "+" <> _ -> "UTC" <> offset
-      "-" <> _ -> "UTC" <> offset
+      "0" ->
+        "UTC+0"
+
+      "+" <> _ ->
+        "UTC" <> offset
+
+      "-" <> _ ->
+        "UTC" <> offset
+
       _ when is_binary(offset) ->
         # If it's a positive number without +, add the +
         case Integer.parse(offset) do
@@ -562,7 +568,9 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
           {0, ""} -> "UTC+0"
           _ -> "UTC" <> offset
         end
-      _ -> "Unknown"
+
+      _ ->
+        "Unknown"
     end
   end
 

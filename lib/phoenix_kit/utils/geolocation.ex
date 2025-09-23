@@ -87,6 +87,7 @@ defmodule PhoenixKit.Utils.Geolocation do
     case lookup_with_ip_api(ip_address) do
       {:ok, location} ->
         {:ok, location}
+
       {:error, reason} ->
         Logger.warning("IP-API.com lookup failed: #{reason}, trying fallback")
         lookup_with_ipapi_co(ip_address)
@@ -103,6 +104,7 @@ defmodule PhoenixKit.Utils.Geolocation do
           "region" => data["regionName"],
           "city" => data["city"]
         }
+
         {:ok, location}
 
       {:ok, %{"status" => "fail", "message" => message}} ->
@@ -129,6 +131,7 @@ defmodule PhoenixKit.Utils.Geolocation do
           "region" => data["region"],
           "city" => data["city"]
         }
+
         {:ok, location}
 
       {:error, reason} ->
