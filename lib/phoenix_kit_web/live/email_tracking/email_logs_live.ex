@@ -34,8 +34,6 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   use PhoenixKitWeb, :live_view
 
-  import PhoenixKitWeb.CoreComponents
-
   alias PhoenixKit.EmailTracking
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
