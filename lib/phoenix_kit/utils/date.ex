@@ -468,4 +468,129 @@ defmodule PhoenixKit.Utils.Date do
       timezone -> timezone
     end
   end
+
+  ## Cache-Optimized Functions
+  ## These functions accept pre-loaded settings to eliminate database queries
+
+  @doc """
+  Formats a datetime using pre-loaded date format settings (cache-optimized).
+
+  This function accepts pre-loaded settings to avoid database queries,
+  providing significant performance improvements when formatting many dates.
+
+  ## Examples
+
+      iex> settings = %{"date_format" => "F j, Y"}
+      iex> PhoenixKit.Utils.Date.format_datetime_with_cached_settings(~N[2024-01-15 15:30:00], settings)
+      "January 15, 2024"
+
+      iex> PhoenixKit.Utils.Date.format_datetime_with_cached_settings(nil, %{})
+      "Never"
+  """
+  def format_datetime_with_cached_settings(nil, _settings), do: "Never"
+
+  def format_datetime_with_cached_settings(datetime, settings) do
+    date_format = Map.get(settings, "date_format", "Y-m-d")
+    date = NaiveDateTime.to_date(datetime)
+    format_date(date, date_format)
+  end
+
+  @doc """
+  Formats a date using pre-loaded date format settings (cache-optimized).
+
+  ## Examples
+
+      iex> settings = %{"date_format" => "F j, Y"}
+      iex> PhoenixKit.Utils.Date.format_date_with_cached_settings(~D[2024-01-15], settings)
+      "January 15, 2024"
+  """
+  def format_date_with_cached_settings(date, settings) do
+    date_format = Map.get(settings, "date_format", "Y-m-d")
+    format_date(date, date_format)
+  end
+
+  @doc """
+  Formats a time using pre-loaded time format settings (cache-optimized).
+
+  ## Examples
+
+      iex> settings = %{"time_format" => "h:i A"}
+      iex> PhoenixKit.Utils.Date.format_time_with_cached_settings(~T[15:30:00], settings)
+      "3:30 PM"
+  """
+  def format_time_with_cached_settings(time, settings) do
+    time_format = Map.get(settings, "time_format", "H:i")
+    format_time(time, time_format)
+  end
+
+  @doc """
+  Formats a datetime with timezone using pre-loaded settings (cache-optimized).
+
+  This function combines timezone conversion with cached date/time formatting
+  for optimal performance when processing multiple users' data.
+
+  ## Examples
+
+      iex> settings = %{"date_format" => "F j, Y"}
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_datetime_with_user_timezone_cached(~N[2024-01-15 15:30:00], user, settings)
+      "January 15, 2024"
+  """
+  def format_datetime_with_user_timezone_cached(datetime, user, settings) do
+    date_format = Map.get(settings, "date_format", "Y-m-d")
+    format_datetime_with_timezone(datetime, date_format, user)
+  end
+
+  @doc """
+  Formats a date with timezone using pre-loaded settings (cache-optimized).
+
+  ## Examples
+
+      iex> settings = %{"date_format" => "F j, Y"}
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_date_with_user_timezone_cached(~D[2024-01-15], user, settings)
+      "January 15, 2024"
+  """
+  def format_date_with_user_timezone_cached(date, user, settings) do
+    date_format = Map.get(settings, "date_format", "Y-m-d")
+    format_date_with_timezone(date, date_format, user)
+  end
+
+  @doc """
+  Formats a time with timezone using pre-loaded settings (cache-optimized).
+
+  ## Examples
+
+      iex> settings = %{"time_format" => "h:i A"}
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.format_time_with_user_timezone_cached(~T[15:30:00], user, settings)
+      "8:30 PM"
+  """
+  def format_time_with_user_timezone_cached(time, user, settings) do
+    time_format = Map.get(settings, "time_format", "H:i")
+    format_time_with_timezone(time, time_format, user)
+  end
+
+  @doc """
+  Gets the effective timezone for a user using cached system timezone.
+
+  Optimized version that accepts pre-loaded system timezone setting.
+
+  ## Examples
+
+      iex> settings = %{"time_zone" => "+1"}
+      iex> user = %User{user_timezone: nil}
+      iex> PhoenixKit.Utils.Date.get_user_timezone_cached(user, settings)
+      "+1"
+
+      iex> user = %User{user_timezone: "+5"}
+      iex> PhoenixKit.Utils.Date.get_user_timezone_cached(user, %{})
+      "+5"
+  """
+  def get_user_timezone_cached(user, settings) do
+    case user.user_timezone do
+      nil -> Map.get(settings, "time_zone", "0")
+      timezone -> timezone
+    end
+  end
 end

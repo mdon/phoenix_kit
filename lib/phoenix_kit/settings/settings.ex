@@ -48,6 +48,7 @@ defmodule PhoenixKit.Settings do
 
   alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Settings.Setting.SettingsForm
+  alias PhoenixKit.Settings.Cache
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -124,6 +125,55 @@ defmodule PhoenixKit.Settings do
   """
   def get_setting(key, default) when is_binary(key) do
     get_setting(key) || default
+  end
+
+  @doc """
+  Gets a setting value from cache with fallback to database.
+
+  This is the preferred method for getting settings as it provides
+  significant performance improvements over direct database queries.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_setting_cached("date_format", "Y-m-d")
+      "F j, Y"
+
+      iex> PhoenixKit.Settings.get_setting_cached("non_existent", "default")
+      "default"
+  """
+  def get_setting_cached(key, default \\ nil) when is_binary(key) do
+    Cache.get(key, default)
+  rescue
+    UndefinedFunctionError ->
+      # Cache module not available, fallback to regular database query
+      get_setting(key, default)
+  end
+
+  @doc """
+  Gets multiple settings from cache in a single operation.
+
+  More efficient than multiple individual get_setting_cached/2 calls
+  when you need several settings at once.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_settings_cached(["date_format", "time_format"])
+      %{"date_format" => "F j, Y", "time_format" => "h:i A"}
+
+      iex> defaults = %{"date_format" => "Y-m-d", "time_format" => "H:i"}
+      iex> PhoenixKit.Settings.get_settings_cached(["date_format", "time_format"], defaults)
+      %{"date_format" => "F j, Y", "time_format" => "h:i A"}
+  """
+  def get_settings_cached(keys, defaults \\ %{}) when is_list(keys) do
+    Cache.get_multiple(keys, defaults)
+  rescue
+    UndefinedFunctionError ->
+      # Cache module not available, fallback to individual database queries
+      Enum.reduce(keys, %{}, fn key, acc ->
+        default = Map.get(defaults, key)
+        value = get_setting(key, default)
+        Map.put(acc, key, value)
+      end)
   end
 
   @doc """
@@ -357,7 +407,7 @@ defmodule PhoenixKit.Settings do
     # Convert nil to empty string for storage
     stored_value = value || ""
 
-    case repo().get_by(Setting, key: key) do
+    result = case repo().get_by(Setting, key: key) do
       %Setting{} = setting ->
         setting
         |> Setting.update_changeset(%{value: stored_value})
@@ -368,6 +418,14 @@ defmodule PhoenixKit.Settings do
         |> Setting.changeset(%{key: key, value: stored_value})
         |> repo().insert()
     end
+
+    # Invalidate cache on successful update
+    case result do
+      {:ok, _setting} -> Cache.invalidate(key)
+      {:error, _changeset} -> :ok
+    end
+
+    result
   end
 
   @doc """
@@ -407,7 +465,7 @@ defmodule PhoenixKit.Settings do
   def update_setting_with_module(key, value, module) when is_binary(key) and is_binary(value) do
     existing_setting = repo().get_by(Setting, key: key)
 
-    case existing_setting do
+    result = case existing_setting do
       %Setting{} = setting ->
         setting
         |> Setting.update_changeset(%{value: value, module: module})
@@ -418,6 +476,14 @@ defmodule PhoenixKit.Settings do
         |> Setting.changeset(%{key: key, value: value, module: module})
         |> repo().insert()
     end
+
+    # Invalidate cache on successful update
+    case result do
+      {:ok, _setting} -> Cache.invalidate(key)
+      {:error, _changeset} -> :ok
+    end
+
+    result
   end
 
   @doc """
@@ -502,7 +568,11 @@ defmodule PhoenixKit.Settings do
 
     if changeset.valid? do
       case update_all_settings_from_changeset(changeset) do
-        {:ok, updated_settings} -> {:ok, updated_settings}
+        {:ok, updated_settings} ->
+          # Invalidate cache for all updated settings
+          updated_keys = Map.keys(updated_settings)
+          Cache.invalidate_multiple(updated_keys)
+          {:ok, updated_settings}
         {:error, errors} -> {:error, add_error(changeset, :base, errors)}
       end
     else
