@@ -23,6 +23,14 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
+    # Load date/time format settings once for performance optimization
+    # Use individual cached calls with fallback to database
+    date_time_settings = %{
+      "date_format" => Settings.get_setting_cached("date_format", "Y-m-d"),
+      "time_format" => Settings.get_setting_cached("time_format", "H:i"),
+      "time_zone" => Settings.get_setting_cached("time_zone", "0")
+    }
+
     socket =
       socket
       |> assign(:page, 1)
@@ -36,6 +44,7 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
       |> assign(:current_path, current_path)
       |> assign(:page_title, "Users")
       |> assign(:project_title, project_title)
+      |> assign(:date_time_settings, date_time_settings)
       |> load_users()
       |> load_stats()
 
