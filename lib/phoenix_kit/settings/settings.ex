@@ -407,17 +407,18 @@ defmodule PhoenixKit.Settings do
     # Convert nil to empty string for storage
     stored_value = value || ""
 
-    result = case repo().get_by(Setting, key: key) do
-      %Setting{} = setting ->
-        setting
-        |> Setting.update_changeset(%{value: stored_value})
-        |> repo().update()
+    result =
+      case repo().get_by(Setting, key: key) do
+        %Setting{} = setting ->
+          setting
+          |> Setting.update_changeset(%{value: stored_value})
+          |> repo().update()
 
-      nil ->
-        %Setting{}
-        |> Setting.changeset(%{key: key, value: stored_value})
-        |> repo().insert()
-    end
+        nil ->
+          %Setting{}
+          |> Setting.changeset(%{key: key, value: stored_value})
+          |> repo().insert()
+      end
 
     # Invalidate cache on successful update
     case result do
@@ -465,17 +466,18 @@ defmodule PhoenixKit.Settings do
   def update_setting_with_module(key, value, module) when is_binary(key) and is_binary(value) do
     existing_setting = repo().get_by(Setting, key: key)
 
-    result = case existing_setting do
-      %Setting{} = setting ->
-        setting
-        |> Setting.update_changeset(%{value: value, module: module})
-        |> repo().update()
+    result =
+      case existing_setting do
+        %Setting{} = setting ->
+          setting
+          |> Setting.update_changeset(%{value: value, module: module})
+          |> repo().update()
 
-      nil ->
-        %Setting{}
-        |> Setting.changeset(%{key: key, value: value, module: module})
-        |> repo().insert()
-    end
+        nil ->
+          %Setting{}
+          |> Setting.changeset(%{key: key, value: value, module: module})
+          |> repo().insert()
+      end
 
     # Invalidate cache on successful update
     case result do
@@ -573,7 +575,9 @@ defmodule PhoenixKit.Settings do
           updated_keys = Map.keys(updated_settings)
           Cache.invalidate_multiple(updated_keys)
           {:ok, updated_settings}
-        {:error, errors} -> {:error, add_error(changeset, :base, errors)}
+
+        {:error, errors} ->
+          {:error, add_error(changeset, :base, errors)}
       end
     else
       {:error, changeset}
