@@ -21,6 +21,9 @@
 - **Email Status Processing** - Improved handling of delivery confirmations, bounce events, and open tracking
 - **SQS Message Handling** - Enhanced message processing with proper error recovery and retry logic
 
+### Added
+- **Update Task Enhancement** - Added `--yes/-y` flag for skipping confirmation prompts and automatic migration execution
+
 ## 1.2.10 - 2025-09-21
 
 ### Improved
