@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
           </div>
 
           <div class="space-y-8">
-            <!-- Email Settings Card -->
+            <%!-- Email Settings Card --%>
             <div class="card bg-base-100 shadow-2xl">
               <div class="card-body">
                 <div class="flex items-center mb-4">
@@ -77,8 +77,8 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                 </.simple_form>
               </div>
             </div>
-            
-    <!-- Profile Settings Card -->
+
+            <%!-- Profile Settings Card --%>
             <div class="card bg-base-100 shadow-2xl">
               <div class="card-body">
                 <div class="flex items-center mb-4">
@@ -169,8 +169,8 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                 </.simple_form>
               </div>
             </div>
-            
-    <!-- Password Settings Card -->
+
+            <%!-- Password Settings Card --%>
             <div class="card bg-base-100 shadow-2xl">
               <div class="card-body">
                 <div class="flex items-center mb-4">
@@ -240,8 +240,8 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                 </.simple_form>
               </div>
             </div>
-            
-    <!-- Development Mode Notice -->
+
+            <%!-- Development Mode Notice --%>
             <div :if={show_dev_notice?()} class="alert alert-info">
               <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-6 w-6" />
               <span>

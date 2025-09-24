@@ -54,7 +54,7 @@ defmodule PhoenixKitWeb.Integration do
 
   Use `{@inner_content}` not `render_slot(@inner_block)`:
 
-      <!-- Correct -->
+      <%!-- Correct --%>
       <main>{@inner_content}</main>
 
   ## Scope Usage in Templates
