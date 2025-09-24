@@ -24,12 +24,16 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
     # Load date/time format settings once for performance optimization
-    # Use individual cached calls with fallback to database
-    date_time_settings = %{
-      "date_format" => Settings.get_setting_cached("date_format", "Y-m-d"),
-      "time_format" => Settings.get_setting_cached("time_format", "H:i"),
-      "time_zone" => Settings.get_setting_cached("time_zone", "0")
-    }
+    # Use batch cached call for maximum efficiency
+    date_time_settings =
+      Settings.get_settings_cached(
+        ["date_format", "time_format", "time_zone"],
+        %{
+          "date_format" => "Y-m-d",
+          "time_format" => "H:i",
+          "time_zone" => "0"
+        }
+      )
 
     socket =
       socket
