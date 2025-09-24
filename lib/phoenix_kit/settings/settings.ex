@@ -46,9 +46,9 @@ defmodule PhoenixKit.Settings do
   import Ecto.Query, warn: false
   import Ecto.Changeset, only: [add_error: 3]
 
+  alias PhoenixKit.Settings.Cache
   alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Settings.Setting.SettingsForm
-  alias PhoenixKit.Settings.Cache
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate

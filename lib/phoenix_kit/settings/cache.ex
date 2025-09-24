@@ -41,8 +41,8 @@ defmodule PhoenixKit.Settings.Cache do
   use GenServer
   require Logger
 
-  alias PhoenixKit.Settings.Setting
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings.Setting
 
   @table_name :phoenix_kit_settings_cache
   # Refresh cache every hour as backup
@@ -252,60 +252,54 @@ defmodule PhoenixKit.Settings.Cache do
 
   # Warms the cache by loading all settings from database
   defp warm_cache do
-    try do
-      repo = RepoHelper.repo()
-      settings = repo.all(Setting)
+    repo = RepoHelper.repo()
+    settings = repo.all(Setting)
 
-      timestamp = DateTime.utc_now()
+    timestamp = DateTime.utc_now()
 
-      Enum.each(settings, fn setting ->
-        :ets.insert(@table_name, {setting.key, setting.value, timestamp})
-      end)
+    Enum.each(settings, fn setting ->
+      :ets.insert(@table_name, {setting.key, setting.value, timestamp})
+    end)
 
-      :ok
-    rescue
-      error ->
-        Logger.error("Failed to warm settings cache: #{inspect(error)}")
-        {:error, error}
-    end
+    :ok
+  rescue
+    error ->
+      Logger.error("Failed to warm settings cache: #{inspect(error)}")
+      {:error, error}
   end
 
   # Queries database for a single setting and caches the result
   defp query_and_cache_setting(key) do
-    try do
-      repo = RepoHelper.repo()
+    repo = RepoHelper.repo()
 
-      case repo.get_by(Setting, key: key) do
-        %Setting{value: value} ->
-          timestamp = DateTime.utc_now()
-          :ets.insert(@table_name, {key, value, timestamp})
-          value
+    case repo.get_by(Setting, key: key) do
+      %Setting{value: value} ->
+        timestamp = DateTime.utc_now()
+        :ets.insert(@table_name, {key, value, timestamp})
+        value
 
-        nil ->
-          # Cache the fact that this setting doesn't exist to avoid repeated queries
-          timestamp = DateTime.utc_now()
-          :ets.insert(@table_name, {key, nil, timestamp})
-          nil
-      end
-    rescue
-      error ->
-        Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      nil ->
+        # Cache the fact that this setting doesn't exist to avoid repeated queries
+        timestamp = DateTime.utc_now()
+        :ets.insert(@table_name, {key, nil, timestamp})
         nil
     end
+  rescue
+    error ->
+      Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      nil
   end
 
   # Direct database query without caching (fallback only)
   defp query_database_directly(key) do
-    try do
-      repo = RepoHelper.repo()
+    repo = RepoHelper.repo()
 
-      case repo.get_by(Setting, key: key) do
-        %Setting{value: value} -> value
-        nil -> nil
-      end
-    rescue
-      _error -> nil
+    case repo.get_by(Setting, key: key) do
+      %Setting{value: value} -> value
+      nil -> nil
     end
+  rescue
+    _error -> nil
   end
 
   # Schedules periodic cache refresh
