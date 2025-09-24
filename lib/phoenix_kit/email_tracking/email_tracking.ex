@@ -90,8 +90,187 @@ defmodule PhoenixKit.EmailTracking do
         aws_ses_configuration_set: "my-app-tracking"
   """
 
-  alias PhoenixKit.EmailTracking.{EmailEvent, EmailLog}
+  alias PhoenixKit.EmailTracking.{EmailEvent, EmailLog, SQSProcessor}
   alias PhoenixKit.Settings
+
+  ## --- Manual Synchronization Functions ---
+
+  @doc """
+  Manually sync email status by fetching events from SQS queues.
+
+  This function searches for events in both the main SQS queue and DLQ
+  that match the given message_id and processes them to update email status.
+
+  ## Parameters
+
+  - `message_id` - The AWS SES message ID to sync
+
+  ## Returns
+
+  - `{:ok, result}` - Successful sync with processing results
+  - `{:error, reason}` - Error during sync process
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.sync_email_status("0110019971abc123-...")
+      {:ok, %{events_processed: 3, log_updated: true}}
+  """
+  def sync_email_status(message_id) when is_binary(message_id) do
+    if enabled?() do
+      # Try to find existing log
+      _existing_log =
+        case get_log_by_message_id(message_id) do
+          {:ok, log} -> log
+          {:error, :not_found} -> nil
+        end
+
+      # Get events from SQS and DLQ
+      sqs_events = fetch_sqs_events_for_message(message_id)
+      dlq_events = fetch_dlq_events_for_message(message_id)
+
+      all_events = sqs_events ++ dlq_events
+
+      if Enum.empty?(all_events) do
+        {:ok,
+         %{
+           events_processed: 0,
+           total_events_found: 0,
+           log_updated: false,
+           message: "No events found"
+         }}
+      else
+        # Process events through SQS processor
+        results =
+          Enum.map(all_events, fn event ->
+            SQSProcessor.process_email_event(event)
+          end)
+
+        successful_results =
+          Enum.filter(results, fn
+            {:ok, _} -> true
+            _ -> false
+          end)
+
+        {:ok,
+         %{
+           events_processed: length(successful_results),
+           total_events_found: length(all_events),
+           log_updated: length(successful_results) > 0,
+           results: successful_results
+         }}
+      end
+    else
+      {:error, :tracking_disabled}
+    end
+  end
+
+  @doc """
+  Fetch SES events from main SQS queue for specific message ID.
+
+  ## Parameters
+
+  - `message_id` - The AWS SES message ID to search for
+
+  ## Returns
+
+  List of SES events matching the message ID.
+  """
+  def fetch_sqs_events_for_message(message_id) do
+    queue_url = Settings.get_setting("aws_sqs_queue_url")
+
+    if queue_url do
+      try do
+        messages =
+          ExAws.SQS.receive_message(queue_url, max_number_of_messages: 10)
+          |> ExAws.request()
+          |> case do
+            {:ok, %{body: %{messages: messages}}} -> messages
+            _ -> []
+          end
+
+        # Filter messages by message_id
+        messages
+        |> Enum.filter(fn message ->
+          case parse_and_check_message_id(message, message_id) do
+            true -> true
+            false -> false
+          end
+        end)
+        |> Enum.map(fn message ->
+          case SQSProcessor.parse_sns_message(message) do
+            {:ok, event_data} -> event_data
+            {:error, _} -> nil
+          end
+        end)
+        |> Enum.filter(&(&1 != nil))
+      rescue
+        _ -> []
+      end
+    else
+      []
+    end
+  end
+
+  @doc """
+  Fetch SES events from DLQ queue for specific message ID.
+
+  ## Parameters
+
+  - `message_id` - The AWS SES message ID to search for
+
+  ## Returns
+
+  List of SES events matching the message ID from DLQ.
+  """
+  def fetch_dlq_events_for_message(message_id) do
+    dlq_url = Settings.get_setting("aws_sqs_dlq_url")
+
+    if dlq_url do
+      try do
+        messages =
+          ExAws.SQS.receive_message(dlq_url, max_number_of_messages: 10)
+          |> ExAws.request()
+          |> case do
+            {:ok, %{body: %{messages: messages}}} -> messages
+            _ -> []
+          end
+
+        # Filter messages by message_id
+        messages
+        |> Enum.filter(fn message ->
+          case parse_and_check_message_id(message, message_id) do
+            true -> true
+            false -> false
+          end
+        end)
+        |> Enum.map(fn message ->
+          case SQSProcessor.parse_sns_message(message) do
+            {:ok, event_data} -> event_data
+            {:error, _} -> nil
+          end
+        end)
+        |> Enum.filter(&(&1 != nil))
+      rescue
+        _ -> []
+      end
+    else
+      []
+    end
+  end
+
+  # Helper function to check message_id in message
+  defp parse_and_check_message_id(sqs_message, target_message_id) do
+    case SQSProcessor.parse_sns_message(sqs_message) do
+      {:ok, event_data} ->
+        message_id = get_in(event_data, ["mail", "messageId"])
+        message_id == target_message_id
+
+      {:error, _} ->
+        false
+    end
+  rescue
+    _ -> false
+  end
 
   ## --- System Settings ---
 
@@ -280,6 +459,294 @@ defmodule PhoenixKit.EmailTracking do
     )
   end
 
+  ## --- AWS SQS Configuration ---
+
+  @doc """
+  Gets the AWS SNS Topic ARN for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sns_topic_arn()
+      "arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events"
+  """
+  def get_sns_topic_arn do
+    Settings.get_setting("aws_sns_topic_arn", nil)
+  end
+
+  @doc """
+  Sets the AWS SNS Topic ARN for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sns_topic_arn("arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events")
+      {:ok, %Setting{}}
+  """
+  def set_sns_topic_arn(topic_arn) when is_binary(topic_arn) do
+    Settings.update_setting_with_module(
+      "aws_sns_topic_arn",
+      topic_arn,
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the AWS SQS Queue URL for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_queue_url()
+      "https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue"
+  """
+  def get_sqs_queue_url do
+    Settings.get_setting("aws_sqs_queue_url", nil)
+  end
+
+  @doc """
+  Sets the AWS SQS Queue URL for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue")
+      {:ok, %Setting{}}
+  """
+  def set_sqs_queue_url(queue_url) when is_binary(queue_url) do
+    Settings.update_setting_with_module(
+      "aws_sqs_queue_url",
+      queue_url,
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the AWS SQS Queue ARN for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_queue_arn()
+      "arn:aws:sqs:eu-north-1:123456789012:phoenixkit-email-queue"
+  """
+  def get_sqs_queue_arn do
+    Settings.get_setting("aws_sqs_queue_arn", nil)
+  end
+
+  @doc """
+  Sets the AWS SQS Queue ARN for email events.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_queue_arn("arn:aws:sqs:eu-north-1:123456789012:phoenixkit-email-queue")
+      {:ok, %Setting{}}
+  """
+  def set_sqs_queue_arn(queue_arn) when is_binary(queue_arn) do
+    Settings.update_setting_with_module(
+      "aws_sqs_queue_arn",
+      queue_arn,
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the AWS SQS Dead Letter Queue URL.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_dlq_url()
+      "https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-dlq"
+  """
+  def get_sqs_dlq_url do
+    Settings.get_setting("aws_sqs_dlq_url", nil)
+  end
+
+  @doc """
+  Sets the AWS SQS Dead Letter Queue URL.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_dlq_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-dlq")
+      {:ok, %Setting{}}
+  """
+  def set_sqs_dlq_url(dlq_url) when is_binary(dlq_url) do
+    Settings.update_setting_with_module(
+      "aws_sqs_dlq_url",
+      dlq_url,
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the AWS region for SES and SQS services.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_aws_region()
+      "eu-north-1"
+  """
+  def get_aws_region do
+    Settings.get_setting("aws_region", System.get_env("AWS_REGION", "eu-north-1"))
+  end
+
+  @doc """
+  Sets the AWS region for SES and SQS services.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_aws_region("eu-north-1")
+      {:ok, %Setting{}}
+  """
+  def set_aws_region(region) when is_binary(region) do
+    Settings.update_setting_with_module(
+      "aws_region",
+      region,
+      "email_tracking"
+    )
+  end
+
+  ## --- SQS Worker Configuration ---
+
+  @doc """
+  Checks if SQS polling is enabled.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.sqs_polling_enabled?()
+      true
+  """
+  def sqs_polling_enabled? do
+    Settings.get_boolean_setting("sqs_polling_enabled", false)
+  end
+
+  @doc """
+  Enables or disables SQS polling.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_polling(true)
+      {:ok, %Setting{}}
+  """
+  def set_sqs_polling(enabled) when is_boolean(enabled) do
+    Settings.update_setting_with_module(
+      "sqs_polling_enabled",
+      to_string(enabled),
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the SQS polling interval in milliseconds.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_polling_interval()
+      5000  # 5 seconds
+  """
+  def get_sqs_polling_interval do
+    Settings.get_integer_setting("sqs_polling_interval_ms", 5000)
+  end
+
+  @doc """
+  Sets the SQS polling interval in milliseconds.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_polling_interval(3000)  # 3 seconds
+      {:ok, %Setting{}}
+  """
+  def set_sqs_polling_interval(interval_ms) when is_integer(interval_ms) and interval_ms > 0 do
+    Settings.update_setting_with_module(
+      "sqs_polling_interval_ms",
+      to_string(interval_ms),
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the maximum number of SQS messages to receive per polling cycle.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_max_messages()
+      10
+  """
+  def get_sqs_max_messages do
+    Settings.get_integer_setting("sqs_max_messages_per_poll", 10)
+  end
+
+  @doc """
+  Sets the maximum number of SQS messages to receive per polling cycle.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_max_messages(20)
+      {:ok, %Setting{}}
+  """
+  def set_sqs_max_messages(max_messages)
+      when is_integer(max_messages) and max_messages > 0 and max_messages <= 10 do
+    Settings.update_setting_with_module(
+      "sqs_max_messages_per_poll",
+      to_string(max_messages),
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets the SQS message visibility timeout in seconds.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_visibility_timeout()
+      300  # 5 minutes
+  """
+  def get_sqs_visibility_timeout do
+    Settings.get_integer_setting("sqs_visibility_timeout", 300)
+  end
+
+  @doc """
+  Sets the SQS message visibility timeout in seconds.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.set_sqs_visibility_timeout(600)  # 10 minutes
+      {:ok, %Setting{}}
+  """
+  def set_sqs_visibility_timeout(timeout_seconds)
+      when is_integer(timeout_seconds) and timeout_seconds > 0 do
+    Settings.update_setting_with_module(
+      "sqs_visibility_timeout",
+      to_string(timeout_seconds),
+      "email_tracking"
+    )
+  end
+
+  @doc """
+  Gets comprehensive SQS configuration.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.get_sqs_config()
+      %{
+        sns_topic_arn: "arn:aws:sns:...",
+        queue_url: "https://sqs.eu-north-1.amazonaws.com/...",
+        polling_enabled: true,
+        polling_interval_ms: 5000,
+        max_messages_per_poll: 10
+      }
+  """
+  def get_sqs_config do
+    %{
+      sns_topic_arn: get_sns_topic_arn(),
+      queue_url: get_sqs_queue_url(),
+      queue_arn: get_sqs_queue_arn(),
+      dlq_url: get_sqs_dlq_url(),
+      aws_region: get_aws_region(),
+      aws_access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
+      aws_secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY"),
+      polling_enabled: sqs_polling_enabled?(),
+      polling_interval_ms: get_sqs_polling_interval(),
+      max_messages_per_poll: get_sqs_max_messages(),
+      visibility_timeout: get_sqs_visibility_timeout()
+    }
+  end
+
   @doc """
   Gets the current email tracking system configuration.
 
@@ -294,7 +761,11 @@ defmodule PhoenixKit.EmailTracking do
         ses_events: true,
         retention_days: 90,
         sampling_rate: 100,
-        ses_configuration_set: "my-tracking"
+        ses_configuration_set: "my-tracking",
+        sns_topic_arn: "arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events",
+        sqs_queue_url: "https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue",
+        sqs_polling_enabled: false,
+        aws_region: "eu-north-1"
       }
   """
   def get_config do
@@ -307,7 +778,18 @@ defmodule PhoenixKit.EmailTracking do
       ses_configuration_set: get_ses_configuration_set(),
       compress_after_days: get_compress_after_days(),
       archive_to_s3: s3_archival_enabled?(),
-      cloudwatch_metrics: cloudwatch_metrics_enabled?()
+      cloudwatch_metrics: cloudwatch_metrics_enabled?(),
+      # AWS SQS Configuration
+      sns_topic_arn: get_sns_topic_arn(),
+      sqs_queue_url: get_sqs_queue_url(),
+      sqs_queue_arn: get_sqs_queue_arn(),
+      sqs_dlq_url: get_sqs_dlq_url(),
+      aws_region: get_aws_region(),
+      # SQS Worker Configuration
+      sqs_polling_enabled: sqs_polling_enabled?(),
+      sqs_polling_interval_ms: get_sqs_polling_interval(),
+      sqs_max_messages_per_poll: get_sqs_max_messages(),
+      sqs_visibility_timeout: get_sqs_visibility_timeout()
     }
   end
 
@@ -386,9 +868,12 @@ defmodule PhoenixKit.EmailTracking do
   """
   def get_log_by_message_id(message_id) when is_binary(message_id) do
     if enabled?() do
-      EmailLog.get_log_by_message_id(message_id)
+      case EmailLog.get_log_by_message_id(message_id) do
+        nil -> {:error, :not_found}
+        log -> {:ok, log}
+      end
     else
-      nil
+      {:error, :tracking_disabled}
     end
   end
 
@@ -493,11 +978,14 @@ defmodule PhoenixKit.EmailTracking do
 
         message_id ->
           case get_log_by_message_id(message_id) do
-            nil ->
+            {:error, :not_found} ->
               {:error, :email_log_not_found}
 
-            email_log ->
+            {:ok, email_log} ->
               process_event_for_log(email_log, webhook_data)
+
+            {:error, reason} ->
+              {:error, reason}
           end
       end
     else

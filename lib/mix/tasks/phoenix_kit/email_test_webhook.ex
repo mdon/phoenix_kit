@@ -145,7 +145,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.TestWebhook do
 
   defp ensure_test_log(message_id) do
     case EmailTracking.get_log_by_message_id(message_id) do
-      nil ->
+      {:error, :not_found} ->
         # Create a test log
         {:ok, log} =
           EmailTracking.create_log(%{
@@ -161,9 +161,13 @@ defmodule Mix.Tasks.PhoenixKit.Email.TestWebhook do
         Mix.shell().info("📧 Created test email log: #{message_id}")
         log
 
-      log ->
+      {:ok, log} ->
         Mix.shell().info("📧 Using existing email log: #{message_id}")
         log
+
+      {:error, reason} ->
+        Mix.shell().error("❌ Error getting email log: #{inspect(reason)}")
+        nil
     end
   end
 

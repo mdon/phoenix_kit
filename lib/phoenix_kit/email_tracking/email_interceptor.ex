@@ -237,6 +237,15 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
       {:ok, %EmailLog{}}
   """
   def update_after_send(%EmailLog{} = log, provider_response \\ %{}) do
+    require Logger
+
+    Logger.info("EmailInterceptor: Updating email log after send", %{
+      log_id: log.id,
+      current_message_id: log.message_id,
+      response_keys:
+        if(is_map(provider_response), do: Map.keys(provider_response), else: "not_map")
+    })
+
     update_attrs = %{
       status: "sent",
       sent_at: DateTime.utc_now()
@@ -245,14 +254,60 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
     # Extract additional data from provider response
     update_attrs =
       case extract_provider_data(provider_response) do
+        %{message_id: aws_message_id} = provider_data when is_binary(aws_message_id) ->
+          Logger.info("EmailInterceptor: Updating message_id from AWS response", %{
+            log_id: log.id,
+            old_message_id: log.message_id,
+            new_aws_message_id: aws_message_id
+          })
+
+          # Store the original internal message_id in headers for reference
+          updated_headers =
+            Map.merge(log.headers || %{}, %{
+              "X-Internal-Message-Id" => log.message_id,
+              "X-AWS-Message-Id" => aws_message_id
+            })
+
+          provider_data
+          |> Map.merge(update_attrs)
+          |> Map.put(:headers, updated_headers)
+
         %{} = provider_data when map_size(provider_data) > 0 ->
+          Logger.debug("EmailInterceptor: Got provider data without message_id", %{
+            log_id: log.id,
+            provider_data: provider_data
+          })
+
           Map.merge(update_attrs, provider_data)
 
         _ ->
+          Logger.warning("EmailInterceptor: No provider data extracted", %{
+            log_id: log.id,
+            response: inspect(provider_response) |> String.slice(0, 300)
+          })
+
           update_attrs
       end
 
-    EmailLog.update_log(log, update_attrs)
+    case EmailLog.update_log(log, update_attrs) do
+      {:ok, updated_log} ->
+        Logger.info("EmailInterceptor: Successfully updated email log", %{
+          log_id: updated_log.id,
+          final_message_id: updated_log.message_id,
+          status: updated_log.status
+        })
+
+        {:ok, updated_log}
+
+      {:error, reason} ->
+        Logger.error("EmailInterceptor: Failed to update email log", %{
+          log_id: log.id,
+          reason: inspect(reason),
+          update_attrs: update_attrs
+        })
+
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -459,12 +514,14 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
     end
   end
 
-  # Validate that SES configuration set exists (stub for now)
-  defp validate_ses_configuration_set(_config_set) do
-    # For now, always return false to disable configuration sets
-    # until they are properly configured in AWS
-    false
+  # Validate that SES configuration set exists
+  defp validate_ses_configuration_set(config_set) when is_binary(config_set) do
+    # Enable configuration set if it's configured via settings
+    # The AWS setup script ensures proper configuration exists
+    config_set != ""
   end
+
+  defp validate_ses_configuration_set(_), do: false
 
   # Build message tags for categorization
   defp build_message_tags(%Email{} = email, opts) do
@@ -560,15 +617,93 @@ defmodule PhoenixKit.EmailTracking.EmailInterceptor do
 
   # Extract data from provider response
   defp extract_provider_data(%{} = response) do
-    # Extract message ID from SES response
-    case response do
-      %{"MessageId" => message_id} -> %{message_id: message_id}
-      %{message_id: message_id} -> %{message_id: message_id}
-      _ -> %{}
+    require Logger
+
+    Logger.debug("EmailInterceptor: Extracting provider data from response", %{
+      response_keys: Map.keys(response),
+      response_preview: inspect(response) |> String.slice(0, 500)
+    })
+
+    # Extract message ID from various response formats
+    extracted_data = extract_message_id_from_response(response)
+
+    if Map.has_key?(extracted_data, :message_id) do
+      Logger.info("EmailInterceptor: Successfully extracted AWS MessageId", %{
+        message_id: extracted_data.message_id,
+        response_format: detect_response_format(response)
+      })
+    else
+      Logger.warning("EmailInterceptor: No MessageId found in response", %{
+        response_keys: Map.keys(response),
+        response: inspect(response)
+      })
     end
+
+    extracted_data
   end
 
   defp extract_provider_data(_), do: %{}
+
+  # Extract message ID from different response formats
+  defp extract_message_id_from_response(response) when is_map(response) do
+    extract_direct_message_id(response) ||
+      extract_nested_message_id(response) ||
+      extract_ses_response_message_id(response) ||
+      %{}
+  end
+
+  defp extract_message_id_from_response(_), do: %{}
+
+  # Extract message ID from direct keys
+  defp extract_direct_message_id(response) do
+    cond do
+      Map.has_key?(response, "MessageId") -> %{message_id: response["MessageId"]}
+      Map.has_key?(response, "messageId") -> %{message_id: response["messageId"]}
+      Map.has_key?(response, :message_id) -> %{message_id: response[:message_id]}
+      true -> nil
+    end
+  end
+
+  # Extract message ID from nested body formats
+  defp extract_nested_message_id(response) do
+    cond do
+      Map.has_key?(response, :body) and is_map(response.body) ->
+        extract_message_id_from_response(response.body)
+
+      Map.has_key?(response, "body") and is_map(response["body"]) ->
+        extract_message_id_from_response(response["body"])
+
+      true ->
+        nil
+    end
+  end
+
+  # Extract message ID from AWS SES SendEmailResponse structure
+  defp extract_ses_response_message_id(response) do
+    with true <- Map.has_key?(response, "SendEmailResponse"),
+         send_response when is_map(send_response) <- response["SendEmailResponse"],
+         true <- Map.has_key?(send_response, "SendEmailResult"),
+         result when is_map(result) <- send_response["SendEmailResult"],
+         true <- Map.has_key?(result, "MessageId") do
+      %{message_id: result["MessageId"]}
+    else
+      _ -> nil
+    end
+  end
+
+  # Detect response format for logging
+  defp detect_response_format(response) when is_map(response) do
+    cond do
+      Map.has_key?(response, "MessageId") -> "direct_MessageId"
+      Map.has_key?(response, "messageId") -> "direct_messageId"
+      Map.has_key?(response, :message_id) -> "atom_message_id"
+      Map.has_key?(response, :body) -> "nested_body"
+      Map.has_key?(response, "SendEmailResponse") -> "aws_soap_format"
+      true -> "unknown_format"
+    end
+  end
+
+  defp detect_response_format(_), do: "non_map_response"
 
   # Extract error message from various error formats
   defp extract_error_message({:error, reason}) when is_binary(reason), do: reason

@@ -296,12 +296,20 @@ end
 - **date_format** - Date display format (Y-m-d, m/d/Y, d/m/Y, d.m.Y, d-m-Y, F j, Y)
 - **time_format** - Time display format (H:i for 24-hour, h:i A for 12-hour)
 
+**Email Tracking Settings:**
+- **email_tracking_enabled** - Enable/disable email tracking system (default: false)
+- **email_tracking_save_body** - Save full email content vs preview only (default: false)
+- **email_tracking_ses_events** - Enable AWS SES event processing (default: false)
+- **email_tracking_retention_days** - Data retention period (default: 90 days)
+- **email_tracking_sampling_rate** - Percentage of emails to fully track (default: 100%)
+
 **Key Features:**
 - **Database Storage** - Settings persisted in phoenix_kit_settings table
 - **Admin Interface** - Complete settings management at `{prefix}/admin/settings`
 - **Default Values** - Fallback defaults for all settings (UTC+0, Y-m-d, H:i)
 - **Validation** - Form validation with real-time preview examples
 - **Integration** - Automatic integration with date formatting utilities
+- **Email Tracking UI** - Dedicated section for email tracking configuration
 
 ### Date Formatting Architecture
 
@@ -333,6 +341,100 @@ end
 <!-- Manual formatting -->
 {UtilsDate.format_date(Date.utc_today(), "F j, Y")}
 {UtilsDate.format_time(Time.utc_now(), "h:i A")}
+```
+
+### Email Tracking System Architecture
+
+- **PhoenixKit.EmailTracking** - Main API module for email tracking functionality
+- **PhoenixKit.EmailTracking.EmailLog** - Core email logging schema with analytics
+- **PhoenixKit.EmailTracking.EmailEvent** - Event tracking (delivery, bounce, click, open)
+- **PhoenixKit.EmailTracking.EmailInterceptor** - Swoosh integration for automatic logging
+- **PhoenixKit.EmailTracking.SQSWorker** - AWS SQS polling for real-time events
+- **PhoenixKit.EmailTracking.SQSProcessor** - Message parsing and event handling
+- **PhoenixKit.EmailTracking.RateLimiter** - Anti-spam and rate limiting
+- **PhoenixKit.EmailTracking.Archiver** - Data lifecycle and S3 archival
+- **PhoenixKit.EmailTracking.Metrics** - CloudWatch integration and analytics
+
+**Core Features:**
+- **Comprehensive Logging** - All outgoing emails tracked with metadata
+- **Event Tracking** - Real-time delivery, bounce, complaint, open, click events
+- **AWS SES Integration** - Deep integration with SES webhooks and CloudWatch
+- **Analytics Dashboard** - Engagement metrics, campaign analysis, geographic data
+- **Rate Limiting** - Multi-layer protection against abuse and spam patterns
+- **Data Lifecycle** - Automatic archival, compression, and cleanup
+- **Settings Integration** - Configurable via admin settings interface
+
+**Database Tables:**
+- **phoenix_kit_email_logs** - Main email logging with extended metadata
+- **phoenix_kit_email_events** - Event tracking (delivery, engagement)
+- **phoenix_kit_email_blocklist** - Blocked addresses for rate limiting
+
+**LiveView Interfaces:**
+- **EmailLogsLive** - Email log browsing at `{prefix}/admin/emails`
+- **EmailDetailsLive** - Individual email details at `{prefix}/admin/emails/email/:id`
+- **EmailMetricsLive** - Analytics dashboard at `{prefix}/admin/emails/dashboard`
+- **EmailQueueLive** - Queue management at `{prefix}/admin/emails/queue`
+- **EmailBlocklistLive** - Blocklist management at `{prefix}/admin/emails/blocklist`
+
+**Mailer Integration:**
+```elixir
+# PhoenixKit.Mailer automatically intercepts emails
+email = new()
+  |> to("user@example.com")
+  |> from("app@example.com")
+  |> subject("Welcome!")
+  |> html_body("<h1>Welcome!</h1>")
+
+# Emails are automatically tracked when sent
+PhoenixKit.Mailer.deliver_email(email,
+  user_id: user.id,
+  template_name: "welcome",
+  campaign_id: "onboarding"
+)
+```
+
+**AWS SES Configuration:**
+```bash
+# Run the setup script to configure AWS infrastructure
+./scripts/aws_ses_sqs_setup.sh
+
+# Script creates:
+# - SES configuration set with event publishing
+# - SNS topic for SES events
+# - SQS queue with proper permissions
+# - IAM policies and roles
+# - Saves configuration to PhoenixKit settings
+```
+
+**Key Settings:**
+- **email_tracking_enabled** - Master toggle for the entire system
+- **email_tracking_save_body** - Store full email content (increases storage)
+- **email_tracking_ses_events** - Enable AWS SES event processing
+- **email_tracking_retention_days** - Data retention period (30-365 days)
+- **email_tracking_sampling_rate** - Percentage of emails to fully track
+
+**Security Features:**
+- **Sampling Rate** - Reduce storage load by tracking percentage of emails
+- **Rate Limiting** - Per-recipient, per-sender, and global limits
+- **Automatic Blocklist** - Dynamic blocking of suspicious patterns
+- **Data Compression** - Automatic compression of old email bodies
+- **S3 Archival** - Long-term storage with automatic cleanup
+
+**Analytics Capabilities:**
+- **Engagement Metrics** - Open rates, click rates, bounce rates
+- **Campaign Analysis** - Performance by template and campaign
+- **Geographic Data** - Engagement by country and region
+- **Provider Performance** - Deliverability by email provider
+- **Real-time Dashboards** - Live statistics and trending data
+
+**Production Deployment:**
+```elixir
+# Enable email tracking in production
+config :phoenix_kit,
+  email_tracking_enabled: true,
+  email_tracking_save_body: false,  # Recommended for storage efficiency
+  email_tracking_retention_days: 90,
+  email_tracking_sampling_rate: 100
 ```
 
 ### Migration Architecture
@@ -379,6 +481,7 @@ end
 5. **Run Migrations**: Database tables created automatically
 6. **Theme Support**: Optionally enable with `--theme-enabled` flag
 7. **Settings Management**: Access admin settings at `{prefix}/admin/settings`
+8. **Email Tracking**: Optionally enable email tracking and AWS SES integration
 
 > **Note**: `{prefix}` represents your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 > This can be customized via `config :phoenix_kit, url_prefix: "/your_custom_prefix"`.
@@ -441,6 +544,25 @@ end
 # Manual formatting for specific use cases:
 {UtilsDate.format_date(Date.utc_today(), "F j, Y")}  # "September 3, 2025"
 {UtilsDate.format_time(Time.utc_now(), "h:i A")}     # "3:30 PM"
+
+# Email Tracking Configuration (optional)
+config :phoenix_kit,
+  # Enable email tracking system
+  email_tracking_enabled: true,
+  email_tracking_save_body: false,  # Save preview only to reduce storage
+  email_tracking_retention_days: 90,
+  email_tracking_sampling_rate: 100,
+
+  # AWS SES integration for event tracking
+  email_tracking_ses_events: true,
+  aws_ses_configuration_set: "your-app-tracking"
+
+# Email tracking provides:
+# - Comprehensive email logging and analytics
+# - Real-time delivery, bounce, and engagement tracking
+# - Anti-spam and rate limiting features
+# - Admin interfaces at {prefix}/admin/emails/*
+# - Automatic integration with PhoenixKit.Mailer
 ```
 
 ## Key File Structure
@@ -455,6 +577,8 @@ end
 - `lib/phoenix_kit/users/role*.ex` - Role system (Role, RoleAssignment, Roles)
 - `lib/phoenix_kit/settings.ex` - Settings context and management
 - `lib/phoenix_kit/utils/date.ex` - Date formatting utilities with Settings integration
+- `lib/phoenix_kit/email_tracking/*.ex` - Email tracking system modules
+- `lib/phoenix_kit/mailer.ex` - Mailer with automatic email tracking integration
 
 ### Web Integration
 
@@ -463,14 +587,18 @@ end
 - `lib/phoenix_kit_web/users/*_live.ex` - LiveView components
 - `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces (Dashboard, Users, Sessions, Settings)
 - `lib/phoenix_kit_web/live/settings_live.ex` - Settings management interface
+- `lib/phoenix_kit_web/live/email_tracking/*_live.ex` - Email tracking LiveView interfaces
 - `lib/phoenix_kit_web/components/core_components.ex` - UI components
 
 ### Migration & Config
 
-- `lib/phoenix_kit/migrations/postgres/v01.ex` - V01 migration
+- `lib/phoenix_kit/migrations/postgres/v01.ex` - V01 migration (basic auth)
+- `lib/phoenix_kit/migrations/postgres/v07.ex` - V07 migration (email tracking tables)
+- `lib/phoenix_kit/migrations/postgres/v09.ex` - V09 migration (email blocklist)
 - `lib/mix/tasks/phoenix_kit.migrate_to_daisyui5.ex` - DaisyUI 5 migration tool
 - `config/config.exs` - Library configuration
 - `mix.exs` - Project and package configuration
+- `scripts/aws_ses_sqs_setup.sh` - AWS SES infrastructure automation
 
 ### DaisyUI 5 Assets
 

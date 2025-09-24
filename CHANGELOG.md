@@ -1,3 +1,26 @@
+## 1.2.11 - 2025-09-24
+
+### Added
+- **AWS SQS Integration** - Complete SQS worker and processor for real-time email event processing from AWS SES through SNS
+- **Manual Email Sync** - New `sync_email_status/1` function to manually fetch and process SES events for specific messages
+- **DLQ Processing** - Dead Letter Queue support for handling failed messages with comprehensive retry mechanisms
+- **Mix Tasks for Email System**:
+  - `mix phoenix_kit.email.send_test` - Test email sending functionality with tracking options
+  - `mix phoenix_kit.email.debug_sqs` - Debug SQS messages and email tracking with detailed diagnostics
+  - `mix phoenix_kit.email.process_dlq` - Process Dead Letter Queue messages and handle stuck events
+- **Email Tracking Supervisor** - OTP supervision tree for SQS worker management with graceful startup/shutdown
+- **Application Integration Module** - Enhanced integration patterns for email tracking system initialization
+
+### Improved
+- **Email Interceptor** - Enhanced with provider-specific data extraction for multiple email services (SendGrid, Mailgun, AWS SES)
+- **Email Tracking API** - Added manual synchronization and event fetching capabilities for both main queue and DLQ
+- **Mailer Module** - Improved integration with email tracking system and enhanced error handling patterns
+- **Email Event Processing** - Better handling of AWS SES events with improved message parsing and validation
+
+### Fixed
+- **Email Status Processing** - Improved handling of delivery confirmations, bounce events, and open tracking
+- **SQS Message Handling** - Enhanced message processing with proper error recovery and retry logic
+
 ## 1.2.10 - 2025-09-19
 
 ### Improved

@@ -68,6 +68,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
             |> assign(:events, [])
             |> assign(:related_emails, [])
             |> assign(:loading, true)
+            |> assign(:syncing, false)
             |> load_email_data()
 
           {:ok, socket}
@@ -94,6 +95,47 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
      socket
      |> assign(:loading, true)
      |> load_email_data()}
+  end
+
+  @impl true
+  def handle_event("sync_status", _params, socket) do
+    if socket.assigns.email_log do
+      message_id = socket.assigns.email_log.message_id
+
+      socket = assign(socket, :syncing, true)
+
+      case EmailTracking.sync_email_status(message_id) do
+        {:ok, result} ->
+          events_processed = Map.get(result, :events_processed, 0)
+          total_events_found = Map.get(result, :total_events_found, 0)
+          message = Map.get(result, :message, nil)
+
+          flash_message =
+            if total_events_found > 0 do
+              "Sync completed: processed #{events_processed}/#{total_events_found} events"
+            else
+              message || "No new events found"
+            end
+
+          socket =
+            socket
+            |> assign(:syncing, false)
+            |> put_flash(:info, flash_message)
+            |> load_email_data()
+
+          {:noreply, socket}
+
+        {:error, reason} ->
+          socket =
+            socket
+            |> assign(:syncing, false)
+            |> put_flash(:error, "Sync error: #{inspect(reason)}")
+
+          {:noreply, socket}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Email log not found")}
+    end
   end
 
   @impl true
@@ -213,8 +255,28 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
                     <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export
                   </button>
 
-                  <button phx-click="refresh" class="btn btn-outline btn-sm">
-                    <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
+                  <button
+                    phx-click="sync_status"
+                    class="btn btn-outline btn-sm"
+                    disabled={assigns[:syncing]}
+                  >
+                    <%= if assigns[:syncing] do %>
+                      <span class="loading loading-spinner loading-xs mr-1"></span> Syncing...
+                    <% else %>
+                      <.icon name="hero-arrow-path-rounded-square" class="w-4 h-4 mr-1" /> Sync Status
+                    <% end %>
+                  </button>
+
+                  <button
+                    phx-click="refresh"
+                    class="btn btn-outline btn-sm"
+                    disabled={assigns[:loading]}
+                  >
+                    <%= if assigns[:loading] do %>
+                      <span class="loading loading-spinner loading-xs mr-1"></span> Loading...
+                    <% else %>
+                      <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
+                    <% end %>
                   </button>
                 </div>
               </div>

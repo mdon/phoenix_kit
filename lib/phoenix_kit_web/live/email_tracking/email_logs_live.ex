@@ -67,6 +67,9 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
         |> assign(:total_count, 0)
         |> assign(:stats, %{})
         |> assign(:loading, true)
+        |> assign(:show_test_email_modal, false)
+        |> assign(:test_email_sending, false)
+        |> assign(:test_email_form, %{recipient: "", errors: %{}})
         |> assign_filter_defaults()
         |> assign_pagination_defaults()
 
@@ -155,6 +158,58 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
      |> load_stats()}
   end
 
+  @impl true
+  def handle_event("show_test_email_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_test_email_modal, true)
+     |> assign(:test_email_form, %{recipient: "", errors: %{}})}
+  end
+
+  @impl true
+  def handle_event("hide_test_email_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_test_email_modal, false)
+     |> assign(:test_email_sending, false)
+     |> assign(:test_email_form, %{recipient: "", errors: %{}})}
+  end
+
+  @impl true
+  def handle_event("validate_test_email", %{"test_email" => %{"recipient" => recipient}}, socket) do
+    errors = validate_test_email_form(recipient)
+
+    form = %{
+      recipient: recipient,
+      errors: errors
+    }
+
+    {:noreply, assign(socket, :test_email_form, form)}
+  end
+
+  @impl true
+  def handle_event("send_test_email", %{"test_email" => %{"recipient" => recipient}}, socket) do
+    errors = validate_test_email_form(recipient)
+
+    if map_size(errors) == 0 do
+      # Start sending process
+      socket = assign(socket, :test_email_sending, true)
+
+      # Send the test email asynchronously
+      send(self(), {:send_test_email, String.trim(recipient)})
+
+      {:noreply, socket}
+    else
+      # Show validation errors
+      form = %{
+        recipient: recipient,
+        errors: errors
+      }
+
+      {:noreply, assign(socket, :test_email_form, form)}
+    end
+  end
+
   ## --- Info Handlers ---
 
   @impl true
@@ -174,6 +229,35 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
       {:noreply,
        socket
        |> put_flash(:error, "Failed to generate CSV export: #{Exception.message(error)}")}
+  end
+
+  @impl true
+  def handle_info({:send_test_email, recipient}, socket) do
+    case PhoenixKit.Mailer.send_test_tracking_email(recipient) do
+      {:ok, _email} ->
+        {:noreply,
+         socket
+         |> assign(:test_email_sending, false)
+         |> assign(:show_test_email_modal, false)
+         |> put_flash(
+           :info,
+           "Test email sent successfully to #{recipient}! Check your email logs to see the tracking data."
+         )
+         |> load_email_logs()
+         |> load_stats()}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:test_email_sending, false)
+         |> put_flash(:error, "Failed to send test email: #{inspect(reason)}")}
+    end
+  rescue
+    error ->
+      {:noreply,
+       socket
+       |> assign(:test_email_sending, false)
+       |> put_flash(:error, "Error sending test email: #{Exception.message(error)}")}
   end
 
   ## --- Template ---
@@ -208,6 +292,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
         <%!-- Action Buttons --%>
         <div class="flex justify-end gap-2 mb-6">
+          <.button phx-click="show_test_email_modal" class="btn btn-primary btn-sm">
+            <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Send Test Email
+          </.button>
+
           <.button phx-click="export_csv" class="btn btn-outline btn-sm">
             <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
           </.button>
@@ -491,6 +579,89 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
             <% end %>
           </div>
         </div>
+
+        <%!-- Test Email Modal --%>
+        <div
+          :if={@show_test_email_modal}
+          class="modal modal-open"
+          phx-click-away="hide_test_email_modal"
+        >
+          <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">Send Test Tracking Email</h3>
+            <p class="text-sm text-base-content/70 mb-4">
+              Send a test email to verify that email tracking is working correctly.
+              The test email will include tracking pixels and test links.
+            </p>
+
+            <.form
+              for={%{}}
+              phx-submit="send_test_email"
+              phx-change="validate_test_email"
+              class="space-y-4"
+            >
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">Recipient Email Address</span>
+                </label>
+                <input
+                  type="email"
+                  name="test_email[recipient]"
+                  value={@test_email_form[:recipient] || ""}
+                  placeholder="admin@example.com"
+                  class={[
+                    "input input-bordered w-full",
+                    @test_email_form[:errors][:recipient] && "input-error"
+                  ]}
+                  required
+                />
+                <%= if @test_email_form[:errors][:recipient] do %>
+                  <label class="label">
+                    <span class="label-text-alt text-error">
+                      {@test_email_form[:errors][:recipient]}
+                    </span>
+                  </label>
+                <% end %>
+              </div>
+
+              <div class="alert alert-info">
+                <.icon name="hero-information-circle" class="w-5 h-5" />
+                <div class="text-sm">
+                  <div class="font-semibold">This test email will:</div>
+                  <ul class="mt-1 list-disc list-inside">
+                    <li>Verify AWS SES configuration (if enabled)</li>
+                    <li>Test email delivery tracking</li>
+                    <li>Include trackable links for click testing</li>
+                    <li>Appear in your email logs with "TEST" campaign</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="modal-action">
+                <button
+                  type="button"
+                  phx-click="hide_test_email_modal"
+                  class="btn btn-ghost"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class={[
+                    "btn btn-primary",
+                    @test_email_sending && "loading"
+                  ]}
+                  disabled={@test_email_sending}
+                >
+                  <%= if @test_email_sending do %>
+                    Sending...
+                  <% else %>
+                    Send Test Email
+                  <% end %>
+                </button>
+              </div>
+            </.form>
+          </div>
+        </div>
       </div>
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
@@ -727,4 +898,25 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   end
 
   defp get_message_tag(_), do: nil
+
+  # Validate test email form
+  defp validate_test_email_form(recipient) do
+    errors = %{}
+
+    # Validate recipient email
+    errors =
+      case String.trim(recipient || "") do
+        "" ->
+          Map.put(errors, :recipient, "Email address is required")
+
+        email ->
+          if Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email) do
+            errors
+          else
+            Map.put(errors, :recipient, "Please enter a valid email address")
+          end
+      end
+
+    errors
+  end
 end

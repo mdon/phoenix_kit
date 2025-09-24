@@ -280,6 +280,53 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
   end
 
   @doc """
+  Finds an email log by AWS message ID.
+
+  This function looks for logs where the AWS SES message ID might be stored
+  in the message_id field after sending.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailTracking.EmailLog.find_by_aws_message_id("abc123-aws")
+      {:ok, %PhoenixKit.EmailTracking.EmailLog{}}
+
+      iex> PhoenixKit.EmailTracking.EmailLog.find_by_aws_message_id("nonexistent")
+      {:error, :not_found}
+  """
+  def find_by_aws_message_id(aws_message_id) when is_binary(aws_message_id) do
+    # Try multiple search strategies for AWS message ID
+    case find_by_direct_aws_id(aws_message_id) do
+      {:ok, log} -> {:ok, log}
+      {:error, :not_found} -> find_by_metadata_search(aws_message_id)
+    end
+  end
+
+  # Direct search assuming AWS ID was stored in message_id field
+  defp find_by_direct_aws_id(aws_message_id) do
+    case __MODULE__
+         |> where([l], l.message_id == ^aws_message_id)
+         |> preload([:user, :events])
+         |> repo().one() do
+      nil -> {:error, :not_found}
+      log -> {:ok, log}
+    end
+  end
+
+  # Search in metadata/headers for AWS message ID
+  defp find_by_metadata_search(aws_message_id) do
+    # Look for AWS message ID in headers or other metadata
+    case __MODULE__
+         |> where([l], fragment("?->>'aws_message_id' = ?", l.headers, ^aws_message_id))
+         |> or_where([l], fragment("?->>'X-AWS-Message-Id' = ?", l.headers, ^aws_message_id))
+         |> or_where([l], fragment("?->>'MessageId' = ?", l.headers, ^aws_message_id))
+         |> preload([:user, :events])
+         |> repo().one() do
+      nil -> {:error, :not_found}
+      log -> {:ok, log}
+    end
+  end
+
+  @doc """
   Creates an email log.
 
   ## Examples
@@ -783,10 +830,21 @@ defmodule PhoenixKit.EmailTracking.EmailLog do
         changeset
 
       message_id ->
-        if get_log_by_message_id(message_id) do
-          add_error(changeset, :message_id, "has already been taken")
-        else
-          changeset
+        existing_log = get_log_by_message_id(message_id)
+        current_id = get_field(changeset, :id)
+
+        case {existing_log, current_id} do
+          # No existing log, valid
+          {nil, _} ->
+            changeset
+
+          # Existing log is the same as current record, valid
+          {%__MODULE__{id: id}, id} ->
+            changeset
+
+          # Different existing log, invalid
+          {%__MODULE__{}, _} ->
+            add_error(changeset, :message_id, "has already been taken")
         end
     end
   end
