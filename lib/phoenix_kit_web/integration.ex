@@ -145,6 +145,8 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/sessions", Live.Users.SessionsLive, :index
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
+          live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
+          live "/admin/settings/email-tracking", Live.Modules.EmailTrackingLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit

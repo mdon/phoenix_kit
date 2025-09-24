@@ -5,6 +5,7 @@
 We are actively building PhoenixKit, a comprehensive SaaS starter kit for the Elixir/Phoenix ecosystem. Our goal is to eliminate the need to reinvent the wheel every time we all start a new SaaS project.
 
 **🚧 Early Access - We Need Your Feedback!**
+
 PhoenixKit is under heavy development and we're looking for early adopters to test, provide feedback, and help shape the future of this toolkit. If you're building with Phoenix and want to skip the boilerplate setup, we'd love to have you try it out and share your experience.
 
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
@@ -23,10 +24,11 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] Email confirmation (waiting Email Module)
   - [x] Password reset
   - [x] User roles
+  - [x] Location of registration (ip, country, region, city)
 - [ ] Backend Admin module
-  - [ ] Modules Manager (in progress)
+  - [x] Modules Manager (in progress)
   - [x] Session Manager Module
-  - [ ] Settings (in progress)
+  - [x] Settings (in progress)
     - [x] Global app title
     - [x] Global app timezone (using timex)
     - [x] Global time format (using timex)
@@ -38,13 +40,11 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
   - User's timezone (mismatch detection)
-  - Location of registration (ip, country, region, city)
-  - OAuth (google, facebook, twitter, github, etc...)
   - User's locale (needs global language settings, in works)
+  - OAuth (google, facebook, twitter, github, etc...)
   - 2FA
   - Fail2ban
 - Backend admin
-  - Modules manager
   - Design / templates / themes
   - Settings
     - General
@@ -54,13 +54,15 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - Notifications Module
     - Integration with notification providers (Twilio, etc...)
   - Content publishing Module
+    - Media / Gallery (with s3 backend)
+    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
+    - Audio
     - Media / Gallery
     - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
     - CDN
     - Static pages
     - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
     - Blog
-    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
     - Comments
     - Search
     - Blocks
@@ -91,7 +93,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Backups
     - Custom entities and fields
   - Customer service Module
-    - Chat 
+    - Chat
   - Feedback Module
   - Roadmap / Ideas Module
   - CRM Module
@@ -106,7 +108,7 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - FAQ
   - Forms Module
   - Cluster Module
-  
+
 💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
 ## Installation
@@ -181,7 +183,7 @@ Where `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_ki
 ### Basic Setup
 ```elixir
 # config/config.exs (automatically added by installer)
-config :phoenix_kit, 
+config :phoenix_kit,
   repo: YourApp.Repo,
   from_email: "noreply@yourcompany.com",  # Required for email notifications
   from_name: "Your Company Name"          # Optional, defaults to "PhoenixKit"
@@ -240,7 +242,7 @@ config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.Sendgrid,
   api_key: System.get_env("SENDGRID_API_KEY")
 
-# Mailgun  
+# Mailgun
 config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.Mailgun,
   api_key: System.get_env("MAILGUN_API_KEY"),
@@ -313,7 +315,7 @@ PhoenixKit creates these PostgreSQL tables:
 
 ### System Roles
 - **Owner** - Full system access (first user)
-- **Admin** - Management privileges  
+- **Admin** - Management privileges
 - **User** - Standard access (default)
 
 ### Role Management
@@ -344,10 +346,7 @@ PhoenixKit follows professional library patterns:
 
 ## Contributing
 
-1. Fork and create feature branch
-2. Add tests: `mix test`
-3. Run quality checks: `mix quality`
-4. Submit pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on setting up a development environment and contributing to PhoenixKit.
 
 ## License
 

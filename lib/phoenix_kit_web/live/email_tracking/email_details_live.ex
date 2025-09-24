@@ -35,7 +35,6 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailDetailsLive do
   use PhoenixKitWeb, :live_view
 
   require Logger
-  import PhoenixKitWeb.CoreComponents
 
   alias PhoenixKit.EmailTracking
   alias PhoenixKit.EmailTracking.EmailLog
