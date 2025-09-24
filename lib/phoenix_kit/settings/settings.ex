@@ -636,61 +636,55 @@ defmodule PhoenixKit.Settings do
 
   # Ensures the settings cache is started via the generic cache system
   defp ensure_cache_started do
-    try do
-      # First ensure the registry is started if using registry
-      case Registry.start_link(keys: :unique, name: PhoenixKit.Cache.Registry) do
-        {:ok, _pid} -> :ok
-        {:error, {:already_started, _pid}} -> :ok
-        _ -> :ok
-      end
-
-      # Start the settings cache with warmer function
-      case PhoenixKit.Cache.start_link(name: @cache_name, warmer: &warm_cache_data/0) do
-        {:ok, _pid} -> :ok
-        {:error, {:already_started, _pid}} -> :ok
-        _ -> :ok
-      end
-    rescue
-      # Cache system optional, continue without it
-      _error -> :ok
+    # First ensure the registry is started if using registry
+    case Registry.start_link(keys: :unique, name: PhoenixKit.Cache.Registry) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      _ -> :ok
     end
+
+    # Start the settings cache with warmer function
+    case PhoenixKit.Cache.start_link(name: @cache_name, warmer: &warm_cache_data/0) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      _ -> :ok
+    end
+  rescue
+    # Cache system optional, continue without it
+    _error -> :ok
   end
 
   # Warms the cache by loading all settings from database
   # This function is called by the generic cache system
   defp warm_cache_data do
-    try do
-      settings = repo().all(Setting)
+    settings = repo().all(Setting)
 
-      settings
-      |> Enum.map(fn setting -> {setting.key, setting.value} end)
-      |> Map.new()
-    rescue
-      error ->
-        require Logger
-        Logger.error("Failed to warm settings cache: #{inspect(error)}")
-        %{}
-    end
+    settings
+    |> Enum.map(fn setting -> {setting.key, setting.value} end)
+    |> Map.new()
+  rescue
+    error ->
+      require Logger
+      Logger.error("Failed to warm settings cache: #{inspect(error)}")
+      %{}
   end
 
   # Queries database for a single setting and caches the result
   defp query_and_cache_setting(key) do
-    try do
-      case repo().get_by(Setting, key: key) do
-        %Setting{value: value} ->
-          PhoenixKit.Cache.put(@cache_name, key, value)
-          value
+    case repo().get_by(Setting, key: key) do
+      %Setting{value: value} ->
+        PhoenixKit.Cache.put(@cache_name, key, value)
+        value
 
-        nil ->
-          # Cache the fact that this setting doesn't exist to avoid repeated queries
-          PhoenixKit.Cache.put(@cache_name, key, nil)
-          nil
-      end
-    rescue
-      error ->
-        require Logger
-        Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      nil ->
+        # Cache the fact that this setting doesn't exist to avoid repeated queries
+        PhoenixKit.Cache.put(@cache_name, key, nil)
         nil
     end
+  rescue
+    error ->
+      require Logger
+      Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      nil
   end
 end

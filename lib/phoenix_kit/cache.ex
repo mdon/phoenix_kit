@@ -102,21 +102,19 @@ defmodule PhoenixKit.Cache do
   """
   @spec get(cache_name(), cache_key(), default_value()) :: cache_value()
   def get(cache_name, key, default \\ nil) do
-    try do
-      GenServer.call(via_tuple(cache_name), {:get, key, default}, 5000)
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        default
-    catch
-      :exit, {:timeout, _} ->
-        Logger.warning("Cache #{cache_name} timeout")
-        default
+    GenServer.call(via_tuple(cache_name), {:get, key, default}, 5000)
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      default
+  catch
+    :exit, {:timeout, _} ->
+      Logger.warning("Cache #{cache_name} timeout")
+      default
 
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        default
-    end
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      default
   end
 
   @doc """
@@ -132,21 +130,19 @@ defmodule PhoenixKit.Cache do
   """
   @spec get_multiple(cache_name(), [cache_key()], map()) :: map()
   def get_multiple(cache_name, keys, defaults \\ %{}) do
-    try do
-      GenServer.call(via_tuple(cache_name), {:get_multiple, keys, defaults}, 5000)
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        defaults
-    catch
-      :exit, {:timeout, _} ->
-        Logger.warning("Cache #{cache_name} timeout")
-        defaults
+    GenServer.call(via_tuple(cache_name), {:get_multiple, keys, defaults}, 5000)
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      defaults
+  catch
+    :exit, {:timeout, _} ->
+      Logger.warning("Cache #{cache_name} timeout")
+      defaults
 
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        defaults
-    end
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      defaults
   end
 
   @doc """
@@ -160,17 +156,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec put(cache_name(), cache_key(), cache_value()) :: :ok
   def put(cache_name, key, value) do
-    try do
-      GenServer.cast(via_tuple(cache_name), {:put, key, value})
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), {:put, key, value})
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   @doc """
@@ -183,17 +177,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec put_multiple(cache_name(), map()) :: :ok
   def put_multiple(cache_name, key_values) do
-    try do
-      GenServer.cast(via_tuple(cache_name), {:put_multiple, key_values})
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), {:put_multiple, key_values})
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   @doc """
@@ -206,17 +198,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec invalidate(cache_name(), cache_key()) :: :ok
   def invalidate(cache_name, key) do
-    try do
-      GenServer.cast(via_tuple(cache_name), {:invalidate, key})
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), {:invalidate, key})
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   @doc """
@@ -229,17 +219,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec invalidate_multiple(cache_name(), [cache_key()]) :: :ok
   def invalidate_multiple(cache_name, keys) do
-    try do
-      GenServer.cast(via_tuple(cache_name), {:invalidate_multiple, keys})
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), {:invalidate_multiple, keys})
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   @doc """
@@ -252,17 +240,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec clear(cache_name()) :: :ok
   def clear(cache_name) do
-    try do
-      GenServer.cast(via_tuple(cache_name), :clear)
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), :clear)
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   @doc """
@@ -276,21 +262,19 @@ defmodule PhoenixKit.Cache do
   """
   @spec stats(cache_name()) :: map()
   def stats(cache_name) do
-    try do
-      GenServer.call(via_tuple(cache_name), :stats, 5000)
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
-    catch
-      :exit, {:timeout, _} ->
-        Logger.warning("Cache #{cache_name} timeout")
-        %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
+    GenServer.call(via_tuple(cache_name), :stats, 5000)
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
+  catch
+    :exit, {:timeout, _} ->
+      Logger.warning("Cache #{cache_name} timeout")
+      %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
 
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
-    end
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      %{hits: 0, misses: 0, puts: 0, invalidations: 0, hit_rate: 0.0}
   end
 
   @doc """
@@ -303,17 +287,15 @@ defmodule PhoenixKit.Cache do
   """
   @spec warm(cache_name()) :: :ok
   def warm(cache_name) do
-    try do
-      GenServer.cast(via_tuple(cache_name), :warm)
-    rescue
-      error in [ArgumentError, RuntimeError] ->
-        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
-        :ok
-    catch
-      :exit, {:noproc, _} ->
-        Logger.warning("Cache #{cache_name} not started")
-        :ok
-    end
+    GenServer.cast(via_tuple(cache_name), :warm)
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, {:noproc, _} ->
+      Logger.warning("Cache #{cache_name} not started")
+      :ok
   end
 
   # GenServer Callbacks
@@ -492,11 +474,9 @@ defmodule PhoenixKit.Cache do
   end
 
   defp safe_warm(warmer) when is_function(warmer, 0) do
-    try do
-      {:ok, warmer.()}
-    rescue
-      error -> {:error, error}
-    end
+    {:ok, warmer.()}
+  rescue
+    error -> {:error, error}
   end
 
   defp maybe_evict(%{max_size: nil} = state), do: state
