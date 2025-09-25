@@ -33,49 +33,43 @@
       </button>
     </div>
 
-    <%!-- Role Creation/Edit Form Modal --%>
-    <%= if @show_form do %>
+    <%!-- Role Edit Form Modals --%>
+    <%= if @show_create_form do %>
       <div class="modal modal-open">
         <div class="modal-box max-w-2xl">
           <h3 class="font-bold text-xl mb-4">
-            {if @editing_role, do: "Edit Role", else: "Create New Role"}
+            Create New Role
           </h3>
 
           <form
-            phx-submit={if @editing_role, do: "update_role", else: "create_role"}
+            phx-submit="create_role"
             class="space-y-4"
           >
             <div class="form-control">
-              <label class="label">
-                <span class="label-text">Role Name *</span>
-              </label>
-              <input
-                type="text"
-                name="role[name]"
-                value={@form_data["name"]}
+              <.input
+                field={@create_role_form[:name]}
+                label="Role Name *"
                 placeholder="Enter role name (e.g., Manager, Editor)"
-                class="input input-bordered w-full"
-                required
                 maxlength="50"
+                required
               />
-              <label class="label">
-                <span class="label-text-alt">Must be unique, 1-50 characters</span>
-              </label>
+
+              <p class="label mt-1">
+                Must be unique, 1-50 characters.
+              </p>
             </div>
 
             <div class="form-control">
-              <label class="label">
-                <span class="label-text">Description</span>
-              </label>
-              <textarea
-                name="role[description]"
+              <.textarea
+                field={@create_role_form[:description]}
+                label="Description"
                 placeholder="Describe what this role can do (optional)"
-                class="textarea textarea-bordered w-full h-24"
                 maxlength="500"
-              ><%= @form_data["description"] %></textarea>
-              <label class="label">
-                <span class="label-text-alt">Optional, up to 500 characters</span>
-              </label>
+              />
+
+              <p class="label mt-1">
+                Optional, up to 500 characters.
+              </p>
             </div>
 
             <div class="modal-action">
@@ -83,7 +77,59 @@
                 Cancel
               </button>
               <button type="submit" class="btn btn-primary">
-                {if @editing_role, do: "Update Role", else: "Create Role"}
+                Create Role
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% end %>
+
+    <%!-- Role Edit Form Modal --%>
+    <%= if @show_edit_form do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-2xl">
+          <h3 class="font-bold text-xl mb-4">
+            Edit Role
+          </h3>
+
+          <form
+            phx-submit="update_role"
+            class="space-y-4"
+          >
+            <div class="form-control">
+              <.input
+                field={@edit_role_form[:name]}
+                label="Role Name *"
+                placeholder="Enter role name (e.g., Manager, Editor)"
+                maxlength="50"
+                required
+              />
+
+              <p class="label mt-1">
+                Must be unique, 1-50 characters.
+              </p>
+            </div>
+
+            <div class="form-control">
+              <.textarea
+                field={@edit_role_form[:description]}
+                label="Description"
+                placeholder="Describe what this role can do (optional)"
+                maxlength="500"
+              />
+
+              <p class="label mt-1">
+                Optional, up to 500 characters.
+              </p>
+            </div>
+
+            <div class="modal-action">
+              <button type="button" phx-click="hide_form" class="btn btn-outline">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">
+                Update Role
               </button>
             </div>
           </form>
@@ -143,7 +189,7 @@
                         <%!-- Edit Button --%>
                         <button
                           class="btn btn-xs btn-outline btn-primary"
-                          phx-click="edit_role"
+                          phx-click="show_edit_role"
                           phx-value-role_id={role.id}
                         >
                           <PhoenixKitWeb.Components.Core.Icons.icon_edit class="h-3 w-3 mr-1" />
