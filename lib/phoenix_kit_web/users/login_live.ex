@@ -131,8 +131,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </button>
               </fieldset>
             </.form>
-            
-    <!-- Magic Link section -->
+
+            <%!-- Magic Link section --%>
             <div class="mt-6">
               <div class="relative">
                 <div class="absolute inset-0 flex items-center">
@@ -153,8 +153,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </.link>
               </div>
             </div>
-            
-    <!-- Registration link -->
+
+            <%!-- Registration link --%>
             <%= if @allow_registration do %>
               <div class="text-center mt-4 text-sm">
                 <span>New to {@project_title}? </span>
@@ -166,8 +166,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </.link>
               </div>
             <% end %>
-            
-    <!-- Development Mode Notice -->
+
+            <%!-- Development Mode Notice --%>
             <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
               <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-6 w-6" />
               <span>

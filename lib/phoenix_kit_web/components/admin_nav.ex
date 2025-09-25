@@ -62,7 +62,7 @@ defmodule PhoenixKitWeb.AdminNav do
       ]}
     >
       <%= if @nested do %>
-        <!-- Nested item indicator -->
+        <%!-- Nested item indicator --%>
         <div class="w-4 h-4 mr-2 flex items-center justify-center">
           <div class="w-1.5 h-1.5 bg-current opacity-50 rounded-full"></div>
         </div>
@@ -122,10 +122,10 @@ defmodule PhoenixKitWeb.AdminNav do
       "card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full",
       if(@mobile, do: "scale-90", else: "")
     ]}>
-      <!-- Animated slider -->
+      <%!-- Animated slider --%>
       <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-      
-    <!-- System theme button -->
+
+      <%!-- System theme button --%>
       <button
         class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
         phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "system"})}
@@ -134,8 +134,8 @@ defmodule PhoenixKitWeb.AdminNav do
       >
         <PhoenixKitWeb.Components.Core.Icons.icon_system />
       </button>
-      
-    <!-- Light theme button -->
+
+      <%!-- Light theme button --%>
       <button
         class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
         phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "light"})}
@@ -144,8 +144,8 @@ defmodule PhoenixKitWeb.AdminNav do
       >
         <PhoenixKitWeb.Components.Core.Icons.icon_light />
       </button>
-      
-    <!-- Dark theme button -->
+
+      <%!-- Dark theme button --%>
       <button
         class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
         phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "dark"})}
