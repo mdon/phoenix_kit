@@ -95,6 +95,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.Header
       import PhoenixKitWeb.Components.Core.Icon
       import PhoenixKitWeb.Components.Core.Input
+      import PhoenixKitWeb.Components.Core.Textarea
       import PhoenixKitWeb.Components.Core.Checkbox
       import PhoenixKitWeb.Components.Core.SimpleForm
       import PhoenixKitWeb.Components.Core.ThemeSwitcher
