@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Languages
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 

@@ -2,7 +2,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.EmailTracking
-  alias PhoenixKit.Languages
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
 

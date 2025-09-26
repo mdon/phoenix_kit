@@ -1,4 +1,4 @@
-defmodule PhoenixKit.Languages do
+defmodule PhoenixKit.Module.Languages do
   @moduledoc """
   Languages management for PhoenixKit - complete language configuration in a single module.
 
@@ -40,38 +40,34 @@ defmodule PhoenixKit.Languages do
   ## Usage Examples
 
       # Check if languages are enabled
-      if PhoenixKit.Languages.enabled?() do
+      if PhoenixKit.Module.Languages.enabled?() do
         # Languages are active
       end
 
       # Enable languages (creates default English language)
-      {:ok, config} = PhoenixKit.Languages.enable_system()
+      {:ok, config} = PhoenixKit.Module.Languages.enable_system()
 
       # Add a new language
-      {:ok, config} = PhoenixKit.Languages.add_language(%{
-        code: "es",
-        name: "Spanish",
-        is_enabled: true
-      })
+      {:ok, config} = PhoenixKit.Module.Languages.add_language("es")
 
       # Get all languages
-      languages = PhoenixKit.Languages.get_languages()
-      # => [%{code: "en", name: "English", is_default: true, is_enabled: true, position: 1}, ...]
+      languages = PhoenixKit.Module.Languages.get_languages()
+      # => [%{code: "en", name: "English", is_default: true, is_enabled: true}, ...]
 
       # Get only enabled languages (most common use case)
-      enabled_languages = PhoenixKit.Languages.get_enabled_languages()
+      enabled_languages = PhoenixKit.Module.Languages.get_enabled_languages()
       # => [%{code: "en", name: "English", ...}, %{code: "es", name: "Spanish", ...}]
 
       # Get a specific language by code
-      spanish = PhoenixKit.Languages.get_language("es")
-      # => %{code: "es", name: "Spanish", is_enabled: true, position: 2}
+      spanish = PhoenixKit.Module.Languages.get_language("es")
+      # => %{code: "es", name: "Spanish", is_enabled: true}
 
       # Get just the language codes
-      codes = PhoenixKit.Languages.get_enabled_language_codes()
+      codes = PhoenixKit.Module.Languages.get_enabled_language_codes()
       # => ["en", "es", "fr"]
 
       # Check if a language is valid and enabled
-      if PhoenixKit.Languages.language_enabled?("es") do
+      if PhoenixKit.Module.Languages.language_enabled?("es") do
         # Use Spanish language
       end
 
@@ -204,7 +200,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.enabled?()
+      iex> PhoenixKit.Module.Languages.enabled?()
       false
   """
   def enabled? do
@@ -221,7 +217,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.enable_system()
+      iex> PhoenixKit.Module.Languages.enable_system()
       {:ok, %{"languages" => [%{"code" => "en", ...}]}}
   """
   def enable_system do
@@ -248,7 +244,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.disable_system()
+      iex> PhoenixKit.Module.Languages.disable_system()
       {:ok, %Setting{}}
   """
   def disable_system do
@@ -262,7 +258,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_config()
+      iex> PhoenixKit.Module.Languages.get_config()
       %{
         enabled: true,
         languages: [%{"code" => "en", "name" => "English", ...}],
@@ -295,11 +291,11 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_languages()
+      iex> PhoenixKit.Module.Languages.get_languages()
       [%{"code" => "en", "name" => "English", "is_default" => true, ...}]
 
       # When system is disabled:
-      iex> PhoenixKit.Languages.get_languages()
+      iex> PhoenixKit.Module.Languages.get_languages()
       []
   """
   def get_languages do
@@ -320,7 +316,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_enabled_languages()
+      iex> PhoenixKit.Module.Languages.get_enabled_languages()
       [%{"code" => "en", "name" => "English", ...}]
   """
   def get_enabled_languages do
@@ -336,11 +332,11 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_default_language()
+      iex> PhoenixKit.Module.Languages.get_default_language()
       %{"code" => "en", "name" => "English", "is_default" => true, ...}
 
       # When system is disabled:
-      iex> PhoenixKit.Languages.get_default_language()
+      iex> PhoenixKit.Module.Languages.get_default_language()
       nil
   """
   def get_default_language do
@@ -359,10 +355,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_language("es")
-      %{"code" => "es", "name" => "Spanish", "is_enabled" => true, "position" => 2}
+      iex> PhoenixKit.Module.Languages.get_language("es")
+      %{"code" => "es", "name" => "Spanish", "is_enabled" => true}
 
-      iex> PhoenixKit.Languages.get_language("invalid")
+      iex> PhoenixKit.Module.Languages.get_language("invalid")
       nil
   """
   def get_language(code) when is_binary(code) do
@@ -381,7 +377,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_language_codes()
+      iex> PhoenixKit.Module.Languages.get_language_codes()
       ["en", "es", "fr"]
   """
   def get_language_codes do
@@ -396,7 +392,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_enabled_language_codes()
+      iex> PhoenixKit.Module.Languages.get_enabled_language_codes()
       ["en", "es"]
   """
   def get_enabled_language_codes do
@@ -411,10 +407,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.valid_language?("es")
+      iex> PhoenixKit.Module.Languages.valid_language?("es")
       true
 
-      iex> PhoenixKit.Languages.valid_language?("invalid")
+      iex> PhoenixKit.Module.Languages.valid_language?("invalid")
       false
   """
   def valid_language?(code) when is_binary(code) do
@@ -428,10 +424,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.language_enabled?("es")
+      iex> PhoenixKit.Module.Languages.language_enabled?("es")
       true
 
-      iex> PhoenixKit.Languages.language_enabled?("disabled_lang")
+      iex> PhoenixKit.Module.Languages.language_enabled?("disabled_lang")
       false
   """
   def language_enabled?(code) when is_binary(code) do
@@ -450,7 +446,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_available_languages()
+      iex> PhoenixKit.Module.Languages.get_available_languages()
       [%{code: "en", name: "English", native: "English", flag: "🇺🇸"}, ...]
   """
   def get_available_languages do
@@ -465,7 +461,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_available_languages_for_selection()
+      iex> PhoenixKit.Module.Languages.get_available_languages_for_selection()
       [%{code: "es", name: "Spanish", native: "Español", flag: "🇪🇸"}, ...]
   """
   def get_available_languages_for_selection do
@@ -485,10 +481,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.get_predefined_language("es")
+      iex> PhoenixKit.Module.Languages.get_predefined_language("es")
       %{code: "es", name: "Spanish", native: "Español", flag: "🇪🇸"}
 
-      iex> PhoenixKit.Languages.get_predefined_language("invalid")
+      iex> PhoenixKit.Module.Languages.get_predefined_language("invalid")
       nil
   """
   def get_predefined_language(code) when is_binary(code) do
@@ -504,13 +500,13 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.add_language("es")
+      iex> PhoenixKit.Module.Languages.add_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.add_language("en")  # if already exists
+      iex> PhoenixKit.Module.Languages.add_language("en")  # if already exists
       {:error, "Language already exists"}
 
-      iex> PhoenixKit.Languages.add_language("invalid")
+      iex> PhoenixKit.Module.Languages.add_language("invalid")
       {:error, "Language not found in available languages"}
   """
   def add_language(code) when is_binary(code) do
@@ -555,10 +551,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.update_language("es", %{name: "Español"})
+      iex> PhoenixKit.Module.Languages.update_language("es", %{name: "Español"})
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.update_language("nonexistent", %{name: "Test"})
+      iex> PhoenixKit.Module.Languages.update_language("nonexistent", %{name: "Test"})
       {:error, "Language not found"}
   """
   def update_language(code, attrs) when is_binary(code) and is_map(attrs) do
@@ -581,10 +577,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.remove_language("es")
+      iex> PhoenixKit.Module.Languages.remove_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.remove_language("en")  # if it's default
+      iex> PhoenixKit.Module.Languages.remove_language("en")  # if it's default
       {:error, "Cannot remove default language"}
   """
   def remove_language(code) when is_binary(code) do
@@ -622,10 +618,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.set_default_language("es")
+      iex> PhoenixKit.Module.Languages.set_default_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.set_default_language("nonexistent")
+      iex> PhoenixKit.Module.Languages.set_default_language("nonexistent")
       {:error, "Language not found"}
   """
   def set_default_language(code) when is_binary(code) do
@@ -637,7 +633,7 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.enable_language("es")
+      iex> PhoenixKit.Module.Languages.enable_language("es")
       {:ok, updated_config}
   """
   def enable_language(code) when is_binary(code) do
@@ -651,10 +647,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.disable_language("es")
+      iex> PhoenixKit.Module.Languages.disable_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.disable_language("en")  # if it's default
+      iex> PhoenixKit.Module.Languages.disable_language("en")  # if it's default
       {:error, "Cannot disable default language"}
   """
   def disable_language(code) when is_binary(code) do
@@ -675,10 +671,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.move_language_up("es")
+      iex> PhoenixKit.Module.Languages.move_language_up("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.move_language_up("en")  # if first in array
+      iex> PhoenixKit.Module.Languages.move_language_up("en")  # if first in array
       {:error, "Language is already at the top"}
   """
   def move_language_up(code) when is_binary(code) do
@@ -718,10 +714,10 @@ defmodule PhoenixKit.Languages do
 
   ## Examples
 
-      iex> PhoenixKit.Languages.move_language_down("en")
+      iex> PhoenixKit.Module.Languages.move_language_down("en")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.move_language_down("es")  # if last in array
+      iex> PhoenixKit.Module.Languages.move_language_down("es")  # if last in array
       {:error, "Language is already at the bottom"}
   """
   def move_language_down(code) when is_binary(code) do
