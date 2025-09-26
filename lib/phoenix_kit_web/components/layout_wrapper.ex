@@ -110,7 +110,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   defp admin_page?(assigns) do
     case assigns[:current_path] do
       nil -> false
-      path when is_binary(path) -> String.contains?(path, "/admin/")
+      path when is_binary(path) -> String.contains?(path, "/admin")
       _ -> false
     end
   end
