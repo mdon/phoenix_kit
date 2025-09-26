@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.AdminNav do
+defmodule PhoenixKitWeb.Components.AdminNav do
   @moduledoc """
   Admin navigation components for the PhoenixKit admin panel.
   Provides consistent navigation elements for both desktop sidebar and mobile drawer.

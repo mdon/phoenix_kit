@@ -30,6 +30,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   use PhoenixKitWeb, :verified_routes
 
   import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
+  import PhoenixKitWeb.Components.AdminNav
 
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
@@ -118,12 +119,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Wrap inner_block with admin navigation if needed
   defp wrap_inner_block_with_admin_nav_if_needed(assigns) do
     if admin_page?(assigns) do
-      # Import AdminNav functions for use in template
-      import PhoenixKitWeb.AdminNav
-
-      # Import Scope for user info
-      alias PhoenixKit.Users.Auth.Scope
-
       # Create new inner_block slot that wraps original content with admin navigation
       original_inner_block = assigns[:inner_block]
 
