@@ -104,6 +104,85 @@ defmodule PhoenixKit.Languages do
   @enabled_key "languages_enabled"
   @module_name "languages"
 
+  # Predefined list of available languages (Polylang-style)
+  @available_languages [
+    %{code: "en", name: "English", native: "English", flag: "🇺🇸"},
+    %{code: "es", name: "Spanish", native: "Español", flag: "🇪🇸"},
+    %{code: "fr", name: "French", native: "Français", flag: "🇫🇷"},
+    %{code: "de", name: "German", native: "Deutsch", flag: "🇩🇪"},
+    %{code: "pt", name: "Portuguese", native: "Português", flag: "🇵🇹"},
+    %{code: "it", name: "Italian", native: "Italiano", flag: "🇮🇹"},
+    %{code: "nl", name: "Dutch", native: "Nederlands", flag: "🇳🇱"},
+    %{code: "ru", name: "Russian", native: "Русский", flag: "🇷🇺"},
+    %{code: "zh-CN", name: "Chinese (Simplified)", native: "简体中文", flag: "🇨🇳"},
+    %{code: "zh-TW", name: "Chinese (Traditional)", native: "繁體中文", flag: "🇹🇼"},
+    %{code: "ja", name: "Japanese", native: "日本語", flag: "🇯🇵"},
+    %{code: "ko", name: "Korean", native: "한국어", flag: "🇰🇷"},
+    %{code: "ar", name: "Arabic", native: "العربية", flag: "🇸🇦"},
+    %{code: "hi", name: "Hindi", native: "हिन्दी", flag: "🇮🇳"},
+    %{code: "tr", name: "Turkish", native: "Türkçe", flag: "🇹🇷"},
+    %{code: "pl", name: "Polish", native: "Polski", flag: "🇵🇱"},
+    %{code: "cs", name: "Czech", native: "Čeština", flag: "🇨🇿"},
+    %{code: "sk", name: "Slovak", native: "Slovenčina", flag: "🇸🇰"},
+    %{code: "hu", name: "Hungarian", native: "Magyar", flag: "🇭🇺"},
+    %{code: "ro", name: "Romanian", native: "Română", flag: "🇷🇴"},
+    %{code: "bg", name: "Bulgarian", native: "Български", flag: "🇧🇬"},
+    %{code: "hr", name: "Croatian", native: "Hrvatski", flag: "🇭🇷"},
+    %{code: "sr", name: "Serbian", native: "Српски", flag: "🇷🇸"},
+    %{code: "sl", name: "Slovenian", native: "Slovenščina", flag: "🇸🇮"},
+    %{code: "et", name: "Estonian", native: "Eesti", flag: "🇪🇪"},
+    %{code: "lv", name: "Latvian", native: "Latviešu", flag: "🇱🇻"},
+    %{code: "lt", name: "Lithuanian", native: "Lietuvių", flag: "🇱🇹"},
+    %{code: "fi", name: "Finnish", native: "Suomi", flag: "🇫🇮"},
+    %{code: "sv", name: "Swedish", native: "Svenska", flag: "🇸🇪"},
+    %{code: "no", name: "Norwegian", native: "Norsk", flag: "🇳🇴"},
+    %{code: "da", name: "Danish", native: "Dansk", flag: "🇩🇰"},
+    %{code: "is", name: "Icelandic", native: "Íslenska", flag: "🇮🇸"},
+    %{code: "he", name: "Hebrew", native: "עברית", flag: "🇮🇱"},
+    %{code: "th", name: "Thai", native: "ไทย", flag: "🇹🇭"},
+    %{code: "vi", name: "Vietnamese", native: "Tiếng Việt", flag: "🇻🇳"},
+    %{code: "id", name: "Indonesian", native: "Bahasa Indonesia", flag: "🇮🇩"},
+    %{code: "ms", name: "Malay", native: "Bahasa Melayu", flag: "🇲🇾"},
+    %{code: "tl", name: "Filipino", native: "Filipino", flag: "🇵🇭"},
+    %{code: "sw", name: "Swahili", native: "Kiswahili", flag: "🇰🇪"},
+    %{code: "af", name: "Afrikaans", native: "Afrikaans", flag: "🇿🇦"},
+    %{code: "am", name: "Amharic", native: "አማርኛ", flag: "🇪🇹"},
+    %{code: "bn", name: "Bengali", native: "বাংলা", flag: "🇧🇩"},
+    %{code: "fa", name: "Persian", native: "فارسی", flag: "🇮🇷"},
+    %{code: "ur", name: "Urdu", native: "اردو", flag: "🇵🇰"},
+    %{code: "ta", name: "Tamil", native: "தமிழ்", flag: "🇱🇰"},
+    %{code: "te", name: "Telugu", native: "తెలుగు", flag: "🇮🇳"},
+    %{code: "ml", name: "Malayalam", native: "മലയാളം", flag: "🇮🇳"},
+    %{code: "kn", name: "Kannada", native: "ಕನ್ನಡ", flag: "🇮🇳"},
+    %{code: "gu", name: "Gujarati", native: "ગુજરાતી", flag: "🇮🇳"},
+    %{code: "pa", name: "Punjabi", native: "ਪੰਜਾਬੀ", flag: "🇮🇳"},
+    %{code: "mr", name: "Marathi", native: "मराठी", flag: "🇮🇳"},
+    %{code: "ne", name: "Nepali", native: "नेपाली", flag: "🇳🇵"},
+    %{code: "si", name: "Sinhala", native: "සිංහල", flag: "🇱🇰"},
+    %{code: "my", name: "Myanmar", native: "မြန်မာ", flag: "🇲🇲"},
+    %{code: "km", name: "Khmer", native: "ខ្មែរ", flag: "🇰🇭"},
+    %{code: "lo", name: "Lao", native: "ລາວ", flag: "🇱🇦"},
+    %{code: "ka", name: "Georgian", native: "ქართული", flag: "🇬🇪"},
+    %{code: "hy", name: "Armenian", native: "Հայերեն", flag: "🇦🇲"},
+    %{code: "az", name: "Azerbaijani", native: "Azərbaycan", flag: "🇦🇿"},
+    %{code: "kk", name: "Kazakh", native: "Қазақша", flag: "🇰🇿"},
+    %{code: "ky", name: "Kyrgyz", native: "Кыргызча", flag: "🇰🇬"},
+    %{code: "uz", name: "Uzbek", native: "O'zbek", flag: "🇺🇿"},
+    %{code: "tk", name: "Turkmen", native: "Türkmen", flag: "🇹🇲"},
+    %{code: "mn", name: "Mongolian", native: "Монгол", flag: "🇲🇳"},
+    %{code: "eu", name: "Basque", native: "Euskera", flag: "🏴"},
+    %{code: "ca", name: "Catalan", native: "Català", flag: "🏴"},
+    %{code: "gl", name: "Galician", native: "Galego", flag: "🏴"},
+    %{code: "cy", name: "Welsh", native: "Cymraeg", flag: "🏴"},
+    %{code: "ga", name: "Irish", native: "Gaeilge", flag: "🇮🇪"},
+    %{code: "gd", name: "Scottish Gaelic", native: "Gàidhlig", flag: "🏴"},
+    %{code: "mt", name: "Maltese", native: "Malti", flag: "🇲🇹"},
+    %{code: "sq", name: "Albanian", native: "Shqip", flag: "🇦🇱"},
+    %{code: "mk", name: "Macedonian", native: "Македонски", flag: "🇲🇰"},
+    %{code: "bs", name: "Bosnian", native: "Bosanski", flag: "🇧🇦"},
+    %{code: "me", name: "Montenegrin", native: "Crnogorski", flag: "🇲🇪"}
+  ]
+
   # Default configuration when system is first enabled
   @default_config %{
     "languages" => [
@@ -364,62 +443,108 @@ defmodule PhoenixKit.Languages do
   end
 
   @doc """
-  Adds a new language to the system.
+  Gets all available predefined languages.
 
-  Takes a map with language attributes and adds it to the configuration.
-  Automatically assigns the next position number.
-
-  ## Required attributes
-  - `code`: Language code (unique)
-  - `name`: Full language name
-
-  ## Optional attributes
-  - `is_enabled`: Defaults to true
-  - `is_default`: Defaults to false (only one default allowed)
+  Returns the complete list of languages that can be added to the system.
+  This list is used to populate dropdown selections.
 
   ## Examples
 
-      iex> PhoenixKit.Languages.add_language(%{code: "es", name: "Spanish"})
+      iex> PhoenixKit.Languages.get_available_languages()
+      [%{code: "en", name: "English", native: "English", flag: "🇺🇸"}, ...]
+  """
+  def get_available_languages do
+    @available_languages
+  end
+
+  @doc """
+  Gets available languages for selection (excludes already added languages).
+
+  Returns languages that can be added to the system, filtered to exclude
+  languages that have already been configured.
+
+  ## Examples
+
+      iex> PhoenixKit.Languages.get_available_languages_for_selection()
+      [%{code: "es", name: "Spanish", native: "Español", flag: "🇪🇸"}, ...]
+  """
+  def get_available_languages_for_selection do
+    if not enabled?() do
+      @available_languages
+    else
+      current_codes = get_languages() |> Enum.map(& &1["code"])
+      @available_languages
+      |> Enum.reject(fn lang -> lang.code in current_codes end)
+    end
+  end
+
+  @doc """
+  Gets a predefined language by code.
+
+  Returns the language definition from the available languages list.
+
+  ## Examples
+
+      iex> PhoenixKit.Languages.get_predefined_language("es")
+      %{code: "es", name: "Spanish", native: "Español", flag: "🇪🇸"}
+
+      iex> PhoenixKit.Languages.get_predefined_language("invalid")
+      nil
+  """
+  def get_predefined_language(code) when is_binary(code) do
+    Enum.find(@available_languages, &(&1.code == code))
+  end
+
+  @doc """
+  Adds a predefined language to the system by language code.
+
+  Takes a language code and adds the corresponding predefined language
+  to the system configuration. Only languages from the predefined list
+  can be added.
+
+  ## Examples
+
+      iex> PhoenixKit.Languages.add_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.Languages.add_language(%{code: "en", name: "English"})
-      {:error, "Language code already exists"}
+      iex> PhoenixKit.Languages.add_language("en")  # if already exists
+      {:error, "Language already exists"}
+
+      iex> PhoenixKit.Languages.add_language("invalid")
+      {:error, "Language not found in available languages"}
   """
-  def add_language(attrs) when is_map(attrs) do
-    current_config = Settings.get_json_setting(@config_key, @default_config)
-    current_languages = Map.get(current_config, "languages", [])
+  def add_language(code) when is_binary(code) do
+    # Check if language exists in predefined list
+    case get_predefined_language(code) do
+      nil ->
+        {:error, "Language not found in available languages"}
 
-    # Check if language code already exists
-    code = Map.get(attrs, "code") || Map.get(attrs, :code)
+      predefined_lang ->
+        current_config = Settings.get_json_setting(@config_key, @default_config)
+        current_languages = Map.get(current_config, "languages", [])
 
-    if Enum.any?(current_languages, &(&1["code"] == code)) do
-      {:error, "Language code already exists"}
-    else
-      # Create new language with defaults
-      new_language = %{
-        "code" => code,
-        "name" => Map.get(attrs, "name") || Map.get(attrs, :name),
-        "is_default" => Map.get(attrs, "is_default") || Map.get(attrs, :is_default) || false,
-        "is_enabled" => Map.get(attrs, "is_enabled") || Map.get(attrs, :is_enabled) || true
-      }
-
-      # If setting as default, remove default from other languages
-      updated_languages =
-        if new_language["is_default"] do
-          Enum.map(current_languages, &Map.put(&1, "is_default", false))
+        # Check if language code already exists
+        if Enum.any?(current_languages, &(&1["code"] == code)) do
+          {:error, "Language already exists"}
         else
-          current_languages
+          # Create new language from predefined data
+          new_language = %{
+            "code" => predefined_lang.code,
+            "name" => predefined_lang.name,
+            "is_default" => false,
+            "is_enabled" => true
+          }
+
+          # Add new language to the end of the list
+          final_languages = current_languages ++ [new_language]
+          updated_config = Map.put(current_config, "languages", final_languages)
+
+          # Save updated configuration
+          case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
+            {:ok, _setting} -> {:ok, updated_config}
+            {:error, changeset} -> {:error, changeset}
+          end
         end
-
-      # Add new language
-      final_languages = updated_languages ++ [new_language]
-      updated_config = Map.put(current_config, "languages", final_languages)
-
-      # Save updated configuration
-      case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
-        {:ok, _setting} -> {:ok, updated_config}
-        {:error, changeset} -> {:error, changeset}
-      end
     end
   end
 

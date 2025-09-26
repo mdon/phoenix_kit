@@ -55,86 +55,32 @@
       <%!-- Languages Management Section --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-          <div class="flex items-center justify-between mb-4">
+          <div class="mb-4">
             <h3 class="card-title text-xl">Language Configuration</h3>
-            <button
-              class="btn btn-primary btn-sm"
-              phx-click="show_add_form"
-              disabled={@show_add_form}
-            >
-              <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-4 h-4 mr-1" /> Add Language
-            </button>
           </div>
 
-          <%!-- Add Language Form --%>
-          <%= if @show_add_form do %>
-            <div class="bg-base-200 rounded-lg p-4 mb-4">
-              <h4 class="font-medium text-base-content mb-3">Add New Language</h4>
-
-              <form phx-submit="add_language" phx-change="validate_language">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div class="form-control">
-                    <label class="label">
-                      <span class="label-text">Language Code</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="language[code]"
-                      value={@add_form_data["code"]}
-                      placeholder="e.g., es, fr, zh-CN"
-                      class={"input input-bordered #{if @add_form_errors[:code], do: "input-error", else: ""}"}
-                    />
-                    <%= if @add_form_errors[:code] do %>
-                      <label class="label">
-                        <span class="label-text-alt text-error">
-                          {hd(@add_form_errors[:code])}
-                        </span>
-                      </label>
-                    <% end %>
+          <%!-- Add Language Dropdown --%>
+          <%= if not Enum.empty?(@available_languages_for_selection) do %>
+            <div class="mb-4">
+              <form phx-submit="add_language">
+                <div class="flex items-center gap-3">
+                  <div class="form-control flex-1">
+                    <select
+                      name="language_code"
+                      class="select select-bordered"
+                      required
+                    >
+                      <option value="" disabled selected>Select a language to add...</option>
+                      <%= for language <- @available_languages_for_selection do %>
+                        <option value={language.code}>
+                          {language.flag} {language.name} ({language.native})
+                        </option>
+                      <% end %>
+                    </select>
                   </div>
-
-                  <div class="form-control">
-                    <label class="label">
-                      <span class="label-text">Language Name</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="language[name]"
-                      value={@add_form_data["name"]}
-                      placeholder="e.g., Spanish, French, Chinese"
-                      class={"input input-bordered #{if @add_form_errors[:name], do: "input-error", else: ""}"}
-                    />
-                    <%= if @add_form_errors[:name] do %>
-                      <label class="label">
-                        <span class="label-text-alt text-error">
-                          {hd(@add_form_errors[:name])}
-                        </span>
-                      </label>
-                    <% end %>
-                  </div>
-                </div>
-
-                <%= if @add_form_errors[:base] do %>
-                  <div class="alert alert-error mb-4">
-                    <PhoenixKitWeb.Components.Core.Icons.icon_error_circle class="w-5 h-5" />
-                    <span>{hd(@add_form_errors[:base])}</span>
-                  </div>
-                <% end %>
-
-                <div class="flex gap-2">
-                  <button
-                    type="submit"
-                    class="btn btn-primary btn-sm"
-                    disabled={not Enum.empty?(@add_form_errors)}
-                  >
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-4 h-4 mr-1" />
                     Add Language
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-outline btn-sm"
-                    phx-click="hide_add_form"
-                  >
-                    Cancel
                   </button>
                 </div>
               </form>

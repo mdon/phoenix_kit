@@ -25,9 +25,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
       |> assign(:language_count, ml_config.language_count)
       |> assign(:enabled_count, ml_config.enabled_count)
       |> assign(:default_language, ml_config.default_language)
-      |> assign(:show_add_form, false)
-      |> assign(:add_form_data, %{"code" => "", "name" => ""})
-      |> assign(:add_form_errors, %{})
+      |> assign(:available_languages_for_selection, Languages.get_available_languages_for_selection())
 
     {:ok, socket}
   end
@@ -141,72 +139,33 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
     end
   end
 
-  def handle_event("show_add_form", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_add_form, true)
-      |> assign(:add_form_data, %{"code" => "", "name" => ""})
-      |> assign(:add_form_errors, %{})
+  def handle_event("add_language", %{"language_code" => language_code}, socket) do
+    case Languages.add_language(language_code) do
+      {:ok, _config} ->
+        # Reload configuration
+        ml_config = Languages.get_config()
 
-    {:noreply, socket}
-  end
+        # Get language name for flash message
+        predefined_lang = Languages.get_predefined_language(language_code)
+        language_name = predefined_lang && predefined_lang.name || language_code
 
-  def handle_event("hide_add_form", _params, socket) do
-    socket = assign(socket, :show_add_form, false)
-    {:noreply, socket}
-  end
+        socket =
+          socket
+          |> assign(:languages, ml_config.languages)
+          |> assign(:language_count, ml_config.language_count)
+          |> assign(:enabled_count, ml_config.enabled_count)
+          |> assign(:available_languages_for_selection, Languages.get_available_languages_for_selection())
+          |> put_flash(:info, "Language #{language_name} added successfully")
 
-  def handle_event("validate_language", %{"language" => language_params}, socket) do
-    # Validate form data
-    errors = validate_language_form(language_params)
+        {:noreply, socket}
 
-    socket =
-      socket
-      |> assign(:add_form_data, language_params)
-      |> assign(:add_form_errors, errors)
+      {:error, reason} when is_binary(reason) ->
+        socket = put_flash(socket, :error, reason)
+        {:noreply, socket}
 
-    {:noreply, socket}
-  end
-
-  def handle_event("add_language", %{"language" => language_params}, socket) do
-    # Validate form data
-    errors = validate_language_form(language_params)
-
-    if Enum.empty?(errors) do
-      case Languages.add_language(language_params) do
-        {:ok, _config} ->
-          # Reload configuration
-          ml_config = Languages.get_config()
-
-          socket =
-            socket
-            |> assign(:languages, ml_config.languages)
-            |> assign(:language_count, ml_config.language_count)
-            |> assign(:enabled_count, ml_config.enabled_count)
-            |> assign(:show_add_form, false)
-            |> assign(:add_form_data, %{"code" => "", "name" => ""})
-            |> assign(:add_form_errors, %{})
-            |> put_flash(:info, "Language #{language_params["name"]} added successfully")
-
-          {:noreply, socket}
-
-        {:error, reason} when is_binary(reason) ->
-          socket =
-            socket
-            |> assign(:add_form_errors, %{code: [reason]})
-
-          {:noreply, socket}
-
-        {:error, _changeset} ->
-          socket =
-            socket
-            |> assign(:add_form_errors, %{base: ["Failed to add language"]})
-
-          {:noreply, socket}
-      end
-    else
-      socket = assign(socket, :add_form_errors, errors)
-      {:noreply, socket}
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to add language")
+        {:noreply, socket}
     end
   end
 
@@ -225,6 +184,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
             |> assign(:language_count, ml_config.language_count)
             |> assign(:enabled_count, ml_config.enabled_count)
             |> assign(:default_language, ml_config.default_language)
+            |> assign(:available_languages_for_selection, Languages.get_available_languages_for_selection())
             |> put_flash(:info, "Language #{language["name"]} removed successfully")
 
           {:noreply, socket}
@@ -303,50 +263,6 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
     end
   end
 
-  # Private helper to validate language form
-  defp validate_language_form(params) do
-    errors = %{}
-
-    # Validate code
-    errors =
-      case Map.get(params, "code", "") |> String.trim() do
-        "" ->
-          Map.put(errors, :code, ["Language code is required"])
-
-        code when byte_size(code) < 2 ->
-          Map.put(errors, :code, ["Language code must be at least 2 characters"])
-
-        code when byte_size(code) > 5 ->
-          Map.put(errors, :code, ["Language code must be at most 5 characters"])
-
-        code ->
-          if Regex.match?(~r/^[a-z]{2,3}(-[A-Z]{2})?$/, code) do
-            errors
-          else
-            Map.put(errors, :code, [
-              "Language code must be valid format (e.g., 'en', 'es', 'zh-CN')"
-            ])
-          end
-      end
-
-    # Validate name
-    errors =
-      case Map.get(params, "name", "") |> String.trim() do
-        "" ->
-          Map.put(errors, :name, ["Language name is required"])
-
-        name when byte_size(name) < 2 ->
-          Map.put(errors, :name, ["Language name must be at least 2 characters"])
-
-        name when byte_size(name) > 50 ->
-          Map.put(errors, :name, ["Language name must be at most 50 characters"])
-
-        _name ->
-          errors
-      end
-
-    errors
-  end
 
   defp get_current_path(_socket, _session) do
     # For LanguagesLive, return the settings path
