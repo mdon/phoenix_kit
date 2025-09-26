@@ -343,7 +343,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.Languages.enabled?() do %>
+                        <%= if PhoenixKit.Module.Languages.enabled?() do %>
                           <.admin_nav_item
                             href={Routes.path("/admin/settings/languages")}
                             icon="language"
