@@ -3,6 +3,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
   alias PhoenixKit.EmailTracking
   alias PhoenixKit.ReferralCodes
+  alias PhoenixKit.MultiLanguage
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -16,6 +17,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
     # Load module states
     referral_codes_config = ReferralCodes.get_config()
     email_tracking_config = EmailTracking.get_config()
+    multi_language_config = MultiLanguage.get_config()
 
     socket =
       socket
@@ -30,6 +32,10 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
       |> assign(:email_tracking_save_body, email_tracking_config.save_body)
       |> assign(:email_tracking_ses_events, email_tracking_config.ses_events)
       |> assign(:email_tracking_retention_days, email_tracking_config.retention_days)
+      |> assign(:multi_language_enabled, multi_language_config.enabled)
+      |> assign(:multi_language_count, multi_language_config.language_count)
+      |> assign(:multi_language_enabled_count, multi_language_config.enabled_count)
+      |> assign(:multi_language_default, multi_language_config.default_language)
 
     {:ok, socket}
   end
@@ -94,6 +100,44 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update email tracking system")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_multi_language", _params, socket) do
+    # Toggle multi-language system
+    new_enabled = !socket.assigns.multi_language_enabled
+
+    result =
+      if new_enabled do
+        MultiLanguage.enable_system()
+      else
+        MultiLanguage.disable_system()
+      end
+
+    case result do
+      {:ok, _} ->
+        # Reload multi-language configuration to get fresh data
+        ml_config = MultiLanguage.get_config()
+
+        socket =
+          socket
+          |> assign(:multi_language_enabled, new_enabled)
+          |> assign(:multi_language_count, ml_config.language_count)
+          |> assign(:multi_language_enabled_count, ml_config.enabled_count)
+          |> assign(:multi_language_default, ml_config.default_language)
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Multi-language system enabled with default English",
+              else: "Multi-language system disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update multi-language system")
         {:noreply, socket}
     end
   end

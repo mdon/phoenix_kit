@@ -67,9 +67,11 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Fallback system: user timezone → system timezone → UTC
   - Enhanced date formatting with per-user timezone support
 
-  ### V12 - JSON Settings Support ⚡ NEW
+  ### V12 - JSON Settings Support ⚡ LATEST
   - JSONB column (value_json) in phoenix_kit_settings table
   - Support for complex structured data storage
+  - Removes NOT NULL constraint from value column
+  - Enables proper JSON-only settings storage
   - Backward compatible with existing string settings
   - Dual storage model: string OR JSON values
   - Enhanced cache system for JSON data
@@ -82,12 +84,12 @@ defmodule PhoenixKit.Migrations.Postgres do
   ### Incremental Updates
   - V01 → V12: Runs V02, V03, V04, V05, V06, V07, V08, V09, V10, V11, V12
   - V11 → V12: Runs V12 only (adds JSON settings support)
-  - V10 → V12: Runs V11, V12 (adds user timezones and JSON settings)
-  - V09 → V12: Runs V10, V11, V12 (adds analytics, user timezones, and JSON settings)
+  - V10 → V12: Runs V11, V12 (adds timezones and JSON settings)
+  - V09 → V12: Runs V10, V11, V12 (adds analytics, timezones, and JSON settings)
   - V08 → V12: Runs V09, V10, V11, V12 (adds blocklist, analytics, timezones, and JSON)
 
   ### Rollback Support
-  - V12 → V11: Removes JSON settings support
+  - V12 → V11: Removes JSON settings support and restores NOT NULL constraint
   - V11 → V10: Removes per-user timezone settings
   - V10 → V09: Removes registration analytics system
   - V09 → V08: Removes email blocklist system

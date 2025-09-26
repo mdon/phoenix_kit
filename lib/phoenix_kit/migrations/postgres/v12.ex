@@ -53,10 +53,21 @@ defmodule PhoenixKit.Migrations.Postgres.V12 do
       add :value_json, :map, null: true
     end
 
-    # Add comment to document the new capability
+    # Remove NOT NULL constraint from value column to support JSON-only settings
+    execute """
+    ALTER TABLE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    ALTER COLUMN value DROP NOT NULL
+    """
+
+    # Add comments to document the new capabilities
     execute """
     COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value_json IS
     'JSONB storage for complex settings data. When present, takes precedence over value field.'
+    """
+
+    execute """
+    COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value IS
+    'String value for simple settings. Can be NULL when using value_json for complex data.'
     """
 
     # Set version comment on phoenix_kit table for version tracking
@@ -67,10 +78,29 @@ defmodule PhoenixKit.Migrations.Postgres.V12 do
   Rollback the V12 migration.
   """
   def down(%{prefix: prefix} = _opts) do
+    # First, clean up any NULL values in the value column by setting them to empty strings
+    execute """
+    UPDATE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    SET value = ''
+    WHERE value IS NULL AND value_json IS NOT NULL
+    """
+
+    # Restore NOT NULL constraint on value column
+    execute """
+    ALTER TABLE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    ALTER COLUMN value SET NOT NULL
+    """
+
     # Remove value_json column from settings table
     alter table(:phoenix_kit_settings, prefix: prefix) do
       remove :value_json
     end
+
+    # Restore original comment
+    execute """
+    COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value IS
+    'String value for settings (required).'
+    """
 
     # Update version comment on phoenix_kit table
     execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '11'"

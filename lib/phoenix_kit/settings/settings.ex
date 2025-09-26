@@ -293,6 +293,7 @@ defmodule PhoenixKit.Settings do
         # Cache miss - query database and cache result
         value = query_and_cache_json_setting(key)
         value || default
+
       value ->
         value
     end
@@ -332,7 +333,7 @@ defmodule PhoenixKit.Settings do
 
         nil ->
           %Setting{}
-          |> Setting.changeset(%{key: key, value_json: json_value})
+          |> Setting.changeset(%{key: key, value_json: json_value, value: nil})
           |> repo().insert()
       end
 
@@ -357,7 +358,8 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_json_setting_with_module("notifications", config, "messaging")
       {:ok, %Setting{key: "notifications", value_json: config, module: "messaging"}}
   """
-  def update_json_setting_with_module(key, json_value, module) when is_binary(key) and is_binary(module) do
+  def update_json_setting_with_module(key, json_value, module)
+      when is_binary(key) and is_binary(module) do
     existing_setting = repo().get_by(Setting, key: key)
 
     result =
@@ -369,7 +371,7 @@ defmodule PhoenixKit.Settings do
 
         nil ->
           %Setting{}
-          |> Setting.changeset(%{key: key, value_json: json_value, module: module})
+          |> Setting.changeset(%{key: key, value_json: json_value, value: nil, module: module})
           |> repo().insert()
       end
 
@@ -832,11 +834,13 @@ defmodule PhoenixKit.Settings do
     settings
     |> Enum.map(fn setting ->
       # Prioritize JSON value over string value for cache storage
-      value = if setting.value_json do
-        setting.value_json
-      else
-        setting.value
-      end
+      value =
+        if setting.value_json do
+          setting.value_json
+        else
+          setting.value
+        end
+
       {setting.key, value}
     end)
     |> Map.new()
@@ -873,8 +877,8 @@ defmodule PhoenixKit.Settings do
         PhoenixKit.Cache.put(@cache_name, key, value_json)
         value_json
 
-      %Setting{value: value} when not is_nil(value) ->
-        # Has string value but no JSON - cache nil for JSON lookup
+      %Setting{value: value} when not is_nil(value) and value != "" ->
+        # Has meaningful string value but no JSON - cache nil for JSON lookup
         PhoenixKit.Cache.put(@cache_name, key, nil)
         nil
 

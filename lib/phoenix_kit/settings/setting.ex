@@ -131,8 +131,13 @@ defmodule PhoenixKit.Settings.Setting do
           end
 
         _ ->
-          # All other settings require non-empty values when using string storage
-          validate_length(changeset, :value, min: 1, max: 1000)
+          # For settings with JSON data being set, allow nil/empty value
+          if Map.get(changeset.changes, :value_json) do
+            changeset
+          else
+            # All other settings require non-empty values when using string storage
+            validate_length(changeset, :value, min: 1, max: 1000)
+          end
       end
     end
   end
@@ -143,17 +148,21 @@ defmodule PhoenixKit.Settings.Setting do
     value_json = get_field(changeset, :value_json)
 
     cond do
-      # Both are nil - require at least one value
-      is_nil(value) and is_nil(value_json) ->
-        add_error(changeset, :value, "must provide either value or value_json")
-
-      # Both have values - only allow one
-      not is_nil(value) and not is_nil(value_json) ->
+      # Both have meaningful values - only allow one
+      not is_nil(value) and value != "" and not is_nil(value_json) ->
         add_error(changeset, :value_json, "cannot set both value and value_json, choose one")
 
-      # Exactly one is set - valid
-      true ->
+      # At least one meaningful value exists - valid
+      (not is_nil(value) and value != "") or not is_nil(value_json) ->
         changeset
+
+      # Both are nil/empty - require at least one for new records
+      true ->
+        if is_nil(changeset.data.id) do
+          add_error(changeset, :value, "must provide either value or value_json")
+        else
+          changeset
+        end
     end
   end
 
