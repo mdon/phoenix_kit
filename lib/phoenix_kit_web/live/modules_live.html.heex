@@ -197,15 +197,15 @@
         </div>
       </div>
 
-      <%!-- Multi Language Module --%>
+      <%!-- Languages Module --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
           <div class="flex items-center mb-4">
             <div class="text-3xl mr-4">🌐</div>
             <div class="flex-1">
-              <h3 class="card-title text-xl">Multi Language System</h3>
+              <h3 class="card-title text-xl">Languages</h3>
               <p class="text-base-content/70">
-                Manage multi-language support and translations
+                Manage language support and translations
               </p>
             </div>
             <div class="form-control">
@@ -213,8 +213,8 @@
                 <input
                   type="checkbox"
                   class="toggle toggle-primary"
-                  checked={@multi_language_enabled}
-                  phx-click="toggle_multi_language"
+                  checked={@languages_enabled}
+                  phx-click="toggle_languages"
                 />
               </label>
             </div>
@@ -225,22 +225,22 @@
           <%!-- Status and Configuration --%>
           <div class="flex items-center justify-between">
             <div>
-              <span class={"badge #{if @multi_language_enabled, do: "badge-success", else: "badge-neutral"}"}>
-                {if @multi_language_enabled, do: "Enabled", else: "Disabled"}
+              <span class={"badge #{if @languages_enabled, do: "badge-success", else: "badge-neutral"}"}>
+                {if @languages_enabled, do: "Enabled", else: "Disabled"}
               </span>
-              <%= if @multi_language_enabled do %>
+              <%= if @languages_enabled do %>
                 <span class="badge badge-outline ml-2">
-                  {if @multi_language_default,
-                    do: @multi_language_default["name"],
+                  {if @languages_default,
+                    do: @languages_default["name"],
                     else: "No Default"}
                 </span>
               <% end %>
             </div>
 
             <div class="card-actions">
-              <%= if @multi_language_enabled do %>
+              <%= if @languages_enabled do %>
                 <.link
-                  navigate={PhoenixKit.Utils.Routes.path("/admin/settings/multi-language")}
+                  navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
                   class="btn btn-primary btn-sm"
                 >
                   <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
@@ -248,7 +248,7 @@
                 </.link>
               <% else %>
                 <.link
-                  navigate={PhoenixKit.Utils.Routes.path("/admin/settings/multi-language")}
+                  navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
                   class="btn btn-outline btn-sm"
                 >
                   <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
@@ -258,18 +258,18 @@
             </div>
           </div>
 
-          <%= if @multi_language_enabled do %>
+          <%= if @languages_enabled do %>
             <%!-- Quick Stats --%>
             <div class="bg-base-200 rounded-lg p-3 mt-4">
               <h4 class="text-sm font-medium text-base-content mb-2">Current Configuration</h4>
               <div class="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <span class="text-base-content/70">Total languages:</span>
-                  <span class="font-medium">{@multi_language_count}</span>
+                  <span class="font-medium">{@languages_count}</span>
                 </div>
                 <div>
                   <span class="text-base-content/70">Enabled:</span>
-                  <span class="font-medium">{@multi_language_enabled_count}</span>
+                  <span class="font-medium">{@languages_enabled_count}</span>
                 </div>
               </div>
             </div>

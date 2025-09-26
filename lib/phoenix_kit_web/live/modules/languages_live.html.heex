@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} Multi Language Settings"
+  page_title="{@project_title} Languages"
   current_path={@current_path}
   project_title={@project_title}
 >
@@ -18,8 +18,8 @@
 
       <%!-- Title Section --%>
       <div class="text-center">
-        <h1 class="text-4xl font-bold text-base-content mb-3">Multi Language Settings</h1>
-        <p class="text-lg text-base-content">Configure and manage multi-language support</p>
+        <h1 class="text-4xl font-bold text-base-content mb-3">Languages</h1>
+        <p class="text-lg text-base-content">Configure and manage language support</p>
       </div>
     </header>
 
@@ -30,9 +30,9 @@
           <div class="flex items-center">
             <div class="text-3xl mr-4">🌐</div>
             <div>
-              <h3 class="card-title text-xl">Multi Language System</h3>
+              <h3 class="card-title text-xl">Languages</h3>
               <p class="text-base-content/70">
-                Enable multi-language support for your application
+                Enable language support for your application
               </p>
             </div>
           </div>
@@ -42,7 +42,7 @@
                 type="checkbox"
                 class="toggle toggle-primary toggle-lg"
                 checked={@ml_enabled}
-                phx-click="toggle_multi_language"
+                phx-click="toggle_languages"
               />
             </label>
           </div>
@@ -287,7 +287,7 @@
       <div class="alert alert-info mt-6">
         <PhoenixKitWeb.Components.Core.Icons.icon_info class="w-5 h-5" />
         <div>
-          <h3 class="font-bold">Multi Language Configuration</h3>
+          <h3 class="font-bold">Language Configuration</h3>
           <div class="text-sm space-y-1">
             <p>• Use standard language codes like 'en', 'es', 'fr', or 'zh-CN' for regions</p>
             <p>• The default language cannot be disabled and serves as the fallback</p>
@@ -302,10 +302,10 @@
         <div class="card-body text-center py-12">
           <div class="text-6xl mb-4 opacity-50">🌐</div>
           <h3 class="text-xl font-semibold text-base-content/60 mb-2">
-            Multi Language System Disabled
+            Languages Disabled
           </h3>
           <p class="text-base-content/50 mb-4">
-            Enable the multi-language system above to start configuring languages for your application.
+            Enable the language support above to start configuring languages for your application.
             The system will automatically create English as the default language when enabled.
           </p>
         </div>

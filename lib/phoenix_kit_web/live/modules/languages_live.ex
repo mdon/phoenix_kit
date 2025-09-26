@@ -1,7 +1,7 @@
-defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
+defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.MultiLanguage
+  alias PhoenixKit.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -12,13 +12,13 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
-    # Load multi-language configuration
-    ml_config = MultiLanguage.get_config()
+    # Load languages configuration
+    ml_config = Languages.get_config()
 
     socket =
       socket
       |> assign(:current_path, current_path)
-      |> assign(:page_title, "Multi Language")
+      |> assign(:page_title, "Languages")
       |> assign(:project_title, project_title)
       |> assign(:ml_enabled, ml_config.enabled)
       |> assign(:languages, ml_config.languages)
@@ -32,21 +32,21 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     {:ok, socket}
   end
 
-  def handle_event("toggle_multi_language", _params, socket) do
-    # Toggle multi-language system
+  def handle_event("toggle_languages", _params, socket) do
+    # Toggle languages
     new_enabled = !socket.assigns.ml_enabled
 
     result =
       if new_enabled do
-        MultiLanguage.enable_system()
+        Languages.enable_system()
       else
-        MultiLanguage.disable_system()
+        Languages.disable_system()
       end
 
     case result do
       {:ok, _} ->
         # Reload configuration to get fresh data
-        ml_config = MultiLanguage.get_config()
+        ml_config = Languages.get_config()
 
         socket =
           socket
@@ -58,15 +58,15 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
           |> put_flash(
             :info,
             if(new_enabled,
-              do: "Multi-language system enabled with default English",
-              else: "Multi-language system disabled"
+              do: "Languages enabled with default English",
+              else: "Languages disabled"
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update multi-language system")
+        socket = put_flash(socket, :error, "Failed to update languages")
         {:noreply, socket}
     end
   end
@@ -81,15 +81,15 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
 
       result =
         if new_enabled do
-          MultiLanguage.enable_language(code)
+          Languages.enable_language(code)
         else
-          MultiLanguage.disable_language(code)
+          Languages.disable_language(code)
         end
 
       case result do
         {:ok, _config} ->
           # Reload configuration
-          ml_config = MultiLanguage.get_config()
+          ml_config = Languages.get_config()
 
           socket =
             socket
@@ -117,10 +117,10 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
   end
 
   def handle_event("set_default", %{"code" => code}, socket) do
-    case MultiLanguage.set_default_language(code) do
+    case Languages.set_default_language(code) do
       {:ok, _config} ->
         # Reload configuration
-        ml_config = MultiLanguage.get_config()
+        ml_config = Languages.get_config()
         language = Enum.find(ml_config.languages, &(&1["code"] == code))
 
         socket =
@@ -173,10 +173,10 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     errors = validate_language_form(language_params)
 
     if Enum.empty?(errors) do
-      case MultiLanguage.add_language(language_params) do
+      case Languages.add_language(language_params) do
         {:ok, _config} ->
           # Reload configuration
-          ml_config = MultiLanguage.get_config()
+          ml_config = Languages.get_config()
 
           socket =
             socket
@@ -214,10 +214,10 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     language = Enum.find(socket.assigns.languages, &(&1["code"] == code))
 
     if language do
-      case MultiLanguage.remove_language(code) do
+      case Languages.remove_language(code) do
         {:ok, _config} ->
           # Reload configuration
-          ml_config = MultiLanguage.get_config()
+          ml_config = Languages.get_config()
 
           socket =
             socket
@@ -247,10 +247,10 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     language = Enum.find(socket.assigns.languages, &(&1["code"] == code))
 
     if language do
-      case MultiLanguage.move_language_up(code) do
+      case Languages.move_language_up(code) do
         {:ok, _config} ->
           # Reload configuration to get updated positions
-          ml_config = MultiLanguage.get_config()
+          ml_config = Languages.get_config()
 
           socket =
             socket
@@ -277,10 +277,10 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     language = Enum.find(socket.assigns.languages, &(&1["code"] == code))
 
     if language do
-      case MultiLanguage.move_language_down(code) do
+      case Languages.move_language_down(code) do
         {:ok, _config} ->
           # Reload configuration to get updated positions
-          ml_config = MultiLanguage.get_config()
+          ml_config = Languages.get_config()
 
           socket =
             socket
@@ -349,7 +349,7 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
   end
 
   defp get_current_path(_socket, _session) do
-    # For MultiLanguageLive, return the settings path
-    Routes.path("/admin/settings/multi-language")
+    # For LanguagesLive, return the settings path
+    Routes.path("/admin/settings/languages")
   end
 end
