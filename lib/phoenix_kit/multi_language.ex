@@ -221,11 +221,19 @@ defmodule PhoenixKit.MultiLanguage do
 
       iex> PhoenixKit.MultiLanguage.get_languages()
       [%{"code" => "en", "name" => "English", "is_default" => true, ...}]
+
+      # When system is disabled:
+      iex> PhoenixKit.MultiLanguage.get_languages()
+      []
   """
   def get_languages do
-    case Settings.get_json_setting(@config_key) do
-      %{"languages" => languages} when is_list(languages) -> languages
-      _ -> []
+    if enabled?() do
+      case Settings.get_json_setting(@config_key) do
+        %{"languages" => languages} when is_list(languages) -> languages
+        _ -> []
+      end
+    else
+      []
     end
   end
 
@@ -254,10 +262,18 @@ defmodule PhoenixKit.MultiLanguage do
 
       iex> PhoenixKit.MultiLanguage.get_default_language()
       %{"code" => "en", "name" => "English", "is_default" => true, ...}
+
+      # When system is disabled:
+      iex> PhoenixKit.MultiLanguage.get_default_language()
+      nil
   """
   def get_default_language do
-    get_languages()
-    |> Enum.find(& &1["is_default"])
+    if enabled?() do
+      get_languages()
+      |> Enum.find(& &1["is_default"])
+    else
+      nil
+    end
   end
 
   @doc """
@@ -274,8 +290,12 @@ defmodule PhoenixKit.MultiLanguage do
       nil
   """
   def get_language(code) when is_binary(code) do
-    get_languages()
-    |> Enum.find(&(&1["code"] == code))
+    if enabled?() do
+      get_languages()
+      |> Enum.find(&(&1["code"] == code))
+    else
+      nil
+    end
   end
 
   @doc """
@@ -339,10 +359,11 @@ defmodule PhoenixKit.MultiLanguage do
       false
   """
   def language_enabled?(code) when is_binary(code) do
-    case get_language(code) do
-      %{"is_enabled" => true} -> true
-      _ -> false
-    end
+    enabled?() &&
+      case get_language(code) do
+        %{"is_enabled" => true} -> true
+        _ -> false
+      end
   end
 
   @doc """
