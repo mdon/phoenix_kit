@@ -8,12 +8,9 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodeFormLive do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
-  def mount(params, session, socket) do
+  def mount(params, _session, socket) do
     code_id = params["id"]
     mode = if code_id, do: :edit, else: :new
-
-    # Get current path for navigation
-    current_path = get_current_path(socket, session, mode, code_id)
 
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
@@ -22,7 +19,6 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodeFormLive do
       socket
       |> assign(:mode, mode)
       |> assign(:code_id, code_id)
-      |> assign(:current_path, current_path)
       |> assign(:page_title, page_title(mode))
       |> assign(:project_title, project_title)
       |> assign(:search_results, [])
@@ -284,11 +280,4 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodeFormLive do
 
   defp page_title(:new), do: "New Referral Code"
   defp page_title(:edit), do: "Edit Referral Code"
-
-  defp get_current_path(_socket, _session, mode, code_id) do
-    case mode do
-      :new -> Routes.path("/admin/users/referral-codes/new")
-      :edit -> Routes.path("/admin/users/referral-codes/edit/#{code_id}")
-    end
-  end
 end

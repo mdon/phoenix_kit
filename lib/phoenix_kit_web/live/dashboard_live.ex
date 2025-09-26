@@ -29,9 +29,6 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
     # Cache user roles from scope to avoid repeated DB queries
     user_roles =
       case socket.assigns[:phoenix_kit_current_scope] do
@@ -46,16 +43,10 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       |> assign(:presence_stats, presence_stats)
       |> assign(:phoenix_kit_version, version)
       |> assign(:project_title, project_title)
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Dashboard")
       |> assign(:cached_user_roles, user_roles)
 
     {:ok, socket}
-  end
-
-  defp get_current_path(_socket, _session) do
-    # For DashboardLive, always return dashboard path
-    Routes.path("/admin/dashboard")
   end
 
   def handle_event("refresh_stats", _params, socket) do

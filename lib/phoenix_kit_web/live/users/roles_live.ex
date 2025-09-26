@@ -4,7 +4,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Role, Roles}
-  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Subscribe to role events for live updates
@@ -12,9 +11,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
       Events.subscribe_to_roles()
       Events.subscribe_to_stats()
     end
-
-    # Get current path for navigation
-    current_path = get_current_path()
 
     # Load optimized role statistics once
     role_stats = load_role_statistics()
@@ -30,18 +26,12 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
       |> assign(:create_role_form, nil)
       |> assign(:edit_role_form, nil)
       |> assign(:editing_role, nil)
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Roles")
       |> assign(:role_stats, role_stats)
       |> assign(:project_title, project_title)
       |> load_roles()
 
     {:ok, socket}
-  end
-
-  defp get_current_path do
-    # For RolesLive, always return roles path
-    Routes.path("/admin/users/roles")
   end
 
   def handle_event("show_create_form", _params, socket) do
