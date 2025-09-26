@@ -26,6 +26,11 @@ defmodule PhoenixKit.MultiLanguage do
   - `get_languages/0` - Get all configured languages
   - `get_enabled_languages/0` - Get only enabled languages
   - `get_default_language/0` - Get the default language
+  - `get_language/1` - Get a specific language by code
+  - `get_language_codes/0` - Get list of all language codes
+  - `get_enabled_language_codes/0` - Get list of enabled language codes
+  - `valid_language?/1` - Check if a language code exists
+  - `language_enabled?/1` - Check if a language is enabled
   - `add_language/1` - Add a new language to the system
   - `update_language/2` - Update an existing language
   - `remove_language/1` - Remove a language from the system
@@ -53,6 +58,23 @@ defmodule PhoenixKit.MultiLanguage do
       # Get all languages
       languages = PhoenixKit.MultiLanguage.get_languages()
       # => [%{code: "en", name: "English", is_default: true, is_enabled: true, position: 1}, ...]
+
+      # Get only enabled languages (most common use case)
+      enabled_languages = PhoenixKit.MultiLanguage.get_enabled_languages()
+      # => [%{code: "en", name: "English", ...}, %{code: "es", name: "Spanish", ...}]
+
+      # Get a specific language by code
+      spanish = PhoenixKit.MultiLanguage.get_language("es")
+      # => %{code: "es", name: "Spanish", is_enabled: true, position: 2}
+
+      # Get just the language codes
+      codes = PhoenixKit.MultiLanguage.get_enabled_language_codes()
+      # => ["en", "es", "fr"]
+
+      # Check if a language is valid and enabled
+      if PhoenixKit.MultiLanguage.language_enabled?("es") do
+        # Use Spanish language
+      end
 
   ## JSON Storage Format
 
@@ -236,6 +258,91 @@ defmodule PhoenixKit.MultiLanguage do
   def get_default_language do
     get_languages()
     |> Enum.find(& &1["is_default"])
+  end
+
+  @doc """
+  Gets a specific language by its code.
+
+  Returns the language map if found, or nil if not found.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.get_language("es")
+      %{"code" => "es", "name" => "Spanish", "is_enabled" => true, "position" => 2}
+
+      iex> PhoenixKit.MultiLanguage.get_language("invalid")
+      nil
+  """
+  def get_language(code) when is_binary(code) do
+    get_languages()
+    |> Enum.find(&(&1["code"] == code))
+  end
+
+  @doc """
+  Gets a list of all language codes.
+
+  Returns a list of language code strings.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.get_language_codes()
+      ["en", "es", "fr"]
+  """
+  def get_language_codes do
+    get_languages()
+    |> Enum.map(& &1["code"])
+  end
+
+  @doc """
+  Gets a list of enabled language codes, sorted by position.
+
+  Returns a list of enabled language code strings.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.get_enabled_language_codes()
+      ["en", "es"]
+  """
+  def get_enabled_language_codes do
+    get_enabled_languages()
+    |> Enum.map(& &1["code"])
+  end
+
+  @doc """
+  Checks if a language code is valid (exists in configuration).
+
+  Returns true if the language exists, false otherwise.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.valid_language?("es")
+      true
+
+      iex> PhoenixKit.MultiLanguage.valid_language?("invalid")
+      false
+  """
+  def valid_language?(code) when is_binary(code) do
+    not is_nil(get_language(code))
+  end
+
+  @doc """
+  Checks if a language is enabled.
+
+  Returns true if the language exists and is enabled, false otherwise.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.language_enabled?("es")
+      true
+
+      iex> PhoenixKit.MultiLanguage.language_enabled?("disabled_lang")
+      false
+  """
+  def language_enabled?(code) when is_binary(code) do
+    case get_language(code) do
+      %{"is_enabled" => true} -> true
+      _ -> false
+    end
   end
 
   @doc """
