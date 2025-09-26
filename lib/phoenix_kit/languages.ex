@@ -2,7 +2,7 @@ defmodule PhoenixKit.Languages do
   @moduledoc """
   Languages management for PhoenixKit - complete language configuration in a single module.
 
-  This module provides management for language support in PhoenixKit applications.
+  This module provides management for language module in PhoenixKit applications.
   It handles language configuration, settings, and language data through JSON settings.
 
   ## Language Structure
@@ -198,9 +198,9 @@ defmodule PhoenixKit.Languages do
   ## --- System Management Functions ---
 
   @doc """
-  Checks if the language system is enabled.
+  Checks if the language module is enabled.
 
-  Returns true if the system is enabled, false otherwise.
+  Returns true if the module is enabled, false otherwise.
 
   ## Examples
 
@@ -212,9 +212,9 @@ defmodule PhoenixKit.Languages do
   end
 
   @doc """
-  Enables the language system and creates default configuration.
+  Enables the language module and creates default configuration.
 
-  Creates the initial system configuration with English as the default language.
+  Creates the initial module configuration with English as the default language.
   Updates both the enabled flag and the JSON configuration.
 
   Returns `{:ok, config}` on success, `{:error, reason}` on failure.
@@ -240,9 +240,9 @@ defmodule PhoenixKit.Languages do
   end
 
   @doc """
-  Disables the language system.
+  Disables the language module.
 
-  Turns off the language system but preserves the language configuration.
+  Turns off the language module but preserves the language configuration.
 
   Returns `{:ok, setting}` on success, `{:error, changeset}` on failure.
 
@@ -256,9 +256,9 @@ defmodule PhoenixKit.Languages do
   end
 
   @doc """
-  Gets the complete language system configuration.
+  Gets the complete language module configuration.
 
-  Returns a map with system status and language configuration.
+  Returns a map with module status and language configuration.
 
   ## Examples
 
@@ -496,10 +496,10 @@ defmodule PhoenixKit.Languages do
   end
 
   @doc """
-  Adds a predefined language to the system by language code.
+  Adds a predefined language to the module by language code.
 
   Takes a language code and adds the corresponding predefined language
-  to the system configuration. Only languages from the predefined list
+  to the module configuration. Only languages from the predefined list
   can be added.
 
   ## Examples
