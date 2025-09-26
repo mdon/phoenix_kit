@@ -243,6 +243,66 @@ defmodule PhoenixKitWeb.Live.Modules.MultiLanguageLive do
     end
   end
 
+  def handle_event("move_up", %{"code" => code}, socket) do
+    language = Enum.find(socket.assigns.languages, &(&1["code"] == code))
+
+    if language do
+      case MultiLanguage.move_language_up(code) do
+        {:ok, _config} ->
+          # Reload configuration to get updated positions
+          ml_config = MultiLanguage.get_config()
+
+          socket =
+            socket
+            |> assign(:languages, ml_config.languages)
+            |> put_flash(:info, "#{language["name"]} moved up")
+
+          {:noreply, socket}
+
+        {:error, reason} when is_binary(reason) ->
+          socket = put_flash(socket, :error, reason)
+          {:noreply, socket}
+
+        {:error, _changeset} ->
+          socket = put_flash(socket, :error, "Failed to move language")
+          {:noreply, socket}
+      end
+    else
+      socket = put_flash(socket, :error, "Language not found")
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("move_down", %{"code" => code}, socket) do
+    language = Enum.find(socket.assigns.languages, &(&1["code"] == code))
+
+    if language do
+      case MultiLanguage.move_language_down(code) do
+        {:ok, _config} ->
+          # Reload configuration to get updated positions
+          ml_config = MultiLanguage.get_config()
+
+          socket =
+            socket
+            |> assign(:languages, ml_config.languages)
+            |> put_flash(:info, "#{language["name"]} moved down")
+
+          {:noreply, socket}
+
+        {:error, reason} when is_binary(reason) ->
+          socket = put_flash(socket, :error, reason)
+          {:noreply, socket}
+
+        {:error, _changeset} ->
+          socket = put_flash(socket, :error, "Failed to move language")
+          {:noreply, socket}
+      end
+    else
+      socket = put_flash(socket, :error, "Language not found")
+      {:noreply, socket}
+    end
+  end
+
   # Private helper to validate language form
   defp validate_language_form(params) do
     errors = %{}

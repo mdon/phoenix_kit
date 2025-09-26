@@ -211,8 +211,28 @@
                           <span class="badge badge-primary badge-sm">Default</span>
                         <% end %>
                       </div>
-                      <div class="text-sm text-base-content/70">
-                        Position: {language["position"]}
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm text-base-content/70">Position: {language["position"]}</span>
+                        <div class="btn-group">
+                          <button
+                            class="btn btn-outline btn-xs"
+                            phx-click="move_up"
+                            phx-value-code={language["code"]}
+                            disabled={language["position"] == 1}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            class="btn btn-outline btn-xs"
+                            phx-click="move_down"
+                            phx-value-code={language["code"]}
+                            disabled={language["position"] == @language_count}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

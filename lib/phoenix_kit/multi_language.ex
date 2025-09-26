@@ -442,7 +442,116 @@ defmodule PhoenixKit.MultiLanguage do
     end
   end
 
+  @doc """
+  Moves a language up one position (decreases position number).
+
+  Swaps positions with the language above. Cannot move the first language up.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.move_language_up("es")
+      {:ok, updated_config}
+
+      iex> PhoenixKit.MultiLanguage.move_language_up("en")  # if position is 1
+      {:error, "Language is already at the top"}
+  """
+  def move_language_up(code) when is_binary(code) do
+    current_config = Settings.get_json_setting(@config_key, @default_config)
+    current_languages = Map.get(current_config, "languages", [])
+
+    # Find the language to move
+    language_to_move = Enum.find(current_languages, &(&1["code"] == code))
+
+    if language_to_move do
+      current_position = language_to_move["position"]
+
+      if current_position == 1 do
+        {:error, "Language is already at the top"}
+      else
+        # Find the language at position - 1 to swap with
+        target_position = current_position - 1
+        language_to_swap = Enum.find(current_languages, &(&1["position"] == target_position))
+
+        if language_to_swap do
+          swap_language_positions(current_config, current_languages, language_to_move, language_to_swap)
+        else
+          {:error, "Cannot find language to swap with"}
+        end
+      end
+    else
+      {:error, "Language not found"}
+    end
+  end
+
+  @doc """
+  Moves a language down one position (increases position number).
+
+  Swaps positions with the language below. Cannot move the last language down.
+
+  ## Examples
+
+      iex> PhoenixKit.MultiLanguage.move_language_down("en")
+      {:ok, updated_config}
+
+      iex> PhoenixKit.MultiLanguage.move_language_down("es")  # if at last position
+      {:error, "Language is already at the bottom"}
+  """
+  def move_language_down(code) when is_binary(code) do
+    current_config = Settings.get_json_setting(@config_key, @default_config)
+    current_languages = Map.get(current_config, "languages", [])
+
+    # Find the language to move
+    language_to_move = Enum.find(current_languages, &(&1["code"] == code))
+
+    if language_to_move do
+      current_position = language_to_move["position"]
+      max_position = length(current_languages)
+
+      if current_position == max_position do
+        {:error, "Language is already at the bottom"}
+      else
+        # Find the language at position + 1 to swap with
+        target_position = current_position + 1
+        language_to_swap = Enum.find(current_languages, &(&1["position"] == target_position))
+
+        if language_to_swap do
+          swap_language_positions(current_config, current_languages, language_to_move, language_to_swap)
+        else
+          {:error, "Cannot find language to swap with"}
+        end
+      end
+    else
+      {:error, "Language not found"}
+    end
+  end
+
   ## --- Private Helper Functions ---
+
+  # Swap positions between two languages
+  defp swap_language_positions(current_config, current_languages, language1, language2) do
+    # Update positions
+    updated_language1 = Map.put(language1, "position", language2["position"])
+    updated_language2 = Map.put(language2, "position", language1["position"])
+
+    # Replace both languages in the list
+    updated_languages =
+      current_languages
+      |> Enum.map(fn lang ->
+        cond do
+          lang["code"] == language1["code"] -> updated_language1
+          lang["code"] == language2["code"] -> updated_language2
+          true -> lang
+        end
+      end)
+
+    updated_config = Map.put(current_config, "languages", updated_languages)
+
+    # Save updated configuration
+    case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
+      {:ok, _setting} -> {:ok, updated_config}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
 
   # Get the next position number for a new language
   defp get_next_position(languages) when is_list(languages) do
