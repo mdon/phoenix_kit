@@ -968,7 +968,7 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
   end
 
   @doc """
-  Language/Globe icon component for multi-language system.
+  Language/Globe icon component for language system.
   """
   attr :class, :string, default: "w-5 h-5"
 

@@ -312,7 +312,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking", "/admin/settings/multi-language"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking", "/admin/settings/languages"]) do %>
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -343,11 +343,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.MultiLanguage.enabled?() do %>
+                        <%= if PhoenixKit.Languages.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/settings/multi-language")}
+                            href={Routes.path("/admin/settings/languages")}
                             icon="language"
-                            label="Multi Language"
+                            label="Languages"
                             current_path={@current_path || ""}
                             nested={true}
                           />

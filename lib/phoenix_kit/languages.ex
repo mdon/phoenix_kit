@@ -1,9 +1,9 @@
-defmodule PhoenixKit.MultiLanguage do
+defmodule PhoenixKit.Languages do
   @moduledoc """
-  Multi Language system for PhoenixKit - complete management in a single module.
+  Languages management for PhoenixKit - complete language configuration in a single module.
 
-  This module provides management for multi-language support in PhoenixKit applications.
-  It handles language configuration, system settings, and language data through JSON settings.
+  This module provides management for language support in PhoenixKit applications.
+  It handles language configuration, settings, and language data through JSON settings.
 
   ## Language Structure
 
@@ -12,15 +12,14 @@ defmodule PhoenixKit.MultiLanguage do
   - `name`: Full language name (e.g., "English", "Spanish", "French")
   - `is_default`: Boolean indicating if this is the default language
   - `is_enabled`: Boolean indicating if this language is active
-  - `position`: Integer for display ordering (1, 2, 3, etc.)
 
   ## Core Functions
 
-  ### System Management
-  - `enabled?/0` - Check if multi-language system is enabled
-  - `enable_system/0` - Enable the multi-language system with default English
-  - `disable_system/0` - Disable the multi-language system
-  - `get_config/0` - Get complete system configuration
+  ### Languages Management
+  - `enabled?/0` - Check if languages are enabled
+  - `enable_system/0` - Enable languages with default English
+  - `disable_system/0` - Disable languages
+  - `get_config/0` - Get complete configuration
 
   ### Language Management
   - `get_languages/0` - Get all configured languages
@@ -40,45 +39,46 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Usage Examples
 
-      # Check if system is enabled
-      if PhoenixKit.MultiLanguage.enabled?() do
-        # Multi-language system is active
+      # Check if languages are enabled
+      if PhoenixKit.Languages.enabled?() do
+        # Languages are active
       end
 
-      # Enable system (creates default English language)
-      {:ok, config} = PhoenixKit.MultiLanguage.enable_system()
+      # Enable languages (creates default English language)
+      {:ok, config} = PhoenixKit.Languages.enable_system()
 
       # Add a new language
-      {:ok, config} = PhoenixKit.MultiLanguage.add_language(%{
+      {:ok, config} = PhoenixKit.Languages.add_language(%{
         code: "es",
         name: "Spanish",
         is_enabled: true
       })
 
       # Get all languages
-      languages = PhoenixKit.MultiLanguage.get_languages()
+      languages = PhoenixKit.Languages.get_languages()
       # => [%{code: "en", name: "English", is_default: true, is_enabled: true, position: 1}, ...]
 
       # Get only enabled languages (most common use case)
-      enabled_languages = PhoenixKit.MultiLanguage.get_enabled_languages()
+      enabled_languages = PhoenixKit.Languages.get_enabled_languages()
       # => [%{code: "en", name: "English", ...}, %{code: "es", name: "Spanish", ...}]
 
       # Get a specific language by code
-      spanish = PhoenixKit.MultiLanguage.get_language("es")
+      spanish = PhoenixKit.Languages.get_language("es")
       # => %{code: "es", name: "Spanish", is_enabled: true, position: 2}
 
       # Get just the language codes
-      codes = PhoenixKit.MultiLanguage.get_enabled_language_codes()
+      codes = PhoenixKit.Languages.get_enabled_language_codes()
       # => ["en", "es", "fr"]
 
       # Check if a language is valid and enabled
-      if PhoenixKit.MultiLanguage.language_enabled?("es") do
+      if PhoenixKit.Languages.language_enabled?("es") do
         # Use Spanish language
       end
 
   ## JSON Storage Format
 
-  Languages are stored in the `multi_language_config` setting as JSON:
+  Languages are stored in the `languages_config` setting as JSON.
+  The array order determines the display order:
 
       {
         "languages": [
@@ -86,15 +86,13 @@ defmodule PhoenixKit.MultiLanguage do
             "code": "en",
             "name": "English",
             "is_default": true,
-            "is_enabled": true,
-            "position": 1
+            "is_enabled": true
           },
           {
             "code": "es",
             "name": "Spanish",
             "is_default": false,
-            "is_enabled": true,
-            "position": 2
+            "is_enabled": true
           }
         ]
       }
@@ -102,9 +100,9 @@ defmodule PhoenixKit.MultiLanguage do
 
   alias PhoenixKit.Settings
 
-  @config_key "multi_language_config"
-  @enabled_key "multi_language_enabled"
-  @module_name "multi_language"
+  @config_key "languages_config"
+  @enabled_key "languages_enabled"
+  @module_name "languages"
 
   # Default configuration when system is first enabled
   @default_config %{
@@ -113,8 +111,7 @@ defmodule PhoenixKit.MultiLanguage do
         "code" => "en",
         "name" => "English",
         "is_default" => true,
-        "is_enabled" => true,
-        "position" => 1
+        "is_enabled" => true
       }
     ]
   }
@@ -122,13 +119,13 @@ defmodule PhoenixKit.MultiLanguage do
   ## --- System Management Functions ---
 
   @doc """
-  Checks if the multi-language system is enabled.
+  Checks if the language system is enabled.
 
   Returns true if the system is enabled, false otherwise.
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.enabled?()
+      iex> PhoenixKit.Languages.enabled?()
       false
   """
   def enabled? do
@@ -136,7 +133,7 @@ defmodule PhoenixKit.MultiLanguage do
   end
 
   @doc """
-  Enables the multi-language system and creates default configuration.
+  Enables the language system and creates default configuration.
 
   Creates the initial system configuration with English as the default language.
   Updates both the enabled flag and the JSON configuration.
@@ -145,7 +142,7 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.enable_system()
+      iex> PhoenixKit.Languages.enable_system()
       {:ok, %{"languages" => [%{"code" => "en", ...}]}}
   """
   def enable_system do
@@ -164,15 +161,15 @@ defmodule PhoenixKit.MultiLanguage do
   end
 
   @doc """
-  Disables the multi-language system.
+  Disables the language system.
 
-  Turns off the multi-language system but preserves the language configuration.
+  Turns off the language system but preserves the language configuration.
 
   Returns `{:ok, setting}` on success, `{:error, changeset}` on failure.
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.disable_system()
+      iex> PhoenixKit.Languages.disable_system()
       {:ok, %Setting{}}
   """
   def disable_system do
@@ -180,13 +177,13 @@ defmodule PhoenixKit.MultiLanguage do
   end
 
   @doc """
-  Gets the complete multi-language system configuration.
+  Gets the complete language system configuration.
 
   Returns a map with system status and language configuration.
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_config()
+      iex> PhoenixKit.Languages.get_config()
       %{
         enabled: true,
         languages: [%{"code" => "en", "name" => "English", ...}],
@@ -219,11 +216,11 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_languages()
+      iex> PhoenixKit.Languages.get_languages()
       [%{"code" => "en", "name" => "English", "is_default" => true, ...}]
 
       # When system is disabled:
-      iex> PhoenixKit.MultiLanguage.get_languages()
+      iex> PhoenixKit.Languages.get_languages()
       []
   """
   def get_languages do
@@ -244,7 +241,7 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_enabled_languages()
+      iex> PhoenixKit.Languages.get_enabled_languages()
       [%{"code" => "en", "name" => "English", ...}]
   """
   def get_enabled_languages do
@@ -260,11 +257,11 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_default_language()
+      iex> PhoenixKit.Languages.get_default_language()
       %{"code" => "en", "name" => "English", "is_default" => true, ...}
 
       # When system is disabled:
-      iex> PhoenixKit.MultiLanguage.get_default_language()
+      iex> PhoenixKit.Languages.get_default_language()
       nil
   """
   def get_default_language do
@@ -283,10 +280,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_language("es")
+      iex> PhoenixKit.Languages.get_language("es")
       %{"code" => "es", "name" => "Spanish", "is_enabled" => true, "position" => 2}
 
-      iex> PhoenixKit.MultiLanguage.get_language("invalid")
+      iex> PhoenixKit.Languages.get_language("invalid")
       nil
   """
   def get_language(code) when is_binary(code) do
@@ -305,7 +302,7 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_language_codes()
+      iex> PhoenixKit.Languages.get_language_codes()
       ["en", "es", "fr"]
   """
   def get_language_codes do
@@ -320,7 +317,7 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.get_enabled_language_codes()
+      iex> PhoenixKit.Languages.get_enabled_language_codes()
       ["en", "es"]
   """
   def get_enabled_language_codes do
@@ -335,10 +332,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.valid_language?("es")
+      iex> PhoenixKit.Languages.valid_language?("es")
       true
 
-      iex> PhoenixKit.MultiLanguage.valid_language?("invalid")
+      iex> PhoenixKit.Languages.valid_language?("invalid")
       false
   """
   def valid_language?(code) when is_binary(code) do
@@ -352,10 +349,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.language_enabled?("es")
+      iex> PhoenixKit.Languages.language_enabled?("es")
       true
 
-      iex> PhoenixKit.MultiLanguage.language_enabled?("disabled_lang")
+      iex> PhoenixKit.Languages.language_enabled?("disabled_lang")
       false
   """
   def language_enabled?(code) when is_binary(code) do
@@ -382,10 +379,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.add_language(%{code: "es", name: "Spanish"})
+      iex> PhoenixKit.Languages.add_language(%{code: "es", name: "Spanish"})
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.add_language(%{code: "en", name: "English"})
+      iex> PhoenixKit.Languages.add_language(%{code: "en", name: "English"})
       {:error, "Language code already exists"}
   """
   def add_language(attrs) when is_map(attrs) do
@@ -403,8 +400,7 @@ defmodule PhoenixKit.MultiLanguage do
         "code" => code,
         "name" => Map.get(attrs, "name") || Map.get(attrs, :name),
         "is_default" => Map.get(attrs, "is_default") || Map.get(attrs, :is_default) || false,
-        "is_enabled" => Map.get(attrs, "is_enabled") || Map.get(attrs, :is_enabled) || true,
-        "position" => get_next_position(current_languages)
+        "is_enabled" => Map.get(attrs, "is_enabled") || Map.get(attrs, :is_enabled) || true
       }
 
       # If setting as default, remove default from other languages
@@ -434,10 +430,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.update_language("es", %{name: "Español"})
+      iex> PhoenixKit.Languages.update_language("es", %{name: "Español"})
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.update_language("nonexistent", %{name: "Test"})
+      iex> PhoenixKit.Languages.update_language("nonexistent", %{name: "Test"})
       {:error, "Language not found"}
   """
   def update_language(code, attrs) when is_binary(code) and is_map(attrs) do
@@ -449,30 +445,7 @@ defmodule PhoenixKit.MultiLanguage do
         {:error, "Language not found"}
 
       index ->
-        # Update the language
-        current_language = Enum.at(current_languages, index)
-        updated_language = Map.merge(current_language, stringify_keys(attrs))
-
-        # If setting as default, remove default from other languages
-        updated_languages =
-          if updated_language["is_default"] do
-            current_languages
-            |> List.replace_at(index, updated_language)
-            |> Enum.with_index()
-            |> Enum.map(fn {lang, idx} ->
-              if idx != index, do: Map.put(lang, "is_default", false), else: lang
-            end)
-          else
-            List.replace_at(current_languages, index, updated_language)
-          end
-
-        updated_config = Map.put(current_config, "languages", updated_languages)
-
-        # Save updated configuration
-        case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
-          {:ok, _setting} -> {:ok, updated_config}
-          {:error, changeset} -> {:error, changeset}
-        end
+        do_update_language_at_index(current_config, current_languages, index, attrs)
     end
   end
 
@@ -483,10 +456,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.remove_language("es")
+      iex> PhoenixKit.Languages.remove_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.remove_language("en")  # if it's default
+      iex> PhoenixKit.Languages.remove_language("en")  # if it's default
       {:error, "Cannot remove default language"}
   """
   def remove_language(code) when is_binary(code) do
@@ -524,10 +497,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.set_default_language("es")
+      iex> PhoenixKit.Languages.set_default_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.set_default_language("nonexistent")
+      iex> PhoenixKit.Languages.set_default_language("nonexistent")
       {:error, "Language not found"}
   """
   def set_default_language(code) when is_binary(code) do
@@ -539,7 +512,7 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.enable_language("es")
+      iex> PhoenixKit.Languages.enable_language("es")
       {:ok, updated_config}
   """
   def enable_language(code) when is_binary(code) do
@@ -553,10 +526,10 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.disable_language("es")
+      iex> PhoenixKit.Languages.disable_language("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.disable_language("en")  # if it's default
+      iex> PhoenixKit.Languages.disable_language("en")  # if it's default
       {:error, "Cannot disable default language"}
   """
   def disable_language(code) when is_binary(code) do
@@ -571,39 +544,41 @@ defmodule PhoenixKit.MultiLanguage do
   end
 
   @doc """
-  Moves a language up one position (decreases position number).
+  Moves a language up one position in the array.
 
-  Swaps positions with the language above. Cannot move the first language up.
+  Moves the language one index earlier in the languages array. Cannot move the first language up.
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.move_language_up("es")
+      iex> PhoenixKit.Languages.move_language_up("es")
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.move_language_up("en")  # if position is 1
+      iex> PhoenixKit.Languages.move_language_up("en")  # if first in array
       {:error, "Language is already at the top"}
   """
   def move_language_up(code) when is_binary(code) do
     current_config = Settings.get_json_setting(@config_key, @default_config)
     current_languages = Map.get(current_config, "languages", [])
 
-    # Find the language to move
-    language_to_move = Enum.find(current_languages, &(&1["code"] == code))
+    # Find the index of the language to move
+    current_index = Enum.find_index(current_languages, &(&1["code"] == code))
 
-    if language_to_move do
-      current_position = language_to_move["position"]
-
-      if current_position == 1 do
+    if current_index do
+      if current_index == 0 do
         {:error, "Language is already at the top"}
       else
-        # Find the language at position - 1 to swap with
-        target_position = current_position - 1
-        language_to_swap = Enum.find(current_languages, &(&1["position"] == target_position))
+        # Swap with the previous element in the array
+        updated_languages =
+          current_languages
+          |> List.update_at(current_index, fn _ -> Enum.at(current_languages, current_index - 1) end)
+          |> List.update_at(current_index - 1, fn _ -> Enum.at(current_languages, current_index) end)
 
-        if language_to_swap do
-          swap_language_positions(current_config, current_languages, language_to_move, language_to_swap)
-        else
-          {:error, "Cannot find language to swap with"}
+        updated_config = Map.put(current_config, "languages", updated_languages)
+
+        # Save updated configuration
+        case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
+          {:ok, _setting} -> {:ok, updated_config}
+          {:error, changeset} -> {:error, changeset}
         end
       end
     else
@@ -612,40 +587,43 @@ defmodule PhoenixKit.MultiLanguage do
   end
 
   @doc """
-  Moves a language down one position (increases position number).
+  Moves a language down one position in the array.
 
-  Swaps positions with the language below. Cannot move the last language down.
+  Moves the language one index later in the languages array. Cannot move the last language down.
 
   ## Examples
 
-      iex> PhoenixKit.MultiLanguage.move_language_down("en")
+      iex> PhoenixKit.Languages.move_language_down("en")
       {:ok, updated_config}
 
-      iex> PhoenixKit.MultiLanguage.move_language_down("es")  # if at last position
+      iex> PhoenixKit.Languages.move_language_down("es")  # if last in array
       {:error, "Language is already at the bottom"}
   """
   def move_language_down(code) when is_binary(code) do
     current_config = Settings.get_json_setting(@config_key, @default_config)
     current_languages = Map.get(current_config, "languages", [])
 
-    # Find the language to move
-    language_to_move = Enum.find(current_languages, &(&1["code"] == code))
+    # Find the index of the language to move
+    current_index = Enum.find_index(current_languages, &(&1["code"] == code))
 
-    if language_to_move do
-      current_position = language_to_move["position"]
-      max_position = length(current_languages)
+    if current_index do
+      max_index = length(current_languages) - 1
 
-      if current_position == max_position do
+      if current_index == max_index do
         {:error, "Language is already at the bottom"}
       else
-        # Find the language at position + 1 to swap with
-        target_position = current_position + 1
-        language_to_swap = Enum.find(current_languages, &(&1["position"] == target_position))
+        # Swap with the next element in the array
+        updated_languages =
+          current_languages
+          |> List.update_at(current_index, fn _ -> Enum.at(current_languages, current_index + 1) end)
+          |> List.update_at(current_index + 1, fn _ -> Enum.at(current_languages, current_index) end)
 
-        if language_to_swap do
-          swap_language_positions(current_config, current_languages, language_to_move, language_to_swap)
-        else
-          {:error, "Cannot find language to swap with"}
+        updated_config = Map.put(current_config, "languages", updated_languages)
+
+        # Save updated configuration
+        case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
+          {:ok, _setting} -> {:ok, updated_config}
+          {:error, changeset} -> {:error, changeset}
         end
       end
     else
@@ -655,22 +633,19 @@ defmodule PhoenixKit.MultiLanguage do
 
   ## --- Private Helper Functions ---
 
-  # Swap positions between two languages
-  defp swap_language_positions(current_config, current_languages, language1, language2) do
-    # Update positions
-    updated_language1 = Map.put(language1, "position", language2["position"])
-    updated_language2 = Map.put(language2, "position", language1["position"])
+  # Update a language at a specific index with proper default handling
+  defp do_update_language_at_index(current_config, current_languages, index, attrs) do
+    # Update the language
+    current_language = Enum.at(current_languages, index)
+    updated_language = Map.merge(current_language, stringify_keys(attrs))
 
-    # Replace both languages in the list
+    # If setting as default, remove default from other languages
     updated_languages =
-      current_languages
-      |> Enum.map(fn lang ->
-        cond do
-          lang["code"] == language1["code"] -> updated_language1
-          lang["code"] == language2["code"] -> updated_language2
-          true -> lang
-        end
-      end)
+      if updated_language["is_default"] do
+        update_languages_with_new_default(current_languages, index, updated_language)
+      else
+        List.replace_at(current_languages, index, updated_language)
+      end
 
     updated_config = Map.put(current_config, "languages", updated_languages)
 
@@ -681,12 +656,14 @@ defmodule PhoenixKit.MultiLanguage do
     end
   end
 
-  # Get the next position number for a new language
-  defp get_next_position(languages) when is_list(languages) do
-    case Enum.map(languages, & &1["position"]) |> Enum.max() do
-      nil -> 1
-      max_position -> max_position + 1
-    end
+  # Update languages list when setting a new default language
+  defp update_languages_with_new_default(current_languages, index, updated_language) do
+    current_languages
+    |> List.replace_at(index, updated_language)
+    |> Enum.with_index()
+    |> Enum.map(fn {lang, idx} ->
+      if idx != index, do: Map.put(lang, "is_default", false), else: lang
+    end)
   end
 
   # Convert atom keys to string keys for JSON storage

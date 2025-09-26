@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} Multi Language Settings"
+  page_title="{@project_title} Languages"
   current_path={@current_path}
   project_title={@project_title}
 >
@@ -18,8 +18,8 @@
 
       <%!-- Title Section --%>
       <div class="text-center">
-        <h1 class="text-4xl font-bold text-base-content mb-3">Multi Language Settings</h1>
-        <p class="text-lg text-base-content">Configure and manage multi-language support</p>
+        <h1 class="text-4xl font-bold text-base-content mb-3">Languages</h1>
+        <p class="text-lg text-base-content">Configure and manage language support</p>
       </div>
     </header>
 
@@ -30,9 +30,9 @@
           <div class="flex items-center">
             <div class="text-3xl mr-4">🌐</div>
             <div>
-              <h3 class="card-title text-xl">Multi Language System</h3>
+              <h3 class="card-title text-xl">Languages</h3>
               <p class="text-base-content/70">
-                Enable multi-language support for your application
+                Enable language support for your application
               </p>
             </div>
           </div>
@@ -42,36 +42,12 @@
                 type="checkbox"
                 class="toggle toggle-primary toggle-lg"
                 checked={@ml_enabled}
-                phx-click="toggle_multi_language"
+                phx-click="toggle_languages"
               />
             </label>
           </div>
         </div>
 
-        <%= if @ml_enabled do %>
-          <div class="divider my-2"></div>
-
-          <%!-- Quick Stats --%>
-          <div class="bg-base-200 rounded-lg p-4">
-            <h4 class="text-sm font-medium text-base-content mb-3">System Status</h4>
-            <div class="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div class="text-2xl font-bold text-primary">{@language_count}</div>
-                <div class="text-sm text-base-content/70">Total Languages</div>
-              </div>
-              <div>
-                <div class="text-2xl font-bold text-success">{@enabled_count}</div>
-                <div class="text-sm text-base-content/70">Enabled Languages</div>
-              </div>
-              <div>
-                <div class="text-lg font-semibold text-secondary">
-                  {if @default_language, do: @default_language["name"], else: "None"}
-                </div>
-                <div class="text-sm text-base-content/70">Default Language</div>
-              </div>
-            </div>
-          </div>
-        <% end %>
       </div>
     </div>
 
@@ -174,7 +150,7 @@
             </div>
           <% else %>
             <div class="space-y-3">
-              <%= for language <- Enum.sort_by(@languages, & &1["position"]) do %>
+              <%= for {language, index} <- Enum.with_index(@languages) do %>
                 <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
                   <div class="flex items-center flex-1">
                     <div class="text-2xl mr-3">
@@ -212,13 +188,12 @@
                         <% end %>
                       </div>
                       <div class="flex items-center gap-2">
-                        <span class="text-sm text-base-content/70">Position: {language["position"]}</span>
                         <div class="btn-group">
                           <button
                             class="btn btn-outline btn-xs"
                             phx-click="move_up"
                             phx-value-code={language["code"]}
-                            disabled={language["position"] == 1}
+                            disabled={index == 0}
                             title="Move up"
                           >
                             ↑
@@ -227,7 +202,7 @@
                             class="btn btn-outline btn-xs"
                             phx-click="move_down"
                             phx-value-code={language["code"]}
-                            disabled={language["position"] == @language_count}
+                            disabled={index == @language_count - 1}
                             title="Move down"
                           >
                             ↓
@@ -287,11 +262,11 @@
       <div class="alert alert-info mt-6">
         <PhoenixKitWeb.Components.Core.Icons.icon_info class="w-5 h-5" />
         <div>
-          <h3 class="font-bold">Multi Language Configuration</h3>
+          <h3 class="font-bold">Language Configuration</h3>
           <div class="text-sm space-y-1">
             <p>• Use standard language codes like 'en', 'es', 'fr', or 'zh-CN' for regions</p>
             <p>• The default language cannot be disabled and serves as the fallback</p>
-            <p>• Languages are displayed in order of their position value</p>
+            <p>• Use the arrow buttons to reorder languages in the list</p>
             <p>• At least one language must remain configured at all times</p>
           </div>
         </div>
@@ -302,10 +277,10 @@
         <div class="card-body text-center py-12">
           <div class="text-6xl mb-4 opacity-50">🌐</div>
           <h3 class="text-xl font-semibold text-base-content/60 mb-2">
-            Multi Language System Disabled
+            Languages Disabled
           </h3>
           <p class="text-base-content/50 mb-4">
-            Enable the multi-language system above to start configuring languages for your application.
+            Enable the language support above to start configuring languages for your application.
             The system will automatically create English as the default language when enabled.
           </p>
         </div>
