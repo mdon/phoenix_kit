@@ -445,30 +445,7 @@ defmodule PhoenixKit.Languages do
         {:error, "Language not found"}
 
       index ->
-        # Update the language
-        current_language = Enum.at(current_languages, index)
-        updated_language = Map.merge(current_language, stringify_keys(attrs))
-
-        # If setting as default, remove default from other languages
-        updated_languages =
-          if updated_language["is_default"] do
-            current_languages
-            |> List.replace_at(index, updated_language)
-            |> Enum.with_index()
-            |> Enum.map(fn {lang, idx} ->
-              if idx != index, do: Map.put(lang, "is_default", false), else: lang
-            end)
-          else
-            List.replace_at(current_languages, index, updated_language)
-          end
-
-        updated_config = Map.put(current_config, "languages", updated_languages)
-
-        # Save updated configuration
-        case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
-          {:ok, _setting} -> {:ok, updated_config}
-          {:error, changeset} -> {:error, changeset}
-        end
+        do_update_language_at_index(current_config, current_languages, index, attrs)
     end
   end
 
@@ -655,6 +632,39 @@ defmodule PhoenixKit.Languages do
   end
 
   ## --- Private Helper Functions ---
+
+  # Update a language at a specific index with proper default handling
+  defp do_update_language_at_index(current_config, current_languages, index, attrs) do
+    # Update the language
+    current_language = Enum.at(current_languages, index)
+    updated_language = Map.merge(current_language, stringify_keys(attrs))
+
+    # If setting as default, remove default from other languages
+    updated_languages =
+      if updated_language["is_default"] do
+        update_languages_with_new_default(current_languages, index, updated_language)
+      else
+        List.replace_at(current_languages, index, updated_language)
+      end
+
+    updated_config = Map.put(current_config, "languages", updated_languages)
+
+    # Save updated configuration
+    case Settings.update_json_setting_with_module(@config_key, updated_config, @module_name) do
+      {:ok, _setting} -> {:ok, updated_config}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  # Update languages list when setting a new default language
+  defp update_languages_with_new_default(current_languages, index, updated_language) do
+    current_languages
+    |> List.replace_at(index, updated_language)
+    |> Enum.with_index()
+    |> Enum.map(fn {lang, idx} ->
+      if idx != index, do: Map.put(lang, "is_default", false), else: lang
+    end)
+  end
 
   # Convert atom keys to string keys for JSON storage
   defp stringify_keys(map) when is_map(map) do

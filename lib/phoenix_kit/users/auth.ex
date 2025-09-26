@@ -66,6 +66,7 @@ defmodule PhoenixKit.Users.Auth do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.Geolocation
 
   ## Database getters
 
@@ -193,7 +194,7 @@ defmodule PhoenixKit.Users.Auth do
     enhanced_attrs = Map.put(attrs, "registration_ip", ip_address)
 
     # Attempt geolocation lookup
-    case PhoenixKit.Utils.Geolocation.lookup_location(ip_address) do
+    case Geolocation.lookup_location(ip_address) do
       {:ok, location} ->
         # Add geolocation data to registration
         enhanced_attrs =
