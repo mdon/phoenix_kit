@@ -150,7 +150,7 @@
             </div>
           <% else %>
             <div class="space-y-3">
-              <%= for language <- Enum.sort_by(@languages, & &1["position"]) do %>
+              <%= for {language, index} <- Enum.with_index(@languages) do %>
                 <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
                   <div class="flex items-center flex-1">
                     <div class="text-2xl mr-3">
@@ -188,13 +188,12 @@
                         <% end %>
                       </div>
                       <div class="flex items-center gap-2">
-                        <span class="text-sm text-base-content/70">Position: {language["position"]}</span>
                         <div class="btn-group">
                           <button
                             class="btn btn-outline btn-xs"
                             phx-click="move_up"
                             phx-value-code={language["code"]}
-                            disabled={language["position"] == 1}
+                            disabled={index == 0}
                             title="Move up"
                           >
                             ↑
@@ -203,7 +202,7 @@
                             class="btn btn-outline btn-xs"
                             phx-click="move_down"
                             phx-value-code={language["code"]}
-                            disabled={language["position"] == @language_count}
+                            disabled={index == @language_count - 1}
                             title="Move down"
                           >
                             ↓
@@ -267,7 +266,7 @@
           <div class="text-sm space-y-1">
             <p>• Use standard language codes like 'en', 'es', 'fr', or 'zh-CN' for regions</p>
             <p>• The default language cannot be disabled and serves as the fallback</p>
-            <p>• Languages are displayed in order of their position value</p>
+            <p>• Use the arrow buttons to reorder languages in the list</p>
             <p>• At least one language must remain configured at all times</p>
           </div>
         </div>
