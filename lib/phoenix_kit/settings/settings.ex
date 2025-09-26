@@ -14,6 +14,13 @@ defmodule PhoenixKit.Settings do
   - `update_setting/2` - Update or create a setting
   - `list_all_settings/0` - Get all settings as a map
 
+  ### JSON Settings Management
+
+  - `get_json_setting/1` - Get a JSON setting value by key
+  - `get_json_setting/2` - Get a JSON setting value with default fallback
+  - `update_json_setting/2` - Update or create a JSON setting
+  - `get_json_setting_cached/2` - Get cached JSON setting with fallback
+
   ### Default Settings
 
   The system includes core settings:
@@ -27,11 +34,22 @@ defmodule PhoenixKit.Settings do
 
   ## Usage Examples
 
-      # Get a setting with default
+      # Get a simple string setting with default
       timezone = PhoenixKit.Settings.get_setting("time_zone", "0")
 
-      # Update a setting
+      # Update a simple string setting
       {:ok, setting} = PhoenixKit.Settings.update_setting("time_zone", "+1")
+
+      # Get a JSON setting with default
+      config = PhoenixKit.Settings.get_json_setting("app_config", %{})
+
+      # Update a JSON setting
+      app_config = %{
+        "theme" => %{"primary" => "#3b82f6", "secondary" => "#64748b"},
+        "features" => ["notifications", "dark_mode"],
+        "limits" => %{"max_users" => 1000}
+      }
+      {:ok, setting} = PhoenixKit.Settings.update_json_setting("app_config", app_config)
 
       # Get all settings as a map
       settings = PhoenixKit.Settings.list_all_settings()
@@ -210,6 +228,158 @@ defmodule PhoenixKit.Settings do
       {label, _value} -> label
       nil -> value
     end
+  end
+
+  ## JSON Settings Functions
+
+  @doc """
+  Gets a JSON setting value by key.
+
+  Returns the JSON value as a map/list/primitive, or nil if not found.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_json_setting("app_config")
+      %{"theme" => "dark", "features" => ["auth", "admin"]}
+
+      iex> PhoenixKit.Settings.get_json_setting("non_existent")
+      nil
+  """
+  def get_json_setting(key) when is_binary(key) do
+    setting_record = repo().get_by(Setting, key: key)
+
+    case setting_record do
+      %Setting{value_json: value_json} when not is_nil(value_json) -> value_json
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Gets a JSON setting value by key with a default fallback.
+
+  Returns the JSON value as a map/list/primitive, or the default if not found.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_json_setting("app_config", %{})
+      %{"theme" => "dark", "features" => ["auth", "admin"]}
+
+      iex> PhoenixKit.Settings.get_json_setting("non_existent", %{"default" => true})
+      %{"default" => true}
+  """
+  def get_json_setting(key, default) when is_binary(key) do
+    get_json_setting(key) || default
+  end
+
+  @doc """
+  Gets a JSON setting value from cache with fallback to database.
+
+  This is the preferred method for getting JSON settings as it provides
+  significant performance improvements over direct database queries.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_json_setting_cached("app_config", %{})
+      %{"theme" => "dark", "features" => ["auth", "admin"]}
+
+      iex> PhoenixKit.Settings.get_json_setting_cached("non_existent", %{"default" => true})
+      %{"default" => true}
+  """
+  def get_json_setting_cached(key, default \\ nil) when is_binary(key) do
+    ensure_cache_started()
+
+    case PhoenixKit.Cache.get(@cache_name, key) do
+      nil ->
+        # Cache miss - query database and cache result
+        value = query_and_cache_json_setting(key)
+        value || default
+      value ->
+        value
+    end
+  rescue
+    error ->
+      # Cache system unavailable, fallback to regular database query
+      require Logger
+      Logger.warning("Settings cache error: #{inspect(error)}, falling back to database")
+      get_json_setting(key, default)
+  end
+
+  @doc """
+  Updates or creates a JSON setting with the given key and value.
+
+  If the setting exists, updates its value_json and timestamp.
+  If the setting doesn't exist, creates a new one.
+  Clears any existing string value when setting JSON value.
+
+  Returns `{:ok, setting}` on success, `{:error, changeset}` on failure.
+
+  ## Examples
+
+      iex> config = %{"theme" => "dark", "features" => ["auth"]}
+      iex> PhoenixKit.Settings.update_json_setting("app_config", config)
+      {:ok, %Setting{key: "app_config", value_json: %{"theme" => "dark", "features" => ["auth"]}}}
+
+      iex> PhoenixKit.Settings.update_json_setting("", %{})
+      {:error, %Ecto.Changeset{}}
+  """
+  def update_json_setting(key, json_value) when is_binary(key) do
+    result =
+      case repo().get_by(Setting, key: key) do
+        %Setting{} = setting ->
+          setting
+          |> Setting.update_changeset(%{value_json: json_value, value: nil})
+          |> repo().update()
+
+        nil ->
+          %Setting{}
+          |> Setting.changeset(%{key: key, value_json: json_value})
+          |> repo().insert()
+      end
+
+    # Invalidate cache on successful update
+    case result do
+      {:ok, _setting} -> PhoenixKit.Cache.invalidate(@cache_name, key)
+      {:error, _changeset} -> :ok
+    end
+
+    result
+  end
+
+  @doc """
+  Updates or creates a JSON setting with module association.
+
+  Similar to update_json_setting/2 but allows specifying which module the setting belongs to.
+  Useful for organizing feature-specific JSON settings.
+
+  ## Examples
+
+      iex> config = %{"enabled" => true, "options" => ["email", "sms"]}
+      iex> PhoenixKit.Settings.update_json_setting_with_module("notifications", config, "messaging")
+      {:ok, %Setting{key: "notifications", value_json: config, module: "messaging"}}
+  """
+  def update_json_setting_with_module(key, json_value, module) when is_binary(key) and is_binary(module) do
+    existing_setting = repo().get_by(Setting, key: key)
+
+    result =
+      case existing_setting do
+        %Setting{} = setting ->
+          setting
+          |> Setting.update_changeset(%{value_json: json_value, value: nil, module: module})
+          |> repo().update()
+
+        nil ->
+          %Setting{}
+          |> Setting.changeset(%{key: key, value_json: json_value, module: module})
+          |> repo().insert()
+      end
+
+    # Invalidate cache on successful update
+    case result do
+      {:ok, _setting} -> PhoenixKit.Cache.invalidate(@cache_name, key)
+      {:error, _changeset} -> :ok
+    end
+
+    result
   end
 
   @doc """
@@ -660,7 +830,15 @@ defmodule PhoenixKit.Settings do
     settings = repo().all(Setting)
 
     settings
-    |> Enum.map(fn setting -> {setting.key, setting.value} end)
+    |> Enum.map(fn setting ->
+      # Prioritize JSON value over string value for cache storage
+      value = if setting.value_json do
+        setting.value_json
+      else
+        setting.value
+      end
+      {setting.key, value}
+    end)
     |> Map.new()
   rescue
     error ->
@@ -685,6 +863,30 @@ defmodule PhoenixKit.Settings do
     error ->
       require Logger
       Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      nil
+  end
+
+  # Queries database for a single JSON setting and caches the result
+  defp query_and_cache_json_setting(key) do
+    case repo().get_by(Setting, key: key) do
+      %Setting{value_json: value_json} when not is_nil(value_json) ->
+        PhoenixKit.Cache.put(@cache_name, key, value_json)
+        value_json
+
+      %Setting{value: value} when not is_nil(value) ->
+        # Has string value but no JSON - cache nil for JSON lookup
+        PhoenixKit.Cache.put(@cache_name, key, nil)
+        nil
+
+      nil ->
+        # Cache the fact that this setting doesn't exist to avoid repeated queries
+        PhoenixKit.Cache.put(@cache_name, key, nil)
+        nil
+    end
+  rescue
+    error ->
+      require Logger
+      Logger.error("Failed to query JSON setting #{key}: #{inspect(error)}")
       nil
   end
 end
