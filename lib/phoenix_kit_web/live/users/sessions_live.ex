@@ -16,21 +16,16 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Users.{Auth, Sessions}
   alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.Routes
 
   @per_page 20
 
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     # Subscribe to session events for real-time updates
     if connected?(socket) do
       Events.subscribe_to_sessions()
     end
-
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
 
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
@@ -41,7 +36,6 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
       |> assign(:per_page, @per_page)
       |> assign(:search_query, "")
       |> assign(:filter_user_status, "all")
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Sessions")
       |> assign(:project_title, project_title)
       |> assign(:show_revoke_modal, false)
@@ -256,10 +250,6 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
 
   defp filter_by_user_status(sessions, "pending") do
     Enum.filter(sessions, &is_nil(&1.user_confirmed_at))
-  end
-
-  defp get_current_path(_socket, _session) do
-    Routes.path("/admin/users/sessions")
   end
 
   defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}

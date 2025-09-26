@@ -5,12 +5,8 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.MultiLanguage
   alias PhoenixKit.Settings
-  alias PhoenixKit.Utils.Routes
 
-  def mount(_params, session, socket) do
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
+  def mount(_params, _session, socket) do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -21,7 +17,6 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
     socket =
       socket
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Modules")
       |> assign(:project_title, project_title)
       |> assign(:referral_codes_enabled, referral_codes_config.enabled)
@@ -103,7 +98,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
         {:noreply, socket}
     end
   end
-
+  
   def handle_event("toggle_multi_language", _params, socket) do
     # Toggle multi-language system
     new_enabled = !socket.assigns.multi_language_enabled
