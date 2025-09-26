@@ -317,7 +317,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking", "/admin/settings/multi-language"]) do %>
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -343,6 +343,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             href={Routes.path("/admin/settings/email-tracking")}
                             icon="email"
                             label="Email Tracking"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
+                        <%= if PhoenixKit.MultiLanguage.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/multi-language")}
+                            icon="language"
+                            label="Multi Language"
                             current_path={@current_path || ""}
                             nested={true}
                           />
