@@ -10,15 +10,12 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
 
   @per_page 10
 
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     # Subscribe to user events for live updates
     if connected?(socket) do
       Events.subscribe_to_users()
       Events.subscribe_to_stats()
     end
-
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
 
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
@@ -45,7 +42,6 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
       |> assign(:managing_user, nil)
       |> assign(:user_roles, [])
       |> assign(:all_roles, [])
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Users")
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
@@ -360,11 +356,6 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
       :role_not_found -> "Role not found"
       _ -> "Failed to update user role"
     end
-  end
-
-  defp get_current_path(_socket, _session) do
-    # For UsersLive, always return users path
-    Routes.path("/admin/users")
   end
 
   # Optimized function using preloaded roles

@@ -4,12 +4,8 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodesLive do
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.Routes
 
-  def mount(_params, session, socket) do
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
+  def mount(_params, _session, socket) do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -20,7 +16,6 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodesLive do
 
     socket =
       socket
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Referral Codes")
       |> assign(:project_title, project_title)
       |> assign(:codes, codes)
@@ -69,10 +64,6 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodesLive do
         socket = put_flash(socket, :error, "Failed to update referral code status")
         {:noreply, socket}
     end
-  end
-
-  defp get_current_path(_socket, _session) do
-    Routes.path("/admin/users/referral-codes")
   end
 
   defp format_expiration_date(nil), do: "No expiration"
