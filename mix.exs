@@ -75,6 +75,7 @@ defmodule PhoenixKit.MixProject do
 
       # Development and testing
       {:ex_doc, "~> 0.38.4", only: :dev, runtime: false},
+      {:usage_rules, "~> 0.1", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.6", only: [:dev, :test], runtime: false},
