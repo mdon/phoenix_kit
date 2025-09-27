@@ -1,7 +1,6 @@
 defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailTracking
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -15,7 +14,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
     # Load module states
     referral_codes_config = ReferralCodes.get_config()
-    email_tracking_config = EmailTracking.get_config()
+    email_config = PhoenixKit.EmailSystem.get_config()
 
     socket =
       socket
@@ -26,10 +25,10 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
       |> assign(:referral_codes_required, referral_codes_config.required)
       |> assign(:max_uses_per_code, referral_codes_config.max_uses_per_code)
       |> assign(:max_codes_per_user, referral_codes_config.max_codes_per_user)
-      |> assign(:email_tracking_enabled, email_tracking_config.enabled)
-      |> assign(:email_tracking_save_body, email_tracking_config.save_body)
-      |> assign(:email_tracking_ses_events, email_tracking_config.ses_events)
-      |> assign(:email_tracking_retention_days, email_tracking_config.retention_days)
+      |> assign(:email_enabled, email_config.enabled)
+      |> assign(:email_save_body, email_config.save_body)
+      |> assign(:email_ses_events, email_config.ses_events)
+      |> assign(:email_retention_days, email_config.retention_days)
 
     {:ok, socket}
   end
@@ -66,34 +65,34 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
     end
   end
 
-  def handle_event("toggle_email_tracking", _params, socket) do
-    # Toggle email tracking system
-    new_enabled = !socket.assigns.email_tracking_enabled
+  def handle_event("toggle_emails", _params, socket) do
+    # Toggle email system
+    new_enabled = !socket.assigns.email_enabled
 
     result =
       if new_enabled do
-        EmailTracking.enable_system()
+        PhoenixKit.EmailSystem.enable_system()
       else
-        EmailTracking.disable_system()
+        PhoenixKit.EmailSystem.disable_system()
       end
 
     case result do
       {:ok, _setting} ->
         socket =
           socket
-          |> assign(:email_tracking_enabled, new_enabled)
+          |> assign(:email_enabled, new_enabled)
           |> put_flash(
             :info,
             if(new_enabled,
-              do: "Email tracking system enabled",
-              else: "Email tracking system disabled"
+              do: "Email system enabled",
+              else: "Email system disabled"
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update email tracking system")
+        socket = put_flash(socket, :error, "Failed to update email system")
         {:noreply, socket}
     end
   end

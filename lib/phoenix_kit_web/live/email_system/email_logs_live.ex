@@ -1,8 +1,8 @@
-defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
+defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   @moduledoc """
   LiveView for displaying and managing email logs in PhoenixKit admin panel.
 
-  Provides comprehensive email tracking interface with filtering, searching,
+  Provides comprehensive email interface with filtering, searching,
   and detailed analytics for sent emails.
 
   ## Features
@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-logs", PhoenixKitWeb.Live.EmailTracking.EmailLogsLive, :index
+      live "/email-logs", PhoenixKitWeb.Live.EmailSystem.EmailLogsLive, :index
 
   ## Permissions
 
@@ -34,7 +34,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailTracking
+  alias PhoenixKit.EmailSystem
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -48,8 +48,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   @impl true
   def mount(_params, session, socket) do
-    # Check if email tracking is enabled
-    if EmailTracking.enabled?() do
+    # Check if email is enabled
+    if EmailSystem.enabled?() do
       # Get current path for navigation
       current_path = get_current_path(socket, session)
 
@@ -75,7 +75,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email tracking is not enabled")
+       |> put_flash(:error, "Email management is not enabled")
        |> push_navigate(to: Routes.path("/admin/dashboard"))}
     end
   end
@@ -239,7 +239,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
          |> assign(:show_test_email_modal, false)
          |> put_flash(
            :info,
-           "Test email sent successfully to #{recipient}! Check your email logs to see the tracking data."
+           "Test email sent successfully to #{recipient}! Check your email logs to see the management data."
          )
          |> load_email_logs()
          |> load_stats()}
@@ -585,10 +585,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
           phx-click-away="hide_test_email_modal"
         >
           <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">Send Test Tracking Email</h3>
+            <h3 class="font-bold text-lg mb-4">Send Test Email</h3>
             <p class="text-sm text-base-content/70 mb-4">
-              Send a test email to verify that email tracking is working correctly.
-              The test email will include tracking pixels and test links.
+              Send a test email to verify that email is working correctly.
+              The test email will include test links.
             </p>
 
             <.form
@@ -627,7 +627,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
                   <div class="font-semibold">This test email will:</div>
                   <ul class="mt-1 list-disc list-inside">
                     <li>Verify AWS SES configuration (if enabled)</li>
-                    <li>Test email delivery tracking</li>
+                    <li>Test email delivery management</li>
                     <li>Include trackable links for click testing</li>
                     <li>Appear in your email logs with "TEST" campaign</li>
                   </ul>
@@ -716,11 +716,11 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     # Build filters for EmailLog query
     query_filters = build_query_filters(filters, page, per_page)
 
-    logs = EmailTracking.list_logs(query_filters)
+    logs = EmailSystem.list_logs(query_filters)
 
     # Get total count for pagination (efficient count without loading all records)
     total_count =
-      EmailTracking.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
+      EmailSystem.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
 
     total_pages = ceil(total_count / per_page)
 
@@ -733,7 +733,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
 
   # Load summary statistics
   defp load_stats(socket) do
-    stats = EmailTracking.get_system_stats(:last_30_days)
+    stats = EmailSystem.get_system_stats(:last_30_days)
 
     assign(socket, :stats, stats)
   end
@@ -805,7 +805,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailLogsLive do
     # Load all matching logs (without pagination)
     query_filters = build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset])
 
-    logs = EmailTracking.list_logs(query_filters)
+    logs = EmailSystem.list_logs(query_filters)
 
     # CSV headers
     headers = [

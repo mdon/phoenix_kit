@@ -32,6 +32,10 @@ phoenix_module_template-*.tar
 /temp/
 *.temp
 
+# Backup files
+*.bak
+*.backup
+
 # OS-specific files
 .DS_Store
 .DS_Store?

@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailTracking.Metrics do
+defmodule PhoenixKit.EmailSystem.Metrics do
   @moduledoc """
   AWS CloudWatch metrics integration for PhoenixKit email tracking.
 
@@ -26,29 +26,28 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
       # Enable CloudWatch metrics in email tracking
       config :phoenix_kit,
-        email_tracking_cloudwatch_metrics: true
+        email_cloudwatch_metrics: true
 
   ## Usage Examples
 
       # Get basic SES metrics
-      {:ok, metrics} = PhoenixKit.EmailTracking.Metrics.get_ses_metrics(:last_24_hours)
+      {:ok, metrics} = PhoenixKit.EmailSystem.Metrics.get_ses_metrics(:last_24_hours)
 
       # Get engagement metrics
-      engagement = PhoenixKit.EmailTracking.Metrics.get_engagement_metrics(:last_7_days)
+      engagement = PhoenixKit.EmailSystem.Metrics.get_engagement_metrics(:last_7_days)
 
       # Publish custom metric
-      PhoenixKit.EmailTracking.Metrics.put_custom_metric("EmailOpen", 1, "Count")
+      PhoenixKit.EmailSystem.Metrics.put_custom_metric("EmailOpen", 1, "Count")
 
       # Get dashboard data
-      dashboard = PhoenixKit.EmailTracking.Metrics.get_dashboard_data(:last_30_days)
+      dashboard = PhoenixKit.EmailSystem.Metrics.get_dashboard_data(:last_30_days)
   """
 
   require Logger
 
-  alias PhoenixKit.EmailTracking
-  alias PhoenixKit.EmailTracking.{EmailEvent, EmailLog}
+  alias PhoenixKit.EmailSystem.{EmailEvent, EmailLog}
 
-  @custom_namespace "PhoenixKit/EmailTracking"
+  @custom_namespace "PhoenixKit/EmailSystem"
 
   # Metric names from AWS SES
   @ses_metrics %{
@@ -75,7 +74,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_ses_metrics(:last_24_hours)
+      iex> PhoenixKit.EmailSystem.Metrics.get_ses_metrics(:last_24_hours)
       {:ok, %{
         send: 1500,
         delivery: 1450,
@@ -138,7 +137,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_reputation_metrics()
+      iex> PhoenixKit.EmailSystem.Metrics.get_reputation_metrics()
       {:ok, %{
         bounce_rate: 2.5,
         complaint_rate: 0.1, 
@@ -188,7 +187,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_engagement_metrics(:last_7_days)
+      iex> PhoenixKit.EmailSystem.Metrics.get_engagement_metrics(:last_7_days)
       %{
         open_rate: 24.5,
         click_rate: 4.2,
@@ -221,7 +220,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_geographic_metrics("open", :last_30_days)
+      iex> PhoenixKit.EmailSystem.Metrics.get_geographic_metrics("open", :last_30_days)
       %{
         "US" => %{count: 500, percentage: 45.5},
         "CA" => %{count: 200, percentage: 18.2},
@@ -253,10 +252,10 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.put_custom_metric("EmailOpen", 1, "Count")
+      iex> PhoenixKit.EmailSystem.Metrics.put_custom_metric("EmailOpen", 1, "Count")
       :ok
 
-      iex> PhoenixKit.EmailTracking.Metrics.put_custom_metric("ProcessingLatency", 156.7, "Milliseconds")
+      iex> PhoenixKit.EmailSystem.Metrics.put_custom_metric("ProcessingLatency", 156.7, "Milliseconds")
       :ok
   """
   def put_custom_metric(metric_name, value, unit \\ "Count", dimensions \\ []) do
@@ -294,7 +293,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
         %{name: "EmailsSent", value: 100, unit: "Count"},
         %{name: "AvgProcessingTime", value: 45.2, unit: "Milliseconds"}
       ]
-      iex> PhoenixKit.EmailTracking.Metrics.put_custom_metrics(metrics)
+      iex> PhoenixKit.EmailSystem.Metrics.put_custom_metrics(metrics)
       :ok
   """
   def put_custom_metrics(metrics) when is_list(metrics) do
@@ -320,7 +319,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_dashboard_data(:last_7_days)
+      iex> PhoenixKit.EmailSystem.Metrics.get_dashboard_data(:last_7_days)
       %{
         overview: %{
           total_sent: 5000,
@@ -385,7 +384,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.Metrics.get_metric_alerts(:last_24_hours)
+      iex> PhoenixKit.EmailSystem.Metrics.get_metric_alerts(:last_24_hours)
       [
         %{type: :high_bounce_rate, severity: :warning, value: 5.2, threshold: 5.0},
         %{type: :low_open_rate, severity: :info, value: 15.1, threshold: 20.0}
@@ -415,7 +414,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
 
   # Check if CloudWatch is enabled
   defp cloudwatch_enabled? do
-    EmailTracking.get_config().cloudwatch_metrics
+    PhoenixKit.EmailSystem.get_config().cloudwatch_metrics
   end
 
   # Get time range for period
@@ -574,7 +573,7 @@ defmodule PhoenixKit.EmailTracking.Metrics do
   defp get_overview_metrics(period) do
     case get_ses_metrics(period) do
       {:ok, metrics} -> metrics
-      {:error, _} -> EmailTracking.get_system_stats(period)
+      {:error, _} -> PhoenixKit.EmailSystem.get_system_stats(period)
     end
   end
 

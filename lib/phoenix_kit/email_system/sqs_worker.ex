@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailTracking.SQSWorker do
+defmodule PhoenixKit.EmailSystem.SQSWorker do
   @moduledoc """
   SQS Worker for processing email events from AWS SQS Queue.
 
@@ -41,13 +41,13 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
   ## Usage
 
       # In supervision tree
-      {PhoenixKit.EmailTracking.SQSWorker, []}
+      {PhoenixKit.EmailSystem.SQSWorker, []}
 
       # Worker management
-      PhoenixKit.EmailTracking.SQSWorker.status()
-      PhoenixKit.EmailTracking.SQSWorker.process_now()
-      PhoenixKit.EmailTracking.SQSWorker.pause()
-      PhoenixKit.EmailTracking.SQSWorker.resume()
+      PhoenixKit.EmailSystem.SQSWorker.status()
+      PhoenixKit.EmailSystem.SQSWorker.process_now()
+      PhoenixKit.EmailSystem.SQSWorker.pause()
+      PhoenixKit.EmailSystem.SQSWorker.resume()
 
   ## Monitoring
 
@@ -63,8 +63,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
   use GenServer
   require Logger
 
-  alias PhoenixKit.EmailTracking
-  alias PhoenixKit.EmailTracking.SQSProcessor
+  alias PhoenixKit.EmailSystem.SQSProcessor
 
   # 20 seconds
   @default_long_poll_timeout 20
@@ -80,7 +79,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      {:ok, pid} = PhoenixKit.EmailTracking.SQSWorker.start_link()
+      {:ok, pid} = PhoenixKit.EmailSystem.SQSWorker.start_link()
   """
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
@@ -92,7 +91,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.status()
+      iex> PhoenixKit.EmailSystem.SQSWorker.status()
       %{
         polling_enabled: true,
         messages_processed: 150,
@@ -113,7 +112,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.process_now()
+      iex> PhoenixKit.EmailSystem.SQSWorker.process_now()
       :ok
   """
   def process_now(worker \\ __MODULE__) do
@@ -127,7 +126,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.pause()
+      iex> PhoenixKit.EmailSystem.SQSWorker.pause()
       :ok
   """
   def pause(worker \\ __MODULE__) do
@@ -139,7 +138,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.resume()
+      iex> PhoenixKit.EmailSystem.SQSWorker.resume()
       :ok
   """
   def resume(worker \\ __MODULE__) do
@@ -166,10 +165,10 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.process_dlq_messages()
+      iex> PhoenixKit.EmailSystem.SQSWorker.process_dlq_messages()
       {:ok, %{total_processed: 15, successful: 12, errors: 3}}
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.process_dlq_messages(delete_after: true)
+      iex> PhoenixKit.EmailSystem.SQSWorker.process_dlq_messages(delete_after: true)
       {:ok, %{total_processed: 8, successful: 8, errors: 0, deleted: 8}}
   """
   def process_dlq_messages(opts \\ []) do
@@ -190,7 +189,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.SQSWorker.delete_dlq_messages(["receipt1", "receipt2"])
+      iex> PhoenixKit.EmailSystem.SQSWorker.delete_dlq_messages(["receipt1", "receipt2"])
       {:ok, 2}
   """
   def delete_dlq_messages(receipt_handles) when is_list(receipt_handles) do
@@ -202,7 +201,7 @@ defmodule PhoenixKit.EmailTracking.SQSWorker do
   @doc false
   def init(_opts) do
     # Get configuration at startup
-    config = EmailTracking.get_sqs_config()
+    config = PhoenixKit.EmailSystem.get_sqs_config()
 
     state = %{
       queue_url: config.queue_url,

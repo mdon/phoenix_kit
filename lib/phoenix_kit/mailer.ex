@@ -24,7 +24,7 @@ defmodule PhoenixKit.Mailer do
 
   import Swoosh.Email
 
-  alias PhoenixKit.EmailTracking.EmailInterceptor
+  alias PhoenixKit.EmailSystem.EmailInterceptor
 
   alias PhoenixKit.Users.Auth.User
 
@@ -147,6 +147,7 @@ defmodule PhoenixKit.Mailer do
           <p><a href="#{magic_link_url}">#{magic_link_url}</a></p>
         </div>
       </div>
+
     </body>
     </html>
     """
@@ -174,14 +175,14 @@ defmodule PhoenixKit.Mailer do
   # Handle delivery result for email tracking updates
   defp handle_delivery_result(email, result, opts) do
     # Only process if email tracking is enabled
-    if PhoenixKit.EmailTracking.enabled?() do
+    if PhoenixKit.EmailSystem.enabled?() do
       case extract_log_id_from_email(email) do
         nil ->
           # No log ID found, skip tracking
           :ok
 
         log_id ->
-          case PhoenixKit.EmailTracking.get_log!(log_id) do
+          case PhoenixKit.EmailSystem.get_log!(log_id) do
             nil -> :ok
             log -> update_log_after_delivery(log, result, opts)
           end
@@ -266,7 +267,7 @@ defmodule PhoenixKit.Mailer do
   @doc """
   Send a test tracking email to verify email delivery and tracking functionality.
 
-  This function sends a test email that includes tracking pixels and test links
+  This function sends a test email with test links
   to verify that the email tracking system is working correctly.
 
   ## Parameters

@@ -29,7 +29,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.ProcessDlq do
 
   ## Requirements
 
-  - Email tracking must be enabled
+  - Email system must be enabled
   - AWS credentials must be configured
   - DLQ URL must be set in settings
   """
@@ -38,8 +38,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.ProcessDlq do
 
   require Logger
 
-  alias PhoenixKit.EmailTracking
-  alias PhoenixKit.EmailTracking.SQSProcessor
+  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.EmailSystem.SQSProcessor
   alias PhoenixKit.Settings
 
   @shortdoc "Process accumulated DLQ messages"
@@ -67,8 +67,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.ProcessDlq do
     delete_after = Keyword.get(options, :delete_after, false)
     dry_run = Keyword.get(options, :dry_run, false)
 
-    if not EmailTracking.enabled?() do
-      Mix.shell().error("❌ Email tracking is not enabled")
+    if not EmailSystem.enabled?() do
+      Mix.shell().error("❌ Email system is not enabled")
       exit(:shutdown)
     end
 

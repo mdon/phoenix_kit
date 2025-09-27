@@ -1,6 +1,6 @@
-defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
+defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
   @moduledoc """
-  LiveView for email tracking metrics and analytics dashboard.
+  LiveView for email metrics and analytics dashboard.
 
   Provides comprehensive analytics visualization for email campaigns including:
 
@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-metrics", PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive, :index
+      live "/email-metrics", PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive, :index
 
   ## Permissions
 
@@ -42,7 +42,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   require Logger
 
-  alias PhoenixKit.EmailTracking
+  alias PhoenixKit.EmailSystem
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -56,8 +56,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   @impl true
   def mount(_params, session, socket) do
-    # Check if email tracking is enabled
-    if EmailTracking.enabled?() do
+    # Check if email is enabled
+    if EmailSystem.enabled?() do
       # Get current path for navigation
       current_path = get_current_path(socket, session)
 
@@ -87,7 +87,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email tracking is not enabled")
+       |> put_flash(:error, "Email is not enabled")
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -200,7 +200,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     period = determine_period(socket.assigns)
 
     metrics =
-      EmailTracking.get_system_stats(period)
+      EmailSystem.get_system_stats(period)
       |> Map.merge(load_additional_metrics(period))
 
     charts_data = prepare_charts_data(metrics, period)
@@ -221,7 +221,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   defp load_additional_metrics(period) do
     %{
-      by_provider: EmailTracking.get_provider_performance(period),
+      by_provider: EmailSystem.get_provider_performance(period),
       today_count: get_today_count()
     }
   end
@@ -230,7 +230,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     today_start = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
     now = DateTime.utc_now()
 
-    case EmailTracking.get_system_stats(
+    case EmailSystem.get_system_stats(
            {:date_range, DateTime.to_date(today_start), DateTime.to_date(now)}
          ) do
       %{total_sent: count} -> count

@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
+defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
   @moduledoc """
   LiveView for managing email blocklist and blocked addresses.
 
@@ -30,7 +30,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-blocklist", PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive, :index
+      live "/email-blocklist", PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive, :index
 
   ## Permissions
 
@@ -41,8 +41,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
 
   require Logger
 
-  alias PhoenixKit.EmailTracking
-  alias PhoenixKit.EmailTracking.RateLimiter
+  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.EmailSystem.RateLimiter
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -59,8 +59,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
 
   @impl true
   def mount(_params, session, socket) do
-    # Check if email tracking is enabled
-    if EmailTracking.enabled?() do
+    # Check if email is enabled
+    if EmailSystem.enabled?() do
       # Get current path for navigation
       current_path = get_current_path(socket, session)
 
@@ -96,7 +96,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailBlocklistLive do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email tracking is not enabled")
+       |> put_flash(:error, "Email is not enabled")
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end

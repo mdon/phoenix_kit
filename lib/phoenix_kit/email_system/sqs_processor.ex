@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailTracking.SQSProcessor do
+defmodule PhoenixKit.EmailSystem.SQSProcessor do
   @moduledoc """
   Processor for handling email events from AWS SQS messages.
 
@@ -14,7 +14,7 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
   - **Delivery** - Successful email delivery to recipient
   - **Bounce** - Email bounce (hard/soft bounce)
   - **Complaint** - Spam complaint
-  - **Open** - Email open (pixel tracking)
+  - **Open** - Email open (AWS SES tracking)
   - **Click** - Link click in email
 
   ## Processing Architecture
@@ -43,8 +43,8 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
   require Logger
   import Ecto.Query, only: [from: 2]
 
-  alias PhoenixKit.EmailTracking
-  alias PhoenixKit.EmailTracking.EmailLog
+  alias PhoenixKit.EmailSystem.EmailEvent
+  alias PhoenixKit.EmailSystem.EmailLog
 
   ## --- Public API ---
 
@@ -173,6 +173,18 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
 
       "click" ->
         process_click_event(event_data)
+
+      "reject" ->
+        process_reject_event(event_data)
+
+      "delivery_delay" ->
+        process_delivery_delay_event(event_data)
+
+      "subscription" ->
+        process_subscription_event(event_data)
+
+      "rendering_failure" ->
+        process_rendering_failure_event(event_data)
 
       unknown_type ->
         Logger.warning("Unknown email event type", %{type: unknown_type})
@@ -720,6 +732,318 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
     end
   end
 
+  # Processes reject event
+  defp process_reject_event(event_data) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+    reject_data = event_data["reject"]
+    reject_reason = get_in(reject_data, ["reason"])
+
+    case find_email_log_by_message_id(message_id) do
+      {:ok, log} ->
+        update_attrs = %{
+          status: "rejected",
+          error_message: build_reject_error_message(reject_data)
+        }
+
+        case EmailLog.update_log(log, update_attrs) do
+          {:ok, updated_log} ->
+            # Create event record
+            create_reject_event(updated_log, reject_data)
+
+            Logger.warning("Email rejected", %{
+              log_id: updated_log.id,
+              message_id: message_id,
+              reject_reason: reject_reason
+            })
+
+            {:ok, %{type: "reject", log_id: updated_log.id, updated: true}}
+
+          {:error, reason} ->
+            Logger.error("Failed to update reject status", %{
+              log_id: log.id,
+              reason: inspect(reason)
+            })
+
+            {:error, reason}
+        end
+
+      {:error, :not_found} ->
+        Logger.warning("Reject event for unknown email - attempting to create placeholder log", %{
+          message_id: message_id
+        })
+
+        case create_placeholder_log_from_event(event_data, "rejected") do
+          {:ok, log} ->
+            update_attrs = %{
+              status: "rejected",
+              error_message: build_reject_error_message(reject_data)
+            }
+
+            case EmailLog.update_log(log, update_attrs) do
+              {:ok, updated_log} ->
+                # Create event record
+                create_reject_event(updated_log, reject_data)
+
+                Logger.info("Created placeholder log for reject event", %{
+                  log_id: updated_log.id,
+                  message_id: message_id,
+                  reject_reason: reject_reason
+                })
+
+                {:ok,
+                 %{
+                   type: "reject",
+                   log_id: updated_log.id,
+                   updated: true,
+                   created_placeholder: true
+                 }}
+
+              {:error, reason} ->
+                Logger.error("Failed to update placeholder log for reject", %{
+                  log_id: log.id,
+                  reason: inspect(reason)
+                })
+
+                {:error, reason}
+            end
+
+          {:error, reason} ->
+            Logger.error("Failed to create placeholder log for reject event", %{
+              message_id: message_id,
+              reason: inspect(reason)
+            })
+
+            {:error, :email_log_not_found}
+        end
+    end
+  end
+
+  # Processes delivery delay event
+  defp process_delivery_delay_event(event_data) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+    delay_data = event_data["deliveryDelay"]
+    delay_type = get_in(delay_data, ["delayType"])
+    expiration_time = get_in(delay_data, ["expirationTime"])
+
+    case find_email_log_by_message_id(message_id) do
+      {:ok, log} ->
+        # Only update if current status is not more advanced
+        status_update =
+          case log.status do
+            s
+            when s in [
+                   "delivered",
+                   "bounced",
+                   "hard_bounced",
+                   "soft_bounced",
+                   "clicked",
+                   "opened"
+                 ] ->
+              %{}
+
+            _ ->
+              %{status: "delayed"}
+          end
+
+        case EmailLog.update_log(log, status_update) do
+          {:ok, updated_log} ->
+            # Create event record
+            create_delivery_delay_event(updated_log, delay_data)
+
+            Logger.info("Email delivery delayed", %{
+              log_id: updated_log.id,
+              message_id: message_id,
+              delay_type: delay_type,
+              expiration_time: expiration_time
+            })
+
+            {:ok, %{type: "delivery_delay", log_id: updated_log.id, updated: true}}
+
+          {:error, reason} ->
+            Logger.error("Failed to update delay status", %{
+              log_id: log.id,
+              reason: inspect(reason)
+            })
+
+            {:error, reason}
+        end
+
+      {:error, :not_found} ->
+        Logger.warning(
+          "Delivery delay event for unknown email - attempting to create placeholder log",
+          %{
+            message_id: message_id
+          }
+        )
+
+        case create_placeholder_log_from_event(event_data, "delayed") do
+          {:ok, log} ->
+            # Create event record for created log
+            create_delivery_delay_event(log, delay_data)
+
+            Logger.info("Created placeholder log for delay event", %{
+              log_id: log.id,
+              message_id: message_id,
+              delay_type: delay_type
+            })
+
+            {:ok,
+             %{type: "delivery_delay", log_id: log.id, updated: true, created_placeholder: true}}
+
+          {:error, reason} ->
+            Logger.error("Failed to create placeholder log for delay event", %{
+              message_id: message_id,
+              reason: inspect(reason)
+            })
+
+            {:error, :email_log_not_found}
+        end
+    end
+  end
+
+  # Processes subscription event
+  defp process_subscription_event(event_data) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+    subscription_data = event_data["subscription"]
+    subscription_type = get_in(subscription_data, ["subscriptionType"])
+
+    case find_email_log_by_message_id(message_id) do
+      {:ok, log} ->
+        # Create event record
+        create_subscription_event(log, subscription_data)
+
+        Logger.info("Email subscription event", %{
+          log_id: log.id,
+          message_id: message_id,
+          subscription_type: subscription_type
+        })
+
+        {:ok, %{type: "subscription", log_id: log.id, updated: false}}
+
+      {:error, :not_found} ->
+        Logger.warning(
+          "Subscription event for unknown email - attempting to create placeholder log",
+          %{
+            message_id: message_id
+          }
+        )
+
+        case create_placeholder_log_from_event(event_data, "sent") do
+          {:ok, log} ->
+            # Create event record for created log
+            create_subscription_event(log, subscription_data)
+
+            Logger.info("Created placeholder log for subscription event", %{
+              log_id: log.id,
+              message_id: message_id,
+              subscription_type: subscription_type
+            })
+
+            {:ok,
+             %{type: "subscription", log_id: log.id, updated: true, created_placeholder: true}}
+
+          {:error, reason} ->
+            Logger.error("Failed to create placeholder log for subscription event", %{
+              message_id: message_id,
+              reason: inspect(reason)
+            })
+
+            {:error, :email_log_not_found}
+        end
+    end
+  end
+
+  # Processes rendering failure event
+  defp process_rendering_failure_event(event_data) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+    failure_data = event_data["failure"]
+    error_message = get_in(failure_data, ["errorMessage"])
+    template_name = get_in(failure_data, ["templateName"])
+
+    case find_email_log_by_message_id(message_id) do
+      {:ok, log} ->
+        update_attrs = %{
+          status: "failed",
+          error_message: build_rendering_failure_message(failure_data)
+        }
+
+        case EmailLog.update_log(log, update_attrs) do
+          {:ok, updated_log} ->
+            # Create event record
+            create_rendering_failure_event(updated_log, failure_data)
+
+            Logger.error("Email rendering failed", %{
+              log_id: updated_log.id,
+              message_id: message_id,
+              template_name: template_name,
+              error_message: error_message
+            })
+
+            {:ok, %{type: "rendering_failure", log_id: updated_log.id, updated: true}}
+
+          {:error, reason} ->
+            Logger.error("Failed to update rendering failure status", %{
+              log_id: log.id,
+              reason: inspect(reason)
+            })
+
+            {:error, reason}
+        end
+
+      {:error, :not_found} ->
+        Logger.warning(
+          "Rendering failure event for unknown email - attempting to create placeholder log",
+          %{
+            message_id: message_id
+          }
+        )
+
+        case create_placeholder_log_from_event(event_data, "failed") do
+          {:ok, log} ->
+            update_attrs = %{
+              status: "failed",
+              error_message: build_rendering_failure_message(failure_data)
+            }
+
+            case EmailLog.update_log(log, update_attrs) do
+              {:ok, updated_log} ->
+                # Create event record
+                create_rendering_failure_event(updated_log, failure_data)
+
+                Logger.info("Created placeholder log for rendering failure event", %{
+                  log_id: updated_log.id,
+                  message_id: message_id,
+                  template_name: template_name
+                })
+
+                {:ok,
+                 %{
+                   type: "rendering_failure",
+                   log_id: updated_log.id,
+                   updated: true,
+                   created_placeholder: true
+                 }}
+
+              {:error, reason} ->
+                Logger.error("Failed to update placeholder log for rendering failure", %{
+                  log_id: log.id,
+                  reason: inspect(reason)
+                })
+
+                {:error, reason}
+            end
+
+          {:error, reason} ->
+            Logger.error("Failed to create placeholder log for rendering failure event", %{
+              message_id: message_id,
+              reason: inspect(reason)
+            })
+
+            {:error, :email_log_not_found}
+        end
+    end
+  end
+
   ## --- Helper Functions ---
 
   # Finds email log by message_id with extended search
@@ -730,7 +1054,7 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
     })
 
     # First search - direct search by message_id
-    case EmailTracking.get_log_by_message_id(message_id) do
+    case PhoenixKit.EmailSystem.get_log_by_message_id(message_id) do
       {:ok, log} ->
         Logger.debug("SQSProcessor: Found email log by direct message_id search", %{
           log_id: log.id,
@@ -790,7 +1114,7 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
   defp log_recent_emails_for_diagnosis(missing_message_id) do
     # Get last 5 email logs for diagnostics
     recent_logs =
-      from(l in PhoenixKit.EmailTracking.EmailLog,
+      from(l in PhoenixKit.EmailSystem.EmailLog,
         order_by: [desc: l.inserted_at],
         limit: 5,
         select: {l.id, l.message_id, l.inserted_at}
@@ -817,14 +1141,20 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
 
   # Creates event record for delivery
   defp create_delivery_event(log, delivery_data) do
-    event_attrs = %{
-      email_log_id: log.id,
-      event_type: "delivery",
-      event_data: delivery_data,
-      occurred_at: parse_timestamp(get_in(delivery_data, ["timestamp"]))
-    }
+    # Check if delivery event already exists to prevent duplicates
+    if EmailEvent.event_exists?(log.id, "delivery") do
+      Logger.debug("Delivery event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "delivery",
+        event_data: delivery_data,
+        occurred_at: parse_timestamp(get_in(delivery_data, ["timestamp"]))
+      }
 
-    EmailTracking.create_event(event_attrs)
+      PhoenixKit.EmailSystem.create_event(event_attrs)
+    end
   end
 
   # Creates event record for bounce
@@ -837,7 +1167,7 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
       bounce_type: get_in(bounce_data, ["bounceType"])
     }
 
-    EmailTracking.create_event(event_attrs)
+    PhoenixKit.EmailSystem.create_event(event_attrs)
   end
 
   # Creates event record for complaint
@@ -850,36 +1180,101 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
       complaint_type: get_in(complaint_data, ["complaintFeedbackType"])
     }
 
-    EmailTracking.create_event(event_attrs)
+    PhoenixKit.EmailSystem.create_event(event_attrs)
   end
 
   # Creates event record for open
   defp create_open_event(log, open_data, timestamp) do
-    event_attrs = %{
-      email_log_id: log.id,
-      event_type: "open",
-      event_data: open_data,
-      occurred_at: parse_timestamp(timestamp),
-      ip_address: get_in(open_data, ["ipAddress"]),
-      user_agent: get_in(open_data, ["userAgent"])
-    }
+    # Check if open event already exists to prevent duplicates
+    if EmailEvent.event_exists?(log.id, "open") do
+      Logger.debug("Open event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "open",
+        event_data: open_data,
+        occurred_at: parse_timestamp(timestamp),
+        ip_address: get_in(open_data, ["ipAddress"]),
+        user_agent: get_in(open_data, ["userAgent"])
+      }
 
-    EmailTracking.create_event(event_attrs)
+      PhoenixKit.EmailSystem.create_event(event_attrs)
+    end
   end
 
   # Creates event record for click
   defp create_click_event(log, click_data, timestamp) do
+    # For clicks, we might want to allow multiple click events (different links)
+    # but for now, let's prevent duplicate click events too
+    if EmailEvent.event_exists?(log.id, "click") do
+      Logger.debug("Click event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "click",
+        event_data: click_data,
+        occurred_at: parse_timestamp(timestamp),
+        link_url: get_in(click_data, ["link"]),
+        ip_address: get_in(click_data, ["ipAddress"]),
+        user_agent: get_in(click_data, ["userAgent"])
+      }
+
+      PhoenixKit.EmailSystem.create_event(event_attrs)
+    end
+  end
+
+  # Creates event record for reject
+  defp create_reject_event(log, reject_data) do
     event_attrs = %{
       email_log_id: log.id,
-      event_type: "click",
-      event_data: click_data,
-      occurred_at: parse_timestamp(timestamp),
-      link_url: get_in(click_data, ["link"]),
-      ip_address: get_in(click_data, ["ipAddress"]),
-      user_agent: get_in(click_data, ["userAgent"])
+      event_type: "reject",
+      event_data: reject_data,
+      occurred_at: parse_timestamp(get_in(reject_data, ["timestamp"])),
+      reject_reason: get_in(reject_data, ["reason"])
     }
 
-    EmailTracking.create_event(event_attrs)
+    PhoenixKit.EmailSystem.create_event(event_attrs)
+  end
+
+  # Creates event record for delivery delay
+  defp create_delivery_delay_event(log, delay_data) do
+    event_attrs = %{
+      email_log_id: log.id,
+      event_type: "delivery_delay",
+      event_data: delay_data,
+      occurred_at: parse_timestamp(get_in(delay_data, ["timestamp"])),
+      delay_type: get_in(delay_data, ["delayType"])
+    }
+
+    PhoenixKit.EmailSystem.create_event(event_attrs)
+  end
+
+  # Creates event record for subscription
+  defp create_subscription_event(log, subscription_data) do
+    event_attrs = %{
+      email_log_id: log.id,
+      event_type: "subscription",
+      event_data: subscription_data,
+      occurred_at: parse_timestamp(get_in(subscription_data, ["timestamp"])),
+      subscription_type: get_in(subscription_data, ["subscriptionType"])
+    }
+
+    PhoenixKit.EmailSystem.create_event(event_attrs)
+  end
+
+  # Creates event record for rendering failure
+  defp create_rendering_failure_event(log, failure_data) do
+    event_attrs = %{
+      email_log_id: log.id,
+      event_type: "rendering_failure",
+      event_data: failure_data,
+      occurred_at: parse_timestamp(get_in(failure_data, ["timestamp"])),
+      failure_reason: get_in(failure_data, ["errorMessage"])
+    }
+
+    PhoenixKit.EmailSystem.create_event(event_attrs)
   end
 
   # Parses timestamp string to DateTime
@@ -951,6 +1346,8 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
 
     log_attrs = %{
       message_id: message_id,
+      # Store AWS message ID in dedicated field
+      aws_message_id: message_id,
       to: to_email,
       from: from_email,
       subject: subject,
@@ -966,6 +1363,26 @@ defmodule PhoenixKit.EmailTracking.SQSProcessor do
       campaign_id: "recovered_from_event"
     }
 
-    EmailTracking.create_log(log_attrs)
+    PhoenixKit.EmailSystem.create_log(log_attrs)
+  end
+
+  # Builds error message for reject events
+  defp build_reject_error_message(reject_data) do
+    reason = get_in(reject_data, ["reason"]) || "unknown"
+    "Email rejected by SES: #{reason}"
+  end
+
+  # Builds error message for rendering failure events
+  defp build_rendering_failure_message(failure_data) do
+    error_message = get_in(failure_data, ["errorMessage"]) || "unknown error"
+    template_name = get_in(failure_data, ["templateName"])
+
+    base_message = "Template rendering failed: #{error_message}"
+
+    if template_name do
+      "#{base_message} (template: #{template_name})"
+    else
+      base_message
+    end
   end
 end

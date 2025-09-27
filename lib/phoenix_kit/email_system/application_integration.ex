@@ -1,26 +1,26 @@
-defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
+defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
   @moduledoc """
   Helpers for integrating PhoenixKit Email Tracking into parent applications.
 
-  This module provides convenient functions for adding email tracking
+  This module provides convenient functions for adding email system
   to your Phoenix application's supervision tree.
 
   ## Quick Integration
 
-  The simplest way to add email tracking:
+  The simplest way to add email system:
 
       # In lib/your_app/application.ex
       def start(_type, _args) do
         children = [
           # ... your processes
-        ] ++ PhoenixKit.EmailTracking.ApplicationIntegration.children()
+        ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.children()
 
         Supervisor.start_link(children, strategy: :one_for_one)
       end
 
   ## Conditional Integration
 
-  If you want to control when email tracking starts:
+  If you want to control when email system starts:
 
       # In lib/your_app/application.ex
       def start(_type, _args) do
@@ -28,21 +28,21 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
           # ... your main processes
         ]
 
-        children = base_children ++ email_tracking_children()
+        children = base_children ++ email_children()
 
         Supervisor.start_link(children, strategy: :one_for_one)
       end
 
-      defp email_tracking_children do
-        if email_tracking_enabled?() do
-          PhoenixKit.EmailTracking.ApplicationIntegration.children()
+      defp email_children do
+        if email_enabled?() do
+          PhoenixKit.EmailSystem.ApplicationIntegration.children()
         else
           []
         end
       end
 
-      defp email_tracking_enabled? do
-        # Your logic for determining if email tracking is enabled
+      defp email_enabled? do
+        # Your logic for determining if email system is enabled
         System.get_env("EMAIL_TRACKING_ENABLED") == "true"
       end
 
@@ -52,15 +52,15 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
 
       children = [
         # ... your processes
-      ] ++ PhoenixKit.EmailTracking.ApplicationIntegration.supervisor_children()
+      ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_children()
   """
 
-  alias PhoenixKit.EmailTracking
+  alias PhoenixKit.EmailSystem
 
   @doc """
   Returns list of child specs for adding to supervision tree.
 
-  This is the main function for email tracking integration.
+  This is the main function for email system integration.
 
   ## Options
 
@@ -70,16 +70,16 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   ## Examples
 
       # Basic usage
-      children = PhoenixKit.EmailTracking.ApplicationIntegration.children()
+      children = PhoenixKit.EmailSystem.ApplicationIntegration.children()
 
       # With custom options
-      children = PhoenixKit.EmailTracking.ApplicationIntegration.children(
-        supervisor_name: MyApp.EmailTrackingSupervisor,
+      children = PhoenixKit.EmailSystem.ApplicationIntegration.children(
+        supervisor_name: MyApp.EmailSystemSupervisor,
         start_sqs_worker: true
       )
   """
   def children(opts \\ []) do
-    if should_start_email_tracking?(opts) do
+    if should_start_email_system?(opts) do
       [supervisor_child_spec(opts)]
     else
       []
@@ -87,18 +87,18 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   end
 
   @doc """
-  Returns child spec for email tracking supervisor.
+  Returns child spec for email system supervisor.
 
   ## Examples
 
-      supervisor_spec = PhoenixKit.EmailTracking.ApplicationIntegration.supervisor_child_spec()
+      supervisor_spec = PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_child_spec()
   """
   def supervisor_child_spec(opts \\ []) do
-    supervisor_name = Keyword.get(opts, :supervisor_name, EmailTracking.Supervisor)
+    supervisor_name = Keyword.get(opts, :supervisor_name, EmailSystem.Supervisor)
 
     %{
       id: supervisor_name,
-      start: {EmailTracking.Supervisor, :start_link, [[name: supervisor_name]]},
+      start: {EmailSystem.Supervisor, :start_link, [[name: supervisor_name]]},
       type: :supervisor,
       restart: :permanent,
       shutdown: :infinity
@@ -108,7 +108,7 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   @doc """
   Returns only children for supervisor (without supervisor itself).
 
-  Use if you want to add email tracking processes
+  Use if you want to add email system processes
   to existing supervisor.
 
   ## Examples
@@ -117,13 +117,13 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
       def init(_opts) do
         children = [
           # ... your processes
-        ] ++ PhoenixKit.EmailTracking.ApplicationIntegration.supervisor_children()
+        ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_children()
 
         Supervisor.init(children, strategy: :one_for_one)
       end
   """
   def supervisor_children(opts \\ []) do
-    if should_start_email_tracking?(opts) do
+    if should_start_email_system?(opts) do
       build_worker_children(opts)
     else
       []
@@ -131,22 +131,22 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   end
 
   @doc """
-  Checks if system is ready to start email tracking.
+  Checks if system is ready to start email system.
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.ApplicationIntegration.ready_for_email_tracking?()
+      iex> PhoenixKit.EmailSystem.ApplicationIntegration.ready_for_email_system?()
       true
 
-      iex> PhoenixKit.EmailTracking.ApplicationIntegration.ready_for_email_tracking?()
-      {:error, :email_tracking_disabled}
+      iex> PhoenixKit.EmailSystem.ApplicationIntegration.ready_for_email_system?()
+      {:error, :email_disabled}
   """
-  def ready_for_email_tracking? do
+  def ready_for_email_system? do
     cond do
-      not EmailTracking.enabled?() ->
-        {:error, :email_tracking_disabled}
+      not EmailSystem.enabled?() ->
+        {:error, :email_disabled}
 
-      not EmailTracking.sqs_polling_enabled?() ->
+      not EmailSystem.sqs_polling_enabled?() ->
         {:error, :sqs_polling_disabled}
 
       not has_valid_sqs_configuration?() ->
@@ -161,17 +161,17 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   end
 
   @doc """
-  Performs pre-flight checks for email tracking system.
+  Performs pre-flight checks for email system system.
 
   Returns detailed report on system readiness.
 
   ## Examples
 
-      iex> PhoenixKit.EmailTracking.ApplicationIntegration.preflight_check()
+      iex> PhoenixKit.EmailSystem.ApplicationIntegration.preflight_check()
       %{
         status: :ready,
         checks: %{
-          email_tracking_enabled: true,
+          email_enabled: true,
           sqs_polling_enabled: true,
           sqs_configuration: true,
           aws_credentials: true
@@ -180,8 +180,8 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   """
   def preflight_check do
     checks = %{
-      email_tracking_enabled: EmailTracking.enabled?(),
-      sqs_polling_enabled: EmailTracking.sqs_polling_enabled?(),
+      email_enabled: EmailSystem.enabled?(),
+      sqs_polling_enabled: EmailSystem.sqs_polling_enabled?(),
       sqs_configuration: has_valid_sqs_configuration?(),
       aws_credentials: has_aws_credentials?(),
       dependencies_loaded: dependencies_loaded?()
@@ -202,22 +202,22 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
   end
 
   @doc """
-  Creates initial configuration for email tracking.
+  Creates initial configuration for email system.
 
   Useful for initializing system with basic settings.
 
   ## Examples
 
-      PhoenixKit.EmailTracking.ApplicationIntegration.initialize_configuration()
+      PhoenixKit.EmailSystem.ApplicationIntegration.initialize_configuration()
   """
   def initialize_configuration do
     # Create basic settings if they do not exist
     default_settings = [
-      {"email_tracking_enabled", "true"},
-      {"email_tracking_save_body", "false"},
-      {"email_tracking_ses_events", "true"},
-      {"email_tracking_retention_days", "90"},
-      {"email_tracking_sampling_rate", "100"},
+      {"email_enabled", "true"},
+      {"email_save_body", "false"},
+      {"email_ses_events", "true"},
+      {"email_retention_days", "90"},
+      {"email_sampling_rate", "100"},
       {"sqs_polling_enabled", "false"},
       {"sqs_polling_interval_ms", "5000"},
       {"sqs_max_messages_per_poll", "10"},
@@ -231,7 +231,7 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
           PhoenixKit.Settings.update_setting_with_module(
             key,
             default_value,
-            "email_tracking"
+            "email_system"
           )
 
         _ ->
@@ -242,14 +242,14 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
 
   ## --- Private Functions ---
 
-  # Determines whether email tracking should start
-  defp should_start_email_tracking?(opts) do
+  # Determines whether email system should start
+  defp should_start_email_system?(opts) do
     force_start = Keyword.get(opts, :start_sqs_worker, nil)
 
     case force_start do
       true -> true
       false -> false
-      nil -> EmailTracking.enabled?() and EmailTracking.sqs_polling_enabled?()
+      nil -> EmailSystem.enabled?() and EmailSystem.sqs_polling_enabled?()
     end
   end
 
@@ -285,15 +285,15 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
         false
 
       nil ->
-        EmailTracking.sqs_polling_enabled?() and has_valid_sqs_configuration?()
+        EmailSystem.sqs_polling_enabled?() and has_valid_sqs_configuration?()
     end
   end
 
   # Creates child spec for SQS Worker
   defp build_sqs_worker_child_spec do
     %{
-      id: EmailTracking.SQSWorker,
-      start: {EmailTracking.SQSWorker, :start_link, [[]]},
+      id: EmailSystem.SQSWorker,
+      start: {EmailSystem.SQSWorker, :start_link, [[]]},
       type: :worker,
       restart: :permanent,
       shutdown: 10_000
@@ -302,7 +302,7 @@ defmodule PhoenixKit.EmailTracking.ApplicationIntegration do
 
   # Checks SQS configuration validity
   defp has_valid_sqs_configuration? do
-    sqs_config = EmailTracking.get_sqs_config()
+    sqs_config = EmailSystem.get_sqs_config()
 
     not is_nil(sqs_config.queue_url) and
       sqs_config.queue_url != "" and

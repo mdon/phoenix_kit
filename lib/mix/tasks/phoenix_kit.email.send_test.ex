@@ -5,7 +5,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
   Mix task to send a test email to verify email system functionality.
 
   This task sends a test email to a specific address without requiring
-  email tracking system configuration. Useful for basic email delivery testing.
+  email system system configuration. Useful for basic email delivery testing.
 
   ## Usage
 
@@ -18,14 +18,14 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
       # Send with custom subject
       mix phoenix_kit.email.send_test --to admin@example.com --subject "Custom Test Subject"
 
-      # Include tracking (requires configured repo)
+      # Include system (requires configured repo)
       mix phoenix_kit.email.send_test --to admin@example.com --track
 
   ## Options
 
       --to EMAIL           Email address to send to (required)
       --subject SUBJECT    Custom email subject (optional)
-      --track              Enable email tracking (requires repo configuration)
+      --track              Enable email system (requires repo configuration)
       --from EMAIL         From email address (optional)
 
   ## Examples
@@ -36,7 +36,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
       # Multiple recipients with custom subject
       mix phoenix_kit.email.send_test --to "admin@example.com,user@example.com" --subject "PhoenixKit Test Email"
 
-      # Test with tracking enabled
+      # Test with system enabled
       mix phoenix_kit.email.send_test --to test@example.com --track
   """
 
@@ -109,13 +109,13 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
 
       result =
         if track_email do
-          # Use PhoenixKit.Mailer with tracking
+          # Use PhoenixKit.Mailer with system
           PhoenixKit.Mailer.deliver_email(email,
             template_name: "test_email",
             campaign_id: "manual_test"
           )
         else
-          # Use basic Swoosh delivery without tracking
+          # Use basic Swoosh delivery without system
           send_via_configured_mailer(email)
         end
 
@@ -195,9 +195,9 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
         .content { padding: 30px; }
         .info-box { background-color: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; padding: 16px; margin: 20px 0; }
-        .tracking-box { background-color: #{if track_enabled, do: "#f0fdf4", else: "#fef3c7"}; border: 1px solid #{if track_enabled, do: "#22c55e", else: "#f59e0b"}; border-radius: 6px; padding: 16px; margin: 20px 0; }
+        .system-box { background-color: #{if track_enabled, do: "#f0fdf4", else: "#fef3c7"}; border: 1px solid #{if track_enabled, do: "#22c55e", else: "#f59e0b"}; border-radius: 6px; padding: 16px; margin: 20px 0; }
         .footer { background-color: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; font-size: 14px; color: #6b7280; }
-        .tracking-info { font-family: monospace; background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .system-info { font-family: monospace; background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 10px 0; }
       </style>
     </head>
     <body>
@@ -220,12 +220,12 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
             <li>✅ Email delivery is working correctly</li>
             <li>✅ SMTP/Email provider configuration is valid</li>
             <li>✅ PhoenixKit mailer is functioning properly</li>
-            #{if track_enabled, do: "<li>✅ Email tracking system is operational</li>", else: "<li>ℹ️ Email tracking was not enabled for this test</li>"}
+            #{if track_enabled, do: "<li>✅ Email system system is operational</li>", else: "<li>ℹ️ Email system was not enabled for this test</li>"}
           </ul>
 
-          <div class="tracking-box">
+          <div class="system-box">
             <strong>📊 Email Details:</strong>
-            <div class="tracking-info">
+            <div class="system-info">
               Recipient: #{recipient}<br>
               Sent at: #{timestamp}<br>
               Tracking: #{if track_enabled, do: "Enabled", else: "Disabled"}<br>
@@ -261,7 +261,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
     ✅ Email delivery is working correctly
     ✅ SMTP/Email provider configuration is valid
     ✅ PhoenixKit mailer is functioning properly
-    #{if track_enabled, do: "✅ Email tracking system is operational", else: "ℹ️ Email tracking was not enabled for this test"}
+    #{if track_enabled, do: "✅ Email system system is operational", else: "ℹ️ Email system was not enabled for this test"}
 
     EMAIL DETAILS:
     --------------
