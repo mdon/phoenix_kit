@@ -54,6 +54,7 @@
   {"lib/phoenix_kit/email_system/email_interceptor.ex", :pattern_match_cov, 706},
   {"lib/phoenix_kit/email_system/sqs_worker.ex", :pattern_match, 1},
   ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:558:.*pattern_match_cov/,
+  ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:742:.*pattern_match_cov/,
   ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:746:.*pattern_match_cov/,
   ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:778:.*pattern_match_cov/,
 

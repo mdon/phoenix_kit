@@ -197,7 +197,13 @@ defmodule PhoenixKitWeb.Controllers.EmailExportController do
   end
 
   # Helper to add string filter
-  defp add_string_filter(filters, params, param_key, filter_key, transform_fn \\ &Function.identity/1) do
+  defp add_string_filter(
+         filters,
+         params,
+         param_key,
+         filter_key,
+         transform_fn \\ &Function.identity/1
+       ) do
     case params[param_key] do
       value when is_binary(value) and value != "" ->
         Map.put(filters, filter_key, transform_fn.(value))
@@ -223,8 +229,14 @@ defmodule PhoenixKitWeb.Controllers.EmailExportController do
 
   # Generate CSV content for email logs
   defp generate_logs_csv(logs) do
-    # CSV headers
-    headers = [
+    headers = get_logs_csv_headers()
+    rows = Enum.map(logs, &log_to_csv_row/1)
+    format_csv_output(headers, rows)
+  end
+
+  # Get CSV headers for email logs
+  defp get_logs_csv_headers do
+    [
       "ID",
       "Message ID",
       "To",
@@ -241,110 +253,116 @@ defmodule PhoenixKitWeb.Controllers.EmailExportController do
       "Retry Count",
       "Error Message"
     ]
+  end
 
-    # CSV rows
-    rows =
-      Enum.map(logs, fn log ->
-        [
-          log.id,
-          log.message_id || "",
-          log.to || "",
-          log.from || "",
-          escape_csv_field(log.subject || ""),
-          log.status || "",
-          get_message_tag(log.message_tags) || "",
-          log.provider || "",
-          format_datetime_for_csv(log.sent_at),
-          format_datetime_for_csv(log.delivered_at),
-          log.campaign_id || "",
-          log.template_name || "",
-          log.size_bytes || "",
-          log.retry_count || 0,
-          escape_csv_field(log.error_message || "")
-        ]
-      end)
+  # Convert email log to CSV row
+  defp log_to_csv_row(log) do
+    basic_fields = get_log_basic_fields(log)
+    datetime_fields = get_log_datetime_fields(log)
+    metadata_fields = get_log_metadata_fields(log)
 
-    # Generate CSV string
-    [headers | rows]
-    |> Enum.map_join("\n", fn row ->
-      Enum.map_join(row, ",", &to_string/1)
-    end)
+    basic_fields ++ datetime_fields ++ metadata_fields
+  end
+
+  # Get basic log fields
+  defp get_log_basic_fields(log) do
+    [
+      log.id,
+      log.message_id || "",
+      log.to || "",
+      log.from || "",
+      escape_csv_field(log.subject || ""),
+      log.status || "",
+      get_message_tag(log.message_tags) || "",
+      log.provider || ""
+    ]
+  end
+
+  # Get datetime fields
+  defp get_log_datetime_fields(log) do
+    [
+      format_datetime_for_csv(log.sent_at),
+      format_datetime_for_csv(log.delivered_at)
+    ]
+  end
+
+  # Get metadata fields
+  defp get_log_metadata_fields(log) do
+    [
+      log.campaign_id || "",
+      log.template_name || "",
+      log.size_bytes || "",
+      log.retry_count || 0,
+      escape_csv_field(log.error_message || "")
+    ]
   end
 
   # Generate CSV content for metrics
   defp generate_metrics_csv(metrics, group_by) do
-    # Headers depend on grouping
-    headers =
-      case group_by do
-        "campaign" ->
-          [
-            "Campaign",
-            "Total Sent",
-            "Delivered",
-            "Bounced",
-            "Opened",
-            "Clicked",
-            "Delivery Rate",
-            "Open Rate",
-            "Click Rate"
-          ]
+    headers = get_metrics_csv_headers(group_by)
+    rows = Enum.map(metrics, &metric_to_csv_row/1)
+    format_csv_output(headers, rows)
+  end
 
-        "provider" ->
-          [
-            "Provider",
-            "Total Sent",
-            "Delivered",
-            "Bounced",
-            "Opened",
-            "Clicked",
-            "Delivery Rate",
-            "Open Rate",
-            "Click Rate"
-          ]
+  # Get CSV headers for metrics based on grouping
+  defp get_metrics_csv_headers("campaign") do
+    ["Campaign" | get_base_metrics_headers()]
+  end
 
-        _ ->
-          [
-            "Date",
-            "Total Sent",
-            "Delivered",
-            "Bounced",
-            "Opened",
-            "Clicked",
-            "Delivery Rate",
-            "Open Rate",
-            "Click Rate"
-          ]
-      end
+  defp get_metrics_csv_headers("provider") do
+    ["Provider" | get_base_metrics_headers()]
+  end
 
-    # Generate rows based on metrics data
-    rows =
-      Enum.map(metrics, fn metric ->
-        [
-          metric[:label] || metric[:date] || "",
-          metric[:total_sent] || 0,
-          metric[:delivered] || 0,
-          metric[:bounced] || 0,
-          metric[:opened] || 0,
-          metric[:clicked] || 0,
-          "#{metric[:delivery_rate] || 0}%",
-          "#{metric[:open_rate] || 0}%",
-          "#{metric[:click_rate] || 0}%"
-        ]
-      end)
+  defp get_metrics_csv_headers(_) do
+    ["Date" | get_base_metrics_headers()]
+  end
 
-    # Generate CSV string
-    [headers | rows]
-    |> Enum.map_join("\n", fn row ->
-      Enum.map_join(row, ",", &to_string/1)
-    end)
+  # Base metrics headers
+  defp get_base_metrics_headers do
+    [
+      "Total Sent",
+      "Delivered",
+      "Bounced",
+      "Opened",
+      "Clicked",
+      "Delivery Rate",
+      "Open Rate",
+      "Click Rate"
+    ]
+  end
+
+  # Convert metric to CSV row
+  defp metric_to_csv_row(metric) do
+    [
+      metric[:label] || metric[:date] || "",
+      metric[:total_sent] || 0,
+      metric[:delivered] || 0,
+      metric[:bounced] || 0,
+      metric[:opened] || 0,
+      metric[:clicked] || 0,
+      "#{metric[:delivery_rate] || 0}%",
+      "#{metric[:open_rate] || 0}%",
+      "#{metric[:click_rate] || 0}%"
+    ]
   end
 
   # Generate CSV content for email details
   defp generate_email_details_csv(log, events) do
-    # Email details section
-    email_headers = ["Field", "Value"]
+    email_section = build_email_details_section(log)
+    events_section = build_events_section(events)
+    combine_csv_sections(email_section, events_section)
+  end
 
-    email_rows = [
+  # Build email details section
+  defp build_email_details_section(log) do
+    headers = ["Field", "Value"]
+    rows = get_email_detail_rows(log)
+    [headers | rows]
+  end
+
+  # Get email detail rows
+  defp get_email_detail_rows(log) do
+    [
       ["ID", log.id],
       ["Message ID", log.message_id || ""],
       ["To", log.to || ""],
@@ -359,27 +377,37 @@ defmodule PhoenixKitWeb.Controllers.EmailExportController do
       ["Size (bytes)", log.size_bytes || ""],
       ["Retry Count", log.retry_count || 0]
     ]
+  end
 
-    # Events section
-    events_headers = ["Event Type", "Occurred At", "Details"]
+  # Build events section
+  defp build_events_section([]), do: []
 
-    events_rows =
-      Enum.map(events, fn event ->
-        [
-          event.event_type || "",
-          format_datetime_for_csv(event.occurred_at),
-          escape_csv_field(event.event_data || "")
-        ]
-      end)
+  defp build_events_section(events) do
+    headers = ["Event Type", "Occurred At", "Details"]
+    rows = Enum.map(events, &event_to_csv_row/1)
+    [[], ["EVENTS"], headers | rows]
+  end
 
-    # Combine sections
-    email_section = [email_headers | email_rows]
+  # Convert event to CSV row
+  defp event_to_csv_row(event) do
+    [
+      event.event_type || "",
+      format_datetime_for_csv(event.occurred_at),
+      escape_csv_field(event.event_data || "")
+    ]
+  end
 
-    events_section =
-      if length(events_rows) > 0, do: [[], ["EVENTS"], events_headers | events_rows], else: []
-
-    # Generate CSV string
+  # Combine CSV sections
+  defp combine_csv_sections(email_section, events_section) do
     (email_section ++ events_section)
+    |> Enum.map_join("\n", fn row ->
+      Enum.map_join(row, ",", &to_string/1)
+    end)
+  end
+
+  # Format CSV output from headers and rows
+  defp format_csv_output(headers, rows) do
+    [headers | rows]
     |> Enum.map_join("\n", fn row ->
       Enum.map_join(row, ",", &to_string/1)
     end)

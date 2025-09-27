@@ -528,7 +528,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     config_set != ""
   end
 
-
   # Build message tags for categorization
   defp build_message_tags(%Email{} = email, opts) do
     base_tags = Keyword.get(opts, :message_tags, %{})
@@ -709,7 +708,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
       true -> "unknown_format"
     end
   end
-
 
   # Extract error message from various error formats
   defp extract_error_message({:error, reason}) when is_binary(reason), do: reason
