@@ -3,7 +3,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   Email logging system for PhoenixKit - comprehensive logging in a single module.
 
   This module provides both the Ecto schema definition and business logic for
-  managing email logs. It includes email creation tracking, status updates,
+  managing emails. It includes email creation tracking, status updates,
   event relationships, and analytics functions.
 
   ## Schema Fields
@@ -32,7 +32,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   ## Core Functions
 
   ### Email Log Management
-  - `list_logs/1` - Get email logs with optional filters
+  - `list_logs/1` - Get emails with optional filters
   - `get_log!/1` - Get an email log by ID (raises if not found)
   - `get_log_by_message_id/1` - Get log by message ID from provider
   - `create_log/1` - Create a new email log
@@ -217,7 +217,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   ## --- Business Logic Functions ---
 
   @doc """
-  Returns a list of email logs with optional filters.
+  Returns a list of emails with optional filters.
 
   ## Filters
 
@@ -246,7 +246,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   end
 
   @doc """
-  Counts email logs with optional filtering (without loading all records).
+  Counts emails with optional filtering (without loading all records).
 
   ## Parameters
 
@@ -632,6 +632,46 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   end
 
   @doc """
+  Gets daily delivery trend data for charts.
+
+  Returns daily statistics optimized for chart visualization including
+  delivery trends and bounce patterns over the specified period.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.EmailLog.get_daily_delivery_trends(:last_7_days)
+      %{
+        labels: ["2024-09-01", "2024-09-02", ...],
+        delivered: [120, 190, 300, ...],
+        bounced: [5, 10, 15, ...]
+      }
+  """
+  def get_daily_delivery_trends(period \\ :last_7_days) do
+    {start_date, end_date} = get_period_dates(period)
+
+    daily_stats = get_daily_engagement_stats(start_date, end_date)
+
+    %{
+      labels:
+        Enum.map(daily_stats, fn stat ->
+          Date.to_iso8601(stat.date)
+        end),
+      delivered:
+        Enum.map(daily_stats, fn stat ->
+          stat.delivered
+        end),
+      bounced:
+        Enum.map(daily_stats, fn stat ->
+          stat.total_sent - stat.delivered
+        end),
+      total_sent:
+        Enum.map(daily_stats, fn stat ->
+          stat.total_sent
+        end)
+    }
+  end
+
+  @doc """
   Gets provider-specific performance metrics.
 
   ## Examples
@@ -671,7 +711,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   ## --- System Maintenance Functions ---
 
   @doc """
-  Removes email logs older than specified number of days.
+  Removes emails older than specified number of days.
 
   ## Examples
 

@@ -311,7 +311,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Export do
     count = length(logs)
     format = options[:format] || "csv"
 
-    Mix.shell().error("✅ Exported #{count} email logs to #{format} format")
+    Mix.shell().error("✅ Exported #{count} emails to #{format} format")
 
     if options[:output] do
       Mix.shell().error("📄 Output saved to: #{options[:output]}")

@@ -80,13 +80,10 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     if PhoenixKit.EmailSystem.enabled?() and should_log_email?(email, opts) do
       case create_email_log(email, opts) do
         {:ok, log} ->
-          Logger.debug("Email tracked with ID: #{log.id}, Message ID: #{log.message_id}")
-
           # Add tracking headers to email
           add_tracking_headers(email, log, opts)
 
         {:error, :skipped} ->
-          Logger.debug("Email logging skipped due to sampling")
           email
 
         {:error, reason} ->
@@ -202,11 +199,9 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     headers =
       case get_configuration_set(opts) do
         nil ->
-          Logger.debug("No configuration set available for SES headers")
           headers
 
         config_set ->
-          Logger.debug("Adding X-SES-CONFIGURATION-SET header: #{config_set}")
           Map.put(headers, "X-SES-CONFIGURATION-SET", config_set)
       end
 
@@ -214,7 +209,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     headers =
       case build_message_tags(log, opts) do
         tags when map_size(tags) > 0 ->
-          Logger.debug("Adding SES message tags: #{inspect(tags)}")
           # Convert tags to SES format
           tag_headers =
             Enum.with_index(tags, 1)
@@ -225,11 +219,9 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
           tag_headers
 
         _ ->
-          Logger.debug("No message tags to add")
           headers
       end
 
-    Logger.debug("Final SES headers: #{inspect(headers)}")
     headers
   end
 
@@ -270,10 +262,11 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
           # Store the AWS message_id in the dedicated aws_message_id field
           # Keep internal pk_ message_id in the message_id field for compatibility
-          updated_headers =
-            Map.merge(log.headers || %{}, %{
-              "X-Internal-Message-Id" => log.message_id,
-              "X-AWS-Message-Id" => aws_message_id
+          # Store internal IDs in message_tags for debugging (not in headers)
+          updated_message_tags =
+            Map.merge(log.message_tags || %{}, %{
+              "internal_message_id" => log.message_id,
+              "aws_message_id" => aws_message_id
             })
 
           provider_data
@@ -282,14 +275,9 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
           |> Map.merge(update_attrs)
           # Store in dedicated field
           |> Map.put(:aws_message_id, aws_message_id)
-          |> Map.put(:headers, updated_headers)
+          |> Map.put(:message_tags, updated_message_tags)
 
         %{} = provider_data when map_size(provider_data) > 0 ->
-          Logger.debug("EmailInterceptor: Got provider data without message_id", %{
-            log_id: log.id,
-            provider_data: provider_data
-          })
-
           Map.merge(update_attrs, provider_data)
 
         _ ->
@@ -498,31 +486,18 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     config_set =
       Keyword.get(opts, :configuration_set) || PhoenixKit.EmailSystem.get_ses_configuration_set()
 
-    Logger.debug(
-      "Configuration set from options: #{inspect(Keyword.get(opts, :configuration_set))}"
-    )
-
-    Logger.debug(
-      "Configuration set from settings: #{inspect(PhoenixKit.EmailSystem.get_ses_configuration_set())}"
-    )
-
-    Logger.debug("Final config_set value: #{inspect(config_set)}")
-
     # Only return config set if it's properly configured and not empty
     result =
       case config_set do
         nil ->
-          Logger.debug("Configuration set is nil, skipping tracking")
           nil
 
         "" ->
-          Logger.debug("Configuration set is empty string, skipping tracking")
           nil
 
         "phoenixkit-tracking" ->
           # Default hardcoded value - only use if explicitly confirmed to exist
           if validate_ses_configuration_set("phoenixkit-tracking") do
-            Logger.debug("Using phoenixkit-tracking configuration set")
             "phoenixkit-tracking"
           else
             Logger.warning("phoenixkit-tracking configuration set validation failed")
@@ -532,7 +507,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
         other when is_binary(other) ->
           # Custom config set - validate before using
           if validate_ses_configuration_set(other) do
-            Logger.debug("Using custom configuration set: #{other}")
             other
           else
             Logger.warning("Custom configuration set validation failed: #{other}")
@@ -544,7 +518,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
           nil
       end
 
-    Logger.debug("Final configuration set result: #{inspect(result)}")
     result
   end
 
@@ -555,7 +528,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     config_set != ""
   end
 
-  defp validate_ses_configuration_set(_), do: false
 
   # Build message tags for categorization
   defp build_message_tags(%Email{} = email, opts) do
@@ -653,11 +625,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
   defp extract_provider_data(%{} = response) do
     require Logger
 
-    Logger.debug("EmailInterceptor: Extracting provider data from response", %{
-      response_keys: Map.keys(response),
-      response_preview: inspect(response) |> String.slice(0, 500)
-    })
-
     # Extract message ID from various response formats
     extracted_data = extract_message_id_from_response(response)
 
@@ -743,7 +710,6 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
     end
   end
 
-  defp detect_response_format(_), do: "non_map_response"
 
   # Extract error message from various error formats
   defp extract_error_message({:error, reason}) when is_binary(reason), do: reason

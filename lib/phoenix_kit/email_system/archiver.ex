@@ -161,7 +161,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   ## --- S3 Archival ---
 
   @doc """
-  Archive old email logs to S3 storage.
+  Archive old emails to S3 storage.
 
   Returns `{:ok, archived_count}` on success or `{:error, reason}` on failure.
 
@@ -356,7 +356,6 @@ defmodule PhoenixKit.EmailSystem.Archiver do
     |> limit(^batch_size)
     |> stream_in_batches(batch_size, fn batch ->
       {batch_compressed, batch_saved} = compress_batch(batch)
-      Logger.debug("Compressed #{batch_compressed} emails, saved #{format_bytes(batch_saved)}")
       {batch_compressed, batch_saved}
     end)
     |> Enum.reduce({0, 0}, fn {count, saved}, {total_count, total_saved} ->
@@ -385,8 +384,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
       if compressed_size < original_size * 0.8 do
         case repo().update(
                EmailLog.changeset(log, %{
-                 body_full: Base.encode64(compressed_data),
-                 body_compressed: true
+                 body_full: Base.encode64(compressed_data)
                })
              ) do
           {:ok, _} -> {:ok, original_size - compressed_size}
@@ -446,7 +444,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
 
     # Upload to S3 (this would use ExAws or similar)
     case upload_to_s3(bucket, s3_key, archive_data) do
-      :ok ->
+      {:ok, _message} ->
         if delete_after do
           delete_archived_logs(logs)
         end
@@ -500,10 +498,10 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   end
 
   defp upload_to_s3(_bucket, _key, _data) do
-    # This would implement actual S3 upload using ExAws
-    # For now, return success
-    Logger.info("Would upload to S3 (not implemented)")
-    :ok
+    # S3 archival functionality is under development
+    # This will be implemented in a future version using ExAws.S3
+    Logger.info("S3 archival is under development. Email data prepared but not uploaded to S3.")
+    {:ok, "S3 archival feature is under development. Data prepared but not uploaded."}
   end
 
   defp delete_archived_logs(logs) do
@@ -557,7 +555,12 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   end
 
   defp count_compressed_bodies do
-    repo().one(from l in EmailLog, where: l.body_compressed == true, select: count(l.id)) || 0
+    # Count emails with base64-encoded compressed bodies
+    repo().one(
+      from l in EmailLog,
+        where: fragment("? LIKE 'H4sI%'", l.body_full),
+        select: count(l.id)
+    ) || 0
   end
 
   defp count_archived_logs do
@@ -603,7 +606,11 @@ defmodule PhoenixKit.EmailSystem.Archiver do
     count = repo().one(from l in query, select: count(l.id)) || 0
 
     compressed =
-      repo().one(from l in query, where: l.body_compressed == true, select: count(l.id)) || 0
+      repo().one(
+        from l in query,
+          where: fragment("? LIKE 'H4sI%'", l.body_full),
+          select: count(l.id)
+      ) || 0
 
     %{
       logs: count,

@@ -1,16 +1,16 @@
 defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   @moduledoc """
-  LiveView for displaying and managing email logs in PhoenixKit admin panel.
+  LiveView for displaying and managing emails in PhoenixKit admin panel.
 
   Provides comprehensive email interface with filtering, searching,
   and detailed analytics for sent emails.
 
   ## Features
 
-  - **Real-time Log List**: Live updates of email logs
+  - **Real-time Log List**: Live updates of emails
   - **Advanced Filtering**: By status, date range, recipient, campaign, template
   - **Search Functionality**: Search across recipients, subjects, campaigns
-  - **Pagination**: Handle large volumes of email logs
+  - **Pagination**: Handle large volumes of emails
   - **Export**: CSV export functionality
   - **Quick Actions**: Resend, view details, mark as reviewed
   - **Statistics Summary**: Key metrics at the top of the page
@@ -55,7 +55,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
 
       socket =
         socket
-        |> assign(:page_title, "Email Logs")
+        |> assign(:page_title, "Emails")
         |> assign(:project_title, project_title)
         |> assign(:logs, [])
         |> assign(:total_count, 0)
@@ -124,16 +124,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     {:noreply,
      socket
      |> push_patch(to: Routes.path("/admin/emails"))}
-  end
-
-  @impl true
-  def handle_event("export_csv", _params, socket) do
-    # Generate CSV export in background
-    send(self(), {:export_csv, socket.assigns.filters})
-
-    {:noreply,
-     socket
-     |> put_flash(:info, "CSV export is being generated. Download will start shortly.")}
   end
 
   @impl true
@@ -207,25 +197,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   ## --- Info Handlers ---
 
   @impl true
-  def handle_info({:export_csv, filters}, socket) do
-    csv_data = generate_csv_export(filters)
-    filename = "email_logs_#{Date.utc_today()}.csv"
-
-    {:noreply,
-     socket
-     |> push_event("download", %{
-       filename: filename,
-       content: csv_data,
-       mime_type: "text/csv"
-     })}
-  rescue
-    error ->
-      {:noreply,
-       socket
-       |> put_flash(:error, "Failed to generate CSV export: #{Exception.message(error)}")}
-  end
-
-  @impl true
   def handle_info({:send_test_email, recipient}, socket) do
     case PhoenixKit.Mailer.send_test_tracking_email(recipient) do
       {:ok, _email} ->
@@ -235,7 +206,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
          |> assign(:show_test_email_modal, false)
          |> put_flash(
            :info,
-           "Test email sent successfully to #{recipient}! Check your email logs to see the management data."
+           "Test email sent successfully to #{recipient}! Check your emails to see the management data."
          )
          |> load_email_logs()
          |> load_stats()}
@@ -262,7 +233,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="Email Logs"
+      page_title="Emails"
       current_path={@url_path}
       project_title={@project_title}
     >
@@ -279,7 +250,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
 
           <%!-- Title Section --%>
           <div class="text-center">
-            <h1 class="text-4xl font-bold text-base-content mb-3">Email Logs</h1>
+            <h1 class="text-4xl font-bold text-base-content mb-3">Emails</h1>
             <p class="text-lg text-base-content">Monitor and track all outgoing emails</p>
           </div>
         </header>
@@ -290,9 +261,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
             <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Send Test Email
           </.button>
 
-          <.button phx-click="export_csv" class="btn btn-outline btn-sm">
+          <.link
+            href={build_export_url(@filters)}
+            target="_blank"
+            class="btn btn-outline btn-sm"
+          >
             <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
-          </.button>
+          </.link>
 
           <.button phx-click="refresh" class="btn btn-outline btn-sm">
             <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
@@ -428,13 +403,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
           </div>
         </div>
 
-        <%!-- Email Logs Table --%>
+        <%!-- Emails Table --%>
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body p-0">
             <%= if @loading do %>
               <div class="flex justify-center items-center h-32">
                 <span class="loading loading-spinner loading-md"></span>
-                <span class="ml-2">Loading email logs...</span>
+                <span class="ml-2">Loading emails...</span>
               </div>
             <% else %>
               <div class="w-full">
@@ -531,7 +506,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
                     <%= if length(@logs) == 0 and not @loading do %>
                       <tr>
                         <td colspan="5" class="text-center py-8 text-base-content/60">
-                          No email logs found matching your criteria
+                          No emails found matching your criteria
                         </td>
                       </tr>
                     <% end %>
@@ -625,7 +600,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
                     <li>Verify AWS SES configuration (if enabled)</li>
                     <li>Test email delivery management</li>
                     <li>Include trackable links for click testing</li>
-                    <li>Appear in your email logs with "TEST" campaign</li>
+                    <li>Appear in your emails with "TEST" campaign</li>
                   </ul>
                 </div>
               </div>
@@ -705,7 +680,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     |> assign(:per_page, per_page)
   end
 
-  # Load email logs based on current filters and pagination
+  # Load emails based on current filters and pagination
   defp load_email_logs(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
@@ -796,53 +771,22 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     |> URI.encode_query()
   end
 
-  # Generate CSV export data
-  defp generate_csv_export(filters) do
-    # Load all matching logs (without pagination)
-    query_filters = build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset])
+  # Build export URL with current filters
+  defp build_export_url(filters) do
+    # Convert filters to query parameters
+    params =
+      filters
+      |> Enum.reject(fn {_key, value} -> value == "" or is_nil(value) end)
+      |> Enum.into(%{})
+      |> URI.encode_query()
 
-    logs = EmailSystem.list_logs(query_filters)
+    base_url = Routes.path("/admin/emails/export")
 
-    # CSV headers
-    headers = [
-      "ID",
-      "Message ID",
-      "To",
-      "From",
-      "Subject",
-      "Status",
-      "Message Type",
-      "Provider",
-      "Sent At",
-      "Delivered At",
-      "Campaign",
-      "Template",
-      "Error Message"
-    ]
-
-    # CSV rows
-    rows =
-      Enum.map(logs, fn log ->
-        [
-          log.id,
-          log.message_id,
-          log.to,
-          log.from,
-          log.subject || "",
-          log.status,
-          get_message_tag(log.message_tags) || "",
-          log.provider,
-          log.sent_at |> DateTime.to_iso8601(),
-          log.delivered_at |> format_datetime_for_csv(),
-          log.campaign_id || "",
-          log.template_name || "",
-          log.error_message || ""
-        ]
-      end)
-
-    # Generate CSV string
-    [headers | rows]
-    |> Enum.map_join("\n", &Enum.join(&1, ","))
+    if params != "" do
+      "#{base_url}?#{params}"
+    else
+      base_url
+    end
   end
 
   # Helper functions for template
@@ -877,9 +821,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     params = build_url_params(assigns, %{"page" => page})
     Routes.path("/admin/emails?#{params}")
   end
-
-  defp format_datetime_for_csv(nil), do: ""
-  defp format_datetime_for_csv(datetime), do: DateTime.to_iso8601(datetime)
 
   # Extract email_type from message_tags
   defp get_message_tag(message_tags) when is_map(message_tags) do

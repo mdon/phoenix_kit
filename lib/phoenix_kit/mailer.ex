@@ -375,7 +375,7 @@ defmodule PhoenixKit.Mailer do
             <a href="#{test_link_url}?test=link3" class="button">Test Link 3</a>
           </div>
 
-          <p>Click any of the buttons above to test link tracking. Then check your email logs in the admin panel to see the tracking data.</p>
+          <p>Click any of the buttons above to test link tracking. Then check your emails in the admin panel to see the tracking data.</p>
 
         </div>
 
@@ -423,7 +423,7 @@ defmodule PhoenixKit.Mailer do
     Test Link 2: #{test_link_url}?test=link2
     Test Link 3: #{test_link_url}?test=link3
 
-    Click any of the links above to test link tracking. Then check your email logs in the admin panel to see the tracking data.
+    Click any of the links above to test link tracking. Then check your emails in the admin panel to see the tracking data.
 
     ---
     This is an automated test email from PhoenixKit Email Tracking System.

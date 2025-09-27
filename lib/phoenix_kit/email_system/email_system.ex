@@ -23,7 +23,7 @@ defmodule PhoenixKit.EmailSystem do
   - `email_save_body` - Save full email body (vs preview only)
   - `email_ses_events` - Manage AWS SES delivery events
   - `email_cloudwatch_metrics` - Enable CloudWatch metrics
-  - `email_retention_days` - Days to keep email logs (default: 90)
+  - `email_retention_days` - Days to keep emails (default: 90)
   - `aws_ses_configuration_set` - AWS SES configuration set name
   - `email_compress_body` - Compress body after N days
   - `email_archive_to_s3` - Enable S3 archival
@@ -38,7 +38,7 @@ defmodule PhoenixKit.EmailSystem do
   - `get_config/0` - Get current system configuration
 
   ### Email Log Management
-  - `list_logs/1` - Get email logs with filters
+  - `list_logs/1` - Get emails with filters
   - `get_log!/1` - Get email log by ID
   - `create_log/1` - Create new email log
   - `update_log_status/2` - Update log status
@@ -92,6 +92,8 @@ defmodule PhoenixKit.EmailSystem do
 
   alias PhoenixKit.EmailSystem.{EmailEvent, EmailLog, SQSProcessor}
   alias PhoenixKit.Settings
+
+  import Ecto.Query, only: [where: 3, group_by: 3, select: 3]
 
   ## --- Manual Synchronization Functions ---
 
@@ -828,7 +830,7 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
-  Gets the configured retention period for email logs in days.
+  Gets the configured retention period for emails in days.
 
   ## Examples
 
@@ -840,7 +842,7 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
-  Sets the retention period for email logs.
+  Sets the retention period for emails.
 
   ## Examples
 
@@ -1249,7 +1251,7 @@ defmodule PhoenixKit.EmailSystem do
   ## --- Email Log Management ---
 
   @doc """
-  Lists email logs with optional filters.
+  Lists emails with optional filters.
 
   ## Options
 
@@ -1277,7 +1279,7 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
-  Counts email logs with optional filtering (without loading all records).
+  Counts emails with optional filtering (without loading all records).
 
   ## Parameters
 
@@ -1512,6 +1514,26 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
+  Gets daily delivery trend data for chart visualization.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.get_daily_delivery_trends(:last_7_days)
+      %{
+        labels: ["2024-09-01", "2024-09-02", ...],
+        delivered: [120, 190, 300, ...],
+        bounced: [5, 10, 15, ...]
+      }
+  """
+  def get_daily_delivery_trends(period \\ :last_7_days) do
+    if enabled?() do
+      EmailLog.get_daily_delivery_trends(period)
+    else
+      %{labels: [], delivered: [], bounced: [], total_sent: []}
+    end
+  end
+
+  @doc """
   Gets statistics for a specific campaign.
 
   ## Examples
@@ -1527,6 +1549,45 @@ defmodule PhoenixKit.EmailSystem do
   def get_campaign_stats(campaign_id) when is_binary(campaign_id) do
     if enabled?() do
       EmailLog.get_campaign_stats(campaign_id)
+    else
+      %{}
+    end
+  end
+
+  @doc """
+  Gets template-specific performance metrics.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.get_template_stats(:last_30_days)
+      %{
+        "welcome_email" => %{sent: 100, delivered: 95, opened: 45, clicked: 12},
+        "password_reset" => %{sent: 50, delivered: 48, opened: 30, clicked: 8}
+      }
+  """
+  def get_template_stats(period \\ :last_30_days) do
+    if enabled?() do
+      {start_date, end_date} = get_period_dates(period)
+
+      # Get basic stats grouped by template
+      basic_stats =
+        EmailLog
+        |> where([l], l.sent_at >= ^start_date and l.sent_at <= ^end_date)
+        |> where([l], not is_nil(l.template_name))
+        |> group_by([l], l.template_name)
+        |> select([l], {
+          l.template_name,
+          %{
+            sent: count(l.id),
+            delivered: sum(fragment("CASE WHEN ? = ? THEN 1 ELSE 0 END", l.status, "delivered")),
+            opened: sum(fragment("CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END", l.opened_at)),
+            clicked: sum(fragment("CASE WHEN ? IS NOT NULL THEN 1 ELSE 0 END", l.clicked_at))
+          }
+        })
+        |> repo().all()
+        |> Map.new()
+
+      basic_stats
     else
       %{}
     end
@@ -1588,7 +1649,7 @@ defmodule PhoenixKit.EmailSystem do
   ## --- Maintenance Functions ---
 
   @doc """
-  Removes email logs older than the specified number of days.
+  Removes emails older than the specified number of days.
 
   Uses the system retention setting if no days specified.
 
@@ -1610,7 +1671,7 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
-  Compresses body_full field for old email logs to save storage.
+  Compresses body_full field for old emails to save storage.
 
   ## Examples
 
@@ -1630,7 +1691,7 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
-  Archives old email logs to S3 if archival is enabled.
+  Archives old emais to S3 if archival is enabled.
 
   ## Examples
 
@@ -1673,6 +1734,11 @@ defmodule PhoenixKit.EmailSystem do
       # Use deterministic sampling based on message_id or random
       :rand.uniform(100) <= sampling_rate
     end
+  end
+
+  # Gets the configured repository for database operations
+  defp repo do
+    PhoenixKit.RepoHelper.repo()
   end
 
   # Extract message ID from webhook data

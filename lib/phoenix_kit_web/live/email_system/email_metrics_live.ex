@@ -228,22 +228,29 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
     end
   end
 
-  defp prepare_charts_data(metrics, _period) do
+  defp prepare_charts_data(metrics, period) do
+    # Get daily delivery trends for the chart
+    daily_trends = EmailSystem.get_daily_delivery_trends(period)
+
     %{
       delivery_trend: %{
-        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        labels: daily_trends.labels,
         datasets: [
           %{
             label: "Delivered",
-            data: [120, 190, 300, 500, 200, 300, 450],
+            data: daily_trends.delivered,
             borderColor: "rgb(34, 197, 94)",
-            backgroundColor: "rgba(34, 197, 94, 0.1)"
+            backgroundColor: "rgba(34, 197, 94, 0.1)",
+            tension: 0.1,
+            fill: true
           },
           %{
             label: "Bounced",
-            data: [5, 10, 15, 25, 10, 15, 23],
+            data: daily_trends.bounced,
             borderColor: "rgb(239, 68, 68)",
-            backgroundColor: "rgba(239, 68, 68, 0.1)"
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            tension: 0.1,
+            fill: true
           }
         ]
       },

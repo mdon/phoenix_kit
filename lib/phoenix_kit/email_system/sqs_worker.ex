@@ -348,7 +348,6 @@ defmodule PhoenixKit.EmailSystem.SQSWorker do
 
   # Performs one SQS polling cycle
   defp perform_polling_cycle(state) do
-    Logger.debug("SQS Worker: Starting polling cycle")
     _start_time = System.monotonic_time(:millisecond)
 
     case receive_messages(state) do
@@ -367,7 +366,6 @@ defmodule PhoenixKit.EmailSystem.SQSWorker do
         }
 
       {:ok, []} ->
-        Logger.debug("SQS Worker: No messages in queue")
         %{state | last_poll: DateTime.utc_now()}
 
       {:error, reason} ->
@@ -397,40 +395,25 @@ defmodule PhoenixKit.EmailSystem.SQSWorker do
             attribute_names: [:all]
           )
 
-        Logger.debug("SQS Worker: Making request to SQS", %{
-          queue_url: queue_url,
-          request_preview: inspect(request) |> String.slice(0, 200)
-        })
-
         case ExAws.request(request, state.aws_config) do
           # Handle all possible response formats from ExAws
           {:ok, %{"Messages" => messages}} when is_list(messages) ->
-            Logger.debug("SQS Worker: Received messages (format 1)", %{count: length(messages)})
             {:ok, messages}
 
           {:ok, %{"messages" => messages}} when is_list(messages) ->
-            Logger.debug("SQS Worker: Received messages (format 2)", %{count: length(messages)})
             {:ok, messages}
 
           {:ok, %{body: %{messages: messages}}} when is_list(messages) ->
-            Logger.debug("SQS Worker: Received messages (format 3)", %{count: length(messages)})
             {:ok, messages}
 
           {:ok, %{body: %{"Messages" => messages}}} when is_list(messages) ->
-            Logger.debug("SQS Worker: Received messages (format 4)", %{count: length(messages)})
             {:ok, messages}
 
           {:ok, %{body: %{"messages" => messages}}} when is_list(messages) ->
-            Logger.debug("SQS Worker: Received messages (format 5)", %{count: length(messages)})
             {:ok, messages}
 
-          {:ok, response} ->
+          {:ok, _response} ->
             # No messages (any other successful response)
-            Logger.debug("SQS Worker: No messages in response", %{
-              response_keys: Map.keys(response),
-              response_preview: inspect(response) |> String.slice(0, 300)
-            })
-
             {:ok, []}
 
           {:error, error} ->
@@ -470,12 +453,9 @@ defmodule PhoenixKit.EmailSystem.SQSWorker do
     message_id = message["MessageId"]
     receipt_handle = message["ReceiptHandle"]
 
-    Logger.debug("Processing SQS message", %{message_id: message_id})
-
     with {:ok, event_data} <- SQSProcessor.parse_sns_message(message),
          {:ok, _result} <- SQSProcessor.process_email_event(event_data),
          :ok <- delete_message(queue_url, receipt_handle, aws_config) do
-      Logger.debug("Successfully processed SQS message", %{message_id: message_id})
       true
     else
       {:error, reason} ->
@@ -693,7 +673,6 @@ defmodule PhoenixKit.EmailSystem.SQSWorker do
 
             case SQSProcessor.process_email_event(event_data) do
               {:ok, _result} ->
-                Logger.debug("Successfully processed #{event_type} for #{message_id}")
                 {:ok, message["ReceiptHandle"]}
 
               {:error, reason} ->

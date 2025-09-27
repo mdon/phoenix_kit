@@ -107,6 +107,16 @@ defmodule PhoenixKitWeb.Integration do
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
+      # Email export routes (require admin authentication)
+      scope unquote(url_prefix), PhoenixKitWeb do
+        pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_require_authenticated]
+
+        get "/admin/emails/export", Controllers.EmailExportController, :export_logs
+        get "/admin/emails/metrics/export", Controllers.EmailExportController, :export_metrics
+        get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
+        get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
+      end
+
       # LiveView routes with proper authentication
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]

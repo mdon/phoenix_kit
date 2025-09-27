@@ -407,13 +407,11 @@ defmodule Mix.Tasks.PhoenixKit.Email.DebugSqs do
 
     cond do
       not_found_count == 0 and total_parsed > 0 ->
-        Mix.shell().info(
-          "   ✅ All messages have matching email logs. System is working correctly."
-        )
+        Mix.shell().info("   ✅ All messages have matching emails. System is working correctly.")
 
       not_found_count > 0 and total_parsed > 0 ->
         percentage = Float.round(not_found_count / total_parsed * 100, 1)
-        Mix.shell().info("   ⚠️  #{percentage}% of events cannot find matching email logs.")
+        Mix.shell().info("   ⚠️  #{percentage}% of events cannot find matching emails.")
         Mix.shell().info("   🔧 Check if message_id is being updated after email send.")
 
         Mix.shell().info(

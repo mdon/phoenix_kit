@@ -1112,7 +1112,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
 
   # Logs recent emails for search problem diagnostics
   defp log_recent_emails_for_diagnosis(missing_message_id) do
-    # Get last 5 email logs for diagnostics
+    # Get last 5 emails for diagnostics
     recent_logs =
       from(l in PhoenixKit.EmailSystem.EmailLog,
         order_by: [desc: l.inserted_at],
@@ -1121,7 +1121,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       )
       |> PhoenixKit.RepoHelper.repo().all()
 
-    Logger.debug("SQSProcessor: Recent email logs for diagnosis", %{
+    Logger.debug("SQSProcessor: Recent emails for diagnosis", %{
       missing_message_id: missing_message_id,
       recent_logs:
         Enum.map(recent_logs, fn {id, msg_id, inserted_at} ->

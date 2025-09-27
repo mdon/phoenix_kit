@@ -148,27 +148,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
   end
 
   @impl true
-  def handle_event("export_details", _params, socket) do
-    # Export email details as JSON
-    email_data = %{
-      email_log: socket.assigns.email_log,
-      events: socket.assigns.events,
-      exported_at: DateTime.utc_now()
-    }
-
-    filename = "email_#{socket.assigns.email_id}_details.json"
-    json_content = Jason.encode!(email_data, pretty: true)
-
-    {:noreply,
-     socket
-     |> push_event("download", %{
-       filename: filename,
-       content: json_content,
-       mime_type: "application/json"
-     })}
-  end
-
-  @impl true
   def handle_event("view_related", %{"campaign_id" => campaign_id}, socket) do
     {:noreply,
      socket
@@ -202,7 +181,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
             navigate={Routes.path("/admin/emails")}
             class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
           >
-            <.icon_arrow_left /> Back to Email Logs
+            <.icon_arrow_left /> Back to Emails
           </.link>
 
           <%!-- Title Section --%>
@@ -246,9 +225,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
                 </div>
 
                 <div class="flex gap-2 mt-4 lg:mt-0">
-                  <button phx-click="export_details" class="btn btn-outline btn-sm">
-                    <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export
-                  </button>
+                  <.link
+                    href={Routes.path("/admin/emails/#{@email_id}/export")}
+                    target="_blank"
+                    class="btn btn-outline btn-sm"
+                  >
+                    <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
+                  </.link>
 
                   <button
                     phx-click="sync_status"
@@ -659,7 +642,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
                   The email with ID {@email_id} could not be found.
                 </p>
                 <.link navigate={Routes.path("/admin/emails")} class="btn btn-primary">
-                  Back to Email Logs
+                  Back to Emails
                 </.link>
               </div>
             <% end %>

@@ -206,10 +206,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.Stats do
     end
   end
 
-  defp get_template_stats(_period) do
-    # This would be implemented in the EmailSystem module
-    # For now, return empty list
-    []
+  defp get_template_stats(period) do
+    PhoenixKit.EmailSystem.get_template_stats(period)
   end
 
   defp format_number(number) when is_integer(number) do

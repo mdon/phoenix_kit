@@ -121,7 +121,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
   end
 
   defp run_cleanup(days_old, options) do
-    Mix.shell().info("🗑️  Cleaning up email logs older than #{days_old} days...")
+    Mix.shell().info("🗑️  Cleaning up emails older than #{days_old} days...")
 
     if options[:archive] do
       Mix.shell().info("📦 Archiving to S3 before deletion...")
@@ -140,7 +140,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
 
     if options[:dry_run] do
       count = count_deletable_logs(days_old)
-      Mix.shell().info("Would delete #{count} email logs and their events")
+      Mix.shell().info("Would delete #{count} emails and their events")
     else
       if not options[:force] do
         confirm_deletion_or_exit(days_old)
@@ -149,10 +149,10 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
       {deleted_count, _} = EmailSystem.cleanup_old_logs(days_old)
 
       if deleted_count > 0 do
-        Mix.shell().info("✅ Deleted #{deleted_count} old email logs")
+        Mix.shell().info("✅ Deleted #{deleted_count} old emails")
         Mix.shell().info("💾 Storage space has been freed up")
       else
-        Mix.shell().info("ℹ️  No old email logs found to delete")
+        Mix.shell().info("ℹ️  No old emails found to delete")
       end
     end
   end
@@ -178,7 +178,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
 
     if count > 0 do
       message =
-        "This will permanently delete #{count} email logs older than #{days_old} days. Continue?"
+        "This will permanently delete #{count} emails older than #{days_old} days. Continue?"
 
       unless Mix.shell().yes?(message) do
         Mix.shell().info("Cleanup cancelled")
