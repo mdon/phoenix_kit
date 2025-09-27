@@ -8,10 +8,18 @@ defmodule PhoenixKit.Settings.Setting do
   ## Fields
 
   - `key`: Setting identifier (unique, required)
-  - `value`: Setting value (string format)
+  - `value`: Setting value (string format, for simple settings)
+  - `value_json`: Setting value (JSONB format, for complex data structures)
   - `module`: Module/feature identifier for organization (optional)
   - `date_added`: When the setting was first created
   - `date_updated`: When the setting was last modified
+
+  ## Value Storage Strategy
+
+  Settings can use either `value` (string) OR `value_json` (JSONB), but not both:
+  - Use `value` for simple string settings (themes, toggles, simple config)
+  - Use `value_json` for complex data (objects, arrays, nested structures)
+  - When both are present, `value_json` takes precedence
 
   ## Default Settings
 
@@ -23,9 +31,14 @@ defmodule PhoenixKit.Settings.Setting do
 
   ## Usage Examples
 
-      # Create a new setting
+      # Create a simple string setting
       %Setting{}
       |> Setting.changeset(%{key: "theme", value: "dark"})
+      |> Repo.insert()
+
+      # Create a complex JSON setting
+      %Setting{}
+      |> Setting.changeset(%{key: "app_config", value_json: %{"theme" => "dark", "features" => ["auth", "admin"]}})
       |> Repo.insert()
 
       # Update existing setting
@@ -44,6 +57,7 @@ defmodule PhoenixKit.Settings.Setting do
   schema "phoenix_kit_settings" do
     field :key, :string
     field :value, :string
+    field :value_json, :map
     field :module, :string
     field :date_added, :utc_datetime_usec
     field :date_updated, :utc_datetime_usec
@@ -57,10 +71,11 @@ defmodule PhoenixKit.Settings.Setting do
   """
   def changeset(setting, attrs) do
     setting
-    |> cast(attrs, [:key, :value, :module, :date_added, :date_updated])
+    |> cast(attrs, [:key, :value, :value_json, :module, :date_added, :date_updated])
     |> validate_required([:key])
     |> validate_length(:key, min: 1, max: 255)
     |> validate_setting_value()
+    |> validate_value_exclusivity()
     |> validate_length(:module, max: 255)
     |> unique_constraint(:key, name: :phoenix_kit_settings_key_uidx)
     |> maybe_set_timestamps()
@@ -74,8 +89,9 @@ defmodule PhoenixKit.Settings.Setting do
   """
   def update_changeset(setting, attrs) do
     setting
-    |> cast(attrs, [:value, :module])
+    |> cast(attrs, [:value, :value_json, :module])
     |> validate_setting_value()
+    |> validate_value_exclusivity()
     |> validate_length(:module, max: 255)
     |> put_change(:date_updated, DateTime.utc_now())
   end
@@ -99,19 +115,54 @@ defmodule PhoenixKit.Settings.Setting do
   defp validate_setting_value(changeset) do
     key = get_field(changeset, :key)
     value = get_field(changeset, :value)
+    value_json = get_field(changeset, :value_json)
 
-    case key do
-      "site_url" ->
-        # site_url can be empty, but max 1000 characters
-        # Ensure empty string is preserved, not converted to nil
-        case value do
-          nil -> put_change(changeset, :value, "")
-          _ -> validate_length(changeset, :value, max: 1000)
+    # Skip validation if using JSON value
+    if value_json do
+      changeset
+    else
+      case key do
+        "site_url" ->
+          # site_url can be empty, but max 1000 characters
+          # Ensure empty string is preserved, not converted to nil
+          case value do
+            nil -> put_change(changeset, :value, "")
+            _ -> validate_length(changeset, :value, max: 1000)
+          end
+
+        _ ->
+          # For settings with JSON data being set, allow nil/empty value
+          if Map.get(changeset.changes, :value_json) do
+            changeset
+          else
+            # All other settings require non-empty values when using string storage
+            validate_length(changeset, :value, min: 1, max: 1000)
+          end
+      end
+    end
+  end
+
+  # Validates that a setting uses either value OR value_json, but not both
+  defp validate_value_exclusivity(changeset) do
+    value = get_field(changeset, :value)
+    value_json = get_field(changeset, :value_json)
+
+    cond do
+      # Both have meaningful values - only allow one
+      not is_nil(value) and value != "" and not is_nil(value_json) ->
+        add_error(changeset, :value_json, "cannot set both value and value_json, choose one")
+
+      # At least one meaningful value exists - valid
+      (not is_nil(value) and value != "") or not is_nil(value_json) ->
+        changeset
+
+      # Both are nil/empty - require at least one for new records
+      true ->
+        if is_nil(changeset.data.id) do
+          add_error(changeset, :value, "must provide either value or value_json")
+        else
+          changeset
         end
-
-      _ ->
-        # All other settings require non-empty values
-        validate_length(changeset, :value, min: 1, max: 1000)
     end
   end
 

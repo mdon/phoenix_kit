@@ -18,7 +18,7 @@ defmodule PhoenixKitWeb.Components.Core.ThemeSwitcher do
 
   def theme_switcher(assigns) do
     ~H"""
-    <!-- Theme switcher placeholder - ThemeConfig module not implemented -->
+    <%!-- Theme switcher placeholder - ThemeConfig module not implemented --%>
     <div class={["theme-switcher-placeholder", @class]} {@rest}>
       <span :if={@show_label} class="text-sm text-gray-500">Theme: Default</span>
       <span :if={!@show_label} class="w-4 h-4 text-gray-400">🎨</span>

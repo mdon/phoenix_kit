@@ -58,12 +58,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
   ## --- Lifecycle Callbacks ---
 
   @impl true
-  def mount(_params, session, socket) do
-    # Check if email is enabled
+  def mount(_params, _session, socket) do
+    # Check if email system is enabled
     if EmailSystem.enabled?() do
-      # Get current path for navigation
-      current_path = get_current_path(socket, session)
-
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -74,7 +71,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
 
       socket =
         socket
-        |> assign(:current_path, current_path)
         |> assign(:project_title, project_title)
         |> assign(:loading, true)
         |> assign(:blocked_emails, [])
@@ -331,12 +327,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
      socket
      |> assign(:last_updated, DateTime.utc_now())
      |> load_blocklist_data()}
-  end
-
-  ## --- Private Functions ---
-
-  defp get_current_path(_socket, _session) do
-    Routes.path("/admin/emails/blocklist")
   end
 
   defp load_blocklist_data(socket) do

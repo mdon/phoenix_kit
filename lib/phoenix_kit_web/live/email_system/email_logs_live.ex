@@ -47,19 +47,15 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   ## --- Lifecycle Callbacks ---
 
   @impl true
-  def mount(_params, session, socket) do
-    # Check if email is enabled
+  def mount(_params, _session, socket) do
+    # Check if email tracking is enabled
     if EmailSystem.enabled?() do
-      # Get current path for navigation
-      current_path = get_current_path(socket, session)
-
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
       socket =
         socket
         |> assign(:page_title, "Email Logs")
-        |> assign(:current_path, current_path)
         |> assign(:project_title, project_title)
         |> assign(:logs, [])
         |> assign(:total_count, 0)
@@ -267,7 +263,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
       page_title="Email Logs"
-      current_path={@current_path}
+      current_path={@url_path}
       project_title={@project_title}
     >
       <div class="container flex-col mx-auto px-4 py-6">
@@ -884,11 +880,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
 
   defp format_datetime_for_csv(nil), do: ""
   defp format_datetime_for_csv(datetime), do: DateTime.to_iso8601(datetime)
-
-  defp get_current_path(_socket, _session) do
-    # For EmailLogsLive, always return email logs path
-    Routes.path("/admin/emails")
-  end
 
   # Extract email_type from message_tags
   defp get_message_tag(message_tags) when is_map(message_tags) do

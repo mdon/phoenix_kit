@@ -3,12 +3,8 @@ defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
 
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
-  alias PhoenixKit.Utils.Routes
 
-  def mount(_params, session, socket) do
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
+  def mount(_params, _session, socket) do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -17,7 +13,6 @@ defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
 
     socket =
       socket
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Referral Codes")
       |> assign(:project_title, project_title)
       |> assign(:referral_codes_enabled, referral_codes_config.enabled)
@@ -131,10 +126,5 @@ defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
         socket = put_flash(socket, :error, "Please enter a valid number between 1 and 1,000")
         {:noreply, socket}
     end
-  end
-
-  defp get_current_path(_socket, _session) do
-    # For Referral Codes settings page
-    Routes.path("/admin/settings/referral-codes")
   end
 end

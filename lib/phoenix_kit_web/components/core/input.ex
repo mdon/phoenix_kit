@@ -138,7 +138,7 @@ defmodule PhoenixKitWeb.Components.Core.Input do
   def input(assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <label :if={@label && @label != ""} class="label" for={@id}>
+      <label :if={@label && @label != ""} class="label mb-2" for={@id}>
         <span :if={@icon != []} class="label-text flex items-center">
           {render_slot(@icon)}
           {@label}

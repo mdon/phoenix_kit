@@ -54,7 +54,7 @@ defmodule PhoenixKitWeb.Integration do
 
   Use `{@inner_content}` not `render_slot(@inner_block)`:
 
-      <!-- Correct -->
+      <%!-- Correct --%>
       <main>{@inner_content}</main>
 
   ## Scope Usage in Templates
@@ -147,6 +147,7 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/modules", Live.ModulesLive, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
           live "/admin/settings/emails", Live.Modules.EmailSystemLive, :index
+          live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit

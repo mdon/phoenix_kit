@@ -47,21 +47,17 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
   ## --- Lifecycle Callbacks ---
 
   @impl true
-  def mount(%{"id" => id}, session, socket) do
+  def mount(%{"id" => id}, _session, socket) do
     # Check if email is enabled
     if EmailSystem.enabled?() do
       case Integer.parse(id) do
         {email_id, _} ->
-          # Get current path for navigation
-          current_path = get_current_path(socket, session, email_id)
-
           # Get project title from settings
           project_title = Settings.get_setting("project_title", "PhoenixKit")
 
           socket =
             socket
             |> assign(:email_id, email_id)
-            |> assign(:current_path, current_path)
             |> assign(:project_title, project_title)
             |> assign(:email_log, nil)
             |> assign(:events, [])
@@ -195,7 +191,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
       page_title={"Email #{@email_id}"}
-      current_path={@current_path}
+      current_path={@url_path}
       project_title={@project_title}
     >
       <div class="container flex-col mx-auto px-4 py-6">
@@ -875,11 +871,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
       diff_seconds < 3600 -> "#{div(diff_seconds, 60)}m #{rem(diff_seconds, 60)}s"
       true -> "#{div(diff_seconds, 3600)}h #{div(rem(diff_seconds, 3600), 60)}m"
     end
-  end
-
-  defp get_current_path(_socket, _session, email_id) do
-    # For EmailDetailsLive, return email details path with ID
-    Routes.path("/admin/emails/email/#{email_id}")
   end
 
   # Build event details list for success message

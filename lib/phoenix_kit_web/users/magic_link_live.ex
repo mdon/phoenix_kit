@@ -201,8 +201,8 @@ defmodule PhoenixKitWeb.Users.MagicLinkLive do
                 </div>
               </div>
             </div>
-            
-    <!-- Development Mode Notice -->
+
+            <%!-- Development Mode Notice --%>
             <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
               <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-6 w-6" />
               <span>

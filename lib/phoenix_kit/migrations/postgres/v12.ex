@@ -1,82 +1,74 @@
 defmodule PhoenixKit.Migrations.Postgres.V12 do
   @moduledoc """
-  PhoenixKit V12 Migration: Enhanced Email Tracking with AWS SES Integration
+  PhoenixKit V12 Migration: JSON Settings Support
 
-  This migration enhances the email tracking system to support comprehensive
-  AWS SES event types and improved message ID synchronization.
+  This migration adds JSONB support to the settings system, enabling storage
+  of complex structured data alongside traditional string-based settings.
 
   ## Changes
 
-  ### Email Log Enhancements
-  - Adds aws_message_id column for improved AWS SES message correlation
-  - Adds timestamp columns for detailed event tracking (bounced_at, complained_at, opened_at, clicked_at)
-  - Expands status enum to include all AWS SES event types
-  - Adds unique constraint on aws_message_id for duplicate prevention
+  ### Settings Table Enhancement
+  - Adds value_json column to phoenix_kit_settings table
+  - Uses PostgreSQL JSONB type for optimal performance and indexing
+  - Nullable field maintains backward compatibility
+  - Supports complex configuration objects and arrays
 
-  ### Email Event Enhancements
-  - Adds support for reject, delivery_delay, subscription, and rendering_failure events
-  - Adds specific fields for new event types (reject_reason, delay_type, subscription_type, failure_reason)
-  - Expands event_type enum validation
-
-  ### New Event Types Supported
-  - **reject**: Email rejected by SES before sending
-  - **delivery_delay**: Temporary delivery delays
-  - **subscription**: List subscription/unsubscription events
-  - **rendering_failure**: Template rendering failures
-
-  ### New Status Types
-  - **rejected**: Email rejected by SES
-  - **delayed**: Email delivery temporarily delayed
-  - **hard_bounced**: Permanent bounce (non-recoverable)
-  - **soft_bounced**: Temporary bounce (recoverable)
-  - **complaint**: Spam complaint received
+  ### New Features
+  - **JSON Data Storage**: Store complex objects, arrays, and nested data
+  - **Native JSONB Performance**: PostgreSQL's optimized JSONB operations
+  - **Backward Compatible**: Existing string settings continue to work
+  - **Dual Storage Model**: Settings can use either string OR JSON values
+  - **Cache Integration**: JSON data cached efficiently with existing system
 
   ## PostgreSQL Support
-  - Supports PostgreSQL prefix for schema isolation
-  - Uses proper timestamp types for event tracking
-  - Adds necessary constraints for data integrity
-  - Backward compatible with existing data
+  - Leverages PostgreSQL's native JSONB data type
+  - Supports prefix for schema isolation
+  - Optimal storage and query performance for JSON data
+  - Safe nullable field addition (no data migration required)
+
+  ## Usage Examples
+
+      # Traditional string setting (unchanged)
+      PhoenixKit.Settings.update_setting("theme", "dark")
+
+      # New JSON setting
+      config = %{
+        "colors" => %{"primary" => "#3b82f6", "secondary" => "#64748b"},
+        "features" => ["dark_mode", "notifications"],
+        "limits" => %{"max_users" => 1000, "storage_gb" => 100}
+      }
+      PhoenixKit.Settings.update_json_setting("app_config", config)
   """
   use Ecto.Migration
 
   @doc """
-  Run the V12 migration to enhance email tracking system.
+  Run the V12 migration to add JSON support to settings.
   """
   def up(%{prefix: prefix} = _opts) do
-    # Enhance phoenix_kit_email_logs table
-    alter table(:phoenix_kit_email_logs, prefix: prefix) do
-      # Add aws_message_id for improved correlation with AWS SES
-      add :aws_message_id, :string, null: true
-
-      # Add specific timestamp fields for different event types
-      add :bounced_at, :utc_datetime_usec, null: true
-      add :complained_at, :utc_datetime_usec, null: true
-      add :opened_at, :utc_datetime_usec, null: true
-      add :clicked_at, :utc_datetime_usec, null: true
+    # Add value_json column to existing phoenix_kit_settings table
+    alter table(:phoenix_kit_settings, prefix: prefix) do
+      # JSON/JSONB storage for complex configuration data
+      # Using :map type which maps to JSONB in PostgreSQL
+      # Null means this setting uses the traditional string value field
+      add :value_json, :map, null: true
     end
 
-    # Add unique constraint on aws_message_id to prevent duplicates
-    create unique_index(:phoenix_kit_email_logs, [:aws_message_id],
-             prefix: prefix,
-             name: "phoenix_kit_email_logs_aws_message_id_index"
-           )
+    # Remove NOT NULL constraint from value column to support JSON-only settings
+    execute """
+    ALTER TABLE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    ALTER COLUMN value DROP NOT NULL
+    """
 
-    # Enhance phoenix_kit_email_events table
-    alter table(:phoenix_kit_email_events, prefix: prefix) do
-      # Add fields for new event types
-      add :reject_reason, :string, null: true
-      add :delay_type, :string, null: true
-      add :subscription_type, :string, null: true
-      add :failure_reason, :string, null: true
-    end
+    # Add comments to document the new capabilities
+    execute """
+    COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value_json IS
+    'JSONB storage for complex settings data. When present, takes precedence over value field.'
+    """
 
-    # Update status enum validation in application code will handle:
-    # sent, delivered, bounced, hard_bounced, soft_bounced, opened,
-    # clicked, failed, rejected, delayed, complaint
-
-    # Update event_type enum validation in application code will handle:
-    # send, delivery, bounce, complaint, open, click, reject,
-    # delivery_delay, subscription, rendering_failure
+    execute """
+    COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value IS
+    'String value for simple settings. Can be NULL when using value_json for complex data.'
+    """
 
     # Set version comment on phoenix_kit table for version tracking
     execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '12'"
@@ -86,28 +78,29 @@ defmodule PhoenixKit.Migrations.Postgres.V12 do
   Rollback the V12 migration.
   """
   def down(%{prefix: prefix} = _opts) do
-    # Remove unique constraint on aws_message_id
-    drop_if_exists unique_index(:phoenix_kit_email_logs, [:aws_message_id],
-                     prefix: prefix,
-                     name: "phoenix_kit_email_logs_aws_message_id_index"
-                   )
+    # First, clean up any NULL values in the value column by setting them to empty strings
+    execute """
+    UPDATE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    SET value = ''
+    WHERE value IS NULL AND value_json IS NOT NULL
+    """
 
-    # Remove enhancements from phoenix_kit_email_logs table
-    alter table(:phoenix_kit_email_logs, prefix: prefix) do
-      remove :aws_message_id
-      remove :bounced_at
-      remove :complained_at
-      remove :opened_at
-      remove :clicked_at
+    # Restore NOT NULL constraint on value column
+    execute """
+    ALTER TABLE #{prefix_table_name("phoenix_kit_settings", prefix)}
+    ALTER COLUMN value SET NOT NULL
+    """
+
+    # Remove value_json column from settings table
+    alter table(:phoenix_kit_settings, prefix: prefix) do
+      remove :value_json
     end
 
-    # Remove enhancements from phoenix_kit_email_events table
-    alter table(:phoenix_kit_email_events, prefix: prefix) do
-      remove :reject_reason
-      remove :delay_type
-      remove :subscription_type
-      remove :failure_reason
-    end
+    # Restore original comment
+    execute """
+    COMMENT ON COLUMN #{prefix_table_name("phoenix_kit_settings", prefix)}.value IS
+    'String value for settings (required).'
+    """
 
     # Update version comment on phoenix_kit table
     execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '11'"

@@ -37,9 +37,6 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
       track_authenticated_session(socket, session)
     end
 
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -50,7 +47,6 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
       |> assign(:search_query, "")
       # all, anonymous, authenticated
       |> assign(:filter_type, "all")
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Live Sessions")
       |> assign(:project_title, project_title)
       |> assign(:sort_by, :connected_at)
@@ -259,19 +255,6 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
 
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)
-  end
-
-  defp get_current_path(socket, session) do
-    case get_connect_info(socket, :uri) do
-      %URI{path: path} ->
-        path
-
-      _ ->
-        case session["current_path"] do
-          nil -> Routes.path("/admin/users/live_sessions")
-          path -> path
-        end
-    end
   end
 
   defp format_time_ago(datetime) when is_struct(datetime, DateTime) do

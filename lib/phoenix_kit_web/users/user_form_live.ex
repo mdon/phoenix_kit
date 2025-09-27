@@ -4,18 +4,14 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
-  def mount(params, session, socket) do
+  def mount(params, _session, socket) do
     user_id = params["id"]
     mode = if user_id, do: :edit, else: :new
-
-    # Get current path for navigation
-    current_path = get_current_path(socket, session, mode, user_id)
 
     socket =
       socket
       |> assign(:mode, mode)
       |> assign(:user_id, user_id)
-      |> assign(:current_path, current_path)
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
       |> assign(:show_password_field, false)
@@ -225,14 +221,6 @@ defmodule PhoenixKitWeb.Users.UserFormLive do
 
   defp page_title(:new), do: "Create User"
   defp page_title(:edit), do: "Edit User"
-
-  defp get_current_path(_socket, _session, :new, _user_id) do
-    Routes.path("/admin/users/new")
-  end
-
-  defp get_current_path(_socket, _session, :edit, user_id) do
-    Routes.path("/admin/users/edit/#{user_id}")
-  end
 
   defp reload_changeset_with_password(socket, show_password_field) do
     case socket.assigns.mode do

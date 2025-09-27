@@ -49,12 +49,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
   ## --- Lifecycle Callbacks ---
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     # Check if email is enabled
     if EmailSystem.enabled?() do
-      # Get current path for navigation
-      current_path = get_current_path(socket, session)
-
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -65,7 +62,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
 
       socket =
         socket
-        |> assign(:current_path, current_path)
         |> assign(:project_title, project_title)
         |> assign(:loading, true)
         |> assign(:recent_activity, [])
@@ -200,12 +196,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
      socket
      |> assign(:last_updated, DateTime.utc_now())
      |> load_queue_data()}
-  end
-
-  ## --- Private Functions ---
-
-  defp get_current_path(_socket, _session) do
-    Routes.path("/admin/emails/queue")
   end
 
   defp load_queue_data(socket) do
