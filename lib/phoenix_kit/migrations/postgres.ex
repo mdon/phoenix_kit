@@ -49,23 +49,59 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Unique username constraints
   - Email-based username generation for existing users
 
-  ### V09 - Email Blocklist System ⚡ NEW
+  ### V09 - Email Blocklist System
   - Phoenix_kit_email_blocklist for blocked email addresses
   - Temporary and permanent blocks with expiration
   - Reason tracking and audit trail
   - Efficient indexes for rate limiting and spam prevention
 
+  ### V10 - User Registration Analytics
+  - Registration analytics columns for IP and location tracking
+  - Geolocation data storage (country, region, city)
+  - Privacy-focused design with configurable tracking
+  - Efficient indexes for analytics queries
+
+  ### V11 - Per-User Timezone Settings
+  - Individual timezone preferences for each user
+  - Personal timezone column in phoenix_kit_users table
+  - Fallback system: user timezone → system timezone → UTC
+  - Enhanced date formatting with per-user timezone support
+
+  ### V12 - JSON Settings Support
+  - JSONB column (value_json) in phoenix_kit_settings table
+  - Support for complex structured data storage
+  - Removes NOT NULL constraint from value column
+  - Enables proper JSON-only settings storage
+  - Backward compatible with existing string settings
+  - Dual storage model: string OR JSON values
+  - Enhanced cache system for JSON data
+
+  ### V13 - Enhanced Email Tracking with AWS SES Integration ⚡ LATEST
+  - AWS message ID correlation (aws_message_id column)
+  - Specific timestamp tracking (bounced_at, complained_at, opened_at, clicked_at)
+  - Extended event types (reject, delivery_delay, subscription, rendering_failure)
+  - Enhanced status management (rejected, delayed, hard_bounced, soft_bounced, complaint)
+  - Unique constraint on aws_message_id for duplicate prevention
+  - Additional event fields (reject_reason, delay_type, subscription_type, failure_reason)
+
   ## Migration Paths
 
   ### Fresh Installation (0 → Current)
-  Runs all migrations V01 through V09 in sequence.
+  Runs all migrations V01 through V13 in sequence.
 
   ### Incremental Updates
-  - V01 → V09: Runs V02, V03, V04, V05, V06, V07, V08, V09
-  - V07 → V09: Runs V08, V09 (adds username and blocklist)
-  - V08 → V09: Runs V09 only (adds email blocklist)
+  - V01 → V13: Runs V02, V03, V04, V05, V06, V07, V08, V09, V10, V11, V12, V13
+  - V12 → V13: Runs V13 only (adds enhanced email tracking with AWS SES)
+  - V11 → V13: Runs V12, V13 (adds JSON settings and enhanced email tracking)
+  - V10 → V13: Runs V11, V12, V13 (adds timezones, JSON settings, and email tracking)
+  - V09 → V13: Runs V10, V11, V12, V13 (adds analytics, timezones, JSON, and email tracking)
+  - V08 → V13: Runs V09, V10, V11, V12, V13 (adds blocklist, analytics, timezones, JSON, and email tracking)
 
   ### Rollback Support
+  - V13 → V12: Removes enhanced email tracking and AWS SES integration
+  - V12 → V11: Removes JSON settings support and restores NOT NULL constraint
+  - V11 → V10: Removes per-user timezone settings
+  - V10 → V09: Removes registration analytics system
   - V09 → V08: Removes email blocklist system
   - V08 → V07: Removes username support
   - V07 → V06: Removes email tracking system
@@ -77,10 +113,10 @@ defmodule PhoenixKit.Migrations.Postgres do
       PhoenixKit.Migrations.Postgres.up(prefix: "myapp")
 
       # Update to specific version
-      PhoenixKit.Migrations.Postgres.up(prefix: "myapp", version: 8)
+      PhoenixKit.Migrations.Postgres.up(prefix: "myapp", version: 12)
 
       # Rollback to specific version
-      PhoenixKit.Migrations.Postgres.down(prefix: "myapp", version: 7)
+      PhoenixKit.Migrations.Postgres.down(prefix: "myapp", version: 11)
 
       # Complete rollback
       PhoenixKit.Migrations.Postgres.down(prefix: "myapp", version: 0)
@@ -98,7 +134,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 10
+  @current_version 15
   @default_prefix "public"
 
   @doc false

@@ -5,6 +5,52 @@ defmodule PhoenixKitWeb.Users.LoginLive do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
+  def mount(_params, session, socket) do
+    # Track anonymous visitor session
+    if connected?(socket) do
+      session_id = session["live_socket_id"] || generate_session_id()
+
+      Presence.track_anonymous(session_id, %{
+        connected_at: DateTime.utc_now(),
+        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
+        user_agent: get_connect_info(socket, :user_agent),
+        current_page: Routes.path("/users/log-in")
+      })
+    end
+
+    # Get project title and registration setting from settings
+    project_title = Settings.get_setting("project_title", "PhoenixKit")
+    allow_registration = Settings.get_boolean_setting("allow_registration", true)
+
+    email = Phoenix.Flash.get(socket.assigns.flash, :email)
+    form = to_form(%{"email" => email}, as: "user")
+
+    socket =
+      assign(socket,
+        form: form,
+        project_title: project_title,
+        allow_registration: allow_registration
+      )
+
+    {:ok, socket, temporary_assigns: [form: form]}
+  end
+
+  defp show_dev_notice? do
+    case Application.get_env(:phoenix_kit, PhoenixKit.Mailer)[:adapter] do
+      Swoosh.Adapters.Local -> true
+      _ -> false
+    end
+  end
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  defp extract_ip_address(nil), do: "unknown"
+  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp extract_ip_address(%{address: address}), do: to_string(address)
+  defp extract_ip_address(_), do: "unknown"
+
   def render(assigns) do
     ~H"""
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
@@ -15,7 +61,9 @@ defmodule PhoenixKitWeb.Users.LoginLive do
       <div class="flex items-center justify-center py-8 min-h-[80vh]">
         <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
           <div class="card-body">
-            <h1 class="text-2xl font-bold text-center mb-6">{@project_title} Sign in</h1>
+            <h1 class="text-2xl font-bold text-center mb-6">
+              {@project_title} Sign in
+            </h1>
             <.form
               for={@form}
               id="login_form"
@@ -37,6 +85,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                   class="input input-bordered w-full transition-colors focus:input-primary"
                   placeholder="Enter your email address"
                   value={@form.params["email"] || ""}
+                  autocomplete="username"
                   required
                 />
 
@@ -51,19 +100,16 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                   type="password"
                   class="input input-bordered w-full transition-colors focus:input-primary"
                   placeholder="Enter your password"
+                  autocomplete="current-password"
                   required
                 />
 
                 <div class="form-control mt-4">
-                  <label class="label cursor-pointer">
-                    <span class="label-text">Keep me logged in</span>
-                    <input
-                      id="user_remember_me"
-                      name="user[remember_me]"
-                      type="checkbox"
-                      class="checkbox checkbox-info"
-                    />
-                  </label>
+                  <.checkbox
+                    id="user_remember_me"
+                    name="user[remember_me]"
+                    label="Keep me logged in"
+                  />
                 </div>
 
                 <div class="text-center mt-2">
@@ -85,8 +131,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </button>
               </fieldset>
             </.form>
-            
-    <!-- Magic Link section -->
+
+            <%!-- Magic Link section --%>
             <div class="mt-6">
               <div class="relative">
                 <div class="absolute inset-0 flex items-center">
@@ -107,8 +153,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </.link>
               </div>
             </div>
-            
-    <!-- Registration link -->
+
+            <%!-- Registration link --%>
             <%= if @allow_registration do %>
               <div class="text-center mt-4 text-sm">
                 <span>New to {@project_title}? </span>
@@ -120,8 +166,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </.link>
               </div>
             <% end %>
-            
-    <!-- Development Mode Notice -->
+
+            <%!-- Development Mode Notice --%>
             <div :if={show_dev_notice?()} class="alert alert-info text-sm mt-4">
               <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-6 w-6" />
               <span>
@@ -136,48 +182,4 @@ defmodule PhoenixKitWeb.Users.LoginLive do
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
   end
-
-  def mount(_params, session, socket) do
-    # Track anonymous visitor session
-    if connected?(socket) do
-      session_id = session["live_socket_id"] || generate_session_id()
-
-      Presence.track_anonymous(session_id, %{
-        connected_at: DateTime.utc_now(),
-        ip_address: get_connect_info(socket, :peer_data) |> extract_ip_address(),
-        user_agent: get_connect_info(socket, :user_agent),
-        current_page: Routes.path("/users/log-in")
-      })
-    end
-
-    # Get project title and registration setting from settings
-    project_title = Settings.get_setting("project_title", "PhoenixKit")
-    allow_registration = Settings.get_boolean_setting("allow_registration", true)
-
-    email = Phoenix.Flash.get(socket.assigns.flash, :email)
-    form = to_form(%{"email" => email}, as: "user")
-
-    {:ok,
-     assign(socket,
-       form: form,
-       project_title: project_title,
-       allow_registration: allow_registration
-     ), temporary_assigns: [form: form]}
-  end
-
-  defp show_dev_notice? do
-    case Application.get_env(:phoenix_kit, PhoenixKit.Mailer)[:adapter] do
-      Swoosh.Adapters.Local -> true
-      _ -> false
-    end
-  end
-
-  defp generate_session_id do
-    :crypto.strong_rand_bytes(16) |> Base.encode64()
-  end
-
-  defp extract_ip_address(nil), do: "unknown"
-  defp extract_ip_address(%{address: {a, b, c, d}}), do: "#{a}.#{b}.#{c}.#{d}"
-  defp extract_ip_address(%{address: address}), do: to_string(address)
-  defp extract_ip_address(_), do: "unknown"
 end

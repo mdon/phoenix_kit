@@ -5,6 +5,7 @@
 We are actively building PhoenixKit, a comprehensive SaaS starter kit for the Elixir/Phoenix ecosystem. Our goal is to eliminate the need to reinvent the wheel every time we all start a new SaaS project.
 
 **🚧 Early Access - We Need Your Feedback!**
+
 PhoenixKit is under heavy development and we're looking for early adopters to test, provide feedback, and help shape the future of this toolkit. If you're building with Phoenix and want to skip the boilerplate setup, we'd love to have you try it out and share your experience.
 
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
@@ -221,7 +222,7 @@ For AWS SES, PhoenixKit automatically configures required dependencies and HTTP 
 # Production configuration
 config :phoenix_kit, PhoenixKit.Mailer,
   adapter: Swoosh.Adapters.AmazonSES,
-  region: "us-east-1",  # or "eu-north-1", "eu-west-1", etc.
+  region: "eu-north-1",  # or "eu-north-1", "eu-west-1", etc.
   access_key: System.get_env("AWS_ACCESS_KEY_ID"),
   secret: System.get_env("AWS_SECRET_ACCESS_KEY")
 ```

@@ -4,7 +4,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Role, Roles}
-  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Subscribe to role events for live updates
@@ -12,9 +11,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
       Events.subscribe_to_roles()
       Events.subscribe_to_stats()
     end
-
-    # Get current path for navigation
-    current_path = get_current_path()
 
     # Load optimized role statistics once
     role_stats = load_role_statistics()
@@ -25,10 +21,11 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
     socket =
       socket
       |> assign(:roles, [])
+      |> assign(:show_create_form, false)
+      |> assign(:show_edit_form, false)
+      |> assign(:create_role_form, nil)
+      |> assign(:edit_role_form, nil)
       |> assign(:editing_role, nil)
-      |> assign(:show_form, false)
-      |> assign(:form_data, %{"name" => "", "description" => ""})
-      |> assign(:current_path, current_path)
       |> assign(:page_title, "Roles")
       |> assign(:role_stats, role_stats)
       |> assign(:project_title, project_title)
@@ -37,40 +34,28 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
     {:ok, socket}
   end
 
-  defp get_current_path do
-    # For RolesLive, always return roles path
-    Routes.path("/admin/users/roles")
-  end
-
   def handle_event("show_create_form", _params, socket) do
+    form = to_form(Role.changeset(%Role{}, %{}))
+
     socket =
       socket
-      |> assign(:show_form, true)
-      |> assign(:editing_role, nil)
-      |> assign(:form_data, %{"name" => "", "description" => ""})
+      |> assign(:show_create_form, true)
+      |> assign(:create_role_form, form)
 
     {:noreply, socket}
   end
 
-  def handle_event("hide_form", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_form, false)
-      |> assign(:editing_role, nil)
-      |> assign(:form_data, %{"name" => "", "description" => ""})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("edit_role", %{"role_id" => role_id}, socket) do
+  def handle_event("show_edit_role", %{"role_id" => role_id}, socket) do
     role = Enum.find(socket.assigns.roles, &(&1.id == String.to_integer(role_id)))
 
     if role && !role.is_system_role do
+      form = to_form(Role.changeset(role, %{}))
+
       socket =
         socket
-        |> assign(:show_form, true)
+        |> assign(:show_edit_form, true)
+        |> assign(:edit_role_form, form)
         |> assign(:editing_role, role)
-        |> assign(:form_data, %{"name" => role.name, "description" => role.description || ""})
 
       {:noreply, socket}
     else
@@ -79,22 +64,32 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
     end
   end
 
+  def handle_event("hide_form", _params, socket) do
+    socket =
+      socket
+      |> assign(:show_create_form, false)
+      |> assign(:show_edit_form, false)
+      |> assign(:create_role_form, nil)
+      |> assign(:edit_role_form, nil)
+      |> assign(:editing_role, nil)
+
+    {:noreply, socket}
+  end
+
   def handle_event("create_role", %{"role" => role_params}, socket) do
     case Roles.create_role(role_params) do
       {:ok, _role} ->
         socket =
           socket
           |> put_flash(:info, "Role created successfully")
-          |> assign(:show_form, false)
-          |> assign(:form_data, %{"name" => "", "description" => ""})
+          |> assign(:show_create_form, false)
+          |> assign(:create_role_form, nil)
           |> load_roles()
 
         {:noreply, socket}
 
       {:error, changeset} ->
-        errors = extract_changeset_errors(changeset)
-        socket = put_flash(socket, :error, "Failed to create role: #{errors}")
-        {:noreply, socket}
+        {:noreply, assign(socket, :create_role_form, to_form(changeset))}
     end
   end
 
@@ -106,17 +101,15 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
         socket =
           socket
           |> put_flash(:info, "Role updated successfully")
-          |> assign(:show_form, false)
+          |> assign(:show_edit_form, false)
+          |> assign(:edit_role_form, nil)
           |> assign(:editing_role, nil)
-          |> assign(:form_data, %{"name" => "", "description" => ""})
           |> load_roles()
 
         {:noreply, socket}
 
       {:error, changeset} ->
-        errors = extract_changeset_errors(changeset)
-        socket = put_flash(socket, :error, "Failed to update role: #{errors}")
-        {:noreply, socket}
+        {:noreply, assign(socket, :edit_role_form, to_form(changeset))}
     end
   end
 
@@ -152,10 +145,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
   defp load_roles(socket) do
     roles = Roles.list_roles()
     assign(socket, :roles, roles)
-  end
-
-  defp extract_changeset_errors(changeset) do
-    Enum.map_join(changeset.errors, ", ", fn {field, {message, _}} -> "#{field} #{message}" end)
   end
 
   defp role_badge_class(%Role{is_system_role: true, name: "Owner"}), do: "badge-error"

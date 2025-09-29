@@ -36,8 +36,8 @@ defmodule PhoenixKitWeb do
 
       import Plug.Conn
       use Gettext, backend: PhoenixKitWeb.Gettext
-      import PhoenixKitWeb.CoreComponents
 
+      unquote(core_components())
       unquote(verified_routes())
     end
   end
@@ -48,8 +48,8 @@ defmodule PhoenixKitWeb do
         layout: PhoenixKit.LayoutConfig.get_layout()
 
       use Gettext, backend: PhoenixKitWeb.Gettext
-      import PhoenixKitWeb.CoreComponents
 
+      unquote(core_components())
       unquote(html_helpers())
     end
   end
@@ -71,9 +71,9 @@ defmodule PhoenixKitWeb do
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
 
-      import PhoenixKitWeb.CoreComponents
       use Gettext, backend: PhoenixKitWeb.Gettext
 
+      unquote(core_components())
       unquote(html_helpers())
     end
   end
@@ -85,6 +85,20 @@ defmodule PhoenixKitWeb do
       import Phoenix.LiveView.Helpers
 
       unquote(verified_routes())
+    end
+  end
+
+  def core_components do
+    quote do
+      import PhoenixKitWeb.Components.Core.Button
+      import PhoenixKitWeb.Components.Core.Flash
+      import PhoenixKitWeb.Components.Core.Header
+      import PhoenixKitWeb.Components.Core.Icon
+      import PhoenixKitWeb.Components.Core.Input
+      import PhoenixKitWeb.Components.Core.Textarea
+      import PhoenixKitWeb.Components.Core.Checkbox
+      import PhoenixKitWeb.Components.Core.SimpleForm
+      import PhoenixKitWeb.Components.Core.ThemeSwitcher
     end
   end
 

@@ -10,12 +10,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   Replace direct layout calls with the wrapper:
 
-      <!-- OLD (Phoenix v1.7-) -->
-      <!-- Templates relied on router-level layout config -->
+      <%!-- OLD (Phoenix v1.7-) --%>
+      <%!-- Templates relied on router-level layout config --%>
 
-      <!-- NEW (Phoenix v1.8+) -->
+      <%!-- NEW (Phoenix v1.8+) --%>
       <PhoenixKitWeb.Components.LayoutWrapper.app_layout flash={@flash}>
-        <!-- content -->
+        <%!-- content --%>
       </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
 
   ## Configuration
@@ -29,7 +29,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   use Phoenix.Component
   use PhoenixKitWeb, :verified_routes
 
-  import PhoenixKitWeb.CoreComponents, only: [flash_group: 1]
+  import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
+  import PhoenixKitWeb.Components.AdminNav
 
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
@@ -110,7 +111,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   defp admin_page?(assigns) do
     case assigns[:current_path] do
       nil -> false
-      path when is_binary(path) -> String.contains?(path, "/admin/")
+      path when is_binary(path) -> String.contains?(path, "/admin")
       _ -> false
     end
   end
@@ -118,12 +119,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Wrap inner_block with admin navigation if needed
   defp wrap_inner_block_with_admin_nav_if_needed(assigns) do
     if admin_page?(assigns) do
-      # Import AdminNav functions for use in template
-      import PhoenixKitWeb.AdminNav
-
-      # Import Scope for user info
-      alias PhoenixKit.Users.Auth.Scope
-
       # Create new inner_block slot that wraps original content with admin navigation
       original_inner_block = assigns[:inner_block]
 
@@ -141,42 +136,42 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             assigns = template_assigns
 
             ~H"""
-            <!-- PhoenixKit Admin Layout following EZNews pattern -->
-            <!-- Mobile Header (shown only on mobile in admin panel) -->
+            <%!-- PhoenixKit Admin Layout following EZNews pattern --%>
+            <%!-- Mobile Header (shown only on mobile in admin panel) --%>
             <header class="bg-base-100 shadow-sm border-b border-base-300 lg:hidden">
               <div class="flex items-center justify-between h-16 px-4">
-                <!-- Mobile Menu Button -->
+                <%!-- Mobile Menu Button --%>
                 <label for="admin-mobile-menu" class="btn btn-square btn-primary drawer-button p-0">
                   <PhoenixKitWeb.Components.Core.Icons.icon_menu />
                 </label>
-                
-            <!-- Logo -->
+
+                <%!-- Logo --%>
                 <div class="flex items-center">
                   <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-2">
                     <PhoenixKitWeb.Components.Core.Icons.icon_shield />
                   </div>
                   <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
-                
-            <!-- Theme Switcher Mobile -->
+
+                <%!-- Theme Switcher Mobile --%>
                 <.admin_theme_controller mobile={true} />
               </div>
             </header>
 
             <div class="drawer lg:drawer-open">
               <input id="admin-mobile-menu" type="checkbox" class="drawer-toggle" />
-              
-            <!-- Main content -->
+
+              <%!-- Main content --%>
               <div class="drawer-content flex flex-col">
-                <!-- Page content from parent layout -->
+                <%!-- Page content from parent layout --%>
                 {render_slot(@original_inner_block)}
               </div>
-              
-            <!-- Desktop/Mobile Sidebar (without overlay on desktop) -->
+
+              <%!-- Desktop/Mobile Sidebar (without overlay on desktop) --%>
               <div class="drawer-side">
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
                 <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col">
-                  <!-- Sidebar header (desktop only) -->
+                  <%!-- Sidebar header (desktop only) --%>
                   <div class="px-4 py-6 border-b border-base-300 hidden lg:block">
                     <div class="flex items-center gap-3">
                       <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -187,8 +182,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       </div>
                     </div>
                   </div>
-                  
-            <!-- Navigation (fills available space) -->
+
+                  <%!-- Navigation (fills available space) --%>
                   <nav class="px-4 py-6 space-y-2 flex-1">
                     <.admin_nav_item
                       href={Routes.path("/admin/dashboard")}
@@ -253,7 +248,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       </div>
                     <% end %>
 
-                    <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                    <%= if PhoenixKit.EmailSystem.enabled?() do %>
                       <%!-- Email section with direct link and conditional submenu --%>
                       <.admin_nav_item
                         href={Routes.path("/admin/emails/dashboard")}
@@ -263,7 +258,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         disable_active={true}
                       />
 
-                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
+                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/templates", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
@@ -278,6 +273,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             href={Routes.path("/admin/emails")}
                             icon="email"
                             label="Emails"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/emails/templates")}
+                            icon="email"
+                            label="Templates"
                             current_path={@current_path || ""}
                             nested={true}
                           />
@@ -308,29 +311,74 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                     />
 
+                    <%!-- Settings section with direct link and conditional submenu --%>
                     <.admin_nav_item
                       href={Routes.path("/admin/settings")}
                       icon="settings"
                       label="Settings"
                       current_path={@current_path || ""}
+                      disable_active={true}
                     />
+
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages"]) do %>
+                      <%!-- Settings submenu items --%>
+                      <div class="mt-1">
+                        <.admin_nav_item
+                          href={Routes.path("/admin/settings")}
+                          icon="settings"
+                          label="General Settings"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <%= if PhoenixKit.ReferralCodes.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/referral-codes")}
+                            icon="referral_codes"
+                            label="Referral Codes"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
+                        <%= if PhoenixKit.EmailSystem.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/emails")}
+                            icon="email"
+                            label="Emails"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
+                        <%= if PhoenixKit.Module.Languages.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/languages")}
+                            icon="language"
+                            label="Languages"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+                      </div>
+                    <% end %>
                   </nav>
-                  
-            <!-- Bottom Section: Theme & User Info -->
+
+                  <%!-- Bottom Section: Theme & User Info --%>
                   <div class="p-4 border-t border-base-300 space-y-3">
-                    <!-- Theme Controller (desktop only) -->
+                    <%!-- Theme Controller (desktop only) --%>
                     <div class="hidden lg:block">
                       <.admin_theme_controller mobile={false} />
                     </div>
-                    
-            <!-- User Info -->
+
+                    <%!-- User Info --%>
                     <.admin_user_info scope={@phoenix_kit_current_scope} />
                   </div>
                 </aside>
               </div>
             </div>
 
-            <!-- Auto-close mobile drawer on navigation -->
+            <%!-- Auto-close mobile drawer on navigation --%>
             <script>
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
@@ -462,7 +510,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <script defer phx-track-static type="text/javascript" src="/assets/app.js" />
       </head>
       <body class="bg-base-200 antialiased">
-        <!-- Admin pages without parent headers -->
+        <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen">
           <.flash_group flash={@flash} />
           {render_slot(@inner_block)}

@@ -2,7 +2,7 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title="User Management"
-  current_path={@current_path}
+  current_path={@url_path}
   project_title={@project_title}
 >
   <div class="container flex-col mx-auto px-4 py-6">
@@ -200,9 +200,19 @@
                   </td>
                   <td class="text-sm">
                     <div class="flex flex-col gap-1">
-                      <div>{UtilsDate.format_date_with_user_format(user.inserted_at)}</div>
+                      <div>
+                        {UtilsDate.format_date_with_user_timezone_cached(
+                          user.inserted_at,
+                          @phoenix_kit_current_user,
+                          @date_time_settings
+                        )}
+                      </div>
                       <div class="text-xs text-base-content/70">
-                        {UtilsDate.format_time_with_user_format(user.inserted_at)}
+                        {UtilsDate.format_time_with_user_timezone_cached(
+                          user.inserted_at,
+                          @phoenix_kit_current_user,
+                          @date_time_settings
+                        )}
                       </div>
                     </div>
                   </td>
@@ -239,9 +249,19 @@
                   <td class="text-sm">
                     <div class="flex flex-col gap-1">
                       <%= if user.confirmed_at do %>
-                        <div>{UtilsDate.format_date_with_user_format(user.confirmed_at)}</div>
+                        <div>
+                          {UtilsDate.format_date_with_user_timezone_cached(
+                            user.confirmed_at,
+                            @phoenix_kit_current_user,
+                            @date_time_settings
+                          )}
+                        </div>
                         <div class="text-xs text-base-content/70">
-                          {UtilsDate.format_time_with_user_format(user.confirmed_at)}
+                          {UtilsDate.format_time_with_user_timezone_cached(
+                            user.confirmed_at,
+                            @phoenix_kit_current_user,
+                            @date_time_settings
+                          )}
                         </div>
                       <% else %>
                         <div>Never</div>
