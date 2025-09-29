@@ -1,5 +1,26 @@
 ## 1.2.13 - 2025-09-29
 
+### Added
+- **Email Template Management System** - Complete database-driven template system with CRUD operations and variable substitution
+- **Template Editor Interface** - Full-featured LiveView editor with HTML structure, preview, and test functionality
+- **Template List Interface** - Comprehensive template management with search, filtering, and status management
+- **Mix Task for Template Seeding** - New `mix phoenix_kit.seed_templates` task for creating default system templates
+- **Migration V15** - Database tables for email template storage with system template protection
+- **Version Tracking in Migrations** - Enhanced migration system with PostgreSQL table comments for version tracking
+- **Debug Logging for Email Metrics** - Enhanced error handling and debugging for chart data preparation
+
+### Changed
+- **Mailer Integration** - Updated to use database templates with fallback to hardcoded templates for backward compatibility
+- **User Notifier** - Enhanced to support template-based email generation with variable substitution
+- **Email Metrics Dashboard** - Improved chart data initialization and error handling for better reliability
+- **Email Templates Search** - Simplified search form layout for better user experience
+
+### Fixed
+- **Email Metrics Chart Data** - Fixed initialization errors and null value handling in chart data preparation
+- **Migration Rollback** - Added proper version tracking for migration rollback operations
+- **Linter Issues** - Resolved alias ordering and function complexity issues for better code quality
+- **Pre-commit Hooks** - Enhanced pre-commit validation with proper error handling
+
 ## 1.2.12 - 2025-09-27
 
 ### Added
