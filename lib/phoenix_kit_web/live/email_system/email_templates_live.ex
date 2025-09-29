@@ -60,15 +60,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
       |> assign(:total_count, 0)
       |> assign(:stats, %{})
       |> assign(:loading, true)
-      |> assign(:show_create_modal, false)
       |> assign(:show_clone_modal, false)
       |> assign(:clone_template, nil)
-      |> assign(:create_form, %{
-        name: "",
-        display_name: "",
-        category: "transactional",
-        errors: %{}
-      })
       |> assign(:clone_form, %{name: "", display_name: "", errors: %{}})
       |> assign_filter_defaults()
       |> assign_pagination_defaults()
@@ -133,66 +126,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
      |> assign(:loading, true)
      |> load_templates()
      |> load_stats()}
-  end
-
-  @impl true
-  def handle_event("show_create_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_create_modal, true)
-     |> assign(:create_form, %{name: "", display_name: "", category: "transactional", errors: %{}})}
-  end
-
-  @impl true
-  def handle_event("hide_create_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_create_modal, false)
-     |> assign(:create_form, %{name: "", display_name: "", category: "transactional", errors: %{}})}
-  end
-
-  @impl true
-  def handle_event("validate_create", %{"create" => create_params}, socket) do
-    errors = validate_create_form(create_params)
-
-    form = %{
-      name: create_params["name"] || "",
-      display_name: create_params["display_name"] || "",
-      category: create_params["category"] || "transactional",
-      errors: errors
-    }
-
-    {:noreply, assign(socket, :create_form, form)}
-  end
-
-  @impl true
-  def handle_event("create_template", %{"create" => create_params}, socket) do
-    errors = validate_create_form(create_params)
-
-    if map_size(errors) == 0 do
-      # Navigate to template editor for new template
-      name = String.trim(create_params["name"])
-
-      {:noreply,
-       socket
-       |> assign(:show_create_modal, false)
-       |> push_navigate(
-         to:
-           Routes.path(
-             "/admin/emails/templates/new?name=#{URI.encode_query([{"name", name}, {"display_name", create_params["display_name"]}, {"category", create_params["category"]}])}"
-           )
-       )}
-    else
-      # Show validation errors
-      form = %{
-        name: create_params["name"] || "",
-        display_name: create_params["display_name"] || "",
-        category: create_params["category"] || "transactional",
-        errors: errors
-      }
-
-      {:noreply, assign(socket, :create_form, form)}
-    end
   end
 
   @impl true
@@ -402,9 +335,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
 
         <%!-- Action Buttons --%>
         <div class="flex justify-end gap-2 mb-6">
-          <.button phx-click="show_create_modal" class="btn btn-primary btn-sm">
+          <.link navigate={Routes.path("/admin/emails/templates/new")} class="btn btn-primary btn-sm">
             <.icon name="hero-plus" class="w-4 h-4 mr-1" /> New Template
-          </.button>
+          </.link>
 
           <.button phx-click="refresh" class="btn btn-outline btn-sm">
             <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
@@ -466,7 +399,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
               </div>
 
               <%!-- Filter Row --%>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <%!-- Category Filter --%>
                 <div class="form-control">
                   <label class="label">
@@ -510,13 +443,16 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
                     <option value="false" selected={@filters.is_system == "false"}>Custom</option>
                   </select>
                 </div>
-              </div>
 
-              <%!-- Action Buttons --%>
-              <div class="flex gap-2">
-                <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-                  Clear Filters
-                </button>
+                <%!-- Clear Filters Button --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">&nbsp;</span>
+                  </label>
+                  <button type="button" phx-click="clear_filters" class="btn btn-ghost">
+                    Clear Filters
+                  </button>
+                </div>
               </div>
             </.form>
           </div>
@@ -712,99 +648,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
                 </div>
               <% end %>
             <% end %>
-          </div>
-        </div>
-
-        <%!-- Create Template Modal --%>
-        <div
-          :if={@show_create_modal}
-          class="modal modal-open"
-          phx-click-away="hide_create_modal"
-        >
-          <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">Create New Template</h3>
-
-            <.form
-              for={%{}}
-              phx-submit="create_template"
-              phx-change="validate_create"
-              class="space-y-4"
-            >
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">Template Name</span>
-                </label>
-                <input
-                  type="text"
-                  name="create[name]"
-                  value={@create_form[:name] || ""}
-                  placeholder="welcome_email"
-                  class={[
-                    "input input-bordered w-full",
-                    @create_form[:errors][:name] && "input-error"
-                  ]}
-                  required
-                />
-                <%= if @create_form[:errors][:name] do %>
-                  <label class="label">
-                    <span class="label-text-alt text-error">
-                      {@create_form[:errors][:name]}
-                    </span>
-                  </label>
-                <% end %>
-              </div>
-
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">Display Name</span>
-                </label>
-                <input
-                  type="text"
-                  name="create[display_name]"
-                  value={@create_form[:display_name] || ""}
-                  placeholder="Welcome Email"
-                  class={[
-                    "input input-bordered w-full",
-                    @create_form[:errors][:display_name] && "input-error"
-                  ]}
-                  required
-                />
-                <%= if @create_form[:errors][:display_name] do %>
-                  <label class="label">
-                    <span class="label-text-alt text-error">
-                      {@create_form[:errors][:display_name]}
-                    </span>
-                  </label>
-                <% end %>
-              </div>
-
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">Category</span>
-                </label>
-                <select name="create[category]" class="select select-bordered">
-                  <option value="transactional" selected={@create_form[:category] == "transactional"}>
-                    Transactional
-                  </option>
-                  <option value="marketing" selected={@create_form[:category] == "marketing"}>
-                    Marketing
-                  </option>
-                </select>
-              </div>
-
-              <div class="modal-action">
-                <button
-                  type="button"
-                  phx-click="hide_create_modal"
-                  class="btn btn-ghost"
-                >
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  Create Template
-                </button>
-              </div>
-            </.form>
           </div>
         </div>
 
@@ -1049,8 +892,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
     Routes.path("/admin/emails/templates?#{params}")
   end
 
-  # Validate create form
-  defp validate_create_form(params) do
+  # Validate clone form
+  defp validate_clone_form(params) do
     errors = %{}
 
     # Validate name
@@ -1086,10 +929,5 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
       end
 
     errors
-  end
-
-  # Validate clone form
-  defp validate_clone_form(params) do
-    validate_create_form(params)
   end
 end
