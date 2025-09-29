@@ -21,9 +21,11 @@
   {"lib/mix/tasks/phoenix_kit.process_dlq.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.process_sqs_queue.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.sync_email_status.ex", :unknown_function},
+  {"lib/mix/tasks/phoenix_kit.seed_templates.ex", :unknown_function},
 
   # Mix.Task behaviour callbacks (expected in Mix tasks)
   {"lib/mix/tasks/phoenix_kit.gen.migration.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.seed_templates.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.install.ex", :callback_info_missing, 2},
   {"lib/mix/tasks/phoenix_kit.update.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.modernize_layouts.ex", :callback_info_missing, 1},

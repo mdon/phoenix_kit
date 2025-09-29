@@ -222,7 +222,7 @@ defmodule Mix.Tasks.PhoenixKit.SeedTemplates do
       errors = Enum.filter(results, fn {status, _} -> status == :error end)
 
       unless quiet do
-        Mix.Shell.IO.error("Errors occurred during seeding: #{inspect(errors)}")
+        Mix.shell().error("Errors occurred during seeding: #{inspect(errors)}")
       end
 
       {:error, :seed_failed}
