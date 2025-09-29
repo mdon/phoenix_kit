@@ -16,17 +16,17 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   ## Examples
 
       <.admin_nav_item
-        href={Routes.path("/admin/dashboard")}
+        href={Routes.locale_aware_path(assigns,"/admin/dashboard")}
         icon="dashboard"
         label="Dashboard"
-        current_path={Routes.path("/admin/dashboard")}
+        current_path={Routes.locale_aware_path(assigns,"/admin/dashboard")}
       />
 
       <.admin_nav_item
-        href={Routes.path("/admin/users")}
+        href={Routes.locale_aware_path(assigns,"/admin/users")}
         icon="users"
         label="Users"
-        current_path={Routes.path("/admin/dashboard")}
+        current_path={Routes.locale_aware_path(assigns,"/admin/dashboard")}
         mobile={true}
       />
   """
@@ -190,14 +190,14 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
         <div class="flex gap-1">
           <.link
-            href={Routes.path("/users/settings")}
+            href={Routes.locale_aware_path(assigns, "/users/settings")}
             class="btn btn-ghost btn-xs flex-1"
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-3 h-3" />
           </.link>
 
           <.link
-            href={Routes.path("/users/log-out")}
+            href={Routes.locale_aware_path(assigns, "/users/log-out")}
             method="delete"
             class="btn btn-ghost btn-xs flex-1 text-error hover:bg-error hover:text-error-content"
           >
@@ -208,7 +208,10 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     <% else %>
       <div class="bg-base-200 rounded-lg p-3 text-center text-sm">
         <div class="text-base-content/70 mb-2">Not authenticated</div>
-        <.link href={Routes.path("/users/log-in")} class="btn btn-primary btn-sm w-full">
+        <.link
+          href={Routes.locale_aware_path(assigns, "/users/log-in")}
+          class="btn btn-primary btn-sm w-full"
+        >
           Login
         </.link>
       </div>

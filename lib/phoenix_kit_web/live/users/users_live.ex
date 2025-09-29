@@ -1,5 +1,6 @@
 defmodule PhoenixKitWeb.Live.Users.UsersLive do
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
@@ -10,7 +11,11 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
 
   @per_page 10
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    # Set locale for LiveView process
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
     # Subscribe to user events for live updates
     if connected?(socket) do
       Events.subscribe_to_users()
@@ -45,6 +50,7 @@ defmodule PhoenixKitWeb.Live.Users.UsersLive do
       |> assign(:page_title, "Users")
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
+      |> assign(:current_locale, locale)
       |> load_users()
       |> load_stats()
 

@@ -1,11 +1,16 @@
 defmodule PhoenixKitWeb.Live.ModulesLive do
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Module.Languages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    # Set locale for LiveView process
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -30,6 +35,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
       |> assign(:languages_count, languages_config.language_count)
       |> assign(:languages_enabled_count, languages_config.enabled_count)
       |> assign(:languages_default, languages_config.default_language)
+      |> assign(:current_locale, locale)
 
     {:ok, socket}
   end

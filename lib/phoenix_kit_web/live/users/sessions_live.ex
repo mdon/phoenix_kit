@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
   Only accessible to users with Owner or Admin roles.
   """
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
@@ -21,7 +22,11 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
 
   @per_page 20
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    # Set locale for LiveView process
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
     # Subscribe to session events for real-time updates
     if connected?(socket) do
       Events.subscribe_to_sessions()
@@ -38,6 +43,7 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
       |> assign(:filter_user_status, "all")
       |> assign(:page_title, "Sessions")
       |> assign(:project_title, project_title)
+      |> assign(:current_locale, locale)
       |> assign(:show_revoke_modal, false)
       |> assign(:selected_session, nil)
       |> assign(:revoke_type, nil)
