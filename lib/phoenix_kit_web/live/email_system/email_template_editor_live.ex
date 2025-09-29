@@ -113,7 +113,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   @impl true
   def handle_event("validate", %{"email_template" => template_params}, socket) do
     template = socket.assigns.template || %EmailTemplate{}
-    changeset = EmailTemplate.changeset(template, template_params)
 
     # Extract variables from current content
     temp_template = %EmailTemplate{
@@ -123,6 +122,32 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
     }
 
     extracted_variables = EmailTemplate.extract_variables(temp_template)
+
+    # Auto-add extracted variables with smart descriptions
+    current_variables = template_params["variables"] || %{}
+
+    # Convert string keys to ensure consistency
+    current_variables =
+      if is_map(current_variables) do
+        current_variables
+      else
+        %{}
+      end
+
+    # Add any new extracted variables with smart descriptions
+    updated_variables =
+      Enum.reduce(extracted_variables, current_variables, fn var, acc ->
+        if Map.has_key?(acc, var) do
+          acc
+        else
+          Map.put(acc, var, smart_description_for_variable(var))
+        end
+      end)
+
+    # Merge updated variables into template params
+    template_params_with_vars = Map.put(template_params, "variables", updated_variables)
+
+    changeset = EmailTemplate.changeset(template, template_params_with_vars)
 
     socket =
       socket
@@ -136,12 +161,42 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   def handle_event("save", %{"email_template" => template_params}, socket) do
     socket = assign(socket, :saving, true)
 
+    # Extract variables and auto-add them before saving
+    temp_template = %EmailTemplate{
+      subject: template_params["subject"] || "",
+      html_body: template_params["html_body"] || "",
+      text_body: template_params["text_body"] || ""
+    }
+
+    extracted_variables = EmailTemplate.extract_variables(temp_template)
+
+    # Auto-add extracted variables with smart descriptions
+    current_variables = template_params["variables"] || %{}
+
+    current_variables =
+      if is_map(current_variables) do
+        current_variables
+      else
+        %{}
+      end
+
+    updated_variables =
+      Enum.reduce(extracted_variables, current_variables, fn var, acc ->
+        if Map.has_key?(acc, var) do
+          acc
+        else
+          Map.put(acc, var, smart_description_for_variable(var))
+        end
+      end)
+
+    template_params_with_vars = Map.put(template_params, "variables", updated_variables)
+
     case socket.assigns.mode do
       :new ->
-        create_template(socket, template_params)
+        create_template(socket, template_params_with_vars)
 
       :edit ->
-        update_template(socket, template_params)
+        update_template(socket, template_params_with_vars)
     end
   end
 
@@ -224,12 +279,15 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   end
 
   @impl true
-  def handle_event("add_variable", %{"name" => name}, socket)
-      when is_binary(name) and name != "" do
+  def handle_event(
+        "update_variable_description",
+        %{"name" => name, "value" => description},
+        socket
+      ) do
     changeset = socket.assigns.changeset
 
     current_variables = Ecto.Changeset.get_field(changeset, :variables) || %{}
-    updated_variables = Map.put(current_variables, name, "Variable description")
+    updated_variables = Map.put(current_variables, name, description)
 
     updated_changeset = Ecto.Changeset.put_change(changeset, :variables, updated_variables)
 
@@ -340,7 +398,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
           <%!-- Editor Panel --%>
           <div class="space-y-6">
             <.form
-              for={%{"email_template" => @changeset}}
+              for={@changeset}
               as={:email_template}
               phx-change="validate"
               phx-submit="save"
@@ -364,7 +422,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                         class="input input-bordered"
                         disabled={(@mode == :edit and @template) && @template.is_system}
                       />
-                      <%= if error = get_in(@changeset.errors, [:name, 0]) do %>
+                      <%= if error = Keyword.get(@changeset.errors, :name) do %>
                         <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                       <% end %>
                     </div>
@@ -380,10 +438,32 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                         placeholder="Welcome Email"
                         class="input input-bordered"
                       />
-                      <%= if error = get_in(@changeset.errors, [:display_name, 0]) do %>
+                      <%= if error = Keyword.get(@changeset.errors, :display_name) do %>
                         <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                       <% end %>
                     </div>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Slug</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="email_template[slug]"
+                      value={Ecto.Changeset.get_field(@changeset, :slug)}
+                      placeholder="welcome-email"
+                      class="input input-bordered"
+                      disabled={(@mode == :edit and @template) && @template.is_system}
+                    />
+                    <%= if error = Keyword.get(@changeset.errors, :slug) do %>
+                      <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
+                    <% end %>
+                    <label class="label">
+                      <span class="label-text-alt">
+                        URL-friendly identifier (auto-generated from name if left empty)
+                      </span>
+                    </label>
                   </div>
 
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -417,7 +497,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                           System
                         </option>
                       </select>
-                      <%= if error = get_in(@changeset.errors, [:category, 0]) do %>
+                      <%= if error = Keyword.get(@changeset.errors, :category) do %>
                         <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                       <% end %>
                     </div>
@@ -449,7 +529,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                           Archived
                         </option>
                       </select>
-                      <%= if error = get_in(@changeset.errors, [:status, 0]) do %>
+                      <%= if error = Keyword.get(@changeset.errors, :status) do %>
                         <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                       <% end %>
                     </div>
@@ -465,7 +545,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                       class="textarea textarea-bordered"
                       rows="2"
                     ><%= Ecto.Changeset.get_field(@changeset, :description) %></textarea>
-                    <%= if error = get_in(@changeset.errors, [:description, 0]) do %>
+                    <%= if error = Keyword.get(@changeset.errors, :description) do %>
                       <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                     <% end %>
                   </div>
@@ -488,7 +568,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                       placeholder="Welcome to {{app_name}}!"
                       class="input input-bordered"
                     />
-                    <%= if error = get_in(@changeset.errors, [:subject, 0]) do %>
+                    <%= if error = Keyword.get(@changeset.errors, :subject) do %>
                       <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                     <% end %>
                     <label class="label">
@@ -508,7 +588,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                       rows="12"
                       placeholder="<h1>Welcome {{user_name}}!</h1>"
                     ><%= Ecto.Changeset.get_field(@changeset, :html_body) %></textarea>
-                    <%= if error = get_in(@changeset.errors, [:html_body, 0]) do %>
+                    <%= if error = Keyword.get(@changeset.errors, :html_body) do %>
                       <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                     <% end %>
                   </div>
@@ -523,7 +603,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                       rows="8"
                       placeholder="Welcome {{user_name}}!"
                     ><%= Ecto.Changeset.get_field(@changeset, :text_body) %></textarea>
-                    <%= if error = get_in(@changeset.errors, [:text_body, 0]) do %>
+                    <%= if error = Keyword.get(@changeset.errors, :text_body) do %>
                       <div class="text-sm text-error mt-1">{elem(error, 0)}</div>
                     <% end %>
                   </div>
@@ -539,62 +619,60 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                     <div class="alert alert-info mb-4">
                       <.icon name="hero-information-circle" class="w-5 h-5" />
                       <div>
-                        <div class="font-semibold">Variables found in template:</div>
+                        <div class="font-semibold">
+                          {length(@extracted_variables)} variable(s) detected and auto-added
+                        </div>
                         <div class="text-sm mt-1">
-                          {Enum.join(@extracted_variables, ", ")}
+                          Variables are automatically managed. Edit descriptions below or remove if not needed.
                         </div>
                       </div>
                     </div>
 
                     <div class="space-y-2">
-                      <%= for variable <- @extracted_variables do %>
-                        <div class="flex items-center gap-2 p-2 bg-base-200 rounded">
-                          <span class="font-mono text-sm flex-1">{"{{#{variable}}}"}</span>
-                          <%= if not Map.has_key?(Ecto.Changeset.get_field(@changeset, :variables) || %{}, variable) do %>
-                            <button
-                              type="button"
-                              phx-click="add_variable"
-                              phx-value-name={variable}
-                              class="btn btn-xs btn-primary"
-                            >
-                              Add
-                            </button>
-                          <% else %>
-                            <button
-                              type="button"
-                              phx-click="remove_variable"
-                              phx-value-name={variable}
-                              class="btn btn-xs btn-error"
-                            >
-                              Remove
-                            </button>
-                          <% end %>
+                      <%= for {name, description} <- Ecto.Changeset.get_field(@changeset, :variables) || %{} do %>
+                        <div class="flex items-start gap-2 p-3 bg-base-200 rounded">
+                          <div class="flex-shrink-0 pt-2">
+                            <span class="font-mono text-sm font-semibold">{"{{#{name}}}"}</span>
+                          </div>
+                          <div class="flex-1">
+                            <input
+                              type="text"
+                              value={description}
+                              placeholder="Description for this variable..."
+                              class="input input-sm input-bordered w-full"
+                              phx-change="update_variable_description"
+                              phx-value-name={name}
+                              phx-debounce="300"
+                            />
+                            <input
+                              type="hidden"
+                              name={"email_template[variables][#{name}]"}
+                              value={description}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            phx-click="remove_variable"
+                            phx-value-name={name}
+                            class="btn btn-xs btn-ghost text-error mt-1"
+                            title="Remove variable"
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" />
+                          </button>
                         </div>
                       <% end %>
                     </div>
                   <% else %>
-                    <div class="text-center py-4 text-base-content/60">
-                      <div class="mb-2">No variables found in template content</div>
-                      <div class="text-sm">Use {"{{variable_name}}"} syntax to add variables</div>
-                    </div>
-                  <% end %>
-
-                  <%= if map_size(Ecto.Changeset.get_field(@changeset, :variables) || %{}) > 0 do %>
-                    <div class="divider">Defined Variables</div>
-                    <%= for {name, description} <- Ecto.Changeset.get_field(@changeset, :variables) || %{} do %>
-                      <div class="flex items-center gap-2 p-2 bg-success/10 rounded">
-                        <span class="font-mono text-sm">{"{{#{name}}}"}</span>
-                        <span class="text-sm text-base-content/70 flex-1">{description}</span>
-                        <button
-                          type="button"
-                          phx-click="remove_variable"
-                          phx-value-name={name}
-                          class="btn btn-xs btn-ghost text-error"
-                        >
-                          ×
-                        </button>
+                    <div class="text-center py-8 text-base-content/60">
+                      <.icon name="hero-code-bracket" class="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <div class="font-medium mb-2">No variables found in template</div>
+                      <div class="text-sm">
+                        Use {"{{variable_name}}"} syntax in subject or body to add dynamic variables.
                       </div>
-                    <% end %>
+                      <div class="text-sm mt-1">
+                        Example: {"{{user_name}}"}, {"{{email}}"}, {"{{url}}"}
+                      </div>
+                    </div>
                   <% end %>
                 </div>
               </div>
@@ -850,6 +928,32 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
          |> assign(:saving, false)
          |> assign(:changeset, changeset)}
     end
+  end
+
+  defp smart_description_for_variable(variable) do
+    descriptions = %{
+      "user_name" => "User's display name",
+      "user_email" => "User's email address",
+      "email" => "User's email address",
+      "url" => "Action URL or link",
+      "confirmation_url" => "Email confirmation link",
+      "reset_url" => "Password reset link",
+      "magic_link_url" => "Magic link authentication URL",
+      "update_url" => "Profile update URL",
+      "timestamp" => "Current timestamp",
+      "app_name" => "Application name",
+      "company_name" => "Company or organization name",
+      "support_email" => "Support contact email",
+      "first_name" => "User's first name",
+      "last_name" => "User's last name",
+      "username" => "User's username",
+      "token" => "Verification or authentication token",
+      "code" => "Verification code",
+      "expiry" => "Expiration date/time",
+      "subject" => "Email subject line"
+    }
+
+    Map.get(descriptions, variable, "Custom variable: #{variable}")
   end
 
   defp generate_sample_variables(variables) do

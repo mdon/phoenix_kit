@@ -168,6 +168,7 @@ defmodule PhoenixKit.EmailSystem.EmailTemplate do
       :created_by_user_id,
       :updated_by_user_id
     ])
+    |> auto_generate_slug()
     |> validate_required([
       :name,
       :slug,
@@ -196,7 +197,6 @@ defmodule PhoenixKit.EmailSystem.EmailTemplate do
     |> unique_constraint(:name)
     |> unique_constraint(:slug)
     |> validate_template_variables()
-    |> auto_generate_slug()
   end
 
   @doc """
@@ -276,11 +276,18 @@ defmodule PhoenixKit.EmailSystem.EmailTemplate do
 
   # Automatically generate slug from name if not provided
   defp auto_generate_slug(changeset) do
-    case get_field(changeset, :slug) do
-      nil ->
-        case get_field(changeset, :name) do
-          nil -> changeset
-          name -> put_change(changeset, :slug, String.replace(name, "_", "-"))
+    slug = get_change(changeset, :slug) || get_field(changeset, :slug)
+
+    case slug do
+      s when s in [nil, ""] ->
+        name = get_change(changeset, :name) || get_field(changeset, :name)
+
+        case name do
+          n when is_binary(n) and n != "" ->
+            put_change(changeset, :slug, String.replace(n, "_", "-"))
+
+          _ ->
+            changeset
         end
 
       _ ->
