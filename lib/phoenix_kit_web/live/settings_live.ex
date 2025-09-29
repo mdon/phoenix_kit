@@ -1,10 +1,15 @@
 defmodule PhoenixKitWeb.Live.SettingsLive do
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    # Set locale for LiveView process
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
     # Load current settings from database
     current_settings = Settings.list_all_settings()
     defaults = Settings.get_defaults()
@@ -26,6 +31,7 @@ defmodule PhoenixKitWeb.Live.SettingsLive do
       |> assign(:changeset, changeset)
       |> assign(:saving, false)
       |> assign(:project_title, merged_settings["project_title"] || "PhoenixKit")
+      |> assign(:current_locale, locale)
 
     {:ok, socket}
   end

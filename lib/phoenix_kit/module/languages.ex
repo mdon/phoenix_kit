@@ -401,6 +401,31 @@ defmodule PhoenixKit.Module.Languages do
   end
 
   @doc """
+  Gets enabled language codes for locale-based routing.
+
+  Returns a list of enabled language codes that can be used in URL routing.
+  Falls back to ["en"] when the language module is disabled.
+
+  ## Examples
+
+      iex> PhoenixKit.Module.Languages.enabled_locale_codes()
+      ["en", "es", "fr"]
+
+      # When system is disabled:
+      iex> PhoenixKit.Module.Languages.enabled_locale_codes()
+      ["en"]
+  """
+  def enabled_locale_codes do
+    if enabled?() do
+      codes = get_enabled_language_codes()
+      # Ensure we always have at least "en" as a fallback
+      if Enum.empty?(codes), do: ["en"], else: codes
+    else
+      ["en"]
+    end
+  end
+
+  @doc """
   Checks if a language code is valid (exists in configuration).
 
   Returns true if the language exists, false otherwise.

@@ -4,14 +4,17 @@
   page_title="{@project_title} Dashboard"
   current_path={@url_path}
   project_title={@project_title}
+  current_locale={@current_locale}
 >
   <div class="container flex-col mx-auto px-4 py-8">
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-base-content mb-2">
-        {@project_title} Dashboard
+        {@project_title} {gettext("Dashboard")}
       </h1>
       <p class="text-base-content/70">
-        Welcome to the {@project_title} administration panel
+        {gettext("Welcome to the %{project_title} administration panel",
+          project_title: @project_title
+        )}
       </p>
     </div>
 
@@ -25,8 +28,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_users class="w-8 h-8 mr-3" />
             <div>
-              <h3 class="card-title text-lg">Users</h3>
-              <p class="text-sm opacity-75">User management</p>
+              <h3 class="card-title text-lg">{gettext("Users")}</h3>
+              <p class="text-sm opacity-75">{gettext("User management")}</p>
             </div>
           </div>
         </div>
@@ -40,8 +43,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_roles class="w-8 h-8 mr-3" />
             <div>
-              <h3 class="card-title text-lg">Roles</h3>
-              <p class="text-sm opacity-75">Role management</p>
+              <h3 class="card-title text-lg">{gettext("Roles")}</h3>
+              <p class="text-sm opacity-75">{gettext("Role management")}</p>
             </div>
           </div>
         </div>
@@ -55,8 +58,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_sessions class="w-8 h-8 mr-3" />
             <div>
-              <h3 class="card-title text-lg">Sessions</h3>
-              <p class="text-sm opacity-75">Active sessions</p>
+              <h3 class="card-title text-lg">{gettext("Sessions")}</h3>
+              <p class="text-sm opacity-75">{gettext("Active sessions")}</p>
             </div>
           </div>
         </div>
@@ -70,8 +73,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_eye />
             <div>
-              <h3 class="card-title text-lg">Live Activity</h3>
-              <p class="text-sm opacity-75">Real-time visitors</p>
+              <h3 class="card-title text-lg">{gettext("Live Activity")}</h3>
+              <p class="text-sm opacity-75">{gettext("Real-time visitors")}</p>
             </div>
           </div>
         </div>
@@ -85,8 +88,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-8 h-8 mr-3" />
             <div>
-              <h3 class="card-title text-lg">Add User</h3>
-              <p class="text-sm opacity-75">Create new account</p>
+              <h3 class="card-title text-lg">{gettext("Add User")}</h3>
+              <p class="text-sm opacity-75">{gettext("Create new account")}</p>
             </div>
           </div>
         </div>
@@ -101,8 +104,8 @@
             <div class="flex items-center">
               <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-8 h-8 mr-3" />
               <div>
-                <h3 class="card-title text-lg">Email</h3>
-                <p class="text-sm opacity-75">Emails & analytics</p>
+                <h3 class="card-title text-lg">{gettext("Email")}</h3>
+                <p class="text-sm opacity-75">{gettext("Email logs & analytics")}</p>
               </div>
             </div>
           </div>
@@ -117,8 +120,8 @@
           <div class="flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-8 h-8 mr-3" />
             <div>
-              <h3 class="card-title text-lg">Refresh</h3>
-              <p class="text-sm opacity-75">Update statistics</p>
+              <h3 class="card-title text-lg">{gettext("Refresh")}</h3>
+              <p class="text-sm opacity-75">{gettext("Update statistics")}</p>
             </div>
           </div>
         </div>
@@ -128,7 +131,7 @@
     <%!-- Platform Statistics --%>
     <div class="mb-12">
       <h2 class="text-2xl font-bold text-base-content mb-8">
-        Platform Statistics
+        {gettext("Platform Statistics")}
       </h2>
 
       <%!-- Main Statistics Cards --%>
@@ -143,10 +146,10 @@
                 <div class="p-2 bg-white/20 rounded-lg">
                   <PhoenixKitWeb.Components.Core.Icons.icon_crown />
                 </div>
-                <h2 class="card-title text-xl">System Owners</h2>
+                <h2 class="card-title text-xl">{gettext("System Owners")}</h2>
               </div>
               <div class="text-7xl font-black mb-2 tracking-tight">{@stats.owner_count}</div>
-              <p class="text-red-100 text-sm">Complete system authority</p>
+              <p class="text-red-100 text-sm">{gettext("Complete system authority")}</p>
             </div>
           </div>
         </div>
@@ -161,10 +164,10 @@
                 <div class="p-2 bg-white/20 rounded-lg">
                   <PhoenixKitWeb.Components.Core.Icons.icon_star />
                 </div>
-                <h2 class="card-title text-xl">Administrators</h2>
+                <h2 class="card-title text-xl">{gettext("Administrators")}</h2>
               </div>
               <div class="text-7xl font-black mb-2 tracking-tight">{@stats.admin_count}</div>
-              <p class="text-orange-100 text-sm">Management privileges</p>
+              <p class="text-orange-100 text-sm">{gettext("Management privileges")}</p>
             </div>
           </div>
         </div>
@@ -179,10 +182,10 @@
                 <div class="p-2 bg-white/20 rounded-lg">
                   👥
                 </div>
-                <h2 class="card-title text-xl">Total Users</h2>
+                <h2 class="card-title text-xl">{gettext("Total Users")}</h2>
               </div>
               <div class="text-7xl font-black mb-2 tracking-tight">{@stats.total_users}</div>
-              <p class="text-blue-100 text-sm">Registered accounts</p>
+              <p class="text-blue-100 text-sm">{gettext("Registered accounts")}</p>
             </div>
           </div>
         </div>
@@ -190,7 +193,7 @@
 
       <%!-- Sessions Statistics --%>
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-base-content mb-4">Active Sessions</h3>
+        <h3 class="text-xl font-bold text-base-content mb-4">{gettext("Active Sessions")}</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Sessions --%>
           <div class="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
@@ -200,8 +203,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@session_stats.total_active}</div>
-            <div class="text-purple-100 font-medium">Active Sessions</div>
-            <div class="text-purple-200 text-xs mt-1">Currently logged in</div>
+            <div class="text-purple-100 font-medium">{gettext("Active Sessions")}</div>
+            <div class="text-purple-200 text-xs mt-1">{gettext("Currently logged in")}</div>
           </div>
 
           <%!-- Unique Users --%>
@@ -212,8 +215,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@session_stats.unique_users}</div>
-            <div class="text-teal-100 font-medium">Unique Users</div>
-            <div class="text-teal-200 text-xs mt-1">With active sessions</div>
+            <div class="text-teal-100 font-medium">{gettext("Unique Users")}</div>
+            <div class="text-teal-200 text-xs mt-1">{gettext("With active sessions")}</div>
           </div>
 
           <%!-- Today's Sessions --%>
@@ -224,8 +227,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@session_stats.sessions_today}</div>
-            <div class="text-emerald-100 font-medium">Today's Sessions</div>
-            <div class="text-emerald-200 text-xs mt-1">New login activity</div>
+            <div class="text-emerald-100 font-medium">{gettext("Today's Sessions")}</div>
+            <div class="text-emerald-200 text-xs mt-1">{gettext("New login activity")}</div>
           </div>
 
           <%!-- Expired Sessions --%>
@@ -236,15 +239,15 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@session_stats.expired_sessions}</div>
-            <div class="text-slate-100 font-medium">Expired Sessions</div>
-            <div class="text-slate-200 text-xs mt-1">Need cleanup</div>
+            <div class="text-slate-100 font-medium">{gettext("Expired Sessions")}</div>
+            <div class="text-slate-200 text-xs mt-1">{gettext("Need cleanup")}</div>
           </div>
         </div>
       </div>
 
       <%!-- Real-Time Presence Statistics --%>
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-base-content mb-4">Real-Time Activity</h3>
+        <h3 class="text-xl font-bold text-base-content mb-4">{gettext("Real-Time Activity")}</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Visitors --%>
           <div class="bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
@@ -254,8 +257,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@presence_stats.total_sessions}</div>
-            <div class="text-violet-100 font-medium">Active Visitors</div>
-            <div class="text-violet-200 text-xs mt-1">Real-time connections</div>
+            <div class="text-violet-100 font-medium">{gettext("Active Visitors")}</div>
+            <div class="text-violet-200 text-xs mt-1">{gettext("Real-time connections")}</div>
           </div>
 
           <%!-- Anonymous Visitors --%>
@@ -266,8 +269,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@presence_stats.anonymous_sessions}</div>
-            <div class="text-cyan-100 font-medium">Anonymous</div>
-            <div class="text-cyan-200 text-xs mt-1">Unregistered visitors</div>
+            <div class="text-cyan-100 font-medium">{gettext("Anonymous")}</div>
+            <div class="text-cyan-200 text-xs mt-1">{gettext("Unregistered visitors")}</div>
           </div>
 
           <%!-- Authenticated Users --%>
@@ -278,8 +281,8 @@
               </div>
             </div>
             <div class="text-3xl font-bold mb-2">{@presence_stats.authenticated_sessions}</div>
-            <div class="text-green-100 font-medium">Authenticated</div>
-            <div class="text-green-200 text-xs mt-1">Logged in users</div>
+            <div class="text-green-100 font-medium">{gettext("Authenticated")}</div>
+            <div class="text-green-200 text-xs mt-1">{gettext("Logged in users")}</div>
           </div>
 
           <%!-- Unique Visitors --%>
@@ -293,8 +296,8 @@
               {@presence_stats.unique_anonymous_visitors +
                 @presence_stats.active_authenticated_users}
             </div>
-            <div class="text-yellow-100 font-medium">Unique Visitors</div>
-            <div class="text-yellow-200 text-xs mt-1">Individual connections</div>
+            <div class="text-yellow-100 font-medium">{gettext("Unique Visitors")}</div>
+            <div class="text-yellow-200 text-xs mt-1">{gettext("Individual connections")}</div>
           </div>
         </div>
       </div>
@@ -309,8 +312,8 @@
             </div>
           </div>
           <div class="text-3xl font-bold mb-2">{@stats.active_users}</div>
-          <div class="text-green-100 font-medium">Active Users</div>
-          <div class="text-green-200 text-xs mt-1">Currently online</div>
+          <div class="text-green-100 font-medium">{gettext("Active Users")}</div>
+          <div class="text-green-200 text-xs mt-1">{gettext("Currently online")}</div>
         </div>
 
         <%!-- Inactive Users --%>
@@ -321,8 +324,8 @@
             </div>
           </div>
           <div class="text-3xl font-bold mb-2">{@stats.inactive_users}</div>
-          <div class="text-red-100 font-medium">Inactive Users</div>
-          <div class="text-red-200 text-xs mt-1">Disabled accounts</div>
+          <div class="text-red-100 font-medium">{gettext("Inactive Users")}</div>
+          <div class="text-red-200 text-xs mt-1">{gettext("Disabled accounts")}</div>
         </div>
 
         <%!-- Email Confirmed --%>
@@ -333,8 +336,8 @@
             </div>
           </div>
           <div class="text-3xl font-bold mb-2">{@stats.confirmed_users}</div>
-          <div class="text-blue-100 font-medium">Email Confirmed</div>
-          <div class="text-blue-200 text-xs mt-1">Verified emails</div>
+          <div class="text-blue-100 font-medium">{gettext("Email Confirmed")}</div>
+          <div class="text-blue-200 text-xs mt-1">{gettext("Verified emails")}</div>
         </div>
 
         <%!-- Pending Email --%>
@@ -345,8 +348,8 @@
             </div>
           </div>
           <div class="text-3xl font-bold mb-2">{@stats.pending_users}</div>
-          <div class="text-yellow-100 font-medium">Pending Email</div>
-          <div class="text-yellow-200 text-xs mt-1">Awaiting confirmation</div>
+          <div class="text-yellow-100 font-medium">{gettext("Pending Email")}</div>
+          <div class="text-yellow-200 text-xs mt-1">{gettext("Awaiting confirmation")}</div>
         </div>
 
         <%!-- Regular Users --%>
@@ -357,8 +360,8 @@
             </div>
           </div>
           <div class="text-3xl font-bold mb-2">{@stats.user_count}</div>
-          <div class="text-gray-100 font-medium">Regular Users</div>
-          <div class="text-gray-200 text-xs mt-1">Standard access level</div>
+          <div class="text-gray-100 font-medium">{gettext("Regular Users")}</div>
+          <div class="text-gray-200 text-xs mt-1">{gettext("Standard access level")}</div>
         </div>
       </div>
     </div>
@@ -366,7 +369,7 @@
     <%!-- System Information --%>
     <div class="mb-8">
       <h2 class="text-2xl font-bold text-base-content mb-6">
-        System Information
+        {gettext("System Information")}
       </h2>
 
       <div class="card bg-base-100 shadow-xl">
@@ -374,15 +377,17 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="text-center">
               <div class="text-2xl font-bold text-primary mb-2">{@phoenix_kit_version}</div>
-              <div class="text-sm text-base-content/70">{@project_title} Version</div>
+              <div class="text-sm text-base-content/70">
+                {gettext("%{project_title} Version", project_title: @project_title)}
+              </div>
             </div>
             <div class="text-center">
-              <div class="badge badge-success badge-lg mb-2">Active</div>
-              <div class="text-sm text-base-content/70">Role System</div>
+              <div class="badge badge-success badge-lg mb-2">{gettext("Active")}</div>
+              <div class="text-sm text-base-content/70">{gettext("Role System")}</div>
             </div>
             <div class="text-center">
-              <div class="badge badge-success badge-lg mb-2">Enabled</div>
-              <div class="text-sm text-base-content/70">Authentication</div>
+              <div class="badge badge-success badge-lg mb-2">{gettext("Enabled")}</div>
+              <div class="text-sm text-base-content/70">{gettext("Authentication")}</div>
             </div>
           </div>
         </div>

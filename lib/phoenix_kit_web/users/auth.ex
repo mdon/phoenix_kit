@@ -25,6 +25,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Phoenix.LiveView, only: [attach_hook: 4]
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -455,6 +456,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   def call(conn, :phoenix_kit_require_authenticated_scope),
     do: require_authenticated_scope(conn, [])
 
+  @doc false
+  def call(conn, :phoenix_kit_validate_and_set_locale),
+    do: validate_and_set_locale(conn, [])
+
   @doc """
   Used for routes that require the user to not be authenticated.
   """
@@ -606,6 +611,79 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp maybe_store_return_to(conn), do: conn
 
   defp signed_in_path(_conn), do: "/"
+
+  @doc """
+  Validates and sets the locale from the URL path parameter.
+
+  Extracts the locale from the `:locale` path parameter, validates it against
+  enabled language codes from the database, and either sets the locale or
+  redirects to the default locale URL if invalid.
+
+  ## Examples
+
+      # Valid locale in URL
+      conn = validate_and_set_locale(conn, [])  # Sets Gettext locale
+
+      # Invalid locale in URL
+      conn = validate_and_set_locale(conn, [])  # Redirects to default locale URL
+  """
+  def validate_and_set_locale(conn, _opts) do
+    case conn.path_params do
+      %{"locale" => locale} when is_binary(locale) ->
+        enabled_locales = Languages.enabled_locale_codes()
+
+        if locale in enabled_locales do
+          # Valid locale - set it and continue
+          Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+          assign(conn, :current_locale, locale)
+        else
+          # Invalid locale - redirect to default locale URL
+          redirect_invalid_locale(conn, locale)
+        end
+
+      _ ->
+        # No locale in URL - set default locale
+        Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+        assign(conn, :current_locale, "en")
+    end
+  end
+
+  @doc """
+  Redirects invalid locale URLs to the default locale.
+
+  Takes the current URL path and replaces the invalid locale with the default
+  locale ("en"), then redirects the user to the corrected URL.
+  """
+  def redirect_invalid_locale(conn, invalid_locale) do
+    # Get the default locale (first enabled locale or "en")
+    default_locale = Languages.enabled_locale_codes() |> List.first() || "en"
+
+    # Replace invalid locale with default locale in the URL path
+    corrected_path =
+      String.replace(conn.request_path, "/#{invalid_locale}/", "/#{default_locale}/",
+        global: false
+      )
+
+    # If the invalid locale was at the end of the path, handle that case too
+    corrected_path =
+      if String.ends_with?(conn.request_path, "/#{invalid_locale}") do
+        String.replace_suffix(corrected_path, "/#{invalid_locale}", "/#{default_locale}")
+      else
+        corrected_path
+      end
+
+    # Log the invalid locale attempt for debugging
+    require Logger
+
+    Logger.warning(
+      "Invalid locale '#{invalid_locale}' requested, redirecting to '#{default_locale}'. Path: #{conn.request_path}"
+    )
+
+    # Redirect to the corrected URL
+    conn
+    |> redirect(to: corrected_path)
+    |> halt()
+  end
 
   defp extract_session_id_from_live_socket_id(live_socket_id) do
     case live_socket_id do
