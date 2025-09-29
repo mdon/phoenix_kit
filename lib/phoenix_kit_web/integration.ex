@@ -176,7 +176,6 @@ defmodule PhoenixKitWeb.Integration do
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
-
       # Email export routes (require admin authentication)
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_require_authenticated]
@@ -186,8 +185,6 @@ defmodule PhoenixKitWeb.Integration do
         get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
         get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
       end
-
-      # LiveView routes with proper authentication
 
       # Define locale validation pipeline
       pipeline :phoenix_kit_locale_validation do
@@ -259,7 +256,6 @@ defmodule PhoenixKitWeb.Integration do
       end
 
       # Non-localized scope for backward compatibility (defaults to "en")
-
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
 
