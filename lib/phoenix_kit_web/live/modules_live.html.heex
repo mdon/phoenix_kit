@@ -148,7 +148,7 @@
               <% end %>
             </div>
 
-            <div class="card-actions">
+            <div class="card-actions flex-col items-stretch space-y-2">
               <%= if @email_enabled do %>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/emails")}
@@ -157,13 +157,20 @@
                   <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
                   Configure
                 </.link>
-                <.link
-                  navigate={PhoenixKit.Utils.Routes.path("/admin/emails")}
-                  class="btn btn-outline btn-sm"
-                >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-1" />
-                  View Logs
-                </.link>
+                <div class="flex gap-2">
+                  <.link
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/emails")}
+                    class="btn btn-outline btn-sm flex-1"
+                  >
+                    <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-1" /> Emails
+                  </.link>
+                  <.link
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/emails/templates")}
+                    class="btn btn-outline btn-sm flex-1"
+                  >
+                    <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Templates
+                  </.link>
+                </div>
               <% else %>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/emails")}

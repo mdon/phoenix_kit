@@ -166,6 +166,11 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
           live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
           live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
+
+          # Email Templates Management
+          live "/admin/emails/templates", Live.EmailSystem.EmailTemplatesLive, :index
+          live "/admin/emails/templates/new", Live.EmailSystem.EmailTemplateEditorLive, :new
+          live "/admin/emails/templates/:id/edit", Live.EmailSystem.EmailTemplateEditorLive, :edit
         end
       end
     end

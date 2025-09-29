@@ -256,22 +256,33 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
         </header>
 
         <%!-- Action Buttons --%>
-        <div class="flex justify-end gap-2 mb-6">
-          <.button phx-click="show_test_email_modal" class="btn btn-primary btn-sm">
-            <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Send Test Email
-          </.button>
+        <div class="flex justify-between items-center mb-6">
+          <div class="flex gap-2">
+            <.link
+              navigate={Routes.path("/admin/emails/templates")}
+              class="btn btn-outline btn-secondary btn-sm"
+            >
+              <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Templates
+            </.link>
+          </div>
 
-          <.link
-            href={build_export_url(@filters)}
-            target="_blank"
-            class="btn btn-outline btn-sm"
-          >
-            <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
-          </.link>
+          <div class="flex gap-2">
+            <.button phx-click="show_test_email_modal" class="btn btn-primary btn-sm">
+              <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Send Test Email
+            </.button>
 
-          <.button phx-click="refresh" class="btn btn-outline btn-sm">
-            <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
-          </.button>
+            <.link
+              href={build_export_url(@filters)}
+              target="_blank"
+              class="btn btn-outline btn-sm"
+            >
+              <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
+            </.link>
+
+            <.button phx-click="refresh" class="btn btn-outline btn-sm">
+              <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
+            </.button>
+          </div>
         </div>
 
         <%!-- Statistics Summary --%>

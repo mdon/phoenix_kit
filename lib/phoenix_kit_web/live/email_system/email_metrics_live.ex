@@ -195,10 +195,18 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
 
     charts_data = prepare_charts_data(metrics, period)
 
-    socket
-    |> assign(:metrics, metrics)
-    |> assign(:charts_data, charts_data)
-    |> assign(:loading, false)
+    socket =
+      socket
+      |> assign(:metrics, metrics)
+      |> assign(:charts_data, charts_data)
+      |> assign(:loading, false)
+
+    # Push chart data to JavaScript if the socket is connected
+    if connected?(socket) do
+      socket |> push_event("email-charts-update", %{charts: charts_data})
+    else
+      socket
+    end
   end
 
   defp determine_period(assigns) do

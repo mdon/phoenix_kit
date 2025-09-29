@@ -25,6 +25,7 @@ defmodule PhoenixKit.Mailer do
   import Swoosh.Email
 
   alias PhoenixKit.EmailSystem.EmailInterceptor
+  alias PhoenixKit.EmailSystem.Templates
 
   alias PhoenixKit.Users.Auth.User
 
@@ -79,19 +80,52 @@ defmodule PhoenixKit.Mailer do
   @doc """
   Sends a magic link email to the user.
 
+  Uses the 'magic_link' template from the database if available,
+  falls back to hardcoded template if not found.
+
   ## Examples
 
       iex> PhoenixKit.Mailer.send_magic_link_email(user, "https://app.com/magic/token123")
       {:ok, %Swoosh.Email{}}
   """
   def send_magic_link_email(%User{} = user, magic_link_url) when is_binary(magic_link_url) do
+    # Variables for template substitution
+    template_variables = %{
+      "user_email" => user.email,
+      "magic_link_url" => magic_link_url
+    }
+
+    # Try to get template from database, fallback to hardcoded
+    {subject, html_body, text_body} =
+      case Templates.get_active_template_by_name("magic_link") do
+        nil ->
+          # Fallback to hardcoded templates
+          {
+            "Your secure login link",
+            magic_link_html_body(user, magic_link_url),
+            magic_link_text_body(user, magic_link_url)
+          }
+
+        template ->
+          # Use database template with variable substitution
+          rendered = Templates.render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body}
+      end
+
     email =
       new()
       |> to({user.email, user.email})
       |> from({"PhoenixKit", get_from_email()})
-      |> subject("Your secure login link")
-      |> html_body(magic_link_html_body(user, magic_link_url))
-      |> text_body(magic_link_text_body(user, magic_link_url))
+      |> subject(subject)
+      |> html_body(html_body)
+      |> text_body(text_body)
+
+    # Track template usage if using database template
+    case Templates.get_active_template_by_name("magic_link") do
+      # No template to track
+      nil -> :ok
+      template -> Templates.track_usage(template)
+    end
 
     deliver_email(email,
       user_id: user.id,
@@ -267,6 +301,9 @@ defmodule PhoenixKit.Mailer do
   @doc """
   Send a test tracking email to verify email delivery and tracking functionality.
 
+  Uses the 'test_email' template from the database if available,
+  falls back to hardcoded template if not found.
+
   This function sends a test email with test links
   to verify that the email tracking system is working correctly.
 
@@ -291,14 +328,47 @@ defmodule PhoenixKit.Mailer do
   """
   def send_test_tracking_email(recipient_email, user_id \\ nil) when is_binary(recipient_email) do
     timestamp = DateTime.utc_now() |> DateTime.to_string()
+    base_url = PhoenixKit.Config.get_dynamic_base_url()
+    test_link_url = "#{base_url}/phoenix_kit/admin/emails"
+
+    # Variables for template substitution
+    template_variables = %{
+      "recipient_email" => recipient_email,
+      "timestamp" => timestamp,
+      "test_link_url" => test_link_url
+    }
+
+    # Try to get template from database, fallback to hardcoded
+    {subject, html_body, text_body} =
+      case Templates.get_active_template_by_name("test_email") do
+        nil ->
+          # Fallback to hardcoded templates
+          {
+            "Test Tracking Email - #{timestamp}",
+            test_email_html_body(recipient_email, timestamp),
+            test_email_text_body(recipient_email, timestamp)
+          }
+
+        template ->
+          # Use database template with variable substitution
+          rendered = Templates.render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body}
+      end
 
     email =
       new()
       |> to(recipient_email)
       |> from({"PhoenixKit Test", get_from_email()})
-      |> subject("Test Tracking Email - #{timestamp}")
-      |> html_body(test_email_html_body(recipient_email, timestamp))
-      |> text_body(test_email_text_body(recipient_email, timestamp))
+      |> subject(subject)
+      |> html_body(html_body)
+      |> text_body(text_body)
+
+    # Track template usage if using database template
+    case Templates.get_active_template_by_name("test_email") do
+      # No template to track
+      nil -> :ok
+      template -> Templates.track_usage(template)
+    end
 
     deliver_email(email,
       user_id: user_id,

@@ -224,7 +224,12 @@
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body">
             <h2 class="card-title text-lg mb-4">Delivery Trends</h2>
-            <div class="w-full h-64">
+            <div
+              class="w-full h-64"
+              id="delivery-chart-container"
+              phx-update="ignore"
+              data-chart-data={Jason.encode!(@charts_data.delivery_trend || %{})}
+            >
               <canvas id="delivery-trend-chart" width="400" height="200"></canvas>
             </div>
           </div>
@@ -233,7 +238,12 @@
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body">
             <h2 class="card-title text-lg mb-4">Engagement Metrics</h2>
-            <div class="w-full h-64">
+            <div
+              class="w-full h-64"
+              id="engagement-chart-container"
+              phx-update="ignore"
+              data-chart-data={Jason.encode!(@charts_data.engagement || %{})}
+            >
               <canvas id="engagement-chart" width="400" height="200"></canvas>
             </div>
           </div>
@@ -317,104 +327,202 @@
       </div>
     <% end %>
   </div>
-  <%!-- Chart.js CDN and initialization --%>
+  <%!-- Chart.js CDN and Simple Chart System --%>
   <script src="https://cdn.jsdelivr.net/npm/chart.js">
   </script>
   <script>
-    let deliveryChart = null;
-    let engagementChart = null;
+    (() => {
+      // Simple Chart Manager for PhoenixKit
+      const PhoenixKitCharts = {
+        deliveryChart: null,
+        engagementChart: null,
 
-    function initializeCharts(chartsData) {
-      // Destroy existing charts if they exist
-      if (deliveryChart) {
-        deliveryChart.destroy();
-        deliveryChart = null;
-      }
-      if (engagementChart) {
-        engagementChart.destroy();
-        engagementChart = null;
-      }
+        initializeCharts() {
+          this.initDeliveryChart();
+          this.initEngagementChart();
+        },
 
-      // Initialize Delivery Trends Chart
-      const deliveryCtx = document.getElementById('delivery-trend-chart');
-      if (deliveryCtx) {
-        deliveryChart = new Chart(deliveryCtx, {
-          type: 'line',
-          data: chartsData.delivery_trend,
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                beginAtZero: true,
-                grid: {
-                  color: 'rgba(0, 0, 0, 0.1)'
-                }
-              },
-              x: {
-                grid: {
-                  color: 'rgba(0, 0, 0, 0.1)'
-                }
-              }
-            },
-            plugins: {
-              legend: {
-                position: 'top',
-              },
-              tooltip: {
-                mode: 'index',
-                intersect: false,
-              }
-            },
-            interaction: {
-              mode: 'nearest',
-              axis: 'x',
-              intersect: false
-            }
+        initDeliveryChart() {
+          const container = document.getElementById('delivery-chart-container');
+          const canvas = document.getElementById('delivery-trend-chart');
+          if (!canvas || !container) return;
+
+          // Destroy existing chart
+          if (this.deliveryChart) {
+            this.deliveryChart.destroy();
           }
-        });
-      }
 
-      // Initialize Engagement Chart
-      const engagementCtx = document.getElementById('engagement-chart');
-      if (engagementCtx) {
-        engagementChart = new Chart(engagementCtx, {
-          type: 'doughnut',
-          data: chartsData.engagement,
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'bottom',
+          // Get data from HTML attribute
+          let chartData = {};
+          try {
+            const dataAttr = container.getAttribute('data-chart-data');
+            chartData = dataAttr ? JSON.parse(dataAttr) : {};
+          } catch (e) {
+            console.warn('Failed to parse delivery chart data:', e);
+          }
+
+          // Create chart with data or defaults
+          this.deliveryChart = new Chart(canvas, {
+            type: 'line',
+            data: chartData.labels ? chartData : {
+              labels: [],
+              datasets: [
+                {
+                  label: "Delivered",
+                  data: [],
+                  borderColor: "rgb(34, 197, 94)",
+                  backgroundColor: "rgba(34, 197, 94, 0.1)",
+                  tension: 0.1,
+                  fill: true
+                },
+                {
+                  label: "Bounced",
+                  data: [],
+                  borderColor: "rgb(239, 68, 68)",
+                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                  tension: 0.1,
+                  fill: true
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                },
+                x: {
+                  grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                }
               },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    const label = context.label || '';
-                    const value = context.parsed || 0;
-                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                    return `${label}: ${value} (${percentage}%)`;
+              plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                  mode: 'index',
+                  intersect: false,
+                }
+              }
+            }
+          });
+        },
+
+        initEngagementChart() {
+          const container = document.getElementById('engagement-chart-container');
+          const canvas = document.getElementById('engagement-chart');
+          if (!canvas || !container) return;
+
+          // Destroy existing chart
+          if (this.engagementChart) {
+            this.engagementChart.destroy();
+          }
+
+          // Get data from HTML attribute
+          let chartData = {};
+          try {
+            const dataAttr = container.getAttribute('data-chart-data');
+            chartData = dataAttr ? JSON.parse(dataAttr) : {};
+          } catch (e) {
+            console.warn('Failed to parse engagement chart data:', e);
+          }
+
+          // Create chart with data or defaults
+          this.engagementChart = new Chart(canvas, {
+            type: 'doughnut',
+            data: chartData.labels ? chartData : {
+              labels: ["Opens", "Clicks", "Bounces", "Complaints"],
+              datasets: [{
+                data: [0, 0, 0, 0],
+                backgroundColor: [
+                  "rgb(59, 130, 246)",
+                  "rgb(34, 197, 94)",
+                  "rgb(251, 191, 36)",
+                  "rgb(239, 68, 68)"
+                ]
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      const label = context.label || '';
+                      const value = context.parsed || 0;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                      return `${label}: ${value} (${percentage}%)`;
+                    }
                   }
                 }
               }
             }
+          });
+        },
+
+        updateCharts(chartsData) {
+          // Update delivery chart
+          if (this.deliveryChart && chartsData.delivery_trend) {
+            this.deliveryChart.data = chartsData.delivery_trend;
+            this.deliveryChart.update();
           }
-        });
+
+          // Update engagement chart
+          if (this.engagementChart && chartsData.engagement) {
+            this.engagementChart.data = chartsData.engagement;
+            this.engagementChart.update();
+          }
+        },
+
+        cleanup() {
+          if (this.deliveryChart) {
+            this.deliveryChart.destroy();
+            this.deliveryChart = null;
+          }
+          if (this.engagementChart) {
+            this.engagementChart.destroy();
+            this.engagementChart = null;
+          }
+        }
+      };
+
+      // Listen for LiveView updates
+      window.addEventListener('phx:email-charts-update', (event) => {
+        if (event.detail && event.detail.charts) {
+          PhoenixKitCharts.updateCharts(event.detail.charts);
+        }
+      });
+
+      // Initialize on page load
+      const init = () => {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          if (document.getElementById('delivery-trend-chart') &&
+              document.getElementById('engagement-chart')) {
+            PhoenixKitCharts.initializeCharts();
+          }
+        }, 100);
+      };
+
+      // Handle different loading states
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
       }
-    }
 
-    // Initialize charts when page loads
-    window.addEventListener("phx:page-loading-stop", () => {
-      const chartsData = <%= Jason.encode!(@charts_data) %>;
-      initializeCharts(chartsData);
-    });
+      // Handle LiveView navigation
+      window.addEventListener('phx:page-loading-start', () => {
+        PhoenixKitCharts.cleanup();
+      });
 
-    // Handle LiveView updates
-    window.addEventListener("phx:update", () => {
-      const chartsData = <%= Jason.encode!(@charts_data) %>;
-      initializeCharts(chartsData);
-    });
+      window.addEventListener('phx:page-loading-stop', init);
+
+      // Make available for debugging
+      window.PhoenixKitCharts = PhoenixKitCharts;
+    })();
   </script>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
