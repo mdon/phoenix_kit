@@ -111,17 +111,12 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
                       <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
                     </:icon>
                   </.input>
-                  <div phx-hook="TimezoneDetector" id="timezone-detector">
-                    <.input
+                  <div id="timezone-detector">
+                    <.select
                       field={@profile_form[:user_timezone]}
-                      type="select"
                       label="Personal Timezone"
                       options={@timezone_options}
-                    >
-                      <:icon>
-                        <PhoenixKitWeb.Components.Core.Icons.icon_clock class="w-4 h-4 mr-2" />
-                      </:icon>
-                    </.input>
+                    />
 
                     <%!-- Timezone Mismatch Warning --%>
                     <%= if assigns[:timezone_mismatch_warning] do %>
@@ -267,14 +262,9 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
           const offsetString = offsetHours === 0 ? "0" :
             (offsetHours > 0 ? "+" + offsetHours : offsetHours.toString());
 
-          // Store in global variables for easy access
-          window.browserTimezone = {
-            name: timezoneName,
-            offset: offsetString
-          };
-
           // Add hidden fields to the form
           const form = document.querySelector('#profile_form');
+
           if (form) {
             // Remove any existing timezone inputs first
             const existingInputs = form.querySelectorAll('input[name="browser_timezone_name"], input[name="browser_timezone_offset"]');
@@ -298,7 +288,14 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
 
             // Trigger form validation to send data to LiveView
             const timezoneSelect = form.querySelector('select[name*="user_timezone"]');
+
             if (timezoneSelect) {
+              const option = timezoneSelect.querySelector(`[value="${offsetString}"]`);
+
+              if (option) {
+                option.selected = true;
+              }
+
               const changeEvent = new Event('input', { bubbles: true });
               timezoneSelect.dispatchEvent(changeEvent);
             }
@@ -315,13 +312,6 @@ defmodule PhoenixKitWeb.Users.SettingsLive do
       // Detect timezone when page loads
       setTimeout(detectAndStoreTimezone, 500);
       setTimeout(detectAndStoreTimezone, 1500);
-
-      // Re-detect when timezone dropdown changes
-      document.addEventListener('change', function(event) {
-        if (event.target.name && event.target.name.includes('user_timezone')) {
-          setTimeout(detectAndStoreTimezone, 100);
-        }
-      });
     </script>
     """
   end
