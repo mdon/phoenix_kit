@@ -456,18 +456,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
             <.form for={%{}} phx-change="filter" phx-submit="filter" class="space-y-4">
               <%!-- Search Bar --%>
               <div class="form-control">
-                <div class="input-group">
-                  <input
-                    type="text"
-                    name="search[query]"
-                    value={@filters.search}
-                    placeholder="Search by name, display name, or description..."
-                    class="input input-bordered flex-1"
-                  />
-                  <button type="submit" class="btn btn-primary">
-                    <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  name="search[query]"
+                  value={@filters.search}
+                  placeholder="Search by name, display name, or description..."
+                  class="input input-bordered w-full"
+                />
               </div>
 
               <%!-- Filter Row --%>
@@ -519,9 +514,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
 
               <%!-- Action Buttons --%>
               <div class="flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
                 <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-                  Clear
+                  Clear Filters
                 </button>
               </div>
             </.form>
@@ -580,9 +574,15 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
 
                         <%!-- Category Column --%>
                         <td>
-                          <div class={category_badge_class(template.category)}>
-                            {String.capitalize(template.category)}
-                          </div>
+                          <%= if template.is_system do %>
+                            <div class="badge badge-ghost badge-sm">
+                              {String.capitalize(template.category)}
+                            </div>
+                          <% else %>
+                            <div class={category_badge_class(template.category)}>
+                              {String.capitalize(template.category)}
+                            </div>
+                          <% end %>
                         </td>
 
                         <%!-- Status Column --%>

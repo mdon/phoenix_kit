@@ -75,7 +75,10 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
         |> assign(:start_date, nil)
         |> assign(:end_date, nil)
         |> assign(:metrics, %{})
-        |> assign(:charts_data, %{})
+        |> assign(:charts_data, %{
+          delivery_trend: %{labels: [], datasets: []},
+          engagement: %{labels: [], datasets: []}
+        })
         |> assign(:last_updated, DateTime.utc_now())
         |> load_metrics_data()
 
@@ -240,13 +243,18 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
     # Get daily delivery trends for the chart
     daily_trends = EmailSystem.get_daily_delivery_trends(period)
 
-    %{
+    # Debug logging
+    require Logger
+    Logger.info("Charts data prepared - daily_trends: #{inspect(daily_trends)}")
+    Logger.info("Charts data prepared - metrics: #{inspect(metrics)}")
+
+    charts_data = %{
       delivery_trend: %{
-        labels: daily_trends.labels,
+        labels: Map.get(daily_trends, :labels, []),
         datasets: [
           %{
             label: "Delivered",
-            data: daily_trends.delivered,
+            data: Map.get(daily_trends, :delivered, []),
             borderColor: "rgb(34, 197, 94)",
             backgroundColor: "rgba(34, 197, 94, 0.1)",
             tension: 0.1,
@@ -254,7 +262,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
           },
           %{
             label: "Bounced",
-            data: daily_trends.bounced,
+            data: Map.get(daily_trends, :bounced, []),
             borderColor: "rgb(239, 68, 68)",
             backgroundColor: "rgba(239, 68, 68, 0.1)",
             tension: 0.1,
@@ -282,6 +290,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
         ]
       }
     }
+
+    Logger.info("Final charts_data: #{inspect(charts_data)}")
+    charts_data
   end
 
   defp export_metrics_csv(metrics) do

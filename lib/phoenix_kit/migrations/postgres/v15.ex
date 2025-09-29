@@ -90,6 +90,12 @@ defmodule PhoenixKit.Migrations.Postgres.V15 do
                            prefix: prefix
                          )
 
+    # Set version comment on phoenix_kit table for version tracking
+    execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '15'"
+
+    # Flush all DDL changes before seeding data
+    flush()
+
     # Automatically seed system email templates after table creation
     seed_system_templates()
   end
@@ -112,6 +118,9 @@ defmodule PhoenixKit.Migrations.Postgres.V15 do
 
     # Drop table
     drop_if_exists table(:phoenix_kit_email_templates, prefix: prefix)
+
+    # Update version comment on phoenix_kit table to previous version
+    execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '14'"
   end
 
   # Private function to seed system email templates
@@ -134,4 +143,8 @@ defmodule PhoenixKit.Migrations.Postgres.V15 do
         :ok
     end
   end
+
+  # Helper function to build table name with prefix
+  defp prefix_table_name(table_name, nil), do: table_name
+  defp prefix_table_name(table_name, prefix), do: "#{prefix}.#{table_name}"
 end

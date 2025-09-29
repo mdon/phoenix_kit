@@ -228,7 +228,7 @@
               class="w-full h-64"
               id="delivery-chart-container"
               phx-update="ignore"
-              data-chart-data={Jason.encode!(@charts_data.delivery_trend || %{})}
+              data-chart-data={Jason.encode!(Map.get(@charts_data, :delivery_trend, %{}))}
             >
               <canvas id="delivery-trend-chart" width="400" height="200"></canvas>
             </div>
@@ -242,7 +242,7 @@
               class="w-full h-64"
               id="engagement-chart-container"
               phx-update="ignore"
-              data-chart-data={Jason.encode!(@charts_data.engagement || %{})}
+              data-chart-data={Jason.encode!(Map.get(@charts_data, :engagement, %{}))}
             >
               <canvas id="engagement-chart" width="400" height="200"></canvas>
             </div>
@@ -357,6 +357,7 @@
           try {
             const dataAttr = container.getAttribute('data-chart-data');
             chartData = dataAttr ? JSON.parse(dataAttr) : {};
+            console.log('Delivery chart data loaded:', chartData);
           } catch (e) {
             console.warn('Failed to parse delivery chart data:', e);
           }
@@ -423,6 +424,7 @@
           try {
             const dataAttr = container.getAttribute('data-chart-data');
             chartData = dataAttr ? JSON.parse(dataAttr) : {};
+            console.log('Engagement chart data loaded:', chartData);
           } catch (e) {
             console.warn('Failed to parse engagement chart data:', e);
           }
