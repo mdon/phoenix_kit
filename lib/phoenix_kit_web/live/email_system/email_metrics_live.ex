@@ -1,6 +1,6 @@
-defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
+defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
   @moduledoc """
-  LiveView for email tracking metrics and analytics dashboard.
+  LiveView for email metrics and analytics dashboard.
 
   Provides comprehensive analytics visualization for email campaigns including:
 
@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-metrics", PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive, :index
+      live "/email-metrics", PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive, :index
 
   ## Permissions
 
@@ -42,7 +42,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   require Logger
 
-  alias PhoenixKit.EmailTracking
+  alias PhoenixKit.EmailSystem
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -56,8 +56,8 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Check if email tracking is enabled
-    if EmailTracking.enabled?() do
+    # Check if email is enabled
+    if EmailSystem.enabled?() do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -75,7 +75,10 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
         |> assign(:start_date, nil)
         |> assign(:end_date, nil)
         |> assign(:metrics, %{})
-        |> assign(:charts_data, %{})
+        |> assign(:charts_data, %{
+          delivery_trend: %{labels: [], datasets: []},
+          engagement: %{labels: [], datasets: []}
+        })
         |> assign(:last_updated, DateTime.utc_now())
         |> load_metrics_data()
 
@@ -83,7 +86,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email tracking is not enabled")
+       |> put_flash(:error, "Email is not enabled")
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -190,15 +193,23 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     period = determine_period(socket.assigns)
 
     metrics =
-      EmailTracking.get_system_stats(period)
+      EmailSystem.get_system_stats(period)
       |> Map.merge(load_additional_metrics(period))
 
     charts_data = prepare_charts_data(metrics, period)
 
-    socket
-    |> assign(:metrics, metrics)
-    |> assign(:charts_data, charts_data)
-    |> assign(:loading, false)
+    socket =
+      socket
+      |> assign(:metrics, metrics)
+      |> assign(:charts_data, charts_data)
+      |> assign(:loading, false)
+
+    # Push chart data to JavaScript if the socket is connected
+    if connected?(socket) do
+      socket |> push_event("email-charts-update", %{charts: charts_data})
+    else
+      socket
+    end
   end
 
   defp determine_period(assigns) do
@@ -211,7 +222,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
 
   defp load_additional_metrics(period) do
     %{
-      by_provider: EmailTracking.get_provider_performance(period),
+      by_provider: EmailSystem.get_provider_performance(period),
       today_count: get_today_count()
     }
   end
@@ -220,7 +231,7 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     today_start = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
     now = DateTime.utc_now()
 
-    case EmailTracking.get_system_stats(
+    case EmailSystem.get_system_stats(
            {:date_range, DateTime.to_date(today_start), DateTime.to_date(now)}
          ) do
       %{total_sent: count} -> count
@@ -228,22 +239,34 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
     end
   end
 
-  defp prepare_charts_data(metrics, _period) do
-    %{
+  defp prepare_charts_data(metrics, period) do
+    # Get daily delivery trends for the chart
+    daily_trends = EmailSystem.get_daily_delivery_trends(period)
+
+    # Debug logging
+    require Logger
+    Logger.info("Charts data prepared - daily_trends: #{inspect(daily_trends)}")
+    Logger.info("Charts data prepared - metrics: #{inspect(metrics)}")
+
+    charts_data = %{
       delivery_trend: %{
-        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        labels: Map.get(daily_trends, :labels, []),
         datasets: [
           %{
             label: "Delivered",
-            data: [120, 190, 300, 500, 200, 300, 450],
+            data: Map.get(daily_trends, :delivered, []),
             borderColor: "rgb(34, 197, 94)",
-            backgroundColor: "rgba(34, 197, 94, 0.1)"
+            backgroundColor: "rgba(34, 197, 94, 0.1)",
+            tension: 0.1,
+            fill: true
           },
           %{
             label: "Bounced",
-            data: [5, 10, 15, 25, 10, 15, 23],
+            data: Map.get(daily_trends, :bounced, []),
             borderColor: "rgb(239, 68, 68)",
-            backgroundColor: "rgba(239, 68, 68, 0.1)"
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            tension: 0.1,
+            fill: true
           }
         ]
       },
@@ -267,6 +290,9 @@ defmodule PhoenixKitWeb.Live.EmailTracking.EmailMetricsLive do
         ]
       }
     }
+
+    Logger.info("Final charts_data: #{inspect(charts_data)}")
+    charts_data
   end
 
   defp export_metrics_csv(metrics) do

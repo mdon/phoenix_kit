@@ -26,6 +26,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   """
   import Swoosh.Email
 
+  alias PhoenixKit.EmailSystem.Templates
   alias PhoenixKit.Mailer
 
   # Delivers the email using the appropriate mailer.
@@ -71,74 +72,167 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
 
   @doc """
   Deliver instructions to confirm account.
+
+  Uses the 'register' template from the database if available,
+  falls back to hardcoded template if not found.
   """
   def deliver_confirmation_instructions(user, url) do
-    text_body = """
+    # Variables for template substitution
+    template_variables = %{
+      "user_email" => user.email,
+      "confirmation_url" => url
+    }
 
-    ==============================
+    # Try to get template from database, fallback to hardcoded
+    {subject, html_body, text_body} =
+      case Templates.get_active_template_by_name("register") do
+        nil ->
+          # Fallback to hardcoded templates
+          fallback_text = """
 
-    Hi #{user.email},
+          ==============================
 
-    You can confirm your account by visiting the URL below:
+          Hi #{user.email},
 
-    #{url}
+          You can confirm your account by visiting the URL below:
 
-    If you didn't create an account with us, please ignore this.
+          #{url}
 
-    ==============================
-    """
+          If you didn't create an account with us, please ignore this.
 
-    html_body = confirmation_html_body(user.email, url)
+          ==============================
+          """
 
-    deliver(user.email, "Confirm your account", text_body, html_body)
+          {
+            "Confirm your account",
+            confirmation_html_body(user.email, url),
+            fallback_text
+          }
+
+        template ->
+          # Use database template with variable substitution
+          rendered = Templates.render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body}
+      end
+
+    # Track template usage if using database template
+    case Templates.get_active_template_by_name("register") do
+      # No template to track
+      nil -> :ok
+      template -> Templates.track_usage(template)
+    end
+
+    deliver(user.email, subject, text_body, html_body)
   end
 
   @doc """
   Deliver instructions to reset a user password.
+
+  Uses the 'reset_password' template from the database if available,
+  falls back to hardcoded template if not found.
   """
   def deliver_reset_password_instructions(user, url) do
-    text_body = """
+    # Variables for template substitution
+    template_variables = %{
+      "user_email" => user.email,
+      "reset_url" => url
+    }
 
-    ==============================
+    # Try to get template from database, fallback to hardcoded
+    {subject, html_body, text_body} =
+      case Templates.get_active_template_by_name("reset_password") do
+        nil ->
+          # Fallback to hardcoded templates
+          fallback_text = """
 
-    Hi #{user.email},
+          ==============================
 
-    You can reset your password by visiting the URL below:
+          Hi #{user.email},
 
-    #{url}
+          You can reset your password by visiting the URL below:
 
-    If you didn't request this change, please ignore this.
+          #{url}
 
-    ==============================
-    """
+          If you didn't request this change, please ignore this.
 
-    html_body = reset_password_html_body(user.email, url)
+          ==============================
+          """
 
-    deliver(user.email, "Reset your password", text_body, html_body)
+          {
+            "Reset your password",
+            reset_password_html_body(user.email, url),
+            fallback_text
+          }
+
+        template ->
+          # Use database template with variable substitution
+          rendered = Templates.render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body}
+      end
+
+    # Track template usage if using database template
+    case Templates.get_active_template_by_name("reset_password") do
+      # No template to track
+      nil -> :ok
+      template -> Templates.track_usage(template)
+    end
+
+    deliver(user.email, subject, text_body, html_body)
   end
 
   @doc """
   Deliver instructions to update a user email.
+
+  Uses the 'update_email' template from the database if available,
+  falls back to hardcoded template if not found.
   """
   def deliver_update_email_instructions(user, url) do
-    text_body = """
+    # Variables for template substitution
+    template_variables = %{
+      "user_email" => user.email,
+      "update_url" => url
+    }
 
-    ==============================
+    # Try to get template from database, fallback to hardcoded
+    {subject, html_body, text_body} =
+      case Templates.get_active_template_by_name("update_email") do
+        nil ->
+          # Fallback to hardcoded templates
+          fallback_text = """
 
-    Hi #{user.email},
+          ==============================
 
-    You can change your email by visiting the URL below:
+          Hi #{user.email},
 
-    #{url}
+          You can change your email by visiting the URL below:
 
-    If you didn't request this change, please ignore this.
+          #{url}
 
-    ==============================
-    """
+          If you didn't request this change, please ignore this.
 
-    html_body = update_email_html_body(user.email, url)
+          ==============================
+          """
 
-    deliver(user.email, "Confirm your email change", text_body, html_body)
+          {
+            "Confirm your email change",
+            update_email_html_body(user.email, url),
+            fallback_text
+          }
+
+        template ->
+          # Use database template with variable substitution
+          rendered = Templates.render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body}
+      end
+
+    # Track template usage if using database template
+    case Templates.get_active_template_by_name("update_email") do
+      # No template to track
+      nil -> :ok
+      template -> Templates.track_usage(template)
+    end
+
+    deliver(user.email, subject, text_body, html_body)
   end
 
   # HTML template for account confirmation email

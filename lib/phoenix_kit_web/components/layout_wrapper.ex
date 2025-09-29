@@ -248,7 +248,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       </div>
                     <% end %>
 
-                    <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                    <%= if PhoenixKit.EmailSystem.enabled?() do %>
                       <%!-- Email section with direct link and conditional submenu --%>
                       <.admin_nav_item
                         href={Routes.path("/admin/emails/dashboard")}
@@ -258,7 +258,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         disable_active={true}
                       />
 
-                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
+                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/templates", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
@@ -273,6 +273,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             href={Routes.path("/admin/emails")}
                             icon="email"
                             label="Emails"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <.admin_nav_item
+                            href={Routes.path("/admin/emails/templates")}
+                            icon="email"
+                            label="Templates"
                             current_path={@current_path || ""}
                             nested={true}
                           />
@@ -312,7 +320,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/email-tracking", "/admin/settings/languages"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages"]) do %>
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -333,11 +341,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.EmailTracking.enabled?() do %>
+                        <%= if PhoenixKit.EmailSystem.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/settings/email-tracking")}
+                            href={Routes.path("/admin/settings/emails")}
                             icon="email"
-                            label="Email Tracking"
+                            label="Emails"
                             current_path={@current_path || ""}
                             nested={true}
                           />
