@@ -8,18 +8,26 @@
 - **Migration V15** - Database tables for email template storage with system template protection
 - **Version Tracking in Migrations** - Enhanced migration system with PostgreSQL table comments for version tracking
 - **Debug Logging for Email Metrics** - Enhanced error handling and debugging for chart data preparation
+- **Automatic Variable Extraction** - Smart detection and extraction of template variables with intelligent descriptions
+- **Smart Variable Descriptions** - Automatic mapping of common template variables to user-friendly descriptions
 
 ### Changed
 - **Mailer Integration** - Updated to use database templates with fallback to hardcoded templates for backward compatibility
 - **User Notifier** - Enhanced to support template-based email generation with variable substitution
 - **Email Metrics Dashboard** - Improved chart data initialization and error handling for better reliability
 - **Email Templates Search** - Simplified search form layout for better user experience
+- **Template Editor Workflow** - Simplified template creation process with automatic variable detection and validation
 
 ### Fixed
 - **Email Metrics Chart Data** - Fixed initialization errors and null value handling in chart data preparation
 - **Migration Rollback** - Added proper version tracking for migration rollback operations
 - **Linter Issues** - Resolved alias ordering and function complexity issues for better code quality
 - **Pre-commit Hooks** - Enhanced pre-commit validation with proper error handling
+- **Template Slug Generation** - Fixed auto-generation logic for better handling of template names and slugs
+- **Template Validation Flow** - Improved validation sequence for better user experience during template editing
+
+### Removed
+- **Modal Template Creation** - Removed modal-based template creation interface in favor of simplified direct editor workflow
 
 ## 1.2.12 - 2025-09-27
 
