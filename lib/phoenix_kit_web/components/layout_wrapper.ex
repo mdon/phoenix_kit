@@ -62,6 +62,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: "PhoenixKit"
+  attr :current_locale, :string, default: "en"
 
   slot :inner_block, required: false
 
@@ -130,7 +131,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               original_inner_block: original_inner_block,
               current_path: assigns[:current_path],
               phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
-              project_title: assigns[:project_title] || "PhoenixKit"
+              project_title: assigns[:project_title] || "PhoenixKit",
+              current_locale: assigns[:current_locale] || "en"
             }
 
             assigns = template_assigns
@@ -186,7 +188,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <%!-- Navigation (fills available space) --%>
                   <nav class="px-4 py-6 space-y-2 flex-1">
                     <.admin_nav_item
-                      href={Routes.path("/admin/dashboard")}
+                      href={Routes.locale_aware_path(assigns, "/admin/dashboard")}
                       icon="dashboard"
                       label="Dashboard"
                       current_path={@current_path || ""}
@@ -194,7 +196,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                     <%!-- Users section with direct link and conditional submenu --%>
                     <.admin_nav_item
-                      href={Routes.path("/admin/users")}
+                      href={Routes.locale_aware_path(assigns, "/admin/users")}
                       icon="users"
                       label="Users"
                       current_path={@current_path || ""}
@@ -205,7 +207,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <%!-- Submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
-                          href={Routes.path("/admin/users")}
+                          href={Routes.locale_aware_path(assigns, "/admin/users")}
                           icon="users"
                           label="Manage Users"
                           current_path={@current_path || ""}
@@ -213,7 +215,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/users/live_sessions")}
+                          href={Routes.locale_aware_path(assigns, "/admin/users/live_sessions")}
                           icon="live_sessions"
                           label="Live Sessions"
                           current_path={@current_path || ""}
@@ -221,7 +223,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/users/sessions")}
+                          href={Routes.locale_aware_path(assigns, "/admin/users/sessions")}
                           icon="sessions"
                           label="Sessions"
                           current_path={@current_path || ""}
@@ -229,7 +231,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         />
 
                         <.admin_nav_item
-                          href={Routes.path("/admin/users/roles")}
+                          href={Routes.locale_aware_path(assigns, "/admin/users/roles")}
                           icon="roles"
                           label="Roles"
                           current_path={@current_path || ""}
@@ -238,7 +240,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                         <%= if PhoenixKit.ReferralCodes.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/users/referral-codes")}
+                            href={Routes.locale_aware_path(assigns, "/admin/users/referral-codes")}
                             icon="referral_codes"
                             label="Referral System"
                             current_path={@current_path || ""}
@@ -251,7 +253,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <%= if PhoenixKit.EmailSystem.enabled?() do %>
                       <%!-- Email section with direct link and conditional submenu --%>
                       <.admin_nav_item
-                        href={Routes.path("/admin/emails/dashboard")}
+                        href={Routes.locale_aware_path(assigns, "/admin/emails/dashboard")}
                         icon="email"
                         label="Emails"
                         current_path={@current_path || ""}
@@ -262,7 +264,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
-                            href={Routes.path("/admin/emails/dashboard")}
+                            href={Routes.locale_aware_path(assigns, "/admin/emails/dashboard")}
                             icon="email"
                             label="Dashboard"
                             current_path={@current_path || ""}
@@ -270,7 +272,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/emails")}
+                            href={Routes.locale_aware_path(assigns, "/admin/emails")}
                             icon="email"
                             label="Emails"
                             current_path={@current_path || ""}
@@ -286,7 +288,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/emails/queue")}
+                            href={Routes.locale_aware_path(assigns, "/admin/emails/queue")}
                             icon="email"
                             label="Queue"
                             current_path={@current_path || ""}
@@ -294,7 +296,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/emails/blocklist")}
+                            href={Routes.locale_aware_path(assigns, "/admin/emails/blocklist")}
                             icon="email"
                             label="Blocklist"
                             current_path={@current_path || ""}
@@ -305,7 +307,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <% end %>
 
                     <.admin_nav_item
-                      href={Routes.path("/admin/modules")}
+                      href={Routes.locale_aware_path(assigns, "/admin/modules")}
                       icon="modules"
                       label="Modules"
                       current_path={@current_path || ""}
@@ -313,7 +315,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                     <%!-- Settings section with direct link and conditional submenu --%>
                     <.admin_nav_item
-                      href={Routes.path("/admin/settings")}
+                      href={Routes.locale_aware_path(assigns, "/admin/settings")}
                       icon="settings"
                       label="Settings"
                       current_path={@current_path || ""}
@@ -324,7 +326,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
-                          href={Routes.path("/admin/settings")}
+                          href={Routes.locale_aware_path(assigns, "/admin/settings")}
                           icon="settings"
                           label="General Settings"
                           current_path={@current_path || ""}
@@ -333,7 +335,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                         <%= if PhoenixKit.ReferralCodes.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/settings/referral-codes")}
+                            href={Routes.locale_aware_path(assigns, "/admin/settings/referral-codes")}
                             icon="referral_codes"
                             label="Referral Codes"
                             current_path={@current_path || ""}
@@ -343,7 +345,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                         <%= if PhoenixKit.EmailSystem.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/settings/emails")}
+                            href={Routes.locale_aware_path(assigns, "/admin/settings/emails")}
                             icon="email"
                             label="Emails"
                             current_path={@current_path || ""}
@@ -353,7 +355,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                         <%= if PhoenixKit.Module.Languages.enabled?() do %>
                           <.admin_nav_item
-                            href={Routes.path("/admin/settings/languages")}
+                            href={Routes.locale_aware_path(assigns, "/admin/settings/languages")}
                             icon="language"
                             label="Languages"
                             current_path={@current_path || ""}
@@ -364,8 +366,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <% end %>
                   </nav>
 
-                  <%!-- Bottom Section: Theme & User Info --%>
+                  <%!-- Bottom Section: Language Switcher, Theme & User Info --%>
                   <div class="p-4 border-t border-base-300 space-y-3">
+                    <%!-- Language Switcher (desktop only) --%>
+                    <div class="hidden lg:block">
+                      <.admin_language_switcher
+                        current_path={@current_path || ""}
+                        current_locale={@current_locale || "en"}
+                      />
+                    </div>
+
                     <%!-- Theme Controller (desktop only) --%>
                     <div class="hidden lg:block">
                       <.admin_theme_controller mobile={false} />
@@ -445,7 +455,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   # Check if a submenu should be open based on current path
   defp submenu_open?(current_path, paths) when is_binary(current_path) do
+    # Remove PhoenixKit prefix first
     normalized_path = String.replace_prefix(current_path, "/phoenix_kit", "")
+
+    # Remove locale prefix (e.g., /es, /fr, etc.) - keep leading slash
+    normalized_path =
+      case String.split(normalized_path, "/", parts: 3) do
+        ["", locale, rest] when locale != "" and rest != "" ->
+          # Check if locale looks like a locale code (2-3 chars)
+          if String.length(locale) <= 3 do
+            "/" <> rest
+          else
+            normalized_path
+          end
+
+        _ ->
+          normalized_path
+      end
+
     Enum.any?(paths, fn path -> String.starts_with?(normalized_path, path) end)
   end
 
@@ -586,5 +613,104 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         |> Keyword.get(:vsn, "unknown")
         |> to_string()
     end
+  end
+
+  # Language switcher component for admin sidebar
+  attr :current_path, :string, required: true
+  attr :current_locale, :string, default: "en"
+
+  defp admin_language_switcher(assigns) do
+    # Only show if languages are enabled and there are enabled languages
+    if PhoenixKit.Module.Languages.enabled?() do
+      enabled_languages = PhoenixKit.Module.Languages.get_enabled_languages()
+
+      # Only show if there are multiple languages (more than current one)
+      if length(enabled_languages) > 1 do
+        current_language = Enum.find(enabled_languages, &(&1["code"] == assigns.current_locale)) ||
+                          %{"code" => assigns.current_locale, "name" => String.upcase(assigns.current_locale)}
+
+        other_languages = Enum.reject(enabled_languages, &(&1["code"] == assigns.current_locale))
+
+        assigns = assigns
+                 |> assign(:enabled_languages, enabled_languages)
+                 |> assign(:current_language, current_language)
+                 |> assign(:other_languages, other_languages)
+
+        ~H"""
+        <div class="dropdown dropdown-end w-full" style="position: relative;">
+          <%!-- Current Language Button --%>
+          <div tabindex="0" role="button" class="btn btn-outline btn-sm w-full justify-start">
+            <span class="text-lg">{get_language_flag(@current_language["code"])}</span>
+            <span class="truncate flex-1 text-left">{@current_language["name"]}</span>
+            <span class="text-xs">▲</span>
+          </div>
+
+          <%!-- Language Options Dropdown --%>
+          <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-full p-2 shadow-lg border border-base-300" style="position: absolute; bottom: 100%; margin-bottom: 4px;">
+            <%= for language <- @other_languages do %>
+              <li>
+                <a
+                  href={generate_language_switch_url(@current_path, language["code"])}
+                  class="flex items-center gap-3 px-3 py-2 hover:bg-base-200 rounded-lg"
+                >
+                  <span class="text-lg">{get_language_flag(language["code"])}</span>
+                  <span>{language["name"]}</span>
+                </a>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+        """
+      else
+        ~H""
+      end
+    else
+      ~H""
+    end
+  end
+
+  # Helper function to get language flag emoji
+  defp get_language_flag(code) do
+    case code do
+      "en" -> "🇺🇸"
+      "es" -> "🇪🇸"
+      "fr" -> "🇫🇷"
+      "de" -> "🇩🇪"
+      "pt" -> "🇵🇹"
+      "it" -> "🇮🇹"
+      "nl" -> "🇳🇱"
+      "ru" -> "🇷🇺"
+      "zh-CN" -> "🇨🇳"
+      "ja" -> "🇯🇵"
+      _ -> "🌐"
+    end
+  end
+
+  # Helper function to generate language switch URL
+  defp generate_language_switch_url(current_path, new_locale) do
+    # Get actual enabled language codes to properly detect locale prefixes
+    enabled_language_codes = if PhoenixKit.Module.Languages.enabled?() do
+      PhoenixKit.Module.Languages.get_enabled_language_codes()
+    else
+      ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"] # Fallback common codes
+    end
+
+    # Remove PhoenixKit prefix if present
+    normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
+
+    # Remove existing locale prefix only if it matches actual language codes
+    clean_path = case String.split(normalized_path, "/", parts: 3) do
+      ["", potential_locale, rest] ->
+        if potential_locale in enabled_language_codes do
+          "/" <> rest
+        else
+          normalized_path
+        end
+      _ ->
+        normalized_path
+    end
+
+    # Generate new URL with the target locale
+    Routes.path(clean_path, locale: new_locale)
   end
 end

@@ -1,5 +1,6 @@
 defmodule PhoenixKitWeb.Live.DashboardLive do
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Admin.{Events, Presence}
@@ -7,7 +8,12 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.{Roles, Sessions}
 
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
+    # Set locale for LiveView process - check params first, then socket assigns, then default
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
+
     # Subscribe to statistics updates for live data
     if connected?(socket) do
       Events.subscribe_to_stats()
@@ -45,6 +51,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       |> assign(:project_title, project_title)
       |> assign(:page_title, "Dashboard")
       |> assign(:cached_user_roles, user_roles)
+      |> assign(:current_locale, locale)
 
     {:ok, socket}
   end
@@ -61,7 +68,7 @@ defmodule PhoenixKitWeb.Live.DashboardLive do
       |> assign(:session_stats, session_stats)
       |> assign(:presence_stats, presence_stats)
       |> assign(:stats_last_updated, :os.system_time(:second))
-      |> put_flash(:info, "Statistics refreshed successfully")
+      |> put_flash(:info, gettext("Statistics refreshed successfully"))
 
     {:noreply, socket}
   end

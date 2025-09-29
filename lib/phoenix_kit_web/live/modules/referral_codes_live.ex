@@ -4,7 +4,12 @@ defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    # Handle locale
+    locale = params["locale"] || socket.assigns[:current_locale] || "en"
+    Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+    Process.put(:phoenix_kit_current_locale, locale)
+
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -13,6 +18,7 @@ defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
 
     socket =
       socket
+      |> assign(:current_locale, locale)
       |> assign(:page_title, "Referral Codes")
       |> assign(:project_title, project_title)
       |> assign(:referral_codes_enabled, referral_codes_config.enabled)

@@ -1,6 +1,6 @@
-defmodule PhoenixKitWeb.Components.Core.Textarea do
+defmodule PhoenixKitWeb.Components.Core.Select do
   @moduledoc """
-  Provides a default textarea UI component.
+  Provides a default select UI component.
   """
   use Phoenix.Component
 
@@ -13,36 +13,43 @@ defmodule PhoenixKitWeb.Components.Core.Textarea do
   attr :name, :any
   attr :label, :string, default: nil
   attr :value, :any
+  attr :options, :list
+  attr :multiple, :boolean, default: false
+  attr :prompt, :string, default: nil
 
   attr :errors, :list, default: []
 
   attr :rest, :global,
     include: ~w(autocomplete cols maxlength disabled placeholder readonly required rows)
 
-  def textarea(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
     |> assign_new(:name, fn -> field.name end)
     |> assign_new(:value, fn -> field.value end)
-    |> textarea()
+    |> select()
   end
 
-  def textarea(assigns) do
+  def select(assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label :if={@label && @label != ""} for={@id} class="label mb-2">
+      <.label :if={@label && @label != ""} for={@id} class="block mb-2">
         {@label}
       </.label>
 
-      <textarea
+      <select
         id={@id}
         name={@name}
         class={[
-          "textarea textarea-bordered min-h-[6rem] w-full focus:input-primary",
-          @errors != [] && "textarea-error"
+          "select select-bordered w-full",
+          @errors != [] && "select-error"
         ]}
+        multiple={@multiple}
         {@rest}
-      ><%= Phoenix.HTML.Form.normalize_value("textarea", @value) %></textarea>
+      >
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+      </select>
 
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
