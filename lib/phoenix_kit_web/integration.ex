@@ -253,11 +253,11 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
-          live "/admin/emails/dashboard", Live.EmailTracking.EmailMetricsLive, :index
-          live "/admin/emails", Live.EmailTracking.EmailLogsLive, :index
-          live "/admin/emails/email/:id", Live.EmailTracking.EmailDetailsLive, :show
-          live "/admin/emails/queue", Live.EmailTracking.EmailQueueLive, :index
-          live "/admin/emails/blocklist", Live.EmailTracking.EmailBlocklistLive, :index
+          live "/admin/emails/dashboard", Live.EmailSystem.EmailMetricsLive, :index
+          live "/admin/emails", Live.EmailSystem.EmailLogsLive, :index
+          live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
+          live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
+          live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
         end
       end
 
