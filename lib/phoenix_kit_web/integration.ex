@@ -98,10 +98,12 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     quote do
+      alias PhoenixKit.Module.Languages
+
       # Get enabled locales at compile time with fallback
       enabled_locales =
         try do
-          PhoenixKit.Module.Languages.enabled_locale_codes()
+          Languages.enabled_locale_codes()
         rescue
           # Fallback if module not available at compile time
           _ -> ["en"]
@@ -133,6 +135,7 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
   defmacro phoenix_kit_routes do
     # Get URL prefix at compile time and handle empty string case for router compatibility
     raw_prefix =
@@ -149,7 +152,10 @@ defmodule PhoenixKitWeb.Integration do
         prefix -> prefix
       end
 
+    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
     quote do
+      alias PhoenixKit.Module.Languages
+
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
         plug PhoenixKitWeb.Integration, :phoenix_kit_auto_setup
@@ -194,7 +200,7 @@ defmodule PhoenixKitWeb.Integration do
       # Get enabled locales at compile time with fallback
       enabled_locales =
         try do
-          PhoenixKit.Module.Languages.enabled_locale_codes()
+          Languages.enabled_locale_codes()
         rescue
           # Fallback if module not available at compile time
           _ -> ["en"]

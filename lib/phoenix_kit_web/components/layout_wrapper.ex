@@ -32,6 +32,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
   import PhoenixKitWeb.Components.AdminNav
 
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
@@ -353,7 +354,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.Module.Languages.enabled?() do %>
+                        <%= if Languages.enabled?() do %>
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/languages")}
                             icon="language"
@@ -621,8 +622,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   defp admin_language_switcher(assigns) do
     # Only show if languages are enabled and there are enabled languages
-    if PhoenixKit.Module.Languages.enabled?() do
-      enabled_languages = PhoenixKit.Module.Languages.get_enabled_languages()
+    if Languages.enabled?() do
+      enabled_languages = Languages.get_enabled_languages()
 
       # Only show if there are multiple languages (more than current one)
       if length(enabled_languages) > 1 do
@@ -689,8 +690,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Helper function to generate language switch URL
   defp generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    enabled_language_codes = if PhoenixKit.Module.Languages.enabled?() do
-      PhoenixKit.Module.Languages.get_enabled_language_codes()
+    enabled_language_codes = if Languages.enabled?() do
+      Languages.get_enabled_language_codes()
     else
       ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"] # Fallback common codes
     end
