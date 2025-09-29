@@ -21,10 +21,6 @@ defmodule PhoenixKitWeb.Components.Core.Input do
 
   This function accepts all HTML input types, considering that:
 
-    * You may also set `type="select"` to render a `<select>` tag
-
-    * `type="checkbox"` is used exclusively to render boolean values
-
     * For live file uploads, see `Phoenix.Component.live_file_input/1`
 
   See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
@@ -89,28 +85,6 @@ defmodule PhoenixKitWeb.Components.Core.Input do
         />
         {@label}
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
-    </div>
-    """
-  end
-
-  def input(%{type: "select"} = assigns) do
-    ~H"""
-    <div phx-feedback-for={@name}>
-      <.label :if={@label && @label != ""} for={@id} class="block mb-2">{@label}</.label>
-      <select
-        id={@id}
-        name={@name}
-        class={[
-          "select select-bordered w-full",
-          @errors != [] && "select-error"
-        ]}
-        multiple={@multiple}
-        {@rest}
-      >
-        <option :if={@prompt} value="">{@prompt}</option>
-        {Phoenix.HTML.Form.options_for_select(@options, @value)}
-      </select>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
