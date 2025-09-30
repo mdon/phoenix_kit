@@ -137,7 +137,7 @@
       <%!-- Main Statistics Cards --%>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <%!-- System Owners Card --%>
-        <div class="card bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 border-0">
+        <div class="card bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 border-0 transform hover:scale-105">
           <div class="card-body relative overflow-hidden">
             <div class="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-6 translate-x-6">
             </div>
@@ -155,7 +155,7 @@
         </div>
 
         <%!-- Administrators Card --%>
-        <div class="card bg-gradient-to-br from-amber-500 via-orange-500 to-orange-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300">
+        <div class="card bg-gradient-to-br from-amber-500 via-orange-500 to-orange-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105">
           <div class="card-body relative overflow-hidden">
             <div class="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -translate-y-4 translate-x-4">
             </div>
@@ -173,7 +173,7 @@
         </div>
 
         <%!-- Total Users Card --%>
-        <div class="card bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300">
+        <div class="card bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105">
           <div class="card-body relative overflow-hidden">
             <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-8 translate-x-8">
             </div>
@@ -196,52 +196,60 @@
         <h3 class="text-xl font-bold text-base-content mb-4">{gettext("Active Sessions")}</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Sessions --%>
-          <div class="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_activity />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@session_stats.total_active}</div>
-            <div class="text-purple-100 font-medium">{gettext("Active Sessions")}</div>
-            <div class="text-purple-200 text-xs mt-1">{gettext("Currently logged in")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="purple-500"
+            gradient_via="purple-600"
+            gradient_to="indigo-600"
+            value={@session_stats.total_active}
+            title={gettext("Active Sessions")}
+            subtitle={gettext("Currently logged in")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_activity />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Unique Users --%>
-          <div class="bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@session_stats.unique_users}</div>
-            <div class="text-teal-100 font-medium">{gettext("Unique Users")}</div>
-            <div class="text-teal-200 text-xs mt-1">{gettext("With active sessions")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="teal-500"
+            gradient_via="teal-600"
+            gradient_to="cyan-600"
+            value={@session_stats.unique_users}
+            title={gettext("Unique Users")}
+            subtitle={gettext("With active sessions")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Today's Sessions --%>
-          <div class="bg-gradient-to-br from-emerald-500 via-emerald-600 to-green-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_clock />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@session_stats.sessions_today}</div>
-            <div class="text-emerald-100 font-medium">{gettext("Today's Sessions")}</div>
-            <div class="text-emerald-200 text-xs mt-1">{gettext("New login activity")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="emerald-500"
+            gradient_via="emerald-600"
+            gradient_to="green-600"
+            value={@session_stats.sessions_today}
+            title={gettext("Today's Sessions")}
+            subtitle={gettext("New login activity")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_clock />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Expired Sessions --%>
-          <div class="bg-gradient-to-br from-slate-500 via-slate-600 to-gray-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_clock_expired />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@session_stats.expired_sessions}</div>
-            <div class="text-slate-100 font-medium">{gettext("Expired Sessions")}</div>
-            <div class="text-slate-200 text-xs mt-1">{gettext("Need cleanup")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="slate-500"
+            gradient_via="slate-600"
+            gradient_to="gray-600"
+            value={@session_stats.expired_sessions}
+            title={gettext("Expired Sessions")}
+            subtitle={gettext("Need cleanup")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_clock_expired />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
         </div>
       </div>
 
@@ -250,119 +258,142 @@
         <h3 class="text-xl font-bold text-base-content mb-4">{gettext("Real-Time Activity")}</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Visitors --%>
-          <div class="bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_user_profile />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@presence_stats.total_sessions}</div>
-            <div class="text-violet-100 font-medium">{gettext("Active Visitors")}</div>
-            <div class="text-violet-200 text-xs mt-1">{gettext("Real-time connections")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="violet-500"
+            gradient_via="purple-600"
+            gradient_to="indigo-600"
+            value={@presence_stats.total_sessions}
+            title={gettext("Active Visitors")}
+            subtitle={gettext("Real-time connections")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_user_profile />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Anonymous Visitors --%>
-          <div class="bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_user_anonymous />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@presence_stats.anonymous_sessions}</div>
-            <div class="text-cyan-100 font-medium">{gettext("Anonymous")}</div>
-            <div class="text-cyan-200 text-xs mt-1">{gettext("Unregistered visitors")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="cyan-500"
+            gradient_via="blue-500"
+            gradient_to="indigo-600"
+            value={@presence_stats.anonymous_sessions}
+            title={gettext("Anonymous")}
+            subtitle={gettext("Unregistered visitors")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_user_anonymous />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Authenticated Users --%>
-          <div class="bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_outline />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">{@presence_stats.authenticated_sessions}</div>
-            <div class="text-green-100 font-medium">{gettext("Authenticated")}</div>
-            <div class="text-green-200 text-xs mt-1">{gettext("Logged in users")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="green-500"
+            gradient_via="emerald-600"
+            gradient_to="teal-600"
+            value={@presence_stats.authenticated_sessions}
+            title={gettext("Authenticated")}
+            subtitle={gettext("Logged in users")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_outline />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Unique Visitors --%>
-          <div class="bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 text-white rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="p-2 bg-white/20 rounded-lg">
-                <PhoenixKitWeb.Components.Core.Icons.icon_users_multiple />
-              </div>
-            </div>
-            <div class="text-3xl font-bold mb-2">
-              {@presence_stats.unique_anonymous_visitors +
-                @presence_stats.active_authenticated_users}
-            </div>
-            <div class="text-yellow-100 font-medium">{gettext("Unique Visitors")}</div>
-            <div class="text-yellow-200 text-xs mt-1">{gettext("Individual connections")}</div>
-          </div>
+          <PhoenixKitWeb.Components.Core.StatCard.stat_card
+            gradient_from="orange-500"
+            gradient_via="amber-500"
+            gradient_to="yellow-500"
+            value={
+              @presence_stats.unique_anonymous_visitors +
+                @presence_stats.active_authenticated_users
+            }
+            title={gettext("Unique Visitors")}
+            subtitle={gettext("Individual connections")}
+          >
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_users_multiple />
+            </:icon>
+          </PhoenixKitWeb.Components.Core.StatCard.stat_card>
         </div>
       </div>
 
       <%!-- Secondary Statistics - Gradient Cards --%>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <%!-- Active Users --%>
-        <div class="bg-gradient-to-br from-green-500 via-green-600 to-emerald-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@stats.active_users}</div>
-          <div class="text-green-100 font-medium">{gettext("Active Users")}</div>
-          <div class="text-green-200 text-xs mt-1">{gettext("Currently online")}</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          gradient_from="green-500"
+          gradient_via="green-600"
+          gradient_to="emerald-600"
+          rounded="2xl"
+          value={@stats.active_users}
+          title={gettext("Active Users")}
+          subtitle={gettext("Currently online")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Inactive Users --%>
-        <div class="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_x_circle_filled />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@stats.inactive_users}</div>
-          <div class="text-red-100 font-medium">{gettext("Inactive Users")}</div>
-          <div class="text-red-200 text-xs mt-1">{gettext("Disabled accounts")}</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          gradient_from="red-500"
+          gradient_via="red-600"
+          gradient_to="rose-600"
+          rounded="2xl"
+          value={@stats.inactive_users}
+          title={gettext("Inactive Users")}
+          subtitle={gettext("Disabled accounts")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_x_circle_filled />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Email Confirmed --%>
-        <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-6 h-6" />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@stats.confirmed_users}</div>
-          <div class="text-blue-100 font-medium">{gettext("Email Confirmed")}</div>
-          <div class="text-blue-200 text-xs mt-1">{gettext("Verified emails")}</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          gradient_from="blue-500"
+          gradient_via="blue-600"
+          gradient_to="cyan-600"
+          rounded="2xl"
+          value={@stats.confirmed_users}
+          title={gettext("Email Confirmed")}
+          subtitle={gettext("Verified emails")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-6 h-6" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Pending Email --%>
-        <div class="bg-gradient-to-br from-yellow-500 via-orange-500 to-amber-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_info_filled />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@stats.pending_users}</div>
-          <div class="text-yellow-100 font-medium">{gettext("Pending Email")}</div>
-          <div class="text-yellow-200 text-xs mt-1">{gettext("Awaiting confirmation")}</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          gradient_from="yellow-500"
+          gradient_via="orange-500"
+          gradient_to="amber-600"
+          rounded="2xl"
+          value={@stats.pending_users}
+          title={gettext("Pending Email")}
+          subtitle={gettext("Awaiting confirmation")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_info_filled />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Regular Users --%>
-        <div class="bg-gradient-to-br from-gray-500 via-slate-600 to-gray-700 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@stats.user_count}</div>
-          <div class="text-gray-100 font-medium">{gettext("Regular Users")}</div>
-          <div class="text-gray-200 text-xs mt-1">{gettext("Standard access level")}</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          gradient_from="gray-500"
+          gradient_via="slate-600"
+          gradient_to="gray-700"
+          rounded="2xl"
+          value={@stats.user_count}
+          title={gettext("Regular Users")}
+          subtitle={gettext("Standard access level")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>
     </div>
 
