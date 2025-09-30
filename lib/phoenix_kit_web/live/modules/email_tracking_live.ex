@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailTracking
+  alias PhoenixKit.EmailSystem
   alias PhoenixKit.Settings
 
   def mount(params, _session, socket) do
@@ -14,7 +14,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
     # Load email tracking configuration
-    email_tracking_config = EmailTracking.get_config()
+    email_tracking_config = EmailSystem.get_config()
 
     socket =
       socket
@@ -35,9 +35,9 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
 
     result =
       if new_enabled do
-        EmailTracking.enable_system()
+        EmailSystem.enable_system()
       else
-        EmailTracking.disable_system()
+        EmailSystem.disable_system()
       end
 
     case result do
@@ -65,7 +65,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     # Toggle email body saving
     new_save_body = !socket.assigns.email_tracking_save_body
 
-    result = EmailTracking.set_save_body(new_save_body)
+    result = EmailSystem.set_save_body(new_save_body)
 
     case result do
       {:ok, _setting} ->
@@ -92,7 +92,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     # Toggle AWS SES events tracking
     new_ses_events = !socket.assigns.email_tracking_ses_events
 
-    result = EmailTracking.set_ses_events(new_ses_events)
+    result = EmailSystem.set_ses_events(new_ses_events)
 
     case result do
       {:ok, _setting} ->
@@ -118,7 +118,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
   def handle_event("update_email_tracking_retention", %{"retention_days" => value}, socket) do
     case Integer.parse(value) do
       {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
-        case EmailTracking.set_retention_days(retention_days) do
+        case EmailSystem.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =
               socket
