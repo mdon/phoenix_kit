@@ -66,7 +66,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
       <div class="card-body">
         <%!-- Header: Icon, Title, Description, Toggle --%>
         <div class="flex items-center">
-          <div class="text-3xl mr-4">{@icon}</div>
+          <div class="text-3xl px-3 mr-4">{@icon}</div>
           <div class="flex-1">
             <h3 class="card-title text-xl">{@title}</h3>
             <p class="text-base-content/70">
