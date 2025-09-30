@@ -577,7 +577,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
                             phx-value-email_id={email.id}
                           />
                         </td>
-                        <td class="font-mono text-xs">{email.recipient_email}</td>
+                        <td class="font-mono text-xs">{email.to}</td>
                         <td class="truncate max-w-xs">{email.subject}</td>
                         <td class="text-error text-xs truncate max-w-xs">
                           {email.error_message || "Unknown error"}
@@ -638,14 +638,14 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
                             {String.capitalize(email.status || "unknown")}
                           </div>
                         </td>
-                        <td class="font-mono text-xs">{email.recipient_email}</td>
+                        <td class="font-mono text-xs">{email.to}</td>
                         <td class="truncate max-w-xs">{email.subject}</td>
                         <td class="text-xs">
                           {UtilsDate.format_datetime_with_user_format(email.sent_at)}
                         </td>
                         <td>
                           <div class="flex gap-1">
-                            <%= if email.delivery_status do %>
+                            <%= if email.delivered_at do %>
                               <div class="badge badge-xs badge-success" title="Delivered">
                                 <.icon name="hero-check" class="w-3 h-3" />
                               </div>

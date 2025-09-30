@@ -31,6 +31,20 @@
   - `count_blocklist/1` - Count blocked emails with optional filters
   - `get_blocklist_stats/0` - Retrieve blocklist statistics including total, active, expired, and by-reason breakdowns
 - **EmailSystem.delete_log/1** - New public API method for email log deletion with proper error handling
+- **Email Headers Management** - Complete headers tracking system with AWS SES integration
+  - New `email_save_headers` setting to control headers saving behavior
+  - Headers automatically populated from AWS SES events via SQS processor
+  - Headers extracted from all SES event types (send, delivery, bounce, complaint, open, click, reject, delay, subscription)
+  - New API methods: `save_headers_enabled?()`, `set_save_headers(enabled)`
+  - Admin UI toggle for enabling/disabling headers collection
+  - Headers button in email details hidden when no headers exist
+- **Email System Advanced Settings** - Expanded configuration API for lifecycle and monitoring
+  - `set_compress_after_days(days)` - Configure email body compression timing (7-365 days)
+  - `set_s3_archival(enabled)` - Enable/disable S3 archival for old email data
+  - `set_cloudwatch_metrics(enabled)` - Toggle CloudWatch metrics integration
+  - `set_sqs_max_messages(count)` - Configure SQS polling batch size (1-10 messages)
+  - `set_sqs_visibility_timeout(seconds)` - Set SQS message visibility timeout (30-43200 seconds)
+  - Enhanced Email System Settings LiveView with compression, archival, CloudWatch, and SQS controls
 
 ### Changed
 - **Template Editor** - Enhanced with test send and draft save capabilities
@@ -65,9 +79,15 @@
 - **Variable Description Editing** - Fixed inability to edit variable descriptions after auto-addition
 - **Template Editor Modal** - Removed unnecessary modal step in template creation workflow
 - **Slug Validation** - Fixed "slug can't be blank" errors with improved auto-generation timing
+- **Code Quality Issues** - Fixed all compiler warnings, Credo issues, and Dialyzer errors
+  - Fixed nested module aliasing in SQS processor (Credo software design warning)
+  - Removed Logger metadata keys not found in config (compiler warnings)
+  - Fixed nested code depth issue by extracting helper function (Credo refactoring warning)
+  - Removed unreachable pattern match clause in email interceptor (Dialyzer error)
 
 ### Improved
 - **Email System Code Quality** - Enhanced error handling and logging across email system modules
+- **SQS Processor Architecture** - Refactored headers update logic with proper function extraction and reduced nesting depth
 - **LiveView Performance** - Optimized data loading and real-time updates in queue and blocklist interfaces
 - **User Experience** - Streamlined template creation and management workflows
 

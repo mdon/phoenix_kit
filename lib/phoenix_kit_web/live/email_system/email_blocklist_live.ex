@@ -109,7 +109,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
   end
 
   @impl true
-  def handle_event("search", %{"search" => search_term}, socket) do
+  def handle_event("filter_search", %{"search" => search_term}, socket) do
     {:noreply,
      socket
      |> assign(:search_term, search_term)
@@ -570,22 +570,19 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
         </div>
 
         <%!-- Action Bar --%>
-        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <%!-- Search & Filters --%>
-          <div class="flex flex-wrap gap-2">
-            <%!-- Search --%>
-            <form phx-submit="search" class="flex gap-2">
-              <input
-                type="text"
-                name="search"
-                value={@search_term}
-                placeholder="Search email..."
-                class="input input-bordered input-sm"
-              />
-              <button type="submit" class="btn btn-sm btn-primary">
-                <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-              </button>
-            </form>
+        <div class="flex justify-between items-center gap-4 mb-6">
+          <%!-- Search & Filters (Single Row) --%>
+          <div class="flex gap-2">
+            <%!-- Search (Live) --%>
+            <input
+              type="text"
+              name="search"
+              value={@search_term}
+              placeholder="Search email..."
+              class="input input-bordered input-sm w-64"
+              phx-change="filter_search"
+              phx-debounce="300"
+            />
 
             <%!-- Reason Filter --%>
             <select

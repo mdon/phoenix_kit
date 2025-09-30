@@ -340,7 +340,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
       to: extract_primary_recipient(email.to),
       from: extract_sender(email.from),
       subject: email.subject || "(no subject)",
-      headers: extract_headers(email),
+      headers: extract_headers(email, opts),
       body_preview: extract_body_preview(email),
       body_full: extract_body_full(email, opts),
       attachments_count: length(email.attachments || []),
@@ -381,17 +381,15 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
   defp extract_sender(email) when is_binary(email), do: email
   defp extract_sender(_), do: "unknown@example.com"
 
-  # Extract and clean headers
-  defp extract_headers(%Email{headers: headers}) when is_map(headers) do
-    # Remove sensitive headers and normalize
-    headers
-    |> Enum.reject(fn {key, _} ->
-      key in ["Authorization", "Authentication-Results", "X-Password", "X-API-Key"]
-    end)
-    |> Enum.into(%{})
+  # Extract and clean headers if enabled
+  # Note: Headers will be populated from AWS SES events via SQS
+  # Swoosh.Email headers are usually empty before sending
+  defp extract_headers(%Email{headers: headers}, _opts) when is_map(headers) do
+    # Return empty map - headers will be populated from SES events
+    %{}
   end
 
-  defp extract_headers(_), do: %{}
+  defp extract_headers(_email, _opts), do: %{}
 
   # Extract body preview (first 500+ characters)
   defp extract_body_preview(%Email{} = email) do
@@ -738,6 +736,4 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
       true -> "not_found"
     end
   end
-
-  defp find_message_id_key(_), do: "invalid_response"
 end

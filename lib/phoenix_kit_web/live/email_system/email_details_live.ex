@@ -396,12 +396,14 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
                               {if assigns[:show_body], do: "Hide", else: "Show"} Full Body
                             </button>
                           <% end %>
-                          <button
-                            phx-click="toggle_headers"
-                            class="btn btn-outline btn-sm"
-                          >
-                            {if assigns[:show_headers], do: "Hide", else: "Show"} Headers
-                          </button>
+                          <%= if @email_log.headers && map_size(@email_log.headers) > 0 do %>
+                            <button
+                              phx-click="toggle_headers"
+                              class="btn btn-outline btn-sm"
+                            >
+                              {if assigns[:show_headers], do: "Hide", else: "Show"} Headers
+                            </button>
+                          <% end %>
                         </div>
                       </div>
 

@@ -315,21 +315,20 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
         <%!-- Filters & Search --%>
         <div class="card bg-base-100 shadow-sm mb-6">
           <div class="card-body">
-            <.form for={%{}} phx-change="filter" phx-submit="filter" class="space-y-4">
-              <%!-- Search Bar --%>
-              <div class="form-control">
-                <div class="input-group">
-                  <input
-                    type="text"
-                    name="search[query]"
-                    value={@filters.search}
-                    placeholder="Search by recipient, subject, or campaign..."
-                    class="input input-bordered flex-1"
-                  />
-                  <button type="submit" class="btn btn-primary">
-                    <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-                  </button>
-                </div>
+            <.form for={%{}} phx-change="filter" class="space-y-4">
+              <%!-- Search Bar & Action Buttons (Single Row) --%>
+              <div class="flex gap-2 items-center">
+                <input
+                  type="text"
+                  name="search[query]"
+                  value={@filters.search}
+                  placeholder="Search by recipient, subject, or campaign..."
+                  class="input input-bordered flex-1"
+                  phx-debounce="300"
+                />
+                <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
+                  Clear
+                </button>
               </div>
 
               <%!-- Filter Row --%>
@@ -401,14 +400,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
                     class="input input-bordered"
                   />
                 </div>
-              </div>
-
-              <%!-- Action Buttons --%>
-              <div class="flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
-                <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-                  Clear
-                </button>
               </div>
             </.form>
           </div>

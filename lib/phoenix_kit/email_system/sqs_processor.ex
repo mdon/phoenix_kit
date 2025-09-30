@@ -45,6 +45,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
 
   alias PhoenixKit.EmailSystem.EmailEvent
   alias PhoenixKit.EmailSystem.EmailLog
+  alias PhoenixKit.EmailSystem.EmailLog, as: EmailLogModule
 
   ## --- Public API ---
 
@@ -314,11 +315,13 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes send event
   defp process_send_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
-        # Send events are usually already processed during log creation
-        # Can update additional metadata if needed
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         Logger.debug("Send event received for already logged email", %{
           log_id: log.id,
           message_id: message_id
@@ -355,11 +358,14 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes delivery event
   defp process_delivery_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     delivery_data = event_data["delivery"] || %{}
     delivery_timestamp = get_in(delivery_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
         # Update status to delivered
         update_attrs = %{
           status: "delivered",
@@ -444,6 +450,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes bounce event
   defp process_bounce_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     bounce_data = event_data["bounce"]
     # Permanent or Temporary
     bounce_type = get_in(bounce_data, ["bounceType"])
@@ -451,6 +458,9 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         # Determine status based on bounce type
         status =
           case String.downcase(bounce_type || "") do
@@ -496,11 +506,15 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes complaint event
   defp process_complaint_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     complaint_data = event_data["complaint"]
     complaint_type = get_in(complaint_data, ["complaintFeedbackType"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         update_attrs = %{
           status: "complaint",
           error_message: "Spam complaint: #{complaint_type || "unknown"}"
@@ -584,11 +598,15 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes email open event
   defp process_open_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     open_data = event_data["open"]
     open_timestamp = get_in(open_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         # Update status only if current status is not "clicked"
         # (click is more important than open)
         status_update =
@@ -651,11 +669,15 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes click event
   defp process_click_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     click_data = event_data["click"]
     click_timestamp = get_in(click_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         # Click - highest engagement level
         update_attrs = %{status: "clicked"}
 
@@ -735,11 +757,15 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes reject event
   defp process_reject_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     reject_data = event_data["reject"]
     reject_reason = get_in(reject_data, ["reason"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         update_attrs = %{
           status: "rejected",
           error_message: build_reject_error_message(reject_data)
@@ -821,12 +847,16 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes delivery delay event
   defp process_delivery_delay_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     delay_data = event_data["deliveryDelay"]
     delay_type = get_in(delay_data, ["delayType"])
     expiration_time = get_in(delay_data, ["expirationTime"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         # Only update if current status is not more advanced
         status_update =
           case log.status do
@@ -904,11 +934,15 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes subscription event
   defp process_subscription_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     subscription_data = event_data["subscription"]
     subscription_type = get_in(subscription_data, ["subscriptionType"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         # Create event record
         create_subscription_event(log, subscription_data)
 
@@ -956,12 +990,16 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Processes rendering failure event
   defp process_rendering_failure_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
+    mail_data = event_data["mail"] || %{}
     failure_data = event_data["failure"]
     error_message = get_in(failure_data, ["errorMessage"])
     template_name = get_in(failure_data, ["templateName"])
 
     case find_email_log_by_message_id(message_id) do
       {:ok, log} ->
+        # Update headers if empty
+        update_log_headers_if_empty(log, mail_data)
+
         update_attrs = %{
           status: "failed",
           error_message: build_rendering_failure_message(failure_data)
@@ -1383,6 +1421,86 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       "#{base_message} (template: #{template_name})"
     else
       base_message
+    end
+  end
+
+  # Extract headers from AWS SES mail object
+  defp extract_headers_from_mail(mail_data) do
+    # Get headers array from mail object
+    headers_array = get_in(mail_data, ["headers"]) || []
+    common_headers = get_in(mail_data, ["commonHeaders"]) || %{}
+
+    # Parse headers array into map
+    parsed_headers =
+      headers_array
+      |> Enum.map(fn
+        %{"name" => name, "value" => value} -> {name, value}
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.into(%{})
+
+    # Normalize commonHeaders to simple map
+    normalized_common = normalize_common_headers(common_headers)
+
+    # Merge with priority to parsed_headers (they are more complete)
+    Map.merge(normalized_common, parsed_headers)
+  end
+
+  # Normalize commonHeaders to simple string map
+  defp normalize_common_headers(common_headers) when is_map(common_headers) do
+    common_headers
+    |> Enum.map(fn
+      {"from", [first | _]} -> {"From", first}
+      {"from", value} when is_binary(value) -> {"From", value}
+      {"to", [first | _]} -> {"To", first}
+      {"to", value} when is_binary(value) -> {"To", value}
+      {"subject", value} -> {"Subject", value}
+      {"messageId", value} -> {"Message-ID", value}
+      {"date", value} -> {"Date", value}
+      {"returnPath", value} -> {"Return-Path", value}
+      {"replyTo", [first | _]} -> {"Reply-To", first}
+      {"replyTo", value} when is_binary(value) -> {"Reply-To", value}
+      {_key, _value} -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.into(%{})
+  end
+
+  defp normalize_common_headers(_), do: %{}
+
+  # Update email log headers if they are empty
+  defp update_log_headers_if_empty(log, mail_data) do
+    cond do
+      not PhoenixKit.EmailSystem.save_headers_enabled?() ->
+        {:ok, log}
+
+      not is_nil(log.headers) and map_size(log.headers) > 0 ->
+        {:ok, log}
+
+      true ->
+        do_update_log_headers(log, mail_data)
+    end
+  end
+
+  defp do_update_log_headers(log, mail_data) do
+    headers = extract_headers_from_mail(mail_data)
+
+    if map_size(headers) > 0 do
+      case EmailLogModule.update_log(log, %{headers: headers}) do
+        {:ok, updated_log} ->
+          Logger.info("SQSProcessor: Updated email log headers from SES event")
+          {:ok, updated_log}
+
+        {:error, changeset} ->
+          Logger.error(
+            "SQSProcessor: Failed to update email log headers: #{inspect(changeset.errors)}"
+          )
+
+          {:error, changeset}
+      end
+    else
+      {:ok, log}
     end
   end
 end
