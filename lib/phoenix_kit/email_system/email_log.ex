@@ -846,7 +846,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
       to: extract_primary_recipient(email.to),
       from: extract_sender(email.from),
       subject: email.subject,
-      headers: Map.new(email.headers),
+      headers: if(Keyword.get(opts, :save_headers, false), do: Map.new(email.headers), else: %{}),
       body_preview: extract_body_preview(email),
       body_full: extract_body_full(email, opts),
       attachments_count: length(email.attachments),

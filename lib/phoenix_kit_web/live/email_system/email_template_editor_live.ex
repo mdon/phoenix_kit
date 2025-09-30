@@ -158,7 +158,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params}, socket) do
+  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket) do
     socket = assign(socket, :saving, true)
 
     # Extract variables and auto-add them before saving
@@ -191,13 +191,27 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
 
     template_params_with_vars = Map.put(template_params, "variables", updated_variables)
 
+    # Override status if saving as draft
+    template_params_final =
+      if save_as == "draft" do
+        Map.put(template_params_with_vars, "status", "draft")
+      else
+        template_params_with_vars
+      end
+
     case socket.assigns.mode do
       :new ->
-        create_template(socket, template_params_with_vars)
+        create_template(socket, template_params_final)
 
       :edit ->
-        update_template(socket, template_params_with_vars)
+        update_template(socket, template_params_final)
     end
+  end
+
+  @impl true
+  def handle_event("save", %{"email_template" => template_params}, socket) do
+    # Default save without save_as parameter
+    handle_event("save", %{"email_template" => template_params, "save_as" => "active"}, socket)
   end
 
   @impl true
@@ -680,13 +694,24 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
               <%!-- Action Buttons --%>
               <div class="flex justify-between">
                 <div class="flex gap-2">
-                  <%= if @mode == :edit do %>
+                  <%!-- Test Send button (available in both new and edit modes) --%>
+                  <button
+                    type="button"
+                    phx-click="show_test_modal"
+                    class="btn btn-outline btn-secondary"
+                  >
+                    <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Test Send
+                  </button>
+
+                  <%!-- Save as Draft button (only in new mode) --%>
+                  <%= if @mode == :new do %>
                     <button
-                      type="button"
-                      phx-click="show_test_modal"
-                      class="btn btn-outline btn-secondary"
+                      type="submit"
+                      name="save_as"
+                      value="draft"
+                      class="btn btn-outline btn-warning"
                     >
-                      <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Test Send
+                      <.icon name="hero-document" class="w-4 h-4 mr-1" /> Save as Draft
                     </button>
                   <% end %>
                 </div>
@@ -760,18 +785,23 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
                 <%!-- Body Preview --%>
                 <div class="border rounded-lg overflow-hidden">
                   <%= if @preview_mode == "html" do %>
-                    <div class="bg-white p-4 min-h-96">
-                      <%= case Ecto.Changeset.get_field(@changeset, :html_body) do %>
-                        <% nil -> %>
+                    <%= case Ecto.Changeset.get_field(@changeset, :html_body) do %>
+                      <% html_content when is_binary(html_content) and html_content != "" -> %>
+                        <iframe
+                          id="email-preview-iframe"
+                          sandbox="allow-same-origin"
+                          class="w-full border-0 bg-white"
+                          style="min-height: 400px; height: auto;"
+                          srcdoc={html_content}
+                          phx-update="ignore"
+                          onload="this.style.height = (this.contentWindow.document.body.scrollHeight + 40) + 'px';"
+                        >
+                        </iframe>
+                      <% _ -> %>
+                        <div class="bg-white p-4 min-h-96">
                           <div class="text-gray-500 italic">No HTML content</div>
-                        <% "" -> %>
-                          <div class="text-gray-500 italic">No HTML content</div>
-                        <% html_content -> %>
-                          <div class="prose max-w-none">
-                            {Phoenix.HTML.raw(html_content)}
-                          </div>
-                      <% end %>
-                    </div>
+                        </div>
+                    <% end %>
                   <% else %>
                     <div class="bg-gray-50 p-4 min-h-96 font-mono text-sm whitespace-pre-wrap">
                       <%= case Ecto.Changeset.get_field(@changeset, :text_body) do %>
@@ -1018,7 +1048,6 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
       <title>{{subject}}</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container {margin: 0 auto; padding: 20px; }
         .header { text-align: center; margin-bottom: 30px; }
         .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; }
         .button:hover { background-color: #2563eb; }

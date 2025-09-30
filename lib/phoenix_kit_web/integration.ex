@@ -1,4 +1,6 @@
 defmodule PhoenixKitWeb.Integration do
+  alias PhoenixKit.Module.Languages
+
   @moduledoc """
   Integration helpers for adding PhoenixKit to Phoenix applications.
 
@@ -135,24 +137,8 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
-  defmacro phoenix_kit_routes do
-    # Get URL prefix at compile time and handle empty string case for router compatibility
-    raw_prefix =
-      try do
-        PhoenixKit.Config.get_url_prefix()
-      rescue
-        # Fallback if config not available at compile time
-        _ -> "/phoenix_kit"
-      end
-
-    url_prefix =
-      case raw_prefix do
-        "" -> "/"
-        prefix -> prefix
-      end
-
-    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
+  # Helper function to generate pipeline definitions
+  defp generate_pipelines do
     quote do
       alias PhoenixKit.Module.Languages
 
@@ -170,6 +156,16 @@ defmodule PhoenixKitWeb.Integration do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_require_authenticated_user
       end
 
+      # Define locale validation pipeline
+      pipeline :phoenix_kit_locale_validation do
+        plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
+      end
+    end
+  end
+
+  # Helper function to generate basic scope routes
+  defp generate_basic_scope(url_prefix) do
+    quote do
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
@@ -196,26 +192,19 @@ defmodule PhoenixKitWeb.Integration do
       pipeline :phoenix_kit_locale_validation do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
       end
+    end
+  end
 
-      # Get enabled locales at compile time with fallback
-      enabled_locales =
-        try do
-          Languages.enabled_locale_codes()
-        rescue
-          # Fallback if module not available at compile time
-          _ -> ["en"]
-        end
-
-      # Create regex pattern for enabled locales
-      pattern = Enum.join(enabled_locales, "|")
-
+  # Helper function to generate localized routes
+  defp generate_localized_routes(url_prefix, pattern) do
+    quote do
       # Localized scope with locale parameter
-      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb, locale: ~r/^(#{pattern})$/ do
+      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
+        locale: ~r/^(#{unquote(pattern)})$/ do
         pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
 
         live_session :phoenix_kit_redirect_if_user_is_authenticated_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
-          # live "/test", TestLive, :index  # Moved to require_authenticated section
           live "/users/register", Users.RegistrationLive, :new
           live "/users/log-in", Users.LoginLive, :new
           live "/users/magic-link", Users.MagicLinkLive, :new
@@ -260,14 +249,18 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
         end
       end
+    end
+  end
 
+  # Helper function to generate non-localized routes
+  defp generate_non_localized_routes(url_prefix) do
+    quote do
       # Non-localized scope for backward compatibility (defaults to "en")
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
 
         live_session :phoenix_kit_redirect_if_user_is_authenticated,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
-          # live "/test", TestLive, :index  # Moved to require_authenticated section
           live "/users/register", Users.RegistrationLive, :new
           live "/users/log-in", Users.LoginLive, :new
           live "/users/magic-link", Users.MagicLinkLive, :new
@@ -317,6 +310,49 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/templates/:id/edit", Live.EmailSystem.EmailTemplateEditorLive, :edit
         end
       end
+    end
+  end
+
+  defmacro phoenix_kit_routes do
+    # Get URL prefix at compile time and handle empty string case for router compatibility
+    raw_prefix =
+      try do
+        PhoenixKit.Config.get_url_prefix()
+      rescue
+        # Fallback if config not available at compile time
+        _ -> "/phoenix_kit"
+      end
+
+    url_prefix =
+      case raw_prefix do
+        "" -> "/"
+        prefix -> prefix
+      end
+
+    # Get enabled locales at compile time with fallback
+    enabled_locales =
+      try do
+        Languages.enabled_locale_codes()
+      rescue
+        # Fallback if module not available at compile time
+        _ -> ["en"]
+      end
+
+    # Create regex pattern for enabled locales
+    pattern = Enum.join(enabled_locales, "|")
+
+    quote do
+      # Generate pipeline definitions
+      unquote(generate_pipelines())
+
+      # Generate basic routes scope
+      unquote(generate_basic_scope(url_prefix))
+
+      # Generate localized routes
+      unquote(generate_localized_routes(url_prefix, pattern))
+
+      # Generate non-localized routes
+      unquote(generate_non_localized_routes(url_prefix))
     end
   end
 

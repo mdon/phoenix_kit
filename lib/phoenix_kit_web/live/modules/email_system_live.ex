@@ -36,6 +36,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
       |> assign(:project_title, project_title)
       |> assign(:email_enabled, email_config.enabled)
       |> assign(:email_save_body, email_config.save_body)
+      |> assign(:email_save_headers, EmailSystem.save_headers_enabled?())
       |> assign(:email_ses_events, email_config.ses_events)
       |> assign(:email_retention_days, email_config.retention_days)
       |> assign(:email_sampling_rate, email_config.sampling_rate)
@@ -44,6 +45,8 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
       |> assign(:email_cloudwatch_metrics, email_config.cloudwatch_metrics)
       |> assign(:sqs_polling_enabled, email_config.sqs_polling_enabled)
       |> assign(:sqs_polling_interval_ms, email_config.sqs_polling_interval_ms)
+      |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
+      |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
       |> assign(:aws_settings, aws_settings)
       |> assign(:saving, false)
 
@@ -105,6 +108,33 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update email body saving setting")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_email_save_headers", _params, socket) do
+    # Toggle email headers saving
+    new_save_headers = !socket.assigns.email_save_headers
+
+    result = EmailSystem.set_save_headers(new_save_headers)
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:email_save_headers, new_save_headers)
+          |> put_flash(
+            :info,
+            if(new_save_headers,
+              do: "Email headers saving enabled",
+              else: "Email headers saving disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update email headers saving setting")
         {:noreply, socket}
     end
   end
@@ -205,6 +235,129 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
 
       _ ->
         socket = put_flash(socket, :error, "Please enter a valid number between 1 and 365")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_compress_days", %{"compress_days" => value}, socket) do
+    case Integer.parse(value) do
+      {compress_days, _} when compress_days >= 7 and compress_days <= 365 ->
+        case EmailSystem.set_compress_after_days(compress_days) do
+          {:ok, _setting} ->
+            socket =
+              socket
+              |> assign(:email_compress_body, compress_days)
+              |> put_flash(:info, "Email body compression updated to #{compress_days} days")
+
+            {:noreply, socket}
+
+          {:error, _changeset} ->
+            socket = put_flash(socket, :error, "Failed to update compression days")
+            {:noreply, socket}
+        end
+
+      _ ->
+        socket = put_flash(socket, :error, "Please enter a valid number between 7 and 365")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_s3_archival", _params, socket) do
+    new_s3_archival = !socket.assigns.email_archive_to_s3
+
+    result = EmailSystem.set_s3_archival(new_s3_archival)
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:email_archive_to_s3, new_s3_archival)
+          |> put_flash(
+            :info,
+            if(new_s3_archival,
+              do: "S3 archival enabled",
+              else: "S3 archival disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update S3 archival setting")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_cloudwatch", _params, socket) do
+    new_cloudwatch = !socket.assigns.email_cloudwatch_metrics
+
+    result = EmailSystem.set_cloudwatch_metrics(new_cloudwatch)
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:email_cloudwatch_metrics, new_cloudwatch)
+          |> put_flash(
+            :info,
+            if(new_cloudwatch,
+              do: "CloudWatch metrics enabled",
+              else: "CloudWatch metrics disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update CloudWatch metrics setting")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_max_messages", %{"max_messages" => value}, socket) do
+    case Integer.parse(value) do
+      {max_messages, _} when max_messages >= 1 and max_messages <= 10 ->
+        case EmailSystem.set_sqs_max_messages(max_messages) do
+          {:ok, _setting} ->
+            socket =
+              socket
+              |> assign(:sqs_max_messages_per_poll, max_messages)
+              |> put_flash(:info, "SQS max messages updated to #{max_messages}")
+
+            {:noreply, socket}
+
+          {:error, _changeset} ->
+            socket = put_flash(socket, :error, "Failed to update SQS max messages")
+            {:noreply, socket}
+        end
+
+      _ ->
+        socket = put_flash(socket, :error, "Please enter a valid number between 1 and 10")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_visibility_timeout", %{"timeout" => value}, socket) do
+    case Integer.parse(value) do
+      {timeout, _} when timeout >= 30 and timeout <= 43_200 ->
+        case EmailSystem.set_sqs_visibility_timeout(timeout) do
+          {:ok, _setting} ->
+            socket =
+              socket
+              |> assign(:sqs_visibility_timeout, timeout)
+              |> put_flash(:info, "SQS visibility timeout updated to #{timeout} seconds")
+
+            {:noreply, socket}
+
+          {:error, _changeset} ->
+            socket = put_flash(socket, :error, "Failed to update SQS visibility timeout")
+            {:noreply, socket}
+        end
+
+      _ ->
+        socket =
+          put_flash(socket, :error, "Please enter a valid number between 30 and 43200 seconds")
+
         {:noreply, socket}
     end
   end

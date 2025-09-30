@@ -627,15 +627,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
       # Only show if there are multiple languages (more than current one)
       if length(enabled_languages) > 1 do
-        current_language = Enum.find(enabled_languages, &(&1["code"] == assigns.current_locale)) ||
-                          %{"code" => assigns.current_locale, "name" => String.upcase(assigns.current_locale)}
+        current_language =
+          Enum.find(enabled_languages, &(&1["code"] == assigns.current_locale)) ||
+            %{"code" => assigns.current_locale, "name" => String.upcase(assigns.current_locale)}
 
         other_languages = Enum.reject(enabled_languages, &(&1["code"] == assigns.current_locale))
 
-        assigns = assigns
-                 |> assign(:enabled_languages, enabled_languages)
-                 |> assign(:current_language, current_language)
-                 |> assign(:other_languages, other_languages)
+        assigns =
+          assigns
+          |> assign(:enabled_languages, enabled_languages)
+          |> assign(:current_language, current_language)
+          |> assign(:other_languages, other_languages)
 
         ~H"""
         <div class="dropdown dropdown-end w-full" style="position: relative;">
@@ -647,7 +649,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           </div>
 
           <%!-- Language Options Dropdown --%>
-          <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-full p-2 shadow-lg border border-base-300" style="position: absolute; bottom: 100%; margin-bottom: 4px;">
+          <ul
+            tabindex="0"
+            class="dropdown-content menu bg-base-100 rounded-box z-50 w-full p-2 shadow-lg border border-base-300"
+            style="position: absolute; bottom: 100%; margin-bottom: 4px;"
+          >
             <%= for language <- @other_languages do %>
               <li>
                 <a
@@ -690,26 +696,30 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Helper function to generate language switch URL
   defp generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    enabled_language_codes = if Languages.enabled?() do
-      Languages.get_enabled_language_codes()
-    else
-      ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"] # Fallback common codes
-    end
+    enabled_language_codes =
+      if Languages.enabled?() do
+        Languages.get_enabled_language_codes()
+      else
+        # Fallback common codes
+        ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"]
+      end
 
     # Remove PhoenixKit prefix if present
     normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
 
     # Remove existing locale prefix only if it matches actual language codes
-    clean_path = case String.split(normalized_path, "/", parts: 3) do
-      ["", potential_locale, rest] ->
-        if potential_locale in enabled_language_codes do
-          "/" <> rest
-        else
+    clean_path =
+      case String.split(normalized_path, "/", parts: 3) do
+        ["", potential_locale, rest] ->
+          if potential_locale in enabled_language_codes do
+            "/" <> rest
+          else
+            normalized_path
+          end
+
+        _ ->
           normalized_path
-        end
-      _ ->
-        normalized_path
-    end
+      end
 
     # Generate new URL with the target locale
     Routes.path(clean_path, locale: new_locale)

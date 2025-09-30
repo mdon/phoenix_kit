@@ -21,6 +21,7 @@ defmodule PhoenixKit.EmailSystem do
 
   - `email_enabled` - Enable/disable the entire system
   - `email_save_body` - Save full email body (vs preview only)
+  - `email_save_headers` - Save email headers (vs empty map)
   - `email_ses_events` - Manage AWS SES delivery events
   - `email_cloudwatch_metrics` - Enable CloudWatch metrics
   - `email_retention_days` - Days to keep emails (default: 90)
@@ -802,6 +803,36 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   @doc """
+  Checks if email headers saving is enabled.
+
+  Returns true if the "email_save_headers" setting is true.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.save_headers_enabled?()
+      false
+  """
+  def save_headers_enabled? do
+    Settings.get_boolean_setting("email_save_headers", false)
+  end
+
+  @doc """
+  Enables or disables email headers saving.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.set_save_headers(true)
+      {:ok, %Setting{}}
+  """
+  def set_save_headers(enabled) when is_boolean(enabled) do
+    Settings.update_boolean_setting_with_module(
+      "email_save_headers",
+      enabled,
+      "email_system"
+    )
+  end
+
+  @doc """
   Checks if AWS SES event management is enabled.
 
   ## Examples
@@ -910,6 +941,54 @@ defmodule PhoenixKit.EmailSystem do
     Settings.update_setting_with_module(
       "email_sampling_rate",
       to_string(percentage),
+      "email_system"
+    )
+  end
+
+  @doc """
+  Sets the number of days after which to compress email bodies.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.set_compress_after_days(30)
+      {:ok, %Setting{}}
+  """
+  def set_compress_after_days(days) when is_integer(days) and days >= 7 and days <= 365 do
+    Settings.update_setting_with_module(
+      "email_compress_body",
+      to_string(days),
+      "email_system"
+    )
+  end
+
+  @doc """
+  Enables or disables S3 archival for old email data.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.set_s3_archival(true)
+      {:ok, %Setting{}}
+  """
+  def set_s3_archival(enabled) when is_boolean(enabled) do
+    Settings.update_boolean_setting_with_module(
+      "email_archive_to_s3",
+      enabled,
+      "email_system"
+    )
+  end
+
+  @doc """
+  Enables or disables CloudWatch metrics integration.
+
+  ## Examples
+
+      iex> PhoenixKit.EmailSystem.set_cloudwatch_metrics(true)
+      {:ok, %Setting{}}
+  """
+  def set_cloudwatch_metrics(enabled) when is_boolean(enabled) do
+    Settings.update_boolean_setting_with_module(
+      "email_cloudwatch_metrics",
+      enabled,
       "email_system"
     )
   end
@@ -1351,7 +1430,8 @@ defmodule PhoenixKit.EmailSystem do
         Map.merge(attrs, %{
           configuration_set: get_ses_configuration_set(),
           body_full:
-            if(save_body_enabled?() and attrs[:body_full], do: attrs[:body_full], else: nil)
+            if(save_body_enabled?() and attrs[:body_full], do: attrs[:body_full], else: nil),
+          headers: attrs[:headers] || %{}
         })
 
       EmailLog.create_log(attrs)
@@ -1371,6 +1451,23 @@ defmodule PhoenixKit.EmailSystem do
   def update_log_status(log, status) when is_binary(status) do
     if enabled?() do
       EmailLog.update_status(log, status)
+    else
+      {:ok, log}
+    end
+  end
+
+  @doc """
+  Deletes an email log.
+
+  ## Examples
+
+      iex> log = PhoenixKit.EmailSystem.get_log!(1)
+      iex> PhoenixKit.EmailSystem.delete_log(log)
+      {:ok, %EmailLog{}}
+  """
+  def delete_log(%EmailLog{} = log) do
+    if enabled?() do
+      EmailLog.delete_log(log)
     else
       {:ok, log}
     end

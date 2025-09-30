@@ -81,6 +81,26 @@
 
             <div class="divider"></div>
 
+            <%!-- Save Email Headers --%>
+            <div class="form-control mb-4">
+              <label class="label cursor-pointer">
+                <span class="label-text text-lg">
+                  <span class="font-semibold">Save Email Headers</span>
+                  <div class="text-sm text-base-content/70 mt-1">
+                    Store email headers for debugging and analysis (increases storage usage)
+                  </div>
+                </span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-secondary"
+                  checked={@email_save_headers}
+                  phx-click="toggle_email_save_headers"
+                />
+              </label>
+            </div>
+
+            <div class="divider"></div>
+
             <%!-- AWS SES Events --%>
             <div class="form-control mb-4">
               <label class="label cursor-pointer">
@@ -156,6 +176,73 @@
                 <span class="label-text-alt text-base-content/70">
                   How long to keep emails data before automatic cleanup (1-365 days)
                 </span>
+              </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <%!-- Compress Body After Days --%>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text text-lg font-semibold">Compress Email Bodies After</span>
+              </label>
+              <div class="input-group">
+                <input
+                  type="number"
+                  placeholder="Enter compression days"
+                  class="input input-bordered w-full max-w-xs"
+                  value={@email_compress_body}
+                  min="7"
+                  max="365"
+                  phx-blur="update_compress_days"
+                  phx-value-compress_days={assigns[:email_compress_body]}
+                />
+                <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+              </div>
+              <label class="label">
+                <span class="label-text-alt text-base-content/70">
+                  Compress old email bodies to save storage space (7-365 days)
+                </span>
+              </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <%!-- S3 Archival Toggle --%>
+            <div class="form-control mb-4">
+              <label class="label cursor-pointer">
+                <span class="label-text text-lg">
+                  <span class="font-semibold">Enable S3 Archival</span>
+                  <div class="text-sm text-base-content/70 mt-1">
+                    Move old email data to AWS S3 for long-term cold storage
+                  </div>
+                </span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-warning"
+                  checked={@email_archive_to_s3}
+                  phx-click="toggle_s3_archival"
+                />
+              </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <%!-- CloudWatch Metrics Toggle --%>
+            <div class="form-control">
+              <label class="label cursor-pointer">
+                <span class="label-text text-lg">
+                  <span class="font-semibold">Enable CloudWatch Metrics</span>
+                  <div class="text-sm text-base-content/70 mt-1">
+                    Send email metrics to AWS CloudWatch for monitoring and alerting
+                  </div>
+                </span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-info"
+                  checked={@email_cloudwatch_metrics}
+                  phx-click="toggle_cloudwatch"
+                />
               </label>
             </div>
 
@@ -379,6 +466,60 @@
                     />
                   </label>
                 </div>
+
+                <%= if @sqs_polling_enabled do %>
+                  <div class="divider"></div>
+
+                  <%!-- SQS Max Messages Per Poll --%>
+                  <div class="form-control mb-4">
+                    <label class="label">
+                      <span class="label-text text-lg font-semibold">Max Messages Per Poll</span>
+                    </label>
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        placeholder="Enter max messages"
+                        class="input input-bordered w-full max-w-xs"
+                        value={@sqs_max_messages_per_poll}
+                        min="1"
+                        max="10"
+                        phx-blur="update_max_messages"
+                        phx-value-max_messages={assigns[:sqs_max_messages_per_poll]}
+                      />
+                      <span class="bg-base-200 px-4 py-3 text-sm">messages</span>
+                    </div>
+                    <label class="label">
+                      <span class="label-text-alt text-base-content/70">
+                        Maximum number of messages to process in each polling cycle (1-10)
+                      </span>
+                    </label>
+                  </div>
+
+                  <%!-- SQS Visibility Timeout --%>
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text text-lg font-semibold">Visibility Timeout</span>
+                    </label>
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        placeholder="Enter timeout"
+                        class="input input-bordered w-full max-w-xs"
+                        value={@sqs_visibility_timeout}
+                        min="30"
+                        max="43200"
+                        phx-blur="update_visibility_timeout"
+                        phx-value-timeout={assigns[:sqs_visibility_timeout]}
+                      />
+                      <span class="bg-base-200 px-4 py-3 text-sm">seconds</span>
+                    </div>
+                    <label class="label">
+                      <span class="label-text-alt text-base-content/70">
+                        How long messages remain invisible after being received (30-43200 seconds)
+                      </span>
+                    </label>
+                  </div>
+                <% end %>
               <% else %>
                 <%!-- Message when SES Events are disabled --%>
                 <div class="alert alert-info mt-4">

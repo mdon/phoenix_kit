@@ -48,6 +48,113 @@ defmodule PhoenixKit.Mailer do
   end
 
   @doc """
+  Sends an email using a template from the database.
+
+  This is the main function for sending emails using PhoenixKit's template system.
+  It automatically:
+  - Loads the template by name
+  - Renders it with provided variables
+  - Tracks template usage
+  - Sends the email with tracking
+  - Logs to EmailSystem
+
+  ## Parameters
+
+  - `template_name` - Name of the template in the database (e.g., "welcome_email")
+  - `recipient` - Email address (string) or {name, email} tuple
+  - `variables` - Map of variables to substitute in the template
+  - `opts` - Additional options:
+    - `:user_id` - Associate email with a user (for tracking)
+    - `:campaign_id` - Campaign identifier (for analytics)
+    - `:from` - Override from address (default: configured from_email)
+    - `:reply_to` - Reply-to address
+    - `:metadata` - Additional metadata map for tracking
+
+  ## Returns
+
+  - `{:ok, email}` - Email sent successfully
+  - `{:error, :template_not_found}` - Template doesn't exist
+  - `{:error, :template_inactive}` - Template is not active
+  - `{:error, reason}` - Other error
+
+  ## Examples
+
+      # Simple welcome email
+      PhoenixKit.Mailer.send_from_template(
+        "welcome_email",
+        "user@example.com",
+        %{"user_name" => "John", "url" => "https://app.com"}
+      )
+
+      # With user tracking
+      PhoenixKit.Mailer.send_from_template(
+        "password_reset",
+        {"Jane Doe", "jane@example.com"},
+        %{"reset_url" => "https://app.com/reset/token123"},
+        user_id: user.id,
+        campaign_id: "password_recovery"
+      )
+
+      # With metadata
+      PhoenixKit.Mailer.send_from_template(
+        "order_confirmation",
+        customer.email,
+        %{"order_id" => "12345", "total" => "$99.99"},
+        user_id: customer.id,
+        campaign_id: "orders",
+        metadata: %{order_id: order.id, amount: order.total}
+      )
+  """
+  def send_from_template(template_name, recipient, variables \\ %{}, opts \\ [])
+      when is_binary(template_name) do
+    # Get the template from database
+    case Templates.get_active_template_by_name(template_name) do
+      nil ->
+        {:error, :template_not_found}
+
+      template ->
+        # Ensure template is active
+        if template.status == "active" do
+          # Render template with variables
+          rendered = Templates.render_template(template, variables)
+
+          # Build email
+          email =
+            new()
+            |> to(recipient)
+            |> from(Keyword.get(opts, :from, {"PhoenixKit", get_from_email()}))
+            |> subject(rendered.subject)
+            |> html_body(rendered.html_body)
+            |> text_body(rendered.text_body)
+
+          # Add reply-to if provided
+          email =
+            if reply_to = Keyword.get(opts, :reply_to) do
+              reply_to(email, reply_to)
+            else
+              email
+            end
+
+          # Track template usage
+          Templates.track_usage(template)
+
+          # Prepare delivery options
+          delivery_opts =
+            opts
+            |> Keyword.put(:template_name, template_name)
+            |> Keyword.put(:template_id, template.id)
+            |> Keyword.put_new(:campaign_id, template.category)
+            |> Keyword.put(:provider, detect_provider())
+
+          # Send email with tracking
+          deliver_email(email, delivery_opts)
+        else
+          {:error, :template_inactive}
+        end
+    end
+  end
+
+  @doc """
   Delivers an email using the appropriate mailer.
 
   If a parent application mailer is configured, delegates to it.
@@ -146,7 +253,6 @@ defmodule PhoenixKit.Mailer do
       <title>Your Secure Login Link</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; margin-bottom: 30px; }
         .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; }
         .button:hover { background-color: #2563eb; }
@@ -392,7 +498,6 @@ defmodule PhoenixKit.Mailer do
       <title>Test Tracking Email</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
-        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
         .content { padding: 30px; }
         .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; margin: 10px 5px; }
