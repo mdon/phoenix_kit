@@ -137,58 +137,49 @@
       <%!-- Main Statistics Cards --%>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <%!-- System Owners Card --%>
-        <div class="card bg-gradient-to-br from-red-500 via-red-600 to-red-700 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 border-0 transform hover:scale-105">
-          <div class="card-body relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-6 translate-x-6">
-            </div>
-            <div class="relative z-10">
-              <div class="flex items-center gap-3 mb-4">
-                <div class="p-2 bg-white/20 rounded-lg">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_crown />
-                </div>
-                <h2 class="card-title text-xl">{gettext("System Owners")}</h2>
-              </div>
-              <div class="text-7xl font-black mb-2 tracking-tight">{@stats.owner_count}</div>
-              <p class="text-red-100 text-sm">{gettext("Complete system authority")}</p>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
+          gradient_from="red-500"
+          gradient_via="red-600"
+          gradient_to="red-700"
+          circle_size="20"
+          value={@stats.owner_count}
+          title={gettext("System Owners")}
+          subtitle={gettext("Complete system authority")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_crown />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
 
         <%!-- Administrators Card --%>
-        <div class="card bg-gradient-to-br from-amber-500 via-orange-500 to-orange-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105">
-          <div class="card-body relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -translate-y-4 translate-x-4">
-            </div>
-            <div class="relative z-10">
-              <div class="flex items-center gap-3 mb-4">
-                <div class="p-2 bg-white/20 rounded-lg">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_star />
-                </div>
-                <h2 class="card-title text-xl">{gettext("Administrators")}</h2>
-              </div>
-              <div class="text-7xl font-black mb-2 tracking-tight">{@stats.admin_count}</div>
-              <p class="text-orange-100 text-sm">{gettext("Management privileges")}</p>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
+          gradient_from="amber-500"
+          gradient_via="orange-500"
+          gradient_to="orange-600"
+          circle_size="16"
+          value={@stats.admin_count}
+          title={gettext("Administrators")}
+          subtitle={gettext("Management privileges")}
+        >
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_star />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
 
         <%!-- Total Users Card --%>
-        <div class="card bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105">
-          <div class="card-body relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-8 translate-x-8">
-            </div>
-            <div class="relative z-10">
-              <div class="flex items-center gap-3 mb-4">
-                <div class="p-2 bg-white/20 rounded-lg">
-                  👥
-                </div>
-                <h2 class="card-title text-xl">{gettext("Total Users")}</h2>
-              </div>
-              <div class="text-7xl font-black mb-2 tracking-tight">{@stats.total_users}</div>
-              <p class="text-blue-100 text-sm">{gettext("Registered accounts")}</p>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
+          gradient_from="blue-500"
+          gradient_via="blue-600"
+          gradient_to="indigo-600"
+          circle_size="24"
+          value={@stats.total_users}
+          title={gettext("Total Users")}
+          subtitle={gettext("Registered accounts")}
+        >
+          <:icon>
+            👥
+          </:icon>
+        </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
       </div>
 
       <%!-- Sessions Statistics --%>
