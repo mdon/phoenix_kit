@@ -100,6 +100,8 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     quote do
+      alias PhoenixKit.Module.Languages
+
       # Get enabled locales at compile time with fallback
       enabled_locales =
         try do
@@ -135,9 +137,27 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # Helper function to generate pipeline definitions
-  defp generate_pipelines do
+  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
+  defmacro phoenix_kit_routes do
+    # Get URL prefix at compile time and handle empty string case for router compatibility
+    raw_prefix =
+      try do
+        PhoenixKit.Config.get_url_prefix()
+      rescue
+        # Fallback if config not available at compile time
+        _ -> "/phoenix_kit"
+      end
+
+    url_prefix =
+      case raw_prefix do
+        "" -> "/"
+        prefix -> prefix
+      end
+
+    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
     quote do
+      alias PhoenixKit.Module.Languages
+
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
         plug PhoenixKitWeb.Integration, :phoenix_kit_auto_setup
@@ -183,12 +203,24 @@ defmodule PhoenixKitWeb.Integration do
         get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
         get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
       end
-    end
-  end
 
-  # Helper function to generate localized routes
-  defp generate_localized_routes(url_prefix, pattern) do
-    quote do
+      # Define locale validation pipeline
+      pipeline :phoenix_kit_locale_validation do
+        plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
+      end
+
+      # Get enabled locales at compile time with fallback
+      enabled_locales =
+        try do
+          Languages.enabled_locale_codes()
+        rescue
+          # Fallback if module not available at compile time
+          _ -> ["en"]
+        end
+
+      # Create regex pattern for enabled locales
+      pattern = Enum.join(enabled_locales, "|")
+
       # Localized scope with locale parameter
       scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
         locale: ~r/^(#{unquote(pattern)})$/ do
@@ -240,8 +272,6 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
         end
       end
-    end
-  end
 
   # Helper function to generate non-localized routes
   defp generate_non_localized_routes(url_prefix) do

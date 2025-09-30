@@ -354,7 +354,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.Module.Languages.enabled?() do %>
+                        <%= if Languages.enabled?() do %>
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/languages")}
                             icon="language"
@@ -696,13 +696,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Helper function to generate language switch URL
   defp generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    enabled_language_codes =
-      if Languages.enabled?() do
-        Languages.get_enabled_language_codes()
-      else
-        # Fallback common codes
-        ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"]
-      end
+    enabled_language_codes = if Languages.enabled?() do
+      Languages.get_enabled_language_codes()
+    else
+      ["en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh-CN", "ja"] # Fallback common codes
+    end
 
     # Remove PhoenixKit prefix if present
     normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
