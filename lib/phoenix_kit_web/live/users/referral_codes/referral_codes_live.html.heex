@@ -23,7 +23,7 @@
       </div>
     </header>
 
-    <%!-- System Stats Cards --%>
+    <%!-- Stats Cards --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <div class="card bg-base-100 shadow">
         <div class="card-body p-4">
@@ -76,12 +76,12 @@
       </div>
     </div>
 
-    <%!-- System Status and Actions --%>
+    <%!-- Status and Actions --%>
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
         <div class="flex justify-between items-center">
           <div>
-            <h2 class="card-title text-xl">System Status</h2>
+            <h2 class="card-title text-xl">Status</h2>
             <p class="text-base-content/70">
               Status:
               <span class={"badge #{if @config.enabled, do: "badge-success", else: "badge-error"}"}>
@@ -105,7 +105,7 @@
             </.link>
           <% else %>
             <div class="text-sm text-base-content/50">
-              Enable referral codes system in Modules to create codes
+              Enable referral codes in Modules to create codes
             </div>
           <% end %>
         </div>
@@ -241,10 +241,10 @@
         <div class="card-body text-center py-12">
           <div class="text-6xl mb-4">🔒</div>
           <h3 class="text-xl font-semibold text-base-content mb-2">
-            Referral Codes System Disabled
+            Referral Codes Disabled
           </h3>
           <p class="text-base-content/70 max-w-md mx-auto mb-4">
-            The referral codes system is currently disabled. Enable it in the Modules page to start creating and managing referral codes.
+            Referral codes are currently disabled. Enable them in the Modules page to start creating and managing referral codes.
           </p>
           <.link
             navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}

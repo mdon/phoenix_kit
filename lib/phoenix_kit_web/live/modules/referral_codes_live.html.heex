@@ -21,24 +21,24 @@
       <div class="text-center">
         <h1 class="text-4xl font-bold text-base-content mb-3">Referral Codes Settings</h1>
         <p class="text-lg text-base-content">
-          Configure referral codes system behavior and limits
+          Configure referral codes behavior and limits
         </p>
       </div>
     </header>
 
     <%!-- Main Content --%>
     <div class="max-w-4xl mx-auto space-y-8">
-      <%!-- System Status Card --%>
+      <%!-- Status Card --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
           <h2 class="card-title text-2xl mb-4">
-            <.icon name="hero-cog-6-tooth" class="w-6 h-6" /> System Status
+            <.icon name="hero-cog-6-tooth" class="w-6 h-6" /> Status
           </h2>
 
           <div class="form-control">
             <label class="label cursor-pointer">
               <span class="label-text text-lg">
-                <span class="font-semibold">Enable Referral Codes System</span>
+                <span class="font-semibold">Enable Referral Codes</span>
                 <div class="text-sm text-base-content/70 mt-1">
                   Allow users to create and use referral codes for registration
                 </div>
@@ -142,7 +142,7 @@
             <h3 class="font-bold">Current Configuration</h3>
             <div class="text-sm mt-1">
               <p>
-                System:
+                Status:
                 <span class="font-semibold">
                   {if @referral_codes_enabled, do: "Enabled", else: "Disabled"}
                 </span>
@@ -169,7 +169,7 @@
           <div>
             <h3 class="font-bold">Referral Codes Disabled</h3>
             <p class="text-sm mt-1">
-              Enable the referral codes system above to access configuration options and allow users to create referral codes.
+              Enable referral codes above to access configuration options and allow users to create referral codes.
             </p>
           </div>
         </div>

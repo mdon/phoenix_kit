@@ -59,15 +59,15 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
           |> put_flash(
             :info,
             if(new_enabled,
-              do: "Referral codes system enabled",
-              else: "Referral codes system disabled"
+              do: "Referral codes enabled",
+              else: "Referral codes disabled"
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update referral codes system")
+        socket = put_flash(socket, :error, "Failed to update referral codes")
         {:noreply, socket}
     end
   end

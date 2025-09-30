@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodesLive do
     # Get project title from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
-    # Load referral codes and system stats
+    # Load referral codes and stats
     codes = ReferralCodes.list_codes()
     system_stats = ReferralCodes.get_system_stats()
     config = ReferralCodes.get_config()

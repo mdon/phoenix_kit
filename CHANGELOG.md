@@ -187,7 +187,7 @@
 
 ### Improved
 - **Date Formatting** - Updated referral dashboard to use user settings-aware date formatting
-- **Dynamic Routing** - Replaced hardcoded /phoenix_kit/ paths with PhoenixKit.Utils.Routes.path() throughout referral system
+- **Dynamic Routing** - Replaced hardcoded /phoenix_kit/ paths with PhoenixKit.Utils.Routes.path() throughout referral codes
 - **Admin UI Experience** - Enhanced password management with both direct change and email reset options
 
 ## 1.2.5 - 2025-09-12
@@ -228,7 +228,7 @@
 ## 1.2.4 - 2025-09-11
 
 ### Added
-- Complete referral codes system with comprehensive management interface
+- Complete referral codes with comprehensive management interface
 - Referral code creation, validation, and usage management functionality
 - Admin modules page for system-wide module management and configuration
 - Flexible expiration system with optional "no expiration" support for referral codes
@@ -237,7 +237,7 @@
   - Maximum referral codes per user (configurable limit)
 - Beneficiary system allowing referral codes to be assigned to specific users
 - User search functionality with real-time filtering for beneficiary assignment
-- Hierarchical navigation structure with "Modules" parent and nested "Referral System" item
+- Hierarchical navigation structure with "Modules" parent and nested "Referral Codes" item
 - Professional referral code generation with confusion-resistant character set
 - Settings persistence system with module-specific organization
 - Introduced custom prefix in the config (/phoenix_kit to something else)
