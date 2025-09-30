@@ -349,6 +349,40 @@ defmodule PhoenixKit.EmailSystem.Templates do
   end
 
   @doc """
+  Sends an email using a template.
+
+  This is a convenience wrapper around `PhoenixKit.Mailer.send_from_template/4`
+  that provides a cleaner API for sending templated emails.
+
+  ## Parameters
+
+  - `template_name` - Name of the template (e.g., "welcome_email")
+  - `recipient` - Email address or {name, email} tuple
+  - `variables` - Map of template variables
+  - `opts` - Additional options (see `PhoenixKit.Mailer.send_from_template/4`)
+
+  ## Examples
+
+      # Send welcome email
+      Templates.send_email("welcome_email", user.email, %{
+        "user_name" => user.name,
+        "activation_url" => activation_url
+      })
+
+      # Send with tracking
+      Templates.send_email(
+        "order_confirmation",
+        customer.email,
+        %{"order_number" => order.number},
+        user_id: customer.id,
+        metadata: %{order_id: order.id}
+      )
+  """
+  def send_email(template_name, recipient, variables \\ %{}, opts \\ []) do
+    PhoenixKit.Mailer.send_from_template(template_name, recipient, variables, opts)
+  end
+
+  @doc """
   Increments the usage count for a template and updates last_used_at.
 
   This should be called whenever a template is used to send an email.

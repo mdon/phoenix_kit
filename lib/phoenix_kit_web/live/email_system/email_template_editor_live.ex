@@ -158,7 +158,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params}, socket) do
+  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket) do
     socket = assign(socket, :saving, true)
 
     # Extract variables and auto-add them before saving
@@ -191,13 +191,27 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
 
     template_params_with_vars = Map.put(template_params, "variables", updated_variables)
 
+    # Override status if saving as draft
+    template_params_final =
+      if save_as == "draft" do
+        Map.put(template_params_with_vars, "status", "draft")
+      else
+        template_params_with_vars
+      end
+
     case socket.assigns.mode do
       :new ->
-        create_template(socket, template_params_with_vars)
+        create_template(socket, template_params_final)
 
       :edit ->
-        update_template(socket, template_params_with_vars)
+        update_template(socket, template_params_final)
     end
+  end
+
+  @impl true
+  def handle_event("save", %{"email_template" => template_params}, socket) do
+    # Default save without save_as parameter
+    handle_event("save", %{"email_template" => template_params, "save_as" => "active"}, socket)
   end
 
   @impl true
@@ -680,13 +694,24 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
               <%!-- Action Buttons --%>
               <div class="flex justify-between">
                 <div class="flex gap-2">
-                  <%= if @mode == :edit do %>
+                  <%!-- Test Send button (available in both new and edit modes) --%>
+                  <button
+                    type="button"
+                    phx-click="show_test_modal"
+                    class="btn btn-outline btn-secondary"
+                  >
+                    <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Test Send
+                  </button>
+
+                  <%!-- Save as Draft button (only in new mode) --%>
+                  <%= if @mode == :new do %>
                     <button
-                      type="button"
-                      phx-click="show_test_modal"
-                      class="btn btn-outline btn-secondary"
+                      type="submit"
+                      name="save_as"
+                      value="draft"
+                      class="btn btn-outline btn-warning"
                     >
-                      <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Test Send
+                      <.icon name="hero-document" class="w-4 h-4 mr-1" /> Save as Draft
                     </button>
                   <% end %>
                 </div>

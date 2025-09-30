@@ -1376,6 +1376,23 @@ defmodule PhoenixKit.EmailSystem do
     end
   end
 
+  @doc """
+  Deletes an email log.
+
+  ## Examples
+
+      iex> log = PhoenixKit.EmailSystem.get_log!(1)
+      iex> PhoenixKit.EmailSystem.delete_log(log)
+      {:ok, %EmailLog{}}
+  """
+  def delete_log(%EmailLog{} = log) do
+    if enabled?() do
+      EmailLog.delete_log(log)
+    else
+      {:ok, log}
+    end
+  end
+
   ## --- Event Management ---
 
   @doc """

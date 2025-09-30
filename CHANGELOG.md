@@ -1,3 +1,76 @@
+## 1.2.14 - 2025-09-30
+
+### Added
+- **Email Queue LiveView** - Complete real-time queue monitoring interface with system status, rate limit tracking, and failed email management
+  - System status cards showing online status, daily sent count, failed emails (24h), and retention settings
+  - Rate limit status display with visual progress bars for global, recipient, sender limits and blocklist statistics
+  - Failed emails management table with individual retry and bulk operations support
+  - Recent activity table displaying last 20 emails with delivery, open, and click event badges
+  - Auto-refresh every 10 seconds for real-time monitoring
+  - Bulk retry and delete operations with confirmation workflow
+- **Email Blocklist LiveView** - Full-featured blocklist management interface with comprehensive filtering and bulk operations
+  - Statistics dashboard showing total blocks, active blocks, and expired blocks
+  - Advanced search and filtering by email address, reason, and status (active/expired)
+  - Add block form with support for temporary blocks (expiration dates) and multiple block reasons
+  - CSV import/export functionality for bulk blocklist management
+  - Bulk operations: remove selected addresses and export selected to CSV
+  - Pagination support (50 entries per page) with navigation controls
+  - Auto-refresh every 30 seconds with manual refresh option
+  - Visual status indicators for active and expired blocks
+- **Template-Mailer Integration** - Production-ready template system integration with automatic tracking
+  - New `PhoenixKit.Mailer.send_from_template/4` main API for sending templated emails
+  - Convenience wrapper `PhoenixKit.EmailSystem.Templates.send_email/4` for cleaner API
+  - Automatic template loading by name with status validation
+  - Variable substitution with template rendering
+  - Automatic usage tracking (usage_count and last_used_at updates)
+  - EmailLog system integration for delivery tracking
+  - Support for custom from addresses, reply-to, and metadata
+  - Comprehensive error handling (template_not_found, template_inactive)
+- **RateLimiter Blocklist API** - Three new public API methods for blocklist management
+  - `list_blocklist/1` - Query blocklists with filtering (search, reason, status), sorting, and pagination
+  - `count_blocklist/1` - Count blocked emails with optional filters
+  - `get_blocklist_stats/0` - Retrieve blocklist statistics including total, active, expired, and by-reason breakdowns
+- **EmailSystem.delete_log/1** - New public API method for email log deletion with proper error handling
+
+### Changed
+- **Template Editor** - Enhanced with test send and draft save capabilities
+  - Test send functionality now available in both new and edit modes (previously edit-only)
+  - New "Save as Draft" button in creation mode for saving incomplete templates
+  - Smart status handling: regular save creates active templates, draft save creates draft templates
+  - Improved user experience allowing template testing before final save
+- **Template Variable System** - Complete overhaul with automatic management
+  - Automatic variable extraction from template content (subject, html_body, text_body)
+  - Smart default descriptions for 20+ common variables (user_name, email, url, etc.)
+  - Inline editing of variable descriptions with real-time updates
+  - Variables automatically added to changeset during validation and save
+  - Removed manual "Add" button workflow in favor of automatic detection
+  - Visual improvements with better empty states and usage instructions
+- **Template Editor Preview** - Iframe-based isolation for template preview
+  - HTML preview now rendered in sandboxed iframe to prevent style leakage
+  - Template styles no longer affect editor UI layout
+  - Automatic height adjustment based on content
+  - Improved security with sandbox restrictions
+- **Template Form Validation** - Fixed changeset handling and error display
+  - Corrected form binding from nested map to direct changeset
+  - Fixed error extraction using `Keyword.get` instead of `get_in`
+  - Applied fixes to all 8 form fields (name, slug, display_name, category, status, description, subject, html_body, text_body)
+- **Template Slug Auto-generation** - Improved logic for reliable slug creation
+  - Moved slug generation before validation in changeset pipeline
+  - Enhanced to check both changeset changes and existing field values
+  - Handles both nil and empty string cases properly
+  - Made slug field visible on editor form with helper text
+
+### Fixed
+- **Template Creation Errors** - Resolved Access.get/3 function clause errors in template editor forms
+- **Variable Description Editing** - Fixed inability to edit variable descriptions after auto-addition
+- **Template Editor Modal** - Removed unnecessary modal step in template creation workflow
+- **Slug Validation** - Fixed "slug can't be blank" errors with improved auto-generation timing
+
+### Improved
+- **Email System Code Quality** - Enhanced error handling and logging across email system modules
+- **LiveView Performance** - Optimized data loading and real-time updates in queue and blocklist interfaces
+- **User Experience** - Streamlined template creation and management workflows
+
 ## 1.2.13 - 2025-09-29
 
 ### Added

@@ -298,6 +298,177 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
     repo().exists?(query)
   end
 
+  @doc """
+  List all blocked emails with optional filtering.
+
+  ## Options
+
+  - `:search` - Search term for email address
+  - `:reason` - Filter by block reason
+  - `:include_expired` - Include expired blocks (default: false)
+  - `:limit` - Limit number of results
+  - `:offset` - Offset for pagination
+  - `:order_by` - Order field (:email, :inserted_at, :expires_at)
+  - `:order_dir` - Order direction (:asc, :desc)
+
+  ## Examples
+
+      iex> RateLimiter.list_blocklist()
+      [%EmailBlocklist{}, ...]
+
+      iex> RateLimiter.list_blocklist(%{reason: "manual_block", limit: 10})
+      [%EmailBlocklist{}, ...]
+  """
+  def list_blocklist(opts \\ %{}) do
+    now = DateTime.utc_now()
+
+    query = from(b in EmailBlocklist)
+
+    # Apply filters
+    query =
+      if opts[:search] && opts[:search] != "" do
+        search_term = "%#{opts[:search]}%"
+        where(query, [b], ilike(b.email, ^search_term))
+      else
+        query
+      end
+
+    query =
+      if opts[:reason] && opts[:reason] != "" do
+        where(query, [b], b.reason == ^opts[:reason])
+      else
+        query
+      end
+
+    query =
+      if opts[:include_expired] do
+        query
+      else
+        where(query, [b], is_nil(b.expires_at) or b.expires_at > ^now)
+      end
+
+    # Apply ordering
+    query =
+      case {opts[:order_by], opts[:order_dir]} do
+        {field, :desc} when field in [:email, :inserted_at, :expires_at, :reason] ->
+          order_by(query, [b], desc: field(b, ^field))
+
+        {field, _} when field in [:email, :inserted_at, :expires_at, :reason] ->
+          order_by(query, [b], asc: field(b, ^field))
+
+        _ ->
+          order_by(query, [b], desc: :inserted_at)
+      end
+
+    # Apply pagination
+    query =
+      if opts[:limit] do
+        limit(query, ^opts[:limit])
+      else
+        query
+      end
+
+    query =
+      if opts[:offset] do
+        offset(query, ^opts[:offset])
+      else
+        query
+      end
+
+    repo().all(query)
+  end
+
+  @doc """
+  Count blocked emails with optional filtering.
+
+  ## Examples
+
+      iex> RateLimiter.count_blocklist()
+      42
+
+      iex> RateLimiter.count_blocklist(%{reason: "bounce_limit"})
+      15
+  """
+  def count_blocklist(opts \\ %{}) do
+    now = DateTime.utc_now()
+
+    query = from(b in EmailBlocklist)
+
+    query =
+      if opts[:search] && opts[:search] != "" do
+        search_term = "%#{opts[:search]}%"
+        where(query, [b], ilike(b.email, ^search_term))
+      else
+        query
+      end
+
+    query =
+      if opts[:reason] && opts[:reason] != "" do
+        where(query, [b], b.reason == ^opts[:reason])
+      else
+        query
+      end
+
+    query =
+      if opts[:include_expired] do
+        query
+      else
+        where(query, [b], is_nil(b.expires_at) or b.expires_at > ^now)
+      end
+
+    repo().aggregate(query, :count, :id)
+  end
+
+  @doc """
+  Get blocklist statistics.
+
+  Returns a map with statistics about blocked emails.
+
+  ## Examples
+
+      iex> RateLimiter.get_blocklist_stats()
+      %{
+        total_blocks: 42,
+        active_blocks: 38,
+        expired_today: 4,
+        by_reason: %{"manual_block" => 10, "bounce_limit" => 28, ...}
+      }
+  """
+  def get_blocklist_stats do
+    now = DateTime.utc_now()
+    today_start = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
+
+    total_blocks = repo().aggregate(EmailBlocklist, :count, :id)
+
+    active_blocks =
+      from(b in EmailBlocklist, where: is_nil(b.expires_at) or b.expires_at > ^now)
+      |> repo().aggregate(:count, :id)
+
+    expired_today =
+      from(b in EmailBlocklist,
+        where: not is_nil(b.expires_at),
+        where: b.expires_at < ^now,
+        where: b.expires_at >= ^today_start
+      )
+      |> repo().aggregate(:count, :id)
+
+    by_reason =
+      from(b in EmailBlocklist,
+        where: is_nil(b.expires_at) or b.expires_at > ^now,
+        group_by: b.reason,
+        select: {b.reason, count(b.id)}
+      )
+      |> repo().all()
+      |> Enum.into(%{})
+
+    %{
+      total_blocks: total_blocks,
+      active_blocks: active_blocks,
+      expired_today: expired_today,
+      by_reason: by_reason
+    }
+  end
+
   ## --- Pattern Detection ---
 
   @doc """
