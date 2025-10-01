@@ -27,6 +27,7 @@ defmodule PhoenixKit.Settings do
   - `project_title`: Application/project title
   - `site_url`: Website URL for the application (optional)
   - `allow_registration`: Allow public user registration (default: true)
+  - `oauth_enabled`: Enable OAuth authentication (default: false)
   - `time_zone`: System timezone offset
   - `date_format`: Date display format
   - `time_format`: Time display format
@@ -98,6 +99,7 @@ defmodule PhoenixKit.Settings do
       "project_title" => "PhoenixKit",
       "site_url" => "",
       "allow_registration" => "true",
+      "oauth_enabled" => "false",
       "new_user_default_role" => "User",
       "week_start_day" => "1",
       "time_zone" => "0",

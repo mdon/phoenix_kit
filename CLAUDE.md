@@ -567,7 +567,7 @@ config :phoenix_kit,
 
 # OAuth Authentication Configuration (Optional, V16+)
 #
-# OAuth is an OPTIONAL feature. To enable it, follow these steps:
+# OAuth is an OPTIONAL feature with graceful degradation. To enable it, follow these steps:
 #
 # Step 1: Add OAuth dependencies to your app's mix.exs
 # PhoenixKit marks these as optional, so you must explicitly add them:
@@ -612,16 +612,23 @@ config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
 # export APPLE_KEY_ID="your-apple-key-id"
 # export APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 #
-# Step 4: Run migrations (if not already done)
+# Step 4: Enable OAuth in PhoenixKit admin settings
+# Navigate to {prefix}/admin/settings and check "Enable OAuth authentication"
+# This setting is stored in the database and can be toggled at runtime.
+#
+# Step 5: Run migrations (if not already done)
 # mix ecto.migrate  # V16 migration includes oauth_providers table
 #
 # OAuth features:
-# - Google and Apple Sign-In support
+# - Graceful degradation: Works without dependencies, shows user-friendly messages
+# - Runtime control via admin settings (oauth_enabled)
+# - Google, Apple, and GitHub Sign-In support
 # - Automatic account linking by email
 # - OAuth provider management per user
 # - Access at {prefix}/users/auth/:provider
 # - Token storage for future API calls
 # - Referral code support via query params: {prefix}/users/auth/google?referral_code=ABC123
+# - OAuth buttons automatically hide when disabled or dependencies not installed
 
 # Magic Link Registration Configuration (V16+)
 config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,

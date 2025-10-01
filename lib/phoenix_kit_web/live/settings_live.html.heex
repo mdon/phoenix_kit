@@ -125,6 +125,21 @@
                 />
                 <span class="label-text">Anyone can register</span>
               </div>
+              <div class="flex items-center gap-3 mb-3">
+                <input
+                  name="settings[oauth_enabled]"
+                  type="hidden"
+                  value="false"
+                />
+                <input
+                  name="settings[oauth_enabled]"
+                  type="checkbox"
+                  value="true"
+                  checked={@settings["oauth_enabled"] == "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">Enable OAuth authentication (Google, Apple, etc.)</span>
+              </div>
               <div class="flex items-center gap-3">
                 <input
                   name="settings[track_registration_geolocation]"
