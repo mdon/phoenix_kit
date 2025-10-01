@@ -696,13 +696,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Helper function to generate language switch URL
   defp generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    enabled_language_codes =
-      if Languages.enabled?() do
-        Languages.get_enabled_language_codes()
-      else
-        # Fallback to English only when language system is disabled
-        ["en"]
-      end
+    # Note: This function is only called when languages are enabled
+    enabled_language_codes = Languages.get_enabled_language_codes()
 
     # Remove PhoenixKit prefix if present
     normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
