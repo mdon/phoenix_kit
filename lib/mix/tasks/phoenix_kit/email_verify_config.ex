@@ -164,8 +164,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
 
   defp check_system_status(_options) do
     checks = [
-      {"Email tracking enabled", PhoenixKit.EmailSystem.enabled?()},
-      {"Module loaded", Code.ensure_loaded?(PhoenixKit.EmailSystem)},
+      {"Email tracking enabled", PhoenixKit.Emails.enabled?()},
+      {"Module loaded", Code.ensure_loaded?(PhoenixKit.Emails)},
       {"Migration applied", migration_applied?()},
       {"Tables exist", tables_exist?()}
     ]
@@ -217,7 +217,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
       end)
 
     if missing_settings == [] do
-      retention_days = PhoenixKit.EmailSystem.get_retention_days()
+      retention_days = PhoenixKit.Emails.get_retention_days()
 
       cond do
         retention_days < 1 ->
@@ -251,7 +251,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
   end
 
   defp check_aws_integration(_options) do
-    ses_config = PhoenixKit.EmailSystem.get_ses_configuration_set()
+    ses_config = PhoenixKit.Emails.get_ses_configuration_set()
 
     if ses_config && ses_config != "" do
       {:ok, "AWS SES configuration set configured: #{ses_config}"}
@@ -291,8 +291,8 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
       status: "sent"
     }
 
-    with {:ok, log} <- PhoenixKit.EmailSystem.create_log(test_log),
-         retrieved_log <- PhoenixKit.EmailSystem.get_log!(log.id),
+    with {:ok, log} <- PhoenixKit.Emails.create_log(test_log),
+         retrieved_log <- PhoenixKit.Emails.get_log!(log.id),
          _ <- repo().delete!(retrieved_log) do
       :ok
     else

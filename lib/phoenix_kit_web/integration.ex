@@ -169,10 +169,17 @@ defmodule PhoenixKitWeb.Integration do
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
-        post "/users/log-in", Users.SessionController, :create
-        delete "/users/log-out", Users.SessionController, :delete
-        get "/users/log-out", Users.SessionController, :get_logout
-        get "/users/magic-link/:token", Users.MagicLinkController, :verify
+        post "/users/log-in", Users.Session, :create
+        delete "/users/log-out", Users.Session, :delete
+        get "/users/log-out", Users.Session, :get_logout
+        get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
+
+        # OAuth routes for external provider authentication
+        get "/users/auth/:provider", Users.OAuth, :request
+        get "/users/auth/:provider/callback", Users.OAuth, :callback
+
+        # Magic Link Registration routes
+        get "/users/register/verify/:token", Users.MagicLinkRegistrationVerify, :verify
 
         # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
@@ -187,11 +194,6 @@ defmodule PhoenixKitWeb.Integration do
         get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
         get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
       end
-
-      # Define locale validation pipeline
-      pipeline :phoenix_kit_locale_validation do
-        plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
-      end
     end
   end
 
@@ -205,23 +207,36 @@ defmodule PhoenixKitWeb.Integration do
 
         live_session :phoenix_kit_redirect_if_user_is_authenticated_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
-          live "/users/register", Users.RegistrationLive, :new
-          live "/users/log-in", Users.LoginLive, :new
-          live "/users/magic-link", Users.MagicLinkLive, :new
-          live "/users/reset-password", Users.ForgotPasswordLive, :new
-          live "/users/reset-password/:token", Users.ResetPasswordLive, :edit
+          live "/users/register", Users.Registration, :new, as: :user_registration
+
+          live "/users/register/magic-link", Users.MagicLinkRegistrationRequest, :new,
+            as: :user_magic_link_registration_request
+
+          live "/users/register/complete/:token", Users.MagicLinkRegistration, :complete,
+            as: :user_magic_link_registration
+
+          live "/users/log-in", Users.Login, :new, as: :user_login
+          live "/users/magic-link", Users.MagicLink, :new, as: :user_magic_link
+          live "/users/reset-password", Users.ForgotPassword, :new, as: :user_reset_password
+
+          live "/users/reset-password/:token", Users.ResetPassword, :edit,
+            as: :user_reset_password_edit
         end
 
         live_session :phoenix_kit_current_user_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
-          live "/users/confirm/:token", Users.ConfirmationLive, :edit
-          live "/users/confirm", Users.ConfirmationInstructionsLive, :new
+          live "/users/confirm/:token", Users.Confirmation, :edit, as: :user_confirmation
+
+          live "/users/confirm", Users.ConfirmationInstructions, :new,
+            as: :user_confirmation_instructions
         end
 
         live_session :phoenix_kit_require_authenticated_user_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}] do
-          live "/users/settings", Users.SettingsLive, :edit
-          live "/users/settings/confirm-email/:token", Users.SettingsLive, :confirm_email
+          live "/users/settings", Users.Settings, :edit, as: :user_settings
+
+          live "/users/settings/confirm-email/:token", Users.Settings, :confirm_email,
+            as: :user_settings_confirm_email
         end
 
         live_session :phoenix_kit_admin_locale,
@@ -229,24 +244,24 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/dashboard", Live.DashboardLive, :index
           live "/admin", Live.DashboardLive, :index
           live "/admin/users", Live.Users.UsersLive, :index
-          live "/admin/users/new", Users.UserFormLive, :new
-          live "/admin/users/edit/:id", Users.UserFormLive, :edit
+          live "/admin/users/new", Users.UserForm, :new, as: :user_form
+          live "/admin/users/edit/:id", Users.UserForm, :edit, as: :user_form_edit
           live "/admin/users/roles", Live.Users.RolesLive, :index
           live "/admin/users/live_sessions", Live.Users.LiveSessionsLive, :index
           live "/admin/users/sessions", Live.Users.SessionsLive, :index
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
-          live "/admin/settings/email-tracking", Live.Modules.EmailTrackingLive, :index
+          live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
           live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
-          live "/admin/emails/dashboard", Live.EmailSystem.EmailMetricsLive, :index
-          live "/admin/emails", Live.EmailSystem.EmailLogsLive, :index
-          live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
-          live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
-          live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
+          live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
+          live "/admin/emails", Live.Modules.Emails.Emails, :index
+          live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
+          live "/admin/emails/queue", Live.Modules.Emails.Queue, :index
+          live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
         end
       end
     end
@@ -261,23 +276,36 @@ defmodule PhoenixKitWeb.Integration do
 
         live_session :phoenix_kit_redirect_if_user_is_authenticated,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
-          live "/users/register", Users.RegistrationLive, :new
-          live "/users/log-in", Users.LoginLive, :new
-          live "/users/magic-link", Users.MagicLinkLive, :new
-          live "/users/reset-password", Users.ForgotPasswordLive, :new
-          live "/users/reset-password/:token", Users.ResetPasswordLive, :edit
+          live "/users/register", Users.Registration, :new, as: :user_registration
+
+          live "/users/register/magic-link", Users.MagicLinkRegistrationRequest, :new,
+            as: :user_magic_link_registration_request
+
+          live "/users/register/complete/:token", Users.MagicLinkRegistration, :complete,
+            as: :user_magic_link_registration
+
+          live "/users/log-in", Users.Login, :new, as: :user_login
+          live "/users/magic-link", Users.MagicLink, :new, as: :user_magic_link
+          live "/users/reset-password", Users.ForgotPassword, :new, as: :user_reset_password
+
+          live "/users/reset-password/:token", Users.ResetPassword, :edit,
+            as: :user_reset_password_edit
         end
 
         live_session :phoenix_kit_current_user,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
-          live "/users/confirm/:token", Users.ConfirmationLive, :edit
-          live "/users/confirm", Users.ConfirmationInstructionsLive, :new
+          live "/users/confirm/:token", Users.Confirmation, :edit, as: :user_confirmation
+
+          live "/users/confirm", Users.ConfirmationInstructions, :new,
+            as: :user_confirmation_instructions
         end
 
         live_session :phoenix_kit_require_authenticated_user,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}] do
-          live "/users/settings", Users.SettingsLive, :edit
-          live "/users/settings/confirm-email/:token", Users.SettingsLive, :confirm_email
+          live "/users/settings", Users.Settings, :edit, as: :user_settings
+
+          live "/users/settings/confirm-email/:token", Users.Settings, :confirm_email,
+            as: :user_settings_confirm_email
         end
 
         live_session :phoenix_kit_admin,
@@ -285,29 +313,29 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/dashboard", Live.DashboardLive, :index
           live "/admin", Live.DashboardLive, :index
           live "/admin/users", Live.Users.UsersLive, :index
-          live "/admin/users/new", Users.UserFormLive, :new
-          live "/admin/users/edit/:id", Users.UserFormLive, :edit
+          live "/admin/users/new", Users.UserForm, :new, as: :user_form
+          live "/admin/users/edit/:id", Users.UserForm, :edit, as: :user_form_edit
           live "/admin/users/roles", Live.Users.RolesLive, :index
           live "/admin/users/live_sessions", Live.Users.LiveSessionsLive, :index
           live "/admin/users/sessions", Live.Users.SessionsLive, :index
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
-          live "/admin/settings/emails", Live.Modules.EmailSystemLive, :index
+          live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
           live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
-          live "/admin/emails/dashboard", Live.EmailSystem.EmailMetricsLive, :index
-          live "/admin/emails", Live.EmailSystem.EmailLogsLive, :index
-          live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
-          live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
-          live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
+          live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
+          live "/admin/emails", Live.Modules.Emails.Emails, :index
+          live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
+          live "/admin/emails/queue", Live.Modules.Emails.Queue, :index
+          live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
 
           # Email Templates Management
-          live "/admin/emails/templates", Live.EmailSystem.EmailTemplatesLive, :index
-          live "/admin/emails/templates/new", Live.EmailSystem.EmailTemplateEditorLive, :new
-          live "/admin/emails/templates/:id/edit", Live.EmailSystem.EmailTemplateEditorLive, :edit
+          live "/admin/emails/templates", Live.Modules.Emails.Templates, :index
+          live "/admin/emails/templates/new", Live.Modules.Emails.TemplateEditor, :new
+          live "/admin/emails/templates/:id/edit", Live.Modules.Emails.TemplateEditor, :edit
         end
       end
     end

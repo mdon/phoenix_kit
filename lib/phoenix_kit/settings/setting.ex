@@ -206,6 +206,12 @@ defmodule PhoenixKit.Settings.Setting do
       field :project_title, :string
       field :site_url, :string
       field :allow_registration, :string
+      field :oauth_enabled, :string
+      field :oauth_google_enabled, :string
+      field :oauth_apple_enabled, :string
+      field :oauth_github_enabled, :string
+      field :magic_link_login_enabled, :string
+      field :magic_link_registration_enabled, :string
       field :new_user_default_role, :string
       field :week_start_day, :string
       field :time_zone, :string
@@ -247,6 +253,12 @@ defmodule PhoenixKit.Settings.Setting do
         :project_title,
         :site_url,
         :allow_registration,
+        :oauth_enabled,
+        :oauth_google_enabled,
+        :oauth_apple_enabled,
+        :oauth_github_enabled,
+        :magic_link_login_enabled,
+        :magic_link_registration_enabled,
         :new_user_default_role,
         :week_start_day,
         :time_zone,
@@ -266,6 +278,12 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_length(:project_title, min: 1, max: 100)
       |> validate_url()
       |> validate_allow_registration()
+      |> validate_oauth_enabled()
+      |> validate_oauth_provider_enabled(:oauth_google_enabled)
+      |> validate_oauth_provider_enabled(:oauth_apple_enabled)
+      |> validate_oauth_provider_enabled(:oauth_github_enabled)
+      |> validate_magic_link_enabled(:magic_link_login_enabled)
+      |> validate_magic_link_enabled(:magic_link_registration_enabled)
       |> validate_new_user_default_role()
       |> validate_week_start_day()
       |> validate_timezone()
@@ -377,6 +395,39 @@ defmodule PhoenixKit.Settings.Setting do
       validate_inclusion(changeset, :track_registration_geolocation, ["true", "false"],
         message: "must be either 'true' or 'false'"
       )
+    end
+
+    # Validates oauth_enabled is a valid boolean string
+    defp validate_oauth_enabled(changeset) do
+      if get_field(changeset, :oauth_enabled) do
+        validate_inclusion(changeset, :oauth_enabled, ["true", "false"],
+          message: "must be either 'true' or 'false'"
+        )
+      else
+        changeset
+      end
+    end
+
+    # Validates OAuth provider enabled fields
+    defp validate_oauth_provider_enabled(changeset, field) do
+      if get_field(changeset, field) do
+        validate_inclusion(changeset, field, ["true", "false"],
+          message: "must be either 'true' or 'false'"
+        )
+      else
+        changeset
+      end
+    end
+
+    # Validates magic link enabled fields
+    defp validate_magic_link_enabled(changeset, field) do
+      if get_field(changeset, field) do
+        validate_inclusion(changeset, field, ["true", "false"],
+          message: "must be either 'true' or 'false'"
+        )
+      else
+        changeset
+      end
     end
   end
 end

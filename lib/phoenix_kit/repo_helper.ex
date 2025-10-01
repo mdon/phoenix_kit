@@ -141,4 +141,13 @@ defmodule PhoenixKit.RepoHelper do
   def preload(struct_or_structs, preloads, opts \\ []) do
     repo().preload(struct_or_structs, preloads, opts)
   end
+
+  @doc """
+  Delegates to the configured repo's rollback function.
+
+  This function is used within transactions to rollback and return an error value.
+  """
+  def rollback(value) do
+    repo().rollback(value)
+  end
 end

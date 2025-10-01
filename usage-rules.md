@@ -28,7 +28,7 @@ PhoenixKit is a comprehensive SaaS starter kit for Phoenix applications that pro
 - Modules manager for feature management
 - Referral program management
 
-### Email System
+### Emails
 - Email tracking with delivery status and events
 - Rate limiting and archival capabilities
 - Support for multiple email providers (AWS SES, SendGrid, Mailgun, SMTP)
