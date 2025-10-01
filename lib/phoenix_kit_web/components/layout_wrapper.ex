@@ -338,7 +338,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/referral-codes")}
                             icon="referral_codes"
-                            label="Referral Codes"
+                            label="Referral Module"
                             current_path={@current_path || ""}
                             nested={true}
                           />
@@ -696,9 +696,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Helper function to generate language switch URL
   defp generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    # Note: This function is only called when languages are enabled,
-    # so no fallback is needed
-    enabled_language_codes = Languages.get_enabled_language_codes()
+    enabled_language_codes =
+      if Languages.enabled?() do
+        Languages.get_enabled_language_codes()
+      else
+        # Fallback to English only when language system is disabled
+        ["en"]
+      end
 
     # Remove PhoenixKit prefix if present
     normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
