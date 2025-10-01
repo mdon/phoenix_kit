@@ -569,13 +569,18 @@ config :phoenix_kit,
 #
 # OAuth is an OPTIONAL feature with graceful degradation. To enable it, follow these steps:
 #
+# IMPORTANT: PhoenixKit marks OAuth dependencies as `optional: true`, which means they are
+# NOT installed transitively. Your parent application MUST explicitly declare these dependencies
+# in its mix.exs for OAuth to work. Without explicit dependencies, OAuth buttons will be hidden
+# and graceful fallback messages will be shown if users try to access OAuth routes.
+#
 # Step 1: Add OAuth dependencies to your app's mix.exs
-# PhoenixKit marks these as optional, so you must explicitly add them:
+# You MUST explicitly add these dependencies - they will NOT be installed via mix.lock transitively:
 #
 # defp deps do
 #   [
 #     {:phoenix_kit, "~> 1.2.15"},
-#     # OAuth dependencies (only if using OAuth)
+#     # OAuth dependencies (REQUIRED if using OAuth - not installed transitively!)
 #     {:ueberauth, "~> 0.10"},
 #     {:ueberauth_google, "~> 0.12"},  # For Google Sign-In
 #     {:ueberauth_apple, "~> 0.1"}      # For Apple Sign-In

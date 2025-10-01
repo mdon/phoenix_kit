@@ -21,6 +21,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
     # Get project title and registration setting from settings
     project_title = Settings.get_setting("project_title", "PhoenixKit")
     allow_registration = Settings.get_boolean_setting("allow_registration", true)
+    magic_link_enabled = Settings.get_boolean_setting("magic_link_login_enabled", true)
 
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
@@ -29,7 +30,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
       assign(socket,
         form: form,
         project_title: project_title,
-        allow_registration: allow_registration
+        allow_registration: allow_registration,
+        magic_link_enabled: magic_link_enabled
       )
 
     {:ok, socket, temporary_assigns: [form: form]}
@@ -133,30 +135,34 @@ defmodule PhoenixKitWeb.Users.LoginLive do
             </.form>
 
             <%!-- Alternative authentication methods --%>
-            <div class="mt-6">
-              <div class="relative">
-                <div class="absolute inset-0 flex items-center">
-                  <div class="w-full border-t border-base-300" />
+            <%!-- Only show this section if at least one alternative method is available --%>
+            <%= if @magic_link_enabled or PhoenixKit.Users.OAuthAvailability.oauth_available?() do %>
+              <div class="mt-6">
+                <div class="relative">
+                  <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-base-300" />
+                  </div>
+                  <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-base-100 text-base-content/60">Or continue with</span>
+                  </div>
                 </div>
-                <div class="relative flex justify-center text-sm">
-                  <span class="px-2 bg-base-100 text-base-content/60">Or continue with</span>
+
+                <div class="mt-4 space-y-2">
+                  <%!-- Magic Link authentication --%>
+                  <%= if @magic_link_enabled do %>
+                    <.link
+                      navigate={Routes.path("/users/magic-link")}
+                      class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
+                    >
+                      <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
+                      Sign in with Magic Link
+                    </.link>
+                  <% end %>
+                  <%!-- OAuth authentication --%>
+                  <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons show_divider={false} />
                 </div>
               </div>
-
-              <div class="mt-4 space-y-2">
-                <%!-- Magic Link authentication --%>
-                <.link
-                  navigate={Routes.path("/users/magic-link")}
-                  class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
-                >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
-                  Sign in with Magic Link
-                </.link>
-
-                <%!-- OAuth authentication --%>
-                <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons show_divider={false} />
-              </div>
-            </div>
+            <% end %>
 
             <%!-- Registration link --%>
             <%= if @allow_registration do %>

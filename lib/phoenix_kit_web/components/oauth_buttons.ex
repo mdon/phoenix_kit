@@ -29,12 +29,21 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
   attr :show_divider, :boolean, default: true
 
   def oauth_buttons(assigns) do
-    # Check if OAuth is available before rendering
-    assigns = assign(assigns, :oauth_available, OAuthAvailability.oauth_available?())
-    assigns = assign(assigns, :providers, OAuthAvailability.configured_providers())
+    # Check each provider individually
+    assigns =
+      assigns
+      |> assign(:google_enabled, OAuthAvailability.provider_enabled?(:google))
+      |> assign(:apple_enabled, OAuthAvailability.provider_enabled?(:apple))
+      |> assign(:github_enabled, OAuthAvailability.provider_enabled?(:github))
+
+    # Check if at least one provider is enabled
+    any_provider_enabled =
+      assigns.google_enabled or assigns.apple_enabled or assigns.github_enabled
+
+    assigns = assign(assigns, :any_provider_enabled, any_provider_enabled)
 
     ~H"""
-    <%= if @oauth_available and @providers != [] do %>
+    <%= if @any_provider_enabled do %>
       <div class={@class}>
         <%= if @show_divider do %>
           <div class="divider text-base-content/60">Or continue with</div>
@@ -42,7 +51,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
 
         <div class="space-y-2">
           <%!-- Google Sign-In Button --%>
-          <%= if :google in @providers do %>
+          <%= if @google_enabled do %>
             <.link
               href={Routes.path("/users/auth/google")}
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -52,7 +61,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
             </.link>
           <% end %>
           <%!-- Apple Sign-In Button --%>
-          <%= if :apple in @providers do %>
+          <%= if @apple_enabled do %>
             <.link
               href={Routes.path("/users/auth/apple")}
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -61,8 +70,8 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
               <span>Continue with Apple</span>
             </.link>
           <% end %>
-          <%!-- GitHub Sign-In Button (if configured) --%>
-          <%= if :github in @providers do %>
+          <%!-- GitHub Sign-In Button --%>
+          <%= if @github_enabled do %>
             <.link
               href={Routes.path("/users/auth/github")}
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"

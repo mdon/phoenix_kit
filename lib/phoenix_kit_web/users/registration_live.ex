@@ -31,6 +31,10 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
       # Get referral codes configuration
       referral_codes_config = ReferralCodes.get_config()
 
+      # Get Magic Link registration setting
+      magic_link_registration_enabled =
+        Settings.get_boolean_setting("magic_link_registration_enabled", true)
+
       changeset = Auth.change_user_registration(%User{})
 
       # Extract and store IP address during mount for later use
@@ -45,6 +49,7 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
         |> assign(referral_code: nil)
         |> assign(referral_code_error: nil)
         |> assign(user_ip_address: ip_address)
+        |> assign(magic_link_registration_enabled: magic_link_registration_enabled)
         |> assign_form(changeset)
 
       {:ok, socket, temporary_assigns: [form: nil]}
@@ -334,20 +339,34 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
             </.form>
 
             <%!-- Alternative registration methods --%>
-            <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons class="mt-6" />
+            <%!-- Only show this section if at least one alternative method is available --%>
+            <%= if @magic_link_registration_enabled or PhoenixKit.Users.OAuthAvailability.oauth_available?() do %>
+              <div class="mt-6">
+                <div class="relative">
+                  <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-base-300" />
+                  </div>
+                  <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-base-100 text-base-content/60">Or continue with</span>
+                  </div>
+                </div>
 
-            <%!-- Magic Link Registration option --%>
-            <div class="text-center mt-4">
-              <p class="text-sm text-base-content/60">
-                Prefer passwordless?
-                <.link
-                  navigate={Routes.path("/users/register/magic-link")}
-                  class="text-primary hover:underline font-semibold"
-                >
-                  Register via Magic Link
-                </.link>
-              </p>
-            </div>
+                <div class="mt-4 space-y-2">
+                  <%!-- Magic Link Registration --%>
+                  <%= if @magic_link_registration_enabled do %>
+                    <.link
+                      navigate={Routes.path("/users/register/magic-link")}
+                      class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
+                    >
+                      <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
+                      Register with Magic Link
+                    </.link>
+                  <% end %>
+                  <%!-- OAuth authentication --%>
+                  <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons show_divider={false} />
+                </div>
+              </div>
+            <% end %>
 
             <%!-- Login link --%>
             <div class="text-center mt-4 text-sm">

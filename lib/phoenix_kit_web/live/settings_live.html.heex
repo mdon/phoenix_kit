@@ -125,21 +125,6 @@
                 />
                 <span class="label-text">Anyone can register</span>
               </div>
-              <div class="flex items-center gap-3 mb-3">
-                <input
-                  name="settings[oauth_enabled]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[oauth_enabled]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["oauth_enabled"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">Enable OAuth authentication (Google, Apple, etc.)</span>
-              </div>
               <div class="flex items-center gap-3">
                 <input
                   name="settings[track_registration_geolocation]"
@@ -196,6 +181,133 @@
                     <div class="text-xs">
                       When enabled, registration IP addresses and approximate location data (country, region, city) will be collected for analytics.
                       Uses free APIs: IP-API.com (45 requests/minute) with ipapi.co (1000 requests/day) fallback. Defaults to OFF for privacy.
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <%!-- Authentication Methods Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">Authentication Methods</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  Control available login/registration methods
+                </span>
+              </label>
+
+              <%!-- Magic Link Methods --%>
+              <div class="mb-3">
+                <div class="text-sm font-semibold text-base-content/70 mb-2">Magic Link</div>
+                <div class="flex items-center gap-3 mb-2 ml-4">
+                  <input
+                    name="settings[magic_link_login_enabled]"
+                    type="hidden"
+                    value="false"
+                  />
+                  <input
+                    name="settings[magic_link_login_enabled]"
+                    type="checkbox"
+                    value="true"
+                    checked={@settings["magic_link_login_enabled"] == "true"}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">Enable Magic Link for login</span>
+                </div>
+                <div class="flex items-center gap-3 ml-4">
+                  <input
+                    name="settings[magic_link_registration_enabled]"
+                    type="hidden"
+                    value="false"
+                  />
+                  <input
+                    name="settings[magic_link_registration_enabled]"
+                    type="checkbox"
+                    value="true"
+                    checked={@settings["magic_link_registration_enabled"] == "true"}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">Enable Magic Link for registration</span>
+                </div>
+              </div>
+
+              <%!-- OAuth Methods --%>
+              <div>
+                <div class="text-sm font-semibold text-base-content/70 mb-2">OAuth Providers</div>
+                <div class="flex items-center gap-3 mb-2 ml-4">
+                  <input name="settings[oauth_enabled]" type="hidden" value="false" />
+                  <input
+                    name="settings[oauth_enabled]"
+                    type="checkbox"
+                    value="true"
+                    checked={@settings["oauth_enabled"] == "true"}
+                    class="checkbox checkbox-primary"
+                    phx-click="toggle_oauth_master"
+                  />
+                  <span class="label-text font-semibold">Enable OAuth (Master Switch)</span>
+                </div>
+
+                <%!-- Individual OAuth Providers (disabled if master is off) --%>
+                <div class={[
+                  "ml-8 space-y-2",
+                  if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
+                ]}>
+                  <div class="flex items-center gap-3">
+                    <input
+                      name="settings[oauth_google_enabled]"
+                      type="hidden"
+                      value="false"
+                    />
+                    <input
+                      name="settings[oauth_google_enabled]"
+                      type="checkbox"
+                      value="true"
+                      checked={@settings["oauth_google_enabled"] == "true"}
+                      disabled={@settings["oauth_enabled"] != "true"}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">Google Sign-In</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <input name="settings[oauth_apple_enabled]" type="hidden" value="false" />
+                    <input
+                      name="settings[oauth_apple_enabled]"
+                      type="checkbox"
+                      value="true"
+                      checked={@settings["oauth_apple_enabled"] == "true"}
+                      disabled={@settings["oauth_enabled"] != "true"}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">Apple Sign-In</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <input
+                      name="settings[oauth_github_enabled]"
+                      type="hidden"
+                      value="false"
+                    />
+                    <input
+                      name="settings[oauth_github_enabled]"
+                      type="checkbox"
+                      value="true"
+                      checked={@settings["oauth_github_enabled"] == "true"}
+                      disabled={@settings["oauth_enabled"] != "true"}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">GitHub Sign-In</span>
+                  </div>
+                </div>
+              </div>
+
+              <%!-- Info Notice --%>
+              <%= if @settings["oauth_enabled"] == "true" do %>
+                <div class="alert alert-info text-sm mt-3">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
+                  <div>
+                    <div class="font-semibold">OAuth Configuration Required</div>
+                    <div class="text-xs">
+                      Individual OAuth providers require dependencies (ueberauth_*) and environment variables (CLIENT_ID, CLIENT_SECRET) to be configured.
+                      See OAUTH_SETUP.md for detailed instructions.
                     </div>
                   </div>
                 </div>

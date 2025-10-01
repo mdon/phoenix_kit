@@ -76,6 +76,35 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   end
 
   @doc """
+  Checks if a specific OAuth provider is enabled in settings.
+
+  Returns `true` if both the master OAuth switch and the individual provider are enabled.
+  Requires the master `oauth_enabled` setting to be true.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.OAuthAvailability.provider_enabled?(:google)
+      true
+
+      iex> PhoenixKit.Users.OAuthAvailability.provider_enabled?(:apple)
+      false
+  """
+  @spec provider_enabled?(atom()) :: boolean()
+  def provider_enabled?(provider) when provider in [:google, :apple, :github] do
+    if Code.ensure_loaded?(PhoenixKit.Settings) do
+      master_enabled = PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
+      provider_key = "oauth_#{provider}_enabled"
+      provider_enabled = PhoenixKit.Settings.get_boolean_setting(provider_key, false)
+
+      master_enabled and provider_enabled
+    else
+      false
+    end
+  end
+
+  def provider_enabled?(_), do: false
+
+  @doc """
   Checks if OAuth is available (enabled in settings, Ueberauth loaded, and at least one provider configured).
 
   ## Examples

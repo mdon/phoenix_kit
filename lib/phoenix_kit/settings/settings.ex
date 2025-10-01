@@ -100,6 +100,11 @@ defmodule PhoenixKit.Settings do
       "site_url" => "",
       "allow_registration" => "true",
       "oauth_enabled" => "false",
+      "oauth_google_enabled" => "false",
+      "oauth_apple_enabled" => "false",
+      "oauth_github_enabled" => "false",
+      "magic_link_login_enabled" => "true",
+      "magic_link_registration_enabled" => "true",
       "new_user_default_role" => "User",
       "week_start_day" => "1",
       "time_zone" => "0",
@@ -810,7 +815,9 @@ defmodule PhoenixKit.Settings do
     settings_to_update =
       changeset_data
       |> Map.from_struct()
-      |> Map.new(fn {k, v} -> {Atom.to_string(k), v || ""} end)
+      # Filter out nil values to avoid validation errors for optional fields
+      |> Enum.filter(fn {_k, v} -> v != nil end)
+      |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
 
     # Update each setting in the database
     updated_settings =
