@@ -658,16 +658,26 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Get the default locale (first enabled locale or "en")
     default_locale = Languages.enabled_locale_codes() |> List.first() || "en"
 
-    # Replace invalid locale with default locale in the URL path
+    # If default is "en", remove locale prefix entirely; otherwise replace
     corrected_path =
-      String.replace(conn.request_path, "/#{invalid_locale}/", "/#{default_locale}/",
-        global: false
-      )
+      if default_locale == "en" do
+        # Remove the locale prefix completely for English
+        String.replace(conn.request_path, "/#{invalid_locale}/", "/", global: false)
+      else
+        # Replace with non-English default locale
+        String.replace(conn.request_path, "/#{invalid_locale}/", "/#{default_locale}/",
+          global: false
+        )
+      end
 
     # If the invalid locale was at the end of the path, handle that case too
     corrected_path =
       if String.ends_with?(conn.request_path, "/#{invalid_locale}") do
-        String.replace_suffix(corrected_path, "/#{invalid_locale}", "/#{default_locale}")
+        if default_locale == "en" do
+          String.replace_suffix(corrected_path, "/#{invalid_locale}", "")
+        else
+          String.replace_suffix(corrected_path, "/#{invalid_locale}", "/#{default_locale}")
+        end
       else
         corrected_path
       end
