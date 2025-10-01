@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequestLive do
+defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
   @moduledoc """
   LiveView for requesting magic link registration.
 

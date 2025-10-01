@@ -1,49 +1,14 @@
-defmodule PhoenixKitWeb.Users.ResetPasswordLive do
+defmodule PhoenixKitWeb.Users.ResetPassword do
+  @moduledoc """
+  LiveView for password reset functionality.
+
+  Handles the password reset flow after a user clicks the reset link from their email.
+  Validates the reset token and allows the user to set a new password.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
-
-  def render(assigns) do
-    ~H"""
-    <PhoenixKitWeb.Components.LayoutWrapper.app_layout
-      flash={@flash}
-      phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="Reset Password"
-    >
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">Reset Password</.header>
-
-        <.simple_form
-          for={@form}
-          id="reset_password_form"
-          phx-submit="reset_password"
-          phx-change="validate"
-        >
-          <.error :if={@form.errors != []}>
-            Oops, something went wrong! Please check the errors below.
-          </.error>
-
-          <.input field={@form[:password]} type="password" label="New password" required />
-          <.input
-            field={@form[:password_confirmation]}
-            type="password"
-            label="Confirm new password"
-            required
-          />
-          <:actions>
-            <.button phx-disable-with="Resetting..." class="w-full">Reset Password</.button>
-          </:actions>
-        </.simple_form>
-
-        <p class="text-center text-sm mt-4">
-          <.link href={Routes.path("/users/register")}>Register</.link>
-          | <.link href={Routes.path("/users/log-in")}>Log in</.link>
-        </p>
-      </div>
-    </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
-    """
-  end
 
   def mount(params, _session, socket) do
     socket = assign_user_and_token(socket, params)

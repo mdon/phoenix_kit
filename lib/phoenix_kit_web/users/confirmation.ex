@@ -1,28 +1,15 @@
-defmodule PhoenixKitWeb.Users.ConfirmationLive do
+defmodule PhoenixKitWeb.Users.Confirmation do
+  @moduledoc """
+  LiveView for email confirmation.
+
+  Handles the email confirmation flow after a user clicks the confirmation link
+  from their registration email. Validates the confirmation token and confirms
+  the user account.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
-
-  def render(%{live_action: :edit} = assigns) do
-    ~H"""
-    <div class="mx-auto max-w-sm">
-      <.header class="text-center">Confirm Account</.header>
-
-      <.simple_form for={@form} id="confirmation_form" phx-submit="confirm_account">
-        <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-        <:actions>
-          <.button phx-disable-with="Confirming..." class="w-full">Confirm my account</.button>
-        </:actions>
-      </.simple_form>
-
-      <p class="text-center mt-4">
-        <.link href={Routes.path("/users/register")}>Register</.link>
-        | <.link href={Routes.path("/users/log-in")}>Log in</.link>
-      </p>
-    </div>
-    """
-  end
 
   def mount(%{"token" => token}, _session, socket) do
     form = to_form(%{"token" => token}, as: "user")

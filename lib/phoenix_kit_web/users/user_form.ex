@@ -1,4 +1,11 @@
-defmodule PhoenixKitWeb.Users.UserFormLive do
+defmodule PhoenixKitWeb.Users.UserForm do
+  @moduledoc """
+  LiveView for creating and editing users in the admin interface.
+
+  Provides a form for managing user data including email, password, roles,
+  and profile information. Supports both creation of new users and editing
+  existing users.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.Auth

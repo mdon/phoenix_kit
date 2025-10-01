@@ -395,17 +395,14 @@ PhoenixKit.Mailer.deliver_email(email,
 ```
 
 **AWS SES Configuration:**
-```bash
-# Run the setup script to configure AWS infrastructure
-./scripts/aws_ses_sqs_setup.sh
+ Setup configure AWS infrastructure
 
-# Script creates:
-# - SES configuration set with event publishing
-# - SNS topic for SES events
-# - SQS queue with proper permissions
-# - IAM policies and roles
-# - Saves configuration to PhoenixKit settings
-```
+ Creates:
+ - SES configuration set with event publishing
+ - SNS topic for SES events
+ - SQS queue with proper permissions
+ - IAM policies and roles
+ - Saves configuration to PhoenixKit settings
 
 **Key Settings:**
 - **email_enabled** - Master toggle for the entire system
