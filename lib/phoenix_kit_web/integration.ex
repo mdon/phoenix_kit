@@ -169,17 +169,17 @@ defmodule PhoenixKitWeb.Integration do
       scope unquote(url_prefix), PhoenixKitWeb do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
-        post "/users/log-in", Users.SessionController, :create
-        delete "/users/log-out", Users.SessionController, :delete
-        get "/users/log-out", Users.SessionController, :get_logout
-        get "/users/magic-link/:token", Users.MagicLinkController, :verify
+        post "/users/log-in", Users.Session, :create
+        delete "/users/log-out", Users.Session, :delete
+        get "/users/log-out", Users.Session, :get_logout
+        get "/users/magic-link/:token", Users.MagicLink, :verify
 
         # OAuth routes for external provider authentication
-        get "/users/auth/:provider", Users.OAuthController, :request
-        get "/users/auth/:provider/callback", Users.OAuthController, :callback
+        get "/users/auth/:provider", Users.OAuth, :request
+        get "/users/auth/:provider/callback", Users.OAuth, :callback
 
         # Magic Link Registration routes
-        get "/users/register/verify/:token", Users.MagicLinkRegistrationController, :verify
+        get "/users/register/verify/:token", Users.MagicLinkRegistration, :verify
 
         # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
@@ -241,16 +241,16 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
-          live "/admin/settings/email-tracking", Live.Modules.EmailTrackingLive, :index
+          live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
           live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
-          live "/admin/emails/dashboard", Live.EmailSystem.EmailMetricsLive, :index
-          live "/admin/emails", Live.EmailSystem.EmailLogsLive, :index
-          live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
-          live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
-          live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
+          live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
+          live "/admin/emails", Live.Modules.Emails.Emails, :index
+          live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
+          live "/admin/emails/queue", Live.Modules.Emails.Queue, :index
+          live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
         end
       end
     end
@@ -299,21 +299,21 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings", Live.SettingsLive, :index
           live "/admin/modules", Live.ModulesLive, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
-          live "/admin/settings/emails", Live.Modules.EmailSystemLive, :index
+          live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
           live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
           live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
-          live "/admin/emails/dashboard", Live.EmailSystem.EmailMetricsLive, :index
-          live "/admin/emails", Live.EmailSystem.EmailLogsLive, :index
-          live "/admin/emails/email/:id", Live.EmailSystem.EmailDetailsLive, :show
-          live "/admin/emails/queue", Live.EmailSystem.EmailQueueLive, :index
-          live "/admin/emails/blocklist", Live.EmailSystem.EmailBlocklistLive, :index
+          live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
+          live "/admin/emails", Live.Modules.Emails.Emails, :index
+          live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
+          live "/admin/emails/queue", Live.Modules.Emails.Queue, :index
+          live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
 
           # Email Templates Management
-          live "/admin/emails/templates", Live.EmailSystem.EmailTemplatesLive, :index
-          live "/admin/emails/templates/new", Live.EmailSystem.EmailTemplateEditorLive, :new
-          live "/admin/emails/templates/:id/edit", Live.EmailSystem.EmailTemplateEditorLive, :edit
+          live "/admin/emails/templates", Live.Modules.Emails.Templates, :index
+          live "/admin/emails/templates/new", Live.Modules.Emails.TemplateEditor, :new
+          live "/admin/emails/templates/:id/edit", Live.Modules.Emails.TemplateEditor, :edit
         end
       end
     end

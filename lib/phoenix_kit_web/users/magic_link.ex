@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Users.MagicLinkController do
+defmodule PhoenixKitWeb.Users.MagicLink do
   @moduledoc """
   Controller for handling magic link verification and authentication.
 

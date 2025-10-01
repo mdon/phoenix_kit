@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.Supervisor do
+defmodule PhoenixKit.Emails.Supervisor do
   @moduledoc """
   Supervisor for PhoenixKit email tracking system.
 
@@ -16,7 +16,7 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
           # ... your other processes
 
           # PhoenixKit Email Tracking
-          PhoenixKit.EmailSystem.Supervisor
+          PhoenixKit.Emails.Supervisor
         ]
 
         opts = [strategy: :one_for_one, name: YourApp.Supervisor]
@@ -34,28 +34,28 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
   ## Process Management
 
       # Stop SQS Worker
-      PhoenixKit.EmailSystem.SQSWorker.pause()
+      PhoenixKit.Emails.SQSWorker.pause()
 
       # Start SQS Worker
-      PhoenixKit.EmailSystem.SQSWorker.resume()
+      PhoenixKit.Emails.SQSWorker.resume()
 
       # Check status
-      PhoenixKit.EmailSystem.SQSWorker.status()
+      PhoenixKit.Emails.SQSWorker.status()
 
   ## Monitoring
 
   Supervisor provides information about process state:
 
       # Get list of child processes
-      Supervisor.which_children(PhoenixKit.EmailSystem.Supervisor)
+      Supervisor.which_children(PhoenixKit.Emails.Supervisor)
 
       # Get process count
-      Supervisor.count_children(PhoenixKit.EmailSystem.Supervisor)
+      Supervisor.count_children(PhoenixKit.Emails.Supervisor)
   """
 
   use Supervisor
 
-  alias PhoenixKit.EmailSystem.SQSWorker
+  alias PhoenixKit.Emails.SQSWorker
 
   @doc """
   Starts supervisor for email tracking system.
@@ -66,7 +66,7 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
 
   ## Examples
 
-      {:ok, pid} = PhoenixKit.EmailSystem.Supervisor.start_link()
+      {:ok, pid} = PhoenixKit.Emails.Supervisor.start_link()
   """
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
@@ -87,7 +87,7 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.Supervisor.system_status()
+      iex> PhoenixKit.Emails.Supervisor.system_status()
       %{
         supervisor_running: true,
         sqs_worker_running: true,
@@ -101,7 +101,7 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
 
     sqs_worker_running =
       Enum.any?(children, fn {id, _pid, _type, _modules} ->
-        id == PhoenixKit.EmailSystem.SQSWorker
+        id == PhoenixKit.Emails.SQSWorker
       end)
 
     sqs_worker_status =
@@ -137,13 +137,13 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.Supervisor.restart_sqs_worker()
+      iex> PhoenixKit.Emails.Supervisor.restart_sqs_worker()
       :ok
   """
   def restart_sqs_worker(supervisor \\ __MODULE__) do
-    case Supervisor.terminate_child(supervisor, PhoenixKit.EmailSystem.SQSWorker) do
+    case Supervisor.terminate_child(supervisor, PhoenixKit.Emails.SQSWorker) do
       :ok ->
-        case Supervisor.restart_child(supervisor, PhoenixKit.EmailSystem.SQSWorker) do
+        case Supervisor.restart_child(supervisor, PhoenixKit.Emails.SQSWorker) do
           {:ok, _pid} -> :ok
           {:ok, _pid, _info} -> :ok
           {:error, reason} -> {:error, reason}
@@ -168,7 +168,7 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
       def start(_type, _args) do
         children = [
           # ... other processes
-          PhoenixKit.EmailSystem.Supervisor.child_spec([])
+          PhoenixKit.Emails.Supervisor.child_spec([])
         ]
 
         Supervisor.start_link(children, strategy: :one_for_one)
@@ -212,14 +212,14 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
     # Check that email tracking is enabled
     # Check that SQS polling is enabled
     # Check that SQS settings exist
-    PhoenixKit.EmailSystem.enabled?() &&
-      PhoenixKit.EmailSystem.sqs_polling_enabled?() &&
+    PhoenixKit.Emails.enabled?() &&
+      PhoenixKit.Emails.sqs_polling_enabled?() &&
       has_sqs_configuration?()
   end
 
   # Checks for minimum SQS configuration
   defp has_sqs_configuration? do
-    sqs_config = PhoenixKit.EmailSystem.get_sqs_config()
+    sqs_config = PhoenixKit.Emails.get_sqs_config()
 
     not is_nil(sqs_config.queue_url) and
       sqs_config.queue_url != ""
@@ -228,8 +228,8 @@ defmodule PhoenixKit.EmailSystem.Supervisor do
   # Creates child spec for SQS Worker
   defp build_sqs_worker_spec do
     %{
-      id: PhoenixKit.EmailSystem.SQSWorker,
-      start: {PhoenixKit.EmailSystem.SQSWorker, :start_link, [[]]},
+      id: PhoenixKit.Emails.SQSWorker,
+      start: {PhoenixKit.Emails.SQSWorker, :start_link, [[]]},
       type: :worker,
       restart: :permanent,
       # 10 seconds for graceful shutdown

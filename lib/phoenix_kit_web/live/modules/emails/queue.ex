@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Queue do
   @moduledoc """
   LiveView for email queue monitoring and rate limit management.
 
@@ -24,7 +24,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-queue", PhoenixKitWeb.Live.EmailSystem.EmailQueueLive, :index
+      live "/email-queue", PhoenixKitWeb.Live.Modules.Emails.EmailQueueLive, :index
 
   ## Permissions
 
@@ -35,8 +35,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
 
   require Logger
 
-  alias PhoenixKit.EmailSystem
-  alias PhoenixKit.EmailSystem.{EmailLog, RateLimiter}
+  alias PhoenixKit.Emails
+  alias PhoenixKit.Emails.{Log, RateLimiter}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -51,7 +51,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
   @impl true
   def mount(_params, _session, socket) do
     # Check if email is enabled
-    if EmailSystem.enabled?() do
+    if Emails.enabled?() do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -215,12 +215,12 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
 
   defp load_recent_activity do
     # Get last 20 emails
-    EmailSystem.list_logs(%{limit: 20, order_by: :sent_at, order_dir: :desc})
+    Emails.list_logs(%{limit: 20, order_by: :sent_at, order_dir: :desc})
   end
 
   defp load_failed_emails do
     # Get failed emails from last 24 hours
-    EmailSystem.list_logs(%{
+    Emails.list_logs(%{
       status: "failed",
       since: DateTime.add(DateTime.utc_now(), -24, :hour),
       limit: 50
@@ -229,9 +229,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
 
   defp load_system_status do
     %{
-      system_enabled: EmailSystem.enabled?(),
+      system_enabled: Emails.enabled?(),
       total_sent_today: get_today_count(),
-      retention_days: EmailSystem.get_retention_days()
+      retention_days: Emails.get_retention_days()
     }
   end
 
@@ -239,7 +239,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
     today_start = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
     now = DateTime.utc_now()
 
-    case EmailSystem.get_system_stats(
+    case Emails.get_system_stats(
            {:date_range, DateTime.to_date(today_start), DateTime.to_date(now)}
          ) do
       %{total_sent: count} -> count
@@ -249,13 +249,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
 
   defp retry_failed_email(email_id) do
     # Get the email log
-    log = EmailSystem.get_log!(email_id)
+    log = Emails.get_log!(email_id)
 
     # Update status to "queued" for retry and increment retry_count
-    EmailSystem.update_log_status(log, "queued")
+    Emails.update_log_status(log, "queued")
 
     # Also update retry count
-    EmailLog.update_log(log, %{
+    Log.update_log(log, %{
       retry_count: (log.retry_count || 0) + 1,
       error_message: nil
     })
@@ -295,9 +295,9 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailQueueLive do
     success_count =
       Enum.reduce(selected_ids, 0, fn id, acc ->
         try do
-          log = EmailSystem.get_log!(id)
+          log = Emails.get_log!(id)
 
-          case EmailSystem.delete_log(log) do
+          case Emails.delete_log(log) do
             {:ok, _} ->
               acc + 1
 

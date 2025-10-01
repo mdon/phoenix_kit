@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
   @moduledoc """
   LiveView for displaying and managing emails in PhoenixKit admin panel.
 
@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-logs", PhoenixKitWeb.Live.EmailSystem.EmailLogsLive, :index
+      live "/admin/emails", PhoenixKitWeb.Live.Modules.Emails.Emails, :index
 
   ## Permissions
 
@@ -34,7 +34,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
 
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.Emails
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -49,7 +49,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
   @impl true
   def mount(_params, _session, socket) do
     # Check if email tracking is enabled
-    if EmailSystem.enabled?() do
+    if Emails.enabled?() do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -689,11 +689,11 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
     # Build filters for EmailLog query
     query_filters = build_query_filters(filters, page, per_page)
 
-    logs = EmailSystem.list_logs(query_filters)
+    logs = Emails.list_logs(query_filters)
 
     # Get total count for pagination (efficient count without loading all records)
     total_count =
-      EmailSystem.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
+      Emails.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
 
     total_pages = ceil(total_count / per_page)
 
@@ -706,7 +706,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailLogsLive do
 
   # Load summary statistics
   defp load_stats(socket) do
-    stats = EmailSystem.get_system_stats(:last_30_days)
+    stats = Emails.get_system_stats(:last_30_days)
 
     assign(socket, :stats, stats)
   end

@@ -1,7 +1,38 @@
-defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.EmailTracking do
+  @moduledoc """
+  LiveView for email tracking system settings and configuration.
+
+  This module provides a simplified interface for managing core email tracking
+  settings, offering quick toggles for essential email system features.
+
+  ## Features
+
+  - **System Toggle**: Enable/disable email tracking system
+  - **Body Storage**: Control whether full email bodies are saved
+  - **SES Events**: Toggle AWS SES event processing
+  - **Retention Settings**: Configure data retention periods
+
+  ## Route
+
+  This LiveView is mounted at `{prefix}/admin/settings/email-tracking` and requires
+  appropriate admin permissions.
+
+  Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
+
+  ## Usage
+
+  This is a focused settings page for common email tracking configurations.
+  For advanced settings (AWS infrastructure, compression, archival, etc.),
+  see the main Emails settings page.
+
+  ## Permissions
+
+  Access is restricted to users with admin or owner roles in PhoenixKit.
+  """
+
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.Emails
   alias PhoenixKit.Settings
 
   def mount(params, _session, socket) do
@@ -14,7 +45,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
     # Load email tracking configuration
-    email_tracking_config = EmailSystem.get_config()
+    email_tracking_config = Emails.get_config()
 
     socket =
       socket
@@ -35,9 +66,9 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
 
     result =
       if new_enabled do
-        EmailSystem.enable_system()
+        Emails.enable_system()
       else
-        EmailSystem.disable_system()
+        Emails.disable_system()
       end
 
     case result do
@@ -65,7 +96,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     # Toggle email body saving
     new_save_body = !socket.assigns.email_tracking_save_body
 
-    result = EmailSystem.set_save_body(new_save_body)
+    result = Emails.set_save_body(new_save_body)
 
     case result do
       {:ok, _setting} ->
@@ -92,7 +123,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
     # Toggle AWS SES events tracking
     new_ses_events = !socket.assigns.email_tracking_ses_events
 
-    result = EmailSystem.set_ses_events(new_ses_events)
+    result = Emails.set_ses_events(new_ses_events)
 
     case result do
       {:ok, _setting} ->
@@ -118,7 +149,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailTrackingLive do
   def handle_event("update_email_tracking_retention", %{"retention_days" => value}, socket) do
     case Integer.parse(value) do
       {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
-        case EmailSystem.set_retention_days(retention_days) do
+        case Emails.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =
               socket

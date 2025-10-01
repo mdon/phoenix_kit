@@ -1,6 +1,6 @@
-defmodule PhoenixKit.EmailSystem.EmailLog do
+defmodule PhoenixKit.Emails.Log do
   @moduledoc """
-  Email logging system for PhoenixKit - comprehensive logging in a single module.
+  Email logging for PhoenixKit - comprehensive logging in a single module.
 
   This module provides both the Ecto schema definition and business logic for
   managing emails. It includes email creation tracking, status updates,
@@ -61,7 +61,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   ## Usage Examples
 
       # Create a new email log
-      {:ok, log} = PhoenixKit.EmailSystem.EmailLog.create_log(%{
+      {:ok, log} = PhoenixKit.Emails.Log.create_log(%{
         message_id: "msg-abc123",
         to: "user@example.com",
         from: "noreply@myapp.com",
@@ -72,12 +72,12 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
       })
 
       # Update status when delivered
-      {:ok, updated_log} = PhoenixKit.EmailSystem.EmailLog.mark_as_delivered(
+      {:ok, updated_log} = PhoenixKit.Emails.Log.mark_as_delivered(
         log, DateTime.utc_now()
       )
 
       # Get campaign statistics
-      stats = PhoenixKit.EmailSystem.EmailLog.get_campaign_stats("newsletter_2024")
+      stats = PhoenixKit.Emails.Log.get_campaign_stats("newsletter_2024")
   """
 
   use Ecto.Schema
@@ -86,7 +86,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   @derive {Jason.Encoder, except: [:__meta__, :user, :events]}
 
-  alias PhoenixKit.EmailSystem.EmailEvent
+  alias PhoenixKit.Emails.Event
 
   @primary_key {:id, :id, autogenerate: true}
 
@@ -119,7 +119,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
     # Associations
     belongs_to :user, PhoenixKit.Users.Auth.User, foreign_key: :user_id, define_field: false
-    has_many :events, EmailEvent, foreign_key: :email_log_id, on_delete: :delete_all
+    has_many :events, Event, foreign_key: :email_log_id, on_delete: :delete_all
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -197,8 +197,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
   ## Examples
 
       iex> email = new() |> to("user@example.com") |> from("app@example.com")
-      iex> PhoenixKit.EmailSystem.EmailLog.create_from_swoosh_email(email, provider: "aws_ses")
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.create_from_swoosh_email(email, provider: "aws_ses")
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def create_from_swoosh_email(%Swoosh.Email{} = email, opts \\ []) do
     attrs = extract_swoosh_data(email, opts)
@@ -233,8 +233,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.list_logs(%{status: "bounced", limit: 10})
-      [%PhoenixKit.EmailSystem.EmailLog{}, ...]
+      iex> PhoenixKit.Emails.Log.list_logs(%{status: "bounced", limit: 10})
+      [%PhoenixKit.Emails.Log{}, ...]
   """
   def list_logs(filters \\ %{}) do
     base_query()
@@ -254,7 +254,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.count_logs(%{status: "bounced"})
+      iex> PhoenixKit.Emails.Log.count_logs(%{status: "bounced"})
       42
   """
   def count_logs(filters \\ %{}) do
@@ -270,10 +270,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_log!(123)
-      %PhoenixKit.EmailSystem.EmailLog{}
+      iex> PhoenixKit.Emails.Log.get_log!(123)
+      %PhoenixKit.Emails.Log{}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_log!(999)
+      iex> PhoenixKit.Emails.Log.get_log!(999)
       ** (Ecto.NoResultsError)
   """
   def get_log!(id) do
@@ -289,10 +289,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_log_by_message_id("msg-abc123")
-      %PhoenixKit.EmailSystem.EmailLog{}
+      iex> PhoenixKit.Emails.Log.get_log_by_message_id("msg-abc123")
+      %PhoenixKit.Emails.Log{}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_log_by_message_id("nonexistent")
+      iex> PhoenixKit.Emails.Log.get_log_by_message_id("nonexistent")
       nil
   """
   def get_log_by_message_id(message_id) when is_binary(message_id) do
@@ -322,10 +322,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.find_by_aws_message_id("abc123-aws")
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.find_by_aws_message_id("abc123-aws")
+      {:ok, %PhoenixKit.Emails.Log{}}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.find_by_aws_message_id("nonexistent")
+      iex> PhoenixKit.Emails.Log.find_by_aws_message_id("nonexistent")
       {:error, :not_found}
   """
   def find_by_aws_message_id(aws_message_id) when is_binary(aws_message_id) do
@@ -367,10 +367,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.create_log(%{message_id: "abc", to: "user@test.com"})
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.create_log(%{message_id: "abc", to: "user@test.com"})
+      {:ok, %PhoenixKit.Emails.Log{}}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.create_log(%{message_id: ""})
+      iex> PhoenixKit.Emails.Log.create_log(%{message_id: ""})
       {:error, %Ecto.Changeset{}}
   """
   def create_log(attrs \\ %{}) do
@@ -384,10 +384,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.update_log(log, %{status: "delivered"})
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.update_log(log, %{status: "delivered"})
+      {:ok, %PhoenixKit.Emails.Log{}}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.update_log(log, %{to: ""})
+      iex> PhoenixKit.Emails.Log.update_log(log, %{to: ""})
       {:error, %Ecto.Changeset{}}
   """
   def update_log(%__MODULE__{} = email_log, attrs) do
@@ -401,8 +401,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.update_status(log, "delivered")
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.update_status(log, "delivered")
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def update_status(%__MODULE__{} = email_log, status) when is_binary(status) do
     update_log(email_log, %{status: status})
@@ -413,8 +413,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.mark_as_delivered(log, DateTime.utc_now())
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.mark_as_delivered(log, DateTime.utc_now())
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def mark_as_delivered(%__MODULE__{} = email_log, delivered_at \\ nil) do
     delivered_at = delivered_at || DateTime.utc_now()
@@ -430,8 +430,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.mark_as_bounced(log, "hard", "No such user")
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.mark_as_bounced(log, "hard", "No such user")
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def mark_as_bounced(%__MODULE__{} = email_log, bounce_type, reason \\ nil) do
     repo().transaction(fn ->
@@ -439,7 +439,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
       {:ok, updated_log} = update_log(email_log, %{status: "bounced"})
 
       # Create bounce event
-      EmailEvent.create_event(%{
+      Event.create_event(%{
         email_log_id: updated_log.id,
         event_type: "bounce",
         event_data: %{
@@ -458,8 +458,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.mark_as_opened(log, DateTime.utc_now())
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.mark_as_opened(log, DateTime.utc_now())
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def mark_as_opened(%__MODULE__{} = email_log, opened_at \\ nil) do
     repo().transaction(fn ->
@@ -470,7 +470,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
       {:ok, updated_log} = update_log(email_log, %{status: new_status})
 
       # Create open event
-      EmailEvent.create_event(%{
+      Event.create_event(%{
         email_log_id: updated_log.id,
         event_type: "open",
         occurred_at: opened_at || DateTime.utc_now()
@@ -485,8 +485,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.mark_as_clicked(log, "https://example.com", DateTime.utc_now())
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.mark_as_clicked(log, "https://example.com", DateTime.utc_now())
+      {:ok, %PhoenixKit.Emails.Log{}}
   """
   def mark_as_clicked(%__MODULE__{} = email_log, link_url, clicked_at \\ nil) do
     repo().transaction(fn ->
@@ -494,7 +494,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
       {:ok, updated_log} = update_log(email_log, %{status: "clicked"})
 
       # Create click event
-      EmailEvent.create_event(%{
+      Event.create_event(%{
         email_log_id: updated_log.id,
         event_type: "click",
         occurred_at: clicked_at || DateTime.utc_now(),
@@ -510,10 +510,10 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.delete_log(log)
-      {:ok, %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.delete_log(log)
+      {:ok, %PhoenixKit.Emails.Log{}}
 
-      iex> PhoenixKit.EmailSystem.EmailLog.delete_log(log)
+      iex> PhoenixKit.Emails.Log.delete_log(log)
       {:error, %Ecto.Changeset{}}
   """
   def delete_log(%__MODULE__{} = email_log) do
@@ -525,8 +525,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.change_log(log)
-      %Ecto.Changeset{data: %PhoenixKit.EmailSystem.EmailLog{}}
+      iex> PhoenixKit.Emails.Log.change_log(log)
+      %Ecto.Changeset{data: %PhoenixKit.Emails.Log{}}
   """
   def change_log(%__MODULE__{} = email_log, attrs \\ %{}) do
     changeset(email_log, attrs)
@@ -539,7 +539,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_stats_for_period(~U[2024-01-01 00:00:00Z], ~U[2024-01-31 23:59:59Z])
+      iex> PhoenixKit.Emails.Log.get_stats_for_period(~U[2024-01-01 00:00:00Z], ~U[2024-01-31 23:59:59Z])
       %{total_sent: 1500, delivered: 1450, bounced: 30, opened: 800, clicked: 200}
   """
   def get_stats_for_period(start_date, end_date) do
@@ -573,7 +573,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_campaign_stats("newsletter_2024")
+      iex> PhoenixKit.Emails.Log.get_campaign_stats("newsletter_2024")
       %{total_sent: 500, delivery_rate: 96.0, open_rate: 25.0, click_rate: 5.0}
   """
   def get_campaign_stats(campaign_id) when is_binary(campaign_id) do
@@ -611,7 +611,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_engagement_metrics(:last_30_days)
+      iex> PhoenixKit.Emails.Log.get_engagement_metrics(:last_30_days)
       %{avg_open_rate: 24.5, avg_click_rate: 4.2, engagement_trend: :increasing}
   """
   def get_engagement_metrics(period \\ :last_30_days) do
@@ -639,7 +639,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_daily_delivery_trends(:last_7_days)
+      iex> PhoenixKit.Emails.Log.get_daily_delivery_trends(:last_7_days)
       %{
         labels: ["2024-09-01", "2024-09-02", ...],
         delivered: [120, 190, 300, ...],
@@ -676,7 +676,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_provider_performance(:last_7_days)
+      iex> PhoenixKit.Emails.Log.get_provider_performance(:last_7_days)
       %{"aws_ses" => %{delivered: 98.5, bounced: 1.5}, "smtp" => %{delivered: 95.0, bounced: 5.0}}
   """
   def get_provider_performance(period \\ :last_7_days) do
@@ -715,7 +715,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.cleanup_old_logs(90)
+      iex> PhoenixKit.Emails.Log.cleanup_old_logs(90)
       {5, nil}  # Deleted 5 records
   """
   def cleanup_old_logs(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
@@ -731,7 +731,7 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.compress_old_bodies(30)
+      iex> PhoenixKit.Emails.Log.compress_old_bodies(30)
       {12, nil}  # Compressed 12 records
   """
   def compress_old_bodies(days_old \\ 30) when is_integer(days_old) and days_old > 0 do
@@ -749,8 +749,8 @@ defmodule PhoenixKit.EmailSystem.EmailLog do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailLog.get_logs_for_archival(90)
-      [%PhoenixKit.EmailSystem.EmailLog{}, ...]
+      iex> PhoenixKit.Emails.Log.get_logs_for_archival(90)
+      [%PhoenixKit.Emails.Log{}, ...]
   """
   def get_logs_for_archival(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)

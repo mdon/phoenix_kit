@@ -52,7 +52,7 @@ defmodule PhoenixKitWeb.AuthRouter do
     live "/register", PhoenixKitWeb.Users.RegistrationLive, :new
     live "/log_in", PhoenixKitWeb.Users.LoginLive, :new
 
-    post "/log_in", PhoenixKitWeb.Users.SessionController, :create
+    post "/log_in", PhoenixKitWeb.Users.Session, :create
 
     live "/reset_password", PhoenixKitWeb.Users.ForgotPasswordLive, :new
     live "/reset_password/:token", PhoenixKitWeb.Users.ResetPasswordLive, :edit
@@ -61,8 +61,8 @@ defmodule PhoenixKitWeb.AuthRouter do
   scope "/" do
     pipe_through [:browser]
 
-    delete "/log_out", PhoenixKitWeb.Users.SessionController, :delete
-    get "/log_out", PhoenixKitWeb.Users.SessionController, :get_logout
+    delete "/log_out", PhoenixKitWeb.Users.Session, :delete
+    get "/log_out", PhoenixKitWeb.Users.Session, :get_logout
 
     live "/confirm/:token", PhoenixKitWeb.Users.ConfirmationLive, :edit
     live "/confirm", PhoenixKitWeb.Users.ConfirmationInstructionsLive, :new

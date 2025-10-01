@@ -343,17 +343,17 @@ end
 {UtilsDate.format_time(Time.utc_now(), "h:i A")}
 ```
 
-### Email System Architecture
+### Emails Architecture
 
-- **PhoenixKit.EmailSystem** - Main API module for email system functionality
-- **PhoenixKit.EmailSystem.EmailLog** - Core email logging schema with analytics
-- **PhoenixKit.EmailSystem.EmailEvent** - Event management (delivery, bounce, click, open)
-- **PhoenixKit.EmailSystem.EmailInterceptor** - Swoosh integration for automatic logging
-- **PhoenixKit.EmailSystem.SQSWorker** - AWS SQS polling for real-time events
-- **PhoenixKit.EmailSystem.SQSProcessor** - Message parsing and event handling
-- **PhoenixKit.EmailSystem.RateLimiter** - Anti-spam and rate limiting
-- **PhoenixKit.EmailSystem.Archiver** - Data lifecycle and S3 archival
-- **PhoenixKit.EmailSystem.Metrics** - CloudWatch integration and analytics
+- **PhoenixKit.Emails** - Main API module for email functionality
+- **PhoenixKit.Emails.EmailLog** - Core email logging schema with analytics
+- **PhoenixKit.Emails.EmailEvent** - Event management (delivery, bounce, click, open)
+- **PhoenixKit.Emails.EmailInterceptor** - Swoosh integration for automatic logging
+- **PhoenixKit.Emails.SQSWorker** - AWS SQS polling for real-time events
+- **PhoenixKit.Emails.SQSProcessor** - Message parsing and event handling
+- **PhoenixKit.Emails.RateLimiter** - Anti-spam and rate limiting
+- **PhoenixKit.Emails.Archiver** - Data lifecycle and S3 archival
+- **PhoenixKit.Emails.Metrics** - CloudWatch integration and analytics
 
 **Core Features:**
 - **Comprehensive Logging** - All outgoing emails logged with metadata
@@ -370,11 +370,12 @@ end
 - **phoenix_kit_email_blocklist** - Blocked addresses for rate limiting
 
 **LiveView Interfaces:**
-- **EmailLogsLive** - Email log browsing at `{prefix}/admin/emails`
-- **EmailDetailsLive** - Individual email details at `{prefix}/admin/emails/email/:id`
-- **EmailMetricsLive** - Analytics dashboard at `{prefix}/admin/emails/dashboard`
-- **EmailQueueLive** - Queue management at `{prefix}/admin/emails/queue`
-- **EmailBlocklistLive** - Blocklist management at `{prefix}/admin/emails/blocklist`
+- **Emails** - Email log browsing and management at `{prefix}/admin/emails`
+- **Details** - Individual email details at `{prefix}/admin/emails/email/:id`
+- **Metrics** - Analytics dashboard at `{prefix}/admin/emails/dashboard`
+- **Queue** - Queue management at `{prefix}/admin/emails/queue`
+- **Blocklist** - Blocklist management at `{prefix}/admin/emails/blocklist`
+- **Settings** - Email system configuration at `{prefix}/admin/settings/emails`
 
 **Mailer Integration:**
 ```elixir

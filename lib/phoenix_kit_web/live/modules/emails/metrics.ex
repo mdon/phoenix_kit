@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
   @moduledoc """
   LiveView for email metrics and analytics dashboard.
 
@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-metrics", PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive, :index
+      live "/email-metrics", PhoenixKitWeb.Live.Modules.Emails.EmailMetricsLive, :index
 
   ## Permissions
 
@@ -42,7 +42,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
 
   require Logger
 
-  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.Emails
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -57,7 +57,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
   @impl true
   def mount(_params, _session, socket) do
     # Check if email is enabled
-    if EmailSystem.enabled?() do
+    if Emails.enabled?() do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
@@ -193,7 +193,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
     period = determine_period(socket.assigns)
 
     metrics =
-      EmailSystem.get_system_stats(period)
+      Emails.get_system_stats(period)
       |> Map.merge(load_additional_metrics(period))
 
     charts_data = prepare_charts_data(metrics, period)
@@ -222,7 +222,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
 
   defp load_additional_metrics(period) do
     %{
-      by_provider: EmailSystem.get_provider_performance(period),
+      by_provider: Emails.get_provider_performance(period),
       today_count: get_today_count()
     }
   end
@@ -231,7 +231,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
     today_start = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
     now = DateTime.utc_now()
 
-    case EmailSystem.get_system_stats(
+    case Emails.get_system_stats(
            {:date_range, DateTime.to_date(today_start), DateTime.to_date(now)}
          ) do
       %{total_sent: count} -> count
@@ -241,7 +241,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailMetricsLive do
 
   defp prepare_charts_data(metrics, period) do
     # Get daily delivery trends for the chart
-    daily_trends = EmailSystem.get_daily_delivery_trends(period)
+    daily_trends = Emails.get_daily_delivery_trends(period)
 
     # Debug logging
     require Logger

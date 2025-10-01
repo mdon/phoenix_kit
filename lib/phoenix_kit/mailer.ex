@@ -24,8 +24,8 @@ defmodule PhoenixKit.Mailer do
 
   import Swoosh.Email
 
-  alias PhoenixKit.EmailSystem.EmailInterceptor
-  alias PhoenixKit.EmailSystem.Templates
+  alias PhoenixKit.Emails.Interceptor
+  alias PhoenixKit.Emails.Templates
 
   alias PhoenixKit.Users.Auth.User
 
@@ -165,7 +165,7 @@ defmodule PhoenixKit.Mailer do
   """
   def deliver_email(email, opts \\ []) do
     # Intercept email for tracking before sending
-    tracked_email = EmailInterceptor.intercept_before_send(email, opts)
+    tracked_email = Interceptor.intercept_before_send(email, opts)
 
     mailer = get_mailer()
 
@@ -315,14 +315,14 @@ defmodule PhoenixKit.Mailer do
   # Handle delivery result for email tracking updates
   defp handle_delivery_result(email, result, opts) do
     # Only process if email tracking is enabled
-    if PhoenixKit.EmailSystem.enabled?() do
+    if PhoenixKit.Emails.enabled?() do
       case extract_log_id_from_email(email) do
         nil ->
           # No log ID found, skip tracking
           :ok
 
         log_id ->
-          case PhoenixKit.EmailSystem.get_log!(log_id) do
+          case PhoenixKit.Emails.get_log!(log_id) do
             nil -> :ok
             log -> update_log_after_delivery(log, result, opts)
           end
@@ -352,11 +352,11 @@ defmodule PhoenixKit.Mailer do
 
   # Update email log based on delivery result
   defp update_log_after_delivery(log, {:ok, response}, _opts) do
-    EmailInterceptor.update_after_send(log, response)
+    Interceptor.update_after_send(log, response)
   end
 
   defp update_log_after_delivery(log, {:error, error}, _opts) do
-    EmailInterceptor.update_after_failure(log, error)
+    Interceptor.update_after_failure(log, error)
   end
 
   defp update_log_after_delivery(_log, _result, _opts) do

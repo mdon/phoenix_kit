@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.Archiver do
+defmodule PhoenixKit.Emails.Archiver do
   @moduledoc """
   Archive and compress old email tracking data for optimal storage.
 
@@ -30,19 +30,19 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   ## Usage Examples
 
       # Compress bodies older than 30 days
-      {compressed_count, size_saved} = PhoenixKit.EmailSystem.Archiver.compress_old_bodies(30)
+      {compressed_count, size_saved} = PhoenixKit.Emails.Archiver.compress_old_bodies(30)
 
       # Archive to S3 with automatic cleanup
-      {:ok, archived_count} = PhoenixKit.EmailSystem.Archiver.archive_to_s3(90, 
+      {:ok, archived_count} = PhoenixKit.Emails.Archiver.archive_to_s3(90, 
         bucket: "my-email-archive",
         prefix: "email-logs/2025/"
       )
 
       # Apply sampling to reduce future storage
-      sampled_email = PhoenixKit.EmailSystem.Archiver.apply_sampling_rate(email)
+      sampled_email = PhoenixKit.Emails.Archiver.apply_sampling_rate(email)
 
       # Get storage statistics
-      stats = PhoenixKit.EmailSystem.Archiver.get_storage_stats()
+      stats = PhoenixKit.Emails.Archiver.get_storage_stats()
       # => %{total_logs: 50000, compressed: 15000, archived: 10000, size_mb: 2341}
 
   ## S3 Integration
@@ -73,7 +73,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
 
   require Logger
   alias PhoenixKit.Settings
-  alias PhoenixKit.EmailSystem.{EmailEvent, EmailLog}
+  alias PhoenixKit.Emails.{Event, Log}
   import Ecto.Query
 
   ## --- Body Compression ---
@@ -311,7 +311,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
 
   defp build_compression_query(cutoff_date, preserve_errors) do
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.sent_at < ^cutoff_date,
         where: not is_nil(l.body_full),
         where: l.body_full != ""
@@ -325,7 +325,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   end
 
   defp build_archival_query(cutoff_date) do
-    from l in EmailLog,
+    from l in Log,
       where: l.sent_at < ^cutoff_date,
       order_by: [asc: l.sent_at]
   end
@@ -372,7 +372,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
     end)
   end
 
-  defp compress_email_body(%EmailLog{} = log) do
+  defp compress_email_body(%Log{} = log) do
     if log.body_full && String.length(log.body_full) > 100 do
       original_size = byte_size(log.body_full)
 
@@ -383,7 +383,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
       # Only compress if we save significant space
       if compressed_size < original_size * 0.8 do
         case repo().update(
-               EmailLog.changeset(log, %{
+               Log.changeset(log, %{
                  body_full: Base.encode64(compressed_data)
                })
              ) do
@@ -393,7 +393,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
       else
         # Compression not worth it, just keep preview
         case repo().update(
-               EmailLog.changeset(log, %{
+               Log.changeset(log, %{
                  body_full: nil,
                  body_preview: String.slice(log.body_full, 0, 500)
                })
@@ -457,7 +457,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
     archive_logs =
       if include_events do
         Enum.map(logs, fn log ->
-          events = repo().all(from e in EmailEvent, where: e.email_log_id == ^log.id)
+          events = repo().all(from e in Event, where: e.email_log_id == ^log.id)
           Map.put(log, :events, events)
         end)
       else
@@ -508,11 +508,11 @@ defmodule PhoenixKit.EmailSystem.Archiver do
     log_ids = Enum.map(logs, & &1.id)
 
     # Delete events first (foreign key constraint)
-    from(e in EmailEvent, where: e.email_log_id in ^log_ids)
+    from(e in Event, where: e.email_log_id in ^log_ids)
     |> repo().delete_all()
 
     # Delete logs
-    from(l in EmailLog, where: l.id in ^log_ids)
+    from(l in Log, where: l.id in ^log_ids)
     |> repo().delete_all()
   end
 
@@ -547,17 +547,17 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   ## --- Statistics Implementation ---
 
   defp count_total_logs do
-    repo().one(from l in EmailLog, select: count(l.id)) || 0
+    repo().one(from l in Log, select: count(l.id)) || 0
   end
 
   defp count_total_events do
-    repo().one(from e in EmailEvent, select: count(e.id)) || 0
+    repo().one(from e in Event, select: count(e.id)) || 0
   end
 
   defp count_compressed_bodies do
     # Count emails with base64-encoded compressed bodies
     repo().one(
-      from l in EmailLog,
+      from l in Log,
         where: fragment("? LIKE 'H4sI%'", l.body_full),
         select: count(l.id)
     ) || 0
@@ -580,7 +580,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   end
 
   defp get_oldest_log_date do
-    repo().one(from l in EmailLog, select: min(l.sent_at))
+    repo().one(from l in Log, select: min(l.sent_at))
   end
 
   defp calculate_compression_ratio do
@@ -601,7 +601,7 @@ defmodule PhoenixKit.EmailSystem.Archiver do
   end
 
   defp get_period_stats(start_time, end_time) do
-    query = from l in EmailLog, where: l.sent_at >= ^start_time and l.sent_at < ^end_time
+    query = from l in Log, where: l.sent_at >= ^start_time and l.sent_at < ^end_time
 
     count = repo().one(from l in query, select: count(l.id)) || 0
 

@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
   @moduledoc """
   LiveView for displaying and managing email templates in PhoenixKit admin panel.
 
@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-templates", PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive, :index
+      live "/email-templates", PhoenixKitWeb.Live.Modules.Emails.EmailTemplatesLive, :index
 
   ## Permissions
 
@@ -34,8 +34,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
 
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailSystem.EmailTemplate
-  alias PhoenixKit.EmailSystem.Templates
+  alias PhoenixKit.Emails.Template
+  alias PhoenixKit.Emails.Templates
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -221,7 +221,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
          socket
          |> put_flash(:error, "Template not found")}
 
-      %EmailTemplate{is_system: true} ->
+      %Template{is_system: true} ->
         {:noreply,
          socket
          |> put_flash(:error, "System templates cannot be archived")}
@@ -276,7 +276,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplatesLive do
          socket
          |> put_flash(:error, "Template not found")}
 
-      %EmailTemplate{is_system: true} ->
+      %Template{is_system: true} ->
         {:noreply,
          socket
          |> put_flash(:error, "System templates cannot be deleted")}

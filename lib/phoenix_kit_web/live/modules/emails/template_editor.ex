@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.TemplateEditor do
   @moduledoc """
   LiveView for creating and editing email templates in PhoenixKit admin panel.
 
@@ -26,8 +26,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
 
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailSystem.EmailTemplate
-  alias PhoenixKit.EmailSystem.Templates
+  alias PhoenixKit.Emails.Template
+  alias PhoenixKit.Emails.Templates
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -47,7 +47,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
       |> assign(:mode, :new)
       |> assign(:loading, false)
       |> assign(:saving, false)
-      |> assign(:changeset, EmailTemplate.changeset(%EmailTemplate{}, %{}))
+      |> assign(:changeset, Template.changeset(%Template{}, %{}))
       |> assign(:preview_mode, "html")
       |> assign(:show_test_modal, false)
       |> assign(:test_sending, false)
@@ -67,8 +67,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
          |> push_navigate(to: Routes.path("/admin/emails/templates"))}
 
       template ->
-        changeset = EmailTemplate.changeset(template, %{})
-        extracted_variables = EmailTemplate.extract_variables(template)
+        changeset = Template.changeset(template, %{})
+        extracted_variables = Template.extract_variables(template)
 
         socket =
           socket
@@ -95,7 +95,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
       variables: %{}
     }
 
-    changeset = EmailTemplate.changeset(%EmailTemplate{}, initial_attrs)
+    changeset = Template.changeset(%Template{}, initial_attrs)
 
     socket =
       socket
@@ -112,16 +112,16 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
 
   @impl true
   def handle_event("validate", %{"email_template" => template_params}, socket) do
-    template = socket.assigns.template || %EmailTemplate{}
+    template = socket.assigns.template || %Template{}
 
     # Extract variables from current content
-    temp_template = %EmailTemplate{
+    temp_template = %Template{
       subject: template_params["subject"] || "",
       html_body: template_params["html_body"] || "",
       text_body: template_params["text_body"] || ""
     }
 
-    extracted_variables = EmailTemplate.extract_variables(temp_template)
+    extracted_variables = Template.extract_variables(temp_template)
 
     # Auto-add extracted variables with smart descriptions
     current_variables = template_params["variables"] || %{}
@@ -147,7 +147,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
     # Merge updated variables into template params
     template_params_with_vars = Map.put(template_params, "variables", updated_variables)
 
-    changeset = EmailTemplate.changeset(template, template_params_with_vars)
+    changeset = Template.changeset(template, template_params_with_vars)
 
     socket =
       socket
@@ -162,13 +162,13 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
     socket = assign(socket, :saving, true)
 
     # Extract variables and auto-add them before saving
-    temp_template = %EmailTemplate{
+    temp_template = %Template{
       subject: template_params["subject"] || "",
       html_body: template_params["html_body"] || "",
       text_body: template_params["text_body"] || ""
     }
 
-    extracted_variables = EmailTemplate.extract_variables(temp_template)
+    extracted_variables = Template.extract_variables(temp_template)
 
     # Auto-add extracted variables with smart descriptions
     current_variables = template_params["variables"] || %{}
@@ -325,7 +325,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailTemplateEditorLive do
   @impl true
   def handle_info({:send_test_email, recipient, template_data, sample_variables}, socket) do
     # Create a temporary template for testing
-    temp_template = %EmailTemplate{
+    temp_template = %Template{
       name: template_data.name || "test_template",
       subject: template_data.subject || "",
       html_body: template_data.html_body || "",

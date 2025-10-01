@@ -16,7 +16,7 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
     # Load module states
     referral_codes_config = ReferralCodes.get_config()
-    email_config = PhoenixKit.EmailSystem.get_config()
+    email_config = PhoenixKit.Emails.get_config()
     languages_config = Languages.get_config()
 
     socket =
@@ -78,9 +78,9 @@ defmodule PhoenixKitWeb.Live.ModulesLive do
 
     result =
       if new_enabled do
-        PhoenixKit.EmailSystem.enable_system()
+        PhoenixKit.Emails.enable_system()
       else
-        PhoenixKit.EmailSystem.disable_system()
+        PhoenixKit.Emails.disable_system()
       end
 
     case result do

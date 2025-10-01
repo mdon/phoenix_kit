@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Users.MagicLinkRegistrationController do
+defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
   @moduledoc """
   Controller for handling magic link registration verification.
   """

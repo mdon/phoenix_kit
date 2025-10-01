@@ -338,8 +338,8 @@ defmodule PhoenixKitWeb.Controllers.EmailWebhookController do
 
   # Process individual email event
   defp process_email_event(event_data) do
-    if PhoenixKit.EmailSystem.enabled?() and PhoenixKit.EmailSystem.ses_events_enabled?() do
-      case PhoenixKit.EmailSystem.process_webhook_event(event_data) do
+    if PhoenixKit.Emails.enabled?() and PhoenixKit.Emails.ses_events_enabled?() do
+      case PhoenixKit.Emails.process_webhook_event(event_data) do
         {:ok, :skipped} ->
           {:ok, :event_skipped}
 

@@ -1,8 +1,8 @@
-defmodule PhoenixKit.EmailSystem do
+defmodule PhoenixKit.Emails do
   @moduledoc """
   Email system for PhoenixKit - main API module.
 
-  This module provides the primary interface for email system functionality,
+  This module provides the primary interface for email functionality,
   including system configuration, log management, event management, and analytics.
 
   ## Core Features
@@ -63,23 +63,23 @@ defmodule PhoenixKit.EmailSystem do
   ## Usage Examples
 
       # Check if system is enabled
-      if PhoenixKit.EmailSystem.enabled?() do
+      if PhoenixKit.Emails.enabled?() do
         # System is active
       end
 
       # Get system statistics
-      stats = PhoenixKit.EmailSystem.get_system_stats(:last_30_days)
+      stats = PhoenixKit.Emails.get_system_stats(:last_30_days)
       # => %{total_sent: 5000, delivered: 4850, bounce_rate: 2.5, open_rate: 23.4}
 
       # Get campaign performance
-      campaign_stats = PhoenixKit.EmailSystem.get_campaign_stats("newsletter_2024")
+      campaign_stats = PhoenixKit.Emails.get_campaign_stats("newsletter_2024")
       # => %{total_sent: 1000, delivery_rate: 98.5, open_rate: 25.2, click_rate: 4.8}
 
       # Process webhook from AWS SES
-      {:ok, event} = PhoenixKit.EmailSystem.process_webhook_event(webhook_data)
+      {:ok, event} = PhoenixKit.Emails.process_webhook_event(webhook_data)
 
       # Clean up old data
-      {deleted_count, _} = PhoenixKit.EmailSystem.cleanup_old_logs(90)
+      {deleted_count, _} = PhoenixKit.Emails.cleanup_old_logs(90)
 
   ## Configuration Example
 
@@ -91,7 +91,7 @@ defmodule PhoenixKit.EmailSystem do
         aws_ses_configuration_set: "my-app-system"
   """
 
-  alias PhoenixKit.EmailSystem.{EmailEvent, EmailLog, SQSProcessor}
+  alias PhoenixKit.Emails.{Event, Log, SQSProcessor}
   alias PhoenixKit.Settings
 
   import Ecto.Query, only: [where: 3, group_by: 3, select: 3]
@@ -177,7 +177,7 @@ defmodule PhoenixKit.EmailSystem do
         find_log_and_prepare_result(
           message_id,
           :aws_message_id,
-          &EmailLog.find_by_aws_message_id/1
+          &Log.find_by_aws_message_id/1
         )
 
       internal_message_id?(message_id) ->
@@ -199,7 +199,7 @@ defmodule PhoenixKit.EmailSystem do
         {log, aws_id, :unknown_format}
 
       {:error, :not_found} ->
-        case EmailLog.find_by_aws_message_id(message_id) do
+        case Log.find_by_aws_message_id(message_id) do
           {:ok, log} ->
             Logger.info("Found existing email log by AWS message ID (fallback)", %{
               log_id: log.id,
@@ -233,10 +233,10 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.sync_email_status("0110019971abc123-...")
+      iex> PhoenixKit.Emails.sync_email_status("0110019971abc123-...")
       {:ok, %{events_processed: 3, log_updated: true}}
 
-      iex> PhoenixKit.EmailSystem.sync_email_status("pk_abc123...")
+      iex> PhoenixKit.Emails.sync_email_status("pk_abc123...")
       {:ok, %{events_processed: 1, log_updated: true}}
   """
   def sync_email_status(message_id) when is_binary(message_id) do
@@ -737,7 +737,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.enabled?()
+      iex> PhoenixKit.Emails.enabled?()
       true
   """
   def enabled? do
@@ -751,7 +751,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.enable_system()
+      iex> PhoenixKit.Emails.enable_system()
       {:ok, %Setting{}}
   """
   def enable_system do
@@ -765,7 +765,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.disable_system()
+      iex> PhoenixKit.Emails.disable_system()
       {:ok, %Setting{}}
   """
   def disable_system do
@@ -779,7 +779,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.save_body_enabled?()
+      iex> PhoenixKit.Emails.save_body_enabled?()
       false
   """
   def save_body_enabled? do
@@ -791,7 +791,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_save_body(true)
+      iex> PhoenixKit.Emails.set_save_body(true)
       {:ok, %Setting{}}
   """
   def set_save_body(enabled) when is_boolean(enabled) do
@@ -809,7 +809,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.save_headers_enabled?()
+      iex> PhoenixKit.Emails.save_headers_enabled?()
       false
   """
   def save_headers_enabled? do
@@ -821,7 +821,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_save_headers(true)
+      iex> PhoenixKit.Emails.set_save_headers(true)
       {:ok, %Setting{}}
   """
   def set_save_headers(enabled) when is_boolean(enabled) do
@@ -837,7 +837,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.ses_events_enabled?()
+      iex> PhoenixKit.Emails.ses_events_enabled?()
       true
   """
   def ses_events_enabled? do
@@ -849,7 +849,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_ses_events(true)
+      iex> PhoenixKit.Emails.set_ses_events(true)
       {:ok, %Setting{}}
   """
   def set_ses_events(enabled) when is_boolean(enabled) do
@@ -865,7 +865,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_retention_days()
+      iex> PhoenixKit.Emails.get_retention_days()
       90
   """
   def get_retention_days do
@@ -877,7 +877,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_retention_days(180)
+      iex> PhoenixKit.Emails.set_retention_days(180)
       {:ok, %Setting{}}
   """
   def set_retention_days(days) when is_integer(days) and days > 0 do
@@ -893,7 +893,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_ses_configuration_set()
+      iex> PhoenixKit.Emails.get_ses_configuration_set()
       "my-app-system"
   """
   def get_ses_configuration_set do
@@ -905,7 +905,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_ses_configuration_set("my-system-set")
+      iex> PhoenixKit.Emails.set_ses_configuration_set("my-system-set")
       {:ok, %Setting{}}
   """
   def set_ses_configuration_set(config_set_name) when is_binary(config_set_name) do
@@ -921,7 +921,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sampling_rate()
+      iex> PhoenixKit.Emails.get_sampling_rate()
       100  # Log 100% of emails
   """
   def get_sampling_rate do
@@ -933,7 +933,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sampling_rate(80)  # Log 80% of emails
+      iex> PhoenixKit.Emails.set_sampling_rate(80)  # Log 80% of emails
       {:ok, %Setting{}}
   """
   def set_sampling_rate(percentage)
@@ -950,7 +950,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_compress_after_days(30)
+      iex> PhoenixKit.Emails.set_compress_after_days(30)
       {:ok, %Setting{}}
   """
   def set_compress_after_days(days) when is_integer(days) and days >= 7 and days <= 365 do
@@ -966,7 +966,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_s3_archival(true)
+      iex> PhoenixKit.Emails.set_s3_archival(true)
       {:ok, %Setting{}}
   """
   def set_s3_archival(enabled) when is_boolean(enabled) do
@@ -982,7 +982,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_cloudwatch_metrics(true)
+      iex> PhoenixKit.Emails.set_cloudwatch_metrics(true)
       {:ok, %Setting{}}
   """
   def set_cloudwatch_metrics(enabled) when is_boolean(enabled) do
@@ -1000,7 +1000,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sns_topic_arn()
+      iex> PhoenixKit.Emails.get_sns_topic_arn()
       "arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events"
   """
   def get_sns_topic_arn do
@@ -1012,7 +1012,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sns_topic_arn("arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events")
+      iex> PhoenixKit.Emails.set_sns_topic_arn("arn:aws:sns:eu-north-1:123456789012:phoenixkit-email-events")
       {:ok, %Setting{}}
   """
   def set_sns_topic_arn(topic_arn) when is_binary(topic_arn) do
@@ -1028,7 +1028,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_queue_url()
+      iex> PhoenixKit.Emails.get_sqs_queue_url()
       "https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue"
   """
   def get_sqs_queue_url do
@@ -1040,7 +1040,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue")
+      iex> PhoenixKit.Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-queue")
       {:ok, %Setting{}}
   """
   def set_sqs_queue_url(queue_url) when is_binary(queue_url) do
@@ -1056,7 +1056,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_queue_arn()
+      iex> PhoenixKit.Emails.get_sqs_queue_arn()
       "arn:aws:sqs:eu-north-1:123456789012:phoenixkit-email-queue"
   """
   def get_sqs_queue_arn do
@@ -1068,7 +1068,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_queue_arn("arn:aws:sqs:eu-north-1:123456789012:phoenixkit-email-queue")
+      iex> PhoenixKit.Emails.set_sqs_queue_arn("arn:aws:sqs:eu-north-1:123456789012:phoenixkit-email-queue")
       {:ok, %Setting{}}
   """
   def set_sqs_queue_arn(queue_arn) when is_binary(queue_arn) do
@@ -1084,7 +1084,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_dlq_url()
+      iex> PhoenixKit.Emails.get_sqs_dlq_url()
       "https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-dlq"
   """
   def get_sqs_dlq_url do
@@ -1096,7 +1096,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_dlq_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-dlq")
+      iex> PhoenixKit.Emails.set_sqs_dlq_url("https://sqs.eu-north-1.amazonaws.com/123456789012/phoenixkit-email-dlq")
       {:ok, %Setting{}}
   """
   def set_sqs_dlq_url(dlq_url) when is_binary(dlq_url) do
@@ -1112,7 +1112,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_aws_region()
+      iex> PhoenixKit.Emails.get_aws_region()
       "eu-north-1"
   """
   def get_aws_region do
@@ -1124,7 +1124,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_aws_region("eu-north-1")
+      iex> PhoenixKit.Emails.set_aws_region("eu-north-1")
       {:ok, %Setting{}}
   """
   def set_aws_region(region) when is_binary(region) do
@@ -1142,7 +1142,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.sqs_polling_enabled?()
+      iex> PhoenixKit.Emails.sqs_polling_enabled?()
       true
   """
   def sqs_polling_enabled? do
@@ -1154,7 +1154,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_polling(true)
+      iex> PhoenixKit.Emails.set_sqs_polling(true)
       {:ok, %Setting{}}
   """
   def set_sqs_polling(enabled) when is_boolean(enabled) do
@@ -1170,7 +1170,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_polling_interval()
+      iex> PhoenixKit.Emails.get_sqs_polling_interval()
       5000  # 5 seconds
   """
   def get_sqs_polling_interval do
@@ -1182,7 +1182,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_polling_interval(3000)  # 3 seconds
+      iex> PhoenixKit.Emails.set_sqs_polling_interval(3000)  # 3 seconds
       {:ok, %Setting{}}
   """
   def set_sqs_polling_interval(interval_ms) when is_integer(interval_ms) and interval_ms > 0 do
@@ -1198,7 +1198,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_max_messages()
+      iex> PhoenixKit.Emails.get_sqs_max_messages()
       10
   """
   def get_sqs_max_messages do
@@ -1210,7 +1210,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_max_messages(20)
+      iex> PhoenixKit.Emails.set_sqs_max_messages(20)
       {:ok, %Setting{}}
   """
   def set_sqs_max_messages(max_messages)
@@ -1227,7 +1227,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_visibility_timeout()
+      iex> PhoenixKit.Emails.get_sqs_visibility_timeout()
       300  # 5 minutes
   """
   def get_sqs_visibility_timeout do
@@ -1239,7 +1239,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.set_sqs_visibility_timeout(600)  # 10 minutes
+      iex> PhoenixKit.Emails.set_sqs_visibility_timeout(600)  # 10 minutes
       {:ok, %Setting{}}
   """
   def set_sqs_visibility_timeout(timeout_seconds)
@@ -1256,7 +1256,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_sqs_config()
+      iex> PhoenixKit.Emails.get_sqs_config()
       %{
         sns_topic_arn: "arn:aws:sns:...",
         queue_url: "https://sqs.eu-north-1.amazonaws.com/...",
@@ -1288,7 +1288,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_config()
+      iex> PhoenixKit.Emails.get_config()
       %{
         enabled: true,
         save_body: false,
@@ -1346,12 +1346,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.list_logs(%{status: "bounced", limit: 10})
-      [%EmailLog{}, ...]
+      iex> PhoenixKit.Emails.list_logs(%{status: "bounced", limit: 10})
+      [%Log{}, ...]
   """
   def list_logs(filters \\ %{}) do
     if enabled?() do
-      EmailLog.list_logs(filters)
+      Log.list_logs(filters)
     else
       []
     end
@@ -1366,12 +1366,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.count_logs(%{status: "bounced"})
+      iex> PhoenixKit.Emails.count_logs(%{status: "bounced"})
       42
   """
   def count_logs(filters \\ %{}) do
     if enabled?() do
-      EmailLog.count_logs(filters)
+      Log.count_logs(filters)
     else
       0
     end
@@ -1384,12 +1384,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_log!(123)
-      %EmailLog{}
+      iex> PhoenixKit.Emails.get_log!(123)
+      %Log{}
   """
   def get_log!(id) do
     ensure_enabled!()
-    EmailLog.get_log!(id)
+    Log.get_log!(id)
   end
 
   @doc """
@@ -1397,12 +1397,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_log_by_message_id("msg-abc123")
-      %EmailLog{}
+      iex> PhoenixKit.Emails.get_log_by_message_id("msg-abc123")
+      %Log{}
   """
   def get_log_by_message_id(message_id) when is_binary(message_id) do
     if enabled?() do
-      case EmailLog.get_log_by_message_id(message_id) do
+      case Log.get_log_by_message_id(message_id) do
         nil -> {:error, :not_found}
         log -> {:ok, log}
       end
@@ -1416,12 +1416,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.create_log(%{
+      iex> PhoenixKit.Emails.create_log(%{
         message_id: "abc123",
         to: "user@example.com",
         from: "app@example.com"
       })
-      {:ok, %EmailLog{}}
+      {:ok, %Log{}}
   """
   def create_log(attrs \\ %{}) do
     if enabled?() and should_log_email?(attrs) do
@@ -1434,7 +1434,7 @@ defmodule PhoenixKit.EmailSystem do
           headers: attrs[:headers] || %{}
         })
 
-      EmailLog.create_log(attrs)
+      Log.create_log(attrs)
     else
       {:ok, :skipped}
     end
@@ -1445,12 +1445,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.update_log_status(log, "delivered")
-      {:ok, %EmailLog{}}
+      iex> PhoenixKit.Emails.update_log_status(log, "delivered")
+      {:ok, %Log{}}
   """
   def update_log_status(log, status) when is_binary(status) do
     if enabled?() do
-      EmailLog.update_status(log, status)
+      Log.update_status(log, status)
     else
       {:ok, log}
     end
@@ -1461,13 +1461,13 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> log = PhoenixKit.EmailSystem.get_log!(1)
-      iex> PhoenixKit.EmailSystem.delete_log(log)
-      {:ok, %EmailLog{}}
+      iex> log = PhoenixKit.Emails.get_log!(1)
+      iex> PhoenixKit.Emails.delete_log(log)
+      {:ok, %Log{}}
   """
-  def delete_log(%EmailLog{} = log) do
+  def delete_log(%Log{} = log) do
     if enabled?() do
-      EmailLog.delete_log(log)
+      Log.delete_log(log)
     else
       {:ok, log}
     end
@@ -1480,15 +1480,15 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.create_event(%{
+      iex> PhoenixKit.Emails.create_event(%{
         email_log_id: 1,
         event_type: "open"
       })
-      {:ok, %EmailEvent{}}
+      {:ok, %Event{}}
   """
   def create_event(attrs \\ %{}) do
     if enabled?() and ses_events_enabled?() do
-      EmailEvent.create_event(attrs)
+      Event.create_event(attrs)
     else
       {:ok, :skipped}
     end
@@ -1499,12 +1499,12 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.list_events_for_log(123)
-      [%EmailEvent{}, ...]
+      iex> PhoenixKit.Emails.list_events_for_log(123)
+      [%Event{}, ...]
   """
   def list_events_for_log(email_log_id) when is_integer(email_log_id) do
     if enabled?() do
-      EmailEvent.for_email_log(email_log_id)
+      Event.for_email_log(email_log_id)
     else
       []
     end
@@ -1519,8 +1519,8 @@ defmodule PhoenixKit.EmailSystem do
         "eventType" => "bounce",
         "mail" => %{"messageId" => "abc123"}
       }
-      iex> PhoenixKit.EmailSystem.process_webhook_event(webhook_data)
-      {:ok, %EmailEvent{}}
+      iex> PhoenixKit.Emails.process_webhook_event(webhook_data)
+      {:ok, %Event{}}
   """
   def process_webhook_event(webhook_data) when is_map(webhook_data) do
     if enabled?() and ses_events_enabled?() do
@@ -1552,7 +1552,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_system_stats(:last_30_days)
+      iex> PhoenixKit.Emails.get_system_stats(:last_30_days)
       %{
         total_sent: 5000,
         delivered: 4850,
@@ -1569,7 +1569,7 @@ defmodule PhoenixKit.EmailSystem do
     if enabled?() do
       {start_date, end_date} = get_period_dates(period)
 
-      basic_stats = EmailLog.get_stats_for_period(start_date, end_date)
+      basic_stats = Log.get_stats_for_period(start_date, end_date)
 
       Map.merge(basic_stats, %{
         # Add aliases for email_stats.ex compatibility
@@ -1594,7 +1594,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_engagement_metrics(:last_7_days)
+      iex> PhoenixKit.Emails.get_engagement_metrics(:last_7_days)
       %{
         avg_open_rate: 24.5,
         avg_click_rate: 4.2,
@@ -1604,7 +1604,7 @@ defmodule PhoenixKit.EmailSystem do
   """
   def get_engagement_metrics(period \\ :last_30_days) do
     if enabled?() do
-      EmailLog.get_engagement_metrics(period)
+      Log.get_engagement_metrics(period)
     else
       %{}
     end
@@ -1615,7 +1615,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_daily_delivery_trends(:last_7_days)
+      iex> PhoenixKit.Emails.get_daily_delivery_trends(:last_7_days)
       %{
         labels: ["2024-09-01", "2024-09-02", ...],
         delivered: [120, 190, 300, ...],
@@ -1624,7 +1624,7 @@ defmodule PhoenixKit.EmailSystem do
   """
   def get_daily_delivery_trends(period \\ :last_7_days) do
     if enabled?() do
-      EmailLog.get_daily_delivery_trends(period)
+      Log.get_daily_delivery_trends(period)
     else
       %{labels: [], delivered: [], bounced: [], total_sent: []}
     end
@@ -1635,7 +1635,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_campaign_stats("newsletter_2024")
+      iex> PhoenixKit.Emails.get_campaign_stats("newsletter_2024")
       %{
         total_sent: 1000,
         delivery_rate: 98.5,
@@ -1645,7 +1645,7 @@ defmodule PhoenixKit.EmailSystem do
   """
   def get_campaign_stats(campaign_id) when is_binary(campaign_id) do
     if enabled?() do
-      EmailLog.get_campaign_stats(campaign_id)
+      Log.get_campaign_stats(campaign_id)
     else
       %{}
     end
@@ -1656,7 +1656,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_template_stats(:last_30_days)
+      iex> PhoenixKit.Emails.get_template_stats(:last_30_days)
       %{
         "welcome_email" => %{sent: 100, delivered: 95, opened: 45, clicked: 12},
         "password_reset" => %{sent: 50, delivered: 48, opened: 30, clicked: 8}
@@ -1668,7 +1668,7 @@ defmodule PhoenixKit.EmailSystem do
 
       # Get basic stats grouped by template
       basic_stats =
-        EmailLog
+        Log
         |> where([l], l.sent_at >= ^start_date and l.sent_at <= ^end_date)
         |> where([l], not is_nil(l.template_name))
         |> group_by([l], l.template_name)
@@ -1695,7 +1695,7 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_provider_performance(:last_7_days)
+      iex> PhoenixKit.Emails.get_provider_performance(:last_7_days)
       %{
         "aws_ses" => %{delivery_rate: 98.5, bounce_rate: 1.5},
         "smtp" => %{delivery_rate: 95.0, bounce_rate: 5.0}
@@ -1703,7 +1703,7 @@ defmodule PhoenixKit.EmailSystem do
   """
   def get_provider_performance(period \\ :last_7_days) do
     if enabled?() do
-      EmailLog.get_provider_performance(period)
+      Log.get_provider_performance(period)
     else
       %{}
     end
@@ -1714,13 +1714,13 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_geo_stats("open", :last_30_days)
+      iex> PhoenixKit.Emails.get_geo_stats("open", :last_30_days)
       %{"US" => 500, "CA" => 200, "UK" => 150}
   """
   def get_geo_stats(event_type, period \\ :last_30_days) do
     if enabled?() do
       {start_date, end_date} = get_period_dates(period)
-      EmailEvent.get_geo_distribution(event_type, start_date, end_date)
+      Event.get_geo_distribution(event_type, start_date, end_date)
     else
       %{}
     end
@@ -1731,13 +1731,13 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.get_top_links(:last_30_days, 10)
+      iex> PhoenixKit.Emails.get_top_links(:last_30_days, 10)
       [%{url: "https://example.com/product", clicks: 150}, ...]
   """
   def get_top_links(period \\ :last_30_days, limit \\ 10) do
     if enabled?() do
       {start_date, end_date} = get_period_dates(period)
-      EmailEvent.get_top_clicked_links(start_date, end_date, limit)
+      Event.get_top_clicked_links(start_date, end_date, limit)
     else
       []
     end
@@ -1752,16 +1752,16 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.cleanup_old_logs()
+      iex> PhoenixKit.Emails.cleanup_old_logs()
       {150, nil}  # Deleted 150 records
 
-      iex> PhoenixKit.EmailSystem.cleanup_old_logs(180)
+      iex> PhoenixKit.Emails.cleanup_old_logs(180)
       {75, nil}   # Deleted 75 records older than 180 days
   """
   def cleanup_old_logs(days_old \\ nil) do
     if enabled?() do
       days = days_old || get_retention_days()
-      EmailLog.cleanup_old_logs(days)
+      Log.cleanup_old_logs(days)
     else
       {0, nil}
     end
@@ -1772,16 +1772,16 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.compress_old_bodies()
+      iex> PhoenixKit.Emails.compress_old_bodies()
       {25, nil}  # Compressed 25 records
 
-      iex> PhoenixKit.EmailSystem.compress_old_bodies(60)
+      iex> PhoenixKit.Emails.compress_old_bodies(60)
       {40, nil}  # Compressed 40 records older than 60 days
   """
   def compress_old_bodies(days_old \\ nil) do
     if enabled?() do
       days = days_old || get_compress_after_days()
-      EmailLog.compress_old_bodies(days)
+      Log.compress_old_bodies(days)
     else
       {0, nil}
     end
@@ -1792,13 +1792,13 @@ defmodule PhoenixKit.EmailSystem do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.archive_to_s3()
+      iex> PhoenixKit.Emails.archive_to_s3()
       {:ok, archived_count: 100, s3_key: "archives/2024/01/emails.json"}
   """
   def archive_to_s3(days_old \\ nil) do
     if enabled?() and s3_archival_enabled?() do
       days = days_old || get_retention_days()
-      logs_to_archive = EmailLog.get_logs_for_archival(days)
+      logs_to_archive = Log.get_logs_for_archival(days)
 
       if length(logs_to_archive) > 0 do
         # This would be implemented in a separate Archiver module
@@ -1847,7 +1847,7 @@ defmodule PhoenixKit.EmailSystem do
 
   # Process a specific event for an email log
   defp process_event_for_log(email_log, webhook_data) do
-    case EmailEvent.create_from_ses_webhook(email_log, webhook_data) do
+    case Event.create_from_ses_webhook(email_log, webhook_data) do
       {:ok, event} ->
         # Update email log status based on event
         update_log_status_from_event(email_log, event)
@@ -1859,30 +1859,30 @@ defmodule PhoenixKit.EmailSystem do
   end
 
   # Update email log status based on event type
-  defp update_log_status_from_event(email_log, %PhoenixKit.EmailSystem.EmailEvent{
+  defp update_log_status_from_event(email_log, %PhoenixKit.Emails.Event{
          event_type: "delivery"
        }) do
-    EmailLog.mark_as_delivered(email_log)
+    Log.mark_as_delivered(email_log)
   end
 
-  defp update_log_status_from_event(email_log, %PhoenixKit.EmailSystem.EmailEvent{
+  defp update_log_status_from_event(email_log, %PhoenixKit.Emails.Event{
          event_type: "bounce",
          bounce_type: bounce_type
        }) do
-    EmailLog.mark_as_bounced(email_log, bounce_type)
+    Log.mark_as_bounced(email_log, bounce_type)
   end
 
-  defp update_log_status_from_event(email_log, %PhoenixKit.EmailSystem.EmailEvent{
+  defp update_log_status_from_event(email_log, %PhoenixKit.Emails.Event{
          event_type: "open"
        }) do
-    EmailLog.mark_as_opened(email_log)
+    Log.mark_as_opened(email_log)
   end
 
-  defp update_log_status_from_event(email_log, %PhoenixKit.EmailSystem.EmailEvent{
+  defp update_log_status_from_event(email_log, %PhoenixKit.Emails.Event{
          event_type: "click",
          link_url: url
        }) do
-    EmailLog.mark_as_clicked(email_log, url)
+    Log.mark_as_clicked(email_log, url)
   end
 
   defp update_log_status_from_event(_email_log, _event) do

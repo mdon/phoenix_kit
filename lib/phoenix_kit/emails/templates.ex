@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.Templates do
+defmodule PhoenixKit.Emails.Templates do
   @moduledoc """
   Context module for managing email templates.
 
@@ -29,7 +29,7 @@ defmodule PhoenixKit.EmailSystem.Templates do
   """
 
   import Ecto.Query, warn: false
-  alias PhoenixKit.EmailSystem.EmailTemplate
+  alias PhoenixKit.Emails.Template
 
   require Logger
 
@@ -75,7 +75,7 @@ defmodule PhoenixKit.EmailSystem.Templates do
 
   """
   def list_templates(opts \\ %{}) do
-    EmailTemplate
+    Template
     |> apply_filters(opts)
     |> apply_ordering(opts)
     |> apply_pagination(opts)
@@ -86,7 +86,7 @@ defmodule PhoenixKit.EmailSystem.Templates do
   Returns the count of templates matching the given filters.
   """
   def count_templates(opts \\ %{}) do
-    EmailTemplate
+    Template
     |> apply_filters(opts)
     |> select([t], count(t.id))
     |> repo().one()
@@ -100,14 +100,14 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.get_template(1)
-      %EmailTemplate{}
+      %Template{}
 
       iex> Templates.get_template(999)
       nil
 
   """
   def get_template(id) when is_integer(id) do
-    repo().get(EmailTemplate, id)
+    repo().get(Template, id)
   end
 
   def get_template(_), do: nil
@@ -118,14 +118,14 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.get_template!(1)
-      %EmailTemplate{}
+      %Template{}
 
       iex> Templates.get_template!(999)
       ** (Ecto.NoResultsError)
 
   """
   def get_template!(id) do
-    repo().get!(EmailTemplate, id)
+    repo().get!(Template, id)
   end
 
   @doc """
@@ -136,14 +136,14 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.get_template_by_name("magic_link")
-      %EmailTemplate{}
+      %Template{}
 
       iex> Templates.get_template_by_name("nonexistent")
       nil
 
   """
   def get_template_by_name(name) when is_binary(name) do
-    EmailTemplate
+    Template
     |> where([t], t.name == ^name)
     |> repo().one()
   end
@@ -158,11 +158,11 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.get_active_template_by_name("magic_link")
-      %EmailTemplate{}
+      %Template{}
 
   """
   def get_active_template_by_name(name) when is_binary(name) do
-    EmailTemplate
+    Template
     |> where([t], t.name == ^name and t.status == "active")
     |> repo().one()
   end
@@ -175,15 +175,15 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.create_template(%{name: "welcome", subject: "Welcome!", ...})
-      {:ok, %EmailTemplate{}}
+      {:ok, %Template{}}
 
       iex> Templates.create_template(%{invalid: "data"})
       {:error, %Ecto.Changeset{}}
 
   """
   def create_template(attrs \\ %{}) do
-    %EmailTemplate{}
-    |> EmailTemplate.changeset(attrs)
+    %Template{}
+    |> Template.changeset(attrs)
     |> repo().insert()
     |> case do
       {:ok, template} ->
@@ -202,16 +202,16 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.update_template(template, %{subject: "New Subject"})
-      {:ok, %EmailTemplate{}}
+      {:ok, %Template{}}
 
       iex> Templates.update_template(template, %{invalid: "data"})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_template(%EmailTemplate{} = template, attrs) do
+  def update_template(%Template{} = template, attrs) do
     template
-    |> EmailTemplate.changeset(attrs)
-    |> EmailTemplate.version_changeset(%{
+    |> Template.changeset(attrs)
+    |> Template.version_changeset(%{
       version: template.version + 1,
       updated_by_user_id: attrs[:updated_by_user_id]
     })
@@ -238,17 +238,17 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.delete_template(template)
-      {:ok, %EmailTemplate{}}
+      {:ok, %Template{}}
 
       iex> Templates.delete_template(system_template)
       {:error, :system_template_protected}
 
   """
-  def delete_template(%EmailTemplate{is_system: true} = _template) do
+  def delete_template(%Template{is_system: true} = _template) do
     {:error, :system_template_protected}
   end
 
-  def delete_template(%EmailTemplate{} = template) do
+  def delete_template(%Template{} = template) do
     case repo().delete(template) do
       {:ok, deleted_template} ->
         Logger.info("Deleted email template: #{deleted_template.name}")
@@ -266,10 +266,10 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.archive_template(template)
-      {:ok, %EmailTemplate{status: "archived"}}
+      {:ok, %Template{status: "archived"}}
 
   """
-  def archive_template(%EmailTemplate{} = template, user_id \\ nil) do
+  def archive_template(%Template{} = template, user_id \\ nil) do
     update_template(template, %{
       status: "archived",
       updated_by_user_id: user_id
@@ -282,10 +282,10 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.activate_template(template)
-      {:ok, %EmailTemplate{status: "active"}}
+      {:ok, %Template{status: "active"}}
 
   """
-  def activate_template(%EmailTemplate{} = template, user_id \\ nil) do
+  def activate_template(%Template{} = template, user_id \\ nil) do
     update_template(template, %{
       status: "active",
       updated_by_user_id: user_id
@@ -298,10 +298,10 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.clone_template(template, "new_welcome_email")
-      {:ok, %EmailTemplate{name: "new_welcome_email"}}
+      {:ok, %Template{name: "new_welcome_email"}}
 
   """
-  def clone_template(%EmailTemplate{} = template, new_name, attrs \\ %{}) do
+  def clone_template(%Template{} = template, new_name, attrs \\ %{}) do
     base_attrs = %{
       name: new_name,
       slug: String.replace(new_name, "_", "-"),
@@ -338,8 +338,8 @@ defmodule PhoenixKit.EmailSystem.Templates do
       }
 
   """
-  def render_template(%EmailTemplate{} = template, variables \\ %{}) do
-    rendered_template = EmailTemplate.substitute_variables(template, variables)
+  def render_template(%Template{} = template, variables \\ %{}) do
+    rendered_template = Template.substitute_variables(template, variables)
 
     %{
       subject: rendered_template.subject,
@@ -390,12 +390,12 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.track_usage(template)
-      {:ok, %EmailTemplate{usage_count: 1}}
+      {:ok, %Template{usage_count: 1}}
 
   """
-  def track_usage(%EmailTemplate{} = template) do
+  def track_usage(%Template{} = template) do
     template
-    |> EmailTemplate.usage_changeset(%{
+    |> Template.usage_changeset(%{
       usage_count: template.usage_count + 1,
       last_used_at: DateTime.utc_now()
     })
@@ -416,13 +416,13 @@ defmodule PhoenixKit.EmailSystem.Templates do
         draft_templates: 1,
         archived_templates: 1,
         system_templates: 4,
-        most_used: %EmailTemplate{},
+        most_used: %Template{},
         categories: %{"system" => 4, "transactional" => 6}
       }
 
   """
   def get_template_stats do
-    base_query = from(t in EmailTemplate)
+    base_query = from(t in Template)
 
     total_templates = repo().aggregate(base_query, :count, :id)
 
@@ -480,7 +480,7 @@ defmodule PhoenixKit.EmailSystem.Templates do
   ## Examples
 
       iex> Templates.seed_system_templates()
-      {:ok, [%EmailTemplate{}, ...]}
+      {:ok, [%Template{}, ...]}
 
   """
   def seed_system_templates do

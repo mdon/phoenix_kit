@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
+defmodule PhoenixKit.Emails.ApplicationIntegration do
   @moduledoc """
   Helpers for integrating PhoenixKit Email Tracking into parent applications.
 
@@ -13,7 +13,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
       def start(_type, _args) do
         children = [
           # ... your processes
-        ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.children()
+        ] ++ PhoenixKit.Emails.ApplicationIntegration.children()
 
         Supervisor.start_link(children, strategy: :one_for_one)
       end
@@ -35,7 +35,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
       defp email_children do
         if email_enabled?() do
-          PhoenixKit.EmailSystem.ApplicationIntegration.children()
+          PhoenixKit.Emails.ApplicationIntegration.children()
         else
           []
         end
@@ -52,10 +52,10 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
       children = [
         # ... your processes
-      ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_children()
+      ] ++ PhoenixKit.Emails.ApplicationIntegration.supervisor_children()
   """
 
-  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.Emails
 
   @doc """
   Returns list of child specs for adding to supervision tree.
@@ -70,10 +70,10 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
   ## Examples
 
       # Basic usage
-      children = PhoenixKit.EmailSystem.ApplicationIntegration.children()
+      children = PhoenixKit.Emails.ApplicationIntegration.children()
 
       # With custom options
-      children = PhoenixKit.EmailSystem.ApplicationIntegration.children(
+      children = PhoenixKit.Emails.ApplicationIntegration.children(
         supervisor_name: MyApp.EmailSystemSupervisor,
         start_sqs_worker: true
       )
@@ -91,14 +91,14 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
   ## Examples
 
-      supervisor_spec = PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_child_spec()
+      supervisor_spec = PhoenixKit.Emails.ApplicationIntegration.supervisor_child_spec()
   """
   def supervisor_child_spec(opts \\ []) do
-    supervisor_name = Keyword.get(opts, :supervisor_name, EmailSystem.Supervisor)
+    supervisor_name = Keyword.get(opts, :supervisor_name, PhoenixKit.Emails.Supervisor)
 
     %{
       id: supervisor_name,
-      start: {EmailSystem.Supervisor, :start_link, [[name: supervisor_name]]},
+      start: {PhoenixKit.Emails.Supervisor, :start_link, [[name: supervisor_name]]},
       type: :supervisor,
       restart: :permanent,
       shutdown: :infinity
@@ -117,7 +117,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
       def init(_opts) do
         children = [
           # ... your processes
-        ] ++ PhoenixKit.EmailSystem.ApplicationIntegration.supervisor_children()
+        ] ++ PhoenixKit.Emails.ApplicationIntegration.supervisor_children()
 
         Supervisor.init(children, strategy: :one_for_one)
       end
@@ -135,18 +135,18 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.ApplicationIntegration.ready_for_email_system?()
+      iex> PhoenixKit.Emails.ApplicationIntegration.ready_for_email_system?()
       true
 
-      iex> PhoenixKit.EmailSystem.ApplicationIntegration.ready_for_email_system?()
+      iex> PhoenixKit.Emails.ApplicationIntegration.ready_for_email_system?()
       {:error, :email_disabled}
   """
   def ready_for_email_system? do
     cond do
-      not EmailSystem.enabled?() ->
+      not Emails.enabled?() ->
         {:error, :email_disabled}
 
-      not EmailSystem.sqs_polling_enabled?() ->
+      not Emails.sqs_polling_enabled?() ->
         {:error, :sqs_polling_disabled}
 
       not has_valid_sqs_configuration?() ->
@@ -167,7 +167,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.ApplicationIntegration.preflight_check()
+      iex> PhoenixKit.Emails.ApplicationIntegration.preflight_check()
       %{
         status: :ready,
         checks: %{
@@ -180,8 +180,8 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
   """
   def preflight_check do
     checks = %{
-      email_enabled: EmailSystem.enabled?(),
-      sqs_polling_enabled: EmailSystem.sqs_polling_enabled?(),
+      email_enabled: Emails.enabled?(),
+      sqs_polling_enabled: Emails.sqs_polling_enabled?(),
       sqs_configuration: has_valid_sqs_configuration?(),
       aws_credentials: has_aws_credentials?(),
       dependencies_loaded: dependencies_loaded?()
@@ -208,7 +208,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
   ## Examples
 
-      PhoenixKit.EmailSystem.ApplicationIntegration.initialize_configuration()
+      PhoenixKit.Emails.ApplicationIntegration.initialize_configuration()
   """
   def initialize_configuration do
     # Create basic settings if they do not exist
@@ -249,7 +249,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
     case force_start do
       true -> true
       false -> false
-      nil -> EmailSystem.enabled?() and EmailSystem.sqs_polling_enabled?()
+      nil -> Emails.enabled?() and Emails.sqs_polling_enabled?()
     end
   end
 
@@ -285,15 +285,15 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
         false
 
       nil ->
-        EmailSystem.sqs_polling_enabled?() and has_valid_sqs_configuration?()
+        Emails.sqs_polling_enabled?() and has_valid_sqs_configuration?()
     end
   end
 
   # Creates child spec for SQS Worker
   defp build_sqs_worker_child_spec do
     %{
-      id: EmailSystem.SQSWorker,
-      start: {EmailSystem.SQSWorker, :start_link, [[]]},
+      id: PhoenixKit.Emails.SQSWorker,
+      start: {PhoenixKit.Emails.SQSWorker, :start_link, [[]]},
       type: :worker,
       restart: :permanent,
       shutdown: 10_000
@@ -302,7 +302,7 @@ defmodule PhoenixKit.EmailSystem.ApplicationIntegration do
 
   # Checks SQS configuration validity
   defp has_valid_sqs_configuration? do
-    sqs_config = EmailSystem.get_sqs_config()
+    sqs_config = Emails.get_sqs_config()
 
     not is_nil(sqs_config.queue_url) and
       sqs_config.queue_url != "" and

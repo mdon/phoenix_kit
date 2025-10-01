@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.EmailTemplate do
+defmodule PhoenixKit.Emails.Template do
   @moduledoc """
   Email template schema for managing reusable email templates.
 

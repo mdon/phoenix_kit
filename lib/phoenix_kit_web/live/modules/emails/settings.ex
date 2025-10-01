@@ -1,7 +1,40 @@
-defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
+  @moduledoc """
+  LiveView for email system configuration and settings management.
+
+  This module provides a comprehensive interface for managing all aspects
+  of the PhoenixKit email system, including:
+
+  - **System Control**: Enable/disable the entire email system
+  - **Storage Settings**: Configure email body and header storage
+  - **AWS SES Integration**: Manage SES event tracking and configuration
+  - **Data Management**: Set retention periods and sampling rates
+  - **Advanced Features**: Configure compression, S3 archival, CloudWatch metrics
+  - **SQS Configuration**: Control SQS polling and message processing
+
+  ## Route
+
+  This LiveView is mounted at `{prefix}/admin/settings/emails` and requires
+  appropriate admin permissions.
+
+  Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
+
+  ## Features
+
+  - Real-time settings updates with immediate effect
+  - AWS infrastructure configuration (SES, SNS, SQS)
+  - Data lifecycle management (retention, compression, archival)
+  - Performance tuning (sampling rate, polling intervals)
+  - Validation with user-friendly error messages
+
+  ## Permissions
+
+  Access is restricted to users with admin or owner roles in PhoenixKit.
+  """
+
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.EmailSystem
+  alias PhoenixKit.Emails
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -13,7 +46,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
     project_title = Settings.get_setting("project_title", "PhoenixKit")
 
     # Load email configuration
-    email_config = EmailSystem.get_config()
+    email_config = Emails.get_config()
 
     # Load AWS settings
     aws_settings = %{
@@ -36,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
       |> assign(:project_title, project_title)
       |> assign(:email_enabled, email_config.enabled)
       |> assign(:email_save_body, email_config.save_body)
-      |> assign(:email_save_headers, EmailSystem.save_headers_enabled?())
+      |> assign(:email_save_headers, Emails.save_headers_enabled?())
       |> assign(:email_ses_events, email_config.ses_events)
       |> assign(:email_retention_days, email_config.retention_days)
       |> assign(:email_sampling_rate, email_config.sampling_rate)
@@ -59,9 +92,9 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
 
     result =
       if new_enabled do
-        EmailSystem.enable_system()
+        Emails.enable_system()
       else
-        EmailSystem.disable_system()
+        Emails.disable_system()
       end
 
     case result do
@@ -89,7 +122,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
     # Toggle email body saving
     new_save_body = !socket.assigns.email_save_body
 
-    result = EmailSystem.set_save_body(new_save_body)
+    result = Emails.set_save_body(new_save_body)
 
     case result do
       {:ok, _setting} ->
@@ -116,7 +149,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
     # Toggle email headers saving
     new_save_headers = !socket.assigns.email_save_headers
 
-    result = EmailSystem.set_save_headers(new_save_headers)
+    result = Emails.set_save_headers(new_save_headers)
 
     case result do
       {:ok, _setting} ->
@@ -143,7 +176,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
     # Toggle AWS SES events tracking
     new_ses_events = !socket.assigns.email_ses_events
 
-    result = EmailSystem.set_ses_events(new_ses_events)
+    result = Emails.set_ses_events(new_ses_events)
 
     case result do
       {:ok, _setting} ->
@@ -169,7 +202,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("update_email_sampling_rate", %{"sampling_rate" => value}, socket) do
     case Integer.parse(value) do
       {sampling_rate, _} when sampling_rate >= 0 and sampling_rate <= 100 ->
-        case EmailSystem.set_sampling_rate(sampling_rate) do
+        case Emails.set_sampling_rate(sampling_rate) do
           {:ok, _setting} ->
             socket =
               socket
@@ -193,7 +226,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
     # Toggle SQS polling
     new_sqs_polling = !socket.assigns.sqs_polling_enabled
 
-    result = EmailSystem.set_sqs_polling(new_sqs_polling)
+    result = Emails.set_sqs_polling(new_sqs_polling)
 
     case result do
       {:ok, _setting} ->
@@ -219,7 +252,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("update_email_retention", %{"retention_days" => value}, socket) do
     case Integer.parse(value) do
       {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
-        case EmailSystem.set_retention_days(retention_days) do
+        case Emails.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =
               socket
@@ -242,7 +275,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("update_compress_days", %{"compress_days" => value}, socket) do
     case Integer.parse(value) do
       {compress_days, _} when compress_days >= 7 and compress_days <= 365 ->
-        case EmailSystem.set_compress_after_days(compress_days) do
+        case Emails.set_compress_after_days(compress_days) do
           {:ok, _setting} ->
             socket =
               socket
@@ -265,7 +298,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("toggle_s3_archival", _params, socket) do
     new_s3_archival = !socket.assigns.email_archive_to_s3
 
-    result = EmailSystem.set_s3_archival(new_s3_archival)
+    result = Emails.set_s3_archival(new_s3_archival)
 
     case result do
       {:ok, _setting} ->
@@ -291,7 +324,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("toggle_cloudwatch", _params, socket) do
     new_cloudwatch = !socket.assigns.email_cloudwatch_metrics
 
-    result = EmailSystem.set_cloudwatch_metrics(new_cloudwatch)
+    result = Emails.set_cloudwatch_metrics(new_cloudwatch)
 
     case result do
       {:ok, _setting} ->
@@ -317,7 +350,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("update_max_messages", %{"max_messages" => value}, socket) do
     case Integer.parse(value) do
       {max_messages, _} when max_messages >= 1 and max_messages <= 10 ->
-        case EmailSystem.set_sqs_max_messages(max_messages) do
+        case Emails.set_sqs_max_messages(max_messages) do
           {:ok, _setting} ->
             socket =
               socket
@@ -340,7 +373,7 @@ defmodule PhoenixKitWeb.Live.Modules.EmailSystemLive do
   def handle_event("update_visibility_timeout", %{"timeout" => value}, socket) do
     case Integer.parse(value) do
       {timeout, _} when timeout >= 30 and timeout <= 43_200 ->
-        case EmailSystem.set_sqs_visibility_timeout(timeout) do
+        case Emails.set_sqs_visibility_timeout(timeout) do
           {:ok, _setting} ->
             socket =
               socket

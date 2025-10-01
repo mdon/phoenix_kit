@@ -1,4 +1,19 @@
-defmodule PhoenixKitWeb.Users.SessionController do
+defmodule PhoenixKitWeb.Users.Session do
+  @moduledoc """
+  Controller for handling user session management.
+
+  This controller manages user login and logout operations, including:
+  - Creating new sessions via email/password authentication
+  - Handling post-registration and password update flows
+  - Session termination (logout)
+  - GET-based logout for direct URL access
+
+  ## Security Features
+
+  - Prevents user enumeration by not disclosing whether an email is registered
+  - Supports remember me functionality via UserAuth module
+  - Session renewal on login/logout to prevent fixation attacks
+  """
   use PhoenixKitWeb, :controller
 
   alias PhoenixKit.Users.Auth

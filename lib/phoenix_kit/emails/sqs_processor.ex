@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.SQSProcessor do
+defmodule PhoenixKit.Emails.SQSProcessor do
   @moduledoc """
   Processor for handling email events from AWS SQS messages.
 
@@ -43,9 +43,8 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   require Logger
   import Ecto.Query, only: [from: 2]
 
-  alias PhoenixKit.EmailSystem.EmailEvent
-  alias PhoenixKit.EmailSystem.EmailLog
-  alias PhoenixKit.EmailSystem.EmailLog, as: EmailLogModule
+  alias PhoenixKit.Emails.Event
+  alias PhoenixKit.Emails.Log
 
   ## --- Public API ---
 
@@ -372,7 +371,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
           delivered_at: parse_timestamp(delivery_timestamp)
         }
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_delivery_event(updated_log, delivery_data)
@@ -408,7 +407,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
               delivered_at: parse_timestamp(delivery_timestamp)
             }
 
-            case EmailLog.update_log(log, update_attrs) do
+            case Log.update_log(log, update_attrs) do
               {:ok, updated_log} ->
                 # Create event record
                 create_delivery_event(updated_log, delivery_data)
@@ -474,7 +473,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
           error_message: build_bounce_error_message(bounce_data)
         }
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_bounce_event(updated_log, bounce_data)
@@ -520,7 +519,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
           error_message: "Spam complaint: #{complaint_type || "unknown"}"
         }
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_complaint_event(updated_log, complaint_data)
@@ -556,7 +555,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
               error_message: "Spam complaint: #{complaint_type || "unknown"}"
             }
 
-            case EmailLog.update_log(log, update_attrs) do
+            case Log.update_log(log, update_attrs) do
               {:ok, updated_log} ->
                 # Create event record
                 create_complaint_event(updated_log, complaint_data)
@@ -616,7 +615,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
             _ -> %{status: "opened"}
           end
 
-        case EmailLog.update_log(log, status_update) do
+        case Log.update_log(log, status_update) do
           {:ok, updated_log} ->
             # Create event record
             create_open_event(updated_log, open_data, open_timestamp)
@@ -681,7 +680,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
         # Click - highest engagement level
         update_attrs = %{status: "clicked"}
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_click_event(updated_log, click_data, click_timestamp)
@@ -714,7 +713,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
             # Click - highest engagement level
             update_attrs = %{status: "clicked"}
 
-            case EmailLog.update_log(log, update_attrs) do
+            case Log.update_log(log, update_attrs) do
               {:ok, updated_log} ->
                 # Create event record
                 create_click_event(updated_log, click_data, click_timestamp)
@@ -771,7 +770,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
           error_message: build_reject_error_message(reject_data)
         }
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_reject_event(updated_log, reject_data)
@@ -805,7 +804,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
               error_message: build_reject_error_message(reject_data)
             }
 
-            case EmailLog.update_log(log, update_attrs) do
+            case Log.update_log(log, update_attrs) do
               {:ok, updated_log} ->
                 # Create event record
                 create_reject_event(updated_log, reject_data)
@@ -875,7 +874,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
               %{status: "delayed"}
           end
 
-        case EmailLog.update_log(log, status_update) do
+        case Log.update_log(log, status_update) do
           {:ok, updated_log} ->
             # Create event record
             create_delivery_delay_event(updated_log, delay_data)
@@ -1005,7 +1004,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
           error_message: build_rendering_failure_message(failure_data)
         }
 
-        case EmailLog.update_log(log, update_attrs) do
+        case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
             # Create event record
             create_rendering_failure_event(updated_log, failure_data)
@@ -1043,7 +1042,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
               error_message: build_rendering_failure_message(failure_data)
             }
 
-            case EmailLog.update_log(log, update_attrs) do
+            case Log.update_log(log, update_attrs) do
               {:ok, updated_log} ->
                 # Create event record
                 create_rendering_failure_event(updated_log, failure_data)
@@ -1092,7 +1091,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
     })
 
     # First search - direct search by message_id
-    case PhoenixKit.EmailSystem.get_log_by_message_id(message_id) do
+    case PhoenixKit.Emails.get_log_by_message_id(message_id) do
       {:ok, log} ->
         Logger.debug("SQSProcessor: Found email log by direct message_id search", %{
           log_id: log.id,
@@ -1107,7 +1106,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
         })
 
         # Second search - search by AWS message ID
-        case EmailLog.find_by_aws_message_id(message_id) do
+        case Log.find_by_aws_message_id(message_id) do
           {:ok, log} ->
             Logger.info("SQSProcessor: Found email log by AWS message_id search", %{
               log_id: log.id,
@@ -1152,7 +1151,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   defp log_recent_emails_for_diagnosis(missing_message_id) do
     # Get last 5 emails for diagnostics
     recent_logs =
-      from(l in PhoenixKit.EmailSystem.EmailLog,
+      from(l in PhoenixKit.Emails.Log,
         order_by: [desc: l.inserted_at],
         limit: 5,
         select: {l.id, l.message_id, l.inserted_at}
@@ -1180,7 +1179,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Creates event record for delivery
   defp create_delivery_event(log, delivery_data) do
     # Check if delivery event already exists to prevent duplicates
-    if EmailEvent.event_exists?(log.id, "delivery") do
+    if Event.event_exists?(log.id, "delivery") do
       Logger.debug("Delivery event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
@@ -1191,7 +1190,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
         occurred_at: parse_timestamp(get_in(delivery_data, ["timestamp"]))
       }
 
-      PhoenixKit.EmailSystem.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
     end
   end
 
@@ -1205,7 +1204,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       bounce_type: get_in(bounce_data, ["bounceType"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Creates event record for complaint
@@ -1218,13 +1217,13 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       complaint_type: get_in(complaint_data, ["complaintFeedbackType"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Creates event record for open
   defp create_open_event(log, open_data, timestamp) do
     # Check if open event already exists to prevent duplicates
-    if EmailEvent.event_exists?(log.id, "open") do
+    if Event.event_exists?(log.id, "open") do
       Logger.debug("Open event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
@@ -1237,7 +1236,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
         user_agent: get_in(open_data, ["userAgent"])
       }
 
-      PhoenixKit.EmailSystem.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
     end
   end
 
@@ -1245,7 +1244,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   defp create_click_event(log, click_data, timestamp) do
     # For clicks, we might want to allow multiple click events (different links)
     # but for now, let's prevent duplicate click events too
-    if EmailEvent.event_exists?(log.id, "click") do
+    if Event.event_exists?(log.id, "click") do
       Logger.debug("Click event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
@@ -1259,7 +1258,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
         user_agent: get_in(click_data, ["userAgent"])
       }
 
-      PhoenixKit.EmailSystem.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
     end
   end
 
@@ -1273,7 +1272,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       reject_reason: get_in(reject_data, ["reason"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Creates event record for delivery delay
@@ -1286,7 +1285,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       delay_type: get_in(delay_data, ["delayType"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Creates event record for subscription
@@ -1299,7 +1298,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       subscription_type: get_in(subscription_data, ["subscriptionType"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Creates event record for rendering failure
@@ -1312,7 +1311,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       failure_reason: get_in(failure_data, ["errorMessage"])
     }
 
-    PhoenixKit.EmailSystem.create_event(event_attrs)
+    PhoenixKit.Emails.create_event(event_attrs)
   end
 
   # Parses timestamp string to DateTime
@@ -1401,7 +1400,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
       campaign_id: "recovered_from_event"
     }
 
-    PhoenixKit.EmailSystem.create_log(log_attrs)
+    PhoenixKit.Emails.create_log(log_attrs)
   end
 
   # Builds error message for reject events
@@ -1472,7 +1471,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
   # Update email log headers if they are empty
   defp update_log_headers_if_empty(log, mail_data) do
     cond do
-      not PhoenixKit.EmailSystem.save_headers_enabled?() ->
+      not PhoenixKit.Emails.save_headers_enabled?() ->
         {:ok, log}
 
       not is_nil(log.headers) and map_size(log.headers) > 0 ->
@@ -1487,7 +1486,7 @@ defmodule PhoenixKit.EmailSystem.SQSProcessor do
     headers = extract_headers_from_mail(mail_data)
 
     if map_size(headers) > 0 do
-      case EmailLogModule.update_log(log, %{headers: headers}) do
+      case Log.update_log(log, %{headers: headers}) do
         {:ok, updated_log} ->
           Logger.info("SQSProcessor: Updated email log headers from SES event")
           {:ok, updated_log}

@@ -1,4 +1,4 @@
-defmodule PhoenixKit.EmailSystem.EmailInterceptor do
+defmodule PhoenixKit.Emails.Interceptor do
   @moduledoc """
   Email interceptor for logging outgoing emails in PhoenixKit.
 
@@ -35,24 +35,24 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
   ## Examples
 
       # Basic interception
-      logged_email = PhoenixKit.EmailSystem.EmailInterceptor.intercept_before_send(email)
+      logged_email = PhoenixKit.Emails.Interceptor.intercept_before_send(email)
 
       # With additional context
-      logged_email = PhoenixKit.EmailSystem.EmailInterceptor.intercept_before_send(email, 
+      logged_email = PhoenixKit.Emails.Interceptor.intercept_before_send(email, 
         user_id: 123,
         template_name: "welcome_email",
         campaign_id: "welcome_series"
       )
 
       # Check if email should be logged
-      if PhoenixKit.EmailSystem.EmailInterceptor.should_log_email?(email) do
+      if PhoenixKit.Emails.Interceptor.should_log_email?(email) do
         # Log the email
       end
   """
 
   require Logger
 
-  alias PhoenixKit.EmailSystem.EmailLog
+  alias PhoenixKit.Emails.Log
   alias Swoosh.Email
 
   @doc """
@@ -73,11 +73,11 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
   ## Examples
 
       iex> email = new() |> to("user@example.com") |> from("app@example.com")
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.intercept_before_send(email, user_id: 123)
+      iex> PhoenixKit.Emails.Interceptor.intercept_before_send(email, user_id: 123)
       %Swoosh.Email{headers: %{"X-PhoenixKit-Log-Id" => "456"}}
   """
   def intercept_before_send(%Email{} = email, opts \\ []) do
-    if PhoenixKit.EmailSystem.enabled?() and should_log_email?(email, opts) do
+    if PhoenixKit.Emails.enabled?() and should_log_email?(email, opts) do
       case create_email_log(email, opts) do
         {:ok, log} ->
           # Add tracking headers to email
@@ -102,12 +102,12 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.should_log_email?(email)
+      iex> PhoenixKit.Emails.Interceptor.should_log_email?(email)
       true
   """
   def should_log_email?(%Email{} = email, _opts \\ []) do
     cond do
-      not PhoenixKit.EmailSystem.enabled?() ->
+      not PhoenixKit.Emails.enabled?() ->
         false
 
       system_email?(email) ->
@@ -116,7 +116,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
       true ->
         # Apply sampling rate for regular emails
-        sampling_rate = PhoenixKit.EmailSystem.get_sampling_rate()
+        sampling_rate = PhoenixKit.Emails.get_sampling_rate()
         meets_sampling_threshold?(email, sampling_rate)
     end
   end
@@ -126,7 +126,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.detect_provider(email, [])
+      iex> PhoenixKit.Emails.Interceptor.detect_provider(email, [])
       "aws_ses"
   """
   def detect_provider(%Email{} = email, opts \\ []) do
@@ -150,13 +150,13 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.create_email_log(email, user_id: 123)
-      {:ok, %EmailLog{}}
+      iex> PhoenixKit.Emails.Interceptor.create_email_log(email, user_id: 123)
+      {:ok, %Log{}}
   """
   def create_email_log(%Email{} = email, opts \\ []) do
     log_attrs = extract_email_data(email, opts)
 
-    PhoenixKit.EmailSystem.create_log(log_attrs)
+    PhoenixKit.Emails.create_log(log_attrs)
   end
 
   @doc """
@@ -164,10 +164,10 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> email_with_headers = PhoenixKit.EmailSystem.EmailInterceptor.add_tracking_headers(email, log, [])
+      iex> email_with_headers = PhoenixKit.Emails.Interceptor.add_tracking_headers(email, log, [])
       %Swoosh.Email{headers: %{"X-PhoenixKit-Log-Id" => "123"}}
   """
-  def add_tracking_headers(%Email{} = email, %EmailLog{} = log, opts \\ []) do
+  def add_tracking_headers(%Email{} = email, %Log{} = log, opts \\ []) do
     tracking_headers = %{
       "X-PhoenixKit-Log-Id" => to_string(log.id),
       "X-PhoenixKit-Message-Id" => log.message_id
@@ -189,10 +189,10 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.build_ses_headers(log, [])
+      iex> PhoenixKit.Emails.Interceptor.build_ses_headers(log, [])
       %{"X-SES-CONFIGURATION-SET" => "my-tracking-set"}
   """
-  def build_ses_headers(%EmailLog{} = log, opts \\ []) do
+  def build_ses_headers(%Log{} = log, opts \\ []) do
     headers = %{}
 
     # Add configuration set if available
@@ -232,10 +232,10 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.update_after_send(log, provider_response)
-      {:ok, %EmailLog{}}
+      iex> PhoenixKit.Emails.Interceptor.update_after_send(log, provider_response)
+      {:ok, %Log{}}
   """
-  def update_after_send(%EmailLog{} = log, provider_response \\ %{}) do
+  def update_after_send(%Log{} = log, provider_response \\ %{}) do
     require Logger
 
     Logger.info("EmailInterceptor: Updating email log after send", %{
@@ -289,7 +289,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
           update_attrs
       end
 
-    case EmailLog.update_log(log, update_attrs) do
+    case Log.update_log(log, update_attrs) do
       {:ok, updated_log} ->
         Logger.info("EmailInterceptor: Successfully updated email log", %{
           log_id: updated_log.id,
@@ -316,10 +316,10 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   ## Examples
 
-      iex> PhoenixKit.EmailSystem.EmailInterceptor.update_after_failure(log, error)
-      {:ok, %EmailLog{}}
+      iex> PhoenixKit.Emails.Interceptor.update_after_failure(log, error)
+      {:ok, %Log{}}
   """
-  def update_after_failure(%EmailLog{} = log, error) do
+  def update_after_failure(%Log{} = log, error) do
     error_message = extract_error_message(error)
 
     update_attrs = %{
@@ -328,7 +328,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
       retry_count: log.retry_count + 1
     }
 
-    EmailLog.update_log(log, update_attrs)
+    Log.update_log(log, update_attrs)
   end
 
   ## --- Private Helper Functions ---
@@ -405,7 +405,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
 
   # Extract full body if enabled
   defp extract_body_full(%Email{} = email, opts) do
-    if PhoenixKit.EmailSystem.save_body_enabled?() or Keyword.get(opts, :save_body, false) do
+    if PhoenixKit.Emails.save_body_enabled?() or Keyword.get(opts, :save_body, false) do
       text_body = email.text_body || ""
       html_body = email.html_body || ""
 
@@ -482,7 +482,7 @@ defmodule PhoenixKit.EmailSystem.EmailInterceptor do
   # Get AWS SES configuration set
   defp get_configuration_set(opts) do
     config_set =
-      Keyword.get(opts, :configuration_set) || PhoenixKit.EmailSystem.get_ses_configuration_set()
+      Keyword.get(opts, :configuration_set) || PhoenixKit.Emails.get_ses_configuration_set()
 
     # Only return config set if it's properly configured and not empty
     result =

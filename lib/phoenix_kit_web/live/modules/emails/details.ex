@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Details do
   @moduledoc """
   LiveView for displaying detailed information about a specific email log.
 
@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-logs/:id", PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive, :show
+      live "/email-logs/:id", PhoenixKitWeb.Live.Modules.Emails.EmailDetailsLive, :show
 
   ## Permissions
 
@@ -36,8 +36,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
 
   require Logger
 
-  alias PhoenixKit.EmailSystem
-  alias PhoenixKit.EmailSystem.EmailLog
+  alias PhoenixKit.Emails
+  alias PhoenixKit.Emails.Log
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -49,7 +49,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     # Check if email is enabled
-    if EmailSystem.enabled?() do
+    if Emails.enabled?() do
       case Integer.parse(id) do
         {email_id, _} ->
           # Get project title from settings
@@ -105,7 +105,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
 
       socket = assign(socket, :syncing, true)
 
-      case EmailSystem.sync_email_status(message_id) do
+      case Emails.sync_email_status(message_id) do
         {:ok, result} ->
           flash_message = build_sync_flash_message(result, id_type)
           flash_type = determine_flash_type(result)
@@ -662,8 +662,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
     email_id = socket.assigns.email_id
 
     try do
-      email_log = EmailSystem.get_log!(email_id)
-      events = EmailSystem.list_events_for_log(email_id)
+      email_log = Emails.get_log!(email_id)
+      events = Emails.list_events_for_log(email_id)
       related_emails = get_related_emails(email_log)
 
       socket
@@ -692,7 +692,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
   end
 
   # Get related emails (same campaign or template)
-  defp get_related_emails(%EmailLog{
+  defp get_related_emails(%Log{
          campaign_id: campaign_id,
          template_name: template_name,
          id: current_id
@@ -706,7 +706,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailDetailsLive do
         true -> filters
       end
 
-    EmailSystem.list_logs(filters)
+    Emails.list_logs(filters)
     |> Enum.reject(fn log -> log.id == current_id end)
   end
 

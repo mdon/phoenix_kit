@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
+defmodule PhoenixKitWeb.Live.Modules.Emails.Blocklist do
   @moduledoc """
   LiveView for managing email blocklist and blocked addresses.
 
@@ -30,7 +30,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
   ## Usage
 
       # In your Phoenix router
-      live "/email-blocklist", PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive, :index
+      live "/email-blocklist", PhoenixKitWeb.Live.Modules.Emails.EmailBlocklistLive, :index
 
   ## Permissions
 
@@ -41,8 +41,8 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
 
   require Logger
 
-  alias PhoenixKit.EmailSystem
-  alias PhoenixKit.EmailSystem.RateLimiter
+  alias PhoenixKit.Emails
+  alias PhoenixKit.Emails.RateLimiter
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -60,7 +60,7 @@ defmodule PhoenixKitWeb.Live.EmailSystem.EmailBlocklistLive do
   @impl true
   def mount(_params, _session, socket) do
     # Check if email system is enabled
-    if EmailSystem.enabled?() do
+    if Emails.enabled?() do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 

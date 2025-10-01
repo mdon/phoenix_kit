@@ -1,5 +1,5 @@
 if Code.ensure_loaded?(Ueberauth) do
-  defmodule PhoenixKitWeb.Users.OAuthController do
+  defmodule PhoenixKitWeb.Users.OAuth do
     @moduledoc """
     OAuth authentication controller using Ueberauth.
 
@@ -183,14 +183,12 @@ if Code.ensure_loaded?(Ueberauth) do
 
     defp extract_ip_address(conn) do
       case Plug.Conn.get_peer_data(conn) do
-        %{address: {a, b, c, d}} when is_integer(a) ->
+        %{address: {a, b, c, d}}
+        when is_integer(a) and is_integer(b) and is_integer(c) and is_integer(d) ->
           "#{a}.#{b}.#{c}.#{d}"
 
         %{address: {a, b, c, d, e, f, g, h}} ->
           "#{a}:#{b}:#{c}:#{d}:#{e}:#{f}:#{g}:#{h}"
-
-        _ ->
-          "unknown"
       end
     end
 
@@ -232,7 +230,7 @@ if Code.ensure_loaded?(Ueberauth) do
   end
 else
   # Fallback controller when Ueberauth is not loaded
-  defmodule PhoenixKitWeb.Users.OAuthController do
+  defmodule PhoenixKitWeb.Users.OAuth do
     @moduledoc """
     Fallback OAuth controller when Ueberauth dependencies are not installed.
 

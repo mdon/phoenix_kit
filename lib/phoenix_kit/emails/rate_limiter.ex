@@ -1,5 +1,5 @@
 # Define the EmailBlocklist schema first
-defmodule PhoenixKit.EmailSystem.EmailBlocklist do
+defmodule PhoenixKit.Emails.EmailBlocklist do
   @moduledoc """
   Email blocklist schema for storing blocked email addresses.
 
@@ -29,9 +29,9 @@ defmodule PhoenixKit.EmailSystem.EmailBlocklist do
   end
 end
 
-defmodule PhoenixKit.EmailSystem.RateLimiter do
+defmodule PhoenixKit.Emails.RateLimiter do
   @moduledoc """
-  Rate limiting and spam protection for the email tracking system.
+  Rate limiting and spam protection for the email system.
 
   Provides multiple layers of protection against abuse, spam, and suspicious email patterns:
 
@@ -52,7 +52,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
   ## Usage Examples
 
       # Check if sending is allowed
-      case PhoenixKit.EmailSystem.RateLimiter.check_limits(email) do
+      case PhoenixKit.Emails.RateLimiter.check_limits(email) do
         :ok -> 
           # Send email
           
@@ -67,14 +67,14 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
       end
 
       # Add suspicious email to blocklist
-      PhoenixKit.EmailSystem.RateLimiter.add_to_blocklist(
+      PhoenixKit.Emails.RateLimiter.add_to_blocklist(
         "spam@example.com",
         "suspicious_pattern",
         expires_at: DateTime.add(DateTime.utc_now(), 86_400)
       )
 
       # Check current rate limit status
-      status = PhoenixKit.EmailSystem.RateLimiter.get_rate_limit_status()
+      status = PhoenixKit.Emails.RateLimiter.get_rate_limit_status()
       # => %{recipient_count: 45, global_count: 2341, blocked_count: 12}
 
   ## Rate Limiting Strategy
@@ -97,14 +97,14 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
   ## Integration Points
 
   Integrates with:
-  - `PhoenixKit.EmailSystem` - Main tracking system
-  - `PhoenixKit.EmailSystem.EmailInterceptor` - Pre-send filtering
+  - `PhoenixKit.Emails` - Main tracking system
+  - `PhoenixKit.Emails.EmailInterceptor` - Pre-send filtering
   - `PhoenixKit.Settings` - Configuration management
   - `PhoenixKit.Users.Auth` - User-based limits
   """
 
   alias PhoenixKit.Settings
-  alias PhoenixKit.EmailSystem.{EmailBlocklist, EmailLog}
+  alias PhoenixKit.Emails.{EmailBlocklist, Log}
   import Ecto.Query
 
   ## --- Rate Limit Checks ---
@@ -484,7 +484,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
       iex> RateLimiter.detect_spam_patterns(suspicious_email_log)
       ["high_frequency", "bulk_template"]
   """
-  def detect_spam_patterns(%EmailLog{} = email_log) do
+  def detect_spam_patterns(%Log{} = email_log) do
     patterns = []
 
     patterns =
@@ -605,7 +605,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
     {start_time, _end_time} = get_time_window(period)
 
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.to == ^email and l.sent_at >= ^start_time,
         select: count(l.id)
 
@@ -616,7 +616,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
     {start_time, _end_time} = get_time_window(period)
 
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.from == ^email and l.sent_at >= ^start_time,
         select: count(l.id)
 
@@ -627,7 +627,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
     {start_time, _end_time} = get_time_window(period)
 
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.sent_at >= ^start_time,
         select: count(l.id)
 
@@ -653,7 +653,7 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
     ten_minutes_ago = DateTime.add(DateTime.utc_now(), -600)
 
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.from == ^from_email and l.sent_at >= ^ten_minutes_ago,
         select: count(l.id)
 
@@ -663,12 +663,12 @@ defmodule PhoenixKit.EmailSystem.RateLimiter do
 
   defp high_frequency_sender?(_), do: false
 
-  defp bulk_template_detected?(%EmailLog{template_name: template}) when is_binary(template) do
+  defp bulk_template_detected?(%Log{template_name: template}) when is_binary(template) do
     # Check if this template has been used more than 100 times in last hour
     hour_ago = DateTime.add(DateTime.utc_now(), -3600)
 
     query =
-      from l in EmailLog,
+      from l in Log,
         where: l.template_name == ^template and l.sent_at >= ^hour_ago,
         select: count(l.id)
 
