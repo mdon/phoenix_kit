@@ -42,44 +42,28 @@
         >
           <%!-- Code Field with Generate Button --%>
           <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Referral Code</span>
-              <span class="label-text-alt text-error">*</span>
-            </label>
-            <div class="flex gap-2 items-stretch">
-              <.input
-                field={form[:code]}
-                type="text"
-                placeholder="Enter code or generate random"
-                class="flex-1"
-                required
-              />
-              <button
-                type="button"
-                class="btn btn-outline btn-secondary"
-                phx-click="generate_code"
-              >
-                <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-4 h-4 mr-1" /> Generate
-              </button>
-            </div>
-            <%= if form[:code].errors != [] do %>
-              <label class="label">
-                <span class="label-text-alt text-error">
-                  {Enum.map(form[:code].errors, fn {msg, _opts} -> msg end) |> Enum.join(", ")}
-                </span>
-              </label>
-            <% end %>
+            <.input
+              field={form[:code]}
+              type="text"
+              label="Referral Code *"
+              placeholder="Enter code or generate random"
+              required
+            />
+            <button
+              type="button"
+              class="mt-5 btn btn-outline btn-secondary"
+              phx-click="generate_code"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-4 h-4 mr-1" /> Generate
+            </button>
           </div>
 
           <%!-- Description Field --%>
           <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Description</span>
-              <span class="label-text-alt text-error">*</span>
-            </label>
             <.input
               field={form[:description]}
               type="text"
+              label="Description *"
               placeholder="Brief description of this referral code"
               required
             />
@@ -163,7 +147,7 @@
               </div>
             <% end %>
 
-            <label class="label">
+            <label class="mt-2 label">
               <span class="label-text-alt text-base-content/70">
                 Optional: Search and select a user who will benefit from this code
               </span>
@@ -172,18 +156,15 @@
 
           <%!-- Maximum Uses Field --%>
           <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Maximum Uses</span>
-              <span class="label-text-alt text-error">*</span>
-            </label>
             <.input
               field={form[:max_uses]}
               type="number"
               min="1"
+              label="Maximum Uses *"
               placeholder="How many times can this code be used?"
               required
             />
-            <label class="label">
+            <label class="mt-2 label">
               <span class="label-text-alt text-base-content/70">
                 Set how many users can register using this code
               </span>
@@ -192,14 +173,12 @@
 
           <%!-- Expiration Date Field --%>
           <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Expiration Date</span>
-            </label>
             <.input
               field={form[:expiration_date]}
               type="datetime-local"
+              label="Expiration Date"
             />
-            <label class="label">
+            <label class="mt-2 label">
               <span class="label-text-alt text-base-content/70">
                 Leave empty for no expiration
               </span>
@@ -208,19 +187,11 @@
 
           <%!-- Active Status Toggle --%>
           <div class="form-control">
-            <label class="label cursor-pointer">
-              <span class="label-text font-semibold">Active Status</span>
-              <.input
-                field={form[:status]}
-                type="checkbox"
-                class="toggle toggle-primary"
-              />
-            </label>
-            <label class="label">
-              <span class="label-text-alt text-base-content/70">
-                Inactive codes cannot be used for registration
-              </span>
-            </label>
+            <.checkbox field={form[:status]} label="Is active?" />
+
+            <span class="mt-2 label text-base-content/70">
+              Inactive codes cannot be used for registration
+            </span>
           </div>
 
           <%!-- Form Actions --%>

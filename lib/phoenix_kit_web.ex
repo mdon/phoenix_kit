@@ -94,6 +94,8 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.Flash
       import PhoenixKitWeb.Components.Core.Header
       import PhoenixKitWeb.Components.Core.Icon
+      import PhoenixKitWeb.Components.Core.FormFieldLabel
+      import PhoenixKitWeb.Components.Core.FormFieldError
       import PhoenixKitWeb.Components.Core.Input
       import PhoenixKitWeb.Components.Core.Textarea
       import PhoenixKitWeb.Components.Core.Select
