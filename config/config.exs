@@ -7,6 +7,10 @@ config :phoenix_kit,
 # Configure test mailer
 config :phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Local
 
+# Configure Ueberauth (minimal configuration for compilation)
+# Applications using PhoenixKit should configure their own providers
+config :ueberauth, Ueberauth, providers: []
+
 # For development/testing with real SMTP (when available)
 # config :phoenix_kit, PhoenixKit.Mailer,
 #   adapter: Swoosh.Adapters.SMTP,

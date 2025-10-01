@@ -41,7 +41,10 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
         </:icon>
       </.stat_card>
   """
-  attr :gradient_from, :string, required: true, doc: "Starting gradient color (e.g., 'purple-500')"
+  attr :gradient_from, :string,
+    required: true,
+    doc: "Starting gradient color (e.g., 'purple-500')"
+
   attr :gradient_via, :string, required: true, doc: "Middle gradient color (e.g., 'purple-600')"
   attr :gradient_to, :string, required: true, doc: "Ending gradient color (e.g., 'indigo-600')"
   attr :rounded, :string, default: "xl", doc: "Border radius size (xl, 2xl, etc.)"
@@ -61,7 +64,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
       </div>
       <div class="text-3xl font-bold mb-2">{@value}</div>
       <div class={"text-#{String.split(@gradient_from, "-") |> hd()}-100 font-medium"}>{@title}</div>
-      <div class={"text-#{String.split(@gradient_from, "-") |> hd()}-200 text-xs mt-1"}>{@subtitle}</div>
+      <div class={"text-#{String.split(@gradient_from, "-") |> hd()}-200 text-xs mt-1"}>
+        {@subtitle}
+      </div>
     </div>
     """
   end

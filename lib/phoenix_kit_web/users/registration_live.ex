@@ -333,6 +333,22 @@ defmodule PhoenixKitWeb.Users.RegistrationLive do
               </fieldset>
             </.form>
 
+            <%!-- Alternative registration methods --%>
+            <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons class="mt-6" />
+
+            <%!-- Magic Link Registration option --%>
+            <div class="text-center mt-4">
+              <p class="text-sm text-base-content/60">
+                Prefer passwordless?
+                <.link
+                  navigate={Routes.path("/users/register/magic-link")}
+                  class="text-primary hover:underline font-semibold"
+                >
+                  Register via Magic Link
+                </.link>
+              </p>
+            </div>
+
             <%!-- Login link --%>
             <div class="text-center mt-4 text-sm">
               <span>Already have an account? </span>

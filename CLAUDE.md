@@ -475,7 +475,8 @@ config :phoenix_kit,
 ### Setup Steps
 
 1. **Install PhoenixKit**: Run `mix phoenix_kit.install --repo YourApp.Repo`
-2. **Configure Layout**: Optionally set custom layouts in `config/config.exs`
+2. **Run Migrations**: Database tables created automatically (V16 includes OAuth providers)
+3. **Configure Layout**: Optionally set custom layouts in `config/config.exs`
 3. **Add Routes**: Use `phoenix_kit_routes()` macro in your router
 4. **Configure Mailer**: PhoenixKit auto-detects and uses your app's mailer, or set up email delivery in `config/config.exs`
 5. **Run Migrations**: Database tables created automatically
@@ -563,6 +564,74 @@ config :phoenix_kit,
 # - Anti-spam and rate limiting features
 # - Admin interfaces at {prefix}/admin/emails/*
 # - Automatic integration with PhoenixKit.Mailer
+
+# OAuth Authentication Configuration (Optional, V16+)
+#
+# OAuth is an OPTIONAL feature. To enable it, follow these steps:
+#
+# Step 1: Add OAuth dependencies to your app's mix.exs
+# PhoenixKit marks these as optional, so you must explicitly add them:
+#
+# defp deps do
+#   [
+#     {:phoenix_kit, "~> 1.2.15"},
+#     # OAuth dependencies (only if using OAuth)
+#     {:ueberauth, "~> 0.10"},
+#     {:ueberauth_google, "~> 0.12"},  # For Google Sign-In
+#     {:ueberauth_apple, "~> 0.1"}      # For Apple Sign-In
+#   ]
+# end
+#
+# Then run: mix deps.get
+#
+# Step 2: Configure providers in your app's config/config.exs
+config :ueberauth, Ueberauth,
+  providers: [
+    google: {Ueberauth.Strategy.Google, []},
+    apple: {Ueberauth.Strategy.Apple, []}
+  ]
+
+config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+  client_id: System.get_env("GOOGLE_CLIENT_ID"),
+  client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+
+config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
+  client_id: System.get_env("APPLE_CLIENT_ID"),
+  team_id: System.get_env("APPLE_TEAM_ID"),
+  key_id: System.get_env("APPLE_KEY_ID"),
+  private_key: System.get_env("APPLE_PRIVATE_KEY")
+
+# Step 3: Set environment variables
+# Make sure to set the required environment variables for your chosen providers.
+# For development, you can use .env file or export them:
+#
+# export GOOGLE_CLIENT_ID="your-google-client-id"
+# export GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# export APPLE_CLIENT_ID="com.yourapp.service"
+# export APPLE_TEAM_ID="your-apple-team-id"
+# export APPLE_KEY_ID="your-apple-key-id"
+# export APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+#
+# Step 4: Run migrations (if not already done)
+# mix ecto.migrate  # V16 migration includes oauth_providers table
+#
+# OAuth features:
+# - Google and Apple Sign-In support
+# - Automatic account linking by email
+# - OAuth provider management per user
+# - Access at {prefix}/users/auth/:provider
+# - Token storage for future API calls
+# - Referral code support via query params: {prefix}/users/auth/google?referral_code=ABC123
+
+# Magic Link Registration Configuration (V16+)
+config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
+  expiry_minutes: 30  # Default: 30 minutes
+
+# Magic Link Registration features:
+# - Two-step passwordless registration
+# - Email verification built-in
+# - Referral code support
+# - Registration completion at {prefix}/users/register/complete/:token
 ```
 
 ## Key File Structure
@@ -574,6 +643,9 @@ config :phoenix_kit,
 - `lib/phoenix_kit/users/auth/user.ex` - User schema
 - `lib/phoenix_kit/users/auth/user_token.ex` - Token management
 - `lib/phoenix_kit/users/magic_link.ex` - Magic link authentication
+- `lib/phoenix_kit/users/magic_link_registration.ex` - Magic link registration (V16+)
+- `lib/phoenix_kit/users/oauth.ex` - OAuth authentication context (V16+)
+- `lib/phoenix_kit/users/oauth_provider.ex` - OAuth provider schema (V16+)
 - `lib/phoenix_kit/users/role*.ex` - Role system (Role, RoleAssignment, Roles)
 - `lib/phoenix_kit/settings.ex` - Settings context and management
 - `lib/phoenix_kit/utils/date.ex` - Date formatting utilities with Settings integration
@@ -583,6 +655,9 @@ config :phoenix_kit,
 ### Web Integration
 
 - `lib/phoenix_kit_web/integration.ex` - Router integration macro
+- `lib/phoenix_kit_web/users/oauth_controller.ex` - OAuth authentication controller (V16+)
+- `lib/phoenix_kit_web/users/magic_link_registration_controller.ex` - Magic link registration controller (V16+)
+- `lib/phoenix_kit_web/users/magic_link_registration_live.ex` - Registration completion LiveView (V16+)
 - `lib/phoenix_kit_web/users/auth.ex` - Web authentication plugs
 - `lib/phoenix_kit_web/users/*_live.ex` - LiveView components
 - `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces (Dashboard, Users, Sessions, Settings)
@@ -595,6 +670,7 @@ config :phoenix_kit,
 - `lib/phoenix_kit/migrations/postgres/v01.ex` - V01 migration (basic auth)
 - `lib/phoenix_kit/migrations/postgres/v07.ex` - V07 migration (email system tables)
 - `lib/phoenix_kit/migrations/postgres/v09.ex` - V09 migration (email blocklist)
+- `lib/phoenix_kit/migrations/postgres/v16.ex` - V16 migration (OAuth providers table)
 - `lib/mix/tasks/phoenix_kit.migrate_to_daisyui5.ex` - DaisyUI 5 migration tool
 - `config/config.exs` - Library configuration
 - `mix.exs` - Project and package configuration

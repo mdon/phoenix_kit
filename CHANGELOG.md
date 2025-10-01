@@ -1,3 +1,38 @@
+## 1.2.15 - 2025-10-01
+
+### Added
+- **Magic Link Registration System** - Passwordless two-step registration via email
+  - New `PhoenixKit.Users.MagicLinkRegistration` context for registration link management
+  - Magic link request LiveView at `{prefix}/users/register/magic-link`
+  - Registration completion LiveView at `{prefix}/users/register/complete/:token`
+  - Configurable expiry time (default: 30 minutes)
+  - Automatic email verification on completion
+  - Referral code support in registration flow
+  - V16 migration: Modified tokens table to allow null user_id for magic_link_registration context
+  - Check constraint ensuring user_id required for all non-registration token contexts
+- **OAuth Provider Validation** - Enhanced OAuth request handling with configuration checks
+  - Provider existence validation before authentication flow
+  - Helpful error messages when OAuth not configured or provider not found
+  - Debug logging for OAuth authentication flow
+  - Graceful fallback to login page with user-friendly error messages
+
+### Changed
+- **OAuth Dependencies Made Optional** - OAuth authentication dependencies (`ueberauth`, `ueberauth_google`, `ueberauth_apple`) are now marked as optional
+  - Reduces dependency bloat for applications not using OAuth
+  - Applications wanting OAuth must explicitly add dependencies to their `mix.exs`
+  - Detailed setup instructions added to CLAUDE.md with step-by-step configuration guide
+  - Improved referral code handling in OAuth flow with safe fallback when ReferralCodes module not loaded
+
+### Improved
+- **OAuth Documentation** - Comprehensive setup guide with environment variable configuration
+  - Clear dependency installation instructions
+  - Provider configuration examples for Google and Apple Sign-In
+  - Environment variable setup guide for development and production
+  - Migration notes for V16 oauth_providers table and magic link registration
+
+### Fixed
+- **Dialyzer Warnings** - Updated line number references for OAuth controller pattern matching
+
 ## 1.2.14 - 2025-09-30
 
 ### Added

@@ -76,7 +76,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Dual storage model: string OR JSON values
   - Enhanced cache system for JSON data
 
-  ### V13 - Enhanced Email Tracking with AWS SES Integration ⚡ LATEST
+  ### V13 - Enhanced Email Tracking with AWS SES Integration
   - AWS message ID correlation (aws_message_id column)
   - Specific timestamp tracking (bounced_at, complained_at, opened_at, clicked_at)
   - Extended event types (reject, delivery_delay, subscription, rendering_failure)
@@ -84,20 +84,42 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Unique constraint on aws_message_id for duplicate prevention
   - Additional event fields (reject_reason, delay_type, subscription_type, failure_reason)
 
+  ### V14 - Modules and Referral Codes System
+  - Phoenix_kit_modules for feature management
+  - Phoenix_kit_referral_codes for user referrals
+  - Module-based feature toggles
+  - Referral tracking and analytics
+
+  ### V15 - Email Templates System
+  - Phoenix_kit_email_templates for template storage and management
+  - Template variables with {{variable}} syntax
+  - Template categories (system, marketing, transactional)
+  - Template versioning and usage tracking
+  - Integration with email logging system
+
+  ### V16 - OAuth Providers System ⚡ LATEST
+  - Phoenix_kit_user_oauth_providers for OAuth integration
+  - Support for Google, Apple, GitHub authentication
+  - Account linking by email address
+  - OAuth token storage with encryption support
+  - Multiple providers per user support
+
   ## Migration Paths
 
   ### Fresh Installation (0 → Current)
-  Runs all migrations V01 through V13 in sequence.
+  Runs all migrations V01 through V16 in sequence.
 
   ### Incremental Updates
-  - V01 → V13: Runs V02, V03, V04, V05, V06, V07, V08, V09, V10, V11, V12, V13
-  - V12 → V13: Runs V13 only (adds enhanced email tracking with AWS SES)
-  - V11 → V13: Runs V12, V13 (adds JSON settings and enhanced email tracking)
-  - V10 → V13: Runs V11, V12, V13 (adds timezones, JSON settings, and email tracking)
-  - V09 → V13: Runs V10, V11, V12, V13 (adds analytics, timezones, JSON, and email tracking)
-  - V08 → V13: Runs V09, V10, V11, V12, V13 (adds blocklist, analytics, timezones, JSON, and email tracking)
+  - V01 → V16: Runs V02 through V16 in sequence
+  - V15 → V16: Runs V16 only (adds OAuth providers system)
+  - V14 → V16: Runs V15, V16 (adds email templates and OAuth)
+  - V13 → V16: Runs V14, V15, V16 (adds modules, templates, and OAuth)
+  - V12 → V16: Runs V13 through V16 (adds SES tracking, modules, templates, OAuth)
 
   ### Rollback Support
+  - V16 → V15: Removes OAuth providers system
+  - V15 → V14: Removes email templates system
+  - V14 → V13: Removes modules and referral codes
   - V13 → V12: Removes enhanced email tracking and AWS SES integration
   - V12 → V11: Removes JSON settings support and restores NOT NULL constraint
   - V11 → V10: Removes per-user timezone settings
@@ -134,7 +156,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 15
+  @current_version 16
   @default_prefix "public"
 
   @doc false

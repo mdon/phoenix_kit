@@ -1,0 +1,203 @@
+defmodule PhoenixKitWeb.Users.OAuthController do
+  @moduledoc """
+  OAuth authentication controller using Ueberauth.
+  """
+
+  use PhoenixKitWeb, :controller
+
+  plug Ueberauth
+
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.OAuth
+  alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Users.Auth, as: UserAuth
+
+  require Logger
+
+  @doc """
+  Initiates OAuth authentication flow.
+  """
+  def request(conn, %{"provider" => provider} = params) do
+    Logger.debug("PhoenixKit OAuth request for provider: #{provider}")
+
+    # Check if OAuth is properly configured
+    case get_ueberauth_providers() do
+      [] ->
+        Logger.warning("PhoenixKit OAuth: No providers configured")
+
+        conn
+        |> put_flash(
+          :error,
+          "OAuth authentication is not configured. To enable OAuth, please add provider configuration to your config.exs file. See PhoenixKit documentation for details."
+        )
+        |> redirect(to: Routes.path("/users/log-in"))
+
+      providers when is_list(providers) ->
+        provider_names = Enum.map(providers, &to_string(elem(&1, 0)))
+        Logger.debug("PhoenixKit OAuth: Available providers: #{inspect(provider_names)}")
+
+        if provider in provider_names do
+          handle_oauth_request(conn, params)
+        else
+          Logger.warning(
+            "PhoenixKit OAuth: Provider '#{provider}' not in configured providers: #{inspect(provider_names)}"
+          )
+
+          conn
+          |> put_flash(
+            :error,
+            "Provider '#{provider}' is not configured. Available providers: #{Enum.join(provider_names, ", ")}"
+          )
+          |> redirect(to: Routes.path("/users/log-in"))
+        end
+
+      error ->
+        Logger.error("PhoenixKit OAuth: Configuration error: #{inspect(error)}")
+
+        conn
+        |> put_flash(:error, "OAuth configuration error. Please contact your administrator.")
+        |> redirect(to: Routes.path("/users/log-in"))
+    end
+  end
+
+  defp handle_oauth_request(conn, params) do
+    conn =
+      if referral_code = params["referral_code"] do
+        put_session(conn, :oauth_referral_code, referral_code)
+      else
+        conn
+      end
+
+    conn =
+      if return_to = params["return_to"] do
+        put_session(conn, :oauth_return_to, return_to)
+      else
+        conn
+      end
+
+    # Ueberauth will handle the request and redirect to provider
+    conn
+  end
+
+  defp get_ueberauth_providers do
+    Application.get_env(:ueberauth, Ueberauth, [])[:providers] || []
+  end
+
+  @doc """
+  Handles OAuth callback from provider.
+  """
+  def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    track_geolocation = Settings.get_boolean_setting("track_registration_geolocation", false)
+    ip_address = extract_ip_address(conn)
+    referral_code = get_session(conn, :oauth_referral_code)
+    return_to = get_session(conn, :oauth_return_to)
+
+    opts = [
+      track_geolocation: track_geolocation,
+      ip_address: ip_address,
+      referral_code: referral_code
+    ]
+
+    case OAuth.handle_oauth_callback(auth, opts) do
+      {:ok, user} ->
+        Logger.info(
+          "PhoenixKit: User #{user.id} (#{user.email}) authenticated via OAuth (#{auth.provider})"
+        )
+
+        conn =
+          conn
+          |> delete_session(:oauth_referral_code)
+          |> delete_session(:oauth_return_to)
+
+        flash_message = "Successfully signed in with #{format_provider_name(auth.provider)}!"
+
+        conn
+        |> put_flash(:info, flash_message)
+        |> UserAuth.log_in_user(user, return_to: return_to)
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        errors = format_changeset_errors(changeset)
+
+        Logger.warning(
+          "PhoenixKit: OAuth authentication failed for #{auth.info.email}: #{inspect(errors)}"
+        )
+
+        conn
+        |> put_flash(:error, "Authentication failed: #{errors}")
+        |> redirect(to: Routes.path("/users/log-in"))
+
+      {:error, reason} ->
+        Logger.error("PhoenixKit: OAuth authentication error: #{inspect(reason)}")
+
+        conn
+        |> put_flash(
+          :error,
+          "Authentication failed. Please try again or use a different sign-in method."
+        )
+        |> redirect(to: Routes.path("/users/log-in"))
+    end
+  end
+
+  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
+    error_message = format_ueberauth_failure(failure)
+    Logger.warning("PhoenixKit: OAuth authentication failure: #{inspect(failure)}")
+
+    conn
+    |> put_flash(:error, error_message)
+    |> redirect(to: Routes.path("/users/log-in"))
+  end
+
+  def callback(conn, _params) do
+    Logger.error("PhoenixKit: Unexpected OAuth callback without auth or failure")
+
+    conn
+    |> put_flash(:error, "Authentication failed. Please try again.")
+    |> redirect(to: Routes.path("/users/log-in"))
+  end
+
+  # Private helper functions
+
+  defp extract_ip_address(conn) do
+    case Plug.Conn.get_peer_data(conn) do
+      %{address: {a, b, c, d}} -> "#{a}.#{b}.#{c}.#{d}"
+      %{address: address} -> to_string(address)
+      _ -> "unknown"
+    end
+  end
+
+  defp format_provider_name(provider) when is_atom(provider) do
+    provider |> to_string() |> format_provider_name()
+  end
+
+  defp format_provider_name("google"), do: "Google"
+  defp format_provider_name("apple"), do: "Apple"
+  defp format_provider_name("github"), do: "GitHub"
+  defp format_provider_name("facebook"), do: "Facebook"
+  defp format_provider_name("twitter"), do: "Twitter"
+  defp format_provider_name("microsoft"), do: "Microsoft"
+  defp format_provider_name(provider), do: String.capitalize(provider)
+
+  defp format_changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.map_join("; ", fn {field, errors} ->
+      "#{field}: #{Enum.join(errors, ", ")}"
+    end)
+  end
+
+  defp format_ueberauth_failure(%Ueberauth.Failure{errors: errors}) do
+    case errors do
+      [] ->
+        "Authentication failed. Please try again."
+
+      [%{message: message} | _] when is_binary(message) ->
+        "Authentication failed: #{message}"
+
+      _ ->
+        "Authentication failed. Please try again."
+    end
+  end
+end

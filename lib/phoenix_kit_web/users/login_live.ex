@@ -132,7 +132,7 @@ defmodule PhoenixKitWeb.Users.LoginLive do
               </fieldset>
             </.form>
 
-            <%!-- Magic Link section --%>
+            <%!-- Alternative authentication methods --%>
             <div class="mt-6">
               <div class="relative">
                 <div class="absolute inset-0 flex items-center">
@@ -143,7 +143,8 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                 </div>
               </div>
 
-              <div class="mt-4 text-center">
+              <div class="mt-4 space-y-2">
+                <%!-- Magic Link authentication --%>
                 <.link
                   navigate={Routes.path("/users/magic-link")}
                   class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
@@ -151,6 +152,9 @@ defmodule PhoenixKitWeb.Users.LoginLive do
                   <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
                   Sign in with Magic Link
                 </.link>
+
+                <%!-- OAuth authentication --%>
+                <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons show_divider={false} />
               </div>
             </div>
 

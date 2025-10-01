@@ -174,6 +174,13 @@ defmodule PhoenixKitWeb.Integration do
         get "/users/log-out", Users.SessionController, :get_logout
         get "/users/magic-link/:token", Users.MagicLinkController, :verify
 
+        # OAuth routes for external provider authentication
+        get "/users/auth/:provider", Users.OAuthController, :request
+        get "/users/auth/:provider/callback", Users.OAuthController, :callback
+
+        # Magic Link Registration routes
+        get "/users/register/verify/:token", Users.MagicLinkRegistrationController, :verify
+
         # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
@@ -186,11 +193,6 @@ defmodule PhoenixKitWeb.Integration do
         get "/admin/emails/metrics/export", Controllers.EmailExportController, :export_metrics
         get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
         get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
-      end
-
-      # Define locale validation pipeline
-      pipeline :phoenix_kit_locale_validation do
-        plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
       end
     end
   end
@@ -206,6 +208,8 @@ defmodule PhoenixKitWeb.Integration do
         live_session :phoenix_kit_redirect_if_user_is_authenticated_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
           live "/users/register", Users.RegistrationLive, :new
+          live "/users/register/magic-link", Users.MagicLinkRegistrationRequestLive, :new
+          live "/users/register/complete/:token", Users.MagicLinkRegistrationLive, :complete
           live "/users/log-in", Users.LoginLive, :new
           live "/users/magic-link", Users.MagicLinkLive, :new
           live "/users/reset-password", Users.ForgotPasswordLive, :new
@@ -262,6 +266,8 @@ defmodule PhoenixKitWeb.Integration do
         live_session :phoenix_kit_redirect_if_user_is_authenticated,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
           live "/users/register", Users.RegistrationLive, :new
+          live "/users/register/magic-link", Users.MagicLinkRegistrationRequestLive, :new
+          live "/users/register/complete/:token", Users.MagicLinkRegistrationLive, :complete
           live "/users/log-in", Users.LoginLive, :new
           live "/users/magic-link", Users.MagicLinkLive, :new
           live "/users/reset-password", Users.ForgotPasswordLive, :new
