@@ -154,6 +154,102 @@ PhoenixKit provides three authentication levels via `on_mount` hooks:
 - Assign roles with `PhoenixKit.Users.Roles.promote_to_admin/1` and similar functions
 - First registered user automatically becomes Owner
 
+## Component-Based Helpers (CRITICAL RULE)
+
+### ❌ NEVER Use Private Helper Functions in Templates
+
+**Problem**: Elixir compiler cannot see function calls made from HEEX templates, resulting in false "unused function" warnings.
+
+```elixir
+# ❌ WRONG - Creates compiler warnings
+defmodule MyLive do
+  defp format_date(date), do: Calendar.strftime(date, "%Y-%m-%d")
+end
+
+# Template: {format_date(user.created_at)}  ← Compiler doesn't see this
+```
+
+### ✅ ALWAYS Use Phoenix Components
+
+**Solution**: Create reusable Phoenix Components that compiler can track.
+
+```elixir
+# ✅ CORRECT - Compiler sees component usage
+defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
+  use Phoenix.Component
+
+  attr :date, :any, required: true
+  def formatted_date(assigns) do
+    ~H"""<span>{Calendar.strftime(@date, "%Y-%m-%d")}</span>"""
+  end
+end
+
+# Template: <.formatted_date date={user.created_at} />  ← Compiler tracks this
+```
+
+### How to Add New Helper Components
+
+1. **Create component file**: `lib/phoenix_kit_web/components/core/[category].ex`
+2. **Add import**: Edit `lib/phoenix_kit_web.ex` → `core_components()` function
+3. **Use in templates**: `<.component_name attr={value} />`
+
+**Existing component categories:**
+- `badge.ex` - Role/status badges (`<.role_badge />`, `<.user_status_badge />`)
+- `time_display.ex` - Time formatting (`<.time_ago />`, `<.expiration_date />`)
+- `user_info.ex` - User data (`<.primary_role />`, `<.users_count />`)
+- Form components: `button.ex`, `input.ex`, `select.ex`, `checkbox.ex`
+
+### Component Best Practices
+
+1. ✅ **Group related helpers** - One category per file (time, currency, badges)
+2. ✅ **Document with `@doc`** - Include examples and attribute descriptions
+3. ✅ **Use `attr` validation** - Specify `:required`, `:default`, `:values`
+4. ✅ **Private helpers OK** - Use `defp` INSIDE components for internal logic
+5. ✅ **Semantic naming** - `<.time_ago />` not `<.fmt_t />`
+
+### Migration Pattern
+
+```elixir
+# STEP 1: Move helper to component
+# From: lib/my_live.ex
+defp user_status_text(active, confirmed) do
+  case {active, confirmed} do
+    {false, _} -> "Inactive"
+    {true, nil} -> "Unconfirmed"
+    {true, _} -> "Active"
+  end
+end
+
+# To: lib/phoenix_kit_web/components/core/badge.ex
+attr :is_active, :boolean, required: true
+attr :confirmed_at, :any, default: nil
+
+def user_status_badge(assigns) do
+  ~H"""
+  <span class="badge">{status_text(@is_active, @confirmed_at)}</span>
+  """
+end
+
+defp status_text(false, _), do: "Inactive"
+defp status_text(true, nil), do: "Unconfirmed"
+defp status_text(true, _), do: "Active"
+
+# STEP 2: Update template
+# From: {user_status_text(user.is_active, user.confirmed_at)}
+# To: <.user_status_badge is_active={user.is_active} confirmed_at={user.confirmed_at} />
+
+# STEP 3: Add import to lib/phoenix_kit_web.ex
+import PhoenixKitWeb.Components.Core.Badge
+```
+
+### Why This Matters
+
+- ✅ **Zero compiler warnings** - All component usage is tracked
+- ✅ **Type safety** - Attributes validated at compile time
+- ✅ **Reusability** - Use same component across all LiveViews
+- ✅ **Documentation** - Self-documenting with `@doc` and examples
+- ✅ **Maintainability** - Single source of truth for formatting logic
+
 ### Protected Routes
 - Wrap protected LiveView routes in `live_session` with appropriate `on_mount` hooks
 - Use scope-based authentication for fine-grained access control

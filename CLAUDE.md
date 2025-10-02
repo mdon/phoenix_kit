@@ -257,6 +257,152 @@ def my_function do
 end
 ```
 
+### Helper Functions: Use Components, Not Private Functions
+
+**CRITICAL RULE**: Never create private helper functions (`defp`) that are called directly from HEEX templates.
+
+**❌ WRONG - Compiler Cannot See Usage:**
+
+```elixir
+# lib/my_app_web/live/users_live.ex
+defmodule MyAppWeb.UsersLive do
+  use MyAppWeb, :live_view
+
+  # ❌ BAD: Compiler shows "function format_date/1 is unused"
+  defp format_date(date) do
+    Calendar.strftime(date, "%B %d, %Y")
+  end
+end
+```
+
+```heex
+<!-- lib/my_app_web/live/users_live.html.heex -->
+{format_date(user.created_at)}  <%!-- ❌ Compiler doesn't see this call --%>
+```
+
+**✅ CORRECT - Use Phoenix Components:**
+
+```elixir
+# lib/phoenix_kit_web/components/core/time_display.ex
+defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
+  use Phoenix.Component
+
+  @doc """
+  Displays formatted date.
+
+  ## Examples
+      <.formatted_date date={user.created_at} />
+  """
+  attr :date, :any, required: true
+  attr :format, :string, default: "%B %d, %Y"
+
+  def formatted_date(assigns) do
+    ~H"""
+    <span>{Calendar.strftime(@date, @format)}</span>
+    """
+  end
+
+  # ✅ GOOD: Private helper INSIDE component
+  defp format_time(time), do: ...
+end
+```
+
+```heex
+<!-- lib/my_app_web/live/users_live.html.heex -->
+<.formatted_date date={user.created_at} />  <%!-- ✅ Compiler sees component usage --%>
+```
+
+**Why This Matters:**
+
+1. **Compiler Visibility**: Component calls (`<.component />`) are visible to Elixir compiler, function calls in templates are not
+2. **Type Safety**: Components use `attr` macros for compile-time validation
+3. **Reusability**: Components work across all LiveView modules without duplication
+4. **Documentation**: Components have structured `@doc` with examples
+5. **No Warnings**: Prevents false-positive "unused function" warnings
+
+**Where to Put Components:**
+
+- **New helper component**: `lib/phoenix_kit_web/components/core/[category].ex`
+- **Import in**: `lib/phoenix_kit_web.ex` → `core_components()` function
+- **Available everywhere**: Automatically imported in all LiveViews
+
+**Existing Core Component Categories:**
+
+- `badge.ex` - Role badges, status badges, code status badges
+- `time_display.ex` - Relative time, expiration dates, age badges
+- `user_info.ex` - User roles, user counts, user statistics
+- `button.ex`, `input.ex`, `select.ex`, etc. - Form components
+
+**Adding New Component Category:**
+
+1. Create file: `lib/phoenix_kit_web/components/core/my_category.ex`
+2. Add import: `lib/phoenix_kit_web.ex` → `import PhoenixKitWeb.Components.Core.MyCategory`
+3. Use in templates: `<.my_component attr={value} />`
+
+**Example: Adding New Helper Component:**
+
+```elixir
+# 1. Create component file
+# lib/phoenix_kit_web/components/core/currency.ex
+defmodule PhoenixKitWeb.Components.Core.Currency do
+  use Phoenix.Component
+
+  attr :amount, :integer, required: true
+  attr :currency, :string, default: "USD"
+
+  def price(assigns) do
+    ~H"""
+    <span class="font-semibold">{format_price(@amount, @currency)}</span>
+    """
+  end
+
+  defp format_price(amount, "USD"), do: "$#{amount / 100}"
+  defp format_price(amount, "EUR"), do: "€#{amount / 100}"
+end
+
+# 2. Add import to lib/phoenix_kit_web.ex
+def core_components do
+  quote do
+    # ... existing imports ...
+    import PhoenixKitWeb.Components.Core.Currency  # ← Add this
+  end
+end
+
+# 3. Use in any LiveView template
+# <.price amount={product.price_cents} currency="USD" />
+```
+
+**Component Best Practices:**
+
+1. **One category per file**: Group related helpers (time, currency, badges, etc.)
+2. **Document everything**: Use `@doc`, `attr`, examples
+3. **Private helpers OK**: Use `defp` INSIDE components for internal logic
+4. **Validation**: Use `attr` with `:required`, `:default`, `:values`
+5. **Naming**: Use clear, semantic names (`<.time_ago />` not `<.format_t />`)
+
+**Migration Pattern:**
+
+```elixir
+# BEFORE (helper function)
+defp format_time_ago(datetime) do
+  # logic...
+end
+
+# Template: {format_time_ago(session.connected_at)}
+
+# AFTER (component)
+# Move to lib/phoenix_kit_web/components/core/time_display.ex
+attr :datetime, :any, required: true
+def time_ago(assigns) do
+  ~H"""
+  <span>{format_time_ago(@datetime)}</span>
+  """
+end
+defp format_time_ago(datetime), do: # logic...
+
+# Template: <.time_ago datetime={session.connected_at} />
+```
+
 ## Architecture
 
 ### Authentication Structure
