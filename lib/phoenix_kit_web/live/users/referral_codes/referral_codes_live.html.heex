@@ -171,12 +171,10 @@
                         </div>
                       </td>
                       <td>
-                        <div class="text-sm">{format_expiration_date(code.expiration_date)}</div>
+                        <.expiration_date date={code.expiration_date} />
                       </td>
                       <td>
-                        <span class={"badge #{code_status_class(code)}"}>
-                          {code_status_text(code)}
-                        </span>
+                        <.code_status_badge code={code} />
                       </td>
                       <td>
                         <div class="text-sm">

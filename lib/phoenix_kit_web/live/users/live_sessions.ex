@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
+defmodule PhoenixKitWeb.Live.Users.LiveSessions do
   @moduledoc """
   Real-time session monitoring dashboard for the PhoenixKit admin panel.
 
@@ -256,20 +256,6 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)
   end
-
-  defp format_time_ago(datetime) when is_struct(datetime, DateTime) do
-    now = DateTime.utc_now()
-    diff_seconds = DateTime.diff(now, datetime, :second)
-
-    cond do
-      diff_seconds < 60 -> "#{diff_seconds}s ago"
-      diff_seconds < 3_600 -> "#{div(diff_seconds, 60)}m ago"
-      diff_seconds < 86_400 -> "#{div(diff_seconds, 3_600)}h ago"
-      true -> "#{div(diff_seconds, 86_400)}d ago"
-    end
-  end
-
-  defp format_time_ago(_), do: "Unknown"
 
   defp track_authenticated_session(socket, session) do
     scope = socket.assigns[:phoenix_kit_current_scope]

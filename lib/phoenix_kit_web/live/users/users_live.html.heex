@@ -50,9 +50,7 @@
                       }
                     />
                     <div class="flex items-center gap-2">
-                      <span class={"badge #{role_badge_class_for_custom(role.name)} badge-sm"}>
-                        {role.name}
-                      </span>
+                      <.role_badge role={role} size={:sm} />
                       <%= if role.is_system_role do %>
                         <span class="badge badge-outline badge-xs">System</span>
                       <% end %>
@@ -176,9 +174,7 @@
                     <% user_roles = get_user_roles(user) %>
                     <div class="flex flex-wrap gap-1">
                       <%= for role_name <- user_roles do %>
-                        <span class={"badge #{role_badge_class_for_custom(role_name)} badge-sm"}>
-                          {role_name}
-                        </span>
+                        <.role_badge role={%{name: role_name, is_system_role: false}} size={:sm} />
                       <% end %>
                       <%= if Enum.empty?(user_roles) do %>
                         <span class="badge badge-ghost badge-sm">No roles</span>
@@ -293,7 +289,7 @@
                       <% end %>
 
                       <%!-- Status Toggle --%>
-                      <%= if user.id != @phoenix_kit_current_user.id && user_primary_role(user) != "Owner" do %>
+                      <%= if user.id != @phoenix_kit_current_user.id && get_primary_role_name_unsafe(user) != "Owner" do %>
                         <button
                           class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-warning", else: "btn-success"}"}
                           phx-click="toggle_user_status"

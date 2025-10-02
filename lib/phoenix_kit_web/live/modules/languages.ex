@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Modules.LanguagesLive do
+defmodule PhoenixKitWeb.Live.Modules.Languages do
+  @moduledoc """
+  Languages module settings LiveView for PhoenixKit admin panel.
+
+  Provides interface for managing available languages and localization settings.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Module.Languages

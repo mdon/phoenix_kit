@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Modules.ReferralCodesLive do
+defmodule PhoenixKitWeb.Live.Modules.ReferralCodes do
+  @moduledoc """
+  Referral codes module settings LiveView for PhoenixKit admin panel.
+
+  Provides module-level configuration and management for the referral codes system.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.ReferralCodes

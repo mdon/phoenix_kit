@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.SettingsLive do
+defmodule PhoenixKitWeb.Live.Settings do
+  @moduledoc """
+  Admin settings management LiveView for PhoenixKit.
+
+  Provides interface for managing system-wide settings including timezone, date/time formats.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 

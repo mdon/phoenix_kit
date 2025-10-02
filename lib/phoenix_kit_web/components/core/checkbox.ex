@@ -4,6 +4,7 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   """
   use Phoenix.Component
 
+  alias Phoenix.HTML.Form
   import PhoenixKitWeb.Components.Core.FormFieldError, only: [error: 1]
 
   @doc """
@@ -22,7 +23,7 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   slot :inner_block
 
   def checkbox(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
-    checked = Phoenix.HTML.Form.normalize_value("checkbox", field.value)
+    checked = Form.normalize_value("checkbox", field.value)
 
     assigns
     |> assign(field: nil, id: assigns.id || field.id)

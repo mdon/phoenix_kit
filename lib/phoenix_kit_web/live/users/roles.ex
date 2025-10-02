@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Users.RolesLive do
+defmodule PhoenixKitWeb.Live.Users.Roles do
+  @moduledoc """
+  Role management LiveView for PhoenixKit admin panel.
+
+  Provides interface for viewing and managing user roles and permissions.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
@@ -153,12 +158,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
     assign(socket, :roles, roles)
   end
 
-  defp role_badge_class(%Role{is_system_role: true, name: "Owner"}), do: "badge-error"
-  defp role_badge_class(%Role{is_system_role: true, name: "Admin"}), do: "badge-warning"
-  defp role_badge_class(%Role{is_system_role: true, name: "User"}), do: "badge-info"
-  defp role_badge_class(%Role{is_system_role: true}), do: "badge-accent"
-  defp role_badge_class(%Role{is_system_role: false}), do: "badge-primary"
-
   # Load role statistics using optimized extended stats
   defp load_role_statistics do
     stats = Roles.get_extended_stats()
@@ -172,19 +171,6 @@ defmodule PhoenixKitWeb.Live.Users.RolesLive do
   end
 
   # Optimized function using cached statistics
-  defp users_count_for_role(role, role_stats) do
-    # Use cached stats for system roles, fallback to DB query for custom roles
-    case role_stats[role.name] do
-      nil ->
-        # Custom role - query database (only for non-system roles)
-        Roles.count_users_with_role(role.name)
-
-      count ->
-        # System role - use cached count
-        count
-    end
-  end
-
   ## Live Event Handlers
 
   def handle_info({:role_created, _role}, socket) do

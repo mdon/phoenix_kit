@@ -261,7 +261,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         disable_active={true}
                       />
 
-                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/emails/templates", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
+                      <%= if submenu_open?(@current_path, ["/admin/emails", "/admin/emails/dashboard", "/admin/modules/emails/templates", "/admin/emails/queue", "/admin/emails/blocklist"]) do %>
                         <%!-- Email submenu items --%>
                         <div class="mt-1">
                           <.admin_nav_item
@@ -281,7 +281,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
 
                           <.admin_nav_item
-                            href={Routes.path("/admin/emails/templates")}
+                            href={Routes.path("/admin/modules/emails/templates")}
                             icon="email"
                             label="Templates"
                             current_path={@current_path || ""}
@@ -554,9 +554,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
 
     ~H"""
-    <PhoenixKitWeb.Layouts.app {prepare_phoenix_kit_assigns(assigns)}>
+    <PhoenixKitWeb.Layouts.root {prepare_phoenix_kit_assigns(assigns)}>
       {render_slot(@inner_block)}
-    </PhoenixKitWeb.Layouts.app>
+    </PhoenixKitWeb.Layouts.root>
     """
   end
 

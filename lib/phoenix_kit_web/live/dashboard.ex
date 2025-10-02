@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.DashboardLive do
+defmodule PhoenixKitWeb.Live.Dashboard do
+  @moduledoc """
+  Admin dashboard LiveView for PhoenixKit.
+
+  Provides real-time system statistics, user metrics, and session monitoring.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 

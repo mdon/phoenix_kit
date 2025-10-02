@@ -113,9 +113,9 @@ This ensures consistent code formatting across the project.
 
 ### 🏷️ Version Management Protocol
 
-**Current Version**: 1.2.3 (in mix.exs)
+**Current Version**: 1.2.15 (in mix.exs)
 **Version Strategy**: Semantic versioning (MAJOR.MINOR.PATCH)
-**Migration Version**: V07 (latest migration version with comprehensive features)
+**Migration Version**: V16 (latest migration version with OAuth providers and magic link registration)
 
 **MANDATORY steps for version updates:**
 
@@ -257,6 +257,152 @@ def my_function do
 end
 ```
 
+### Helper Functions: Use Components, Not Private Functions
+
+**CRITICAL RULE**: Never create private helper functions (`defp`) that are called directly from HEEX templates.
+
+**❌ WRONG - Compiler Cannot See Usage:**
+
+```elixir
+# lib/my_app_web/live/users_live.ex
+defmodule MyAppWeb.UsersLive do
+  use MyAppWeb, :live_view
+
+  # ❌ BAD: Compiler shows "function format_date/1 is unused"
+  defp format_date(date) do
+    Calendar.strftime(date, "%B %d, %Y")
+  end
+end
+```
+
+```heex
+<!-- lib/my_app_web/live/users_live.html.heex -->
+{format_date(user.created_at)}  <%!-- ❌ Compiler doesn't see this call --%>
+```
+
+**✅ CORRECT - Use Phoenix Components:**
+
+```elixir
+# lib/phoenix_kit_web/components/core/time_display.ex
+defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
+  use Phoenix.Component
+
+  @doc """
+  Displays formatted date.
+
+  ## Examples
+      <.formatted_date date={user.created_at} />
+  """
+  attr :date, :any, required: true
+  attr :format, :string, default: "%B %d, %Y"
+
+  def formatted_date(assigns) do
+    ~H"""
+    <span>{Calendar.strftime(@date, @format)}</span>
+    """
+  end
+
+  # ✅ GOOD: Private helper INSIDE component
+  defp format_time(time), do: ...
+end
+```
+
+```heex
+<!-- lib/my_app_web/live/users_live.html.heex -->
+<.formatted_date date={user.created_at} />  <%!-- ✅ Compiler sees component usage --%>
+```
+
+**Why This Matters:**
+
+1. **Compiler Visibility**: Component calls (`<.component />`) are visible to Elixir compiler, function calls in templates are not
+2. **Type Safety**: Components use `attr` macros for compile-time validation
+3. **Reusability**: Components work across all LiveView modules without duplication
+4. **Documentation**: Components have structured `@doc` with examples
+5. **No Warnings**: Prevents false-positive "unused function" warnings
+
+**Where to Put Components:**
+
+- **New helper component**: `lib/phoenix_kit_web/components/core/[category].ex`
+- **Import in**: `lib/phoenix_kit_web.ex` → `core_components()` function
+- **Available everywhere**: Automatically imported in all LiveViews
+
+**Existing Core Component Categories:**
+
+- `badge.ex` - Role badges, status badges, code status badges
+- `time_display.ex` - Relative time, expiration dates, age badges
+- `user_info.ex` - User roles, user counts, user statistics
+- `button.ex`, `input.ex`, `select.ex`, etc. - Form components
+
+**Adding New Component Category:**
+
+1. Create file: `lib/phoenix_kit_web/components/core/my_category.ex`
+2. Add import: `lib/phoenix_kit_web.ex` → `import PhoenixKitWeb.Components.Core.MyCategory`
+3. Use in templates: `<.my_component attr={value} />`
+
+**Example: Adding New Helper Component:**
+
+```elixir
+# 1. Create component file
+# lib/phoenix_kit_web/components/core/currency.ex
+defmodule PhoenixKitWeb.Components.Core.Currency do
+  use Phoenix.Component
+
+  attr :amount, :integer, required: true
+  attr :currency, :string, default: "USD"
+
+  def price(assigns) do
+    ~H"""
+    <span class="font-semibold">{format_price(@amount, @currency)}</span>
+    """
+  end
+
+  defp format_price(amount, "USD"), do: "$#{amount / 100}"
+  defp format_price(amount, "EUR"), do: "€#{amount / 100}"
+end
+
+# 2. Add import to lib/phoenix_kit_web.ex
+def core_components do
+  quote do
+    # ... existing imports ...
+    import PhoenixKitWeb.Components.Core.Currency  # ← Add this
+  end
+end
+
+# 3. Use in any LiveView template
+# <.price amount={product.price_cents} currency="USD" />
+```
+
+**Component Best Practices:**
+
+1. **One category per file**: Group related helpers (time, currency, badges, etc.)
+2. **Document everything**: Use `@doc`, `attr`, examples
+3. **Private helpers OK**: Use `defp` INSIDE components for internal logic
+4. **Validation**: Use `attr` with `:required`, `:default`, `:values`
+5. **Naming**: Use clear, semantic names (`<.time_ago />` not `<.format_t />`)
+
+**Migration Pattern:**
+
+```elixir
+# BEFORE (helper function)
+defp format_time_ago(datetime) do
+  # logic...
+end
+
+# Template: {format_time_ago(session.connected_at)}
+
+# AFTER (component)
+# Move to lib/phoenix_kit_web/components/core/time_display.ex
+attr :datetime, :any, required: true
+def time_ago(assigns) do
+  ~H"""
+  <span>{format_time_ago(@datetime)}</span>
+  """
+end
+defp format_time_ago(datetime), do: # logic...
+
+# Template: <.time_ago datetime={session.connected_at} />
+```
+
 ## Architecture
 
 ### Authentication Structure
@@ -272,8 +418,8 @@ end
 - **PhoenixKit.Users.Role** - Role schema with system role protection
 - **PhoenixKit.Users.RoleAssignment** - Many-to-many role assignments with audit trail
 - **PhoenixKit.Users.Roles** - Role management API and business logic
-- **PhoenixKitWeb.Live.DashboardLive** - Admin dashboard with system statistics
-- **PhoenixKitWeb.Live.UsersLive** - User management interface with role controls
+- **PhoenixKitWeb.Live.Dashboard** - Admin dashboard with system statistics
+- **PhoenixKitWeb.Live.Users** - User management interface with role controls
 - **PhoenixKit.Users.Auth.register_user/1** - User registration with integrated role assignment
 
 **Key Features:**
@@ -289,7 +435,7 @@ end
 
 - **PhoenixKit.Settings** - Settings context for system-wide configuration management
 - **PhoenixKit.Settings.Setting** - Settings schema with key/value storage and timestamps
-- **PhoenixKitWeb.Live.SettingsLive** - Settings management interface at `{prefix}/admin/settings`
+- **PhoenixKitWeb.Live.Settings** - Settings management interface at `{prefix}/admin/settings`
 
 **Core Settings:**
 - **time_zone** - System timezone offset (UTC-12 to UTC+12)
@@ -368,6 +514,7 @@ end
 - **phoenix_kit_email_logs** - Main email logging with extended metadata
 - **phoenix_kit_email_events** - Event management (delivery, engagement)
 - **phoenix_kit_email_blocklist** - Blocked addresses for rate limiting
+- **phoenix_kit_email_templates** - Email template storage and management
 
 **LiveView Interfaces:**
 - **Emails** - Email log browsing and management at `{prefix}/admin/emails`
@@ -375,6 +522,8 @@ end
 - **Metrics** - Analytics dashboard at `{prefix}/admin/emails/dashboard`
 - **Queue** - Queue management at `{prefix}/admin/emails/queue`
 - **Blocklist** - Blocklist management at `{prefix}/admin/emails/blocklist`
+- **Templates** - Email templates management at `{prefix}/admin/emails/templates`
+- **Template Editor** - Template creation/editing at `{prefix}/admin/emails/templates/new` and `{prefix}/admin/emails/templates/:id/edit`
 - **Settings** - Email system configuration at `{prefix}/admin/settings/emails`
 
 **Mailer Integration:**
@@ -447,9 +596,14 @@ config :phoenix_kit,
 ### Key Design Principles
 
 - **No Circular Dependencies** - Optional Phoenix deps prevent import cycles
-- **Library-First** - No OTP application, can be used as dependency
+- **Library-First Architecture** - No OTP application, no supervision tree, can be used as dependency
+  - No `Application.start/2` callback
+  - No Telemetry supervisor (uses `Plug.Telemetry` in endpoint)
+  - No dev-only routes (PageController removed)
+  - Parent apps provide their own home pages and layouts
 - **Professional Testing** - DataCase pattern with database sandbox
 - **Production Ready** - Complete authentication system with security best practices
+- **Clean Codebase** - Removed standard Phoenix template boilerplate (telemetry.ex, page controllers, API pipeline)
 
 ### Database Integration
 
@@ -473,14 +627,13 @@ config :phoenix_kit,
 ### Setup Steps
 
 1. **Install PhoenixKit**: Run `mix phoenix_kit.install --repo YourApp.Repo`
-2. **Run Migrations**: Database tables created automatically (V16 includes OAuth providers)
-3. **Configure Layout**: Optionally set custom layouts in `config/config.exs`
+2. **Run Migrations**: Database tables created automatically (V16 includes OAuth providers and magic link registration)
 3. **Add Routes**: Use `phoenix_kit_routes()` macro in your router
 4. **Configure Mailer**: PhoenixKit auto-detects and uses your app's mailer, or set up email delivery in `config/config.exs`
-5. **Run Migrations**: Database tables created automatically
-6. **Theme Support**: Optionally enable with `--theme-enabled` flag
+5. **Configure Layout** (Optional): Set custom layouts in `config/config.exs`
+6. **Theme Support** (Optional): Enable with `--theme-enabled` flag during installation
 7. **Settings Management**: Access admin settings at `{prefix}/admin/settings`
-8. **Email System**: Optionally enable email system and AWS SES integration
+8. **Email System** (Optional): Enable email system and AWS SES integration
 
 > **Note**: `{prefix}` represents your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 > This can be customized via `config :phoenix_kit, url_prefix: "/your_custom_prefix"`.
@@ -659,21 +812,26 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 - `lib/phoenix_kit/users/role*.ex` - Role system (Role, RoleAssignment, Roles)
 - `lib/phoenix_kit/settings.ex` - Settings context and management
 - `lib/phoenix_kit/utils/date.ex` - Date formatting utilities with Settings integration
-- `lib/phoenix_kit/email_system/*.ex` - Email system modules
+- `lib/phoenix_kit/emails/*.ex` - Email system modules
 - `lib/phoenix_kit/mailer.ex` - Mailer with automatic email system integration
 
 ### Web Integration
 
-- `lib/phoenix_kit_web/integration.ex` - Router integration macro
+- `lib/phoenix_kit_web/router.ex` - Library router (dev/test only, parent apps use `phoenix_kit_routes()`)
+- `lib/phoenix_kit_web/integration.ex` - Router integration macro for parent applications
+- `lib/phoenix_kit_web/endpoint.ex` - Phoenix endpoint (uses `Plug.Telemetry`, no custom supervisor)
 - `lib/phoenix_kit_web/users/oauth_controller.ex` - OAuth authentication controller (V16+)
 - `lib/phoenix_kit_web/users/magic_link_registration_controller.ex` - Magic link registration controller (V16+)
-- `lib/phoenix_kit_web/users/magic_link_registration_live.ex` - Registration completion LiveView (V16+)
+- `lib/phoenix_kit_web/users/magic_link_registration.ex` - Registration completion LiveView (V16+)
 - `lib/phoenix_kit_web/users/auth.ex` - Web authentication plugs
-- `lib/phoenix_kit_web/users/*_live.ex` - LiveView components
-- `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces (Dashboard, Users, Sessions, Settings)
-- `lib/phoenix_kit_web/live/settings_live.ex` - Settings management interface
-- `lib/phoenix_kit_web/live/email_system/*_live.ex` - Email system LiveView interfaces
+- `lib/phoenix_kit_web/users/*.ex` - LiveView components (login, registration, settings, etc.)
+- `lib/phoenix_kit_web/live/*.ex` - Admin interfaces (dashboard, users, sessions, settings, modules)
+- `lib/phoenix_kit_web/live/settings.ex` - Settings management interface
+- `lib/phoenix_kit_web/live/modules/emails/*.ex` - Email system LiveView interfaces
 - `lib/phoenix_kit_web/components/core_components.ex` - UI components
+- `lib/phoenix_kit_web/components/layouts.ex` - Layout module (fallback for parent apps)
+- `lib/phoenix_kit_web/controllers/error_html.ex` - HTML error rendering
+- `lib/phoenix_kit_web/controllers/error_json.ex` - JSON error rendering
 
 ### Migration & Config
 

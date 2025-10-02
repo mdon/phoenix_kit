@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.Users.SessionsLive do
+defmodule PhoenixKitWeb.Live.Users.Sessions do
   @moduledoc """
   Live component for managing active user sessions in the PhoenixKit admin panel.
 
@@ -16,9 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Users.{Auth, Sessions}
-  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 20
 
@@ -256,22 +254,6 @@ defmodule PhoenixKitWeb.Live.Users.SessionsLive do
 
   defp filter_by_user_status(sessions, "pending") do
     Enum.filter(sessions, &is_nil(&1.user_confirmed_at))
-  end
-
-  defp format_age_badge(age_in_days) when age_in_days < 1, do: {"badge-success", "Today"}
-  defp format_age_badge(age_in_days) when age_in_days < 7, do: {"badge-info", "#{age_in_days}d"}
-
-  defp format_age_badge(age_in_days) when age_in_days < 30,
-    do: {"badge-warning", "#{age_in_days}d"}
-
-  defp format_age_badge(age_in_days), do: {"badge-error", "#{age_in_days}d"}
-
-  defp user_status_badge(user_is_active, user_confirmed_at) do
-    cond do
-      !user_is_active -> {"badge-error", "Inactive"}
-      is_nil(user_confirmed_at) -> {"badge-warning", "Pending"}
-      true -> {"badge-success", "Active"}
-    end
   end
 
   ## Live Event Handlers for Sessions
