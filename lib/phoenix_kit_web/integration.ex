@@ -241,22 +241,22 @@ defmodule PhoenixKitWeb.Integration do
 
         live_session :phoenix_kit_admin_locale,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
-          live "/admin/dashboard", Live.DashboardLive, :index
-          live "/admin", Live.DashboardLive, :index
-          live "/admin/users", Live.Users.UsersLive, :index
+          live "/admin/dashboard", Live.Dashboard, :index
+          live "/admin", Live.Dashboard, :index
+          live "/admin/users", Live.Users.Users, :index
           live "/admin/users/new", Users.UserForm, :new, as: :user_form
           live "/admin/users/edit/:id", Users.UserForm, :edit, as: :user_form_edit
-          live "/admin/users/roles", Live.Users.RolesLive, :index
-          live "/admin/users/live_sessions", Live.Users.LiveSessionsLive, :index
-          live "/admin/users/sessions", Live.Users.SessionsLive, :index
-          live "/admin/settings", Live.SettingsLive, :index
-          live "/admin/modules", Live.ModulesLive, :index
-          live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
+          live "/admin/users/roles", Live.Users.Roles, :index
+          live "/admin/users/live_sessions", Live.Users.LiveSessions, :index
+          live "/admin/users/sessions", Live.Users.Sessions, :index
+          live "/admin/settings", Live.Settings, :index
+          live "/admin/modules", Live.Modules, :index
+          live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
-          live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
-          live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
-          live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
-          live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
+          live "/admin/settings/languages", Live.Modules.Languages, :index
+          live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index
+          live "/admin/users/referral-codes/new", Live.Users.ReferralCodeForm, :new
+          live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeForm, :edit
           live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
           live "/admin/emails", Live.Modules.Emails.Emails, :index
           live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
@@ -310,22 +310,22 @@ defmodule PhoenixKitWeb.Integration do
 
         live_session :phoenix_kit_admin,
           on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
-          live "/admin/dashboard", Live.DashboardLive, :index
-          live "/admin", Live.DashboardLive, :index
-          live "/admin/users", Live.Users.UsersLive, :index
+          live "/admin/dashboard", Live.Dashboard, :index
+          live "/admin", Live.Dashboard, :index
+          live "/admin/users", Live.Users.Users, :index
           live "/admin/users/new", Users.UserForm, :new, as: :user_form
           live "/admin/users/edit/:id", Users.UserForm, :edit, as: :user_form_edit
-          live "/admin/users/roles", Live.Users.RolesLive, :index
-          live "/admin/users/live_sessions", Live.Users.LiveSessionsLive, :index
-          live "/admin/users/sessions", Live.Users.SessionsLive, :index
-          live "/admin/settings", Live.SettingsLive, :index
-          live "/admin/modules", Live.ModulesLive, :index
-          live "/admin/settings/referral-codes", Live.Modules.ReferralCodesLive, :index
+          live "/admin/users/roles", Live.Users.Roles, :index
+          live "/admin/users/live_sessions", Live.Users.LiveSessions, :index
+          live "/admin/users/sessions", Live.Users.Sessions, :index
+          live "/admin/settings", Live.Settings, :index
+          live "/admin/modules", Live.Modules, :index
+          live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
-          live "/admin/settings/languages", Live.Modules.LanguagesLive, :index
-          live "/admin/users/referral-codes", Live.Users.ReferralCodesLive, :index
-          live "/admin/users/referral-codes/new", Live.Users.ReferralCodeFormLive, :new
-          live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeFormLive, :edit
+          live "/admin/settings/languages", Live.Modules.Languages, :index
+          live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index
+          live "/admin/users/referral-codes/new", Live.Users.ReferralCodeForm, :new
+          live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeForm, :edit
           live "/admin/emails/dashboard", Live.Modules.Emails.Metrics, :index
           live "/admin/emails", Live.Modules.Emails.Emails, :index
           live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show

@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.ModulesLive do
+defmodule PhoenixKitWeb.Live.Modules do
+  @moduledoc """
+  Admin modules management LiveView for PhoenixKit.
+
+  Displays available system modules and their configuration status.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 

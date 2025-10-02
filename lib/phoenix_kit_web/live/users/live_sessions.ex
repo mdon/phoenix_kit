@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.Users.LiveSessionsLive do
+defmodule PhoenixKitWeb.Live.Users.LiveSessions do
   @moduledoc """
   Real-time session monitoring dashboard for the PhoenixKit admin panel.
 

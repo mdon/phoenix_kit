@@ -113,9 +113,9 @@ This ensures consistent code formatting across the project.
 
 ### 🏷️ Version Management Protocol
 
-**Current Version**: 1.2.3 (in mix.exs)
+**Current Version**: 1.2.15 (in mix.exs)
 **Version Strategy**: Semantic versioning (MAJOR.MINOR.PATCH)
-**Migration Version**: V07 (latest migration version with comprehensive features)
+**Migration Version**: V16 (latest migration version with OAuth providers and magic link registration)
 
 **MANDATORY steps for version updates:**
 
@@ -272,8 +272,8 @@ end
 - **PhoenixKit.Users.Role** - Role schema with system role protection
 - **PhoenixKit.Users.RoleAssignment** - Many-to-many role assignments with audit trail
 - **PhoenixKit.Users.Roles** - Role management API and business logic
-- **PhoenixKitWeb.Live.DashboardLive** - Admin dashboard with system statistics
-- **PhoenixKitWeb.Live.UsersLive** - User management interface with role controls
+- **PhoenixKitWeb.Live.Dashboard** - Admin dashboard with system statistics
+- **PhoenixKitWeb.Live.Users** - User management interface with role controls
 - **PhoenixKit.Users.Auth.register_user/1** - User registration with integrated role assignment
 
 **Key Features:**
@@ -289,7 +289,7 @@ end
 
 - **PhoenixKit.Settings** - Settings context for system-wide configuration management
 - **PhoenixKit.Settings.Setting** - Settings schema with key/value storage and timestamps
-- **PhoenixKitWeb.Live.SettingsLive** - Settings management interface at `{prefix}/admin/settings`
+- **PhoenixKitWeb.Live.Settings** - Settings management interface at `{prefix}/admin/settings`
 
 **Core Settings:**
 - **time_zone** - System timezone offset (UTC-12 to UTC+12)
@@ -375,6 +375,8 @@ end
 - **Metrics** - Analytics dashboard at `{prefix}/admin/emails/dashboard`
 - **Queue** - Queue management at `{prefix}/admin/emails/queue`
 - **Blocklist** - Blocklist management at `{prefix}/admin/emails/blocklist`
+- **Templates** - Email templates management at `{prefix}/admin/emails/templates`
+- **Template Editor** - Template creation/editing at `{prefix}/admin/emails/templates/new` and `{prefix}/admin/emails/templates/:id/edit`
 - **Settings** - Email system configuration at `{prefix}/admin/settings/emails`
 
 **Mailer Integration:**
@@ -473,14 +475,13 @@ config :phoenix_kit,
 ### Setup Steps
 
 1. **Install PhoenixKit**: Run `mix phoenix_kit.install --repo YourApp.Repo`
-2. **Run Migrations**: Database tables created automatically (V16 includes OAuth providers)
-3. **Configure Layout**: Optionally set custom layouts in `config/config.exs`
+2. **Run Migrations**: Database tables created automatically (V16 includes OAuth providers and magic link registration)
 3. **Add Routes**: Use `phoenix_kit_routes()` macro in your router
 4. **Configure Mailer**: PhoenixKit auto-detects and uses your app's mailer, or set up email delivery in `config/config.exs`
-5. **Run Migrations**: Database tables created automatically
-6. **Theme Support**: Optionally enable with `--theme-enabled` flag
+5. **Configure Layout** (Optional): Set custom layouts in `config/config.exs`
+6. **Theme Support** (Optional): Enable with `--theme-enabled` flag during installation
 7. **Settings Management**: Access admin settings at `{prefix}/admin/settings`
-8. **Email System**: Optionally enable email system and AWS SES integration
+8. **Email System** (Optional): Enable email system and AWS SES integration
 
 > **Note**: `{prefix}` represents your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 > This can be customized via `config :phoenix_kit, url_prefix: "/your_custom_prefix"`.
@@ -659,7 +660,7 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 - `lib/phoenix_kit/users/role*.ex` - Role system (Role, RoleAssignment, Roles)
 - `lib/phoenix_kit/settings.ex` - Settings context and management
 - `lib/phoenix_kit/utils/date.ex` - Date formatting utilities with Settings integration
-- `lib/phoenix_kit/email_system/*.ex` - Email system modules
+- `lib/phoenix_kit/emails/*.ex` - Email system modules
 - `lib/phoenix_kit/mailer.ex` - Mailer with automatic email system integration
 
 ### Web Integration
@@ -667,12 +668,12 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 - `lib/phoenix_kit_web/integration.ex` - Router integration macro
 - `lib/phoenix_kit_web/users/oauth_controller.ex` - OAuth authentication controller (V16+)
 - `lib/phoenix_kit_web/users/magic_link_registration_controller.ex` - Magic link registration controller (V16+)
-- `lib/phoenix_kit_web/users/magic_link_registration_live.ex` - Registration completion LiveView (V16+)
+- `lib/phoenix_kit_web/users/magic_link_registration.ex` - Registration completion LiveView (V16+)
 - `lib/phoenix_kit_web/users/auth.ex` - Web authentication plugs
-- `lib/phoenix_kit_web/users/*_live.ex` - LiveView components
-- `lib/phoenix_kit_web/live/*_live.ex` - Admin interfaces (Dashboard, Users, Sessions, Settings)
-- `lib/phoenix_kit_web/live/settings_live.ex` - Settings management interface
-- `lib/phoenix_kit_web/live/email_system/*_live.ex` - Email system LiveView interfaces
+- `lib/phoenix_kit_web/users/*.ex` - LiveView components (login, registration, settings, etc.)
+- `lib/phoenix_kit_web/live/*.ex` - Admin interfaces (dashboard, users, sessions, settings, modules)
+- `lib/phoenix_kit_web/live/settings.ex` - Settings management interface
+- `lib/phoenix_kit_web/live/modules/emails/*.ex` - Email system LiveView interfaces
 - `lib/phoenix_kit_web/components/core_components.ex` - UI components
 
 ### Migration & Config

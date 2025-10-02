@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Users.UsersLive do
+defmodule PhoenixKitWeb.Live.Users.Users do
+  @moduledoc """
+  User management LiveView for PhoenixKit admin panel.
+
+  Provides comprehensive user management including listing, search, role assignment, and status updates.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 

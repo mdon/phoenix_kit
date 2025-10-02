@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Users.RolesLive do
+defmodule PhoenixKitWeb.Live.Users.Roles do
+  @moduledoc """
+  Role management LiveView for PhoenixKit admin panel.
+
+  Provides interface for viewing and managing user roles and permissions.
+  """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 

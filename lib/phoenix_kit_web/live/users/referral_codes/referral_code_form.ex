@@ -1,4 +1,9 @@
-defmodule PhoenixKitWeb.Live.Users.ReferralCodeFormLive do
+defmodule PhoenixKitWeb.Live.Users.ReferralCodeForm do
+  @moduledoc """
+  Referral code form LiveView for PhoenixKit admin panel.
+
+  Provides form interface for creating and editing user referral codes.
+  """
   use PhoenixKitWeb, :live_view
 
   require Logger

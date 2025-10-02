@@ -15,18 +15,70 @@ PhoenixKit is a comprehensive SaaS starter kit for Phoenix applications that pro
 
 ### Database Tables
 - Uses `phoenix_kit_users` table (not `users`) for all user data
-- Manages `phoenix_kit_users_tokens` for authentication tokens
+- Manages `phoenix_kit_users_tokens` for authentication tokens (supports magic link registration with null user_id)
 - Provides `phoenix_kit_user_roles` and `phoenix_kit_user_role_assignments` for RBAC
-- Includes `phoenix_kit_referral_codes` and related tables for referral programs
-- Handles email tracking with `phoenix_kit_email_logs` and `phoenix_kit_email_events`
+- Includes `phoenix_kit_referral_codes` and `phoenix_kit_referral_code_usages` for referral programs
+- Handles email tracking with `phoenix_kit_email_logs`, `phoenix_kit_email_events`, and `phoenix_kit_email_blocklist`
+- Stores email templates in `phoenix_kit_email_templates` and `phoenix_kit_email_template_variables`
+- Manages OAuth providers with `phoenix_kit_user_oauth_providers` (V16+)
+- System settings in `phoenix_kit_settings` table with key/value storage
 
 ### Admin Backend
-- Built-in admin dashboard at `/phoenix_kit/admin`
-- User management interface with role assignment
-- Session management and monitoring
-- Global settings configuration (app title, timezone, time format)
-- Modules manager for feature management
-- Referral program management
+- Built-in admin dashboard at `/phoenix_kit/admin/dashboard`
+- User management interface at `/phoenix_kit/admin/users`
+- Role management at `/phoenix_kit/admin/users/roles`
+- Session management at `/phoenix_kit/admin/users/sessions` and `/phoenix_kit/admin/users/live_sessions`
+- Global settings at `/phoenix_kit/admin/settings`
+- Modules manager at `/phoenix_kit/admin/modules`
+- Referral codes management at `/phoenix_kit/admin/users/referral-codes`
+- Referral codes settings at `/phoenix_kit/admin/settings/referral-codes`
+- Languages management at `/phoenix_kit/admin/modules/languages`
+- Email system interfaces:
+  - Email logs: `/phoenix_kit/admin/emails`
+  - Email details: `/phoenix_kit/admin/emails/email/:id`
+  - Email metrics: `/phoenix_kit/admin/emails/dashboard`
+  - Email queue: `/phoenix_kit/admin/emails/queue`
+  - Email blocklist: `/phoenix_kit/admin/emails/blocklist`
+  - Email templates: `/phoenix_kit/admin/emails/templates`
+  - Email settings: `/phoenix_kit/admin/settings/emails`
+
+### Referral Program
+- Complete referral code creation, validation, and usage tracking
+- Admin interface for referral code management at `/phoenix_kit/admin/users/referral-codes`
+- Flexible expiration system with optional "no expiration" support
+- Beneficiary system allowing referral codes to be assigned to specific users
+- Professional referral code generation with confusion-resistant character set
+- User search functionality with real-time filtering for beneficiary assignment
+- Configurable limits for maximum uses per code and maximum codes per user
+- Automatic usage tracking with audit trail (created_at, used_at, beneficiary)
+- Integration with user registration flow
+- Database tables: `phoenix_kit_referral_codes`, `phoenix_kit_referral_code_usages`
+
+### Email Template System
+- Database-driven email templates with CRUD operations
+- Template editor interface with HTML structure, preview, and test functionality
+- Template list interface with search, filtering, and status management
+- Automatic variable extraction and substitution in templates
+- Smart variable descriptions for common template variables
+- Template categories (authentication, notifications, marketing, transactional)
+- Template status management (draft, active, inactive)
+- System template protection (prevents deletion of critical templates)
+- Default templates for authentication flows (confirmation, password reset, magic link)
+- Test send functionality for template validation
+- Database table: `phoenix_kit_email_templates`, `phoenix_kit_email_template_variables`
+- Admin interface at `/phoenix_kit/admin/modules/emails/templates`
+
+### Languages Module
+- Complete multilingual support system with database-driven language configuration
+- Language management with enable/disable functionality per language
+- Default language configuration with automatic fallback
+- Language codes support (en, es, fr, etc.)
+- Locale-aware routing with dynamic locale prefixes
+- Integration with PhoenixKit router for automatic locale scope generation
+- Database-stored language configuration using JSON settings
+- Admin interface for language management at `/phoenix_kit/admin/modules/languages`
+- Functions: `enabled?/0`, `get_languages/0`, `get_enabled_languages/0`, `get_default_language/0`
+- Module: `PhoenixKit.Module.Languages`
 
 ### Emails
 - Email tracking with delivery status and events
@@ -69,6 +121,28 @@ PhoenixKit provides three authentication levels via `on_mount` hooks:
 ### Database References
 - Always reference `phoenix_kit_users` when creating foreign keys to users
 - Use `references(:phoenix_kit_users, on_delete: :delete_all)` in migrations
+
+### OAuth Authentication (Optional, V16+)
+- OAuth providers support (Google, Apple, GitHub) using Ueberauth
+- Graceful degradation when OAuth dependencies not installed
+- Runtime control via admin settings (`oauth_enabled`)
+- Automatic account linking by email address
+- OAuth provider management per user in database
+- Access routes: `/phoenix_kit/users/auth/:provider`
+- Token storage for future API calls
+- Referral code support via query params: `/phoenix_kit/users/auth/google?referral_code=ABC123`
+- OAuth buttons automatically hide when disabled or dependencies missing
+- Database table: `phoenix_kit_user_oauth_providers`
+- **Important**: OAuth dependencies (`ueberauth`, `ueberauth_google`, `ueberauth_apple`) are optional and must be explicitly added to parent app's `mix.exs`
+
+### Magic Link Registration (V16+)
+- Passwordless two-step registration via email
+- Magic link request at `/phoenix_kit/users/register/magic-link`
+- Registration completion at `/phoenix_kit/users/register/complete/:token`
+- Configurable expiry time (default: 30 minutes)
+- Automatic email verification on completion
+- Referral code support in registration flow
+- Modified tokens table to allow null user_id for magic_link_registration context
 
 ### User Access
 - Access current user via `@phoenix_kit_current_scope` assign in LiveViews

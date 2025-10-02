@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Live.Users.SessionsLive do
+defmodule PhoenixKitWeb.Live.Users.Sessions do
   @moduledoc """
   Live component for managing active user sessions in the PhoenixKit admin panel.
 
