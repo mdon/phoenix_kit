@@ -554,9 +554,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
 
     ~H"""
-    <PhoenixKitWeb.Layouts.app {prepare_phoenix_kit_assigns(assigns)}>
+    <PhoenixKitWeb.Layouts.root {prepare_phoenix_kit_assigns(assigns)}>
       {render_slot(@inner_block)}
-    </PhoenixKitWeb.Layouts.app>
+    </PhoenixKitWeb.Layouts.root>
     """
   end
 

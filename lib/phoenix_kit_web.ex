@@ -102,6 +102,9 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.Checkbox
       import PhoenixKitWeb.Components.Core.SimpleForm
       import PhoenixKitWeb.Components.Core.ThemeSwitcher
+      import PhoenixKitWeb.Components.Core.Badge
+      import PhoenixKitWeb.Components.Core.TimeDisplay
+      import PhoenixKitWeb.Components.Core.UserInfo
     end
   end
 

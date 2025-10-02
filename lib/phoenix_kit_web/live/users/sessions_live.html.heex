@@ -223,11 +223,11 @@
 
                   <%!-- User Status --%>
                   <td>
-                    <% {badge_class, badge_text} =
-                      user_status_badge(session.user_is_active, session.user_confirmed_at) %>
-                    <span class={"badge #{badge_class} badge-sm"}>
-                      {badge_text}
-                    </span>
+                    <.user_status_badge
+                      is_active={session.user_is_active}
+                      confirmed_at={session.user_confirmed_at}
+                      size={:sm}
+                    />
                   </td>
 
                   <%!-- Created --%>
@@ -242,10 +242,7 @@
 
                   <%!-- Age --%>
                   <td>
-                    <% {age_class, age_text} = format_age_badge(session.age_in_days) %>
-                    <span class={"badge #{age_class} badge-sm"}>
-                      {age_text}
-                    </span>
+                    <.age_badge days={session.age_in_days} class="badge-sm" />
                   </td>
 
                   <%!-- Expires --%>

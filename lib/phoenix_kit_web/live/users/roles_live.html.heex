@@ -157,9 +157,7 @@
                 <tr>
                   <td>
                     <div class="flex items-center gap-2">
-                      <span class={"badge #{role_badge_class(role)}"}>
-                        {role.name}
-                      </span>
+                      <.role_badge role={role} />
                     </div>
                   </td>
                   <td>
@@ -180,7 +178,7 @@
                   </td>
                   <td>
                     <div class="flex items-center gap-2">
-                      <span class="font-medium">{users_count_for_role(role, @role_stats)}</span>
+                      <.users_count role={role} stats={@role_stats} />
                       <span class="text-sm text-base-content/70">users</span>
                     </div>
                   </td>

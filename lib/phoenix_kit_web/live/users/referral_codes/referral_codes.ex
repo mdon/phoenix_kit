@@ -8,7 +8,6 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodes do
 
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
-  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   def mount(_params, _session, socket) do
     # Get project title from settings
@@ -68,32 +67,6 @@ defmodule PhoenixKitWeb.Live.Users.ReferralCodes do
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update referral code status")
         {:noreply, socket}
-    end
-  end
-
-  defp format_expiration_date(nil), do: "No expiration"
-
-  defp format_expiration_date(date) do
-    date
-    |> DateTime.to_date()
-    |> UtilsDate.format_date_with_user_format()
-  end
-
-  defp code_status_class(code) do
-    cond do
-      !code.status -> "bg-gray-100 text-gray-800"
-      ReferralCodes.expired?(code) -> "bg-red-100 text-red-800"
-      ReferralCodes.usage_limit_reached?(code) -> "bg-yellow-100 text-yellow-800"
-      true -> "bg-green-100 text-green-800"
-    end
-  end
-
-  defp code_status_text(code) do
-    cond do
-      !code.status -> "Inactive"
-      ReferralCodes.expired?(code) -> "Expired"
-      ReferralCodes.usage_limit_reached?(code) -> "Limit Reached"
-      true -> "Active"
     end
   end
 end

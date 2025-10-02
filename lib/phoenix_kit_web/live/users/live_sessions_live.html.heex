@@ -283,9 +283,7 @@
                     <% end %>
                   </td>
                   <td>
-                    <div class="text-xs">
-                      {format_time_ago(session.connected_at)}
-                    </div>
+                    <.time_ago datetime={session.connected_at} />
                   </td>
                   <td>
                     <div class="flex items-center gap-1">

@@ -11,8 +11,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.Routes
 
   @per_page 10
 
@@ -331,15 +329,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
-  defp role_badge_class_for_custom(role_name) do
-    case role_name do
-      "Owner" -> "badge-error"
-      "Admin" -> "badge-warning"
-      "User" -> "badge-info"
-      _ -> "badge-primary"
-    end
-  end
-
   defp handle_role_toggle_result(result, role_name, socket) do
     case result do
       {:ok, action} ->
@@ -369,8 +358,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
-  # Optimized function using preloaded roles
-  defp user_primary_role(user) do
+  # Optimized function using preloaded roles - used in template conditionals
+  def get_primary_role_name_unsafe(user) do
     roles = get_user_roles(user)
 
     cond do

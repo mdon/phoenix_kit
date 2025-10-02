@@ -449,9 +449,14 @@ config :phoenix_kit,
 ### Key Design Principles
 
 - **No Circular Dependencies** - Optional Phoenix deps prevent import cycles
-- **Library-First** - No OTP application, can be used as dependency
+- **Library-First Architecture** - No OTP application, no supervision tree, can be used as dependency
+  - No `Application.start/2` callback
+  - No Telemetry supervisor (uses `Plug.Telemetry` in endpoint)
+  - No dev-only routes (PageController removed)
+  - Parent apps provide their own home pages and layouts
 - **Professional Testing** - DataCase pattern with database sandbox
 - **Production Ready** - Complete authentication system with security best practices
+- **Clean Codebase** - Removed standard Phoenix template boilerplate (telemetry.ex, page controllers, API pipeline)
 
 ### Database Integration
 
@@ -665,7 +670,9 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 
 ### Web Integration
 
-- `lib/phoenix_kit_web/integration.ex` - Router integration macro
+- `lib/phoenix_kit_web/router.ex` - Library router (dev/test only, parent apps use `phoenix_kit_routes()`)
+- `lib/phoenix_kit_web/integration.ex` - Router integration macro for parent applications
+- `lib/phoenix_kit_web/endpoint.ex` - Phoenix endpoint (uses `Plug.Telemetry`, no custom supervisor)
 - `lib/phoenix_kit_web/users/oauth_controller.ex` - OAuth authentication controller (V16+)
 - `lib/phoenix_kit_web/users/magic_link_registration_controller.ex` - Magic link registration controller (V16+)
 - `lib/phoenix_kit_web/users/magic_link_registration.ex` - Registration completion LiveView (V16+)
@@ -675,6 +682,9 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 - `lib/phoenix_kit_web/live/settings.ex` - Settings management interface
 - `lib/phoenix_kit_web/live/modules/emails/*.ex` - Email system LiveView interfaces
 - `lib/phoenix_kit_web/components/core_components.ex` - UI components
+- `lib/phoenix_kit_web/components/layouts.ex` - Layout module (fallback for parent apps)
+- `lib/phoenix_kit_web/controllers/error_html.ex` - HTML error rendering
+- `lib/phoenix_kit_web/controllers/error_json.ex` - JSON error rendering
 
 ### Migration & Config
 
