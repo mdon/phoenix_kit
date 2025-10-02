@@ -105,6 +105,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.Badge
       import PhoenixKitWeb.Components.Core.TimeDisplay
       import PhoenixKitWeb.Components.Core.UserInfo
+      import PhoenixKitWeb.Components.Core.Pagination
     end
   end
 

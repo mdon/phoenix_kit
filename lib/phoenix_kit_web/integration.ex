@@ -333,9 +333,12 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
 
           # Email Templates Management
-          live "/admin/emails/templates", Live.Modules.Emails.Templates, :index
-          live "/admin/emails/templates/new", Live.Modules.Emails.TemplateEditor, :new
-          live "/admin/emails/templates/:id/edit", Live.Modules.Emails.TemplateEditor, :edit
+          live "/admin/modules/emails/templates", Live.Modules.Emails.Templates, :index
+          live "/admin/modules/emails/templates/new", Live.Modules.Emails.TemplateEditor, :new
+
+          live "/admin/modules/emails/templates/:id/edit",
+               Live.Modules.Emails.TemplateEditor,
+               :edit
         end
       end
     end

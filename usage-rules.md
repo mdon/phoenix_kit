@@ -65,7 +65,7 @@ PhoenixKit is a comprehensive SaaS starter kit for Phoenix applications that pro
 - System template protection (prevents deletion of critical templates)
 - Default templates for authentication flows (confirmation, password reset, magic link)
 - Test send functionality for template validation
-- Database table: `phoenix_kit_email_templates`, `phoenix_kit_email_template_variables`
+- Database table: `phoenix_kit_email_templates`
 - Admin interface at `/phoenix_kit/admin/modules/emails/templates`
 
 ### Languages Module
@@ -247,6 +247,103 @@ import PhoenixKitWeb.Components.Core.Badge
 - ✅ **Zero compiler warnings** - All component usage is tracked
 - ✅ **Type safety** - Attributes validated at compile time
 - ✅ **Reusability** - Use same component across all LiveViews
+
+## UI/UX Best Practices
+
+### Confirmation Dialogs in Phoenix LiveView
+
+**CRITICAL**: Never use `data-confirm` attribute with Phoenix LiveView. It causes browser compatibility issues, especially in Safari where it may trigger multiple confirmation dialogs.
+
+**❌ WRONG - Causes Safari Issues:**
+```heex
+<button
+  phx-click="delete_item"
+  data-confirm="Are you sure?"
+>
+  Delete
+</button>
+```
+
+**✅ CORRECT - Use Phoenix LiveView Modal:**
+
+#### Template Implementation
+```heex
+<%!-- Button triggers modal (no data-confirm) --%>
+<button
+  phx-click="request_delete"
+  phx-value-id={item.id}
+  phx-value-name={item.name}
+>
+  Delete
+</button>
+
+<%!-- Confirmation Modal --%>
+<%= if assigns[:confirmation_modal] && @confirmation_modal.show do %>
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg">{@confirmation_modal.title}</h3>
+      <p class="py-4">{@confirmation_modal.message}</p>
+      <div class="modal-action">
+        <button class="btn btn-ghost" phx-click="cancel_confirmation">
+          Cancel
+        </button>
+        <button
+          class="btn btn-primary"
+          phx-click="confirm_action"
+          phx-value-action={@confirmation_modal.action}
+          phx-value-id={@confirmation_modal.id}
+        >
+          {@confirmation_modal.button_text}
+        </button>
+      </div>
+    </div>
+  </div>
+<% end %>
+```
+
+#### LiveView Handler Pattern
+```elixir
+def mount(params, _session, socket) do
+  socket = assign(socket, :confirmation_modal, %{show: false})
+  {:ok, socket}
+end
+
+# Request confirmation
+def handle_event("request_delete", %{"id" => id, "name" => name}, socket) do
+  modal = %{
+    show: true,
+    title: "Confirm Delete",
+    message: "Are you sure you want to delete #{name}?",
+    button_text: "Delete",
+    action: "delete_item",
+    id: id
+  }
+  {:noreply, assign(socket, :confirmation_modal, modal)}
+end
+
+# Cancel confirmation
+def handle_event("cancel_confirmation", _params, socket) do
+  {:noreply, assign(socket, :confirmation_modal, %{show: false})}
+end
+
+# Execute confirmed action
+def handle_event("confirm_action", %{"action" => action, "id" => id}, socket) do
+  socket = assign(socket, :confirmation_modal, %{show: false})
+
+  case action do
+    "delete_item" -> handle_delete(id, socket)
+    _ -> {:noreply, socket}
+  end
+end
+```
+
+### Benefits
+
+- ✅ **Cross-browser compatibility** - Works in all browsers including Safari
+- ✅ **Better UX** - Customizable modal design matching your theme
+- ✅ **Flexible** - Can include additional information in confirmation dialog
+- ✅ **Testable** - Can be tested with LiveView testing helpers
+- ✅ **No JavaScript** - Pure Phoenix LiveView solution
 - ✅ **Documentation** - Self-documenting with `@doc` and examples
 - ✅ **Maintainability** - Single source of truth for formatting logic
 

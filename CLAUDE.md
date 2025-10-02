@@ -514,6 +514,7 @@ defp format_time_ago(datetime), do: # logic...
 - **phoenix_kit_email_logs** - Main email logging with extended metadata
 - **phoenix_kit_email_events** - Event management (delivery, engagement)
 - **phoenix_kit_email_blocklist** - Blocked addresses for rate limiting
+- **phoenix_kit_email_templates** - Email template storage and management
 
 **LiveView Interfaces:**
 - **Emails** - Email log browsing and management at `{prefix}/admin/emails`

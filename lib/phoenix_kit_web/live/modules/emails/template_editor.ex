@@ -16,8 +16,8 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.TemplateEditor do
 
   ## Routes
 
-  - `/admin/emails/templates/new` - Create new template
-  - `/admin/emails/templates/:id/edit` - Edit existing template
+  - `/admin/modules/emails/templates/new` - Create new template
+  - `/admin/modules/emails/templates/:id/edit` - Edit existing template
 
   ## Permissions
 
@@ -64,7 +64,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.TemplateEditor do
         {:noreply,
          socket
          |> put_flash(:error, "Template not found")
-         |> push_navigate(to: Routes.path("/admin/emails/templates"))}
+         |> push_navigate(to: Routes.path("/admin/modules/emails/templates"))}
 
       template ->
         changeset = Template.changeset(template, %{})
@@ -378,7 +378,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.TemplateEditor do
          socket
          |> assign(:saving, false)
          |> put_flash(:info, "Template '#{template.name}' created successfully")
-         |> push_navigate(to: Routes.path("/admin/emails/templates"))}
+         |> push_navigate(to: Routes.path("/admin/modules/emails/templates"))}
 
       {:error, changeset} ->
         {:noreply,

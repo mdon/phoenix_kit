@@ -17,7 +17,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
 
   ## Route
 
-  This LiveView is mounted at `{prefix}/admin/emails/templates` and requires
+  This LiveView is mounted at `{prefix}/admin/modules/emails/templates` and requires
   appropriate admin permissions.
 
   Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
@@ -63,6 +63,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
       |> assign(:show_clone_modal, false)
       |> assign(:clone_template, nil)
       |> assign(:clone_form, %{name: "", display_name: "", errors: %{}})
+      |> assign(:confirmation_modal, %{show: false})
       |> assign_filter_defaults()
       |> assign_pagination_defaults()
 
@@ -109,14 +110,14 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
 
     {:noreply,
      socket
-     |> push_patch(to: Routes.path("/admin/emails/templates?#{new_params}"))}
+     |> push_patch(to: Routes.path("/admin/modules/emails/templates?#{new_params}"))}
   end
 
   @impl true
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      socket
-     |> push_patch(to: Routes.path("/admin/emails/templates"))}
+     |> push_patch(to: Routes.path("/admin/modules/emails/templates"))}
   end
 
   @impl true
@@ -187,7 +188,9 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
            |> assign(:show_clone_modal, false)
            |> assign(:clone_template, nil)
            |> put_flash(:info, "Template cloned successfully as '#{new_template.name}'")
-           |> push_navigate(to: Routes.path("/admin/emails/templates/#{new_template.id}/edit"))}
+           |> push_navigate(
+             to: Routes.path("/admin/modules/emails/templates/#{new_template.id}/edit")
+           )}
 
         {:error, _changeset} ->
           {:noreply,
@@ -210,7 +213,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
   def handle_event("edit_template", %{"id" => template_id}, socket) do
     {:noreply,
      socket
-     |> push_navigate(to: Routes.path("/admin/emails/templates/#{template_id}/edit"))}
+     |> push_navigate(to: Routes.path("/admin/modules/emails/templates/#{template_id}/edit"))}
   end
 
   @impl true
@@ -266,6 +269,32 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
              |> put_flash(:error, "Failed to activate template")}
         end
     end
+  end
+
+  @impl true
+  def handle_event("request_delete", %{"id" => id, "name" => name}, socket) do
+    modal = %{
+      show: true,
+      title: "Confirm Delete",
+      message:
+        "Are you sure you want to delete template '#{name}'? This action cannot be undone.",
+      button_text: "Delete Template",
+      action: "delete_template",
+      id: id
+    }
+
+    {:noreply, assign(socket, :confirmation_modal, modal)}
+  end
+
+  @impl true
+  def handle_event("cancel_confirmation", _params, socket) do
+    {:noreply, assign(socket, :confirmation_modal, %{show: false})}
+  end
+
+  @impl true
+  def handle_event("confirm_action", %{"action" => "delete_template", "id" => id}, socket) do
+    socket = assign(socket, :confirmation_modal, %{show: false})
+    handle_event("delete_template", %{"id" => id}, socket)
   end
 
   @impl true
@@ -418,44 +447,12 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Templates do
     |> URI.encode_query()
   end
 
-  # Helper functions for template
-
-  defp category_badge_class(category) do
-    case category do
-      "system" -> "badge badge-info badge-sm"
-      "marketing" -> "badge badge-secondary badge-sm"
-      "transactional" -> "badge badge-primary badge-sm"
-      _ -> "badge badge-ghost badge-sm"
+  # Helper function for pagination component
+  defp build_page_url(assigns) do
+    fn page ->
+      params = build_url_params(assigns, %{"page" => page})
+      Routes.path("/admin/modules/emails/templates?#{params}")
     end
-  end
-
-  defp status_badge_class(status) do
-    case status do
-      "active" -> "badge badge-success badge-sm"
-      "draft" -> "badge badge-warning badge-sm"
-      "archived" -> "badge badge-ghost badge-sm"
-      _ -> "badge badge-neutral badge-sm"
-    end
-  end
-
-  defp pagination_pages(current_page, total_pages) do
-    start_page = max(1, current_page - 2)
-    end_page = min(total_pages, current_page + 2)
-
-    start_page..end_page
-  end
-
-  defp pagination_class(page_num, current_page) do
-    if page_num == current_page do
-      "btn btn-sm btn-active"
-    else
-      "btn btn-sm"
-    end
-  end
-
-  defp build_page_url(page, assigns) do
-    params = build_url_params(assigns, %{"page" => page})
-    Routes.path("/admin/emails/templates?#{params}")
   end
 
   # Validate clone form
