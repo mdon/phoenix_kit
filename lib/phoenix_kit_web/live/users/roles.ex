@@ -36,6 +36,7 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
       |> assign(:create_role_form, nil)
       |> assign(:edit_role_form, nil)
       |> assign(:editing_role, nil)
+      |> assign(:delete_confirmation, %{show: false})
       |> assign(:page_title, "Roles")
       |> assign(:role_stats, role_stats)
       |> assign(:project_title, project_title)
@@ -124,7 +125,40 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
     end
   end
 
+  # New events for confirmation modal
+  def handle_event(
+        "request_delete_role",
+        %{"role_id" => role_id, "role_name" => role_name},
+        socket
+      ) do
+    delete_confirmation = %{
+      show: true,
+      role_id: role_id,
+      role_name: role_name
+    }
+
+    {:noreply, assign(socket, :delete_confirmation, delete_confirmation)}
+  end
+
+  def handle_event("cancel_delete", _params, socket) do
+    {:noreply, assign(socket, :delete_confirmation, %{show: false})}
+  end
+
+  def handle_event("confirm_delete_role", %{"role_id" => role_id}, socket) do
+    # Close modal first
+    socket = assign(socket, :delete_confirmation, %{show: false})
+
+    # Execute the deletion
+    handle_delete_role(role_id, socket)
+  end
+
+  # Keep old handler for backward compatibility
   def handle_event("delete_role", %{"role_id" => role_id}, socket) do
+    handle_delete_role(role_id, socket)
+  end
+
+  # Keep the old handler for backward compatibility and make it private
+  defp handle_delete_role(role_id, socket) when is_binary(role_id) do
     role = Enum.find(socket.assigns.roles, &(&1.id == String.to_integer(role_id)))
 
     if role && !role.is_system_role do

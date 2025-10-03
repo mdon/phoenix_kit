@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Sessions}
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 20
 

@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
 
@@ -50,6 +51,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:managing_user, nil)
       |> assign(:user_roles, [])
       |> assign(:all_roles, [])
+      |> assign(:confirmation_modal, %{show: false})
       |> assign(:page_title, "Users")
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
@@ -194,7 +196,79 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
+  # New events for confirmation modal
+  def handle_event(
+        "request_status_toggle",
+        %{"user_id" => user_id, "is_active" => is_active},
+        socket
+      ) do
+    is_active_bool = is_active == "true"
+
+    confirmation_modal = %{
+      show: true,
+      title: "Confirm Status Change",
+      message:
+        "Are you sure you want to #{if is_active_bool, do: "deactivate", else: "activate"} this user?",
+      button_text: if(is_active_bool, do: "Deactivate", else: "Activate"),
+      action: "toggle_user_status",
+      user_id: user_id
+    }
+
+    {:noreply, assign(socket, :confirmation_modal, confirmation_modal)}
+  end
+
+  def handle_event(
+        "request_confirmation_toggle",
+        %{"user_id" => user_id, "is_confirmed" => is_confirmed},
+        socket
+      ) do
+    is_confirmed_bool = is_confirmed == "true"
+
+    confirmation_modal = %{
+      show: true,
+      title: "Confirm Email Status Change",
+      message:
+        "Are you sure you want to #{if is_confirmed_bool, do: "unconfirm", else: "confirm"} this user's email?",
+      button_text: if(is_confirmed_bool, do: "Unconfirm", else: "Confirm"),
+      action: "toggle_user_confirmation",
+      user_id: user_id
+    }
+
+    {:noreply, assign(socket, :confirmation_modal, confirmation_modal)}
+  end
+
+  def handle_event("cancel_confirmation", _params, socket) do
+    {:noreply, assign(socket, :confirmation_modal, %{show: false})}
+  end
+
+  def handle_event("confirm_action", %{"action" => action, "user_id" => user_id}, socket) do
+    # Close modal first
+    socket = assign(socket, :confirmation_modal, %{show: false})
+
+    # Execute the confirmed action
+    case action do
+      "toggle_user_status" ->
+        handle_toggle_user_status(%{"user_id" => user_id}, socket)
+
+      "toggle_user_confirmation" ->
+        handle_toggle_user_confirmation(%{"user_id" => user_id}, socket)
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  # Keep old handlers for backward compatibility, but make them delegate to private handlers
   def handle_event("toggle_user_status", %{"user_id" => user_id}, socket) do
+    handle_toggle_user_status(%{"user_id" => user_id}, socket)
+  end
+
+  def handle_event("toggle_user_confirmation", %{"user_id" => user_id}, socket) do
+    handle_toggle_user_confirmation(%{"user_id" => user_id}, socket)
+  end
+
+  # Keep the original handlers private for internal use
+  defp handle_toggle_user_status(%{"user_id" => user_id}, socket) do
     current_user = socket.assigns.phoenix_kit_current_user
     user = Auth.get_user!(user_id)
 
@@ -206,7 +280,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
-  def handle_event("toggle_user_confirmation", %{"user_id" => user_id}, socket) do
+  defp handle_toggle_user_confirmation(%{"user_id" => user_id}, socket) do
     current_user = socket.assigns.phoenix_kit_current_user
     user = Auth.get_user!(user_id)
 
