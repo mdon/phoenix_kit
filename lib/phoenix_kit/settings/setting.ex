@@ -218,6 +218,15 @@ defmodule PhoenixKit.Settings.Setting do
       field :date_format, :string
       field :time_format, :string
       field :track_registration_geolocation, :string
+      # OAuth Provider Credentials
+      field :oauth_google_client_id, :string
+      field :oauth_google_client_secret, :string
+      field :oauth_apple_client_id, :string
+      field :oauth_apple_team_id, :string
+      field :oauth_apple_key_id, :string
+      field :oauth_apple_private_key, :string
+      field :oauth_github_client_id, :string
+      field :oauth_github_client_secret, :string
     end
 
     @doc """
@@ -264,7 +273,15 @@ defmodule PhoenixKit.Settings.Setting do
         :time_zone,
         :date_format,
         :time_format,
-        :track_registration_geolocation
+        :track_registration_geolocation,
+        :oauth_google_client_id,
+        :oauth_google_client_secret,
+        :oauth_apple_client_id,
+        :oauth_apple_team_id,
+        :oauth_apple_key_id,
+        :oauth_apple_private_key,
+        :oauth_github_client_id,
+        :oauth_github_client_secret
       ])
       |> validate_required([
         :project_title,

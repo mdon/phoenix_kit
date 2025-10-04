@@ -119,7 +119,6 @@ defmodule PhoenixKit.Settings do
       "email_sampling_rate" => "100",
       "email_compress_body" => "30",
       "email_archive_to_s3" => "false",
-      "email_cloudwatch_metrics" => "false",
       # AWS Configuration for SQS Integration
       "aws_access_key_id" => "",
       "aws_secret_access_key" => "",
@@ -133,7 +132,16 @@ defmodule PhoenixKit.Settings do
       "sqs_polling_enabled" => "false",
       "sqs_polling_interval_ms" => "5000",
       "sqs_max_messages_per_poll" => "10",
-      "sqs_visibility_timeout" => "300"
+      "sqs_visibility_timeout" => "300",
+      # OAuth Provider Credentials
+      "oauth_google_client_id" => "",
+      "oauth_google_client_secret" => "",
+      "oauth_apple_client_id" => "",
+      "oauth_apple_team_id" => "",
+      "oauth_apple_key_id" => "",
+      "oauth_apple_private_key" => "",
+      "oauth_github_client_id" => "",
+      "oauth_github_client_secret" => ""
     }
   end
 
@@ -412,6 +420,74 @@ defmodule PhoenixKit.Settings do
     end
 
     result
+  end
+
+  @doc """
+  Gets OAuth credentials for a specific provider.
+
+  Returns a map with all credentials for the given provider.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_oauth_credentials(:google)
+      %{client_id: "google-client-id", client_secret: "google-client-secret"}
+
+      iex> PhoenixKit.Settings.get_oauth_credentials(:apple)
+      %{
+        client_id: "apple-client-id",
+        team_id: "apple-team-id",
+        key_id: "apple-key-id",
+        private_key: "-----BEGIN PRIVATE KEY-----..."
+      }
+  """
+  def get_oauth_credentials(provider) when provider in [:google, :apple, :github] do
+    case provider do
+      :google ->
+        %{
+          client_id: get_setting("oauth_google_client_id", ""),
+          client_secret: get_setting("oauth_google_client_secret", "")
+        }
+
+      :apple ->
+        %{
+          client_id: get_setting("oauth_apple_client_id", ""),
+          team_id: get_setting("oauth_apple_team_id", ""),
+          key_id: get_setting("oauth_apple_key_id", ""),
+          private_key: get_setting("oauth_apple_private_key", "")
+        }
+
+      :github ->
+        %{
+          client_id: get_setting("oauth_github_client_id", ""),
+          client_secret: get_setting("oauth_github_client_secret", "")
+        }
+    end
+  end
+
+  @doc """
+  Checks if OAuth credentials are configured for a provider.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.has_oauth_credentials?(:google)
+      true
+  """
+  def has_oauth_credentials?(provider) when provider in [:google, :apple, :github] do
+    credentials = get_oauth_credentials(provider)
+
+    case provider do
+      :google ->
+        credentials.client_id != "" and credentials.client_secret != ""
+
+      :apple ->
+        credentials.client_id != "" and
+          credentials.team_id != "" and
+          credentials.key_id != "" and
+          credentials.private_key != ""
+
+      :github ->
+        credentials.client_id != "" and credentials.client_secret != ""
+    end
   end
 
   @doc """

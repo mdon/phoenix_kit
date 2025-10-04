@@ -460,6 +460,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   def call(conn, :phoenix_kit_validate_and_set_locale),
     do: validate_and_set_locale(conn, [])
 
+  @doc false
+  def call(conn, :phoenix_kit_require_admin),
+    do: require_admin(conn, [])
+
   @doc """
   Used for routes that require the user to not be authenticated.
   """
