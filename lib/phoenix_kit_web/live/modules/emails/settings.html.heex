@@ -226,26 +226,6 @@
               </label>
             </div>
 
-            <div class="divider"></div>
-
-            <%!-- CloudWatch Metrics Toggle --%>
-            <div class="form-control">
-              <label class="label cursor-pointer">
-                <span class="label-text text-lg">
-                  <span class="font-semibold">Enable CloudWatch Metrics</span>
-                  <div class="text-sm text-base-content/70 mt-1">
-                    Send email metrics to AWS CloudWatch for monitoring and alerting
-                  </div>
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-info"
-                  checked={@email_cloudwatch_metrics}
-                  phx-click="toggle_cloudwatch"
-                />
-              </label>
-            </div>
-
             <div class="alert alert-warning mt-4">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
               <div>

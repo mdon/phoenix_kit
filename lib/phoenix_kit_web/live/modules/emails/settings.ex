@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
   - **Storage Settings**: Configure email body and header storage
   - **AWS SES Integration**: Manage SES event tracking and configuration
   - **Data Management**: Set retention periods and sampling rates
-  - **Advanced Features**: Configure compression, S3 archival, CloudWatch metrics
+  - **Advanced Features**: Configure compression and S3 archival
   - **SQS Configuration**: Control SQS polling and message processing
 
   ## Route
@@ -75,7 +75,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
       |> assign(:email_sampling_rate, email_config.sampling_rate)
       |> assign(:email_compress_body, email_config.compress_after_days)
       |> assign(:email_archive_to_s3, email_config.archive_to_s3)
-      |> assign(:email_cloudwatch_metrics, email_config.cloudwatch_metrics)
       |> assign(:sqs_polling_enabled, email_config.sqs_polling_enabled)
       |> assign(:sqs_polling_interval_ms, email_config.sqs_polling_interval_ms)
       |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
@@ -317,32 +316,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update S3 archival setting")
-        {:noreply, socket}
-    end
-  end
-
-  def handle_event("toggle_cloudwatch", _params, socket) do
-    new_cloudwatch = !socket.assigns.email_cloudwatch_metrics
-
-    result = Emails.set_cloudwatch_metrics(new_cloudwatch)
-
-    case result do
-      {:ok, _setting} ->
-        socket =
-          socket
-          |> assign(:email_cloudwatch_metrics, new_cloudwatch)
-          |> put_flash(
-            :info,
-            if(new_cloudwatch,
-              do: "CloudWatch metrics enabled",
-              else: "CloudWatch metrics disabled"
-            )
-          )
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update CloudWatch metrics setting")
         {:noreply, socket}
     end
   end

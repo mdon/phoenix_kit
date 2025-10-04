@@ -442,7 +442,7 @@ defmodule PhoenixKit.Emails.Archiver do
     # Generate S3 key
     s3_key = "#{prefix}#{timestamp}/batch-#{batch_id}.#{format}"
 
-    # Upload to S3 (this would use ExAws or similar)
+    # Upload to S3
     case upload_to_s3(bucket, s3_key, archive_data) do
       {:ok, _message} ->
         if delete_after do
@@ -450,6 +450,10 @@ defmodule PhoenixKit.Emails.Archiver do
         end
 
         length(logs)
+
+      {:error, reason} ->
+        Logger.error("Failed to archive batch to S3: #{inspect(reason)}")
+        0
     end
   end
 
@@ -497,11 +501,38 @@ defmodule PhoenixKit.Emails.Archiver do
     header <> rows
   end
 
-  defp upload_to_s3(_bucket, _key, _data) do
-    # S3 archival functionality is under development
-    # This will be implemented in a future version using ExAws.S3
-    Logger.info("S3 archival is under development. Email data prepared but not uploaded to S3.")
-    {:ok, "S3 archival feature is under development. Data prepared but not uploaded."}
+  @spec upload_to_s3(String.t(), String.t(), binary()) :: {:ok, String.t()} | {:error, String.t()}
+  defp upload_to_s3(bucket, key, data) do
+    # Upload compressed data to S3 with proper error handling
+    case ExAws.S3.put_object(bucket, key, data,
+           content_type: "application/gzip",
+           content_encoding: "gzip",
+           metadata: %{
+             "archived-by" => "phoenix_kit",
+             "archived-at" => DateTime.to_iso8601(DateTime.utc_now())
+           }
+         )
+         |> ExAws.request() do
+      {:ok, _result} ->
+        Logger.info("Successfully uploaded archive to S3: s3://#{bucket}/#{key}")
+        {:ok, "Successfully archived to S3: #{key}"}
+
+      {:error, {:http_error, 404, _}} ->
+        Logger.error("S3 bucket not found: #{bucket}")
+        {:error, "S3 bucket not found. Please ensure bucket '#{bucket}' exists."}
+
+      {:error, {:http_error, 403, _}} ->
+        Logger.error("S3 access denied for bucket: #{bucket}")
+        {:error, "Access denied to S3 bucket. Check IAM permissions."}
+
+      {:error, reason} ->
+        Logger.error("Failed to upload to S3: #{inspect(reason)}")
+        {:error, "S3 upload failed: #{inspect(reason)}"}
+    end
+  rescue
+    error ->
+      Logger.error("S3 upload exception: #{inspect(error)}")
+      {:error, "S3 upload exception: #{Exception.message(error)}"}
   end
 
   defp delete_archived_logs(logs) do

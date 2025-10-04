@@ -119,7 +119,6 @@ defmodule PhoenixKit.Settings do
       "email_sampling_rate" => "100",
       "email_compress_body" => "30",
       "email_archive_to_s3" => "false",
-      "email_cloudwatch_metrics" => "false",
       # AWS Configuration for SQS Integration
       "aws_access_key_id" => "",
       "aws_secret_access_key" => "",
