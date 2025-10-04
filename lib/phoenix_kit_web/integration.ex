@@ -156,6 +156,12 @@ defmodule PhoenixKitWeb.Integration do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_require_authenticated_user
       end
 
+      pipeline :phoenix_kit_admin_only do
+        plug PhoenixKitWeb.Users.Auth, :fetch_phoenix_kit_current_user
+        plug PhoenixKitWeb.Users.Auth, :fetch_phoenix_kit_current_scope
+        plug PhoenixKitWeb.Users.Auth, :phoenix_kit_require_admin
+      end
+
       # Define locale validation pipeline
       pipeline :phoenix_kit_locale_validation do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
@@ -185,9 +191,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
       end
 
-      # Email export routes (require admin authentication)
+      # Email export routes (require admin or owner role)
       scope unquote(url_prefix), PhoenixKitWeb do
-        pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_require_authenticated]
+        pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_admin_only]
 
         get "/admin/emails/export", Controllers.EmailExportController, :export_logs
         get "/admin/emails/metrics/export", Controllers.EmailExportController, :export_metrics
@@ -345,6 +351,24 @@ defmodule PhoenixKitWeb.Integration do
   end
 
   defmacro phoenix_kit_routes do
+    # Initialize OAuth configuration from database on router setup
+    # This ensures OAuth providers are configured before any requests
+    if Code.ensure_loaded?(PhoenixKit.Users.OAuthConfig) do
+      spawn(fn ->
+        # Small delay to ensure database is ready
+        Process.sleep(100)
+
+        try do
+          alias PhoenixKit.Users.OAuthConfig
+          OAuthConfig.configure_providers()
+        rescue
+          error ->
+            require Logger
+            Logger.debug("OAuth config initialization skipped: #{inspect(error)}")
+        end
+      end)
+    end
+
     # Get URL prefix at compile time and handle empty string case for router compatibility
     raw_prefix =
       try do
