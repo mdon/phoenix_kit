@@ -202,7 +202,6 @@ defmodule PhoenixKit.Emails.Supervisor do
     # - Metrics collector
     # - Archiving worker
     # - Cleanup scheduler
-    # - CloudWatch metrics publisher
 
     children
   end

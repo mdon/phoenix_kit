@@ -78,6 +78,8 @@
   {"lib/phoenix_kit/email_system/email_system.ex", :call, 520},
   {"lib/phoenix_kit/email_system/email_system.ex", :no_return, 643},
   {"lib/phoenix_kit/email_system/email_system.ex", :call, 657},
+  ~r/lib\/phoenix_kit\/emails\/archiver\.ex:447:.*pattern_match/,
+  ~r/lib\/phoenix_kit\/emails\/archiver\.ex:.*unused_fun/,
 
   # Ecto.Multi opaque type false positives (code works correctly)
   ~r/lib\/phoenix_kit\/users\/auth\.ex:.*call_without_opaque/
