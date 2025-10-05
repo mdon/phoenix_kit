@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   def mount(params, _session, socket) do
@@ -88,6 +89,28 @@ defmodule PhoenixKitWeb.Live.Settings do
 
         {:noreply, socket}
     end
+  end
+
+  def handle_event("test_oauth", %{"provider" => provider}, socket) do
+    provider_atom = String.to_existing_atom(provider)
+
+    case OAuthConfig.test_connection(provider_atom) do
+      {:ok, message} ->
+        socket = put_flash(socket, :info, message)
+        {:noreply, socket}
+
+      {:error, message} ->
+        socket = put_flash(socket, :error, message)
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("reload_oauth_config", _params, socket) do
+    # Reload OAuth configuration from database
+    OAuthConfig.configure_providers()
+
+    socket = put_flash(socket, :info, "OAuth configuration reloaded from database")
+    {:noreply, socket}
   end
 
   def handle_event("reset_to_defaults", _params, socket) do

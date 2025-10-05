@@ -499,12 +499,12 @@ defp format_time_ago(datetime), do: # logic...
 - **PhoenixKit.Emails.SQSProcessor** - Message parsing and event handling
 - **PhoenixKit.Emails.RateLimiter** - Anti-spam and rate limiting
 - **PhoenixKit.Emails.Archiver** - Data lifecycle and S3 archival
-- **PhoenixKit.Emails.Metrics** - CloudWatch integration and analytics
+- **PhoenixKit.Emails.Metrics** - Local database analytics and dashboard data
 
 **Core Features:**
 - **Comprehensive Logging** - All outgoing emails logged with metadata
 - **Event Management** - Real-time delivery, bounce, complaint, open, click events
-- **AWS SES Integration** - Deep integration with SES webhooks and CloudWatch
+- **AWS SES Integration** - Deep integration with SES webhooks for event tracking
 - **Analytics Dashboard** - Engagement metrics, campaign analysis, geographic data
 - **Rate Limiting** - Multi-layer protection against abuse and spam patterns
 - **Data Lifecycle** - Automatic archival, compression, and cleanup

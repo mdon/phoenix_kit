@@ -299,18 +299,194 @@
                 </div>
               </div>
 
-              <%!-- Info Notice --%>
+              <%!-- OAuth Provider Credential Forms --%>
               <%= if @settings["oauth_enabled"] == "true" do %>
+                <%!-- Google OAuth Credentials --%>
+                <%= if @settings["oauth_google_enabled"] == "true" do %>
+                  <div class="card bg-base-200 p-4 mt-3">
+                    <h3 class="font-semibold mb-3 flex items-center gap-2">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
+                      Google OAuth Credentials
+                    </h3>
+
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text">Client ID</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="settings[oauth_google_client_id]"
+                        value={@settings["oauth_google_client_id"] || ""}
+                        placeholder="Your Google OAuth Client ID"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <div class="form-control mt-2">
+                      <label class="label">
+                        <span class="label-text">Client Secret</span>
+                      </label>
+                      <input
+                        type="password"
+                        name="settings[oauth_google_client_secret]"
+                        value={@settings["oauth_google_client_secret"] || ""}
+                        placeholder="Your Google OAuth Client Secret"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="test_oauth"
+                      phx-value-provider="google"
+                      class="btn btn-sm btn-outline mt-3 w-fit"
+                    >
+                      Test Credentials
+                    </button>
+                  </div>
+                <% end %>
+
+                <%!-- Apple OAuth Credentials --%>
+                <%= if @settings["oauth_apple_enabled"] == "true" do %>
+                  <div class="card bg-base-200 p-4 mt-3">
+                    <h3 class="font-semibold mb-3 flex items-center gap-2">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_apple class="h-5 w-5" />
+                      Apple OAuth Credentials
+                    </h3>
+
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text">Client ID</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="settings[oauth_apple_client_id]"
+                        value={@settings["oauth_apple_client_id"] || ""}
+                        placeholder="com.yourapp.service"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <div class="form-control mt-2">
+                      <label class="label">
+                        <span class="label-text">Team ID</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="settings[oauth_apple_team_id]"
+                        value={@settings["oauth_apple_team_id"] || ""}
+                        placeholder="Your Apple Team ID"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <div class="form-control mt-2">
+                      <label class="label">
+                        <span class="label-text">Key ID</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="settings[oauth_apple_key_id]"
+                        value={@settings["oauth_apple_key_id"] || ""}
+                        placeholder="Your Apple Key ID"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <div class="form-control mt-2">
+                      <label class="label">
+                        <span class="label-text">Private Key</span>
+                      </label>
+                      <textarea
+                        name="settings[oauth_apple_private_key]"
+                        rows="5"
+                        placeholder="-----BEGIN PRIVATE KEY-----&#10;Your Apple private key content&#10;-----END PRIVATE KEY-----"
+                        class="textarea textarea-bordered font-mono text-xs"
+                      >{@settings["oauth_apple_private_key"] || ""}</textarea>
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="test_oauth"
+                      phx-value-provider="apple"
+                      class="btn btn-sm btn-outline mt-3 w-fit"
+                    >
+                      Test Credentials
+                    </button>
+                  </div>
+                <% end %>
+
+                <%!-- GitHub OAuth Credentials --%>
+                <%= if @settings["oauth_github_enabled"] == "true" do %>
+                  <div class="card bg-base-200 p-4 mt-3">
+                    <h3 class="font-semibold mb-3 flex items-center gap-2">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
+                      GitHub OAuth Credentials
+                    </h3>
+
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text">Client ID</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="settings[oauth_github_client_id]"
+                        value={@settings["oauth_github_client_id"] || ""}
+                        placeholder="Your GitHub OAuth Client ID"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <div class="form-control mt-2">
+                      <label class="label">
+                        <span class="label-text">Client Secret</span>
+                      </label>
+                      <input
+                        type="password"
+                        name="settings[oauth_github_client_secret]"
+                        value={@settings["oauth_github_client_secret"] || ""}
+                        placeholder="Your GitHub OAuth Client Secret"
+                        class="input input-bordered"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="test_oauth"
+                      phx-value-provider="github"
+                      class="btn btn-sm btn-outline mt-3 w-fit"
+                    >
+                      Test Credentials
+                    </button>
+                  </div>
+                <% end %>
+
+                <%!-- OAuth Configuration Notice --%>
                 <div class="alert alert-info text-sm mt-3">
                   <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
                   <div>
-                    <div class="font-semibold">OAuth Configuration Required</div>
+                    <div class="font-semibold">OAuth Setup Instructions</div>
                     <div class="text-xs">
-                      Individual OAuth providers require dependencies (ueberauth_*) and environment variables (CLIENT_ID, CLIENT_SECRET) to be configured.
-                      See OAUTH_SETUP.md for detailed instructions.
+                      <p>1. Enable the provider above and save settings</p>
+                      <p>2. Enter your OAuth credentials in the form that appears</p>
+                      <p>3. Save settings again to store credentials</p>
+                      <p>4. Click "Test Credentials" to verify configuration</p>
+                      <p class="mt-1">
+                        Note: OAuth providers require ueberauth dependencies to be installed.
+                      </p>
                     </div>
                   </div>
                 </div>
+
+                <%!-- Reload OAuth Configuration Button --%>
+                <button
+                  type="button"
+                  phx-click="reload_oauth_config"
+                  class="btn btn-sm btn-outline btn-secondary mt-3"
+                >
+                  <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="h-4 w-4" />
+                  Reload OAuth Configuration
+                </button>
               <% end %>
             </div>
 

@@ -23,7 +23,6 @@ defmodule PhoenixKit.Emails do
   - `email_save_body` - Save full email body (vs preview only)
   - `email_save_headers` - Save email headers (vs empty map)
   - `email_ses_events` - Manage AWS SES delivery events
-  - `email_cloudwatch_metrics` - Enable CloudWatch metrics
   - `email_retention_days` - Days to keep emails (default: 90)
   - `aws_ses_configuration_set` - AWS SES configuration set name
   - `email_compress_body` - Compress body after N days
@@ -977,22 +976,6 @@ defmodule PhoenixKit.Emails do
     )
   end
 
-  @doc """
-  Enables or disables CloudWatch metrics integration.
-
-  ## Examples
-
-      iex> PhoenixKit.Emails.set_cloudwatch_metrics(true)
-      {:ok, %Setting{}}
-  """
-  def set_cloudwatch_metrics(enabled) when is_boolean(enabled) do
-    Settings.update_boolean_setting_with_module(
-      "email_cloudwatch_metrics",
-      enabled,
-      "email_system"
-    )
-  end
-
   ## --- AWS SQS Configuration ---
 
   @doc """
@@ -1312,7 +1295,6 @@ defmodule PhoenixKit.Emails do
       ses_configuration_set: get_ses_configuration_set(),
       compress_after_days: get_compress_after_days(),
       archive_to_s3: s3_archival_enabled?(),
-      cloudwatch_metrics: cloudwatch_metrics_enabled?(),
       # AWS SQS Configuration
       sns_topic_arn: get_sns_topic_arn(),
       sqs_queue_url: get_sqs_queue_url(),
@@ -1898,11 +1880,6 @@ defmodule PhoenixKit.Emails do
   # Check if S3 archival is enabled
   defp s3_archival_enabled? do
     Settings.get_boolean_setting("email_archive_to_s3", false)
-  end
-
-  # Check if CloudWatch metrics are enabled
-  defp cloudwatch_metrics_enabled? do
-    Settings.get_boolean_setting("email_cloudwatch_metrics", false)
   end
 
   # Get period start/end dates

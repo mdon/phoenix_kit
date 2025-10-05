@@ -95,6 +95,7 @@ defmodule PhoenixKit.MixProject do
       {:ex_aws, "~> 2.4"},
       {:ex_aws_sqs, "~> 3.4"},
       {:ex_aws_sts, "~> 2.3"},
+      {:ex_aws_s3, "~> 2.4"},
 
       # Code generation and project patching
       {:igniter, "~> 0.6.27", optional: true}

@@ -29,8 +29,11 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   @doc """
   Gets list of configured OAuth providers.
 
-  Returns a list of provider names (as atoms) that are configured in the application.
-  Returns an empty list if Ueberauth is not loaded or no providers are configured.
+  Returns a list of provider names (as atoms) that have both:
+  - Credentials configured in the database
+  - Provider enabled in settings
+
+  Returns an empty list if Ueberauth is not loaded or no providers are properly configured.
 
   ## Examples
 
@@ -42,14 +45,38 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   """
   @spec configured_providers :: [atom()]
   def configured_providers do
-    if ueberauth_loaded?() do
-      Application.get_env(:ueberauth, Ueberauth, [])[:providers]
-      |> case do
-        providers when is_list(providers) ->
-          Enum.map(providers, fn {name, _config} -> name end)
+    if ueberauth_loaded?() and Code.ensure_loaded?(PhoenixKit.Settings) do
+      try do
+        providers = []
 
-        _ ->
-          []
+        # Check Google
+        providers =
+          if provider_enabled?(:google) and PhoenixKit.Settings.has_oauth_credentials?(:google) do
+            [:google | providers]
+          else
+            providers
+          end
+
+        # Check Apple
+        providers =
+          if provider_enabled?(:apple) and PhoenixKit.Settings.has_oauth_credentials?(:apple) do
+            [:apple | providers]
+          else
+            providers
+          end
+
+        # Check GitHub
+        providers =
+          if provider_enabled?(:github) and PhoenixKit.Settings.has_oauth_credentials?(:github) do
+            [:github | providers]
+          else
+            providers
+          end
+
+        Enum.reverse(providers)
+      rescue
+        # Handle cases where repo is not configured (like in tests)
+        _ -> []
       end
     else
       []
@@ -69,7 +96,12 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   @spec oauth_enabled_in_settings? :: boolean()
   def oauth_enabled_in_settings? do
     if Code.ensure_loaded?(PhoenixKit.Settings) do
-      PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
+      try do
+        PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
+      rescue
+        # Handle cases where repo is not configured (like in tests)
+        _ -> false
+      end
     else
       false
     end
@@ -92,11 +124,16 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   @spec provider_enabled?(atom()) :: boolean()
   def provider_enabled?(provider) when provider in [:google, :apple, :github] do
     if Code.ensure_loaded?(PhoenixKit.Settings) do
-      master_enabled = PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
-      provider_key = "oauth_#{provider}_enabled"
-      provider_enabled = PhoenixKit.Settings.get_boolean_setting(provider_key, false)
+      try do
+        master_enabled = PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
+        provider_key = "oauth_#{provider}_enabled"
+        provider_enabled = PhoenixKit.Settings.get_boolean_setting(provider_key, false)
 
-      master_enabled and provider_enabled
+        master_enabled and provider_enabled
+      rescue
+        # Handle cases where repo is not configured (like in tests)
+        _ -> false
+      end
     else
       false
     end
@@ -122,6 +159,11 @@ defmodule PhoenixKit.Users.OAuthAvailability do
 
   @doc """
   Checks if a specific provider is configured.
+
+  A provider is considered configured if:
+  - It's enabled in settings
+  - It has valid credentials in the database
+  - Ueberauth is loaded
 
   ## Examples
 

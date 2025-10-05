@@ -1,43 +1,26 @@
 defmodule PhoenixKit.Emails.Metrics do
   @moduledoc """
-  AWS CloudWatch metrics integration for PhoenixKit email tracking.
+  Local metrics and analytics for PhoenixKit email tracking.
 
   This module provides comprehensive metrics collection and analysis capabilities
-  for email performance, deliverability, and engagement tracking through AWS CloudWatch.
+  for email performance, deliverability, and engagement tracking using the local database.
 
   ## Features
 
-  - **AWS SES Metrics**: Direct integration with SES CloudWatch metrics
-  - **Custom Metrics**: Application-specific metrics publishing
-  - **Reputation Tracking**: Sender reputation and deliverability scores  
   - **Engagement Analysis**: Open rates, click rates, and engagement trends
   - **Geographic Analytics**: Performance by region and country
   - **Provider Analysis**: Deliverability by email provider (Gmail, Outlook, etc.)
+  - **Campaign Performance**: Top performing campaigns and templates
   - **Real-time Dashboards**: Data for live monitoring dashboards
-
-  ## Configuration
-
-  Configure AWS credentials and region:
-
-      config :ex_aws,
-        access_key_id: {:system, "AWS_ACCESS_KEY_ID"},
-        secret_access_key: {:system, "AWS_SECRET_ACCESS_KEY"},
-        region: {:system, "AWS_REGION"}
-
-      # Enable CloudWatch metrics in email tracking
-      config :phoenix_kit,
-        email_cloudwatch_metrics: true
+  - **Time Series Data**: Historical trends and patterns
 
   ## Usage Examples
-
-      # Get basic SES metrics
-      {:ok, metrics} = PhoenixKit.Emails.Metrics.get_ses_metrics(:last_24_hours)
 
       # Get engagement metrics
       engagement = PhoenixKit.Emails.Metrics.get_engagement_metrics(:last_7_days)
 
-      # Publish custom metric
-      PhoenixKit.Emails.Metrics.put_custom_metric("EmailOpen", 1, "Count")
+      # Get geographic distribution
+      geo = PhoenixKit.Emails.Metrics.get_geographic_metrics(:last_30_days)
 
       # Get dashboard data
       dashboard = PhoenixKit.Emails.Metrics.get_dashboard_data(:last_30_days)
@@ -47,41 +30,9 @@ defmodule PhoenixKit.Emails.Metrics do
 
   alias PhoenixKit.Emails.{Event, Log}
 
-  ## --- AWS SES Metrics ---
-
-  @deprecated "CloudWatch integration has been discontinued. Use local email system metrics instead."
-  @doc """
-  Retrieves comprehensive SES metrics from CloudWatch.
-
-  **DEPRECATED**: CloudWatch integration has been discontinued. Use local email system metrics instead.
-
-  ## Parameters
-
-  - `period` - Time period (:last_hour, :last_24_hours, :last_7_days, :last_30_days)
-  - `options` - Additional options for filtering and grouping
-
-  ## Examples
-
-      iex> PhoenixKit.Emails.Metrics.get_ses_metrics(:last_24_hours)
-      {:error, :cloudwatch_discontinued}
-  """
-  def get_ses_metrics(_period \\ :last_24_hours, _options \\ []) do
-    {:error, :cloudwatch_discontinued}
-  end
-
-  @deprecated "CloudWatch integration has been discontinued. Use local email system metrics instead."
-  @doc """
-  Gets detailed reputation metrics from AWS SES.
-
-  **DEPRECATED**: CloudWatch integration has been discontinued. Use local email system metrics instead.
-
-  ## Examples
-
-      iex> PhoenixKit.Emails.Metrics.get_reputation_metrics()
-      {:error, :cloudwatch_discontinued}
-  """
-  def get_reputation_metrics(_period \\ :last_24_hours) do
-    {:error, :cloudwatch_discontinued}
+  # Get the configured repo
+  defp repo do
+    PhoenixKit.RepoHelper.repo()
   end
 
   @doc """
@@ -99,7 +50,7 @@ defmodule PhoenixKit.Emails.Metrics do
       }
   """
   def get_engagement_metrics(period \\ :last_7_days) do
-    # Use local database engagement data only (CloudWatch integration discontinued)
+    # Get engagement data from local database
     local_data = get_local_engagement_data(period)
 
     # Add trend analysis
@@ -121,7 +72,7 @@ defmodule PhoenixKit.Emails.Metrics do
   def get_geographic_metrics(event_type, period \\ :last_30_days) do
     {start_time, end_time} = get_time_range(period)
 
-    # Get geo data from local events (CloudWatch doesn't provide geo breakdown)
+    # Get geo data from local events database
     geo_data = Event.get_geo_distribution(event_type, start_time, end_time)
 
     total_count = Enum.reduce(geo_data, 0, fn {_country, count}, acc -> acc + count end)
@@ -134,39 +85,6 @@ defmodule PhoenixKit.Emails.Metrics do
 
       {country, %{count: count, percentage: percentage}}
     end)
-  end
-
-  ## --- Custom Metrics Publishing ---
-
-  @deprecated "CloudWatch integration has been discontinued. Custom metrics are no longer published."
-  @doc """
-  Publishes a custom metric to CloudWatch.
-
-  **DEPRECATED**: CloudWatch integration has been discontinued.
-
-  ## Examples
-
-      iex> PhoenixKit.Emails.Metrics.put_custom_metric("EmailOpen", 1, "Count")
-      {:error, :cloudwatch_discontinued}
-  """
-  def put_custom_metric(_metric_name, _value, _unit \\ "Count", _dimensions \\ []) do
-    {:error, :cloudwatch_discontinued}
-  end
-
-  @deprecated "CloudWatch integration has been discontinued. Custom metrics are no longer published."
-  @doc """
-  Publishes multiple custom metrics at once for efficiency.
-
-  **DEPRECATED**: CloudWatch integration has been discontinued.
-
-  ## Examples
-
-      iex> PhoenixKit.Emails.Metrics.put_custom_metrics(metrics)
-      {:error, :cloudwatch_discontinued}
-  """
-  def put_custom_metrics(metrics) when is_list(metrics) do
-    _ = metrics
-    {:error, :cloudwatch_discontinued}
   end
 
   ## --- Dashboard Data ---
@@ -251,11 +169,46 @@ defmodule PhoenixKit.Emails.Metrics do
       ]
   """
   def get_metric_alerts(period \\ :last_24_hours) do
-    # Get current metrics - CloudWatch discontinued, return error
-    case get_ses_metrics(period) do
-      {:error, _reason} ->
-        [%{type: :metrics_unavailable, severity: :error, message: "Unable to retrieve metrics"}]
-    end
+    # Get metrics from local database
+    stats = PhoenixKit.Emails.get_system_stats(period)
+
+    alerts = []
+
+    # Check for high bounce rate
+    alerts =
+      if stats.bounce_rate > 5.0 do
+        [
+          %{
+            type: :high_bounce_rate,
+            severity: :warning,
+            value: stats.bounce_rate,
+            threshold: 5.0,
+            message: "Bounce rate exceeds recommended threshold"
+          }
+          | alerts
+        ]
+      else
+        alerts
+      end
+
+    # Check for low delivery rate
+    alerts =
+      if stats.delivery_rate < 95.0 do
+        [
+          %{
+            type: :low_delivery_rate,
+            severity: :warning,
+            value: stats.delivery_rate,
+            threshold: 95.0,
+            message: "Delivery rate below recommended threshold"
+          }
+          | alerts
+        ]
+      else
+        alerts
+      end
+
+    alerts
   end
 
   ## --- Private Helper Functions ---
@@ -318,26 +271,145 @@ defmodule PhoenixKit.Emails.Metrics do
 
   # Get overview metrics
   defp get_overview_metrics(period) do
-    case get_ses_metrics(period) do
-      {:error, _} -> PhoenixKit.Emails.get_system_stats(period)
-    end
+    PhoenixKit.Emails.get_system_stats(period)
   end
 
   # Get time series data for charts
   defp get_time_series_data(period) do
-    {_start_time, _end_time} = get_time_range(period)
-    # Placeholder: This would need to be implemented based on your specific needs
-    # EmailLog.get_daily_engagement_stats(start_time, end_time)
-    []
+    # Use the existing daily delivery trends function from Log module
+    trends = Log.get_daily_delivery_trends(period)
+
+    # Transform the data into chart-compatible format
+    Enum.zip([trends.labels, trends.delivered, trends.bounced, trends.total_sent])
+    |> Enum.map(fn {date, delivered, bounced, total} ->
+      %{
+        date: date,
+        sent: total,
+        delivered: delivered,
+        bounced: bounced,
+        # Calculate rates
+        delivery_rate: if(total > 0, do: Float.round(delivered / total * 100, 2), else: 0),
+        bounce_rate: if(total > 0, do: Float.round(bounced / total * 100, 2), else: 0)
+      }
+    end)
   end
 
   # Get top performing campaigns/templates
   defp get_top_performers(period) do
-    {_start_time, _end_time} = get_time_range(period)
+    {start_date, end_date} = get_time_range(period)
 
-    # Get top campaigns by open rate
-    # This would need to be implemented based on your specific needs
-    []
+    # Get top campaigns by engagement score
+    top_campaigns = get_top_campaigns(start_date, end_date, 10)
+
+    # Get top templates by usage and performance
+    top_templates = get_top_templates(start_date, end_date, 10)
+
+    %{
+      campaigns: top_campaigns,
+      templates: top_templates
+    }
+  end
+
+  defp get_top_campaigns(start_date, end_date, limit) do
+    import Ecto.Query
+
+    # Query for campaigns with calculated engagement metrics
+    query =
+      from l in Log,
+        where: l.sent_at >= ^start_date and l.sent_at <= ^end_date,
+        where: not is_nil(l.campaign_id),
+        group_by: l.campaign_id,
+        select: %{
+          campaign_id: l.campaign_id,
+          total_sent: count(l.id),
+          delivered:
+            sum(
+              fragment(
+                "CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 ELSE 0 END",
+                l.status
+              )
+            ),
+          opened:
+            sum(fragment("CASE WHEN ? IN ('opened', 'clicked') THEN 1 ELSE 0 END", l.status)),
+          clicked: sum(fragment("CASE WHEN ? = 'clicked' THEN 1 ELSE 0 END", l.status))
+        },
+        having: count(l.id) > 0,
+        limit: ^limit
+
+    repo().all(query)
+    |> Enum.map(fn stats ->
+      delivered = stats.delivered || 0
+      opened = stats.opened || 0
+      clicked = stats.clicked || 0
+      total = stats.total_sent || 1
+
+      # Calculate engagement score (30% open rate + 70% click rate)
+      open_rate = if delivered > 0, do: opened / delivered, else: 0
+      click_rate = if opened > 0, do: clicked / opened, else: 0
+      engagement_score = (open_rate * 0.3 + click_rate * 0.7) * 100
+
+      %{
+        campaign_id: stats.campaign_id,
+        total_sent: total,
+        delivered: delivered,
+        opened: opened,
+        clicked: clicked,
+        open_rate: Float.round(open_rate * 100, 2),
+        click_rate: Float.round(click_rate * 100, 2),
+        engagement_score: Float.round(engagement_score, 2)
+      }
+    end)
+    |> Enum.sort_by(& &1.engagement_score, :desc)
+    |> Enum.take(limit)
+  end
+
+  defp get_top_templates(start_date, end_date, limit) do
+    import Ecto.Query
+
+    # Query for templates with usage and performance metrics
+    query =
+      from l in Log,
+        where: l.sent_at >= ^start_date and l.sent_at <= ^end_date,
+        where: not is_nil(l.template_name),
+        group_by: l.template_name,
+        select: %{
+          template_name: l.template_name,
+          usage_count: count(l.id),
+          delivered:
+            sum(
+              fragment(
+                "CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 ELSE 0 END",
+                l.status
+              )
+            ),
+          opened:
+            sum(fragment("CASE WHEN ? IN ('opened', 'clicked') THEN 1 ELSE 0 END", l.status)),
+          clicked: sum(fragment("CASE WHEN ? = 'clicked' THEN 1 ELSE 0 END", l.status))
+        },
+        having: count(l.id) > 0,
+        order_by: [desc: count(l.id)],
+        limit: ^limit
+
+    repo().all(query)
+    |> Enum.map(fn stats ->
+      delivered = stats.delivered || 0
+      opened = stats.opened || 0
+      clicked = stats.clicked || 0
+
+      # Calculate performance metrics
+      open_rate = if delivered > 0, do: Float.round(opened / delivered * 100, 2), else: 0
+      click_rate = if opened > 0, do: Float.round(clicked / opened * 100, 2), else: 0
+
+      %{
+        template_name: stats.template_name,
+        usage_count: stats.usage_count,
+        delivered: delivered,
+        opened: opened,
+        clicked: clicked,
+        open_rate: open_rate,
+        click_rate: click_rate
+      }
+    end)
   end
 
   # Get provider performance
