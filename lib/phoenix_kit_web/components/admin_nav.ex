@@ -11,6 +11,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.ThemeConfig
 
+  import PhoenixKitWeb.Components.Core.Icon
+
   @doc """
   Renders an admin navigation item with proper active state styling.
 
@@ -142,7 +144,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
           <details class="dropdown">
-          <summary class="btn m-1">open or close</summary>
+          <summary class="btn m-1">
+            <.icon name="hero-swatch" class="w-5 h-5" />
+          </summary>
           <ul
             class="menu w-full rounded-box border border-base-200 bg-base-100 p-2 shadow-xl space-y-1 max-h-96 overflow-y-auto"
             tabindex="0"
