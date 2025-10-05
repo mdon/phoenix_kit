@@ -7,6 +7,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.Entities
   alias PhoenixKit.Module.Languages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
@@ -23,6 +24,7 @@ defmodule PhoenixKitWeb.Live.Modules do
     referral_codes_config = ReferralCodes.get_config()
     email_config = PhoenixKit.Emails.get_config()
     languages_config = Languages.get_config()
+    entities_config = Entities.get_config()
 
     socket =
       socket
@@ -40,6 +42,9 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:languages_count, languages_config.language_count)
       |> assign(:languages_enabled_count, languages_config.enabled_count)
       |> assign(:languages_default, languages_config.default_language)
+      |> assign(:entities_enabled, entities_config.enabled)
+      |> assign(:entities_count, entities_config.entity_count)
+      |> assign(:entities_total_data, entities_config.total_data_count)
       |> assign(:current_locale, locale)
 
     {:ok, socket}
@@ -143,6 +148,43 @@ defmodule PhoenixKitWeb.Live.Modules do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update languages")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_entities", _params, socket) do
+    # Toggle entities system
+    new_enabled = !socket.assigns.entities_enabled
+
+    result =
+      if new_enabled do
+        Entities.enable_system()
+      else
+        Entities.disable_system()
+      end
+
+    case result do
+      {:ok, _} ->
+        # Reload entities configuration to get fresh data
+        entities_config = Entities.get_config()
+
+        socket =
+          socket
+          |> assign(:entities_enabled, new_enabled)
+          |> assign(:entities_count, entities_config.entity_count)
+          |> assign(:entities_total_data, entities_config.total_data_count)
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Entities system enabled",
+              else: "Entities system disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update entities system")
         {:noreply, socket}
     end
   end

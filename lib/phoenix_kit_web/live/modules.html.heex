@@ -205,6 +205,44 @@
           </div>
         </:stats>
       </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
+
+      <%!-- Entities Module --%>
+      <PhoenixKitWeb.Components.Core.ModuleCard.module_card
+        title={gettext("Entities")}
+        description={gettext("Dynamic content types with custom fields (WordPress ACF)")}
+        icon="📦"
+        enabled={@entities_enabled}
+        toggle_event="toggle_entities"
+      >
+        <:status_badges>
+          <span class={"badge #{if @entities_enabled, do: "badge-success", else: "badge-neutral"}"}>
+            {if @entities_enabled, do: gettext("Enabled"), else: gettext("Disabled")}
+          </span>
+        </:status_badges>
+
+        <:action_buttons>
+          <.link
+            navigate={PhoenixKit.Utils.Routes.path("/admin/settings/entities")}
+            class={"btn btn-sm #{if @entities_enabled, do: "btn-primary", else: "btn-outline"}"}
+          >
+            <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
+            {gettext("Configure")}
+          </.link>
+        </:action_buttons>
+
+        <:stats>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span class="text-base-content/70">{gettext("Total Entities:")}</span>
+              <span class="font-medium">{@entities_count}</span>
+            </div>
+            <div>
+              <span class="text-base-content/70">{gettext("Data Records:")}</span>
+              <span class="font-medium">{@entities_total_data}</span>
+            </div>
+          </div>
+        </:stats>
+      </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
     </div>
 
     <%!-- Future Modules Section --%>

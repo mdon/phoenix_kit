@@ -97,26 +97,37 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Template versioning and usage tracking
   - Integration with email logging system
 
-  ### V16 - OAuth Providers System ⚡ LATEST
+  ### V16 - OAuth Providers System & Magic Link Registration
   - Phoenix_kit_user_oauth_providers for OAuth integration
   - Support for Google, Apple, GitHub authentication
   - Account linking by email address
   - OAuth token storage with encryption support
   - Multiple providers per user support
+  - Magic link registration tokens with nullable user_id
+
+  ### V17 - Entities System (WordPress ACF-like) ⚡ LATEST
+  - Phoenix_kit_entities for dynamic content type definitions
+  - Phoenix_kit_entity_data for entity records
+  - JSONB storage for flexible field schemas
+  - Plural display names for better UI wording
+  - 13 field types support (text, number, date, select, etc.)
+  - Admin interfaces for entity and data management
+  - Settings integration (entities_enabled, entities_max_per_user, etc.)
 
   ## Migration Paths
 
   ### Fresh Installation (0 → Current)
-  Runs all migrations V01 through V16 in sequence.
+  Runs all migrations V01 through V17 in sequence.
 
   ### Incremental Updates
-  - V01 → V16: Runs V02 through V16 in sequence
-  - V15 → V16: Runs V16 only (adds OAuth providers system)
-  - V14 → V16: Runs V15, V16 (adds email templates and OAuth)
-  - V13 → V16: Runs V14, V15, V16 (adds modules, templates, and OAuth)
-  - V12 → V16: Runs V13 through V16 (adds SES tracking, modules, templates, OAuth)
+  - V01 → V17: Runs V02 through V17 in sequence
+  - V16 → V17: Runs V17 only (adds entities system)
+  - V15 → V17: Runs V16, V17 (adds OAuth providers, then entities)
+  - V14 → V17: Runs V15, V16, V17 (adds email templates, OAuth, entities)
+  - V13 → V17: Runs V14, V15, V16, V17 (adds modules, templates, OAuth, entities)
 
   ### Rollback Support
+  - V17 → V16: Removes entities system
   - V16 → V15: Removes OAuth providers system
   - V15 → V14: Removes email templates system
   - V14 → V13: Removes modules and referral codes
@@ -156,7 +167,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 16
+  @current_version 17
   @default_prefix "public"
 
   @doc false

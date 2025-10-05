@@ -307,6 +307,44 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <% end %>
                     <% end %>
 
+                    <%= if PhoenixKit.Entities.enabled?() do %>
+                      <%!-- Entities section with direct link and conditional submenu --%>
+                      <.admin_nav_item
+                        href={Routes.locale_aware_path(assigns, "/admin/entities")}
+                        icon="entities"
+                        label="Entities"
+                        current_path={@current_path || ""}
+                      />
+
+                      <%= if submenu_open?(@current_path, ["/admin/entities"]) do %>
+                        <%!-- Entities submenu items --%>
+                        <div class="mt-1">
+                          <.admin_nav_item
+                            href={Routes.locale_aware_path(assigns, "/admin/entities")}
+                            icon="entities"
+                            label="Entities"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+
+                          <%!-- Dynamically list each published entity (one level deeper) --%>
+                          <div class="pl-4">
+                            <%= for entity <- PhoenixKit.Entities.list_entities() do %>
+                              <%= if entity.status == "published" do %>
+                                <.admin_nav_item
+                                  href={Routes.locale_aware_path(assigns, "/admin/entities/#{entity.name}/data")}
+                                  icon={entity.icon || "hero-cube"}
+                                  label={entity.display_name_plural || entity.display_name}
+                                  current_path={@current_path || ""}
+                                  nested={true}
+                                />
+                              <% end %>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+                    <% end %>
+
                     <.admin_nav_item
                       href={Routes.locale_aware_path(assigns, "/admin/modules")}
                       icon="modules"
@@ -323,7 +361,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages", "/admin/settings/entities"]) do %>
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
@@ -359,6 +397,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             href={Routes.locale_aware_path(assigns, "/admin/settings/languages")}
                             icon="language"
                             label="Languages"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
+                        <%= if PhoenixKit.Entities.enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.path("/admin/settings/entities")}
+                            icon="entities"
+                            label="Entities"
                             current_path={@current_path || ""}
                             nested={true}
                           />
