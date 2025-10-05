@@ -36,6 +36,12 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] Role management
   - [x] Referral Program
 - [x] Email Module
+- [x] Entities Module (WordPress ACF-like dynamic content types)
+  - [x] Dynamic entity type creation
+  - [x] Flexible field schemas (13 field types)
+  - [x] JSONB storage for flexibility
+  - [x] Full CRUD interfaces
+  - [x] Settings management
 
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
@@ -91,7 +97,6 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
     - Export / Import
     - Snapshots
     - Backups
-    - Custom entities and fields
   - Customer service Module
     - Chat
   - Feedback Module

@@ -43,7 +43,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     active =
       if assigns.disable_active,
         do: false,
-        else: nav_item_active?(assigns.current_path, assigns.href)
+        else: nav_item_active?(assigns.current_path, assigns.href, assigns.nested)
 
     assigns = assign(assigns, :active, active)
 
@@ -62,14 +62,19 @@ defmodule PhoenixKitWeb.Components.AdminNav do
       ]}
     >
       <%= if @nested do %>
-        <%!-- Nested item indicator --%>
-        <div class="w-4 h-4 mr-2 flex items-center justify-center">
-          <div class="w-1.5 h-1.5 bg-current opacity-50 rounded-full"></div>
-        </div>
-        <span class="text-sm">{@label}</span>
+        <%!-- Nested item with custom hero icon --%>
+        <%= if String.starts_with?(@icon, "hero-") do %>
+          <span class={[@icon, "w-4 h-4 mr-2 flex-shrink-0"]}></span>
+          <span class="text-sm truncate">{@label}</span>
+        <% else %>
+          <div class="w-4 h-4 mr-2 flex-shrink-0">
+            <.admin_nav_icon icon={@icon} active={@active} />
+          </div>
+          <span class="text-sm truncate">{@label}</span>
+        <% end %>
       <% else %>
         <.admin_nav_icon icon={@icon} active={@active} />
-        <span class="ml-3 font-medium">{@label}</span>
+        <span class="ml-3 font-medium truncate">{@label}</span>
       <% end %>
     </.link>
     """
@@ -103,6 +108,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
           <PhoenixKitWeb.Components.Core.Icons.icon_referral_codes />
         <% "email" -> %>
           <PhoenixKitWeb.Components.Core.Icons.icon_email />
+        <% "entities" -> %>
+          <PhoenixKitWeb.Components.Core.Icons.icon_modules />
         <% _ -> %>
           <PhoenixKitWeb.Components.Core.Icons.icon_default />
       <% end %>
@@ -220,13 +227,18 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   end
 
   # Helper function to determine if navigation item is active
-  defp nav_item_active?(current_path, href) do
+  defp nav_item_active?(current_path, href, nested) do
     current_parts = parse_admin_path(current_path)
     href_parts = parse_admin_path(href)
 
     exact_match?(current_parts, href_parts) or
       tab_match?(current_parts, href_parts) or
-      parent_match?(current_parts, href_parts)
+      parent_match?(current_parts, href_parts) or
+      (!nested and hierarchical_match?(current_parts, href_parts))
+  end
+
+  defp hierarchical_match?(current_parts, href_parts) do
+    String.starts_with?(current_parts.base_path, href_parts.base_path <> "/")
   end
 
   # Check if paths match exactly
@@ -260,8 +272,10 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
     base_path =
       path_part
-      |> String.replace_prefix(admin_prefix, "")
       |> String.replace_prefix(prefix, "")
+      |> strip_locale_segment()
+      |> String.replace_prefix(admin_prefix, "")
+      |> String.replace_prefix("/admin", "")
       |> case do
         # Default to dashboard for root
         "" -> "dashboard"
@@ -285,4 +299,22 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   end
 
   defp parse_admin_path(_), do: %{base_path: "dashboard", tab: nil}
+
+  defp strip_locale_segment(path) do
+    case String.split(path, "/", parts: 3) do
+      ["", locale, rest] when rest != "" ->
+        if locale_candidate?(locale) do
+          "/" <> rest
+        else
+          path
+        end
+
+      _ ->
+        path
+    end
+  end
+
+  defp locale_candidate?(locale) do
+    String.length(locale) in 2..5 and Regex.match?(~r/^[a-z]{2}(?:-[A-Za-z0-9]{2,})?$/, locale)
+  end
 end

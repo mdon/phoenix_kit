@@ -262,6 +262,32 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/emails/email/:id", Live.Modules.Emails.Details, :show
           live "/admin/emails/queue", Live.Modules.Emails.Queue, :index
           live "/admin/emails/blocklist", Live.Modules.Emails.Blocklist, :index
+
+          # Entities Management
+          live "/admin/entities", Live.Modules.Entities.Entities, :index, as: :entities
+          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new,
+            as: :entities_new
+
+          live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
+            as: :entities_edit
+
+          live "/admin/entities/data", Live.Modules.Entities.DataNavigator, :index,
+            as: :entities_data
+
+          live "/admin/entities/:entity_slug/data", Live.Modules.Entities.DataNavigator, :entity,
+            as: :entities_data_entity
+
+          live "/admin/entities/:entity_slug/data/new", Live.Modules.Entities.DataForm, :new,
+            as: :entities_data_new
+
+          live "/admin/entities/:entity_slug/data/:id", Live.Modules.Entities.DataForm, :show,
+            as: :entities_data_show
+
+          live "/admin/entities/:entity_slug/data/:id/edit", Live.Modules.Entities.DataForm, :edit,
+            as: :entities_data_edit
+
+          live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
+            as: :entities_settings
         end
       end
     end
@@ -339,6 +365,32 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/modules/emails/templates/:id/edit",
                Live.Modules.Emails.TemplateEditor,
                :edit
+
+          # Entities Management
+          live "/admin/entities", Live.Modules.Entities.Entities, :index, as: :entities
+          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new,
+            as: :entities_new
+
+          live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
+            as: :entities_edit
+
+          live "/admin/entities/data", Live.Modules.Entities.DataNavigator, :index,
+            as: :entities_data
+
+          live "/admin/entities/:entity_slug/data", Live.Modules.Entities.DataNavigator, :entity,
+            as: :entities_data_entity
+
+          live "/admin/entities/:entity_slug/data/new", Live.Modules.Entities.DataForm, :new,
+            as: :entities_data_new
+
+          live "/admin/entities/:entity_slug/data/:id", Live.Modules.Entities.DataForm, :show,
+            as: :entities_data_show
+
+          live "/admin/entities/:entity_slug/data/:id/edit", Live.Modules.Entities.DataForm, :edit,
+            as: :entities_data_edit
+
+          live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
+            as: :entities_settings
         end
       end
     end
