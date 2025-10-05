@@ -7,6 +7,11 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   This task handles updating an existing PhoenixKit installation to the latest version
   by creating upgrade migrations that preserve existing data while adding new features.
 
+  The update process also automatically:
+  - Updates CSS configuration (enables daisyUI themes if disabled)
+  - Rebuilds assets using the Phoenix asset pipeline
+  - Applies database migrations (with optional interactive prompt)
+
   ## Usage
 
       $ mix phoenix_kit.update
@@ -59,7 +64,7 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   - Rollback-capable (can be reverted if needed)
   """
 
-  alias PhoenixKit.Install.{AssetRebuild, Common}
+  alias PhoenixKit.Install.{AssetRebuild, Common, CssIntegration}
   alias PhoenixKit.Utils.Routes
 
   @shortdoc "Updates PhoenixKit to the latest version"
@@ -142,6 +147,9 @@ defmodule Mix.Tasks.PhoenixKit.Update do
   defp handle_update_needed(prefix, current_version, target_version, force, skip_assets, yes) do
     migration_file = create_update_migration(prefix, current_version, target_version, force)
 
+    # Update CSS integration (enables daisyUI themes if disabled)
+    update_css_integration()
+
     # Always rebuild assets unless explicitly skipped
     unless skip_assets do
       AssetRebuild.check_and_rebuild(verbose: true)
@@ -149,6 +157,49 @@ defmodule Mix.Tasks.PhoenixKit.Update do
 
     # Run interactive migration execution
     run_update_migration_interactive(migration_file, yes)
+  end
+
+  # Update CSS integration during PhoenixKit updates
+  defp update_css_integration do
+    css_paths = [
+      "assets/css/app.css",
+      "priv/static/css/app.css",
+      "lib/#{Mix.Phoenix.otp_app()}_web/assets/css/app.css"
+    ]
+
+    case Enum.find(css_paths, &File.exists?/1) do
+      nil ->
+        # No app.css found - skip CSS integration
+        :ok
+
+      css_path ->
+        # Update CSS file to enable daisyUI themes if disabled
+        content = File.read!(css_path)
+        existing = CssIntegration.check_existing_integration(content)
+
+        if existing.daisyui_themes_disabled do
+          # Use regex to update themes: false -> themes: all
+          pattern = ~r/@plugin\s+(["'][^"']*daisyui["'])\s*\{([^}]*themes:\s*)false([^}]*)\}/
+
+          updated_content =
+            String.replace(content, pattern, fn match ->
+              String.replace(match, ~r/(themes:\s*)false/, "\\1all")
+            end)
+
+          File.write!(css_path, updated_content)
+
+          Mix.shell().info("""
+
+          ✅ Updated daisyUI configuration to enable all themes!
+          File: #{css_path}
+          Changed: themes: false → themes: all
+          """)
+        end
+    end
+  rescue
+    error ->
+      # Non-critical error - log and continue
+      Mix.shell().info("ℹ️  Could not update CSS integration: #{inspect(error)}")
   end
 
   # Perform the actual update

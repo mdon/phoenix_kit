@@ -32,10 +32,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
   import PhoenixKitWeb.Components.AdminNav
 
+  alias Phoenix.HTML
   alias PhoenixKit.Module.Languages
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.ThemeConfig
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.
@@ -140,6 +142,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
             ~H"""
             <%!-- PhoenixKit Admin Layout following EZNews pattern --%>
+            <style data-phoenix-kit-themes>
+              <%= HTML.raw(ThemeConfig.custom_theme_css()) %>
+            </style>
             <%!-- Mobile Header (shown only on mobile in admin panel) --%>
             <header class="bg-base-100 shadow-sm border-b border-base-300 lg:hidden">
               <div class="flex items-center justify-between h-16 px-4">
@@ -165,9 +170,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               <input id="admin-mobile-menu" type="checkbox" class="drawer-toggle" />
 
               <%!-- Main content --%>
-              <div class="drawer-content flex flex-col">
+              <div class="drawer-content flex min-h-screen flex-col bg-base-100 transition-colors">
                 <%!-- Page content from parent layout --%>
-                {render_slot(@original_inner_block)}
+                <div class="flex-1">
+                  {render_slot(@original_inner_block)}
+                </div>
               </div>
 
               <%!-- Desktop/Mobile Sidebar (without overlay on desktop) --%>
@@ -453,29 +460,103 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 });
               });
 
+              const themeBaseMap = <%= ThemeConfig.base_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
+              const themeLabels = <%= ThemeConfig.label_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
+
               // Admin theme controller for PhoenixKit with animated slider
               const adminThemeController = {
                 init() {
-                  const savedTheme = localStorage.getItem('phoenix_kit_theme') || 'system';
+                  this.dropdownControllers = Array.from(
+                    document.querySelectorAll('[data-theme-dropdown]')
+                  ).map((container) => ({
+                    container,
+                    button: container.querySelector('[data-theme-toggle]'),
+                    panel: container.querySelector('[data-theme-dropdown-panel]'),
+                    label: container.querySelector('[data-theme-current-label]')
+                  }));
+
+                  this.registerDropdownAccessibility();
+                  this.systemMediaQuery =
+                    typeof window.matchMedia === 'function'
+                      ? window.matchMedia('(prefers-color-scheme: dark)')
+                      : null;
+
+                  if (this.systemMediaQuery) {
+                    this.systemMediaQuery.addEventListener('change', () => {
+                  if ((localStorage.getItem('phx:theme') || 'system') === 'system') {
+                        this.applyThemeAttributes('system');
+                      }
+                    });
+                  }
+
+                  const savedTheme = localStorage.getItem('phx:theme') || 'system';
                   this.setTheme(savedTheme);
                   this.setupListeners();
                 },
 
                 setTheme(theme) {
-                  document.documentElement.setAttribute('data-theme', theme);
-                  localStorage.setItem('phoenix_kit_theme', theme);
+                  const resolvedTheme = this.applyThemeAttributes(theme, themeBaseMap);
 
-                  // Update slider position via CSS data attribute
-                  document.documentElement.setAttribute('data-theme', theme);
+                  if (theme === 'system') {
+                    localStorage.removeItem('phx:theme');
+                  } else {
+                    localStorage.setItem('phx:theme', theme);
+                  }
+
+                  if (this.dropdownControllers?.length) {
+                    this.dropdownControllers.forEach((entry) => {
+                      if (entry.label) {
+                        entry.label.textContent = themeLabels[theme] || this.toTitle(theme);
+                      }
+                      this.setDropdownState(entry, false);
+                    });
+                  }
 
                   // Update active state for all theme buttons
-                  document.querySelectorAll('[data-theme-target]').forEach(btn => {
-                    if (btn.dataset.themeTarget === theme) {
-                      btn.classList.add('text-primary');
-                    } else {
-                      btn.classList.remove('text-primary');
+                  document.querySelectorAll('[data-theme-target]').forEach((btn) => {
+                    const targets = (btn.dataset.themeTarget || '')
+                      .split(',')
+                      .map((value) => value.trim())
+                      .filter(Boolean);
+                    const isActive = targets.includes(theme) || targets.includes(resolvedTheme);
+
+                    if (btn.dataset.themeRole === 'dropdown-option') {
+                      btn.classList.toggle('bg-base-200', isActive);
+                      btn.classList.toggle('ring-2', isActive);
+                      btn.classList.toggle('ring-primary/70', isActive);
+                      btn.setAttribute('aria-selected', String(isActive));
+                      btn
+                        .querySelectorAll('[data-theme-active-indicator]')
+                        .forEach((icon) => {
+                          icon.classList.toggle('opacity-100', isActive);
+                          icon.classList.toggle('scale-100', isActive);
+                          icon.classList.toggle('scale-75', !isActive);
+                        });
+                    } else if (btn.dataset.themeRole === 'slider-button') {
+                      btn.classList.toggle('text-primary', isActive);
+                      btn.setAttribute('aria-pressed', String(isActive));
                     }
                   });
+
+                  // Notify global PhoenixKit theme listeners
+                  try {
+                    window.dispatchEvent(
+                      new CustomEvent('phx:set-theme', {
+                        detail: { theme }
+                      })
+                    );
+                  } catch (error) {
+                    console.warn('PhoenixKit admin theme controller: unable to dispatch phx:set-theme', error);
+                  }
+
+                  if (window.PhoenixKitTheme && typeof window.PhoenixKitTheme.setTheme === 'function') {
+                    try {
+                      window.PhoenixKitTheme.setTheme(theme);
+                    } catch (error) {
+                      console.warn('PhoenixKit admin theme controller: unable to sync PhoenixKitTheme', error);
+                    }
+                  }
+
                 },
 
                 setupListeners() {
@@ -483,6 +564,87 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   document.addEventListener('phx:set-admin-theme', (e) => {
                     this.setTheme(e.detail.theme);
                   });
+                },
+
+                registerDropdownAccessibility() {
+                  if (!this.dropdownControllers?.length) return;
+
+                  this.dropdownControllers.forEach((entry) => {
+                    this.setDropdownState(entry, false);
+
+                    if (!entry.button || !entry.panel) return;
+
+                    entry.button.addEventListener('click', (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const expanded = entry.button.getAttribute('aria-expanded') === 'true';
+                      this.setDropdownState(entry, !expanded);
+                    });
+
+                    entry.panel.addEventListener('click', (event) => {
+                      event.stopPropagation();
+                    });
+                  });
+
+                  document.addEventListener('click', (event) => {
+                    const clickedInside = this.dropdownControllers.some((entry) =>
+                      entry.container?.contains(event.target)
+                    );
+
+                    if (!clickedInside) {
+                      this.dropdownControllers.forEach((entry) => this.setDropdownState(entry, false));
+                    }
+                  });
+                },
+
+                toTitle(value) {
+                  return value
+                    .split('-')
+                    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+                    .join(' ');
+                },
+
+                setDropdownState(entry, isOpen) {
+                  if (!entry?.button || !entry?.panel) return;
+
+                  entry.button.setAttribute('aria-expanded', String(!!isOpen));
+                  entry.panel.setAttribute('aria-hidden', String(!isOpen));
+                  entry.panel.classList.toggle('pointer-events-auto', !!isOpen);
+                  entry.panel.classList.toggle('pointer-events-none', !isOpen);
+                  entry.panel.classList.toggle('opacity-100', !!isOpen);
+                  entry.panel.classList.toggle('opacity-0', !isOpen);
+                  entry.panel.classList.toggle('-translate-y-2', !isOpen);
+                  entry.panel.classList.toggle('translate-y-0', !!isOpen);
+                },
+
+                applyThemeAttributes(theme, baseMap = {}) {
+                  const resolvedTheme =
+                    theme === 'system'
+                      ? this.systemMediaQuery && this.systemMediaQuery.matches
+                        ? 'phoenix-dark'
+                        : 'phoenix-light'
+                      : theme;
+
+                  if (document.documentElement) {
+                    document.documentElement.setAttribute('data-theme', resolvedTheme);
+                    document.documentElement.dataset.theme = resolvedTheme;
+                    document.documentElement.setAttribute(
+                      'data-admin-theme-base',
+                      theme === 'system' ? 'system' : baseMap[resolvedTheme] || resolvedTheme
+                    );
+                  }
+
+                  if (document.body) {
+                    document.body.setAttribute('data-theme', resolvedTheme);
+                    document.body.dataset.theme = resolvedTheme;
+                    document.body.setAttribute(
+                      'data-admin-theme-base',
+                      theme === 'system' ? 'system' : baseMap[resolvedTheme] || resolvedTheme
+                    );
+                    document.body.classList.add('bg-base-100', 'transition-colors');
+                  }
+
+                  return resolvedTheme;
                 }
               };
 
@@ -574,7 +736,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     ~H"""
     <!DOCTYPE html>
-    <html lang="en" data-theme="light" class="[scrollbar-gutter:stable]">
+    <html lang="en" data-theme="light" data-admin-theme-base="system" class="[scrollbar-gutter:stable]">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -582,12 +744,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <.live_title default={"#{assigns[:project_title] || "PhoenixKit"} Admin"}>
           {assigns[:page_title] || "Admin"}
         </.live_title>
-        <link phx-track-static rel="stylesheet" href="/assets/app.css" />
-        <script defer phx-track-static type="text/javascript" src="/assets/app.js" />
+        <link phx-track-static rel="stylesheet" href={"/assets/css/app.css"} />
+        <script defer phx-track-static type="text/javascript" src={"/assets/js/app.js"} />
       </head>
-      <body class="bg-base-200 antialiased">
+      <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
         <%!-- Admin pages without parent headers --%>
-        <main class="min-h-screen">
+        <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
           {render_slot(@inner_block)}
         </main>
