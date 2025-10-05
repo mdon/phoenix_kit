@@ -115,7 +115,7 @@ This ensures consistent code formatting across the project.
 
 **Current Version**: 1.2.15 (in mix.exs)
 **Version Strategy**: Semantic versioning (MAJOR.MINOR.PATCH)
-**Migration Version**: V16 (latest migration version with OAuth providers and magic link registration)
+**Migration Version**: V17 (latest migration version with entities system and plural display names)
 
 **MANDATORY steps for version updates:**
 
