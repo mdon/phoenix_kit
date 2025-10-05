@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   alias Phoenix.LiveView.JS
 
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.ThemeConfig
 
   @doc """
   Renders an admin navigation item with proper active state styling.
@@ -124,43 +125,113 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   attr :mobile, :boolean, default: false
 
   def admin_theme_controller(assigns) do
+    assigns =
+      assigns
+      |> assign(:dropdown_themes, ThemeConfig.dropdown_themes())
+      |> assign(:system_targets, ThemeConfig.slider_targets("system") |> Enum.join(","))
+      |> assign(:light_targets, ThemeConfig.slider_targets("light") |> Enum.join(","))
+      |> assign(:dark_targets, ThemeConfig.slider_targets("dark") |> Enum.join(","))
+      |> assign(:system_primary, ThemeConfig.slider_primary_theme("system"))
+      |> assign(:light_primary, ThemeConfig.slider_primary_theme("light"))
+      |> assign(:dark_primary, ThemeConfig.slider_primary_theme("dark"))
+      |> assign(:system_primary, ThemeConfig.slider_primary_theme("system"))
+      |> assign(:light_primary, ThemeConfig.slider_primary_theme("light"))
+      |> assign(:dark_primary, ThemeConfig.slider_primary_theme("dark"))
+
     ~H"""
-    <div class={[
-      "card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full",
-      if(@mobile, do: "scale-90", else: "")
-    ]}>
-      <%!-- Animated slider --%>
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
+    <div class="flex flex-col gap-3 w-full">
+      <div class="relative w-full" data-theme-dropdown>
+          <details class="dropdown">
+          <summary class="btn m-1">open or close</summary>
+          <ul
+            class="menu w-full rounded-box border border-base-200 bg-base-100 p-2 shadow-xl space-y-1 max-h-96 overflow-y-auto"
+            tabindex="0"
+          >
+                  <%!-- data-theme-target={theme.value} --%>
+            <%= for theme <- @dropdown_themes do %>
+              <li>
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: theme.value})}
+                  data-tip={theme.value}
+                  data-theme-target={@system_targets}
+                  data-theme-role="dropdown-option"
+                  role="option"
+                  aria-pressed="false"
+                  class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <PhoenixKitWeb.Components.Core.Icons.icon_system />
+                  <%= case theme.type do %>
+                    <% :system -> %>
+                      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-base-200 bg-base-100 shadow-sm">
+                        <PhoenixKitWeb.Components.Core.Icons.icon_system class="size-4 opacity-90" />
+                      </div>
+                    <% :theme -> %>
+                      <div
+                        data-theme={theme.preview_theme}
+                        class="grid h-8 w-8 shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-200 bg-base-100 p-1 shadow-sm"
+                      >
+                        <div class="rounded-full bg-base-content"></div>
+                        <div class="rounded-full bg-primary"></div>
+                        <div class="rounded-full bg-secondary"></div>
+                        <div class="rounded-full bg-accent"></div>
+                      </div>
+                  <% end %>
+                  <span class="flex-1 text-left font-medium text-base-content">{theme.label}</span>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_check
+                    class="size-4 text-primary opacity-0 scale-75 transition-all"
+                    data-theme-active-indicator
+                  />
+                </button>
+              </li>
+            <% end %>
+          </ul>
+          </details>
+      </div>
 
-      <%!-- System theme button --%>
-      <button
-        class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-        phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "system"})}
-        data-tip="System theme"
-        data-theme-target="system"
-      >
-        <PhoenixKitWeb.Components.Core.Icons.icon_system />
-      </button>
+      <div class={[
+        "card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full",
+        if(@mobile, do: "scale-90", else: "")
+      ]}>
+        <%!-- Animated slider --%>
+        <div class="absolute left-0 h-full w-1/3 rounded-full border-1 border-base-200 bg-base-100 brightness-200 [[data-admin-theme-base=light]_&]:left-1/3 [[data-admin-theme-base=dark]_&]:left-2/3 transition-[left]" />
 
-      <%!-- Light theme button --%>
-      <button
-        class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-        phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "light"})}
-        data-tip="Light theme"
-        data-theme-target="light"
-      >
-        <PhoenixKitWeb.Components.Core.Icons.icon_light />
-      </button>
+        <%!-- System theme button --%>
+        <button
+          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
+          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "system"})}
+          data-tip="System theme"
+          data-theme-target={@system_targets}
+          data-theme-role="slider-button"
+          aria-pressed="false"
+        >
+          <PhoenixKitWeb.Components.Core.Icons.icon_system />
+        </button>
 
-      <%!-- Dark theme button --%>
-      <button
-        class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-        phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "dark"})}
-        data-tip="Dark theme"
-        data-theme-target="dark"
-      >
-        <PhoenixKitWeb.Components.Core.Icons.icon_dark />
-      </button>
+        <%!-- Light theme button --%>
+        <button
+          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
+          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @light_primary})}
+          data-tip="Light theme"
+          data-theme-target={@light_targets}
+          data-theme-role="slider-button"
+          aria-pressed="false"
+        >
+          <PhoenixKitWeb.Components.Core.Icons.icon_light />
+        </button>
+
+        <%!-- Dark theme button --%>
+        <button
+          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
+          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @dark_primary})}
+          data-tip="Dark theme"
+          data-theme-target={@dark_targets}
+          data-theme-role="slider-button"
+          aria-pressed="false"
+        >
+          <PhoenixKitWeb.Components.Core.Icons.icon_dark />
+        </button>
+      </div>
     </div>
     """
   end
