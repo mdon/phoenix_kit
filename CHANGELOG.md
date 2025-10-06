@@ -1,4 +1,4 @@
-## 1.2.15 - 2025-10-01
+## 1.3.0 - 2025-10-06
 
 ### Added
 - **Magic Link Registration System** - Passwordless two-step registration via email
@@ -8,7 +8,7 @@
   - Configurable expiry time (default: 30 minutes)
   - Automatic email verification on completion
   - Referral code support in registration flow
-  - V16 migration: Modified tokens table to allow null user_id for magic_link_registration context
+  - Database V16 migration: Modified tokens table to allow null user_id for magic_link_registration context
   - Check constraint ensuring user_id required for all non-registration token contexts
 - **OAuth Provider Validation** - Enhanced OAuth request handling with configuration checks
   - Provider existence validation before authentication flow
