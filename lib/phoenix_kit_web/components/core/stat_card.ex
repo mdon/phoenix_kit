@@ -63,7 +63,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
       <%= if @compact do %>
         <%!-- Compact horizontal layout --%>
         <div class="flex items-center gap-3">
-          <div class="p-2 bg-white/20 rounded-btn flex-shrink-0">
+          <div class="p-2 bg-white/20 rounded-box flex-shrink-0">
             {render_slot(@icon)}
           </div>
           <div class="flex-1">
@@ -75,7 +75,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
       <% else %>
         <%!-- Original vertical layout --%>
         <div class="flex items-center justify-between mb-4">
-          <div class="p-2 bg-white/20 rounded-btn">
+          <div class="p-2 bg-white/20 rounded-box">
             {render_slot(@icon)}
           </div>
         </div>
