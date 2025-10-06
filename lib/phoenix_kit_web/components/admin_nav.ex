@@ -148,12 +148,12 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
           <ul
-            class="dropdown-content w-72 min-w-0 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 max-h-[80vh] overflow-y-auto overflow-x-hidden"
+            class="dropdown-content w-72 min-w-0 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 max-h-[80vh] overflow-y-auto overflow-x-hidden list-none space-y-1"
             tabindex="0"
           >
                   <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
-              <li>
+              <li class="w-full">
                 <button
                   type="button"
                   phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: theme.value})}
@@ -162,7 +162,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                   data-theme-role="dropdown-option"
                   role="option"
                   aria-pressed="false"
-                  class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  class="w-full group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <%= case theme.type do %>
                     <% :system -> %>
