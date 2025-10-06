@@ -29,8 +29,6 @@ defmodule PhoenixKit.Admin.SimplePresence do
   Tracks an anonymous session.
   """
   def track_anonymous(session_id, metadata \\ %{}) do
-    ensure_started()
-
     key = "anonymous:#{session_id}"
 
     metadata =
@@ -58,8 +56,6 @@ defmodule PhoenixKit.Admin.SimplePresence do
   Tracks an authenticated user session.
   """
   def track_user(user, metadata \\ %{}) do
-    ensure_started()
-
     key = "user:#{user.id}"
 
     metadata =
@@ -88,8 +84,6 @@ defmodule PhoenixKit.Admin.SimplePresence do
   Updates metadata for an existing presence.
   """
   def update_metadata(key, metadata_updates) do
-    ensure_started()
-
     case GenServer.call(@server_name, {:update, key, metadata_updates}) do
       :ok ->
         broadcast_presence_stats()
@@ -104,8 +98,6 @@ defmodule PhoenixKit.Admin.SimplePresence do
   Lists all active sessions.
   """
   def list_active_sessions do
-    ensure_started()
-
     try do
       @table_name
       |> :ets.tab2list()
@@ -231,28 +223,6 @@ defmodule PhoenixKit.Admin.SimplePresence do
   end
 
   ## Private Functions
-
-  defp ensure_started do
-    Manager.ensure_started()
-
-    case GenServer.whereis(@server_name) do
-      nil ->
-        case start_link() do
-          {:ok, _pid} ->
-            :ok
-
-          {:error, {:already_started, _pid}} ->
-            :ok
-
-          error ->
-            Logger.error("Failed to start SimplePresence: #{inspect(error)}")
-            error
-        end
-
-      _pid ->
-        :ok
-    end
-  end
 
   defp broadcast_presence_stats do
     stats = get_presence_stats()
