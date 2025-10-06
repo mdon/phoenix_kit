@@ -174,9 +174,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
 
-                <%!-- Right: Theme Switcher and User Dropdown --%>
+                <%!-- Right: Theme Switcher, Language Dropdown, and User Dropdown --%>
                 <div class="flex items-center gap-3">
                   <.admin_theme_controller mobile={true} />
+                  <.admin_language_dropdown
+                    current_path={@current_path}
+                    current_locale={@current_locale}
+                  />
                   <.admin_user_dropdown
                     scope={@phoenix_kit_current_scope}
                     current_path={@current_path}
@@ -429,15 +433,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       </div>
                     <% end %>
                   </nav>
-
-                  <%!-- Bottom Section: Language Switcher --%>
-                  <div class="p-4 border-t border-base-300">
-                    <%!-- Language Switcher --%>
-                    <.admin_language_switcher
-                      current_path={@current_path || ""}
-                      current_locale={@current_locale || "en"}
-                    />
-                  </div>
                 </aside>
               </div>
             </div>
