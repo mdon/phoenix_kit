@@ -48,6 +48,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     use Igniter.Mix.Task
 
     alias PhoenixKit.Install.{
+      ApplicationSupervisor,
       AssetRebuild,
       CssIntegration,
       DemoFiles,
@@ -89,6 +90,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       igniter
       |> RepoDetection.add_phoenix_kit_configuration(opts[:repo])
       |> MailerConfig.add_mailer_configuration()
+      |> ApplicationSupervisor.add_supervisor()
       |> LayoutConfig.add_layout_integration_configuration()
       |> CssIntegration.add_automatic_css_integration()
       |> DemoFiles.copy_test_demo_files()
