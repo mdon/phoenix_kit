@@ -145,54 +145,62 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <style data-phoenix-kit-themes>
               <%= HTML.raw(ThemeConfig.custom_theme_css()) %>
             </style>
-            <%!-- Mobile Header (shown only on mobile in admin panel) --%>
-            <header class="bg-base-100 shadow-sm border-b border-base-300 lg:hidden">
+            <style>
+              /* Custom sidebar control for desktop - override lg:drawer-open when closed */
+              @media (min-width: 1024px) {
+                #admin-drawer.sidebar-closed .drawer-side {
+                  transform: translateX(-16rem); /* -256px (w-64) */
+                  transition: transform 300ms ease-in-out;
+                }
+                #admin-drawer:not(.sidebar-closed).drawer.lg\:drawer-open .drawer-side {
+                  transform: translateX(0);
+                  transition: transform 300ms ease-in-out;
+                }
+              }
+            </style>
+            <%!-- Top Bar Navbar (always visible, spans full width) --%>
+            <header class="bg-base-100 shadow-sm border-b border-base-300 fixed top-0 left-0 right-0 z-50">
               <div class="flex items-center justify-between h-16 px-4">
-                <%!-- Mobile Menu Button --%>
-                <label for="admin-mobile-menu" class="btn btn-square btn-primary drawer-button p-0">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_menu />
-                </label>
+                <%!-- Left: Burger Menu, Logo and Title --%>
+                <div class="flex items-center gap-3">
+                  <%!-- Burger Menu Button (Far left) --%>
+                  <label for="admin-mobile-menu" class="btn btn-square btn-primary drawer-button p-0">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_menu />
+                  </label>
 
-                <%!-- Logo --%>
-                <div class="flex items-center">
-                  <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-2">
+                  <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                     <PhoenixKitWeb.Components.Core.Icons.icon_shield />
                   </div>
                   <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
 
-                <%!-- Theme Switcher Mobile --%>
-                <.admin_theme_controller mobile={true} />
+                <%!-- Right: Theme Switcher and User Dropdown --%>
+                <div class="flex items-center gap-3">
+                  <.admin_theme_controller mobile={true} />
+                  <.admin_user_dropdown
+                    scope={@phoenix_kit_current_scope}
+                    current_path={@current_path}
+                    current_locale={@current_locale}
+                  />
+                </div>
               </div>
             </header>
 
-            <div class="drawer lg:drawer-open">
+            <div id="admin-drawer" class="drawer lg:drawer-open">
               <input id="admin-mobile-menu" type="checkbox" class="drawer-toggle" />
 
               <%!-- Main content --%>
-              <div class="drawer-content flex min-h-screen flex-col bg-base-100 transition-colors">
+              <div class="drawer-content flex min-h-screen flex-col bg-base-100 transition-colors pt-16">
                 <%!-- Page content from parent layout --%>
                 <div class="flex-1">
                   {render_slot(@original_inner_block)}
                 </div>
               </div>
 
-              <%!-- Desktop/Mobile Sidebar (without overlay on desktop) --%>
+              <%!-- Desktop/Mobile Sidebar --%>
               <div class="drawer-side">
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
-                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col">
-                  <%!-- Sidebar header (desktop only) --%>
-                  <div class="px-4 py-6 border-b border-base-300 hidden lg:block">
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                        <PhoenixKitWeb.Components.Core.Icons.icon_shield />
-                      </div>
-                      <div>
-                        <h2 class="font-bold text-base-content">{@project_title} Admin</h2>
-                      </div>
-                    </div>
-                  </div>
-
+                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
                   <%!-- Navigation (fills available space) --%>
                   <nav class="px-4 py-6 space-y-2 flex-1">
                     <.admin_nav_item
@@ -422,23 +430,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <% end %>
                   </nav>
 
-                  <%!-- Bottom Section: Language Switcher, Theme & User Info --%>
-                  <div class="p-4 border-t border-base-300 space-y-3">
-                    <%!-- Language Switcher (desktop only) --%>
-                    <div class="hidden lg:block">
-                      <.admin_language_switcher
-                        current_path={@current_path || ""}
-                        current_locale={@current_locale || "en"}
-                      />
-                    </div>
-
-                    <%!-- Theme Controller (desktop only) --%>
-                    <div class="hidden lg:block">
-                      <.admin_theme_controller mobile={false} />
-                    </div>
-
-                    <%!-- User Info --%>
-                    <.admin_user_info scope={@phoenix_kit_current_scope} />
+                  <%!-- Bottom Section: Language Switcher --%>
+                  <div class="p-4 border-t border-base-300">
+                    <%!-- Language Switcher --%>
+                    <.admin_language_switcher
+                      current_path={@current_path || ""}
+                      current_locale={@current_locale || "en"}
+                    />
                   </div>
                 </aside>
               </div>
@@ -448,6 +446,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <script>
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
+                const adminDrawer = document.getElementById('admin-drawer');
+                const burgerMenuButton = document.querySelector('label[for="admin-mobile-menu"]');
+
                 // Close mobile drawer on navigation
                 const mainNavLinks = document.querySelectorAll('.drawer-side a');
 
@@ -458,6 +459,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     }
                   });
                 });
+
+                // Handle burger menu toggle for desktop
+                if (burgerMenuButton && adminDrawer) {
+                  burgerMenuButton.addEventListener('click', () => {
+                    // On desktop (>= 1024px), toggle the sidebar-closed class
+                    if (window.innerWidth >= 1024) {
+                      adminDrawer.classList.toggle('sidebar-closed');
+                    }
+                    // On mobile, default checkbox behavior handles it
+                  });
+                }
               });
 
               const themeBaseMap = <%= ThemeConfig.base_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
