@@ -138,9 +138,6 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <%!-- System Owners Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="red-500"
-          gradient_via="red-600"
-          gradient_to="red-700"
           circle_size="20"
           value={@stats.owner_count}
           title={gettext("System Owners")}
@@ -153,9 +150,6 @@
 
         <%!-- Administrators Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="amber-500"
-          gradient_via="orange-500"
-          gradient_to="orange-600"
           circle_size="16"
           value={@stats.admin_count}
           title={gettext("Administrators")}
@@ -168,9 +162,6 @@
 
         <%!-- Total Users Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="blue-500"
-          gradient_via="blue-600"
-          gradient_to="indigo-600"
           circle_size="24"
           value={@stats.total_users}
           title={gettext("Total Users")}
@@ -188,9 +179,6 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="purple-500"
-            gradient_via="purple-600"
-            gradient_to="indigo-600"
             value={@session_stats.total_active}
             title={gettext("Active Sessions")}
             subtitle={gettext("Currently logged in")}
@@ -202,9 +190,6 @@
 
           <%!-- Unique Users --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="teal-500"
-            gradient_via="teal-600"
-            gradient_to="cyan-600"
             value={@session_stats.unique_users}
             title={gettext("Unique Users")}
             subtitle={gettext("With active sessions")}
@@ -216,9 +201,6 @@
 
           <%!-- Today's Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="emerald-500"
-            gradient_via="emerald-600"
-            gradient_to="green-600"
             value={@session_stats.sessions_today}
             title={gettext("Today's Sessions")}
             subtitle={gettext("New login activity")}
@@ -230,9 +212,6 @@
 
           <%!-- Expired Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="slate-500"
-            gradient_via="slate-600"
-            gradient_to="gray-600"
             value={@session_stats.expired_sessions}
             title={gettext("Expired Sessions")}
             subtitle={gettext("Need cleanup")}
@@ -250,9 +229,6 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="violet-500"
-            gradient_via="purple-600"
-            gradient_to="indigo-600"
             value={@presence_stats.total_sessions}
             title={gettext("Active Visitors")}
             subtitle={gettext("Real-time connections")}
@@ -264,9 +240,6 @@
 
           <%!-- Anonymous Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="cyan-500"
-            gradient_via="blue-500"
-            gradient_to="indigo-600"
             value={@presence_stats.anonymous_sessions}
             title={gettext("Anonymous")}
             subtitle={gettext("Unregistered visitors")}
@@ -278,9 +251,6 @@
 
           <%!-- Authenticated Users --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="green-500"
-            gradient_via="emerald-600"
-            gradient_to="teal-600"
             value={@presence_stats.authenticated_sessions}
             title={gettext("Authenticated")}
             subtitle={gettext("Logged in users")}
@@ -292,9 +262,6 @@
 
           <%!-- Unique Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="orange-500"
-            gradient_via="amber-500"
-            gradient_to="yellow-500"
             value={
               @presence_stats.unique_anonymous_visitors +
                 @presence_stats.active_authenticated_users
@@ -313,9 +280,6 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <%!-- Active Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="green-500"
-          gradient_via="green-600"
-          gradient_to="emerald-600"
           rounded="2xl"
           value={@stats.active_users}
           title={gettext("Active Users")}
@@ -328,9 +292,6 @@
 
         <%!-- Inactive Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="red-500"
-          gradient_via="red-600"
-          gradient_to="rose-600"
           rounded="2xl"
           value={@stats.inactive_users}
           title={gettext("Inactive Users")}
@@ -343,9 +304,6 @@
 
         <%!-- Email Confirmed --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="blue-500"
-          gradient_via="blue-600"
-          gradient_to="cyan-600"
           rounded="2xl"
           value={@stats.confirmed_users}
           title={gettext("Email Confirmed")}
@@ -358,9 +316,6 @@
 
         <%!-- Pending Email --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="yellow-500"
-          gradient_via="orange-500"
-          gradient_to="amber-600"
           rounded="2xl"
           value={@stats.pending_users}
           title={gettext("Pending Email")}
@@ -373,9 +328,6 @@
 
         <%!-- Regular Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="gray-500"
-          gradient_via="slate-600"
-          gradient_to="gray-700"
           rounded="2xl"
           value={@stats.user_count}
           title={gettext("Regular Users")}
