@@ -13,7 +13,7 @@
         navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> Back to Modules
+        <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Modules
       </.link>
 
       <%!-- Title Section --%>
@@ -25,55 +25,53 @@
 
     <%!-- Stats Cards --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body p-4">
-          <div class="flex items-center">
-            <div class="text-2xl mr-3">🎫</div>
-            <div>
-              <div class="text-2xl font-bold text-base-content">{@system_stats.total_codes}</div>
-              <div class="text-sm text-base-content/70">Total Codes</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@system_stats.total_codes}
+        title="Total Codes"
+        subtitle="All referral codes"
+      >
+        <:icon>
+          <.icon name="hero-ticket" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body p-4">
-          <div class="flex items-center">
-            <div class="text-2xl mr-3">✅</div>
-            <div>
-              <div class="text-2xl font-bold text-green-600">{@system_stats.active_codes}</div>
-              <div class="text-sm text-base-content/70">Active Codes</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@system_stats.active_codes}
+        title="Active Codes"
+        subtitle="Currently available"
+      >
+        <:icon>
+          <.icon name="hero-check-circle" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body p-4">
-          <div class="flex items-center">
-            <div class="text-2xl mr-3">📊</div>
-            <div>
-              <div class="text-2xl font-bold text-blue-600">{@system_stats.total_usage}</div>
-              <div class="text-sm text-base-content/70">Total Uses</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@system_stats.total_usage}
+        title="Total Uses"
+        subtitle="Registration count"
+      >
+        <:icon>
+          <.icon name="hero-chart-bar" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body p-4">
-          <div class="flex items-center">
-            <div class="text-2xl mr-3">🎯</div>
-            <div>
-              <div class="text-2xl font-bold text-purple-600">
-                {@system_stats.codes_with_usage}
-              </div>
-              <div class="text-sm text-base-content/70">Used Codes</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@system_stats.codes_with_usage}
+        title="Used Codes"
+        subtitle="Codes with activity"
+      >
+        <:icon>
+          <.icon name="hero-arrow-trending-up" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
     <%!-- Status and Actions --%>
@@ -101,7 +99,7 @@
               navigate={PhoenixKit.Utils.Routes.path("/admin/users/referral-codes/new")}
               class="btn btn-primary"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-4 h-4 mr-2" /> New Code
+              <.icon name="hero-plus" class="w-5 h-5 mr-2" /> New Code
             </.link>
           <% else %>
             <div class="text-sm text-base-content/50">
@@ -120,7 +118,7 @@
 
           <%= if @codes == [] do %>
             <div class="text-center py-12">
-              <div class="text-6xl mb-4">🎫</div>
+              <.icon name="hero-ticket" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
               <h3 class="text-xl font-semibold text-base-content mb-2">No Referral Codes</h3>
               <p class="text-base-content/70 max-w-md mx-auto mb-4">
                 Create your first referral code to start tracking user registrations.
@@ -204,7 +202,7 @@
                             }
                             class="btn btn-sm btn-outline"
                           >
-                            <PhoenixKitWeb.Components.Core.Icons.icon_edit class="w-4 h-4" />
+                            <.icon name="hero-pencil" class="w-4 h-4" />
                           </.link>
 
                           <button
@@ -221,7 +219,7 @@
                             phx-value-id={code.id}
                             onclick="return confirm('Are you sure you want to delete this referral code?')"
                           >
-                            <PhoenixKitWeb.Components.Core.Icons.icon_trash class="w-4 h-4" />
+                            <.icon name="hero-trash" class="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -237,7 +235,7 @@
       <%!-- System Disabled Message --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body text-center py-12">
-          <div class="text-6xl mb-4">🔒</div>
+          <.icon name="hero-lock-closed" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
           <h3 class="text-xl font-semibold text-base-content mb-2">
             Referral Codes Disabled
           </h3>
