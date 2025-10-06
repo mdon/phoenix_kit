@@ -92,7 +92,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   def admin_nav_icon(assigns) do
     ~H"""
-    <div class="flex-shrink-0">
+    <div class="flex items-center flex-shrink-0">
       <%= case @icon do %>
         <% "dashboard" -> %>
           <.icon name="hero-home" class="w-5 h-5" />
