@@ -143,12 +143,12 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-          <details class="dropdown">
-          <summary class="btn m-1">
+          <details class="dropdown dropdown-end dropdown-bottom">
+          <summary class="btn btn-sm btn-ghost btn-circle">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
           <ul
-            class="menu w-full rounded-box border border-base-200 bg-base-100 p-2 shadow-xl space-y-1 max-h-96 overflow-y-auto"
+            class="dropdown-content menu w-48 rounded-box border border-base-200 bg-base-100 p-1 shadow-xl z-[60] mt-2"
             tabindex="0"
           >
                   <%!-- data-theme-target={theme.value} --%>
@@ -162,18 +162,17 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                   data-theme-role="dropdown-option"
                   role="option"
                   aria-pressed="false"
-                  class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  class="group flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_system />
                   <%= case theme.type do %>
                     <% :system -> %>
-                      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-base-200 bg-base-100 shadow-sm">
-                        <PhoenixKitWeb.Components.Core.Icons.icon_system class="size-4 opacity-90" />
+                      <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-base-200 bg-base-100 shadow-sm">
+                        <PhoenixKitWeb.Components.Core.Icons.icon_system class="size-3 opacity-90" />
                       </div>
                     <% :theme -> %>
                       <div
                         data-theme={theme.preview_theme}
-                        class="grid h-8 w-8 shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-200 bg-base-100 p-1 shadow-sm"
+                        class="grid h-6 w-6 shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-200 bg-base-100 p-0.5 shadow-sm"
                       >
                         <div class="rounded-full bg-base-content"></div>
                         <div class="rounded-full bg-primary"></div>
@@ -181,9 +180,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         <div class="rounded-full bg-accent"></div>
                       </div>
                   <% end %>
-                  <span class="flex-1 text-left font-medium text-base-content">{theme.label}</span>
+                  <span class="flex-1 text-left font-medium text-base-content truncate">{theme.label}</span>
                   <PhoenixKitWeb.Components.Core.Icons.icon_check
-                    class="size-4 text-primary opacity-0 scale-75 transition-all"
+                    class="size-3 text-primary opacity-0 scale-75 transition-all"
                     data-theme-active-indicator
                   />
                 </button>
