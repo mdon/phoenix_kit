@@ -143,13 +143,14 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-          <details class="dropdown dropdown-end dropdown-bottom">
+          <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
           <summary class="btn btn-sm btn-ghost btn-circle">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
           <ul
             class="dropdown-content w-72 min-w-0 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 max-h-[80vh] overflow-y-auto overflow-x-hidden list-none space-y-1"
             tabindex="0"
+            phx-click-away={JS.remove_attribute("open", to: "#theme-dropdown")}
           >
                   <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
