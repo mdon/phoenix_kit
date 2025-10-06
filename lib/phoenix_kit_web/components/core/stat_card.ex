@@ -57,13 +57,13 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
   def stat_card(assigns) do
     ~H"""
     <div class={[
-      "bg-info text-info-content rounded-#{@rounded} shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
+      "bg-info text-info-content rounded-box shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
       if(@compact, do: "p-4", else: "p-6")
     ]}>
       <%= if @compact do %>
         <%!-- Compact horizontal layout --%>
         <div class="flex items-center gap-3">
-          <div class="p-2 bg-white/20 rounded-lg flex-shrink-0">
+          <div class="p-2 bg-white/20 rounded-btn flex-shrink-0">
             {render_slot(@icon)}
           </div>
           <div class="flex-1">
@@ -75,7 +75,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
       <% else %>
         <%!-- Original vertical layout --%>
         <div class="flex items-center justify-between mb-4">
-          <div class="p-2 bg-white/20 rounded-lg">
+          <div class="p-2 bg-white/20 rounded-btn">
             {render_slot(@icon)}
           </div>
         </div>
