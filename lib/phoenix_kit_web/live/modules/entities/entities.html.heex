@@ -16,7 +16,7 @@
     <header class="w-full relative mb-6">
       <%!-- Back Button (Left aligned) --%>
       <.link
-        navigate={PhoenixKit.Utils.Routes.path( "/admin/modules")}
+        navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
         <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> {gettext("Back to Modules")}
@@ -100,13 +100,13 @@
         </div>
 
         <.link
-          navigate={PhoenixKit.Utils.Routes.path( "/admin/entities/data")}
+          navigate={PhoenixKit.Utils.Routes.path("/admin/entities/data")}
           class="btn btn-outline"
         >
           <.icon name="hero-table-cells" class="w-4 h-4 mr-2" /> {gettext("Data Navigator")}
         </.link>
         <.link
-          navigate={PhoenixKit.Utils.Routes.path( "/admin/entities/new")}
+          navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
           class="btn btn-primary"
         >
           <.icon name="hero-plus" class="w-4 h-4 mr-2" /> {gettext("New Entity")}
@@ -129,11 +129,15 @@
             </label>
             <.form for={%{}} phx-change="filter_by_status">
               <select class="select select-bordered w-full" name="status">
-                <option value="all" selected={@selected_status == "all"}>{gettext("All Statuses")}</option>
+                <option value="all" selected={@selected_status == "all"}>
+                  {gettext("All Statuses")}
+                </option>
                 <option value="published" selected={@selected_status == "published"}>
                   {gettext("Published")}
                 </option>
-                <option value="draft" selected={@selected_status == "draft"}>{gettext("Draft")}</option>
+                <option value="draft" selected={@selected_status == "draft"}>
+                  {gettext("Draft")}
+                </option>
                 <option value="archived" selected={@selected_status == "archived"}>
                   {gettext("Archived")}
                 </option>
@@ -171,21 +175,29 @@
           <div class="text-6xl mb-4 opacity-50"><.icon name="hero-cube" class="w-6 h-6" /></div>
           <%= if @selected_status != "all" || @search_term != "" do %>
             <%!-- Filtered empty state --%>
-            <h3 class="text-2xl font-semibold text-base-content/60 mb-4">{gettext("No Entities Found")}</h3>
+            <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
+              {gettext("No Entities Found")}
+            </h3>
             <p class="text-base-content/50 mb-6 max-w-md mx-auto">
-              {gettext("No entities match your current filters. Try adjusting your search criteria or clearing the filters.")}
+              {gettext(
+                "No entities match your current filters. Try adjusting your search criteria or clearing the filters."
+              )}
             </p>
             <button phx-click="clear_filters" class="btn btn-outline btn-lg">
               <.icon name="hero-x-mark" class="w-5 h-5 mr-2" /> {gettext("Clear Filters")}
             </button>
           <% else %>
             <%!-- True empty state --%>
-            <h3 class="text-2xl font-semibold text-base-content/60 mb-4">{gettext("No Entities Yet")}</h3>
+            <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
+              {gettext("No Entities Yet")}
+            </h3>
             <p class="text-base-content/50 mb-6 max-w-md mx-auto">
-              {gettext("Get started by creating your first custom content type. Think blog posts, products, team members, or any structured content you need.")}
+              {gettext(
+                "Get started by creating your first custom content type. Think blog posts, products, team members, or any structured content you need."
+              )}
             </p>
             <.link
-              navigate={PhoenixKit.Utils.Routes.path( "/admin/entities/new")}
+              navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
               class="btn btn-primary btn-lg"
             >
               <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create Your First Entity")}
@@ -239,11 +251,15 @@
                       <td>
                         <%= case entity.status do %>
                           <% "published" -> %>
-                            <span class="badge badge-success badge-sm">{gettext("Published")}</span>
+                            <span class="badge badge-success badge-sm">
+                              {gettext("Published")}
+                            </span>
                           <% "draft" -> %>
                             <span class="badge badge-warning badge-sm">{gettext("Draft")}</span>
                           <% "archived" -> %>
-                            <span class="badge badge-neutral badge-sm">{gettext("Archived")}</span>
+                            <span class="badge badge-neutral badge-sm">
+                              {gettext("Archived")}
+                            </span>
                           <% _ -> %>
                             <span class="badge badge-ghost badge-sm">{gettext("Unknown")}</span>
                         <% end %>
@@ -277,7 +293,7 @@
                           </.link>
                           <.link
                             navigate={
-                              PhoenixKit.Utils.Routes.path( "/admin/entities/#{entity.id}/edit")
+                              PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.id}/edit")
                             }
                             class="btn btn-ghost btn-xs"
                             title={gettext("Edit")}
@@ -362,7 +378,9 @@
                     <.icon name="hero-list-bullet" class="w-4 h-4 mr-1" />
                     <span>
                       {length(entity.fields_definition || [])}
-                      {if length(entity.fields_definition || []) == 1, do: gettext("field"), else: gettext("fields")}
+                      {if length(entity.fields_definition || []) == 1,
+                        do: gettext("field"),
+                        else: gettext("fields")}
                     </span>
                   </div>
 
@@ -377,14 +395,14 @@
                 <div class="card-actions justify-end">
                   <.link
                     navigate={
-                      PhoenixKit.Utils.Routes.path( "/admin/entities/data?entity_id=#{entity.id}")
+                      PhoenixKit.Utils.Routes.path("/admin/entities/data?entity_id=#{entity.id}")
                     }
                     class="btn btn-outline btn-sm"
                   >
                     <.icon name="hero-eye" class="w-4 h-4 mr-1" /> {gettext("View Data")}
                   </.link>
                   <.link
-                    navigate={PhoenixKit.Utils.Routes.path( "/admin/entities/#{entity.id}/edit")}
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.id}/edit")}
                     class="btn btn-primary btn-sm"
                   >
                     <.icon name="hero-pencil" class="w-4 h-4 mr-1" /> {gettext("Edit")}
@@ -414,7 +432,9 @@
 
                 <%!-- Created Date --%>
                 <div class="text-xs text-base-content/50 mt-2 pt-2 border-t border-base-300">
-                  {gettext("Created")} {PhoenixKit.Utils.Date.format_date_with_user_format(entity.date_created)}
+                  {gettext("Created")} {PhoenixKit.Utils.Date.format_date_with_user_format(
+                    entity.date_created
+                  )}
                 </div>
               </div>
             </div>
@@ -422,6 +442,5 @@
         </div>
       <% end %>
     <% end %>
-
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>

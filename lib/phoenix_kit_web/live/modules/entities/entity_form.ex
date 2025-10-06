@@ -1,10 +1,15 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
+  @moduledoc """
+  LiveView для создания и редактирования сущностей (entities).
+  Управляет схемой сущности, полями и их валидацией.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.FieldTypes
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.HeroIcons
+  alias PhoenixKit.Utils.Routes
 
   def mount(%{"id" => id} = params, _session, socket) do
     # Set locale for LiveView process
@@ -137,7 +142,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         socket =
           socket
           |> put_flash(:info, gettext("Entity saved successfully"))
-          |> push_navigate(to: PhoenixKit.Utils.Routes.path("/admin/entities", locale: locale))
+          |> push_navigate(to: Routes.path("/admin/entities", locale: locale))
 
         {:noreply, socket}
 
@@ -288,73 +293,14 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     # Merge field_form state with submitted params
     field_form = socket.assigns.field_form || %{}
     merged_params = Map.merge(field_form, field_params)
-    field_type = merged_params["type"]
 
-    # Sanitize options list (remove nil/empty entries)
-    sanitized_options =
-      merged_params
-      |> Map.get("options", [])
-      |> Enum.reject(&(&1 in [nil, ""] || String.trim(to_string(&1)) == ""))
+    # Sanitize options
+    merged_params = sanitize_field_options(merged_params)
 
-    # Validate based on field type
-    validation_result =
-      cond do
-        field_type in ["select", "radio", "checkbox"] and sanitized_options == [] ->
-          {:error, gettext("Field type '%{type}' requires at least one option", type: field_type)}
-
-        field_type == "relation" and merged_params["target_entity"] in [nil, ""] ->
-          {:error, gettext("Relation field requires a target entity")}
-
-        true ->
-          :ok
-      end
-
-    case validation_result do
-      {:error, error_message} ->
-        {:noreply, assign(socket, :field_error, error_message)}
-
-      :ok ->
-        # Add sanitized options to merged params
-        merged_params = Map.put(merged_params, "options", sanitized_options)
-
-        case validate_unique_field_key(
-               merged_params,
-               socket.assigns.fields,
-               socket.assigns.editing_field_index
-             ) do
-          :ok ->
-            case FieldTypes.validate_field(merged_params) do
-              {:ok, validated_field} ->
-                fields =
-                  case socket.assigns.editing_field_index do
-                    nil ->
-                      # Adding new field
-                      socket.assigns.fields ++ [validated_field]
-
-                    index ->
-                      # Editing existing field
-                      List.replace_at(socket.assigns.fields, index, validated_field)
-                  end
-
-                socket =
-                  socket
-                  |> assign(:fields, fields)
-                  |> assign(:show_field_form, false)
-                  |> assign(:editing_field_index, nil)
-                  |> assign(:field_form, %{})
-                  |> assign(:field_error, nil)
-
-                {:noreply, socket}
-
-              {:error, error_message} ->
-                socket = assign(socket, :field_error, error_message)
-                {:noreply, socket}
-            end
-
-          {:error, message} ->
-            socket = assign(socket, :field_error, message)
-            {:noreply, socket}
-        end
+    # Validate and save
+    case validate_and_save_field(merged_params, socket) do
+      {:ok, socket} -> {:noreply, socket}
+      {:error, error_message, socket} -> {:noreply, assign(socket, :field_error, error_message)}
     end
   end
 
@@ -507,7 +453,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       end)
 
     if duplicate? do
-      {:error, gettext("Field key '%{key}' already exists. Please use a unique key.", key: new_key)}
+      {:error,
+       gettext("Field key '%{key}' already exists. Please use a unique key.", key: new_key)}
     else
       :ok
     end
@@ -543,6 +490,71 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     |> Map.put(:action, :validate)
   end
 
+  # Field Save Helper Functions
+
+  defp sanitize_field_options(merged_params) do
+    sanitized_options =
+      merged_params
+      |> Map.get("options", [])
+      |> Enum.reject(&(&1 in [nil, ""] || String.trim(to_string(&1)) == ""))
+
+    Map.put(merged_params, "options", sanitized_options)
+  end
+
+  defp validate_and_save_field(merged_params, socket) do
+    with :ok <- validate_field_type_requirements(merged_params),
+         :ok <-
+           validate_unique_field_key(
+             merged_params,
+             socket.assigns.fields,
+             socket.assigns.editing_field_index
+           ),
+         {:ok, validated_field} <- FieldTypes.validate_field(merged_params) do
+      fields = update_fields_list(validated_field, socket)
+      socket = reset_field_form_state(socket, fields)
+      {:ok, socket}
+    else
+      {:error, error_message} -> {:error, error_message, socket}
+    end
+  end
+
+  defp validate_field_type_requirements(merged_params) do
+    field_type = merged_params["type"]
+    sanitized_options = Map.get(merged_params, "options", [])
+
+    cond do
+      field_type in ["select", "radio", "checkbox"] and sanitized_options == [] ->
+        {:error, gettext("Field type '%{type}' requires at least one option", type: field_type)}
+
+      field_type == "relation" and merged_params["target_entity"] in [nil, ""] ->
+        {:error, gettext("Relation field requires a target entity")}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp update_fields_list(validated_field, socket) do
+    case socket.assigns.editing_field_index do
+      nil ->
+        # Adding new field
+        socket.assigns.fields ++ [validated_field]
+
+      index ->
+        # Editing existing field
+        List.replace_at(socket.assigns.fields, index, validated_field)
+    end
+  end
+
+  defp reset_field_form_state(socket, fields) do
+    socket
+    |> assign(:fields, fields)
+    |> assign(:show_field_form, false)
+    |> assign(:editing_field_index, nil)
+    |> assign(:field_form, %{})
+    |> assign(:field_error, nil)
+  end
+
   # Template Helper Functions
 
   def field_type_label("text"), do: gettext("Text")
@@ -556,6 +568,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   def field_type_label("select"), do: gettext("Select Dropdown")
   def field_type_label("radio"), do: gettext("Radio Buttons")
   def field_type_label("checkbox"), do: gettext("Checkboxes")
+
   def field_type_label(type_name) do
     case FieldTypes.get_type(type_name) do
       nil -> type_name

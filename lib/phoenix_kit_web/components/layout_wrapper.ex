@@ -34,10 +34,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   alias Phoenix.HTML
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.ThemeConfig
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.
@@ -339,7 +339,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             <%= for entity <- PhoenixKit.Entities.list_entities() do %>
                               <%= if entity.status == "published" do %>
                                 <.admin_nav_item
-                                  href={Routes.locale_aware_path(assigns, "/admin/entities/#{entity.name}/data")}
+                                  href={
+                                    Routes.locale_aware_path(assigns, "/admin/entities/#{entity.name}/data")
+                                  }
                                   icon={entity.icon || "hero-cube"}
                                   label={entity.display_name_plural || entity.display_name}
                                   current_path={@current_path || ""}
@@ -736,7 +738,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     ~H"""
     <!DOCTYPE html>
-    <html lang="en" data-theme="light" data-admin-theme-base="system" class="[scrollbar-gutter:stable]">
+    <html
+      lang="en"
+      data-theme="light"
+      data-admin-theme-base="system"
+      class="[scrollbar-gutter:stable]"
+    >
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -744,8 +751,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <.live_title default={"#{assigns[:project_title] || "PhoenixKit"} Admin"}>
           {assigns[:page_title] || "Admin"}
         </.live_title>
-        <link phx-track-static rel="stylesheet" href={"/assets/css/app.css"} />
-        <script defer phx-track-static type="text/javascript" src={"/assets/js/app.js"} />
+        <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
+        <script defer phx-track-static type="text/javascript" src="/assets/js/app.js" />
       </head>
       <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
         <%!-- Admin pages without parent headers --%>

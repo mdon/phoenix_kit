@@ -1,7 +1,12 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
+  @moduledoc """
+  LiveView для управления настройками модуля Entities.
+  Позволяет включать/выключать модуль и настраивать его параметры.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
+  alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Settings
 
   def mount(params, _session, socket) do
@@ -72,7 +77,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
           {:noreply, socket}
 
         {:error, reason} ->
-          socket = put_flash(socket, :error, gettext("Failed to save settings: %{reason}", reason: reason))
+          socket =
+            put_flash(
+              socket,
+              :error,
+              gettext("Failed to save settings: %{reason}", reason: reason)
+            )
+
           {:noreply, socket}
       end
     else
@@ -95,7 +106,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, gettext("Failed to enable entities: %{reason}", reason: reason))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to enable entities: %{reason}", reason: reason)
+          )
+
         {:noreply, socket}
     end
   end
@@ -115,7 +132,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, gettext("Failed to disable entities: %{reason}", reason: reason))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to disable entities: %{reason}", reason: reason)
+          )
+
         {:noreply, socket}
     end
   end
@@ -221,7 +244,11 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         end
 
       _ ->
-        Ecto.Changeset.add_error(changeset, :data_retention_days, gettext("must be a positive integer"))
+        Ecto.Changeset.add_error(
+          changeset,
+          :data_retention_days,
+          gettext("must be a positive integer")
+        )
     end
   end
 
@@ -252,7 +279,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
   defp get_entities_stats do
     if Entities.enabled?() do
       entities_stats = Entities.get_system_stats()
-      data_stats = PhoenixKit.Entities.EntityData.get_data_stats()
+      data_stats = EntityData.get_data_stats()
 
       Map.merge(entities_stats, data_stats)
     else

@@ -1,10 +1,15 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
+  @moduledoc """
+  LiveView для создания и редактирования записей данных сущностей.
+  Динамически генерирует формы на основе схемы entity.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Entities.FormBuilder
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(%{"entity_slug" => entity_slug, "id" => id} = params, _session, socket) do
     # Set locale for LiveView process
@@ -68,7 +73,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
 
     # Validate entity is published
     unless entity.status == "published" do
-      raise gettext("Entity '%{name}' is not published and cannot be used for data creation", name: entity.display_name)
+      raise gettext("Entity '%{name}' is not published and cannot be used for data creation",
+              name: entity.display_name
+            )
     end
 
     # Ensure entity has field definitions
@@ -189,7 +196,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
               socket
               |> put_flash(:info, gettext("Data record saved successfully"))
               |> push_navigate(
-                to: PhoenixKit.Utils.Routes.path("/admin/entities/#{entity_name}/data", locale: locale)
+                to:
+                  Routes.path("/admin/entities/#{entity_name}/data",
+                    locale: locale
+                  )
               )
 
             {:noreply, socket}
@@ -209,7 +219,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
           |> EntityData.change(data_params)
           |> add_form_errors(errors)
 
-        error_list = Enum.map(errors, fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end) |> Enum.join("; ")
+        error_list =
+          Enum.map_join(errors, "; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
 
         socket =
           socket

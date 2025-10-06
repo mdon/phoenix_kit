@@ -1,9 +1,14 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
+  @moduledoc """
+  LiveView для навигации и управления данными сущностей.
+  Отображает записи данных для выбранной entity с фильтрацией и пагинацией.
+  """
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -117,18 +122,27 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
     path = build_base_path(socket.assigns.selected_entity_id)
     locale = socket.assigns[:current_locale] || "en"
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+
+    socket =
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
 
   def handle_event("filter_by_entity", %{"entity_id" => ""}, socket) do
     params =
-      build_url_params(nil, socket.assigns.selected_status, socket.assigns.search_term, socket.assigns.view_mode)
+      build_url_params(
+        nil,
+        socket.assigns.selected_status,
+        socket.assigns.search_term,
+        socket.assigns.view_mode
+      )
 
     path = build_base_path(nil)
     locale = socket.assigns[:current_locale] || "en"
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+
+    socket =
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -146,7 +160,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
     path = build_base_path(entity_id)
     locale = socket.assigns[:current_locale] || "en"
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+
+    socket =
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -162,7 +178,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
     path = build_base_path(socket.assigns.selected_entity_id)
     locale = socket.assigns[:current_locale] || "en"
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+
+    socket =
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -178,18 +196,22 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
     path = build_base_path(socket.assigns.selected_entity_id)
     locale = socket.assigns[:current_locale] || "en"
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+
+    socket =
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
 
   def handle_event("clear_filters", _params, socket) do
-    params = build_url_params(socket.assigns.selected_entity_id, "all", "", socket.assigns.view_mode)
+    params =
+      build_url_params(socket.assigns.selected_entity_id, "all", "", socket.assigns.view_mode)
 
     path = build_base_path(socket.assigns.selected_entity_id)
     full_path = if params != "", do: "#{path}?#{params}", else: path
 
-    socket = push_patch(socket, to: PhoenixKit.Utils.Routes.locale_aware_path(socket.assigns, full_path))
+    socket =
+      push_patch(socket, to: Routes.locale_aware_path(socket.assigns, full_path))
 
     {:noreply, socket}
   end
@@ -252,7 +274,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
           |> assign(:published_records, stats.published_records)
           |> assign(:draft_records, stats.draft_records)
           |> assign(:archived_records, stats.archived_records)
-          |> put_flash(:info, gettext("Status updated to %{status}", status: status_label(new_status)))
+          |> put_flash(
+            :info,
+            gettext("Status updated to %{status}", status: status_label(new_status))
+          )
 
         {:noreply, socket}
 
@@ -401,10 +426,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     # Show first few key-value pairs as preview
     data
     |> Enum.take(3)
-    |> Enum.map(fn {key, value} ->
+    |> Enum.map_join(" • ", fn {key, value} ->
       "#{key}: #{truncate_text(to_string(value), 30)}"
     end)
-    |> Enum.join(" • ")
   end
 
   def format_data_preview(_), do: ""

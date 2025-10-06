@@ -194,61 +194,74 @@ defmodule PhoenixKit.Entities.EntityData do
   end
 
   defp validate_field_type(changeset, field_def, value) do
-    case field_def["type"] do
-      "number" ->
-        if is_number(value) || (is_binary(value) && Regex.match?(~r/^\d+(\.\d+)?$/, value)) do
-          changeset
-        else
-          add_error(changeset, :data, "field '#{field_def["label"]}' must be a number")
-        end
+    field_type = field_def["type"]
 
-      "boolean" ->
-        if is_boolean(value) do
-          changeset
-        else
-          add_error(changeset, :data, "field '#{field_def["label"]}' must be true or false")
-        end
+    case field_type do
+      "number" -> validate_number_field(changeset, field_def, value)
+      "boolean" -> validate_boolean_field(changeset, field_def, value)
+      "email" -> validate_email_field(changeset, field_def, value)
+      "url" -> validate_url_field(changeset, field_def, value)
+      "date" -> validate_date_field(changeset, field_def, value)
+      "select" -> validate_select_field(changeset, field_def, value)
+      _ -> changeset
+    end
+  end
 
-      "email" ->
-        if is_binary(value) && Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, value) do
-          changeset
-        else
-          add_error(changeset, :data, "field '#{field_def["label"]}' must be a valid email")
-        end
+  defp validate_number_field(changeset, field_def, value) do
+    if is_number(value) || (is_binary(value) && Regex.match?(~r/^\d+(\.\d+)?$/, value)) do
+      changeset
+    else
+      add_error(changeset, :data, "field '#{field_def["label"]}' must be a number")
+    end
+  end
 
-      "url" ->
-        if is_binary(value) && String.starts_with?(value, ["http://", "https://"]) do
-          changeset
-        else
-          add_error(changeset, :data, "field '#{field_def["label"]}' must be a valid URL")
-        end
+  defp validate_boolean_field(changeset, field_def, value) do
+    if is_boolean(value) do
+      changeset
+    else
+      add_error(changeset, :data, "field '#{field_def["label"]}' must be true or false")
+    end
+  end
 
-      "date" ->
-        if is_binary(value) && Regex.match?(~r/^\d{4}-\d{2}-\d{2}$/, value) do
-          changeset
-        else
-          add_error(
-            changeset,
-            :data,
-            "field '#{field_def["label"]}' must be a valid date (YYYY-MM-DD)"
-          )
-        end
+  defp validate_email_field(changeset, field_def, value) do
+    if is_binary(value) && Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, value) do
+      changeset
+    else
+      add_error(changeset, :data, "field '#{field_def["label"]}' must be a valid email")
+    end
+  end
 
-      "select" ->
-        options = field_def["options"] || []
+  defp validate_url_field(changeset, field_def, value) do
+    if is_binary(value) && String.starts_with?(value, ["http://", "https://"]) do
+      changeset
+    else
+      add_error(changeset, :data, "field '#{field_def["label"]}' must be a valid URL")
+    end
+  end
 
-        if value in options do
-          changeset
-        else
-          add_error(
-            changeset,
-            :data,
-            "field '#{field_def["label"]}' must be one of: #{Enum.join(options, ", ")}"
-          )
-        end
+  defp validate_date_field(changeset, field_def, value) do
+    if is_binary(value) && Regex.match?(~r/^\d{4}-\d{2}-\d{2}$/, value) do
+      changeset
+    else
+      add_error(
+        changeset,
+        :data,
+        "field '#{field_def["label"]}' must be a valid date (YYYY-MM-DD)"
+      )
+    end
+  end
 
-      _ ->
-        changeset
+  defp validate_select_field(changeset, field_def, value) do
+    options = field_def["options"] || []
+
+    if value in options do
+      changeset
+    else
+      add_error(
+        changeset,
+        :data,
+        "field '#{field_def["label"]}' must be one of: #{Enum.join(options, ", ")}"
+      )
     end
   end
 

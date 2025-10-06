@@ -7,9 +7,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.ThemeConfig
+  alias PhoenixKit.Utils.Routes
 
   import PhoenixKitWeb.Components.Core.Icon
 
@@ -143,7 +142,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-          <details class="dropdown">
+        <details class="dropdown">
           <summary class="btn m-1">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
@@ -151,7 +150,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             class="menu w-full rounded-box border border-base-200 bg-base-100 p-2 shadow-xl space-y-1 max-h-96 overflow-y-auto"
             tabindex="0"
           >
-                  <%!-- data-theme-target={theme.value} --%>
+            <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
               <li>
                 <button
@@ -190,7 +189,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               </li>
             <% end %>
           </ul>
-          </details>
+        </details>
       </div>
 
       <div class={[

@@ -16,7 +16,7 @@
     <header class="w-full relative mb-6">
       <%!-- Back Button (Left aligned) --%>
       <.link
-        navigate={PhoenixKit.Utils.Routes.path( "/admin/modules")}
+        navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
         <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> {gettext("Back to Modules")}
@@ -58,7 +58,11 @@
                 <button
                   class="btn btn-error btn-sm"
                   phx-click="disable_entities"
-                  data-confirm={gettext("Are you sure you want to disable the entities system? This will make all entities and data inaccessible.")}
+                  data-confirm={
+                    gettext(
+                      "Are you sure you want to disable the entities system? This will make all entities and data inaccessible."
+                    )
+                  }
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4 mr-1" /> {gettext("Disable System")}
                 </button>
@@ -98,6 +102,5 @@
         </div>
       </div>
     </div>
-
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
