@@ -32,6 +32,13 @@
 
 ### Fixed
 - **Dialyzer Warnings** - Updated line number references for OAuth controller pattern matching
+- **Entities Menu Navigation** - Fixed main Entities menu staying selected when clicking entity submenus by adding `disable_active={true}` attribute
+- **New Nav Bar** - Added new top nav bar with update interface for comfort and ease of use
+
+### UI/UX Improvements
+- **Hero Icons Migration** - Migrated modules page to use Heroicons for consistent icon system
+  - Replaced custom icon components with hero-icons: `hero-arrow-left`, `hero-cog-6-tooth`, `hero-users`, `hero-envelope`, `hero-information-circle`
+  - Consistent sizing and theming across dashboard and modules pages
 
 ## 1.2.14 - 2025-09-30
 
