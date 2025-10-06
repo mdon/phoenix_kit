@@ -177,7 +177,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 <%!-- Right: Theme Switcher and User Dropdown --%>
                 <div class="flex items-center gap-3">
                   <.admin_theme_controller mobile={true} />
-                  <.admin_user_dropdown scope={@phoenix_kit_current_scope} />
+                  <.admin_user_dropdown
+                    scope={@phoenix_kit_current_scope}
+                    current_path={@current_path}
+                    current_locale={@current_locale}
+                  />
                 </div>
               </div>
             </header>

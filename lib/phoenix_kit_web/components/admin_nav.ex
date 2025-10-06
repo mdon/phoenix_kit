@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.ThemeConfig
+  alias PhoenixKit.Module.Languages
 
   import PhoenixKitWeb.Components.Core.Icon
 
@@ -201,6 +202,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   Shows user avatar with dropdown menu containing email, role, settings and logout.
   """
   attr :scope, :any, default: nil
+  attr :current_path, :string, default: ""
+  attr :current_locale, :string, default: "en"
 
   def admin_user_dropdown(assigns) do
     ~H"""
@@ -249,6 +252,38 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               <span>Settings</span>
             </.link>
           </li>
+
+          <%!-- Language Switcher --%>
+          <%= if Languages.enabled?() do %>
+            <% enabled_languages = Languages.get_enabled_languages() %>
+            <%= if length(enabled_languages) > 0 do %>
+              <div class="divider my-0"></div>
+
+              <li class="menu-title px-4 py-1">
+                <span class="text-xs">Language</span>
+              </li>
+
+              <%= for language <- enabled_languages do %>
+                <li>
+                  <a
+                    href={generate_language_switch_url(@current_path, language["code"])}
+                    class={[
+                      "flex items-center gap-3",
+                      if(language["code"] == @current_locale, do: "active", else: "")
+                    ]}
+                  >
+                    <span class="text-lg">{get_language_flag(language["code"])}</span>
+                    <span>{language["name"]}</span>
+                    <%= if language["code"] == @current_locale do %>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                    <% end %>
+                  </a>
+                </li>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <div class="divider my-0"></div>
 
           <%!-- Log Out Link --%>
           <li>
@@ -426,5 +461,51 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   defp locale_candidate?(locale) do
     String.length(locale) in 2..5 and Regex.match?(~r/^[a-z]{2}(?:-[A-Za-z0-9]{2,})?$/, locale)
+  end
+
+  # Helper function to get language flag emoji
+  defp get_language_flag(code) do
+    case code do
+      "en" -> "🇺🇸"
+      "es" -> "🇪🇸"
+      "fr" -> "🇫🇷"
+      "de" -> "🇩🇪"
+      "pt" -> "🇵🇹"
+      "it" -> "🇮🇹"
+      "nl" -> "🇳🇱"
+      "ru" -> "🇷🇺"
+      "zh-CN" -> "🇨🇳"
+      "ja" -> "🇯🇵"
+      _ -> "🌐"
+    end
+  end
+
+  # Helper function to generate language switch URL
+  defp generate_language_switch_url(current_path, new_locale) do
+    # Get actual enabled language codes to properly detect locale prefixes
+    enabled_language_codes = Languages.get_enabled_language_codes()
+
+    # Remove PhoenixKit prefix if present
+    normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
+
+    # Remove existing locale prefix only if it matches actual language codes
+    clean_path =
+      case String.split(normalized_path, "/", parts: 3) do
+        ["", potential_locale, rest] ->
+          if potential_locale in enabled_language_codes do
+            "/" <> rest
+          else
+            normalized_path
+          end
+
+        _ ->
+          normalized_path
+      end
+
+    # Build the new URL with the new locale prefix
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+    base_prefix = if url_prefix == "/", do: "", else: url_prefix
+
+    "#{base_prefix}/#{new_locale}#{clean_path}"
   end
 end
