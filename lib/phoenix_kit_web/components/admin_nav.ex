@@ -197,6 +197,85 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   end
 
   @doc """
+  Renders user dropdown for top bar navigation.
+  Shows user avatar with dropdown menu containing email, role, settings and logout.
+  """
+  attr :scope, :any, default: nil
+
+  def admin_user_dropdown(assigns) do
+    ~H"""
+    <%= if @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope) do %>
+      <div class="dropdown dropdown-end">
+        <%!-- User Avatar Button --%>
+        <div
+          tabindex="0"
+          role="button"
+          class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-content font-bold cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          {String.first(PhoenixKit.Users.Auth.Scope.user_email(@scope) || "?") |> String.upcase()}
+        </div>
+
+        <%!-- Dropdown Menu --%>
+        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3">
+          <%!-- User Info Header --%>
+          <li class="menu-title px-4 py-2">
+            <div class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-base-content truncate">
+                {PhoenixKit.Users.Auth.Scope.user_email(@scope)}
+              </span>
+              <div>
+                <%= if PhoenixKit.Users.Auth.Scope.owner?(@scope) do %>
+                  <div class="badge badge-error badge-xs">Owner</div>
+                <% else %>
+                  <%= if PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+                    <div class="badge badge-warning badge-xs">Admin</div>
+                  <% else %>
+                    <div class="badge badge-ghost badge-xs">User</div>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          </li>
+
+          <div class="divider my-0"></div>
+
+          <%!-- Settings Link --%>
+          <li>
+            <.link
+              href={Routes.locale_aware_path(assigns, "/users/settings")}
+              class="flex items-center gap-3"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
+              <span>Settings</span>
+            </.link>
+          </li>
+
+          <%!-- Log Out Link --%>
+          <li>
+            <.link
+              href={Routes.locale_aware_path(assigns, "/users/log-out")}
+              method="delete"
+              class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
+              <span>Log Out</span>
+            </.link>
+          </li>
+        </ul>
+      </div>
+    <% else %>
+      <%!-- Not Authenticated - Show Login Button --%>
+      <.link
+        href={Routes.locale_aware_path(assigns, "/users/log-in")}
+        class="btn btn-primary btn-sm"
+      >
+        Login
+      </.link>
+    <% end %>
+    """
+  end
+
+  @doc """
   Renders user information section for admin panel sidebar.
   Shows current user email and role information.
   """
