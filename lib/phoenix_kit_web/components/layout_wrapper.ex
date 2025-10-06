@@ -182,11 +182,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               </div>
             </header>
 
-            <div id="admin-drawer" class="drawer lg:drawer-open mt-16">
+            <div id="admin-drawer" class="drawer lg:drawer-open">
               <input id="admin-mobile-menu" type="checkbox" class="drawer-toggle" />
 
               <%!-- Main content --%>
-              <div class="drawer-content flex min-h-screen flex-col bg-base-100 transition-colors">
+              <div class="drawer-content flex min-h-screen flex-col bg-base-100 transition-colors pt-16">
                 <%!-- Page content from parent layout --%>
                 <div class="flex-1">
                   {render_slot(@original_inner_block)}
@@ -194,10 +194,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               </div>
 
               <%!-- Desktop/Mobile Sidebar --%>
-              <div class="drawer-side mt-16">
+              <div class="drawer-side">
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
-                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col">
-
+                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
                   <%!-- Navigation (fills available space) --%>
                   <nav class="px-4 py-6 space-y-2 flex-1">
                     <.admin_nav_item
