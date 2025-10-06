@@ -34,10 +34,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   alias Phoenix.HTML
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.ThemeConfig
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.
@@ -333,6 +333,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         icon="entities"
                         label="Entities"
                         current_path={@current_path || ""}
+                        disable_active={true}
                       />
 
                       <%= if submenu_open?(@current_path, ["/admin/entities"]) do %>
@@ -388,7 +389,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         <.admin_nav_item
                           href={Routes.locale_aware_path(assigns, "/admin/settings")}
                           icon="settings"
-                          label="General Settings"
+                          label="General"
                           current_path={@current_path || ""}
                           nested={true}
                         />
@@ -397,7 +398,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/referral-codes")}
                             icon="referral_codes"
-                            label="Referral Module"
+                            label="Referrals"
                             current_path={@current_path || ""}
                             nested={true}
                           />
@@ -900,8 +901,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
-  # Helper function to get language flag emoji
-  defp get_language_flag(code) do
+  # Used in HEEX template - compiler cannot detect usage
+  def get_language_flag(code) do
     case code do
       "en" -> "🇺🇸"
       "es" -> "🇪🇸"
@@ -917,10 +918,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
-  # Helper function to generate language switch URL
-  defp generate_language_switch_url(current_path, new_locale) do
+  # Used in HEEX template - compiler cannot detect usage
+  def generate_language_switch_url(current_path, new_locale) do
     # Get actual enabled language codes to properly detect locale prefixes
-    # Note: This function is only called when languages are enabled
     enabled_language_codes = Languages.get_enabled_language_codes()
 
     # Remove PhoenixKit prefix if present
@@ -940,7 +940,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           normalized_path
       end
 
-    # Generate new URL with the target locale
-    Routes.path(clean_path, locale: new_locale)
+    # Build the new URL with the new locale prefix
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+    base_prefix = if url_prefix == "/", do: "", else: url_prefix
+
+    "#{base_prefix}/#{new_locale}#{clean_path}"
   end
 end

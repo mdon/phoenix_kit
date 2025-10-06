@@ -1,8 +1,14 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
+  @moduledoc """
+  LiveView for listing and managing all entities.
+  Provides interface for viewing, publishing, and deleting entity schemas.
+  """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -50,7 +56,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: PhoenixKit.Utils.Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -61,7 +67,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: PhoenixKit.Utils.Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -72,7 +78,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: PhoenixKit.Utils.Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -83,7 +89,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: PhoenixKit.Utils.Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
 
     {:noreply, socket}
   end
