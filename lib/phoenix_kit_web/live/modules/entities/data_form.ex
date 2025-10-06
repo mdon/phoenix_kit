@@ -68,7 +68,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
 
     # Validate entity is published
     unless entity.status == "published" do
-      raise gettext("Entity '%{name}' is not published and cannot be used for data creation", name: entity.display_name)
+      raise gettext("Entity '%{name}' is not published and cannot be used for data creation",
+              name: entity.display_name
+            )
     end
 
     # Ensure entity has field definitions
@@ -189,7 +191,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
               socket
               |> put_flash(:info, gettext("Data record saved successfully"))
               |> push_navigate(
-                to: PhoenixKit.Utils.Routes.path("/admin/entities/#{entity_name}/data", locale: locale)
+                to:
+                  PhoenixKit.Utils.Routes.path("/admin/entities/#{entity_name}/data",
+                    locale: locale
+                  )
               )
 
             {:noreply, socket}
@@ -209,7 +214,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
           |> EntityData.change(data_params)
           |> add_form_errors(errors)
 
-        error_list = Enum.map(errors, fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end) |> Enum.join("; ")
+        error_list =
+          Enum.map(errors, fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end) |> Enum.join("; ")
 
         socket =
           socket

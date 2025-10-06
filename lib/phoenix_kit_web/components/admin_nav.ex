@@ -146,7 +146,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-          <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
+        <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
           <summary class="btn btn-sm btn-ghost btn-circle">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
@@ -155,7 +155,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             tabindex="0"
             phx-click-away={JS.remove_attribute("open", to: "#theme-dropdown")}
           >
-                  <%!-- data-theme-target={theme.value} --%>
+            <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
               <li class="w-full">
                 <button
@@ -184,7 +184,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         <div class="rounded-full bg-accent"></div>
                       </div>
                   <% end %>
-                  <span class="flex-1 text-left font-medium text-base-content truncate">{theme.label}</span>
+                  <span class="flex-1 text-left font-medium text-base-content truncate">
+                    {theme.label}
+                  </span>
                   <PhoenixKitWeb.Components.Core.Icons.icon_check
                     class="size-4 text-primary opacity-0 scale-75 transition-all"
                     data-theme-active-indicator
@@ -193,7 +195,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               </li>
             <% end %>
           </ul>
-          </details>
+        </details>
       </div>
     </div>
     """
@@ -285,7 +287,10 @@ defmodule PhoenixKitWeb.Components.AdminNav do
         </div>
 
         <%!-- Dropdown Menu --%>
-        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3">
+        <ul
+          tabindex="0"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3"
+        >
           <%!-- User Info Header --%>
           <li class="menu-title px-4 py-2">
             <div class="flex flex-col gap-1">

@@ -271,8 +271,7 @@ defmodule PhoenixKitWeb.Integration do
 
           # Entities Management
           live "/admin/entities", Live.Modules.Entities.Entities, :index, as: :entities
-          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new,
-            as: :entities_new
+          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new, as: :entities_new
 
           live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
             as: :entities_edit
@@ -289,8 +288,10 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/entities/:entity_slug/data/:id", Live.Modules.Entities.DataForm, :show,
             as: :entities_data_show
 
-          live "/admin/entities/:entity_slug/data/:id/edit", Live.Modules.Entities.DataForm, :edit,
-            as: :entities_data_edit
+          live "/admin/entities/:entity_slug/data/:id/edit",
+               Live.Modules.Entities.DataForm,
+               :edit,
+               as: :entities_data_edit
 
           live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
             as: :entities_settings
@@ -374,8 +375,7 @@ defmodule PhoenixKitWeb.Integration do
 
           # Entities Management
           live "/admin/entities", Live.Modules.Entities.Entities, :index, as: :entities
-          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new,
-            as: :entities_new
+          live "/admin/entities/new", Live.Modules.Entities.EntityForm, :new, as: :entities_new
 
           live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
             as: :entities_edit
@@ -392,8 +392,10 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/entities/:entity_slug/data/:id", Live.Modules.Entities.DataForm, :show,
             as: :entities_data_show
 
-          live "/admin/entities/:entity_slug/data/:id/edit", Live.Modules.Entities.DataForm, :edit,
-            as: :entities_data_edit
+          live "/admin/entities/:entity_slug/data/:id/edit",
+               Live.Modules.Entities.DataForm,
+               :edit,
+               as: :entities_data_edit
 
           live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
             as: :entities_settings

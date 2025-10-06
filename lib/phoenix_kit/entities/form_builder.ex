@@ -572,7 +572,8 @@ defmodule PhoenixKit.Entities.FormBuilder do
     if Enum.empty?(invalid_values) do
       {:ok, values}
     else
-      {:error, [gettext("contains invalid options: %{invalid}", invalid: Enum.join(invalid_values, ", "))]}
+      {:error,
+       [gettext("contains invalid options: %{invalid}", invalid: Enum.join(invalid_values, ", "))]}
     end
   end
 

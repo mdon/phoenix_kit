@@ -72,7 +72,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
           {:noreply, socket}
 
         {:error, reason} ->
-          socket = put_flash(socket, :error, gettext("Failed to save settings: %{reason}", reason: reason))
+          socket =
+            put_flash(
+              socket,
+              :error,
+              gettext("Failed to save settings: %{reason}", reason: reason)
+            )
+
           {:noreply, socket}
       end
     else
@@ -95,7 +101,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, gettext("Failed to enable entities: %{reason}", reason: reason))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to enable entities: %{reason}", reason: reason)
+          )
+
         {:noreply, socket}
     end
   end
@@ -115,7 +127,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, gettext("Failed to disable entities: %{reason}", reason: reason))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to disable entities: %{reason}", reason: reason)
+          )
+
         {:noreply, socket}
     end
   end
@@ -221,7 +239,11 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
         end
 
       _ ->
-        Ecto.Changeset.add_error(changeset, :data_retention_days, gettext("must be a positive integer"))
+        Ecto.Changeset.add_error(
+          changeset,
+          :data_retention_days,
+          gettext("must be a positive integer")
+        )
     end
   end
 

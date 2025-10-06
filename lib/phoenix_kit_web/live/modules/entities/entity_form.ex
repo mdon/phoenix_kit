@@ -507,7 +507,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       end)
 
     if duplicate? do
-      {:error, gettext("Field key '%{key}' already exists. Please use a unique key.", key: new_key)}
+      {:error,
+       gettext("Field key '%{key}' already exists. Please use a unique key.", key: new_key)}
     else
       :ok
     end
@@ -556,6 +557,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   def field_type_label("select"), do: gettext("Select Dropdown")
   def field_type_label("radio"), do: gettext("Radio Buttons")
   def field_type_label("checkbox"), do: gettext("Checkboxes")
+
   def field_type_label(type_name) do
     case FieldTypes.get_type(type_name) do
       nil -> type_name
