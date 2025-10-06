@@ -333,6 +333,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         icon="entities"
                         label="Entities"
                         current_path={@current_path || ""}
+                        disable_active={true}
                       />
 
                       <%= if submenu_open?(@current_path, ["/admin/entities"]) do %>
