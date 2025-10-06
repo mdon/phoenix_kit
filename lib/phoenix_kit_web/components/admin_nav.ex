@@ -95,27 +95,29 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     <div class="flex-shrink-0">
       <%= case @icon do %>
         <% "dashboard" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_dashboard />
+          <.icon name="hero-home" class="w-5 h-5" />
         <% "users" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_users />
+          <.icon name="hero-users" class="w-5 h-5" />
         <% "roles" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_roles />
+          <.icon name="hero-shield-check" class="w-5 h-5" />
         <% "modules" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_modules />
+          <.icon name="hero-puzzle-piece" class="w-5 h-5" />
         <% "settings" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_settings />
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5" />
         <% "sessions" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_sessions />
+          <.icon name="hero-computer-desktop" class="w-5 h-5" />
         <% "live_sessions" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_live_sessions />
+          <.icon name="hero-eye" class="w-5 h-5" />
         <% "referral_codes" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_referral_codes />
+          <.icon name="hero-ticket" class="w-5 h-5" />
         <% "email" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_email />
+          <.icon name="hero-envelope" class="w-5 h-5" />
         <% "entities" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_modules />
+          <.icon name="hero-cube" class="w-5 h-5" />
+        <% "language" -> %>
+          <.icon name="hero-language" class="w-5 h-5" />
         <% _ -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_default />
+          <.icon name="hero-squares-2x2" class="w-5 h-5" />
       <% end %>
     </div>
     """
