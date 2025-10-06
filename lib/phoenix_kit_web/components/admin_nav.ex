@@ -192,50 +192,6 @@ defmodule PhoenixKitWeb.Components.AdminNav do
           </ul>
           </details>
       </div>
-
-      <div class={[
-        "card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full",
-        if(@mobile, do: "scale-90", else: "")
-      ]}>
-        <%!-- Animated slider --%>
-        <div class="absolute left-0 h-full w-1/3 rounded-full border-1 border-base-200 bg-base-100 brightness-200 [[data-admin-theme-base=light]_&]:left-1/3 [[data-admin-theme-base=dark]_&]:left-2/3 transition-[left]" />
-
-        <%!-- System theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "system"})}
-          data-tip="System theme"
-          data-theme-target={@system_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_system />
-        </button>
-
-        <%!-- Light theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @light_primary})}
-          data-tip="Light theme"
-          data-theme-target={@light_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_light />
-        </button>
-
-        <%!-- Dark theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @dark_primary})}
-          data-tip="Dark theme"
-          data-theme-target={@dark_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_dark />
-        </button>
-      </div>
     </div>
     """
   end
