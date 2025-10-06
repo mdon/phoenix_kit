@@ -14,7 +14,7 @@
         navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> Back to Dashboard
+        <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Dashboard
       </.link>
 
       <%!-- Title Section --%>
@@ -30,7 +30,7 @@
         phx-click="show_create_form"
         class="btn btn-primary btn-lg"
       >
-        <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-5 h-5 mr-2" /> Create New Role
+        <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Create New Role
       </button>
     </div>
 
@@ -191,7 +191,7 @@
                           phx-click="show_edit_role"
                           phx-value-role_id={role.id}
                         >
-                          <PhoenixKitWeb.Components.Core.Icons.icon_edit class="h-3 w-3 mr-1" />
+                          <.icon name="hero-pencil" class="h-3 w-3 mr-1" />
                           Edit
                         </button>
 
@@ -202,7 +202,7 @@
                           phx-value-role_id={role.id}
                           phx-value-role_name={role.name}
                         >
-                          <PhoenixKitWeb.Components.Core.Icons.icon_trash class="h-3 w-3 mr-1" />
+                          <.icon name="hero-trash" class="h-3 w-3 mr-1" />
                           Delete
                         </button>
                       <% else %>
@@ -218,7 +218,7 @@
       <% else %>
         <%!-- Empty state --%>
         <div class="text-center py-12">
-          <PhoenixKitWeb.Components.Core.Icons.icon_shield class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
+          <.icon name="hero-shield-check" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
           <h3 class="text-lg font-medium text-base-content mb-2">
             No roles found
           </h3>
@@ -241,47 +241,43 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <%!-- System Roles Count --%>
-        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              🔒
-            </div>
-            <div>
-              <div class="text-2xl font-bold">
-                {Enum.count(@roles, & &1.is_system_role)}
-              </div>
-              <div class="text-sm opacity-90">System Roles</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={Enum.count(@roles, & &1.is_system_role)}
+          title="System Roles"
+          subtitle="Protected core roles"
+        >
+          <:icon>
+            <.icon name="hero-lock-closed" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Custom Roles Count --%>
-        <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              ⚙️
-            </div>
-            <div>
-              <div class="text-2xl font-bold">
-                {Enum.count(@roles, &(!&1.is_system_role))}
-              </div>
-              <div class="text-sm opacity-90">Custom Roles</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={Enum.count(@roles, &(!&1.is_system_role))}
+          title="Custom Roles"
+          subtitle="User-defined roles"
+        >
+          <:icon>
+            <.icon name="hero-cog-6-tooth" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Total Roles Count --%>
-        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              📊
-            </div>
-            <div>
-              <div class="text-2xl font-bold">{length(@roles)}</div>
-              <div class="text-sm opacity-90">Total Roles</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={length(@roles)}
+          title="Total Roles"
+          subtitle="All available roles"
+        >
+          <:icon>
+            <.icon name="hero-chart-bar" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>
     </div>
 
