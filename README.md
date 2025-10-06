@@ -25,6 +25,10 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] Password reset
   - [x] User roles
   - [x] Location of registration (ip, country, region, city)
+  - [x] User's timezone (and mismatch detection)
+  - [x] User's locale
+  - [x] OAuth (google, facebook)
+
 - [ ] Backend Admin module
   - [x] Modules Manager (in progress)
   - [x] Session Manager Module
@@ -45,9 +49,6 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
 
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
-  - User's timezone (mismatch detection)
-  - User's locale (needs global language settings, in works)
-  - OAuth (google, facebook, twitter, github, etc...)
   - 2FA
   - Fail2ban
 - Backend admin
@@ -130,7 +131,7 @@ Add both `phoenix_kit` and `igniter` to your project dependencies:
 # mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.2"},
+    {:phoenix_kit, "~> 1.3"},
     {:igniter, "~> 0.6.0", only: [:dev]}
   ]
 end
@@ -169,7 +170,7 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 
 ### Manual Installation
 
-1. Add `{:phoenix_kit, "~> 1.2"}` to `mix.exs`
+1. Add `{:phoenix_kit, "~> 1.3"}` to `mix.exs`
 2. Run `mix deps.get && mix phoenix_kit.gen.migration`
 3. Configure repository: `config :phoenix_kit, repo: MyApp.Repo`
 4. Add `phoenix_kit_routes()` to your router
