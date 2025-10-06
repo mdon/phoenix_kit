@@ -103,7 +103,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
           |> assign(:total_entities, stats.total_entities)
           |> assign(:active_entities, stats.active_entities)
           |> assign(:total_data_records, stats.total_data_records)
-          |> put_flash(:info, gettext("Entity '%{name}' archived successfully", name: entity.display_name))
+          |> put_flash(
+            :info,
+            gettext("Entity '%{name}' archived successfully", name: entity.display_name)
+          )
 
         {:noreply, socket}
 
@@ -128,7 +131,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
           |> assign(:total_entities, stats.total_entities)
           |> assign(:active_entities, stats.active_entities)
           |> assign(:total_data_records, stats.total_data_records)
-          |> put_flash(:info, gettext("Entity '%{name}' restored successfully", name: entity.display_name))
+          |> put_flash(
+            :info,
+            gettext("Entity '%{name}' restored successfully", name: entity.display_name)
+          )
 
         {:noreply, socket}
 

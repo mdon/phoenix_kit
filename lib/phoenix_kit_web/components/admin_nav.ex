@@ -146,7 +146,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-          <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
+        <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
           <summary class="btn btn-sm btn-ghost btn-circle">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
@@ -155,7 +155,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             tabindex="0"
             phx-click-away={JS.remove_attribute("open", to: "#theme-dropdown")}
           >
-                  <%!-- data-theme-target={theme.value} --%>
+            <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
               <li class="w-full">
                 <button
@@ -184,7 +184,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         <div class="rounded-full bg-accent"></div>
                       </div>
                   <% end %>
-                  <span class="flex-1 text-left font-medium text-base-content truncate">{theme.label}</span>
+                  <span class="flex-1 text-left font-medium text-base-content truncate">
+                    {theme.label}
+                  </span>
                   <PhoenixKitWeb.Components.Core.Icons.icon_check
                     class="size-4 text-primary opacity-0 scale-75 transition-all"
                     data-theme-active-indicator
@@ -193,10 +195,74 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               </li>
             <% end %>
           </ul>
-          </details>
+        </details>
       </div>
     </div>
     """
+  end
+
+  @doc """
+  Renders language dropdown for top bar navigation.
+  Shows globe icon with dropdown menu for language selection.
+  """
+  attr :current_path, :string, default: ""
+  attr :current_locale, :string, default: "en"
+
+  def admin_language_dropdown(assigns) do
+    # Only show if languages are enabled and there are enabled languages
+    if Languages.enabled?() do
+      enabled_languages = Languages.get_enabled_languages()
+
+      if length(enabled_languages) > 1 do
+        current_language =
+          Enum.find(enabled_languages, &(&1["code"] == assigns.current_locale)) ||
+            %{"code" => assigns.current_locale, "name" => String.upcase(assigns.current_locale)}
+
+        assigns =
+          assigns
+          |> assign(:enabled_languages, enabled_languages)
+          |> assign(:current_language, current_language)
+
+        ~H"""
+        <div class="relative" data-language-dropdown>
+          <details class="dropdown dropdown-end dropdown-bottom" id="language-dropdown">
+            <summary class="btn btn-sm btn-ghost btn-circle">
+              <.icon name="hero-globe-alt" class="w-5 h-5" />
+            </summary>
+            <ul
+              class="dropdown-content w-52 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 list-none space-y-1"
+              tabindex="0"
+              phx-click-away={JS.remove_attribute("open", to: "#language-dropdown")}
+            >
+              <%= for language <- @enabled_languages do %>
+                <li class="w-full">
+                  <a
+                    href={generate_language_switch_url(@current_path, language["code"])}
+                    class={[
+                      "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                      if(language["code"] == @current_locale, do: "bg-base-200", else: "")
+                    ]}
+                  >
+                    <span class="text-lg">{get_language_flag(language["code"])}</span>
+                    <span class="flex-1 text-left font-medium text-base-content">
+                      {language["name"]}
+                    </span>
+                    <%= if language["code"] == @current_locale do %>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="size-4 text-primary" />
+                    <% end %>
+                  </a>
+                </li>
+              <% end %>
+            </ul>
+          </details>
+        </div>
+        """
+      else
+        ~H""
+      end
+    else
+      ~H""
+    end
   end
 
   @doc """
@@ -221,7 +287,10 @@ defmodule PhoenixKitWeb.Components.AdminNav do
         </div>
 
         <%!-- Dropdown Menu --%>
-        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3">
+        <ul
+          tabindex="0"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3"
+        >
           <%!-- User Info Header --%>
           <li class="menu-title px-4 py-2">
             <div class="flex flex-col gap-1">

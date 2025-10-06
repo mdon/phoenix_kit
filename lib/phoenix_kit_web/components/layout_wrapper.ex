@@ -174,9 +174,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <span class="font-bold text-base-content">{@project_title} Admin</span>
                 </div>
 
-                <%!-- Right: Theme Switcher and User Dropdown --%>
+                <%!-- Right: Theme Switcher, Language Dropdown, and User Dropdown --%>
                 <div class="flex items-center gap-3">
                   <.admin_theme_controller mobile={true} />
+                  <.admin_language_dropdown
+                    current_path={@current_path}
+                    current_locale={@current_locale}
+                  />
                   <.admin_user_dropdown
                     scope={@phoenix_kit_current_scope}
                     current_path={@current_path}
@@ -347,7 +351,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                             <%= for entity <- PhoenixKit.Entities.list_entities() do %>
                               <%= if entity.status == "published" do %>
                                 <.admin_nav_item
-                                  href={Routes.locale_aware_path(assigns, "/admin/entities/#{entity.name}/data")}
+                                  href={
+                                    Routes.locale_aware_path(assigns, "/admin/entities/#{entity.name}/data")
+                                  }
                                   icon={entity.icon || "hero-cube"}
                                   label={entity.display_name_plural || entity.display_name}
                                   current_path={@current_path || ""}
@@ -429,15 +435,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       </div>
                     <% end %>
                   </nav>
-
-                  <%!-- Bottom Section: Language Switcher --%>
-                  <div class="p-4 border-t border-base-300">
-                    <%!-- Language Switcher --%>
-                    <.admin_language_switcher
-                      current_path={@current_path || ""}
-                      current_locale={@current_locale || "en"}
-                    />
-                  </div>
                 </aside>
               </div>
             </div>
@@ -748,7 +745,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     ~H"""
     <!DOCTYPE html>
-    <html lang="en" data-theme="light" data-admin-theme-base="system" class="[scrollbar-gutter:stable]">
+    <html
+      lang="en"
+      data-theme="light"
+      data-admin-theme-base="system"
+      class="[scrollbar-gutter:stable]"
+    >
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -756,8 +758,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <.live_title default={"#{assigns[:project_title] || "PhoenixKit"} Admin"}>
           {assigns[:page_title] || "Admin"}
         </.live_title>
-        <link phx-track-static rel="stylesheet" href={"/assets/css/app.css"} />
-        <script defer phx-track-static type="text/javascript" src={"/assets/js/app.js"} />
+        <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
+        <script defer phx-track-static type="text/javascript" src="/assets/js/app.js" />
       </head>
       <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
         <%!-- Admin pages without parent headers --%>

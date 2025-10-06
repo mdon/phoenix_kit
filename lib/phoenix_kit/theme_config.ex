@@ -141,9 +141,9 @@ defmodule PhoenixKit.ThemeConfig do
   ]
 
   @preview_themes Map.new(@dropdown_order, fn
-                        "system" -> {"system", nil}
-                        theme -> {theme, theme}
-                      end)
+                    "system" -> {"system", nil}
+                    theme -> {theme, theme}
+                  end)
 
   @base_map %{
     "phoenix-light" => "light",
