@@ -1,10 +1,16 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
+  @moduledoc """
+  LiveView for creating and editing entity data records.
+  Provides dynamic form interface based on entity schema definition.
+  """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Entities.FormBuilder
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(%{"entity_slug" => entity_slug, "id" => id} = params, _session, socket) do
     # Set locale for LiveView process
@@ -192,7 +198,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
               |> put_flash(:info, gettext("Data record saved successfully"))
               |> push_navigate(
                 to:
-                  PhoenixKit.Utils.Routes.path("/admin/entities/#{entity_name}/data",
+                  Routes.path("/admin/entities/#{entity_name}/data",
                     locale: locale
                   )
               )
@@ -215,7 +221,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
           |> add_form_errors(errors)
 
         error_list =
-          Enum.map(errors, fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end) |> Enum.join("; ")
+          Enum.map_join(errors, "; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
 
         socket =
           socket

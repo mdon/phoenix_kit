@@ -1,9 +1,15 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
+  @moduledoc """
+  LiveView for browsing and managing entity data records.
+  Provides table view with pagination, search, filtering, and bulk operations.
+  """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -119,7 +125,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -137,7 +143,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -157,7 +163,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -175,7 +181,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -193,7 +199,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.path("#{path}?#{params}", locale: locale))
+      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -206,7 +212,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     full_path = if params != "", do: "#{path}?#{params}", else: path
 
     socket =
-      push_patch(socket, to: PhoenixKit.Utils.Routes.locale_aware_path(socket.assigns, full_path))
+      push_patch(socket, to: Routes.locale_aware_path(socket.assigns, full_path))
 
     {:noreply, socket}
   end
@@ -421,10 +427,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     # Show first few key-value pairs as preview
     data
     |> Enum.take(3)
-    |> Enum.map(fn {key, value} ->
+    |> Enum.map_join(" • ", fn {key, value} ->
       "#{key}: #{truncate_text(to_string(value), 30)}"
     end)
-    |> Enum.join(" • ")
   end
 
   def format_data_preview(_), do: ""

@@ -503,9 +503,8 @@ defmodule PhoenixKit.Entities.FormBuilder do
   # Private Functions
 
   defp validate_field_value(field, value) do
-    with {:ok, value} <- validate_required(field, value),
-         {:ok, value} <- validate_type(field, value) do
-      {:ok, value}
+    with {:ok, value} <- validate_required(field, value) do
+      validate_type(field, value)
     end
   end
 

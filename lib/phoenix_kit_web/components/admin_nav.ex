@@ -7,10 +7,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-
-  alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.ThemeConfig
+  alias PhoenixKit.Utils.Routes
 
   import PhoenixKitWeb.Components.Core.Icon
 
@@ -187,10 +186,9 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                   <span class="flex-1 text-left font-medium text-base-content truncate">
                     {theme.label}
                   </span>
-                  <PhoenixKitWeb.Components.Core.Icons.icon_check
-                    class="size-4 text-primary opacity-0 scale-75 transition-all"
-                    data-theme-active-indicator
-                  />
+                  <span data-theme-active-indicator>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="size-4 text-primary opacity-0 scale-75 transition-all" />
+                  </span>
                 </button>
               </li>
             <% end %>

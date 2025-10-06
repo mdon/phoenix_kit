@@ -98,15 +98,13 @@ defmodule PhoenixKit.Admin.SimplePresence do
   Lists all active sessions.
   """
   def list_active_sessions do
-    try do
-      @table_name
-      |> :ets.tab2list()
-      |> Enum.map(fn {_key, metadata} -> metadata end)
-      |> Enum.sort_by(& &1.connected_at, {:desc, DateTime})
-    rescue
-      ArgumentError ->
-        []
-    end
+    @table_name
+    |> :ets.tab2list()
+    |> Enum.map(fn {_key, metadata} -> metadata end)
+    |> Enum.sort_by(& &1.connected_at, {:desc, DateTime})
+  rescue
+    ArgumentError ->
+      []
   end
 
   @doc """

@@ -345,14 +345,11 @@ defmodule PhoenixKit.ThemeConfig do
   """
   def custom_theme_css do
     @custom_theme_variables
-    |> Enum.map(fn {theme, vars} ->
+    |> Enum.map_join("\n\n", fn {theme, vars} ->
       variables =
-        vars
-        |> Enum.map(fn {name, value} -> "  #{name}: #{value};" end)
-        |> Enum.join("\n")
+        Enum.map_join(vars, "\n", fn {name, value} -> "  #{name}: #{value};" end)
 
       "[data-theme=#{theme}]\n{\n#{variables}\n}"
     end)
-    |> Enum.join("\n\n")
   end
 end

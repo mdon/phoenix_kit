@@ -366,9 +366,8 @@ defmodule PhoenixKit.Entities.FieldTypes do
   """
   def validate_field(field) when is_map(field) do
     with {:ok, field} <- validate_required_keys(field),
-         {:ok, field} <- validate_type(field),
-         {:ok, field} <- validate_options(field) do
-      {:ok, field}
+         {:ok, field} <- validate_type(field) do
+      validate_options(field)
     end
   end
 
