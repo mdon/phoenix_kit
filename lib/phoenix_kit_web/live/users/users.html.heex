@@ -392,46 +392,50 @@
       <%!-- Main Role Stats --%>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="xl"
           value={@total_users}
           title="Total Users"
           subtitle="All registered accounts"
         >
           <:icon>
-            <.icon name="hero-users" class="w-6 h-6" />
+            <.icon name="hero-users" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="xl"
           value={@total_owners}
           title="System Owners"
           subtitle="Complete system authority"
         >
           <:icon>
-            <.icon name="hero-shield-check" class="w-6 h-6" />
+            <.icon name="hero-shield-check" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="xl"
           value={@total_admins}
           title="Administrators"
           subtitle="Management privileges"
         >
           <:icon>
-            <.icon name="hero-star" class="w-6 h-6" />
+            <.icon name="hero-star" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="xl"
           value={@total_regular_users}
           title="Regular Users"
           subtitle="Standard access level"
         >
           <:icon>
-            <.icon name="hero-user" class="w-6 h-6" />
+            <.icon name="hero-user" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>
@@ -440,49 +444,53 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <%!-- Active Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="2xl"
           value={@active_users}
           title="Active Users"
           subtitle="Currently online"
         >
           <:icon>
-            <.icon name="hero-check-circle-solid" class="w-6 h-6" />
+            <.icon name="hero-check-circle-solid" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Inactive Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="2xl"
           value={@inactive_users}
           title="Inactive Users"
           subtitle="Disabled accounts"
         >
           <:icon>
-            <.icon name="hero-x-circle-solid" class="w-6 h-6" />
+            <.icon name="hero-x-circle-solid" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Confirmed Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="2xl"
           value={@confirmed_users}
           title="Email Confirmed"
           subtitle="Verified emails"
         >
           <:icon>
-            <.icon name="hero-envelope" class="w-6 h-6" />
+            <.icon name="hero-envelope" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Pending Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
           rounded="2xl"
           value={@pending_users}
           title="Pending Email"
           subtitle="Awaiting confirmation"
         >
           <:icon>
-            <.icon name="hero-information-circle-solid" class="w-6 h-6" />
+            <.icon name="hero-information-circle-solid" class="w-5 h-5" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>

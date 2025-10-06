@@ -34,8 +34,20 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
           <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled />
         </:icon>
       </.stat_card>
+
+      <.stat_card
+        compact={true}
+        value={@stats.total_users}
+        title="Total Users"
+        subtitle="Registered accounts"
+      >
+        <:icon>
+          <.icon name="hero-users" class="w-5 h-5" />
+        </:icon>
+      </.stat_card>
   """
   attr :rounded, :string, default: "xl", doc: "Border radius size (xl, 2xl, etc.)"
+  attr :compact, :boolean, default: false, doc: "Use compact layout with reduced height"
   attr :value, :any, required: true, doc: "The main statistic value to display"
   attr :title, :string, required: true, doc: "The card title text"
   attr :subtitle, :string, required: true, doc: "The smaller descriptive text"
@@ -44,17 +56,35 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
 
   def stat_card(assigns) do
     ~H"""
-    <div class={"bg-info text-info-content rounded-#{@rounded} p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"}>
-      <div class="flex items-center justify-between mb-4">
-        <div class="p-2 bg-white/20 rounded-lg">
-          {render_slot(@icon)}
+    <div class={[
+      "bg-info text-info-content rounded-#{@rounded} shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
+      if(@compact, do: "p-4", else: "p-6")
+    ]}>
+      <%= if @compact do %>
+        <%!-- Compact horizontal layout --%>
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-white/20 rounded-lg flex-shrink-0">
+            {render_slot(@icon)}
+          </div>
+          <div class="flex-1">
+            <div class="text-2xl font-bold mb-1">{@value}</div>
+            <div class="text-info-content/90 font-medium text-sm">{@title}</div>
+            <div class="text-info-content/70 text-xs">{@subtitle}</div>
+          </div>
         </div>
-      </div>
-      <div class="text-3xl font-bold mb-2">{@value}</div>
-      <div class="text-info-content/90 font-medium">{@title}</div>
-      <div class="text-info-content/70 text-xs mt-1">
-        {@subtitle}
-      </div>
+      <% else %>
+        <%!-- Original vertical layout --%>
+        <div class="flex items-center justify-between mb-4">
+          <div class="p-2 bg-white/20 rounded-lg">
+            {render_slot(@icon)}
+          </div>
+        </div>
+        <div class="text-3xl font-bold mb-2">{@value}</div>
+        <div class="text-info-content/90 font-medium">{@title}</div>
+        <div class="text-info-content/70 text-xs mt-1">
+          {@subtitle}
+        </div>
+      <% end %>
     </div>
     """
   end

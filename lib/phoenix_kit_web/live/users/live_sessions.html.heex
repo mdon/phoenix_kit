@@ -57,49 +57,53 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <%!-- Total Sessions --%>
       <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
         rounded="xl"
         value={@presence_stats.total_sessions}
         title="Total Sessions"
         subtitle="Real-time connections"
       >
         <:icon>
-          <.icon name="hero-user-circle" class="w-6 h-6" />
+          <.icon name="hero-user-circle" class="w-5 h-5" />
         </:icon>
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
       <%!-- Anonymous Sessions --%>
       <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
         rounded="xl"
         value={@presence_stats.anonymous_sessions}
         title="Anonymous"
         subtitle="Unregistered visitors"
       >
         <:icon>
-          <.icon name="hero-user" class="w-6 h-6" />
+          <.icon name="hero-user" class="w-5 h-5" />
         </:icon>
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
       <%!-- Authenticated Sessions --%>
       <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
         rounded="xl"
         value={@presence_stats.authenticated_sessions}
         title="Authenticated"
         subtitle="Logged in users"
       >
         <:icon>
-          <.icon name="hero-check-circle" class="w-6 h-6" />
+          <.icon name="hero-check-circle" class="w-5 h-5" />
         </:icon>
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
       <%!-- Unique Visitors --%>
       <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
         rounded="xl"
         value={@presence_stats.unique_anonymous_visitors}
         title="Unique Visitors"
         subtitle="Individual connections"
       >
         <:icon>
-          <.icon name="hero-user-group" class="w-6 h-6" />
+          <.icon name="hero-user-group" class="w-5 h-5" />
         </:icon>
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
