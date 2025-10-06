@@ -388,7 +388,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         <.admin_nav_item
                           href={Routes.locale_aware_path(assigns, "/admin/settings")}
                           icon="settings"
-                          label="General Settings"
+                          label="General"
                           current_path={@current_path || ""}
                           nested={true}
                         />
@@ -397,7 +397,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/referral-codes")}
                             icon="referral_codes"
-                            label="Referral Module"
+                            label="Referrals"
                             current_path={@current_path || ""}
                             nested={true}
                           />
