@@ -24,10 +24,12 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Phoenix.Controller
   import Phoenix.LiveView, only: [attach_hook: 4]
 
+  alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Module.Languages
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Auth.{Scope, User}
+  alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
 
   # Make the remember me cookie valid for 60 days.
@@ -370,15 +372,28 @@ defmodule PhoenixKitWeb.Users.Auth do
     socket = mount_phoenix_kit_current_scope(socket, session)
     scope = socket.assigns.phoenix_kit_current_scope
 
-    if Scope.admin?(scope) do
-      {:cont, socket}
-    else
-      socket =
-        socket
-        |> Phoenix.LiveView.put_flash(:error, "You must be an admin to access this page.")
-        |> Phoenix.LiveView.redirect(to: "/")
+    cond do
+      Scope.admin?(scope) ->
+        {:cont, socket}
 
-      {:halt, socket}
+      Scope.authenticated?(scope) ->
+        socket =
+          socket
+          |> Phoenix.LiveView.put_flash(
+            :error,
+            "You do not have the required role to access this page."
+          )
+          |> Phoenix.LiveView.redirect(to: "/")
+
+        {:halt, socket}
+
+      true ->
+        socket =
+          socket
+          |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
+          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+
+        {:halt, socket}
     end
   end
 
@@ -426,11 +441,114 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp mount_phoenix_kit_current_scope(socket, session) do
-    socket = mount_phoenix_kit_current_user(socket, session)
+    socket =
+      socket
+      |> mount_phoenix_kit_current_user(session)
+      |> maybe_attach_scope_refresh_hook()
+
     user = socket.assigns.phoenix_kit_current_user
     scope = Scope.for_user(user)
 
-    Phoenix.Component.assign(socket, :phoenix_kit_current_scope, scope)
+    socket
+    |> maybe_manage_scope_subscription(user)
+    |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
+  end
+
+  defp maybe_attach_scope_refresh_hook(
+         %{assigns: %{phoenix_kit_scope_hook_attached?: true}} = socket
+       ),
+       do: socket
+
+  defp maybe_attach_scope_refresh_hook(socket) do
+    socket
+    |> attach_hook(:phoenix_kit_scope_refresh, :handle_info, &handle_scope_refresh/2)
+    |> Phoenix.Component.assign(:phoenix_kit_scope_hook_attached?, true)
+  end
+
+  defp maybe_manage_scope_subscription(socket, %User{id: user_id}) when is_integer(user_id) do
+    case socket.assigns[:phoenix_kit_scope_subscription_user_id] do
+      ^user_id ->
+        socket
+
+      previous_id when is_integer(previous_id) ->
+        ScopeNotifier.unsubscribe(previous_id)
+        ScopeNotifier.subscribe(user_id)
+
+        Phoenix.Component.assign(socket, :phoenix_kit_scope_subscription_user_id, user_id)
+
+      _ ->
+        ScopeNotifier.subscribe(user_id)
+        Phoenix.Component.assign(socket, :phoenix_kit_scope_subscription_user_id, user_id)
+    end
+  end
+
+  defp maybe_manage_scope_subscription(socket, _user) do
+    maybe_unsubscribe_scope_updates(socket)
+  end
+
+  defp maybe_unsubscribe_scope_updates(socket) do
+    if previous_id = socket.assigns[:phoenix_kit_scope_subscription_user_id] do
+      ScopeNotifier.unsubscribe(previous_id)
+    end
+
+    Phoenix.Component.assign(socket, :phoenix_kit_scope_subscription_user_id, nil)
+  end
+
+  defp handle_scope_refresh({:phoenix_kit_scope_roles_updated, user_id}, socket) do
+    current_scope = socket.assigns[:phoenix_kit_current_scope]
+
+    if Scope.user_id(current_scope) == user_id do
+      was_admin = Scope.admin?(current_scope)
+      {socket, new_scope} = refresh_scope_assigns(socket)
+
+      socket =
+        if was_admin and not Scope.admin?(new_scope) do
+          socket
+          |> LiveView.put_flash(:error, "You must be an admin to access this page.")
+          |> LiveView.push_navigate(to: "/")
+        else
+          socket
+        end
+
+      {:halt, socket}
+    else
+      {:cont, socket}
+    end
+  end
+
+  defp handle_scope_refresh(_msg, socket), do: {:cont, socket}
+
+  defp refresh_scope_assigns(socket) do
+    case socket.assigns[:phoenix_kit_current_user] do
+      %User{id: user_id} ->
+        case Auth.get_user(user_id) do
+          %User{} = user ->
+            scope = Scope.for_user(user)
+
+            socket =
+              socket
+              |> Phoenix.Component.assign(:phoenix_kit_current_user, user)
+              |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
+              |> maybe_manage_scope_subscription(user)
+
+            {socket, scope}
+
+          nil ->
+            scope = Scope.for_user(nil)
+
+            socket =
+              socket
+              |> Phoenix.Component.assign(:phoenix_kit_current_user, nil)
+              |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
+              |> maybe_unsubscribe_scope_updates()
+
+            {socket, scope}
+        end
+
+      _ ->
+        scope = socket.assigns[:phoenix_kit_current_scope] || Scope.for_user(nil)
+        {socket, scope}
+    end
   end
 
   @doc false
@@ -562,17 +680,24 @@ defmodule PhoenixKitWeb.Users.Auth do
   def require_admin(conn, _opts) do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
-        if Scope.admin?(scope) do
-          conn
-        else
-          conn
-          |> put_flash(:error, "You must be an admin to access this page.")
-          |> redirect(to: "/")
-          |> halt()
+        cond do
+          Scope.admin?(scope) ->
+            conn
+
+          Scope.authenticated?(scope) ->
+            conn
+            |> put_flash(:error, "You do not have the required role to access this page.")
+            |> redirect(to: "/")
+            |> halt()
+
+          true ->
+            conn
+            |> put_flash(:error, "You must log in to access this page.")
+            |> redirect(to: Routes.path("/users/log-in"))
+            |> halt()
         end
 
       _ ->
-        # Scope not found, try to create it from current_user
         conn
         |> fetch_phoenix_kit_current_scope([])
         |> require_admin([])
