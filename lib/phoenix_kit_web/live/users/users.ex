@@ -143,8 +143,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
-  def handle_event("sync_user_roles", %{"roles" => selected_roles}, socket) do
+  def handle_event("sync_user_roles", params, socket) do
     user = socket.assigns.managing_user
+    selected_roles = Map.get(params, "roles", %{})
     role_names = Map.values(selected_roles)
 
     case Roles.sync_user_roles(user, role_names) do
