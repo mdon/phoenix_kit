@@ -107,6 +107,22 @@ defmodule PhoenixKit.Users.Auth do
   @doc """
   Gets a single user.
 
+  Returns `nil` if the user does not exist.
+
+  ## Examples
+
+      iex> get_user(123)
+      %User{}
+
+      iex> get_user(456)
+      nil
+
+  """
+  def get_user(id) when is_integer(id), do: Repo.get(User, id)
+
+  @doc """
+  Gets a single user.
+
   Raises `Ecto.NoResultsError` if the User does not exist.
 
   ## Examples
@@ -653,7 +669,8 @@ defmodule PhoenixKit.Users.Auth do
       iex> assign_role(user, "NonexistentRole")
       {:error, :role_not_found}
   """
-  defdelegate assign_role(user, role_name, assigned_by \\ nil), to: PhoenixKit.Users.Roles
+  defdelegate assign_role(user, role_name, assigned_by \\ nil, opts \\ []),
+    to: PhoenixKit.Users.Roles
 
   @doc """
   Removes a role from a user.
@@ -666,7 +683,7 @@ defmodule PhoenixKit.Users.Auth do
       iex> remove_role(user, "NonexistentRole")
       {:error, :assignment_not_found}
   """
-  defdelegate remove_role(user, role_name), to: PhoenixKit.Users.Roles
+  defdelegate remove_role(user, role_name, opts \\ []), to: PhoenixKit.Users.Roles
 
   @doc """
   Checks if a user has a specific role.
