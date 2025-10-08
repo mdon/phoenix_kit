@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
   @moduledoc """
-  LiveView для создания и редактирования записей данных сущностей.
-  Динамически генерирует формы на основе схемы entity.
+  LiveView for creating and editing entity data records.
+  Provides dynamic form interface based on entity schema definition.
   """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities

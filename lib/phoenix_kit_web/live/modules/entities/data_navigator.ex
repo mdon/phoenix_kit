@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
   @moduledoc """
-  LiveView для навигации и управления данными сущностей.
-  Отображает записи данных для выбранной entity с фильтрацией и пагинацией.
+  LiveView for browsing and managing entity data records.
+  Provides table view with pagination, search, filtering, and bulk operations.
   """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities

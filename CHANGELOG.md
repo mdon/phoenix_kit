@@ -1,4 +1,31 @@
-## 1.2.15 - 2025-10-01
+## 1.3.1 - 2025-10-07
+
+  ### Fix: Admin Role Access with Real-time Scope Refresh
+  Implemented a PubSub-based scope refresh system that updates sessions in real-time without forcing
+  logouts:
+  - **New Module**: `PhoenixKit.Users.ScopeNotifier` manages user-specific PubSub topics for role changes
+  - **LiveView Integration**: Sessions automatically subscribe to their user's topic and rebuild the cached
+  scope when roles change
+  - **Admin Demotion Handling**: Users who lose admin privileges are immediately redirected from admin pages
+   with clear error messaging
+  - **Transaction Safety**: Role mutations use broadcast flags to prevent partial-state notifications during
+   database transactions
+
+  Additional Improvements:
+
+  - **Better Error Messages**: Now distinguishes between "not logged in" vs "logged in but insufficient
+  role" scenarios
+  - **Subscription Lifecycle**: Proper subscription management when users switch or sessions end
+  - **Safe User Fetching**: Added `get_user/1` helper that returns `nil` instead of raising exceptions
+
+  Technical Details:
+
+  - Broadcasts happen on `phoenix_kit:user_scope:#{user_id}` topics
+  - LiveViews attach a `:handle_info` hook to process `{:phoenix_kit_scope_roles_updated, user_id}` messages
+  - Scope refresh compares old vs new admin status to trigger redirects only when necessary
+  - Edge cases handled: user deletion mid-session, owner role protection, non-admin page refreshes
+
+## 1.3.0 - 2025-10-06
 
 ### Added
 - **Magic Link Registration System** - Passwordless two-step registration via email
@@ -8,7 +35,7 @@
   - Configurable expiry time (default: 30 minutes)
   - Automatic email verification on completion
   - Referral code support in registration flow
-  - V16 migration: Modified tokens table to allow null user_id for magic_link_registration context
+  - Database V16 migration: Modified tokens table to allow null user_id for magic_link_registration context
   - Check constraint ensuring user_id required for all non-registration token contexts
 - **OAuth Provider Validation** - Enhanced OAuth request handling with configuration checks
   - Provider existence validation before authentication flow
@@ -32,6 +59,13 @@
 
 ### Fixed
 - **Dialyzer Warnings** - Updated line number references for OAuth controller pattern matching
+- **Entities Menu Navigation** - Fixed main Entities menu staying selected when clicking entity submenus by adding `disable_active={true}` attribute
+- **New Nav Bar** - Added new top nav bar with update interface for comfort and ease of use
+
+### UI/UX Improvements
+- **Hero Icons Migration** - Migrated modules page to use Heroicons for consistent icon system
+  - Replaced custom icon components with hero-icons: `hero-arrow-left`, `hero-cog-6-tooth`, `hero-users`, `hero-envelope`, `hero-information-circle`
+  - Consistent sizing and theming across dashboard and modules pages
 
 ## 1.2.14 - 2025-09-30
 

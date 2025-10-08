@@ -391,104 +391,108 @@
 
       <%!-- Main Role Stats --%>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              👥
-            </div>
-            <div>
-              <div class="text-2xl font-bold">{@total_users}</div>
-              <div class="text-sm opacity-90">Total Users</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={@total_users}
+          title="Total Users"
+          subtitle="All registered accounts"
+        >
+          <:icon>
+            <.icon name="hero-users" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-        <div class="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              👑
-            </div>
-            <div>
-              <div class="text-2xl font-bold">{@total_owners}</div>
-              <div class="text-sm opacity-90">System Owners</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={@total_owners}
+          title="System Owners"
+          subtitle="Complete system authority"
+        >
+          <:icon>
+            <.icon name="hero-shield-check" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              ⭐
-            </div>
-            <div>
-              <div class="text-2xl font-bold">{@total_admins}</div>
-              <div class="text-sm opacity-90">Administrators</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={@total_admins}
+          title="Administrators"
+          subtitle="Management privileges"
+        >
+          <:icon>
+            <.icon name="hero-star" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-        <div class="bg-gradient-to-br from-gray-500 to-gray-600 text-white rounded-xl p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-white/20 rounded-lg">
-              👤
-            </div>
-            <div>
-              <div class="text-2xl font-bold">{@total_regular_users}</div>
-              <div class="text-sm opacity-90">Regular Users</div>
-            </div>
-          </div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="xl"
+          value={@total_regular_users}
+          title="Regular Users"
+          subtitle="Standard access level"
+        >
+          <:icon>
+            <.icon name="hero-user" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>
 
-      <%!-- Secondary Stats - Gradient Cards --%>
+      <%!-- Secondary Stats --%>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <%!-- Active Users --%>
-        <div class="bg-gradient-to-br from-green-500 via-green-600 to-emerald-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled class="w-6 h-6" />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@active_users}</div>
-          <div class="text-green-100 font-medium">Active Users</div>
-          <div class="text-green-200 text-xs mt-1">Online users</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="2xl"
+          value={@active_users}
+          title="Active Users"
+          subtitle="Currently online"
+        >
+          <:icon>
+            <.icon name="hero-check-circle-solid" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Inactive Users --%>
-        <div class="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_x_circle_filled class="w-6 h-6" />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@inactive_users}</div>
-          <div class="text-red-100 font-medium">Inactive Users</div>
-          <div class="text-red-200 text-xs mt-1">Disabled</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="2xl"
+          value={@inactive_users}
+          title="Inactive Users"
+          subtitle="Disabled accounts"
+        >
+          <:icon>
+            <.icon name="hero-x-circle-solid" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Confirmed Users --%>
-        <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-6 h-6" />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@confirmed_users}</div>
-          <div class="text-blue-100 font-medium">Confirmed</div>
-          <div class="text-blue-200 text-xs mt-1">Verified emails</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="2xl"
+          value={@confirmed_users}
+          title="Email Confirmed"
+          subtitle="Verified emails"
+        >
+          <:icon>
+            <.icon name="hero-envelope" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Pending Users --%>
-        <div class="bg-gradient-to-br from-yellow-500 via-orange-500 to-amber-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-2 bg-white/20 rounded-lg">
-              <PhoenixKitWeb.Components.Core.Icons.icon_info_circle_filled class="w-6 h-6" />
-            </div>
-          </div>
-          <div class="text-3xl font-bold mb-2">{@pending_users}</div>
-          <div class="text-yellow-100 font-medium">Pending</div>
-          <div class="text-yellow-200 text-xs mt-1">Awaiting email</div>
-        </div>
+        <PhoenixKitWeb.Components.Core.StatCard.stat_card
+          compact={true}
+          rounded="2xl"
+          value={@pending_users}
+          title="Pending Email"
+          subtitle="Awaiting confirmation"
+        >
+          <:icon>
+            <.icon name="hero-information-circle-solid" class="w-5 h-5" />
+          </:icon>
+        </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>
     </div>
 

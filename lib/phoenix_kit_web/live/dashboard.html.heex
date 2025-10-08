@@ -26,7 +26,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_users class="w-8 h-8 mr-3" />
+            <.icon name="hero-users" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Users")}</h3>
               <p class="text-sm opacity-75">{gettext("User management")}</p>
@@ -41,7 +41,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_roles class="w-8 h-8 mr-3" />
+            <.icon name="hero-shield-check" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Roles")}</h3>
               <p class="text-sm opacity-75">{gettext("Role management")}</p>
@@ -56,7 +56,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_sessions class="w-8 h-8 mr-3" />
+            <.icon name="hero-computer-desktop" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Sessions")}</h3>
               <p class="text-sm opacity-75">{gettext("Active sessions")}</p>
@@ -71,7 +71,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_eye />
+            <.icon name="hero-eye" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Live Activity")}</h3>
               <p class="text-sm opacity-75">{gettext("Real-time visitors")}</p>
@@ -86,7 +86,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-8 h-8 mr-3" />
+            <.icon name="hero-user-plus" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Add User")}</h3>
               <p class="text-sm opacity-75">{gettext("Create new account")}</p>
@@ -102,7 +102,7 @@
         >
           <div class="card-body">
             <div class="flex items-center">
-              <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-8 h-8 mr-3" />
+              <.icon name="hero-envelope" class="w-8 h-8 mr-3" />
               <div>
                 <h3 class="card-title text-lg">{gettext("Email")}</h3>
                 <p class="text-sm opacity-75">{gettext("Email logs & analytics")}</p>
@@ -118,7 +118,7 @@
       >
         <div class="card-body">
           <div class="flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-8 h-8 mr-3" />
+            <.icon name="hero-arrow-path" class="w-8 h-8 mr-3" />
             <div>
               <h3 class="card-title text-lg">{gettext("Refresh")}</h3>
               <p class="text-sm opacity-75">{gettext("Update statistics")}</p>
@@ -138,46 +138,37 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <%!-- System Owners Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="red-500"
-          gradient_via="red-600"
-          gradient_to="red-700"
           circle_size="20"
           value={@stats.owner_count}
           title={gettext("System Owners")}
           subtitle={gettext("Complete system authority")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_crown />
+            <.icon name="hero-shield-check" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
 
         <%!-- Administrators Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="amber-500"
-          gradient_via="orange-500"
-          gradient_to="orange-600"
           circle_size="16"
           value={@stats.admin_count}
           title={gettext("Administrators")}
           subtitle={gettext("Management privileges")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_star />
+            <.icon name="hero-star" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
 
         <%!-- Total Users Card --%>
         <PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card
-          gradient_from="blue-500"
-          gradient_via="blue-600"
-          gradient_to="indigo-600"
           circle_size="24"
           value={@stats.total_users}
           title={gettext("Total Users")}
           subtitle={gettext("Registered accounts")}
         >
           <:icon>
-            👥
+            <.icon name="hero-users" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.HeroStatCard.hero_stat_card>
       </div>
@@ -188,57 +179,45 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="purple-500"
-            gradient_via="purple-600"
-            gradient_to="indigo-600"
             value={@session_stats.total_active}
             title={gettext("Active Sessions")}
             subtitle={gettext("Currently logged in")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_activity />
+              <.icon name="hero-bolt" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Unique Users --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="teal-500"
-            gradient_via="teal-600"
-            gradient_to="cyan-600"
             value={@session_stats.unique_users}
             title={gettext("Unique Users")}
             subtitle={gettext("With active sessions")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
+              <.icon name="hero-user" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Today's Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="emerald-500"
-            gradient_via="emerald-600"
-            gradient_to="green-600"
             value={@session_stats.sessions_today}
             title={gettext("Today's Sessions")}
             subtitle={gettext("New login activity")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_clock />
+              <.icon name="hero-clock" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Expired Sessions --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="slate-500"
-            gradient_via="slate-600"
-            gradient_to="gray-600"
             value={@session_stats.expired_sessions}
             title={gettext("Expired Sessions")}
             subtitle={gettext("Need cleanup")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_clock_expired />
+              <.icon name="hero-no-symbol" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
         </div>
@@ -250,51 +229,39 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <%!-- Total Active Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="violet-500"
-            gradient_via="purple-600"
-            gradient_to="indigo-600"
             value={@presence_stats.total_sessions}
             title={gettext("Active Visitors")}
             subtitle={gettext("Real-time connections")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_user_profile />
+              <.icon name="hero-user-circle" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Anonymous Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="cyan-500"
-            gradient_via="blue-500"
-            gradient_to="indigo-600"
             value={@presence_stats.anonymous_sessions}
             title={gettext("Anonymous")}
             subtitle={gettext("Unregistered visitors")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_user_anonymous />
+              <.icon name="hero-user" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Authenticated Users --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="green-500"
-            gradient_via="emerald-600"
-            gradient_to="teal-600"
             value={@presence_stats.authenticated_sessions}
             title={gettext("Authenticated")}
             subtitle={gettext("Logged in users")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_outline />
+              <.icon name="hero-check-circle" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
           <%!-- Unique Visitors --%>
           <PhoenixKitWeb.Components.Core.StatCard.stat_card
-            gradient_from="orange-500"
-            gradient_via="amber-500"
-            gradient_to="yellow-500"
             value={
               @presence_stats.unique_anonymous_visitors +
                 @presence_stats.active_authenticated_users
@@ -303,7 +270,7 @@
             subtitle={gettext("Individual connections")}
           >
             <:icon>
-              <PhoenixKitWeb.Components.Core.Icons.icon_users_multiple />
+              <.icon name="hero-user-group" class="w-6 h-6" />
             </:icon>
           </PhoenixKitWeb.Components.Core.StatCard.stat_card>
         </div>
@@ -313,76 +280,61 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <%!-- Active Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="green-500"
-          gradient_via="green-600"
-          gradient_to="emerald-600"
           rounded="2xl"
           value={@stats.active_users}
           title={gettext("Active Users")}
           subtitle={gettext("Currently online")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled />
+            <.icon name="hero-check-circle-solid" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Inactive Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="red-500"
-          gradient_via="red-600"
-          gradient_to="rose-600"
           rounded="2xl"
           value={@stats.inactive_users}
           title={gettext("Inactive Users")}
           subtitle={gettext("Disabled accounts")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_x_circle_filled />
+            <.icon name="hero-x-circle-solid" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Email Confirmed --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="blue-500"
-          gradient_via="blue-600"
-          gradient_to="cyan-600"
           rounded="2xl"
           value={@stats.confirmed_users}
           title={gettext("Email Confirmed")}
           subtitle={gettext("Verified emails")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-6 h-6" />
+            <.icon name="hero-envelope" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Pending Email --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="yellow-500"
-          gradient_via="orange-500"
-          gradient_to="amber-600"
           rounded="2xl"
           value={@stats.pending_users}
           title={gettext("Pending Email")}
           subtitle={gettext("Awaiting confirmation")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_info_filled />
+            <.icon name="hero-information-circle-solid" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
         <%!-- Regular Users --%>
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
-          gradient_from="gray-500"
-          gradient_via="slate-600"
-          gradient_to="gray-700"
           rounded="2xl"
           value={@stats.user_count}
           title={gettext("Regular Users")}
           subtitle={gettext("Standard access level")}
         >
           <:icon>
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_simple />
+            <.icon name="hero-user" class="w-6 h-6" />
           </:icon>
         </PhoenixKitWeb.Components.Core.StatCard.stat_card>
       </div>

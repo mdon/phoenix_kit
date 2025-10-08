@@ -15,9 +15,6 @@ defmodule PhoenixKitWeb.Components.Core.HeroStatCard do
   ## Examples
 
       <.hero_stat_card
-        gradient_from="red-500"
-        gradient_via="red-600"
-        gradient_to="red-700"
         circle_size="20"
         value={@stats.owner_count}
         title="System Owners"
@@ -29,9 +26,6 @@ defmodule PhoenixKitWeb.Components.Core.HeroStatCard do
       </.hero_stat_card>
 
       <.hero_stat_card
-        gradient_from="amber-500"
-        gradient_via="orange-500"
-        gradient_to="orange-600"
         circle_size="16"
         value={@stats.admin_count}
         title="Administrators"
@@ -42,10 +36,6 @@ defmodule PhoenixKitWeb.Components.Core.HeroStatCard do
         </:icon>
       </.hero_stat_card>
   """
-  attr :gradient_from, :string, required: true, doc: "Starting gradient color (e.g., 'red-500')"
-  attr :gradient_via, :string, required: true, doc: "Middle gradient color (e.g., 'red-600')"
-  attr :gradient_to, :string, required: true, doc: "Ending gradient color (e.g., 'red-700')"
-
   attr :circle_size, :string,
     required: true,
     doc: "Decorative circle size in rem (e.g., '20', '16', '24')"
@@ -63,7 +53,7 @@ defmodule PhoenixKitWeb.Components.Core.HeroStatCard do
     assigns = assign(assigns, :translate_value, translate_value)
 
     ~H"""
-    <div class={"card bg-gradient-to-br from-#{@gradient_from} via-#{@gradient_via} to-#{@gradient_to} text-white shadow-2xl hover:shadow-3xl transition-all duration-300 border-0 transform hover:scale-105"}>
+    <div class="card bg-primary text-primary-content shadow-2xl hover:shadow-3xl transition-all duration-300 border-0 transform hover:scale-105">
       <div class="card-body relative overflow-hidden">
         <div class={"absolute top-0 right-0 w-#{@circle_size} h-#{@circle_size} bg-white/10 rounded-full -translate-y-#{@translate_value} translate-x-#{@translate_value}"}>
         </div>
@@ -75,7 +65,7 @@ defmodule PhoenixKitWeb.Components.Core.HeroStatCard do
             <h2 class="card-title text-xl">{@title}</h2>
           </div>
           <div class="text-7xl font-black mb-2 tracking-tight">{@value}</div>
-          <p class={"text-#{String.split(@gradient_from, "-") |> hd()}-100 text-sm"}>{@subtitle}</p>
+          <p class="text-primary-content/80 text-sm">{@subtitle}</p>
         </div>
       </div>
     </div>

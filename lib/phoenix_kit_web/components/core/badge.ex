@@ -105,7 +105,7 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   # Code status for referral codes
   defp code_status_class(code) do
     cond do
-      code.uses_count >= code.max_uses ->
+      code.number_of_uses >= code.max_uses ->
         "badge-error"
 
       code.expiration_date &&
@@ -119,7 +119,7 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
 
   defp code_status_text(code) do
     cond do
-      code.uses_count >= code.max_uses ->
+      code.number_of_uses >= code.max_uses ->
         "Expired"
 
       code.expiration_date && DateTime.compare(DateTime.utc_now(), code.expiration_date) == :gt ->

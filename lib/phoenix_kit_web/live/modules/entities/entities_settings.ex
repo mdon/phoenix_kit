@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
   @moduledoc """
-  LiveView для управления настройками модуля Entities.
-  Позволяет включать/выключать модуль и настраивать его параметры.
+  LiveView for managing entities system settings and configuration.
+  Provides interface for enabling/disabling entities module and viewing statistics.
   """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities

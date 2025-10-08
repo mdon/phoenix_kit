@@ -14,7 +14,7 @@
         navigate={PhoenixKit.Utils.Routes.path("/admin/dashboard")}
         class="btn btn-outline btn-primary btn-sm absolute left-0 top-0 -mb-12"
       >
-        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> Back to Dashboard
+        <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Dashboard
       </.link>
 
       <%!-- Title Section --%>
@@ -50,20 +50,20 @@
               navigate={PhoenixKit.Utils.Routes.path("/admin/settings/referral-codes")}
               class="btn btn-primary btn-sm"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" /> Configure
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
             </.link>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/admin/users/referral-codes")}
               class="btn btn-outline btn-sm"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_users class="w-4 h-4 mr-1" /> Manage Codes
+              <.icon name="hero-users" class="w-4 h-4 mr-1" /> Manage Codes
             </.link>
           <% else %>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/admin/settings/referral-codes")}
               class="btn btn-outline btn-sm"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" /> Configure
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
             </.link>
           <% end %>
         </:action_buttons>
@@ -108,15 +108,14 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/emails")}
                 class="btn btn-primary btn-sm"
               >
-                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
-                Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
               </.link>
               <div class="flex gap-2">
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/emails")}
                   class="btn btn-outline btn-sm flex-1"
                 >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-1" /> Emails
+                  <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Emails
                 </.link>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/modules/emails/templates")}
@@ -130,8 +129,7 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/emails")}
                 class="btn btn-outline btn-sm"
               >
-                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
-                Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
               </.link>
             <% end %>
           </div>
@@ -180,14 +178,14 @@
               navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
               class="btn btn-primary btn-sm"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" /> Configure
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
             </.link>
           <% else %>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
               class="btn btn-outline btn-sm"
             >
-              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" /> Configure
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
             </.link>
           <% end %>
         </:action_buttons>
@@ -225,7 +223,7 @@
             navigate={PhoenixKit.Utils.Routes.path("/admin/settings/entities")}
             class={"btn btn-sm #{if @entities_enabled, do: "btn-primary", else: "btn-outline"}"}
           >
-            <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4 mr-1" />
+            <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" />
             {gettext("Configure")}
           </.link>
         </:action_buttons>
@@ -263,7 +261,7 @@
 
     <%!-- Module Management Help --%>
     <div class="alert alert-info mt-6">
-      <PhoenixKitWeb.Components.Core.Icons.icon_info class="w-5 h-5" />
+      <.icon name="hero-information-circle" class="w-5 h-5" />
       <div>
         <h3 class="font-bold">Module Management</h3>
         <p class="text-sm">

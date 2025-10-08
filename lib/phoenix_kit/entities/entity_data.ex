@@ -194,9 +194,7 @@ defmodule PhoenixKit.Entities.EntityData do
   end
 
   defp validate_field_type(changeset, field_def, value) do
-    field_type = field_def["type"]
-
-    case field_type do
+    case field_def["type"] do
       "number" -> validate_number_field(changeset, field_def, value)
       "boolean" -> validate_boolean_field(changeset, field_def, value)
       "email" -> validate_email_field(changeset, field_def, value)

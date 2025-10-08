@@ -7,6 +7,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Utils.Routes
 
@@ -90,30 +91,32 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   def admin_nav_icon(assigns) do
     ~H"""
-    <div class="flex-shrink-0">
+    <div class="flex items-center flex-shrink-0">
       <%= case @icon do %>
         <% "dashboard" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_dashboard />
+          <.icon name="hero-home" class="w-5 h-5" />
         <% "users" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_users />
+          <.icon name="hero-users" class="w-5 h-5" />
         <% "roles" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_roles />
+          <.icon name="hero-shield-check" class="w-5 h-5" />
         <% "modules" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_modules />
+          <.icon name="hero-puzzle-piece" class="w-5 h-5" />
         <% "settings" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_settings />
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5" />
         <% "sessions" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_sessions />
+          <.icon name="hero-computer-desktop" class="w-5 h-5" />
         <% "live_sessions" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_live_sessions />
+          <.icon name="hero-eye" class="w-5 h-5" />
         <% "referral_codes" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_referral_codes />
+          <.icon name="hero-ticket" class="w-5 h-5" />
         <% "email" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_email />
+          <.icon name="hero-envelope" class="w-5 h-5" />
         <% "entities" -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_modules />
+          <.icon name="hero-cube" class="w-5 h-5" />
+        <% "language" -> %>
+          <.icon name="hero-language" class="w-5 h-5" />
         <% _ -> %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_default />
+          <.icon name="hero-squares-2x2" class="w-5 h-5" />
       <% end %>
     </div>
     """
@@ -142,17 +145,18 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     ~H"""
     <div class="flex flex-col gap-3 w-full">
       <div class="relative w-full" data-theme-dropdown>
-        <details class="dropdown">
-          <summary class="btn m-1">
+        <details class="dropdown dropdown-end dropdown-bottom" id="theme-dropdown">
+          <summary class="btn btn-sm btn-ghost btn-circle">
             <.icon name="hero-swatch" class="w-5 h-5" />
           </summary>
           <ul
-            class="menu w-full rounded-box border border-base-200 bg-base-100 p-2 shadow-xl space-y-1 max-h-96 overflow-y-auto"
+            class="dropdown-content w-72 min-w-0 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 max-h-[80vh] overflow-y-auto overflow-x-hidden list-none space-y-1"
             tabindex="0"
+            phx-click-away={JS.remove_attribute("open", to: "#theme-dropdown")}
           >
             <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
-              <li>
+              <li class="w-full">
                 <button
                   type="button"
                   phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: theme.value})}
@@ -161,9 +165,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                   data-theme-role="dropdown-option"
                   role="option"
                   aria-pressed="false"
-                  class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  class="w-full group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_system />
                   <%= case theme.type do %>
                     <% :system -> %>
                       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-base-200 bg-base-100 shadow-sm">
@@ -172,7 +175,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                     <% :theme -> %>
                       <div
                         data-theme={theme.preview_theme}
-                        class="grid h-8 w-8 shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-200 bg-base-100 p-1 shadow-sm"
+                        class="grid h-8 w-8 shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-200 bg-base-100 p-0.5 shadow-sm"
                       >
                         <div class="rounded-full bg-base-content"></div>
                         <div class="rounded-full bg-primary"></div>
@@ -180,62 +183,199 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         <div class="rounded-full bg-accent"></div>
                       </div>
                   <% end %>
-                  <span class="flex-1 text-left font-medium text-base-content">{theme.label}</span>
-                  <PhoenixKitWeb.Components.Core.Icons.icon_check
-                    class="size-4 text-primary opacity-0 scale-75 transition-all"
-                    data-theme-active-indicator
-                  />
+                  <span class="flex-1 text-left font-medium text-base-content truncate">
+                    {theme.label}
+                  </span>
+                  <span data-theme-active-indicator>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="size-4 text-primary opacity-0 scale-75 transition-all" />
+                  </span>
                 </button>
               </li>
             <% end %>
           </ul>
         </details>
       </div>
-
-      <div class={[
-        "card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full",
-        if(@mobile, do: "scale-90", else: "")
-      ]}>
-        <%!-- Animated slider --%>
-        <div class="absolute left-0 h-full w-1/3 rounded-full border-1 border-base-200 bg-base-100 brightness-200 [[data-admin-theme-base=light]_&]:left-1/3 [[data-admin-theme-base=dark]_&]:left-2/3 transition-[left]" />
-
-        <%!-- System theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: "system"})}
-          data-tip="System theme"
-          data-theme-target={@system_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_system />
-        </button>
-
-        <%!-- Light theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @light_primary})}
-          data-tip="Light theme"
-          data-theme-target={@light_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_light />
-        </button>
-
-        <%!-- Dark theme button --%>
-        <button
-          class="flex p-2 cursor-pointer w-1/3 justify-center items-center tooltip z-10 relative"
-          phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: @dark_primary})}
-          data-tip="Dark theme"
-          data-theme-target={@dark_targets}
-          data-theme-role="slider-button"
-          aria-pressed="false"
-        >
-          <PhoenixKitWeb.Components.Core.Icons.icon_dark />
-        </button>
-      </div>
     </div>
+    """
+  end
+
+  @doc """
+  Renders language dropdown for top bar navigation.
+  Shows globe icon with dropdown menu for language selection.
+  """
+  attr :current_path, :string, default: ""
+  attr :current_locale, :string, default: "en"
+
+  def admin_language_dropdown(assigns) do
+    # Only show if languages are enabled and there are enabled languages
+    if Languages.enabled?() do
+      enabled_languages = Languages.get_enabled_languages()
+
+      if length(enabled_languages) > 1 do
+        current_language =
+          Enum.find(enabled_languages, &(&1["code"] == assigns.current_locale)) ||
+            %{"code" => assigns.current_locale, "name" => String.upcase(assigns.current_locale)}
+
+        assigns =
+          assigns
+          |> assign(:enabled_languages, enabled_languages)
+          |> assign(:current_language, current_language)
+
+        ~H"""
+        <div class="relative" data-language-dropdown>
+          <details class="dropdown dropdown-end dropdown-bottom" id="language-dropdown">
+            <summary class="btn btn-sm btn-ghost btn-circle">
+              <.icon name="hero-globe-alt" class="w-5 h-5" />
+            </summary>
+            <ul
+              class="dropdown-content w-52 rounded-box border border-base-200 bg-base-100 p-2 shadow-xl z-[60] mt-2 list-none space-y-1"
+              tabindex="0"
+              phx-click-away={JS.remove_attribute("open", to: "#language-dropdown")}
+            >
+              <%= for language <- @enabled_languages do %>
+                <li class="w-full">
+                  <a
+                    href={generate_language_switch_url(@current_path, language["code"])}
+                    class={[
+                      "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                      if(language["code"] == @current_locale, do: "bg-base-200", else: "")
+                    ]}
+                  >
+                    <span class="text-lg">{get_language_flag(language["code"])}</span>
+                    <span class="flex-1 text-left font-medium text-base-content">
+                      {language["name"]}
+                    </span>
+                    <%= if language["code"] == @current_locale do %>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="size-4 text-primary" />
+                    <% end %>
+                  </a>
+                </li>
+              <% end %>
+            </ul>
+          </details>
+        </div>
+        """
+      else
+        ~H""
+      end
+    else
+      ~H""
+    end
+  end
+
+  @doc """
+  Renders user dropdown for top bar navigation.
+  Shows user avatar with dropdown menu containing email, role, settings and logout.
+  """
+  attr :scope, :any, default: nil
+  attr :current_path, :string, default: ""
+  attr :current_locale, :string, default: "en"
+
+  def admin_user_dropdown(assigns) do
+    ~H"""
+    <%= if @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope) do %>
+      <div class="dropdown dropdown-end">
+        <%!-- User Avatar Button --%>
+        <div
+          tabindex="0"
+          role="button"
+          class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-content font-bold cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          {String.first(PhoenixKit.Users.Auth.Scope.user_email(@scope) || "?") |> String.upcase()}
+        </div>
+
+        <%!-- Dropdown Menu --%>
+        <ul
+          tabindex="0"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3"
+        >
+          <%!-- User Info Header --%>
+          <li class="menu-title px-4 py-2">
+            <div class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-base-content truncate">
+                {PhoenixKit.Users.Auth.Scope.user_email(@scope)}
+              </span>
+              <div>
+                <%= if PhoenixKit.Users.Auth.Scope.owner?(@scope) do %>
+                  <div class="badge badge-error badge-xs">Owner</div>
+                <% else %>
+                  <%= if PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+                    <div class="badge badge-warning badge-xs">Admin</div>
+                  <% else %>
+                    <div class="badge badge-ghost badge-xs">User</div>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          </li>
+
+          <div class="divider my-0"></div>
+
+          <%!-- Settings Link --%>
+          <li>
+            <.link
+              href={Routes.locale_aware_path(assigns, "/users/settings")}
+              class="flex items-center gap-3"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
+              <span>Settings</span>
+            </.link>
+          </li>
+
+          <%!-- Language Switcher --%>
+          <%= if Languages.enabled?() do %>
+            <% enabled_languages = Languages.get_enabled_languages() %>
+            <%= if length(enabled_languages) > 0 do %>
+              <div class="divider my-0"></div>
+
+              <li class="menu-title px-4 py-1">
+                <span class="text-xs">Language</span>
+              </li>
+
+              <%= for language <- enabled_languages do %>
+                <li>
+                  <a
+                    href={generate_language_switch_url(@current_path, language["code"])}
+                    class={[
+                      "flex items-center gap-3",
+                      if(language["code"] == @current_locale, do: "active", else: "")
+                    ]}
+                  >
+                    <span class="text-lg">{get_language_flag(language["code"])}</span>
+                    <span>{language["name"]}</span>
+                    <%= if language["code"] == @current_locale do %>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                    <% end %>
+                  </a>
+                </li>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <div class="divider my-0"></div>
+
+          <%!-- Log Out Link --%>
+          <li>
+            <.link
+              href={Routes.locale_aware_path(assigns, "/users/log-out")}
+              method="delete"
+              class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
+              <span>Log Out</span>
+            </.link>
+          </li>
+        </ul>
+      </div>
+    <% else %>
+      <%!-- Not Authenticated - Show Login Button --%>
+      <.link
+        href={Routes.locale_aware_path(assigns, "/users/log-in")}
+        class="btn btn-primary btn-sm"
+      >
+        Login
+      </.link>
+    <% end %>
     """
   end
 
@@ -390,5 +530,51 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   defp locale_candidate?(locale) do
     String.length(locale) in 2..5 and Regex.match?(~r/^[a-z]{2}(?:-[A-Za-z0-9]{2,})?$/, locale)
+  end
+
+  # Helper function to get language flag emoji
+  defp get_language_flag(code) do
+    case code do
+      "en" -> "🇺🇸"
+      "es" -> "🇪🇸"
+      "fr" -> "🇫🇷"
+      "de" -> "🇩🇪"
+      "pt" -> "🇵🇹"
+      "it" -> "🇮🇹"
+      "nl" -> "🇳🇱"
+      "ru" -> "🇷🇺"
+      "zh-CN" -> "🇨🇳"
+      "ja" -> "🇯🇵"
+      _ -> "🌐"
+    end
+  end
+
+  # Helper function to generate language switch URL
+  defp generate_language_switch_url(current_path, new_locale) do
+    # Get actual enabled language codes to properly detect locale prefixes
+    enabled_language_codes = Languages.get_enabled_language_codes()
+
+    # Remove PhoenixKit prefix if present
+    normalized_path = String.replace_prefix(current_path || "", "/phoenix_kit", "")
+
+    # Remove existing locale prefix only if it matches actual language codes
+    clean_path =
+      case String.split(normalized_path, "/", parts: 3) do
+        ["", potential_locale, rest] ->
+          if potential_locale in enabled_language_codes do
+            "/" <> rest
+          else
+            normalized_path
+          end
+
+        _ ->
+          normalized_path
+      end
+
+    # Build the new URL with the new locale prefix
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+    base_prefix = if url_prefix == "/", do: "", else: url_prefix
+
+    "#{base_prefix}/#{new_locale}#{clean_path}"
   end
 end

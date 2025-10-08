@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
   @moduledoc """
-  LiveView для просмотра и управления списком сущностей.
-  Отображает все entities с фильтрацией и поиском.
+  LiveView for listing and managing all entities.
+  Provides interface for viewing, publishing, and deleting entity schemas.
   """
+
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Entities
