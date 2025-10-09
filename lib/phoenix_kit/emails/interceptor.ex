@@ -236,9 +236,7 @@ defmodule PhoenixKit.Emails.Interceptor do
       {:ok, %Log{}}
   """
   def update_after_send(%Log{} = log, provider_response \\ %{}) do
-    require Logger
-
-    Logger.info("EmailInterceptor: Updating email log after send", %{
+    Logger.info("Updating email log after send", %{
       log_id: log.id,
       current_message_id: log.message_id,
       response_keys:
@@ -254,7 +252,7 @@ defmodule PhoenixKit.Emails.Interceptor do
     update_attrs =
       case extract_provider_data(provider_response) do
         %{message_id: aws_message_id} = provider_data when is_binary(aws_message_id) ->
-          Logger.info("EmailInterceptor: Storing AWS message_id in aws_message_id field", %{
+          Logger.info("Storing AWS message_id in aws_message_id field", %{
             log_id: log.id,
             internal_message_id: log.message_id,
             aws_message_id: aws_message_id
@@ -262,7 +260,7 @@ defmodule PhoenixKit.Emails.Interceptor do
 
           # Store the AWS message_id in the dedicated aws_message_id field
           # Keep internal pk_ message_id in the message_id field for compatibility
-          # Store internal IDs in message_tags for debugging (not in headers)
+          # Store internal IDs in message_tags (not in headers)
           updated_message_tags =
             Map.merge(log.message_tags || %{}, %{
               "internal_message_id" => log.message_id,
@@ -281,7 +279,7 @@ defmodule PhoenixKit.Emails.Interceptor do
           Map.merge(update_attrs, provider_data)
 
         _ ->
-          Logger.warning("EmailInterceptor: No provider data extracted", %{
+          Logger.warning("No provider data extracted", %{
             log_id: log.id,
             response: inspect(provider_response) |> String.slice(0, 300)
           })
@@ -291,7 +289,7 @@ defmodule PhoenixKit.Emails.Interceptor do
 
     case Log.update_log(log, update_attrs) do
       {:ok, updated_log} ->
-        Logger.info("EmailInterceptor: Successfully updated email log", %{
+        Logger.info("Successfully updated email log", %{
           log_id: updated_log.id,
           internal_message_id: updated_log.message_id,
           aws_message_id: updated_log.aws_message_id,
@@ -301,7 +299,7 @@ defmodule PhoenixKit.Emails.Interceptor do
         {:ok, updated_log}
 
       {:error, reason} ->
-        Logger.error("EmailInterceptor: Failed to update email log", %{
+        Logger.error("Failed to update email log", %{
           log_id: log.id,
           reason: inspect(reason),
           update_attrs: update_attrs
@@ -620,19 +618,17 @@ defmodule PhoenixKit.Emails.Interceptor do
 
   # Extract data from provider response
   defp extract_provider_data(%{} = response) do
-    require Logger
-
     # Extract message ID from various response formats
     extracted_data = extract_message_id_from_response(response)
 
     if Map.has_key?(extracted_data, :message_id) do
-      Logger.info("EmailInterceptor: Successfully extracted AWS MessageId", %{
+      Logger.info("Successfully extracted AWS MessageId", %{
         message_id: extracted_data.message_id,
         response_format: detect_response_format(response),
         found_in_key: find_message_id_key(response)
       })
     else
-      Logger.warning("EmailInterceptor: No MessageId found in response", %{
+      Logger.warning("No MessageId found in response", %{
         response_keys: Map.keys(response),
         response: inspect(response),
         checked_keys: [":id", "\"id\"", "\"MessageId\"", "\"messageId\"", ":message_id"]

@@ -466,6 +466,7 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
   Check icon component.
   """
   attr :class, :string, default: "w-4 h-4 inline mr-1"
+  attr :"data-theme-active-indicator", :boolean, default: false
 
   def icon_check(assigns) do
     ~H"""

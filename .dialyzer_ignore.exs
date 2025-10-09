@@ -8,7 +8,6 @@
   {"lib/mix/tasks/phoenix_kit.status.ex", :unknown_function},
   {"lib/phoenix_kit/migrations/postgres.ex", :unknown_function},
   {"lib/phoenix_kit/install/mailer_config.ex", :unknown_function},
-  {"lib/phoenix_kit/install/finch_setup.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit/email_cleanup.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit/email_export.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit/email_stats.ex", :unknown_function},
@@ -44,40 +43,13 @@
   {"lib/mix/tasks/phoenix_kit.process_sqs_queue.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.sync_email_status.ex", :callback_info_missing, 1},
 
-  # False positive guard clause warnings (function returns boolean correctly)
-  {"lib/mix/tasks/phoenix_kit.assets.rebuild.ex", :guard_fail, 209},
-  {"lib/mix/tasks/phoenix_kit.configure_aws_ses.ex", :guard_fail, 183},
-  {"lib/mix/tasks/phoenix_kit.configure_aws_ses.ex", :guard_fail, 186},
+  # False positive guard clause warnings (function works correctly with boolean parameter)
   {"lib/mix/tasks/phoenix_kit.configure_aws_ses.ex", :guard_fail, 189},
 
   # False positive pattern match warnings (runtime behavior differs from static analysis)
   {"lib/mix/tasks/phoenix_kit/email_cleanup.ex", :pattern_match, 1},
-  {"lib/phoenix_kit/email_system/email_interceptor.ex", :pattern_match_cov, 524},
-  {"lib/phoenix_kit/email_system/email_interceptor.ex", :pattern_match_cov, 706},
-  {"lib/phoenix_kit/email_system/sqs_worker.ex", :pattern_match, 1},
-  {"lib/phoenix_kit_web/router.ex", :pattern_match_cov, 27},
-  ~r/lib\/phoenix_kit_web\/users\/oauth_controller\.ex:164:.*pattern_match_cov/,
-  ~r/lib\/phoenix_kit_web\/users\/oauth_controller\.ex:192:.*pattern_match_cov/,
-  ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:558:.*pattern_match_cov/,
-  ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:742:.*pattern_match_cov/,
-  ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:746:.*pattern_match_cov/,
-  ~r/lib\/phoenix_kit\/email_system\/email_interceptor\.ex:778:.*pattern_match_cov/,
-
-  # Unused functions that are actually used in recursive patterns or by calling code
-  {"lib/mix/tasks/phoenix_kit.email.process_dlq.ex", :unused_fun, 176},
-  {"lib/mix/tasks/phoenix_kit.email.process_dlq.ex", :unused_fun, 212},
-  {"lib/mix/tasks/phoenix_kit.email.process_dlq.ex", :unused_fun, 225},
-  {"lib/mix/tasks/phoenix_kit.email.process_dlq.ex", :unused_fun, 248},
-  {"lib/phoenix_kit/email_system/email_system.ex", :unused_fun, 481},
-  {"lib/phoenix_kit/email_system/email_system.ex", :unused_fun, 590},
-  {"lib/phoenix_kit/email_system/email_system.ex", :unused_fun, 615},
-  {"lib/phoenix_kit/email_system/email_system.ex", :unused_fun, 704},
 
   # ExAws function call warnings (library type definitions)
-  {"lib/phoenix_kit/email_system/email_system.ex", :no_return, 495},
-  {"lib/phoenix_kit/email_system/email_system.ex", :call, 520},
-  {"lib/phoenix_kit/email_system/email_system.ex", :no_return, 643},
-  {"lib/phoenix_kit/email_system/email_system.ex", :call, 657},
   ~r/lib\/phoenix_kit\/emails\/archiver\.ex:447:.*pattern_match/,
   ~r/lib\/phoenix_kit\/emails\/archiver\.ex:.*unused_fun/,
 
