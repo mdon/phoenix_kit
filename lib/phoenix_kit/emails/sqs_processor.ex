@@ -41,7 +41,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   """
 
   require Logger
-  import Ecto.Query, only: [from: 2]
 
   alias PhoenixKit.Emails.Event
   alias PhoenixKit.Emails.Log
@@ -85,11 +84,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
 
   # Helper function to parse SNS body content
   defp parse_sns_body(body) when is_binary(body) do
-    Logger.debug("Parsing SNS message body", %{
-      body_preview: String.slice(body, 0, 300),
-      body_length: String.length(body)
-    })
-
     # Validate body is not empty
     if String.trim(body) == "" do
       Logger.error("Received empty SNS message body")
@@ -117,7 +111,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
           {:error, :invalid_json}
 
         {:error, reason} ->
-          Logger.debug("SNS message parsing failed", %{reason: reason})
           {:error, reason}
       end
     end
@@ -198,11 +191,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
 
   # Extracts SES event from SNS message
   defp extract_ses_event(%{"Type" => "Notification", "Message" => message_json}) do
-    Logger.debug("Extracting SES event from SNS notification", %{
-      message_preview: String.slice(message_json, 0, 200),
-      message_length: String.length(message_json)
-    })
-
     with {:ok, :not_empty} <- validate_message_not_empty(message_json),
          {:ok, :not_validation} <- validate_not_sns_validation(message_json),
          {:ok, ses_event} <- decode_ses_message(message_json),
@@ -245,7 +233,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   # Validates this is not an SNS topic validation message
   defp validate_not_sns_validation(message_json) do
     if String.contains?(message_json, "Successfully validated SNS topic") do
-      Logger.debug("Ignoring SNS topic validation message")
       {:error, :sns_validation_message}
     else
       {:ok, :not_validation}
@@ -284,11 +271,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
     message_id = get_in(ses_event, ["mail", "messageId"])
 
     if event_type && message_id do
-      Logger.debug("Successfully extracted SES event", %{
-        event_type: event_type,
-        message_id: message_id
-      })
-
       {:ok, ses_event}
     else
       Logger.error("SES event missing required fields", %{
@@ -320,11 +302,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
       {:ok, log} ->
         # Update headers if empty
         update_log_headers_if_empty(log, mail_data)
-
-        Logger.debug("Send event received for already logged email", %{
-          log_id: log.id,
-          message_id: message_id
-        })
 
         {:ok, %{type: "send", log_id: log.id, updated: false}}
 
@@ -619,12 +596,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
           {:ok, updated_log} ->
             # Create event record
             create_open_event(updated_log, open_data, open_timestamp)
-
-            Logger.debug("Email opened", %{
-              log_id: updated_log.id,
-              message_id: message_id,
-              ip_address: get_in(open_data, ["ipAddress"])
-            })
 
             {:ok, %{type: "open", log_id: updated_log.id, updated: true}}
 
@@ -1085,51 +1056,28 @@ defmodule PhoenixKit.Emails.SQSProcessor do
 
   # Finds email log by message_id with extended search
   defp find_email_log_by_message_id(message_id) when is_binary(message_id) do
-    Logger.debug("SQSProcessor: Searching for email log", %{
-      message_id: message_id,
-      message_id_length: String.length(message_id)
-    })
-
     # First search - direct search by message_id
     case PhoenixKit.Emails.get_log_by_message_id(message_id) do
       {:ok, log} ->
-        Logger.debug("SQSProcessor: Found email log by direct message_id search", %{
-          log_id: log.id,
-          message_id: message_id
-        })
-
         {:ok, log}
 
       {:error, :not_found} ->
-        Logger.debug("SQSProcessor: Direct search failed, trying AWS message_id search", %{
-          message_id: message_id
-        })
-
         # Second search - search by AWS message ID
         case Log.find_by_aws_message_id(message_id) do
           {:ok, log} ->
-            Logger.info("SQSProcessor: Found email log by AWS message_id search", %{
-              log_id: log.id,
-              stored_message_id: log.message_id,
-              search_message_id: message_id
-            })
-
             {:ok, log}
 
           {:error, :not_found} ->
-            Logger.warning("SQSProcessor: No email log found for message_id", %{
+            Logger.warning("No email log found for message_id", %{
               message_id: message_id,
               searched_strategies: ["direct", "aws_field", "metadata"]
             })
-
-            # Try to find similar records for diagnostics
-            log_recent_emails_for_diagnosis(message_id)
 
             {:error, :not_found}
         end
 
       {:error, reason} ->
-        Logger.error("SQSProcessor: Error during email log search", %{
+        Logger.error("Error during email log search", %{
           message_id: message_id,
           reason: inspect(reason)
         })
@@ -1139,7 +1087,7 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   end
 
   defp find_email_log_by_message_id(message_id) do
-    Logger.error("SQSProcessor: Invalid message_id format", %{
+    Logger.error("Invalid message_id format", %{
       message_id: inspect(message_id),
       message_id_type: type_of(message_id)
     })
@@ -1147,40 +1095,10 @@ defmodule PhoenixKit.Emails.SQSProcessor do
     {:error, :invalid_message_id}
   end
 
-  # Logs recent emails for search problem diagnostics
-  defp log_recent_emails_for_diagnosis(missing_message_id) do
-    # Get last 5 emails for diagnostics
-    recent_logs =
-      from(l in PhoenixKit.Emails.Log,
-        order_by: [desc: l.inserted_at],
-        limit: 5,
-        select: {l.id, l.message_id, l.inserted_at}
-      )
-      |> PhoenixKit.RepoHelper.repo().all()
-
-    Logger.debug("SQSProcessor: Recent emails for diagnosis", %{
-      missing_message_id: missing_message_id,
-      recent_logs:
-        Enum.map(recent_logs, fn {id, msg_id, inserted_at} ->
-          %{
-            id: id,
-            message_id: msg_id,
-            inserted_at: inserted_at,
-            matches_pattern:
-              String.contains?(msg_id || "", String.slice(missing_message_id, 0, 10))
-          }
-        end)
-    })
-  rescue
-    error ->
-      Logger.debug("SQSProcessor: Failed to get recent logs for diagnosis: #{inspect(error)}")
-  end
-
   # Creates event record for delivery
   defp create_delivery_event(log, delivery_data) do
     # Check if delivery event already exists to prevent duplicates
     if Event.event_exists?(log.id, "delivery") do
-      Logger.debug("Delivery event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1198,7 +1116,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   defp create_bounce_event(log, bounce_data) do
     # Check if bounce event already exists to prevent duplicates
     if Event.event_exists?(log.id, "bounce") do
-      Logger.debug("Bounce event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1217,7 +1134,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   defp create_complaint_event(log, complaint_data) do
     # Check if complaint event already exists to prevent duplicates
     if Event.event_exists?(log.id, "complaint") do
-      Logger.debug("Complaint event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1236,7 +1152,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   defp create_open_event(log, open_data, timestamp) do
     # Check if open event already exists to prevent duplicates
     if Event.event_exists?(log.id, "open") do
-      Logger.debug("Open event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1257,7 +1172,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
     # For clicks, we might want to allow multiple click events (different links)
     # but for now, let's prevent duplicate click events too
     if Event.event_exists?(log.id, "click") do
-      Logger.debug("Click event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1278,7 +1192,6 @@ defmodule PhoenixKit.Emails.SQSProcessor do
   defp create_reject_event(log, reject_data) do
     # Check if reject event already exists to prevent duplicates
     if Event.event_exists?(log.id, "reject") do
-      Logger.debug("Reject event already exists for email log #{log.id}, skipping")
       {:ok, :duplicate_event}
     else
       event_attrs = %{
@@ -1506,13 +1419,11 @@ defmodule PhoenixKit.Emails.SQSProcessor do
     if map_size(headers) > 0 do
       case Log.update_log(log, %{headers: headers}) do
         {:ok, updated_log} ->
-          Logger.info("SQSProcessor: Updated email log headers from SES event")
+          Logger.info("Updated email log headers from SES event")
           {:ok, updated_log}
 
         {:error, changeset} ->
-          Logger.error(
-            "SQSProcessor: Failed to update email log headers: #{inspect(changeset.errors)}"
-          )
+          Logger.error("Failed to update email log headers: #{inspect(changeset.errors)}")
 
           {:error, changeset}
       end
