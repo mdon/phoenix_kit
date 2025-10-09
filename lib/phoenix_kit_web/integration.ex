@@ -276,9 +276,6 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
             as: :entities_edit
 
-          live "/admin/entities/data", Live.Modules.Entities.DataNavigator, :index,
-            as: :entities_data
-
           live "/admin/entities/:entity_slug/data", Live.Modules.Entities.DataNavigator, :entity,
             as: :entities_data_entity
 
@@ -379,9 +376,6 @@ defmodule PhoenixKitWeb.Integration do
 
           live "/admin/entities/:id/edit", Live.Modules.Entities.EntityForm, :edit,
             as: :entities_edit
-
-          live "/admin/entities/data", Live.Modules.Entities.DataNavigator, :index,
-            as: :entities_data
 
           live "/admin/entities/:entity_slug/data", Live.Modules.Entities.DataNavigator, :entity,
             as: :entities_data_entity

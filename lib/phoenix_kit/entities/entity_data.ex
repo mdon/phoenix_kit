@@ -72,6 +72,7 @@ defmodule PhoenixKit.Entities.EntityData do
   import Ecto.Query, warn: false
 
   alias PhoenixKit.Entities
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Users.Auth.User
 
   @primary_key {:id, :id, autogenerate: true}
@@ -277,6 +278,23 @@ defmodule PhoenixKit.Entities.EntityData do
     end
   end
 
+  defp notify_data_event({:ok, %__MODULE__{} = entity_data}, :created) do
+    Events.broadcast_data_created(entity_data.entity_id, entity_data.id)
+    {:ok, entity_data}
+  end
+
+  defp notify_data_event({:ok, %__MODULE__{} = entity_data}, :updated) do
+    Events.broadcast_data_updated(entity_data.entity_id, entity_data.id)
+    {:ok, entity_data}
+  end
+
+  defp notify_data_event({:ok, %__MODULE__{} = entity_data}, :deleted) do
+    Events.broadcast_data_deleted(entity_data.entity_id, entity_data.id)
+    {:ok, entity_data}
+  end
+
+  defp notify_data_event(result, _event), do: result
+
   @doc """
   Returns all entity data records ordered by creation date.
 
@@ -378,6 +396,7 @@ defmodule PhoenixKit.Entities.EntityData do
     %__MODULE__{}
     |> changeset(attrs)
     |> repo().insert()
+    |> notify_data_event(:created)
   end
 
   @doc """
@@ -395,6 +414,7 @@ defmodule PhoenixKit.Entities.EntityData do
     entity_data
     |> changeset(attrs)
     |> repo().update()
+    |> notify_data_event(:updated)
   end
 
   @doc """
@@ -410,6 +430,7 @@ defmodule PhoenixKit.Entities.EntityData do
   """
   def delete(%__MODULE__{} = entity_data) do
     repo().delete(entity_data)
+    |> notify_data_event(:deleted)
   end
 
   @doc """

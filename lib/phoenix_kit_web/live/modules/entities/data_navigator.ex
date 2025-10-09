@@ -5,8 +5,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
   """
 
   use PhoenixKitWeb, :live_view
+  on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -61,6 +63,11 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
       |> assign(:selected_status, "all")
       |> assign(:search_term, "")
       |> assign(:view_mode, "table")
+      |> apply_filters()
+
+    if connected?(socket) && entity_id do
+      Events.subscribe_to_entity_data(entity_id)
+    end
 
     {:ok, socket}
   end
@@ -82,9 +89,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
           end
       end
 
-    # Recalculate stats if entity changed
+    # Recalculate stats and subscribe if entity changed
     socket =
       if entity_id != socket.assigns.selected_entity_id do
+        if connected?(socket) && entity_id do
+          Events.subscribe_to_entity_data(entity_id)
+        end
+
         stats = EntityData.get_data_stats(entity_id)
 
         socket
@@ -131,19 +142,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
   end
 
   def handle_event("filter_by_entity", %{"entity_id" => ""}, socket) do
-    params =
-      build_url_params(
-        nil,
-        socket.assigns.selected_status,
-        socket.assigns.search_term,
-        socket.assigns.view_mode
-      )
-
-    path = build_base_path(nil)
+    # No entity selected - redirect to entities list since global data view no longer exists
     locale = socket.assigns[:current_locale] || "en"
 
     socket =
-      push_patch(socket, to: Routes.path("#{path}?#{params}", locale: locale))
+      socket
+      |> put_flash(:info, gettext("Please select an entity to view its data"))
+      |> redirect(to: Routes.path("/admin/entities", locale: locale))
 
     {:noreply, socket}
   end
@@ -265,16 +270,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
     case EntityData.update_data(data_record, %{status: new_status}) do
       {:ok, _updated_data} ->
-        # Refresh data list
-        entity_data_records = EntityData.list_all_data()
-        stats = EntityData.get_data_stats()
-
         socket =
           socket
-          |> assign(:entity_data_records, entity_data_records)
-          |> assign(:published_records, stats.published_records)
-          |> assign(:draft_records, stats.draft_records)
-          |> assign(:archived_records, stats.archived_records)
+          |> refresh_data_stats()
+          |> apply_filters()
           |> put_flash(
             :info,
             gettext("Status updated to %{status}", status: status_label(new_status))
@@ -288,14 +287,78 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
     end
   end
 
+  ## Live updates
+
+  def handle_info({:entity_created, _entity_id}, socket) do
+    {:noreply, refresh_entities_and_data(socket)}
+  end
+
+  def handle_info({:entity_updated, entity_id}, socket) do
+    locale = socket.assigns[:current_locale] || "en"
+
+    # If the currently viewed entity was updated, check if it was archived
+    if socket.assigns.selected_entity_id && entity_id == socket.assigns.selected_entity_id do
+      entity = Entities.get_entity!(entity_id)
+
+      # If entity was archived or unpublished, redirect to entities list
+      if entity.status != "published" do
+        {:noreply,
+         socket
+         |> put_flash(
+           :warning,
+           gettext("Entity '%{name}' was %{status} in another session.",
+             name: entity.display_name,
+             status: entity.status
+           )
+         )
+         |> redirect(to: Routes.path("/admin/entities", locale: locale))}
+      else
+        # Update the selected entity and page title with fresh data
+        socket =
+          socket
+          |> assign(:selected_entity, entity)
+          |> assign(:page_title, entity.display_name)
+          |> refresh_entities_and_data()
+
+        {:noreply, socket}
+      end
+    else
+      {:noreply, refresh_entities_and_data(socket)}
+    end
+  end
+
+  def handle_info({:entity_deleted, entity_id}, socket) do
+    locale = socket.assigns[:current_locale] || "en"
+
+    # If the currently viewed entity was deleted, redirect to entities list
+    if socket.assigns.selected_entity_id && entity_id == socket.assigns.selected_entity_id do
+      {:noreply,
+       socket
+       |> put_flash(:error, gettext("Entity was deleted in another session."))
+       |> redirect(to: Routes.path("/admin/entities", locale: locale))}
+    else
+      {:noreply, refresh_entities_and_data(socket)}
+    end
+  end
+
+  def handle_info({event, _entity_id, _data_id}, socket)
+      when event in [:data_created, :data_updated, :data_deleted] do
+    socket =
+      socket
+      |> refresh_data_stats()
+      |> apply_filters()
+
+    {:noreply, socket}
+  end
+
   # Helper Functions
 
-  defp build_base_path(nil), do: "/admin/entities/data"
+  defp build_base_path(nil), do: "/admin/entities"
 
   defp build_base_path(entity_id) when is_integer(entity_id) do
     # Get entity by ID to get its slug
     case Entities.get_entity!(entity_id) do
-      nil -> "/admin/entities/data"
+      nil -> "/admin/entities"
       entity -> "/admin/entities/#{entity.name}/data"
     end
   end
@@ -368,6 +431,23 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
       end
 
     assign(socket, :entity_data_records, entity_data_records)
+  end
+
+  defp refresh_data_stats(socket) do
+    stats = EntityData.get_data_stats(socket.assigns.selected_entity_id)
+
+    socket
+    |> assign(:total_records, stats.total_records)
+    |> assign(:published_records, stats.published_records)
+    |> assign(:draft_records, stats.draft_records)
+    |> assign(:archived_records, stats.archived_records)
+  end
+
+  defp refresh_entities_and_data(socket) do
+    socket
+    |> assign(:entities, Entities.list_entities())
+    |> refresh_data_stats()
+    |> apply_filters()
   end
 
   def status_badge_class(status) do

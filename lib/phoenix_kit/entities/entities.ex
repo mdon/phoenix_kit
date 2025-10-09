@@ -86,6 +86,7 @@ defmodule PhoenixKit.Entities do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.User
 
@@ -238,6 +239,23 @@ defmodule PhoenixKit.Entities do
     end
   end
 
+  defp notify_entity_event({:ok, %__MODULE__{} = entity}, :created) do
+    Events.broadcast_entity_created(entity.id)
+    {:ok, entity}
+  end
+
+  defp notify_entity_event({:ok, %__MODULE__{} = entity}, :updated) do
+    Events.broadcast_entity_updated(entity.id)
+    {:ok, entity}
+  end
+
+  defp notify_entity_event({:ok, %__MODULE__{} = entity}, :deleted) do
+    Events.broadcast_entity_deleted(entity.id)
+    {:ok, entity}
+  end
+
+  defp notify_entity_event(result, _event), do: result
+
   @doc """
   Returns the list of entities ordered by creation date.
 
@@ -317,6 +335,7 @@ defmodule PhoenixKit.Entities do
     %__MODULE__{}
     |> changeset(attrs)
     |> repo().insert()
+    |> notify_entity_event(:created)
   end
 
   @doc """
@@ -334,6 +353,7 @@ defmodule PhoenixKit.Entities do
     entity
     |> changeset(attrs)
     |> repo().update()
+    |> notify_entity_event(:updated)
   end
 
   @doc """
@@ -351,6 +371,7 @@ defmodule PhoenixKit.Entities do
   """
   def delete_entity(%__MODULE__{} = entity) do
     repo().delete(entity)
+    |> notify_entity_event(:deleted)
   end
 
   @doc """

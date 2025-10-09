@@ -235,10 +235,10 @@
           <%= if Enum.empty?(@entities) do %>
             <%!-- No entities exist --%>
             <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
-              {gettext("No Data Records Found")}
+              {gettext("No Entities Created Yet")}
             </h3>
             <p class="text-base-content/50 mb-6 max-w-md mx-auto">
-              {gettext("Create some entities first, then add data records to see them here.")}
+              {gettext("Create your first entity to start managing data records.")}
             </p>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/admin/entities")}
@@ -247,67 +247,84 @@
               <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create Your First Entity")}
             </.link>
           <% else %>
-            <%= if @selected_entity_id || @selected_status != "all" || @search_term != "" do %>
-              <%!-- Filters are active --%>
-              <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
-                {gettext("No Data Records Found")}
-              </h3>
-              <p class="text-base-content/50 mb-6 max-w-md mx-auto">
-                {gettext(
-                  "No data records match your current filters. Try adjusting your search criteria or clearing the filters."
-                )}
-              </p>
-              <button phx-click="clear_filters" class="btn btn-outline btn-lg">
-                <.icon name="hero-x-mark" class="w-5 h-5 mr-2" /> {gettext("Clear Filters")}
-              </button>
-            <% else %>
-              <%!-- No filters, just no data --%>
+            <%= if @total_records == 0 do %>
+              <%!-- Entities exist but no data records at all --%>
               <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
                 {gettext("No Data Records Yet")}
               </h3>
               <p class="text-base-content/50 mb-6 max-w-md mx-auto">
                 {gettext("Get started by adding your first data record.")}
               </p>
-              <div class="dropdown dropdown-top dropdown-center">
-                <label tabindex="0" class="btn btn-primary btn-lg">
-                  <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Add Data")}
-                  <.icon name="hero-chevron-down" class="w-5 h-5 ml-2" />
-                </label>
-                <ul
-                  tabindex="0"
-                  class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-72 mb-2 left-1/2 -translate-x-1/2"
+              <%= if @selected_entity do %>
+                <%!-- Direct add button when viewing specific entity --%>
+                <.link
+                  navigate={
+                    PhoenixKit.Utils.Routes.path(
+                      "/admin/entities/#{@selected_entity.name}/data/new"
+                    )
+                  }
+                  class="btn btn-primary btn-lg"
                 >
-                  <li class="menu-title">
-                    <span>{gettext("Select Entity Type")}</span>
-                  </li>
-                  <%= for entity <- @entities do %>
-                    <%= if entity.status == "published" do %>
-                      <li>
-                        <.link
-                          navigate={
-                            PhoenixKit.Utils.Routes.path(
-                              "/admin/entities/#{entity.name}/data/new"
-                            )
-                          }
-                          class="flex items-center justify-between"
-                        >
-                          <span>{entity.display_name}</span>
-                          <span class="badge badge-sm badge-ghost">{entity.name}</span>
-                        </.link>
+                  <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Add Data")}
+                </.link>
+              <% else %>
+                <%!-- Dropdown to select entity when viewing all data --%>
+                <div class="dropdown dropdown-top dropdown-center">
+                  <label tabindex="0" class="btn btn-primary btn-lg">
+                    <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Add Data")}
+                    <.icon name="hero-chevron-down" class="w-5 h-5 ml-2" />
+                  </label>
+                  <ul
+                    tabindex="0"
+                    class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-72 mb-2 left-1/2 -translate-x-1/2"
+                  >
+                    <li class="menu-title">
+                      <span>{gettext("Select Entity Type")}</span>
+                    </li>
+                    <%= for entity <- @entities do %>
+                      <%= if entity.status == "published" do %>
+                        <li>
+                          <.link
+                            navigate={
+                              PhoenixKit.Utils.Routes.path(
+                                "/admin/entities/#{entity.name}/data/new"
+                              )
+                            }
+                            class="flex items-center justify-between"
+                          >
+                            <span>{entity.display_name}</span>
+                            <span class="badge badge-sm badge-ghost">{entity.name}</span>
+                          </.link>
+                        </li>
+                      <% end %>
+                    <% end %>
+                    <%= if Enum.all?(@entities, & &1.status != "published") do %>
+                      <li class="disabled">
+                        <span class="text-sm text-base-content/50 p-4">
+                          {gettext(
+                            "No published entities available. Publish an entity first to create data."
+                          )}
+                        </span>
                       </li>
                     <% end %>
-                  <% end %>
-                  <%= if Enum.all?(@entities, & &1.status != "published") do %>
-                    <li class="disabled">
-                      <span class="text-sm text-base-content/50 p-4">
-                        {gettext(
-                          "No published entities available. Publish an entity first to create data."
-                        )}
-                      </span>
-                    </li>
-                  <% end %>
-                </ul>
-              </div>
+                  </ul>
+                </div>
+              <% end %>
+            <% else %>
+              <%= if @selected_entity_id || @selected_status != "all" || @search_term != "" do %>
+                <%!-- Data exists but filters exclude everything --%>
+                <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
+                  {gettext("No Data Records Found")}
+                </h3>
+                <p class="text-base-content/50 mb-6 max-w-md mx-auto">
+                  {gettext(
+                    "No data records match your current filters. Try adjusting your search criteria or clearing the filters."
+                  )}
+                </p>
+                <button phx-click="clear_filters" class="btn btn-outline btn-lg">
+                  <.icon name="hero-x-mark" class="w-5 h-5 mr-2" /> {gettext("Clear Filters")}
+                </button>
+              <% end %>
             <% end %>
           <% end %>
         </div>

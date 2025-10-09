@@ -34,7 +34,14 @@
       </div>
     </header>
 
-    <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save" class="space-y-8">
+    <.form
+      :let={f}
+      for={@changeset}
+      phx-change="validate"
+      phx-debounce="500"
+      phx-submit="save"
+      class="space-y-8"
+    >
       <%!-- Entity Metadata Section --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -125,7 +132,7 @@
                 >
                   <.icon name="hero-squares-2x2" class="w-5 h-5" />
                 </button>
-                <%= if f[:icon].value do %>
+                <%= if f[:icon].value && f[:icon].value != "" do %>
                   <button
                     type="button"
                     phx-click="clear_icon"
@@ -134,7 +141,7 @@
                   >
                     <.icon name="hero-x-mark" class="w-5 h-5" />
                   </button>
-                  <%= if f[:icon].value && f[:icon].value != "" do %>
+                  <%= if String.starts_with?(f[:icon].value, "hero-") do %>
                     <div class="btn btn-square btn-ghost pointer-events-none">
                       <.icon name={f[:icon].value} class="w-6 h-6" />
                     </div>
@@ -279,26 +286,45 @@
 
                         <%!-- Field Actions --%>
                         <div class="flex items-center space-x-2">
-                          <%!-- Edit button --%>
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm"
-                            phx-click="edit_field"
-                            phx-value-index={index}
-                          >
-                            <.icon name="hero-pencil" class="w-4 h-4" />
-                          </button>
+                          <%= if @delete_confirm_index == index do %>
+                            <%!-- Delete confirmation buttons --%>
+                            <button
+                              type="button"
+                              class="btn btn-error btn-sm"
+                              phx-click="delete_field"
+                              phx-value-index={index}
+                            >
+                              {gettext("Confirm?")}
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-outline btn-sm"
+                              phx-click="cancel_delete_field"
+                            >
+                              {gettext("Cancel")}
+                            </button>
+                          <% else %>
+                            <%!-- Edit button --%>
+                            <button
+                              type="button"
+                              class="btn btn-primary btn-sm"
+                              phx-click="edit_field"
+                              phx-value-index={index}
+                            >
+                              <.icon name="hero-pencil" class="w-4 h-4" />
+                            </button>
 
-                          <%!-- Delete button --%>
-                          <button
-                            type="button"
-                            class="btn btn-error btn-sm"
-                            phx-click="delete_field"
-                            phx-value-index={index}
-                            data-confirm={gettext("Delete this field?")}
-                          >
-                            <.icon name="hero-trash" class="w-4 h-4" />
-                          </button>
+                            <%!-- Delete button --%>
+                            <button
+                              type="button"
+                              class="btn btn-error btn-sm"
+                              phx-click="confirm_delete_field"
+                              phx-value-index={index}
+                              title={gettext("Delete field")}
+                            >
+                              <.icon name="hero-trash" class="w-4 h-4" />
+                            </button>
+                          <% end %>
                         </div>
                       </div>
                     </div>
@@ -320,12 +346,19 @@
 
       <%!-- Form Actions --%>
       <div class="flex justify-between items-center">
-        <.link
-          navigate={PhoenixKit.Utils.Routes.path("/admin/entities")}
-          class="btn btn-outline"
-        >
-          {gettext("Cancel")}
-        </.link>
+        <div class="flex gap-2">
+          <.link
+            navigate={PhoenixKit.Utils.Routes.path("/admin/entities")}
+            class="btn btn-outline"
+          >
+            {gettext("Cancel")}
+          </.link>
+
+          <button type="button" phx-click="reset" class="btn btn-warning">
+            <.icon name="hero-arrow-path" class="w-4 h-4" />
+            {gettext("Reset Changes")}
+          </button>
+        </div>
 
         <button
           type="submit"
