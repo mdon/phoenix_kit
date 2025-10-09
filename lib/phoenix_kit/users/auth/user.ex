@@ -109,6 +109,7 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_names()
     |> validate_registration_fields()
     |> maybe_generate_username_from_email()
+    |> set_default_active_status()
   end
 
   defp validate_email(changeset, opts) do
@@ -507,6 +508,20 @@ defmodule PhoenixKit.Users.Auth.User do
           :user_timezone,
           "must be a valid timezone offset between -12 and +12"
         )
+    end
+  end
+
+  # Sets the default active status for new user registrations based on system settings
+  # Reads from "new_user_default_status" setting, defaults to true if not set
+  defp set_default_active_status(changeset) do
+    # Get the default status from settings (string "true" or "false")
+    default_status_str = PhoenixKit.Settings.get_setting("new_user_default_status", "true")
+    default_status = default_status_str == "true"
+
+    # Set is_active field if not already set
+    case get_change(changeset, :is_active) do
+      nil -> put_change(changeset, :is_active, default_status)
+      _ -> changeset
     end
   end
 end

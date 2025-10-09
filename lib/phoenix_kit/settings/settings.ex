@@ -106,6 +106,7 @@ defmodule PhoenixKit.Settings do
       "magic_link_login_enabled" => "true",
       "magic_link_registration_enabled" => "true",
       "new_user_default_role" => "User",
+      "new_user_default_status" => "true",
       "week_start_day" => "1",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
@@ -629,6 +630,10 @@ defmodule PhoenixKit.Settings do
   def get_setting_options do
     %{
       "new_user_default_role" => get_role_options(),
+      "new_user_default_status" => [
+        {"Active", "true"},
+        {"Inactive", "false"}
+      ],
       "week_start_day" => [
         {"Monday", "1"},
         {"Tuesday", "2"},

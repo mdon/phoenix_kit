@@ -743,8 +743,19 @@ defmodule PhoenixKit.Users.Roles do
           else: String.to_atom(String.downcase(default_role_name))
 
       case assign_role_internal(user, role_name) do
-        {:ok, _assignment} -> role_type
-        {:error, reason} -> repo.rollback(reason)
+        {:ok, _assignment} ->
+          # Ensure first user (Owner) is always active regardless of default status setting
+          if is_nil(existing_owner) && !user.is_active do
+            case repo.update(Ecto.Changeset.change(user, is_active: true)) do
+              {:ok, _updated_user} -> role_type
+              {:error, reason} -> repo.rollback(reason)
+            end
+          else
+            role_type
+          end
+
+        {:error, reason} ->
+          repo.rollback(reason)
       end
     end)
   end
