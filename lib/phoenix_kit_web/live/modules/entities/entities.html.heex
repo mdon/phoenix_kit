@@ -100,12 +100,6 @@
         </div>
 
         <.link
-          navigate={PhoenixKit.Utils.Routes.path("/admin/entities/data")}
-          class="btn btn-outline"
-        >
-          <.icon name="hero-table-cells" class="w-4 h-4 mr-2" /> {gettext("Data Navigator")}
-        </.link>
-        <.link
           navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
           class="btn btn-primary"
         >
@@ -173,21 +167,8 @@
       <div class="card bg-base-100 shadow-xl border-2 border-dashed border-base-300">
         <div class="card-body text-center py-12">
           <div class="text-6xl mb-4 opacity-50"><.icon name="hero-cube" class="w-6 h-6" /></div>
-          <%= if @selected_status != "all" || @search_term != "" do %>
-            <%!-- Filtered empty state --%>
-            <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
-              {gettext("No Entities Found")}
-            </h3>
-            <p class="text-base-content/50 mb-6 max-w-md mx-auto">
-              {gettext(
-                "No entities match your current filters. Try adjusting your search criteria or clearing the filters."
-              )}
-            </p>
-            <button phx-click="clear_filters" class="btn btn-outline btn-lg">
-              <.icon name="hero-x-mark" class="w-5 h-5 mr-2" /> {gettext("Clear Filters")}
-            </button>
-          <% else %>
-            <%!-- True empty state --%>
+          <%= if @total_entities == 0 do %>
+            <%!-- No entities exist at all --%>
             <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
               {gettext("No Entities Yet")}
             </h3>
@@ -202,6 +183,39 @@
             >
               <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create Your First Entity")}
             </.link>
+          <% else %>
+            <%= if @selected_status != "all" || @search_term != "" do %>
+              <%!-- Entities exist but filters exclude them --%>
+              <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
+                {gettext("No Entities Found")}
+              </h3>
+              <p class="text-base-content/50 mb-6 max-w-md mx-auto">
+                {gettext(
+                  "No entities match your current filters. Try adjusting your search criteria or clearing the filters."
+                )}
+              </p>
+              <button phx-click="clear_filters" class="btn btn-outline btn-lg">
+                <.icon name="hero-x-mark" class="w-5 h-5 mr-2" /> {gettext("Clear Filters")}
+              </button>
+            <% else %>
+              <%!-- True empty state --%>
+              <h3 class="text-2xl font-semibold text-base-content/60 mb-4">
+                {gettext("No Entities Yet")}
+              </h3>
+              <p class="text-base-content/50 mb-6 max-w-md mx-auto">
+                {gettext(
+                  "Get started by creating your first custom content type. Think blog posts, products, team members, or any structured content you need."
+                )}
+              </p>
+              <.link
+                navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
+                class="btn btn-primary btn-lg"
+              >
+                <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext(
+                  "Create Your First Entity"
+                )}
+              </.link>
+            <% end %>
           <% end %>
         </div>
       </div>
@@ -394,9 +408,7 @@
                 <%!-- Actions --%>
                 <div class="card-actions justify-end">
                   <.link
-                    navigate={
-                      PhoenixKit.Utils.Routes.path("/admin/entities/data?entity_id=#{entity.id}")
-                    }
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.name}/data")}
                     class="btn btn-outline btn-sm"
                   >
                     <.icon name="hero-eye" class="w-4 h-4 mr-1" /> {gettext("View Data")}

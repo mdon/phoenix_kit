@@ -5,8 +5,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
   """
 
   use PhoenixKitWeb, :live_view
+  on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Settings
 
@@ -40,6 +42,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
       |> assign(:settings, settings)
       |> assign(:changeset, changeset)
       |> assign(:entities_stats, get_entities_stats())
+
+    if connected?(socket) do
+      Events.subscribe_to_all_data()
+    end
 
     {:ok, socket}
   end
@@ -165,6 +171,18 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
       |> put_flash(:info, gettext("Settings reset to defaults (not saved yet)"))
 
     {:noreply, socket}
+  end
+
+  ## Live updates
+
+  def handle_info({event, _entity_id}, socket)
+      when event in [:entity_created, :entity_updated, :entity_deleted] do
+    {:noreply, assign(socket, :entities_stats, get_entities_stats())}
+  end
+
+  def handle_info({event, _entity_id, _data_id}, socket)
+      when event in [:data_created, :data_updated, :data_deleted] do
+    {:noreply, assign(socket, :entities_stats, get_entities_stats())}
   end
 
   # Private Functions

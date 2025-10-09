@@ -5,13 +5,17 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   """
 
   use PhoenixKitWeb, :live_view
+  on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.FieldTypes
+  alias PhoenixKit.Entities.Events
+  alias PhoenixKit.Admin.SimplePresence, as: Presence
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.HeroIcons
   alias PhoenixKit.Utils.Routes
 
+  @impl true
   def mount(%{"id" => id} = params, _session, socket) do
     # Set locale for LiveView process
     locale = params["locale"] || socket.assigns[:current_locale] || "en"
@@ -45,6 +49,14 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     # Get current fields or initialize empty
     current_fields = entity.fields_definition || []
 
+    form_key =
+      case entity.id do
+        nil -> nil
+        id -> "entity-#{id}"
+      end
+
+    live_source = ensure_live_source(socket)
+
     socket =
       socket
       |> assign(:current_locale, locale)
@@ -64,10 +76,59 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:selected_category, "All")
       |> assign(:icon_categories, ["All" | HeroIcons.list_categories()])
       |> assign(:available_icons, HeroIcons.list_all_icons())
+      |> assign(:form_key, form_key)
+      |> assign(:live_source, live_source)
+      |> assign(:delete_confirm_index, nil)
+      |> assign(:has_unsaved_changes, false)
+
+    socket =
+      if connected?(socket) do
+        if form_key do
+          Events.subscribe_to_entity_form(form_key)
+
+          socket =
+            if entity.id do
+              Presence.track("editor:entity:#{entity.id}:#{socket.id}", %{
+                user_email: current_user.email,
+                socket_id: socket.id,
+                entity_id: entity.id
+              })
+
+              # Load existing collaborative state if other editors are present
+              editor_count = Presence.count_tracked("editor:entity:#{entity.id}:")
+
+              if editor_count > 1 do
+                case Presence.get_data("state:entity:#{entity.id}") do
+                  %{changeset_params: changeset_params, fields: fields} ->
+                    changeset = Entities.change_entity(entity, changeset_params)
+
+                    socket
+                    |> assign(:changeset, changeset)
+                    |> assign(:fields, fields)
+                    |> assign(:has_unsaved_changes, true)
+
+                  _ ->
+                    socket
+                end
+              else
+                socket
+              end
+            else
+              socket
+            end
+
+          socket
+        else
+          socket
+        end
+      else
+        socket
+      end
 
     {:ok, socket}
   end
 
+  @impl true
   def handle_event("validate", %{"entities" => entity_params}, socket) do
     # Get all current data from the changeset (both changes and original data)
     current_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
@@ -121,7 +182,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> Entities.change_entity(entity_params)
       |> Map.put(:action, :validate)
 
-    {:noreply, assign(socket, :changeset, changeset)}
+    socket = assign(socket, :changeset, changeset)
+
+    reply_with_broadcast(socket)
   end
 
   def handle_event("save", %{"entities" => entity_params}, socket) do
@@ -148,18 +211,57 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         {:noreply, socket}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, :changeset, changeset)}
+        socket = assign(socket, :changeset, changeset)
+        reply_with_broadcast(socket)
     end
+  end
+
+  def handle_event("reset", _params, socket) do
+    # Reload entity from database or reset to empty state
+    {entity, fields} =
+      if socket.assigns.entity.id do
+        # Reload from database
+        reloaded_entity = Entities.get_entity!(socket.assigns.entity.id)
+        {reloaded_entity, reloaded_entity.fields_definition || []}
+      else
+        # Reset to empty new entity
+        {%Entities{}, []}
+      end
+
+    changeset = Entities.change_entity(entity)
+
+    socket =
+      socket
+      |> assign(:entity, entity)
+      |> assign(:changeset, changeset)
+      |> assign(:fields, fields)
+      |> assign(:show_field_form, false)
+      |> assign(:editing_field_index, nil)
+      |> assign(:field_form, %{})
+      |> assign(:field_error, nil)
+      |> assign(:show_icon_picker, false)
+      |> assign(:delete_confirm_index, nil)
+      |> put_flash(:info, gettext("Changes reset to last saved state"))
+
+    reply_with_broadcast(socket)
   end
 
   # Icon Picker Events
 
   def handle_event("open_icon_picker", _params, socket) do
-    {:noreply, assign(socket, :show_icon_picker, true)}
+    socket = assign(socket, :show_icon_picker, true)
+    reply_with_broadcast(socket)
   end
 
   def handle_event("close_icon_picker", _params, socket) do
-    {:noreply, assign(socket, show_icon_picker: false, icon_search: "", selected_category: "All")}
+    socket =
+      assign(socket,
+        show_icon_picker: false,
+        icon_search: "",
+        selected_category: "All"
+      )
+
+    reply_with_broadcast(socket)
   end
 
   def handle_event("stop_propagation", _params, socket) do
@@ -183,7 +285,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       # Update changeset with generated slug while preserving all other data
       changeset = update_changeset_field(socket, %{"name" => slug})
 
-      {:noreply, assign(socket, :changeset, changeset)}
+      socket = assign(socket, :changeset, changeset)
+      reply_with_broadcast(socket)
     end
   end
 
@@ -198,14 +301,15 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:icon_search, "")
       |> assign(:selected_category, "All")
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("clear_icon", _params, socket) do
     # Clear the icon field while preserving all other data
     changeset = update_changeset_field(socket, %{"icon" => nil})
 
-    {:noreply, assign(socket, :changeset, changeset)}
+    socket = assign(socket, :changeset, changeset)
+    reply_with_broadcast(socket)
   end
 
   def handle_event("search_icons", %{"search" => search_term}, socket) do
@@ -225,7 +329,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:icon_search, search_term)
       |> assign(:available_icons, filtered_icons)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("filter_by_category", %{"category" => category}, socket) do
@@ -242,7 +346,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:available_icons, filtered_icons)
       |> assign(:icon_search, "")
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   # Field Management Events
@@ -261,8 +365,9 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         "options" => []
       })
       |> assign(:field_error, nil)
+      |> assign(:delete_confirm_index, nil)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("edit_field", %{"index" => index}, socket) do
@@ -276,7 +381,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:field_form, field || %{})
       |> assign(:field_error, nil)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("cancel_field", _params, socket) do
@@ -287,7 +392,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       |> assign(:field_form, %{})
       |> assign(:field_error, nil)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("save_field", %{"field" => field_params}, socket) do
@@ -304,19 +409,34 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
              socket.assigns.editing_field_index
            ),
          {:ok, validated_field} <- FieldTypes.validate_field(merged_params) do
-      {:noreply, save_validated_field(socket, validated_field)}
+      socket = save_validated_field(socket, validated_field)
+      reply_with_broadcast(socket)
     else
       {:error, error_message} ->
-        {:noreply, assign(socket, :field_error, error_message)}
+        socket = assign(socket, :field_error, error_message)
+        reply_with_broadcast(socket)
     end
+  end
+
+  def handle_event("confirm_delete_field", %{"index" => index}, socket) do
+    index = String.to_integer(index)
+    {:noreply, assign(socket, :delete_confirm_index, index)}
+  end
+
+  def handle_event("cancel_delete_field", _params, socket) do
+    {:noreply, assign(socket, :delete_confirm_index, nil)}
   end
 
   def handle_event("delete_field", %{"index" => index}, socket) do
     index = String.to_integer(index)
     fields = List.delete_at(socket.assigns.fields, index)
 
-    socket = assign(socket, :fields, fields)
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:fields, fields)
+      |> assign(:delete_confirm_index, nil)
+
+    reply_with_broadcast(socket)
   end
 
   def handle_event("move_field_up", %{"index" => index}, socket) do
@@ -325,7 +445,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     if index > 0 do
       fields = move_field(socket.assigns.fields, index, index - 1)
       socket = assign(socket, :fields, fields)
-      {:noreply, socket}
+      reply_with_broadcast(socket)
     else
       {:noreply, socket}
     end
@@ -337,7 +457,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     if index < length(socket.assigns.fields) - 1 do
       fields = move_field(socket.assigns.fields, index, index + 1)
       socket = assign(socket, :fields, fields)
-      {:noreply, socket}
+      reply_with_broadcast(socket)
     else
       {:noreply, socket}
     end
@@ -377,7 +497,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       # Clear error when user makes changes
       |> assign(:field_error, nil)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("add_option", _params, socket) do
@@ -387,7 +507,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     field_form = Map.put(socket.assigns.field_form, "options", updated_options)
     socket = assign(socket, :field_form, field_form)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("remove_option", %{"index" => index}, socket) do
@@ -398,7 +518,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     field_form = Map.put(socket.assigns.field_form, "options", updated_options)
     socket = assign(socket, :field_form, field_form)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("update_option", %{"index" => index, "value" => value}, socket) do
@@ -409,7 +529,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     field_form = Map.put(socket.assigns.field_form, "options", updated_options)
     socket = assign(socket, :field_form, field_form)
 
-    {:noreply, socket}
+    reply_with_broadcast(socket)
   end
 
   def handle_event("generate_field_key", _params, socket) do
@@ -427,11 +547,221 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       field_form = Map.put(socket.assigns.field_form, "key", key)
       socket = assign(socket, :field_form, field_form)
 
+      reply_with_broadcast(socket)
+    end
+  end
+
+  ## Live updates
+
+  @impl true
+  def handle_info({:entity_form_change, form_key, payload, source}, socket) do
+    cond do
+      socket.assigns.form_key == nil ->
+        {:noreply, socket}
+
+      form_key != socket.assigns.form_key ->
+        {:noreply, socket}
+
+      source == socket.assigns.live_source ->
+        {:noreply, socket}
+
+      true ->
+        try do
+          socket = apply_remote_entity_form_change(socket, payload)
+          {:noreply, socket}
+        rescue
+          e ->
+            require Logger
+            Logger.error("Failed to apply remote entity form change: #{inspect(e)}")
+            {:noreply, socket}
+        end
+    end
+  end
+
+  def handle_info({:entity_created, _entity_id}, socket) do
+    # Ignore entity creation events - they're handled by the entities list page
+    {:noreply, socket}
+  end
+
+  def handle_info({:entity_updated, entity_id}, socket) do
+    if socket.assigns.entity.id == entity_id do
+      entity = Entities.get_entity!(entity_id)
+      locale = socket.assigns[:current_locale] || "en"
+
+      # If entity was archived or unpublished, redirect to entities list
+      if entity.status != "published" do
+        {:noreply,
+         socket
+         |> put_flash(
+           :warning,
+           gettext("Entity '%{name}' was %{status} in another session.",
+             name: entity.display_name,
+             status: entity.status
+           )
+         )
+         |> redirect(to: Routes.path("/admin/entities", locale: locale))}
+      else
+        socket =
+          socket
+          |> refresh_entity_state(entity)
+          |> put_flash(:info, gettext("Entity updated in another session."))
+
+        {:noreply, socket}
+      end
+    else
       {:noreply, socket}
     end
   end
 
+  def handle_info({:entity_deleted, entity_id}, socket) do
+    if socket.assigns.entity.id == entity_id do
+      locale = socket.assigns[:current_locale] || "en"
+
+      socket =
+        socket
+        |> put_flash(:error, gettext("This entity was deleted in another session."))
+        |> push_navigate(to: Routes.path("/admin/entities", locale: locale))
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def terminate(_reason, socket) do
+    if socket.assigns[:entity] && socket.assigns.entity && socket.assigns.entity.id do
+      entity_id = socket.assigns.entity.id
+
+      # Untrack this editor
+      Presence.untrack("editor:entity:#{entity_id}:#{socket.id}")
+
+      # Only clear state if this was the last editor
+      # Check count after untracking to see if we were the last one
+      if Presence.count_tracked("editor:entity:#{entity_id}:") == 0 do
+        Presence.clear_data("state:entity:#{entity_id}")
+      end
+    end
+
+    :ok
+  end
+
   # Helper Functions
+
+  defp reply_with_broadcast(socket) do
+    {:noreply, broadcast_entity_form_state(socket)}
+  end
+
+  defp broadcast_entity_form_state(socket, extra \\ %{}) do
+    socket =
+      if connected?(socket) && socket.assigns[:form_key] && socket.assigns.entity.id do
+        entity_id = socket.assigns.entity.id
+        editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
+
+        payload =
+          %{
+            changeset_params: extract_entity_changeset_params(socket.assigns.changeset),
+            fields: socket.assigns.fields
+          }
+          |> Map.merge(extra)
+
+        # Always store state so late-joining editors can load work-in-progress
+        Presence.store_data("state:entity:#{entity_id}", payload)
+
+        # Only broadcast when multiple editors are present to avoid PubSub overhead
+        if editor_count > 1 do
+          Events.broadcast_entity_form_change(socket.assigns.form_key, payload,
+            source: socket.assigns.live_source
+          )
+        end
+
+        socket
+      else
+        socket
+      end
+
+    # Mark that we have unsaved changes
+    assign(socket, :has_unsaved_changes, true)
+  end
+
+  defp apply_remote_entity_form_change(socket, payload) do
+    changeset_params =
+      Map.get(payload, :changeset_params) ||
+        Map.get(payload, "changeset_params") ||
+        extract_entity_changeset_params(socket.assigns.changeset)
+
+    fields = Map.get(payload, :fields) || Map.get(payload, "fields") || socket.assigns.fields
+
+    entity_params =
+      changeset_params
+      |> Map.put("fields_definition", fields)
+
+    changeset =
+      socket.assigns.entity
+      |> Entities.change_entity(entity_params)
+      |> Map.put(:action, :validate)
+
+    socket
+    |> assign(:fields, fields)
+    |> assign(:changeset, changeset)
+    |> assign(:delete_confirm_index, nil)
+    |> assign(:has_unsaved_changes, true)
+
+    # Note: UI-only state (show_icon_picker, icon_search, selected_category,
+    # show_field_form, editing_field_index, field_form, field_error, delete_confirm_index)
+    # is not synced from remote changes to keep modal and form state local to each user
+  end
+
+  defp extract_entity_changeset_params(changeset) do
+    changeset
+    |> Ecto.Changeset.apply_changes()
+    |> Map.from_struct()
+    |> Map.drop([
+      :__meta__,
+      :creator,
+      :entity_data,
+      :fields_definition,
+      :inserted_at,
+      :updated_at
+    ])
+    |> Enum.into(%{}, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp refresh_entity_state(socket, entity) do
+    fields = entity.fields_definition || []
+
+    params =
+      socket.assigns.changeset
+      |> extract_entity_changeset_params()
+      |> Map.put("fields_definition", fields)
+
+    changeset =
+      entity
+      |> Entities.change_entity(params)
+      |> Map.put(:action, :validate)
+
+    socket
+    |> assign(:entity, entity)
+    |> assign(:fields, fields)
+    |> assign(:changeset, changeset)
+    |> maybe_update_available_icons()
+  end
+
+  defp maybe_update_available_icons(socket) do
+    icons =
+      cond do
+        socket.assigns.icon_search && String.trim(socket.assigns.icon_search) != "" ->
+          HeroIcons.search_icons(socket.assigns.icon_search)
+
+        socket.assigns.selected_category == "All" ->
+          HeroIcons.list_all_icons()
+
+        true ->
+          HeroIcons.list_icons_by_category()[socket.assigns.selected_category] || []
+      end
+
+    assign(socket, :available_icons, icons)
+  end
 
   defp sanitize_field_options(params) do
     params
@@ -584,6 +914,12 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   def icon_category_label("Tech"), do: gettext("Tech")
   def icon_category_label("Status"), do: gettext("Status")
   def icon_category_label(category), do: category
+
+  defp ensure_live_source(socket) do
+    socket.assigns[:live_source] ||
+      (socket.id ||
+         "entities-form-" <> Base.url_encode64(:crypto.strong_rand_bytes(6), padding: false))
+  end
 
   defp generate_slug_from_name(name) when is_binary(name) do
     name

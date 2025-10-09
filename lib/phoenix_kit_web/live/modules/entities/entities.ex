@@ -5,6 +5,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
   """
 
   use PhoenixKitWeb, :live_view
+  on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Settings
@@ -31,14 +32,15 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
       |> assign(:selected_status, "all")
       |> assign(:search_term, "")
       |> assign(:view_mode, "table")
+      |> apply_filters()
 
     {:ok, socket}
   end
 
   def handle_params(params, _url, socket) do
-    status = params["status"] || socket.assigns.selected_status
-    search_term = params["search"] || socket.assigns.search_term
-    view_mode = params["view"] || "table"
+    status = Map.get(params, "status", "all")
+    search_term = Map.get(params, "search", "")
+    view_mode = Map.get(params, "view", "table")
 
     socket =
       socket
@@ -56,7 +58,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -67,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -78,7 +80,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -89,7 +91,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
 
     socket =
       socket
-      |> push_patch(to: Routes.path("/admin/entities?#{params}", locale: locale))
+      |> push_patch(to: Routes.path("/admin/entities#{params}", locale: locale))
 
     {:noreply, socket}
   end
@@ -150,6 +152,18 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
     end
   end
 
+  ## Live updates
+
+  def handle_info({event, _entity_id}, socket)
+      when event in [:entity_created, :entity_updated, :entity_deleted] do
+    socket =
+      socket
+      |> refresh_entity_stats()
+      |> apply_filters()
+
+    {:noreply, socket}
+  end
+
   # Helper Functions
 
   defp build_url_params(status, search_term, view_mode) do
@@ -176,7 +190,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
         params
       end
 
-    URI.encode_query(params)
+    case URI.encode_query(params) do
+      "" -> ""
+      query -> "?#{query}"
+    end
   end
 
   defp apply_filters(socket) do
@@ -212,5 +229,14 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Entities do
       end
 
     assign(socket, :entities, entities)
+  end
+
+  defp refresh_entity_stats(socket) do
+    stats = Entities.get_system_stats()
+
+    socket
+    |> assign(:total_entities, stats.total_entities)
+    |> assign(:active_entities, stats.active_entities)
+    |> assign(:total_data_records, stats.total_data_records)
   end
 end

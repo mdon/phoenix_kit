@@ -44,7 +44,14 @@
     </header>
 
     <%!-- Edit Mode Form --%>
-    <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save" class="space-y-8">
+    <.form
+      :let={f}
+      for={@changeset}
+      phx-change="validate"
+      phx-debounce="500"
+      phx-submit="save"
+      class="space-y-8"
+    >
       <%!-- Basic Metadata Section --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -154,12 +161,19 @@
 
       <%!-- Form Actions --%>
       <div class="flex justify-between items-center">
-        <.link
-          navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{@entity.name}/data")}
-          class="btn btn-outline"
-        >
-          {gettext("Cancel")}
-        </.link>
+        <div class="flex gap-2">
+          <.link
+            navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{@entity.name}/data")}
+            class="btn btn-outline"
+          >
+            {gettext("Cancel")}
+          </.link>
+
+          <button type="button" phx-click="reset" class="btn btn-warning">
+            <.icon name="hero-arrow-path" class="w-4 h-4" />
+            {gettext("Reset Changes")}
+          </button>
+        </div>
 
         <button
           type="submit"
