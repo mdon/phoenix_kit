@@ -95,6 +95,8 @@ defmodule PhoenixKit.Emails do
 
   import Ecto.Query, only: [where: 3, group_by: 3, select: 3]
 
+  require Logger
+
   ## --- Manual Synchronization Functions ---
 
   # Check if message ID matches AWS SES format
@@ -130,8 +132,6 @@ defmodule PhoenixKit.Emails do
 
   # Log search results
   defp log_message(search_type, found?, log, message_id, aws_id) do
-    require Logger
-
     case {search_type, found?} do
       {:aws_message_id, true} ->
         Logger.info("Found existing email log by AWS message ID", %{
@@ -169,8 +169,6 @@ defmodule PhoenixKit.Emails do
 
   # Determine the search strategy and AWS message ID to use for SQS search
   defp determine_search_strategy(message_id) do
-    require Logger
-
     cond do
       aws_message_id?(message_id) ->
         find_log_and_prepare_result(
@@ -189,8 +187,6 @@ defmodule PhoenixKit.Emails do
 
   # Handle unknown format by trying both search approaches
   defp handle_unknown_format_search(message_id) do
-    require Logger
-
     case get_log_by_message_id(message_id) do
       {:ok, log} ->
         aws_id = log.aws_message_id || message_id
@@ -239,8 +235,6 @@ defmodule PhoenixKit.Emails do
       {:ok, %{events_processed: 1, log_updated: true}}
   """
   def sync_email_status(message_id) when is_binary(message_id) do
-    require Logger
-
     Logger.info("Starting email status sync", %{message_id: message_id})
 
     if enabled?() do
@@ -260,7 +254,12 @@ defmodule PhoenixKit.Emails do
           sqs_events = fetch_sqs_events_for_message(aws_message_id)
           dlq_events = fetch_dlq_events_for_message(aws_message_id)
 
-          all_events = sqs_events ++ dlq_events
+          # Deduplicate events from both queues by message ID + event type
+          all_events =
+            (sqs_events ++ dlq_events)
+            |> Enum.uniq_by(fn event ->
+              {get_in(event, ["mail", "messageId"]), event["eventType"]}
+            end)
 
           Logger.info("Event search results", %{
             message_id: message_id,
@@ -350,7 +349,7 @@ defmodule PhoenixKit.Emails do
             Logger.error("Error during email status sync", %{
               message_id: message_id,
               error: inspect(error),
-              stacktrace: __STACKTRACE__
+              stacktrace: Exception.format_stacktrace(__STACKTRACE__)
             })
 
             {:error, "Failed to sync email status: #{Exception.message(error)}"}
@@ -379,8 +378,6 @@ defmodule PhoenixKit.Emails do
   List of SES events matching the message ID.
   """
   def fetch_sqs_events_for_message(message_id) do
-    require Logger
-
     queue_url = Settings.get_setting("aws_sqs_queue_url")
 
     cond do
@@ -446,8 +443,6 @@ defmodule PhoenixKit.Emails do
   List of SES events matching the message ID from DLQ.
   """
   def fetch_dlq_events_for_message(message_id) do
-    require Logger
-
     dlq_url = Settings.get_setting("aws_sqs_dlq_url")
 
     if dlq_url && aws_configured?() do
@@ -495,8 +490,6 @@ defmodule PhoenixKit.Emails do
 
   # Helper function to poll SQS in batches to find specific message
   defp poll_sqs_for_message(queue_url, target_message_id, found_events, batch_count, max_batches) do
-    require Logger
-
     if batch_count >= max_batches do
       Logger.debug("Reached maximum SQS polling batches (#{max_batches})")
       found_events
@@ -513,10 +506,14 @@ defmodule PhoenixKit.Emails do
       })
 
       # Poll for messages with visibility timeout
+      # Use system settings for configuration
+      max_messages = get_sqs_max_messages()
+      visibility_timeout = get_sqs_visibility_timeout()
+
       messages =
         ExAws.SQS.receive_message(queue_url,
-          max_number_of_messages: 10,
-          visibility_timeout: 30,
+          max_number_of_messages: max_messages,
+          visibility_timeout: visibility_timeout,
           wait_time_seconds: 2
         )
         |> ExAws.request(aws_config)
@@ -575,14 +572,9 @@ defmodule PhoenixKit.Emails do
             max_batches
           )
         else
-          # Found matches, but continue searching for more events for same message
-          poll_sqs_for_message(
-            queue_url,
-            target_message_id,
-            new_found_events,
-            batch_count + 1,
-            max_batches
-          )
+          # Found matches, return them immediately to save API calls
+          Logger.debug("Found #{length(matching_messages)} matching message(s), stopping search")
+          new_found_events
         end
       end
     end
@@ -590,8 +582,6 @@ defmodule PhoenixKit.Emails do
 
   # Process a batch of SQS messages
   defp process_sqs_batch(messages, target_message_id) do
-    require Logger
-
     Enum.reduce(messages, {[], []}, fn message, {matching, to_delete} ->
       case parse_and_check_message_id(message, target_message_id) do
         true ->
@@ -607,16 +597,15 @@ defmodule PhoenixKit.Emails do
           end
 
         false ->
-          # This message doesn't match, delete it so others can process it
-          {matching, [message | to_delete]}
+          # This message doesn't match our search, leave it in queue
+          # Visibility timeout will expire and normal SQS worker can process it
+          {matching, to_delete}
       end
     end)
   end
 
   # Delete processed messages from SQS
   defp delete_sqs_messages(queue_url, messages) do
-    require Logger
-
     Enum.each(messages, fn message ->
       Logger.debug("Attempting to delete message with keys: #{inspect(Map.keys(message))}")
 
@@ -643,17 +632,19 @@ defmodule PhoenixKit.Emails do
 
   # Helper function to poll DLQ in batches to find specific message (don't delete from DLQ)
   defp poll_dlq_for_message(dlq_url, target_message_id, found_events, batch_count, max_batches) do
-    require Logger
-
     if batch_count >= max_batches do
       Logger.debug("Reached maximum DLQ polling batches (#{max_batches})")
       found_events
     else
       # Poll for messages with visibility timeout (don't delete from DLQ for debugging)
+      # Use system settings for configuration
+      max_messages = get_sqs_max_messages()
+      visibility_timeout = get_sqs_visibility_timeout()
+
       messages =
         ExAws.SQS.receive_message(dlq_url,
-          max_number_of_messages: 10,
-          visibility_timeout: 30,
+          max_number_of_messages: max_messages,
+          visibility_timeout: visibility_timeout,
           wait_time_seconds: 2
         )
         |> ExAws.request(get_aws_config())
@@ -689,14 +680,12 @@ defmodule PhoenixKit.Emails do
             max_batches
           )
         else
-          # Found matches, but continue searching for more events for same message
-          poll_dlq_for_message(
-            dlq_url,
-            target_message_id,
-            new_found_events,
-            batch_count + 1,
-            max_batches
+          # Found matches, return them immediately to save API calls
+          Logger.debug(
+            "Found #{length(matching_messages)} matching DLQ message(s), stopping search"
           )
+
+          new_found_events
         end
       end
     end
@@ -704,8 +693,6 @@ defmodule PhoenixKit.Emails do
 
   # Process a batch of DLQ messages (don't delete from DLQ)
   defp process_dlq_batch(messages, target_message_id) do
-    require Logger
-
     Enum.reduce(messages, [], fn message, matching ->
       case parse_and_check_message_id(message, target_message_id) do
         true ->

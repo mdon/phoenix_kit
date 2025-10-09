@@ -1196,28 +1196,40 @@ defmodule PhoenixKit.Emails.SQSProcessor do
 
   # Creates event record for bounce
   defp create_bounce_event(log, bounce_data) do
-    event_attrs = %{
-      email_log_id: log.id,
-      event_type: "bounce",
-      event_data: bounce_data,
-      occurred_at: parse_timestamp(get_in(bounce_data, ["timestamp"])),
-      bounce_type: get_in(bounce_data, ["bounceType"])
-    }
+    # Check if bounce event already exists to prevent duplicates
+    if Event.event_exists?(log.id, "bounce") do
+      Logger.debug("Bounce event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "bounce",
+        event_data: bounce_data,
+        occurred_at: parse_timestamp(get_in(bounce_data, ["timestamp"])),
+        bounce_type: get_in(bounce_data, ["bounceType"])
+      }
 
-    PhoenixKit.Emails.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
+    end
   end
 
   # Creates event record for complaint
   defp create_complaint_event(log, complaint_data) do
-    event_attrs = %{
-      email_log_id: log.id,
-      event_type: "complaint",
-      event_data: complaint_data,
-      occurred_at: parse_timestamp(get_in(complaint_data, ["timestamp"])),
-      complaint_type: get_in(complaint_data, ["complaintFeedbackType"])
-    }
+    # Check if complaint event already exists to prevent duplicates
+    if Event.event_exists?(log.id, "complaint") do
+      Logger.debug("Complaint event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "complaint",
+        event_data: complaint_data,
+        occurred_at: parse_timestamp(get_in(complaint_data, ["timestamp"])),
+        complaint_type: get_in(complaint_data, ["complaintFeedbackType"])
+      }
 
-    PhoenixKit.Emails.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
+    end
   end
 
   # Creates event record for open
@@ -1264,15 +1276,21 @@ defmodule PhoenixKit.Emails.SQSProcessor do
 
   # Creates event record for reject
   defp create_reject_event(log, reject_data) do
-    event_attrs = %{
-      email_log_id: log.id,
-      event_type: "reject",
-      event_data: reject_data,
-      occurred_at: parse_timestamp(get_in(reject_data, ["timestamp"])),
-      reject_reason: get_in(reject_data, ["reason"])
-    }
+    # Check if reject event already exists to prevent duplicates
+    if Event.event_exists?(log.id, "reject") do
+      Logger.debug("Reject event already exists for email log #{log.id}, skipping")
+      {:ok, :duplicate_event}
+    else
+      event_attrs = %{
+        email_log_id: log.id,
+        event_type: "reject",
+        event_data: reject_data,
+        occurred_at: parse_timestamp(get_in(reject_data, ["timestamp"])),
+        reject_reason: get_in(reject_data, ["reason"])
+      }
 
-    PhoenixKit.Emails.create_event(event_attrs)
+      PhoenixKit.Emails.create_event(event_attrs)
+    end
   end
 
   # Creates event record for delivery delay
