@@ -1,9 +1,39 @@
 defmodule PhoenixKit.Admin.SimplePresence do
   @moduledoc """
-  Simple presence tracking system for PhoenixKit admin interface.
+  Unified presence tracking and state storage system for PhoenixKit.
 
-  This is a lightweight alternative to Phoenix.Presence that works
-  without requiring a full OTP application supervision tree.
+  This module provides:
+
+  1. **Session Presence Tracking** - Track anonymous and authenticated sessions
+  2. **Generic Presence Tracking** - Track any resource (editors, viewers, etc.)
+  3. **State Storage** - Store temporary data with automatic expiration (5 min TTL)
+
+  Originally designed for admin session tracking, now serves as the universal
+  presence + state manager for both admin features and collaborative editing.
+
+  ## Features
+
+  - **Process Monitoring**: Automatic cleanup when tracked processes die
+  - **Expiring State**: Stored data auto-expires after 5 minutes
+  - **Prefix Queries**: List/count tracked items by prefix pattern
+  - **ETS-Based**: Fast in-memory storage without external dependencies
+
+  ## Examples
+
+      # Track an editor for collaborative editing
+      SimplePresence.track("editor:entity:5", %{user_email: "user@example.com"})
+
+      # Store form state
+      SimplePresence.store_data("state:entity:5", %{name: "Draft", fields: [...]})
+
+      # Retrieve state (returns nil if expired or missing)
+      case SimplePresence.get_data("state:entity:5") do
+        nil -> # Start fresh
+        state -> # Resume with previous state
+      end
+
+      # Count active editors
+      editor_count = SimplePresence.count_tracked("editor:entity:5")
   """
 
   use GenServer
@@ -100,6 +130,10 @@ defmodule PhoenixKit.Admin.SimplePresence do
   def list_active_sessions do
     @table_name
     |> :ets.tab2list()
+    |> Enum.filter(fn {_key, metadata} ->
+      # Only include entries that are sessions (have :type and :connected_at)
+      Map.has_key?(metadata, :type) && Map.has_key?(metadata, :connected_at)
+    end)
     |> Enum.map(fn {_key, metadata} -> metadata end)
     |> Enum.sort_by(& &1.connected_at, {:desc, DateTime})
   rescue
@@ -164,6 +198,165 @@ defmodule PhoenixKit.Admin.SimplePresence do
   """
   def get_topic, do: @presence_topic
 
+  ## Generic Tracking API (for collaborative editing)
+
+  @doc """
+  Generic tracking function for any use case.
+
+  This allows tracking arbitrary keys (like "entity:5" or "data:10") without
+  the opinionated session/user structure.
+
+  ## Examples
+
+      # Track an editor for entity 5
+      SimplePresence.track("editor:entity:5", %{user_email: "user@example.com"}, self())
+
+      # Track a viewer
+      SimplePresence.track("viewer:page:/admin", %{ip: "127.0.0.1"}, self())
+  """
+  def track(key, metadata \\ %{}, pid \\ nil) do
+    pid = pid || self()
+
+    metadata =
+      metadata
+      |> Map.put_new(:connected_at, DateTime.utc_now())
+      |> Map.put_new(:tracked_at, DateTime.utc_now())
+
+    case GenServer.call(@server_name, {:track, key, metadata, pid}) do
+      :ok -> :ok
+      error -> error
+    end
+  rescue
+    error ->
+      Logger.error("Failed to track #{key}: #{inspect(error)}")
+      {:error, error}
+  end
+
+  @doc """
+  Lists all tracked items matching a prefix.
+
+  ## Examples
+
+      # List all editors for entity 5
+      SimplePresence.list_tracked("editor:entity:5")
+
+      # List all entity editors
+      SimplePresence.list_tracked("editor:entity:")
+  """
+  def list_tracked(prefix) do
+    @table_name
+    |> :ets.tab2list()
+    |> Enum.filter(fn {key, metadata} ->
+      is_binary(key) && String.starts_with?(key, prefix) &&
+        Map.has_key?(metadata, :monitor_ref)
+    end)
+    |> Enum.map(fn {_key, metadata} -> metadata end)
+  rescue
+    ArgumentError -> []
+  end
+
+  @doc """
+  Counts tracked items matching a prefix.
+
+  ## Examples
+
+      # Count editors for entity 5
+      SimplePresence.count_tracked("editor:entity:5")
+  """
+  def count_tracked(prefix) do
+    list_tracked(prefix) |> length()
+  end
+
+  @doc """
+  Untracks a specific key.
+
+  Removes tracking and triggers cleanup. Use when explicitly ending tracking
+  before process termination.
+  """
+  def untrack(key) do
+    GenServer.call(@server_name, {:untrack, key})
+  end
+
+  ## State Storage API (for collaborative editing)
+
+  @doc """
+  Stores arbitrary data associated with a key.
+
+  Data is automatically timestamped and will expire after 5 minutes.
+  This is useful for storing unsaved form state during collaborative editing.
+
+  ## Examples
+
+      # Store entity form state
+      SimplePresence.store_data("state:entity:5", %{name: "Draft", fields: [...]})
+
+      # Store data form state
+      SimplePresence.store_data("state:data:10", %{params: %{...}})
+  """
+  def store_data(key, data) do
+    stored_data = %{
+      data: data,
+      stored_at: System.monotonic_time(:second)
+    }
+
+    :ets.insert(@table_name, {key, stored_data})
+    :ok
+  rescue
+    ArgumentError ->
+      Logger.error("Failed to store data for #{key}")
+      {:error, :ets_not_available}
+  end
+
+  @doc """
+  Retrieves data associated with a key.
+
+  Returns nil if:
+  - Key doesn't exist
+  - Data has expired (>5 minutes old)
+
+  ## Examples
+
+      case SimplePresence.get_data("state:entity:5") do
+        nil -> # No data or expired
+        data -> # Use data
+      end
+  """
+  def get_data(key) do
+    case :ets.lookup(@table_name, key) do
+      [{^key, %{data: data, stored_at: stored_at}}] ->
+        now = System.monotonic_time(:second)
+        age_seconds = now - stored_at
+
+        # Expire after 5 minutes (300 seconds)
+        if age_seconds < 300 do
+          data
+        else
+          # Auto-cleanup expired data
+          :ets.delete(@table_name, key)
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  @doc """
+  Clears data associated with a key.
+
+  ## Examples
+
+      SimplePresence.clear_data("state:entity:5")
+  """
+  def clear_data(key) do
+    :ets.delete(@table_name, key)
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
   ## GenServer Callbacks
 
   @impl true
@@ -181,13 +374,42 @@ defmodule PhoenixKit.Admin.SimplePresence do
 
   @impl true
   def handle_call({:track, key, metadata}, {pid, _ref}, state) do
-    # Store session with process monitor
+    # Store session with process monitor (legacy, for track_anonymous/track_user)
     monitor_ref = Process.monitor(pid)
     metadata = Map.put(metadata, :monitor_ref, monitor_ref)
 
     :ets.insert(@table_name, {key, metadata})
 
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:track, key, metadata, pid}, _from, state) do
+    # Store tracking with process monitor (new generic track)
+    monitor_ref = Process.monitor(pid)
+    metadata = Map.put(metadata, :monitor_ref, monitor_ref)
+    metadata = Map.put(metadata, :pid, pid)
+
+    :ets.insert(@table_name, {key, metadata})
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:untrack, key}, _from, state) do
+    case :ets.lookup(@table_name, key) do
+      [{^key, metadata}] ->
+        # Demonitor if monitor exists
+        if monitor_ref = Map.get(metadata, :monitor_ref) do
+          Process.demonitor(monitor_ref, [:flush])
+        end
+
+        :ets.delete(@table_name, key)
+        {:reply, :ok, state}
+
+      [] ->
+        {:reply, {:error, :not_found}, state}
+    end
   end
 
   @impl true
@@ -243,13 +465,17 @@ defmodule PhoenixKit.Admin.SimplePresence do
       {key, metadata} ->
         :ets.delete(@table_name, key)
 
-        # Broadcast disconnect event
-        case metadata.type do
+        # Broadcast disconnect event only for session entries (not collaborative tracking)
+        case Map.get(metadata, :type) do
           :anonymous ->
             Events.broadcast_anonymous_session_disconnected(metadata.session_id)
 
           :authenticated ->
             Events.broadcast_user_session_disconnected(metadata.user_id, metadata.session_id)
+
+          _ ->
+            # Collaborative tracking or other non-session entries - no broadcast needed
+            :ok
         end
 
       nil ->
@@ -264,7 +490,9 @@ defmodule PhoenixKit.Admin.SimplePresence do
     @table_name
     |> :ets.tab2list()
     |> Enum.filter(fn {_key, metadata} ->
-      DateTime.compare(metadata.connected_at, one_hour_ago) == :lt
+      # Only cleanup session entries (not collaborative tracking or state data)
+      Map.has_key?(metadata, :type) && Map.has_key?(metadata, :connected_at) &&
+        DateTime.compare(metadata.connected_at, one_hour_ago) == :lt
     end)
     |> Enum.each(fn {key, metadata} ->
       :ets.delete(@table_name, key)
