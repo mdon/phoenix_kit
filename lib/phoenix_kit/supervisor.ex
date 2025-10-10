@@ -12,7 +12,9 @@ defmodule PhoenixKit.Supervisor do
   def init(_init_arg) do
     children = [
       PhoenixKit.PubSub.Manager,
-      PhoenixKit.Admin.SimplePresence
+      PhoenixKit.Admin.SimplePresence,
+      {PhoenixKit.Cache.Registry, []},
+      {PhoenixKit.Cache, name: :settings, warmer: &PhoenixKit.Settings.warm_cache_data/0}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

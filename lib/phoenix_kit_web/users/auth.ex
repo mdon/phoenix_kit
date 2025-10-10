@@ -24,6 +24,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   import Phoenix.Controller
   import Phoenix.LiveView, only: [attach_hook: 4]
 
+  require Logger
+
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Module.Languages
@@ -166,8 +168,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     active_user =
       case user do
         %{is_active: false} = inactive_user ->
-          require Logger
-
           Logger.warning(
             "PhoenixKit: Inactive user #{inactive_user.id} attempted access, logging out"
           )
@@ -199,8 +199,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     active_user =
       case user do
         %{is_active: false} = inactive_user ->
-          require Logger
-
           Logger.warning(
             "PhoenixKit: Inactive user #{inactive_user.id} attempted scope access, logging out"
           )
@@ -427,8 +425,6 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     case user do
       %{is_active: false} = inactive_user ->
-        require Logger
-
         Logger.warning(
           "PhoenixKit: Inactive user #{inactive_user.id} attempted LiveView mount, blocking access"
         )
@@ -812,8 +808,6 @@ defmodule PhoenixKitWeb.Users.Auth do
       end
 
     # Log the invalid locale attempt for debugging
-    require Logger
-
     Logger.warning(
       "Invalid locale '#{invalid_locale}' requested, redirecting to '#{default_locale}'. Path: #{conn.request_path}"
     )
@@ -842,12 +836,10 @@ defmodule PhoenixKitWeb.Users.Auth do
           endpoint.broadcast(live_socket_id, "disconnect", %{})
         rescue
           error ->
-            require Logger
             Logger.warning("[PhoenixKit] Failed to broadcast disconnect: #{inspect(error)}")
         end
 
       {:error, reason} ->
-        require Logger
         Logger.warning("[PhoenixKit] Could not find parent endpoint for broadcast: #{reason}")
     end
   end

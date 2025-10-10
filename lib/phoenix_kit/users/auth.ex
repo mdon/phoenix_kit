@@ -61,6 +61,8 @@ defmodule PhoenixKit.Users.Auth do
   import Ecto.Query, warn: false
   alias PhoenixKit.RepoHelper, as: Repo
 
+  require Logger
+
   # This module will be populated by mix phx.gen.auth
 
   alias PhoenixKit.Admin.Events
@@ -166,7 +168,6 @@ defmodule PhoenixKit.Users.Auth do
         case Roles.ensure_first_user_is_owner(user) do
           {:ok, role_type} ->
             # Log successful role assignment for security audit
-            require Logger
             Logger.info("PhoenixKit: User #{user.id} (#{user.email}) assigned #{role_type} role")
 
             # Broadcast user creation event
@@ -176,8 +177,6 @@ defmodule PhoenixKit.Users.Auth do
 
           {:error, reason} ->
             # Role assignment failed - this is critical
-            require Logger
-
             Logger.error(
               "PhoenixKit: Failed to assign role to user #{user.id}: #{inspect(reason)}"
             )
@@ -221,14 +220,12 @@ defmodule PhoenixKit.Users.Auth do
           |> Map.put("registration_region", location["region"])
           |> Map.put("registration_city", location["city"])
 
-        require Logger
         Logger.info("PhoenixKit: Successful geolocation lookup for IP #{ip_address}")
 
         register_user(enhanced_attrs)
 
       {:error, reason} ->
         # Log the error but continue with registration
-        require Logger
         Logger.warning("PhoenixKit: Geolocation lookup failed for IP #{ip_address}: #{reason}")
 
         # Register user with just IP address
@@ -987,7 +984,6 @@ defmodule PhoenixKit.Users.Auth do
         do_update_user_status(user, attrs)
 
       {:error, :cannot_deactivate_last_owner} ->
-        require Logger
         Logger.warning("PhoenixKit: Attempted to deactivate last Owner user #{user.id}")
         {:error, :cannot_deactivate_last_owner}
     end

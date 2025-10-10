@@ -244,7 +244,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
     daily_trends = Emails.get_daily_delivery_trends(period)
 
     # Debug logging
-    require Logger
     Logger.info("Charts data prepared - daily_trends: #{inspect(daily_trends)}")
     Logger.info("Charts data prepared - metrics: #{inspect(metrics)}")
 

@@ -64,7 +64,12 @@ defmodule PhoenixKit.Cache do
     :warmer,
     :ttl,
     :max_size,
-    stats: %{hits: 0, misses: 0, puts: 0, invalidations: 0}
+    stats: %{
+      hits: 0,
+      misses: 0,
+      puts: 0,
+      invalidations: 0
+    }
   ]
 
   @doc """
@@ -470,7 +475,7 @@ defmodule PhoenixKit.Cache do
   # Private Functions
 
   defp via_tuple(name) do
-    {:via, Registry, {PhoenixKit.Cache.Registry, name}}
+    PhoenixKit.Cache.Registry.via_tuple(name)
   end
 
   defp safe_warm(warmer) when is_function(warmer, 0) do
