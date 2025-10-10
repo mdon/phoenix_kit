@@ -14,7 +14,8 @@ defmodule PhoenixKit.Supervisor do
       PhoenixKit.PubSub.Manager,
       PhoenixKit.Admin.SimplePresence,
       {PhoenixKit.Cache.Registry, []},
-      {PhoenixKit.Cache, name: :settings, warmer: &PhoenixKit.Settings.warm_cache_data/0}
+      {PhoenixKit.Cache, name: :settings, warmer: &PhoenixKit.Settings.warm_cache_data/0},
+      PhoenixKit.Entities.Presence
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

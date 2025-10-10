@@ -28,11 +28,22 @@ defmodule PhoenixKitWeb.Router do
     plug :put_root_layout, html: PhoenixKit.LayoutConfig.get_root_layout()
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :ensure_session_uuid
     plug :fetch_phoenix_kit_current_user
   end
 
   # PhoenixKit routes - main integration point
   phoenix_kit_routes()
+
+  defp ensure_session_uuid(conn, _opts) do
+    case Plug.Conn.get_session(conn, :phoenix_kit_session_uuid) do
+      nil ->
+        Plug.Conn.put_session(conn, :phoenix_kit_session_uuid, Ecto.UUID.generate())
+
+      _ ->
+        conn
+    end
+  end
 
   # Note: This is a library module - parent applications should:
   # 1. Use phoenix_kit_routes() macro in their own router
