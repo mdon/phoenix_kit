@@ -1,14 +1,14 @@
 # Making Pages Live: Real-time Updates & Collaborative Editing
 
-This guide explains how to add real-time functionality to LiveView pages in PhoenixKit, including PubSub events, presence tracking, and collaborative editing.
+This guide explains how to add real-time functionality to LiveView pages in PhoenixKit, including PubSub events and Phoenix.Presence-based collaborative editing.
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-3. [Events System](#events-system)
-4. [Presence Tracking](#presence-tracking)
-5. [Collaborative State Storage](#collaborative-state-storage)
+2. [WebSocket Requirement](#websocket-requirement)
+3. [Quick Start](#quick-start)
+4. [Events System](#events-system)
+5. [Collaborative Editing with Phoenix.Presence](#collaborative-editing-with-phoenixpresence)
 6. [On Mount Hooks](#on-mount-hooks)
 7. [Common Patterns](#common-patterns)
 8. [Troubleshooting](#troubleshooting)
@@ -17,7 +17,7 @@ This guide explains how to add real-time functionality to LiveView pages in Phoe
 
 ## Overview
 
-PhoenixKit provides three main systems for real-time functionality:
+PhoenixKit provides two main systems for real-time functionality:
 
 ### 1. Events System (PubSub Broadcasting)
 **Location:** `lib/phoenix_kit/entities/events.ex`
@@ -31,26 +31,124 @@ Broadcasts create/update/delete events across all LiveView sessions.
 - `broadcast_entity_updated(entity_id)` - Notify about entity changes
 - `broadcast_data_updated(entity_id, data_id)` - Notify about data changes
 
-### 2. SimplePresence (Presence Tracking)
-**Location:** `lib/phoenix_kit/admin/simple_presence.ex`
+### 2. Phoenix.Presence (Collaborative Editing)
+**Location:** `lib/phoenix_kit/entities/presence.ex` + `lib/phoenix_kit/entities/presence_helpers.ex`
 
-Unified presence tracking for sessions, collaborative editors, and any resource.
+Distributed presence tracking with automatic role assignment for collaborative editing.
 
-**Key Functions:**
-- `track(key, metadata, pid)` - Track any resource (editors, viewers, etc.)
-- `list_tracked(prefix)` - List all tracked items matching prefix
-- `count_tracked(prefix)` - Count tracked items
-- `untrack(key)` - Stop tracking
-
-### 3. State Storage (Collaborative Editing)
-**Location:** `lib/phoenix_kit/admin/simple_presence.ex`
-
-Temporary state storage with 5-minute auto-expiration for collaborative editing.
+**How It Works:**
+- Multiple users can open the same edit form simultaneously
+- **First user in the list = owner** (can edit)
+- **Everyone else = spectators** (read-only, see real-time updates)
+- When owner leaves, next person auto-promoted (within 5 seconds)
+- No manual locks or cleanup needed
 
 **Key Functions:**
-- `store_data(key, data)` - Store state (expires in 5 min)
-- `get_data(key)` - Retrieve state (returns nil if expired)
-- `clear_data(key)` - Manually clear state
+- `PresenceHelpers.track_editing_session(type, id, socket, user)` - Join editing session
+- `PresenceHelpers.get_editing_role(type, id, socket_id, user_id)` - Determine if owner or spectator
+- `PresenceHelpers.get_sorted_presences(type, id)` - Get all editors (FIFO ordered)
+- `PresenceHelpers.subscribe_to_editing(type, id)` - Subscribe to presence changes
+
+### 3. SimplePresence (Admin Session Tracking)
+**Location:** `lib/phoenix_kit/admin/simple_presence.ex`
+
+Lightweight session tracking for admin dashboard statistics only.
+
+**Key Functions:**
+- `track_anonymous(session_id, metadata)` - Track anonymous visitors
+- `track_user(user, metadata)` - Track authenticated users
+- `get_presence_stats()` - Get dashboard statistics
+
+---
+
+## WebSocket Requirement
+
+### Critical: WebSocket-Only Mode for Instant Presence Cleanup
+
+Phoenix LiveView supports both WebSocket and long-polling transports. **PhoenixKit requires WebSocket-only mode** to enable instant presence cleanup for collaborative editing.
+
+#### Problem with Long-Polling Fallback
+
+If long-polling fallback is enabled, LiveView processes can linger for up to 30 seconds after a tab is closed or refreshed, causing:
+
+- ❌ Stale "ghost" users in presence lists for ~30 seconds
+- ❌ Slow role transitions in collaborative editing (owner → spectator)
+- ❌ Poor user experience with delayed updates
+- ❌ Presence entries not removed immediately on tab close/refresh
+
+#### Solution (Already Applied)
+
+**PhoenixKit has already disabled long-polling in its endpoint configuration:**
+
+```elixir
+# lib/phoenix_kit_web/endpoint.ex (line 14)
+socket "/live", Phoenix.LiveView.Socket,
+  websocket: [connect_info: [session: @session_options]],
+  longpoll: false  # ← Forces WebSocket-only connections
+```
+
+**No parent application changes are required.** The server-side configuration is sufficient.
+
+#### Benefits of WebSocket-Only Mode
+
+With WebSocket-only mode enabled:
+
+- ✅ Presence entries removed **instantly** when tabs close
+- ✅ Presence entries removed **instantly** when pages refresh
+- ✅ Collaborative editing roles (owner/spectator) update **immediately**
+- ✅ No 30-second delay for presence cleanup
+- ✅ Clean, responsive real-time collaboration
+
+#### Production Considerations
+
+When deploying PhoenixKit with WebSocket-only mode, ensure your infrastructure supports WebSocket connections:
+
+**1. Reverse Proxies (NGINX, Apache, etc.)**
+
+Must forward WebSocket upgrade headers. Example NGINX config:
+
+```nginx
+location /live {
+  proxy_pass http://backend;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+}
+```
+
+**2. CDN/Load Balancers (Cloudflare, AWS ALB, etc.)**
+
+- Must support WebSocket connections
+- May require specific routing rules for `/live/websocket` path
+
+**3. Firewall/Security Rules**
+
+- Must allow WebSocket traffic on your application port
+- Must not block HTTP upgrade requests
+
+#### Testing WebSocket Connections
+
+To verify WebSocket-only mode is working:
+
+1. Open a collaborative editing page (entity or data form)
+2. Open browser Developer Tools → Network tab
+3. Look for WebSocket connection: `ws://localhost:4000/live/websocket`
+4. Refresh the page
+5. Verify the old WebSocket closes **immediately**
+6. Verify presence list updates **within 1 second**
+
+If you see `Transport: :longpoll` in server logs, WebSocket connections are failing and clients are attempting fallback (which should not happen with `longpoll: false`).
+
+#### Fallback Strategy (Not Recommended)
+
+If WebSocket support is absolutely unavailable in your environment:
+
+1. Remove `longpoll: false` from endpoint configuration to re-enable fallback
+2. Accept the 30-second delay for presence cleanup
+3. Consider adding UI indicators to show stale connections
+4. Implement periodic refresh to clean up dead PIDs faster
+
+**Note:** This significantly degrades the collaborative editing experience and is not recommended for production use.
 
 ---
 
@@ -105,45 +203,39 @@ end
 defmodule PhoenixKitWeb.Live.MyResourceFormLive do
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Admin.SimplePresence, as: Presence
-  alias PhoenixKit.Entities.Events
+  alias PhoenixKit.Entities.{Events, PresenceHelpers}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     resource = MyContext.get_resource!(id)
-    form_key = "resource:#{id}"
+    form_key = "resource_#{id}"
 
     socket = assign(socket,
       resource: resource,
       form_key: form_key,
-      changeset: MyContext.change_resource(resource)
+      changeset: MyContext.change_resource(resource),
+      editing_role: :spectator  # Will be updated after presence tracking
     )
 
     if connected?(socket) do
-      # Track this editor
-      Presence.track("editor:resource:#{id}:", %{
-        user_email: socket.assigns.current_user.email
-      })
+      # Subscribe to presence changes and form updates
+      PresenceHelpers.subscribe_to_editing(:resource, id)
+      Events.subscribe_to_resource_form(form_key)
 
-      # Subscribe to form changes from other editors
-      Events.subscribe_to_entities()
+      # Track this editing session (pass user struct, not metadata map)
+      current_user = socket.assigns.current_user
+      PresenceHelpers.track_editing_session(:resource, id, socket, current_user)
 
-      # Load collaborative state if other editors are present
-      editor_count = Presence.count_tracked("editor:resource:#{id}:")
+      # Determine our role (owner or spectator) - returns tuple
+      case PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id) do
+        {:owner, _presences} ->
+          socket = assign(socket, editing_role: :owner)
+          {:ok, socket}
 
-      socket = if editor_count > 1 do
-        case Presence.get_data("state:resource:#{id}") do
-          %{changeset_params: params} ->
-            changeset = MyContext.change_resource(resource, params)
-            assign(socket, changeset: changeset, has_unsaved_changes: true)
-          _ ->
-            socket
-        end
-      else
-        socket
+        {:spectator, _owner_meta, _presences} ->
+          socket = assign(socket, editing_role: :spectator)
+          {:ok, socket}
       end
-
-      {:ok, socket}
     else
       {:ok, socket}
     end
@@ -151,50 +243,86 @@ defmodule PhoenixKitWeb.Live.MyResourceFormLive do
 
   @impl true
   def handle_event("validate", %{"resource" => params}, socket) do
-    changeset = MyContext.change_resource(socket.assigns.resource, params)
+    # Only owners can edit
+    if socket.assigns.editing_role == :owner do
+      changeset = MyContext.change_resource(socket.assigns.resource, params)
 
-    # Broadcast changes to other editors
-    broadcast_changes(socket, params)
+      # Broadcast changes to spectators via PubSub
+      Events.broadcast_resource_form_change("resource_#{socket.assigns.resource.id}", %{
+        changeset_params: params
+      })
 
-    {:noreply, assign(socket, changeset: changeset, has_unsaved_changes: true)}
-  end
-
-  # Receive changes from other editors
-  @impl true
-  def handle_info({:resource_form_change, %{params: params}}, socket) do
-    changeset = MyContext.change_resource(socket.assigns.resource, params)
-    {:noreply, assign(socket, changeset: changeset)}
-  end
-
-  # Cleanup on navigation away
-  @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:resource] do
-      resource_id = socket.assigns.resource.id
-      Presence.untrack("editor:resource:#{resource_id}:")
-
-      # Clear state if last editor
-      if Presence.count_tracked("editor:resource:#{resource_id}:") == 0 do
-        Presence.clear_data("state:resource:#{resource_id}")
-      end
+      {:noreply, assign(socket, changeset: changeset, has_unsaved_changes: true)}
+    else
+      # Spectators can't edit
+      {:noreply, socket}
     end
-    :ok
   end
 
-  defp broadcast_changes(socket, params) do
+  # Handle presence_diff - someone joined or left
+  @impl true
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
     resource_id = socket.assigns.resource.id
-    editor_count = Presence.count_tracked("editor:resource:#{resource_id}:")
+    current_user = socket.assigns.current_user
 
-    # Always store state for late-joining editors
-    Presence.store_data("state:resource:#{resource_id}", %{
-      changeset_params: params
-    })
+    # Recalculate our role
+    case PresenceHelpers.get_editing_role(:resource, resource_id, socket.id, current_user.id) do
+      {:owner, _presences} ->
+        old_role = socket.assigns.editing_role
+        socket = assign(socket, editing_role: :owner)
 
-    # Only broadcast when multiple editors present
-    if editor_count > 1 do
-      Events.broadcast_resource_form_change(socket.assigns.form_key, %{params: params})
+        # If we were promoted from spectator to owner
+        socket = if old_role == :spectator do
+          put_flash(socket, :info, "You are now editing this resource")
+        else
+          socket
+        end
+
+        {:noreply, socket}
+
+      {:spectator, _owner_meta, _presences} ->
+        socket = assign(socket, editing_role: :spectator)
+        {:noreply, socket}
     end
   end
+
+  # Handle form changes broadcast from owner
+  @impl true
+  def handle_info({:resource_form_change, form_key, payload, _source}, socket) do
+    if form_key == "resource_#{socket.assigns.resource.id}" && socket.assigns.editing_role == :spectator do
+      case Map.get(payload, :changeset_params) do
+        params when not is_nil(params) ->
+          changeset = MyContext.change_resource(socket.assigns.resource, params)
+          {:noreply, assign(socket, changeset: changeset)}
+
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("save", %{"resource" => params}, socket) do
+    # Only owners can save
+    if socket.assigns.editing_role == :owner do
+      case MyContext.update_resource(socket.assigns.resource, params) do
+        {:ok, resource} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Resource updated successfully")
+           |> redirect(to: ~p"/admin/resources/#{resource.id}")}
+
+        {:error, changeset} ->
+          {:noreply, assign(socket, changeset: changeset)}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Only the owner can save changes")}
+    end
+  end
+
+  # No manual cleanup needed - Phoenix.Presence handles it automatically
 end
 ```
 
@@ -300,142 +428,171 @@ end
 
 ---
 
-## Presence Tracking
+## Collaborative Editing with Phoenix.Presence
 
-### Tracking Editors
+### Understanding the "First in List = Owner" Pattern
 
-**Key Pattern:** Use prefix-based keys for easy querying.
+PhoenixKit uses a **distributed presence-based ownership model**:
 
-```elixir
-# Track an editor
-Presence.track("editor:entity:#{entity_id}:", %{
-  user_email: current_user.email,
-  connected_at: DateTime.utc_now()
-})
+1. Multiple users can open the same form simultaneously
+2. Phoenix.Presence tracks all users (sorted by `joined_at` timestamp)
+3. **First person in the list = owner** (can edit)
+4. **Everyone else = spectators** (read-only, see real-time updates)
+5. When owner leaves, Phoenix.Presence automatically removes them and broadcasts `presence_diff`
+6. Next person in line becomes owner automatically (within 5 seconds)
 
-# Count editors for this entity
-editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
+**No locks, no manual cleanup, no race conditions.**
 
-# List all editors
-editors = Presence.list_tracked("editor:entity:#{entity_id}:")
+### Tracking Editing Sessions
 
-# Untrack when done
-Presence.untrack("editor:entity:#{entity_id}:")
-```
-
-### Tracking Multiple Resources
+Use `PresenceHelpers` to track editing sessions:
 
 ```elixir
-# Track viewers of a page
-Presence.track("viewer:page:/admin/dashboard:", %{
-  user_email: current_user.email,
-  ip_address: get_ip(socket)
-})
+alias PhoenixKit.Entities.PresenceHelpers
 
-# Track any custom resource
-Presence.track("custom:my_resource:#{id}:", %{
-  custom_field: "value"
-})
+# In mount/3
+if connected?(socket) do
+  current_user = socket.assigns.current_user
+
+  # Subscribe to presence changes
+  PresenceHelpers.subscribe_to_editing(:entity, entity_id)
+
+  # Track this editing session (pass user struct, not metadata map)
+  PresenceHelpers.track_editing_session(:entity, entity_id, socket, current_user)
+
+  # Determine our role (returns tuple, not bare atom)
+  case PresenceHelpers.get_editing_role(:entity, entity_id, socket.id, current_user.id) do
+    {:owner, _presences} ->
+      assign(socket, editing_role: :owner)
+
+    {:spectator, _owner_meta, _presences} ->
+      assign(socket, editing_role: :spectator)
+  end
+end
 ```
 
-### Presence in Templates
+### Broadcasting Changes to Spectators
 
-Show who else is editing:
+**Key Concept:** Owner broadcasts form changes via PubSub Events, spectators receive and apply them.
+
+```elixir
+# In handle_event("validate")
+if socket.assigns.editing_role == :owner do
+  changeset = MyContext.change_resource(resource, params)
+
+  # Broadcast changes to spectators via PubSub Events system
+  Events.broadcast_entity_form_change("entity_#{entity_id}", %{
+    changeset_params: params,
+    last_updated: System.system_time(:millisecond)
+  })
+
+  {:noreply, assign(socket, changeset: changeset)}
+else
+  # Spectators can't edit
+  {:noreply, socket}
+end
+```
+
+### Handling Presence Changes
+
+**Handle `presence_diff` to react to ownership changes:**
+
+```elixir
+@impl true
+def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+  entity_id = socket.assigns.entity.id
+  current_user = socket.assigns.current_user
+
+  # Recalculate our role (returns tuple)
+  case PresenceHelpers.get_editing_role(:entity, entity_id, socket.id, current_user.id) do
+    {:owner, _presences} ->
+      old_role = socket.assigns.editing_role
+      socket = assign(socket, editing_role: :owner)
+
+      # Notify user if promoted to owner
+      socket = if old_role == :spectator do
+        put_flash(socket, :info, "You are now editing")
+      else
+        socket
+      end
+
+      {:noreply, socket}
+
+    {:spectator, _owner_meta, _presences} ->
+      socket = assign(socket, editing_role: :spectator)
+      {:noreply, socket}
+  end
+end
+
+# Handle form changes broadcast from owner
+@impl true
+def handle_info({:entity_form_change, form_key, payload, _source}, socket) do
+  if form_key == "entity_#{socket.assigns.entity.id}" && socket.assigns.editing_role == :spectator do
+    case Map.get(payload, :changeset_params) do
+      params when not is_nil(params) ->
+        changeset = MyContext.change_resource(socket.assigns.entity, params)
+        {:noreply, assign(socket, changeset: changeset)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  else
+    {:noreply, socket}
+  end
+end
+```
+
+### Displaying Editor Information in Templates
+
+Show who else is editing and your role:
 
 ```heex
-<div class="flex items-center gap-2">
-  <%= if @editor_count > 1 do %>
+<%!-- Show editing role badge --%>
+<div class="flex items-center gap-2 mb-4">
+  <%= if @editing_role == :owner do %>
+    <span class="badge badge-success">You are editing</span>
+  <% else %>
+    <span class="badge badge-warning">Read-only (someone else editing)</span>
+  <% end %>
+
+  <%!-- Show other editors --%>
+  <%= if length(@presences) > 1 do %>
     <span class="text-sm text-gray-600">
-      <%= @editor_count - 1 %> other <%= if @editor_count == 2, do: "person", else: "people" %> editing
+      <%= length(@presences) - 1 %> other <%= if length(@presences) == 2, do: "person", else: "people" %>
     </span>
   <% end %>
 </div>
+
+<%!-- Disable form fields for spectators --%>
+<.input
+  field={@form[:name]}
+  label="Name"
+  disabled={@editing_role == :spectator}
+/>
 ```
 
 ```elixir
 # In mount/3 or handle_info/2
-editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
-assign(socket, :editor_count, editor_count)
+presences = PresenceHelpers.get_sorted_presences(:entity, entity_id)
+assign(socket, presences: presences)
 ```
 
----
+### No Manual Cleanup Required
 
-## Collaborative State Storage
-
-### Storing Form State
-
-**Important:** State auto-expires after 5 minutes to prevent persistence bugs.
+**Phoenix.Presence automatically cleans up when your LiveView process terminates:**
 
 ```elixir
-defp broadcast_form_state(socket, params) do
-  entity_id = socket.assigns.entity.id
-  editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
-
-  payload = %{
-    changeset_params: params,
-    custom_field: socket.assigns.custom_field
-  }
-
-  # ALWAYS store state for late-joining editors
-  Presence.store_data("state:entity:#{entity_id}", payload)
-
-  # Only broadcast when multiple editors present (reduces PubSub overhead)
-  if editor_count > 1 do
-    Events.broadcast_entity_form_change(socket.assigns.form_key, payload)
-  end
-end
-```
-
-### Loading State on Mount
-
-**Pattern:** Only load if other editors are present.
-
-```elixir
-if connected?(socket) do
-  Presence.track("editor:entity:#{entity_id}:", %{...})
-
-  editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
-
-  socket = if editor_count > 1 do
-    # Other editors present - load collaborative state
-    case Presence.get_data("state:entity:#{entity_id}") do
-      %{changeset_params: params} = state ->
-        changeset = Entities.change_entity(entity, params)
-        socket
-        |> assign(:changeset, changeset)
-        |> assign(:has_unsaved_changes, true)
-
-      _ ->
-        socket
-    end
-  else
-    # No other editors - start fresh from database
-    socket
-  end
-
-  {:ok, socket}
-end
-```
-
-### Cleanup on Terminate
-
-```elixir
+# ❌ OLD WAY (no longer needed):
 @impl true
 def terminate(_reason, socket) do
-  if socket.assigns[:entity] && socket.assigns.entity.id do
-    entity_id = socket.assigns.entity.id
-
-    # Untrack this editor
-    Presence.untrack("editor:entity:#{entity_id}:")
-
-    # Clear state if last editor
-    if Presence.count_tracked("editor:entity:#{entity_id}:") == 0 do
-      Presence.clear_data("state:entity:#{entity_id}")
-    end
-  end
-
+  Presence.untrack("editor:entity:#{entity_id}:")
+  Presence.clear_data("state:entity:#{entity_id}")
   :ok
 end
+
+# ✅ NEW WAY (automatic cleanup):
+# No terminate/2 callback needed!
+# Phoenix.Presence removes you automatically when LiveView process dies
 ```
 
 ---
@@ -594,44 +751,54 @@ end
 defmodule MyApp.MyResourceFormLive do
   use MyAppWeb, :live_view
 
-  alias PhoenixKit.Admin.SimplePresence, as: Presence
+  alias PhoenixKit.Entities.PresenceHelpers
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     resource = MyContext.get_resource!(id)
     changeset = MyContext.change_resource(resource)
-    form_key = "resource_form:#{id}"
 
     socket = assign(socket,
       resource: resource,
       changeset: changeset,
-      form_key: form_key,
-      has_unsaved_changes: false
+      editing_role: :spectator,
+      has_unsaved_changes: false,
+      presences: []
     )
 
     if connected?(socket) do
-      # Track this editor
-      Presence.track("editor:resource:#{id}:", %{
-        user_email: socket.assigns.current_user.email
-      })
+      # Subscribe to presence changes
+      PresenceHelpers.subscribe_to_editing(:resource, id)
 
-      # Subscribe to form changes
-      Events.subscribe_to_resource_form(form_key)
+      # Track this editing session (pass user struct)
+      current_user = socket.assigns.current_user
+      PresenceHelpers.track_editing_session(:resource, id, socket, current_user)
 
-      # Load collaborative state if others editing
-      editor_count = Presence.count_tracked("editor:resource:#{id}:")
+      # Determine our role (returns tuple)
+      {editing_role, presences} =
+        case PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id) do
+          {:owner, presences} -> {:owner, presences}
+          {:spectator, _owner_meta, presences} -> {:spectator, presences}
+        end
 
-      socket = if editor_count > 1 do
-        case Presence.get_data("state:resource:#{id}") do
-          %{params: params} ->
+      # If we're a spectator, sync with owner's current state
+      socket = if editing_role == :spectator do
+        case PresenceHelpers.get_lock_owner(:resource, id) do
+          %{form_state: %{changeset_params: params}} when params != %{} ->
             changeset = MyContext.change_resource(resource, params)
             assign(socket, changeset: changeset, has_unsaved_changes: true)
+
           _ ->
             socket
         end
       else
         socket
       end
+
+      socket = assign(socket,
+        editing_role: editing_role,
+        presences: presences
+      )
 
       {:ok, socket}
     else
@@ -641,62 +808,86 @@ defmodule MyApp.MyResourceFormLive do
 
   @impl true
   def handle_event("validate", %{"resource" => params}, socket) do
-    changeset = MyContext.change_resource(socket.assigns.resource, params)
+    # Only owners can edit
+    if socket.assigns.editing_role == :owner do
+      changeset = MyContext.change_resource(socket.assigns.resource, params)
 
-    broadcast_state(socket, params)
+      # Broadcast changes to spectators via PubSub Events
+      Events.broadcast_resource_form_change("resource_#{socket.assigns.resource.id}", %{
+        changeset_params: params,
+        last_updated: System.system_time(:millisecond)
+      })
 
-    {:noreply, assign(socket, changeset: changeset, has_unsaved_changes: true)}
+      {:noreply, assign(socket, changeset: changeset, has_unsaved_changes: true)}
+    else
+      # Spectators can't edit
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("save", %{"resource" => params}, socket) do
-    case MyContext.update_resource(socket.assigns.resource, params) do
-      {:ok, resource} ->
-        # Clear collaborative state after save
-        Presence.clear_data("state:resource:#{resource.id}")
+    # Only owners can save
+    if socket.assigns.editing_role == :owner do
+      case MyContext.update_resource(socket.assigns.resource, params) do
+        {:ok, resource} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Resource updated successfully")
+           |> redirect(to: ~p"/admin/resources/#{resource.id}")}
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "Resource updated successfully")
-         |> redirect(to: ~p"/admin/resources/#{resource.id}")}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, changeset: changeset)}
-    end
-  end
-
-  # Receive changes from other editors
-  @impl true
-  def handle_info({:resource_form_change, %{params: params}}, socket) do
-    changeset = MyContext.change_resource(socket.assigns.resource, params)
-    {:noreply, assign(socket, changeset: changeset)}
-  end
-
-  @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:resource] do
-      resource_id = socket.assigns.resource.id
-      Presence.untrack("editor:resource:#{resource_id}:")
-
-      if Presence.count_tracked("editor:resource:#{resource_id}:") == 0 do
-        Presence.clear_data("state:resource:#{resource_id}")
+        {:error, changeset} ->
+          {:noreply, assign(socket, changeset: changeset)}
       end
+    else
+      {:noreply, put_flash(socket, :error, "Only the owner can save")}
     end
-    :ok
   end
 
-  defp broadcast_state(socket, params) do
+  # Handle presence_diff - someone joined or left
+  @impl true
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
     resource_id = socket.assigns.resource.id
-    editor_count = Presence.count_tracked("editor:resource:#{resource_id}:")
+    current_user = socket.assigns.current_user
+    old_role = socket.assigns.editing_role
 
-    # Always store for late joiners
-    Presence.store_data("state:resource:#{resource_id}", %{params: params})
+    # Recalculate our role (returns tuple)
+    {editing_role, presences} =
+      case PresenceHelpers.get_editing_role(:resource, resource_id, socket.id, current_user.id) do
+        {:owner, presences} -> {:owner, presences}
+        {:spectator, _owner_meta, presences} -> {:spectator, presences}
+      end
 
-    # Only broadcast when multiple editors
-    if editor_count > 1 do
-      Events.broadcast_resource_form_change(socket.assigns.form_key, %{params: params})
+    socket = assign(socket, editing_role: editing_role, presences: presences)
+
+    # If we were promoted to owner
+    socket = if old_role == :spectator && editing_role == :owner do
+      put_flash(socket, :info, "You are now editing this resource")
+    else
+      socket
+    end
+
+    {:noreply, socket}
+  end
+
+  # Handle form changes broadcast from owner
+  @impl true
+  def handle_info({:resource_form_change, form_key, payload, _source}, socket) do
+    if form_key == "resource_#{socket.assigns.resource.id}" && socket.assigns.editing_role == :spectator do
+      case Map.get(payload, :changeset_params) do
+        params when not is_nil(params) ->
+          changeset = MyContext.change_resource(socket.assigns.resource, params)
+          {:noreply, assign(socket, changeset: changeset)}
+
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
     end
   end
+
+  # No terminate/2 needed - Phoenix.Presence cleans up automatically!
 end
 ```
 
@@ -704,127 +895,184 @@ end
 
 ## Troubleshooting
 
-### Issue: State Persists Across Sessions
+### Issue: Changes Not Appearing for Spectators
 
-**Symptom:** Users see old unsaved changes when returning to a form.
-
-**Causes:**
-1. State not being cleared when last editor leaves
-2. Cleanup timing issues
-
-**Solution:** SimplePresence auto-expires state after 5 minutes. If issue persists:
-- Verify `terminate/2` is being called
-- Check `Presence.count_tracked()` returns correct count
-- Add logging to `terminate/2` to confirm cleanup runs
-
-### Issue: Changes Not Appearing for Other Editors
-
-**Symptom:** User A types but User B doesn't see updates.
+**Symptom:** Owner types but spectators don't see updates.
 
 **Causes:**
-1. Not subscribed to the right topic
-2. Broadcasting not happening
-3. handle_info not implemented
+1. Not subscribed to presence changes
+2. Not updating presence metadata
+3. `handle_info/2` for `presence_diff` not implemented
 
 **Solution:**
 ```elixir
-# Verify subscription
+# In mount/3 - verify subscription
 if connected?(socket) do
-  Events.subscribe_to_resource_form(form_key)
+  PresenceHelpers.subscribe_to_editing(:resource, id)
 end
 
-# Verify broadcasting
-if editor_count > 1 do
-  Events.broadcast_resource_form_change(form_key, payload)
+# In handle_event("validate") - verify broadcasting
+if socket.assigns.editing_role == :owner do
+  Events.broadcast_resource_form_change("resource_#{id}", %{
+    changeset_params: params
+  })
 end
 
-# Verify handle_info
-def handle_info({:resource_form_change, payload}, socket) do
-  # Apply changes
-  {:noreply, updated_socket}
-end
-```
-
-### Issue: Editor Count Wrong
-
-**Symptom:** `count_tracked()` returns incorrect numbers.
-
-**Causes:**
-1. Not using consistent key prefixes
-2. Forgetting to untrack on terminate
-
-**Solution:**
-```elixir
-# Use consistent keys with trailing colon
-"editor:resource:#{id}:"  # ✅ Good - includes trailing colon
-"editor:resource:#{id}"   # ❌ Bad - missing colon
-
-# Always untrack in terminate
-def terminate(_reason, socket) do
-  Presence.untrack("editor:resource:#{socket.assigns.resource.id}:")
-  :ok
-end
-```
-
-### Issue: Race Condition with Late Joiners
-
-**Symptom:** User B joins but doesn't see User A's changes until next keystroke.
-
-**Expected Behavior:** This is normal! The pattern is:
-1. User A makes changes → stored in state
-2. User B joins → loads stored state ✅
-3. User A types → User B sees via broadcast ✅
-
-If User B isn't loading state on join:
-```elixir
-# Check this block runs
-if editor_count > 1 do
-  case Presence.get_data("state:resource:#{id}") do
-    %{params: params} -> # Apply params
-    _ -> # No state available
-  end
-end
-```
-
-### Issue: Broadcasts Continue After Navigation
-
-**Symptom:** Console warnings about broadcasts to dead processes.
-
-**Cause:** Not untracking editors in terminate.
-
-**Solution:**
-```elixir
+# Verify handle_info for presence_diff
 @impl true
-def terminate(_reason, socket) do
-  if socket.assigns[:resource] do
-    Presence.untrack("editor:resource:#{socket.assigns.resource.id}:")
+def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+  # Recalculate role when someone joins/leaves
+  current_user = socket.assigns.current_user
+
+  case PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id) do
+    {:owner, _presences} -> assign(socket, editing_role: :owner)
+    {:spectator, _owner_meta, _presences} -> assign(socket, editing_role: :spectator)
   end
-  :ok
+  |> then(&{:noreply, &1})
+end
+
+# Verify handle_info for form changes
+@impl true
+def handle_info({:resource_form_change, form_key, payload, _source}, socket) do
+  if form_key == "resource_#{id}" && socket.assigns.editing_role == :spectator do
+    case Map.get(payload, :changeset_params) do
+      params when not is_nil(params) ->
+        changeset = MyContext.change_resource(resource, params)
+        {:noreply, assign(socket, changeset: changeset)}
+      _ ->
+        {:noreply, socket}
+    end
+  else
+    {:noreply, socket}
+  end
 end
 ```
+
+### Issue: Wrong Person is Owner
+
+**Symptom:** User B is owner but User A joined first.
+
+**Cause:** Phoenix.Presence sorts by `joined_at` timestamp internally.
+
+**Solution:** This should work automatically. If not:
+```elixir
+# Debug: Check presence list order
+presences = PresenceHelpers.get_sorted_presences(:resource, id)
+IO.inspect(presences, label: "Presences (sorted by joined_at)")
+
+# Verify your socket_id matches
+editing_role = PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id)
+IO.inspect({socket.id, editing_role}, label: "My socket_id and role")
+```
+
+### Issue: Promoted to Owner But Can't Edit
+
+**Symptom:** User promoted to owner but form fields still disabled.
+
+**Cause:** Not updating UI when role changes.
+
+**Solution:**
+```elixir
+# In handle_info(%{event: "presence_diff"})
+editing_role = PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id)
+old_role = socket.assigns.editing_role
+
+socket = assign(socket, editing_role: editing_role)
+
+# Show notification
+socket = if old_role == :spectator && editing_role == :owner do
+  put_flash(socket, :info, "You are now editing")
+else
+  socket
+end
+
+# Template should react to @editing_role
+# <.input field={@form[:name]} disabled={@editing_role == :spectator} />
+```
+
+### Issue: Late Joiner Doesn't See Owner's Changes
+
+**Symptom:** User B joins but sees blank form, not User A's work-in-progress.
+
+**Cause:** Not syncing with owner's metadata on mount.
+
+**Solution:**
+```elixir
+# In mount/3, after tracking presence
+if connected?(socket) do
+  current_user = socket.assigns.current_user
+
+  PresenceHelpers.track_editing_session(:resource, id, socket, current_user)
+
+  {editing_role, _presences} =
+    case PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id) do
+      {:owner, presences} -> {:owner, presences}
+      {:spectator, _owner_meta, presences} -> {:spectator, presences}
+    end
+
+  # Sync with owner if we're a spectator
+  socket = if editing_role == :spectator do
+    case PresenceHelpers.get_lock_owner(:resource, id) do
+      %{form_state: %{changeset_params: params}} when params != %{} ->
+        changeset = MyContext.change_resource(resource, params)
+        assign(socket, changeset: changeset)
+      _ ->
+        socket
+    end
+  else
+    socket
+  end
+
+  {:ok, assign(socket, editing_role: editing_role)}
+end
+```
+
+### Issue: Presence Timeout (5 seconds feels slow)
+
+**Symptom:** When owner leaves, it takes 5 seconds before next person promoted.
+
+**Explanation:** This is **intentional** and configurable in `lib/phoenix_kit/entities/presence.ex`:
+
+```elixir
+use Phoenix.Presence,
+  otp_app: :phoenix_kit,
+  pubsub_server: :phoenix_kit_internal_pubsub,
+  presence_opts: [timeout: 5_000]  # ← Adjust this value
+```
+
+**Trade-offs:**
+- **Lower timeout (1-2 seconds):** Faster promotion, but more false positives from network hiccups
+- **Higher timeout (10+ seconds):** More reliable, but slower role transitions
+
+**Recommended:** Keep at 5 seconds for production use.
 
 ---
 
 ## Best Practices
 
-### 1. Always Use Trailing Colons in Presence Keys
+### 1. Always Use PresenceHelpers, Not Phoenix.Presence Directly
 ```elixir
-# Good - allows prefix matching
-"editor:entity:5:"
+# ✅ Good - use PresenceHelpers
+alias PhoenixKit.Entities.PresenceHelpers
 
-# Bad - might match "editor:entity:5" AND "editor:entity:50"
-"editor:entity:5"
+PresenceHelpers.track_editing_session(:resource, id, socket, metadata)
+editing_role = PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id)
+
+# ❌ Bad - don't use Phoenix.Presence directly
+alias PhoenixKit.Entities.Presence
+Presence.track(socket.id, topic, socket.id, metadata)
 ```
 
-### 2. Store State Unconditionally, Broadcast Conditionally
+### 2. Broadcast State Changes via PubSub Events
 ```elixir
-# ALWAYS store (for late joiners)
-Presence.store_data(key, payload)
+# ✅ Good - broadcast changes via Events system
+Events.broadcast_resource_form_change("resource_#{id}", %{
+  changeset_params: params,
+  last_updated: System.system_time(:millisecond)
+})
 
-# Only broadcast when needed (reduce PubSub load)
-if editor_count > 1 do
-  Events.broadcast(...)
-end
+# ❌ Bad - don't try to manually update presence metadata
+# (Presence metadata is for user info, not real-time form state)
 ```
 
 ### 3. Use on_mount Hooks for Repeated Subscriptions
@@ -838,15 +1086,19 @@ end
 on_mount MyAppWeb.Live.Hooks
 ```
 
-### 4. Always Clean Up in terminate/2
+### 4. No Manual Cleanup Needed in terminate/2
 ```elixir
+# ❌ OLD WAY (no longer needed):
 @impl true
 def terminate(_reason, socket) do
-  # Untrack presence
-  # Clear state if last editor
-  # Unsubscribe if needed (PubSub auto-unsubscribes on process death)
+  Presence.untrack("editor:resource:#{id}:")
+  Presence.clear_data("state:resource:#{id}")
   :ok
 end
+
+# ✅ NEW WAY (automatic cleanup):
+# No terminate/2 callback needed!
+# Phoenix.Presence automatically cleans up when LiveView dies
 ```
 
 ### 5. Handle Resource Deletion in handle_info
@@ -863,11 +1115,53 @@ def handle_info({:resource_deleted, resource_id}, socket) do
 end
 ```
 
-### 6. Trust State Storage Expiration
+### 6. Always Disable Form Fields for Spectators
 ```elixir
-# State auto-expires after 5 minutes
-# Don't worry about stale state - it's handled automatically
-# Just follow the patterns above
+# In templates, bind disabled state to editing_role
+<.input
+  field={@form[:name]}
+  label="Name"
+  disabled={@editing_role == :spectator}
+/>
+
+# In handle_event, guard against spectator edits
+def handle_event("validate", params, socket) do
+  if socket.assigns.editing_role == :owner do
+    # Process changes
+  else
+    # Reject changes
+    {:noreply, socket}
+  end
+end
+```
+
+### 7. Handle Both Presence Changes AND Form Broadcasts
+```elixir
+# Handle presence_diff for role changes
+def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+  current_user = socket.assigns.current_user
+
+  case PresenceHelpers.get_editing_role(:resource, id, socket.id, current_user.id) do
+    {:owner, _presences} -> assign(socket, editing_role: :owner)
+    {:spectator, _owner_meta, _presences} -> assign(socket, editing_role: :spectator)
+  end
+  |> then(&{:noreply, &1})
+end
+
+# Handle form changes broadcast from owner
+def handle_info({:resource_form_change, form_key, payload, _source}, socket) do
+  if form_key == "resource_#{id}" && socket.assigns.editing_role == :spectator do
+    case Map.get(payload, :changeset_params) do
+      params when not is_nil(params) ->
+        changeset = MyContext.change_resource(resource, params)
+        {:noreply, assign(socket, changeset: changeset)}
+      _ ->
+        {:noreply, socket}
+    end
+  else
+    {:noreply, socket}
+  end
+end
 ```
 
 ---
@@ -875,65 +1169,122 @@ end
 ## Architecture Summary
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  LiveView Page (entity_form.ex)                             │
-│                                                              │
-│  mount/3:                                                    │
-│    - Track editor with Presence.track()                     │
-│    - Subscribe to Events                                    │
-│    - Load collaborative state if editor_count > 1           │
-│                                                              │
-│  handle_event("validate"):                                  │
-│    - Update changeset                                       │
-│    - Store state with Presence.store_data()                 │
-│    - Broadcast if editor_count > 1                          │
-│                                                              │
-│  handle_info (receive broadcasts):                          │
-│    - Apply remote changes to local state                    │
-│                                                              │
-│  terminate/2:                                               │
-│    - Untrack editor                                         │
-│    - Clear state if last editor                             │
-└─────────────────────────────────────────────────────────────┘
-                    ↓              ↑
-                    ↓              ↑
-        ┌───────────────────────────────────┐
-        │  SimplePresence (GenServer + ETS)  │
-        │                                    │
-        │  - track/untrack editors           │
-        │  - store/get/clear state           │
-        │  - count_tracked                   │
-        │  - Auto-expire (5 min)             │
-        └───────────────────────────────────┘
-                    ↓              ↑
-                    ↓              ↑
-        ┌───────────────────────────────────┐
-        │  Events (PubSub)                   │
-        │                                    │
-        │  - subscribe_to_*()                │
-        │  - broadcast_*()                   │
-        └───────────────────────────────────┘
-                    ↓              ↑
-                    ↓              ↑
-        ┌───────────────────────────────────┐
-        │  Context (entities.ex)             │
-        │                                    │
-        │  - create/update/delete            │
-        │  - notify_entity_event()           │
-        └───────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  LiveView Page (entity_form.ex)                                      │
+│                                                                       │
+│  mount/3:                                                             │
+│    - Subscribe to presence changes via PresenceHelpers               │
+│    - Track editing session with metadata                             │
+│    - Determine role (:owner or :spectator)                           │
+│    - Sync with owner's metadata if spectator                         │
+│                                                                       │
+│  handle_event("validate"):                                           │
+│    - Guard: Only :owner can edit                                     │
+│    - Update changeset                                                │
+│    - Update presence metadata (spectators see via presence_diff)     │
+│                                                                       │
+│  handle_info(%{event: "presence_diff"}):                             │
+│    - Recalculate role (someone joined/left)                          │
+│    - Notify if promoted to :owner                                    │
+│    - Sync with owner's metadata if :spectator                        │
+│                                                                       │
+│  No terminate/2 needed!                                              │
+│    - Phoenix.Presence auto-cleans up                                 │
+└──────────────────────────────────────────────────────────────────────┘
+                              ↓              ↑
+                              ↓              ↑
+        ┌─────────────────────────────────────────────────────┐
+        │  PresenceHelpers (Utility Module)                   │
+        │                                                      │
+        │  - track_editing_session(type, id, socket, user)    │
+        │  - get_editing_role(type, id, socket_id, user_id)   │
+        │    → {:owner, presences} or {:spectator, meta, presences} │
+        │  - get_lock_owner(type, id)                         │
+        │  - get_sorted_presences(type, id)                   │
+        │  - get_spectators(type, id)                         │
+        │  - subscribe_to_editing(type, id)                   │
+        └─────────────────────────────────────────────────────┘
+                              ↓              ↑
+                              ↓              ↑
+        ┌─────────────────────────────────────────────────────┐
+        │  Phoenix.Presence (CRDT-based)                       │
+        │                                                      │
+        │  - Distributed presence tracking                     │
+        │  - Automatic cleanup (5s timeout)                   │
+        │  - Metadata storage (changeset_params)              │
+        │  - FIFO ordering by joined_at                       │
+        │  - Broadcasts presence_diff events                   │
+        └─────────────────────────────────────────────────────┘
+                              ↓              ↑
+                              ↓              ↑
+        ┌─────────────────────────────────────────────────────┐
+        │  Events (PubSub for Lifecycle Events)                │
+        │                                                      │
+        │  - subscribe_to_entities()                           │
+        │  - broadcast_entity_created/updated/deleted()        │
+        │  - broadcast_data_created/updated/deleted()          │
+        └─────────────────────────────────────────────────────┘
+                              ↓              ↑
+                              ↓              ↑
+        ┌─────────────────────────────────────────────────────┐
+        │  Context (entities.ex)                               │
+        │                                                      │
+        │  - create_entity/update_entity/delete_entity         │
+        │  - notify_entity_event() after DB operations         │
+        └─────────────────────────────────────────────────────┘
+
+Key Concepts:
+  • First in list = owner (can edit)
+  • Everyone else = spectator (read-only, sees real-time updates)
+  • Owner's metadata contains changeset_params
+  • Spectators sync with owner's metadata via presence_diff
+  • Automatic promotion when owner leaves (within 5 seconds)
+  • No manual locks, no manual cleanup, no race conditions
 ```
 
 ---
 
 ## Reference Files
 
-- **Events:** `lib/phoenix_kit/entities/events.ex`
-- **Presence:** `lib/phoenix_kit/admin/simple_presence.ex`
+### Core Real-time Systems
+
+- **Events System:** `lib/phoenix_kit/entities/events.ex`
+  - PubSub broadcasting for entity/data lifecycle events
+  - Subscribe/broadcast functions for real-time updates
+
+- **Phoenix.Presence:** `lib/phoenix_kit/entities/presence.ex`
+  - CRDT-based distributed presence tracking
+  - 5-second timeout configuration
+  - Automatic cleanup when LiveView processes terminate
+
+- **PresenceHelpers:** `lib/phoenix_kit/entities/presence_helpers.ex`
+  - High-level utilities for collaborative editing
+  - "First in list = owner" logic
+  - Metadata management for state synchronization
+
+- **SimplePresence (Admin Only):** `lib/phoenix_kit/admin/simple_presence.ex`
+  - Lightweight session tracking for admin dashboard
+  - NOT used for collaborative editing
+
+### LiveView Examples
+
 - **Hooks:** `lib/phoenix_kit_web/live/modules/entities/hooks.ex`
-- **List Example:** `lib/phoenix_kit_web/live/modules/entities/entities.ex`
-- **Detail Example:** `lib/phoenix_kit_web/live/modules/entities/data_navigator.ex`
-- **Form Example:** `lib/phoenix_kit_web/live/modules/entities/entity_form.ex`
-- **Data Form Example:** `lib/phoenix_kit_web/live/modules/entities/data_form.ex`
+  - Centralized subscriptions with `on_mount`
+
+- **List Page:** `lib/phoenix_kit_web/live/modules/entities/entities.ex`
+  - Real-time list updates via Events system
+
+- **Detail Page:** `lib/phoenix_kit_web/live/modules/entities/data_navigator.ex`
+  - Real-time detail updates and deletion handling
+
+- **Collaborative Form (Entity):** `lib/phoenix_kit_web/live/modules/entities/entity_form.ex`
+  - Full collaborative editing implementation
+  - Owner/spectator roles
+  - Real-time state synchronization
+
+- **Collaborative Form (Data):** `lib/phoenix_kit_web/live/modules/entities/data_form.ex`
+  - Data record collaborative editing
+  - Same patterns as entity_form.ex
 
 ---
 
