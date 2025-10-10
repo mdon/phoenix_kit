@@ -119,6 +119,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         class={["input input-bordered w-full", @opts[:input_class]]}
         maxlength={@field["max_length"]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       />
       <%= if @field["description"] do %>
         <.label class="label">
@@ -143,6 +144,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         rows={@field["rows"] || 4}
         maxlength={@field["max_length"]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       >{get_field_value(@changeset, @field["key"])}</textarea>
       <%= if @field["description"] do %>
         <.label class="label">
@@ -167,6 +169,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         placeholder={@field["placeholder"] || gettext("user@example.com")}
         class={["input input-bordered w-full", @opts[:input_class]]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       />
       <%= if @field["description"] do %>
         <.label class="label">
@@ -191,6 +194,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         placeholder={@field["placeholder"] || gettext("https://example.com")}
         class={["input input-bordered w-full", @opts[:input_class]]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       />
       <%= if @field["description"] do %>
         <.label class="label">
@@ -214,6 +218,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         class={["textarea textarea-bordered w-full h-32", @opts[:input_class]]}
         rows="8"
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       >{get_field_value(@changeset, @field["key"])}</textarea>
       <.label class="label">
         <span class="label-text-alt">{gettext("Rich text editor (HTML supported)")}</span>
@@ -244,6 +249,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         max={@field["max"]}
         step={@field["step"] || 1}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       />
       <%= if @field["description"] do %>
         <.label class="label">
@@ -277,6 +283,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
             value="true"
             checked={@is_checked}
             class={["toggle toggle-primary", @opts[:input_class]]}
+            disabled={@opts[:disabled]}
           />
           <span class="label-text">
             {if @is_checked, do: gettext("Enabled"), else: gettext("Disabled")}
@@ -305,6 +312,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         value={get_field_value(@changeset, @field["key"])}
         class={["input input-bordered w-full", @opts[:input_class]]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       />
       <%= if @field["description"] do %>
         <.label class="label">
@@ -326,6 +334,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
         name={"#{@changeset.data.__struct__.__schema__(:source)}[data][#{@field["key"]}]"}
         class={["select select-bordered w-full", @opts[:input_class]]}
         required={@field["required"]}
+        disabled={@opts[:disabled]}
       >
         <%= if @field["allow_empty"] || !@field["required"] do %>
           <option value="">{@field["placeholder"] || gettext("Select an option...")}</option>
@@ -365,6 +374,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
               class={["radio radio-primary mr-2", @opts[:input_class]]}
               checked={get_field_value(@changeset, @field["key"]) == option}
               required={@field["required"]}
+              disabled={@opts[:disabled]}
             />
             <span class="label-text">{option}</span>
           </label>
@@ -395,6 +405,7 @@ defmodule PhoenixKit.Entities.FormBuilder do
               value={option}
               class={["checkbox checkbox-primary mr-2", @opts[:input_class]]}
               checked={option in (get_field_value(@changeset, @field["key"]) || [])}
+              disabled={@opts[:disabled]}
             />
             <span class="label-text">{option}</span>
           </label>

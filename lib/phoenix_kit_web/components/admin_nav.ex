@@ -52,7 +52,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
     ~H"""
     <.link
-      href={@href}
+      navigate={@href}
       class={[
         "flex items-center py-2 rounded-lg text-sm font-medium transition-colors",
         "hover:bg-base-200 group",

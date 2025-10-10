@@ -10,7 +10,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   alias PhoenixKit.Entities
   alias PhoenixKit.Entities.FieldTypes
   alias PhoenixKit.Entities.Events
-  alias PhoenixKit.Admin.SimplePresence, as: Presence
+  alias PhoenixKit.Entities.Presence
+  alias PhoenixKit.Entities.PresenceHelpers
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.HeroIcons
   alias PhoenixKit.Utils.Routes
@@ -83,167 +84,221 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
 
     socket =
       if connected?(socket) do
-        if form_key do
+        if form_key && entity.id do
+          # Track this user in Presence
+          {:ok, _ref} =
+            PresenceHelpers.track_editing_session(:entity, entity.id, socket, current_user)
+
+          # Subscribe to presence changes and form events
+          PresenceHelpers.subscribe_to_editing(:entity, entity.id)
           Events.subscribe_to_entity_form(form_key)
 
-          socket =
-            if entity.id do
-              Presence.track("editor:entity:#{entity.id}:#{socket.id}", %{
-                user_email: current_user.email,
-                socket_id: socket.id,
-                entity_id: entity.id
-              })
+          # Determine our role (owner or spectator)
+          socket = assign_editing_role(socket, entity.id)
 
-              # Load existing collaborative state if other editors are present
-              editor_count = Presence.count_tracked("editor:entity:#{entity.id}:")
-
-              if editor_count > 1 do
-                case Presence.get_data("state:entity:#{entity.id}") do
-                  %{changeset_params: changeset_params, fields: fields} ->
-                    changeset = Entities.change_entity(entity, changeset_params)
-
-                    socket
-                    |> assign(:changeset, changeset)
-                    |> assign(:fields, fields)
-                    |> assign(:has_unsaved_changes, true)
-
-                  _ ->
-                    socket
-                end
-              else
-                socket
-              end
-            else
-              socket
-            end
-
-          socket
+          # Load spectator state if we're not the owner
+          if socket.assigns.readonly? do
+            load_spectator_state(socket, entity.id)
+          else
+            socket
+          end
         else
+          # New entity (no lock needed) or no form_key
           socket
+          |> assign(:lock_owner?, true)
+          |> assign(:readonly?, false)
+          |> assign(:lock_owner_user, nil)
+          |> assign(:spectators, [])
         end
       else
+        # Not connected - no lock logic
         socket
+        |> assign(:lock_owner?, true)
+        |> assign(:readonly?, false)
+        |> assign(:lock_owner_user, nil)
+        |> assign(:spectators, [])
       end
 
     {:ok, socket}
   end
 
+  defp assign_editing_role(socket, entity_id) do
+    current_user = socket.assigns[:current_user]
+
+    case PresenceHelpers.get_editing_role(:entity, entity_id, socket.id, current_user.id) do
+      {:owner, _presences} ->
+        # I'm the owner - I can edit (or same user in different tab)
+        socket
+        |> assign(:lock_owner?, true)
+        |> assign(:readonly?, false)
+        |> populate_presence_info(:entity, entity_id)
+
+      {:spectator, _owner_meta, _presences} ->
+        # Different user is the owner - I'm read-only
+        socket
+        |> assign(:lock_owner?, false)
+        |> assign(:readonly?, true)
+        |> populate_presence_info(:entity, entity_id)
+    end
+  end
+
+  defp load_spectator_state(socket, entity_id) do
+    # Owner might have unsaved changes - sync from their Presence metadata
+    case PresenceHelpers.get_lock_owner(:entity, entity_id) do
+      %{form_state: form_state} when not is_nil(form_state) ->
+        # Apply owner's form state
+        changeset_params =
+          Map.get(form_state, :changeset_params) || Map.get(form_state, "changeset_params")
+
+        fields = Map.get(form_state, :fields) || Map.get(form_state, "fields")
+
+        if changeset_params && fields do
+          changeset = Entities.change_entity(socket.assigns.entity, changeset_params)
+
+          socket
+          |> assign(:changeset, changeset)
+          |> assign(:fields, fields)
+          |> assign(:has_unsaved_changes, true)
+        else
+          socket
+        end
+
+      _ ->
+        # No form state to sync
+        socket
+    end
+  end
+
   @impl true
   def handle_event("validate", %{"entities" => entity_params}, socket) do
-    # Get all current data from the changeset (both changes and original data)
-    current_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
+    if socket.assigns[:lock_owner?] do
+      # Get all current data from the changeset (both changes and original data)
+      current_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
 
-    # Convert struct to map and merge with incoming params
-    existing_data =
-      current_data
-      |> Map.from_struct()
-      |> Map.drop([:__meta__, :creator, :inserted_at, :updated_at])
-      |> Enum.into(%{}, fn {k, v} -> {to_string(k), v} end)
+      # Convert struct to map and merge with incoming params
+      existing_data =
+        current_data
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :creator, :inserted_at, :updated_at])
+        |> Enum.into(%{}, fn {k, v} -> {to_string(k), v} end)
 
-    # Merge existing data with new params (new params override existing)
-    entity_params = Map.merge(existing_data, entity_params)
+      # Merge existing data with new params (new params override existing)
+      entity_params = Map.merge(existing_data, entity_params)
 
-    # Auto-generate slug from display_name during creation (but not editing)
-    entity_params =
-      if is_nil(socket.assigns.entity.id) do
-        # Only auto-generate if display_name changed and slug wasn't manually edited
-        display_name = entity_params["display_name"] || ""
-        current_slug = entity_params["name"] || ""
+      # Auto-generate slug from display_name during creation (but not editing)
+      entity_params =
+        if is_nil(socket.assigns.entity.id) do
+          # Only auto-generate if display_name changed and slug wasn't manually edited
+          display_name = entity_params["display_name"] || ""
+          current_slug = entity_params["name"] || ""
 
-        # Check if the current slug was auto-generated from the previous display_name
-        previous_display_name = existing_data["display_name"] || ""
-        auto_generated_slug = generate_slug_from_name(previous_display_name)
+          # Check if the current slug was auto-generated from the previous display_name
+          previous_display_name = existing_data["display_name"] || ""
+          auto_generated_slug = generate_slug_from_name(previous_display_name)
 
-        # If slug matches the auto-generated one or is empty, update it
-        if current_slug == "" || current_slug == auto_generated_slug do
-          Map.put(entity_params, "name", generate_slug_from_name(display_name))
+          # If slug matches the auto-generated one or is empty, update it
+          if current_slug == "" || current_slug == auto_generated_slug do
+            Map.put(entity_params, "name", generate_slug_from_name(display_name))
+          else
+            # User manually edited the slug, don't overwrite it
+            entity_params
+          end
         else
-          # User manually edited the slug, don't overwrite it
+          # In edit mode, don't auto-generate
           entity_params
         end
-      else
-        # In edit mode, don't auto-generate
-        entity_params
-      end
 
-    # Add fields_definition to params for validation
-    entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
+      # Add fields_definition to params for validation
+      entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
 
-    # Add created_by for new entities during validation so changeset can be valid
-    entity_params =
-      if socket.assigns.entity.id do
-        entity_params
-      else
-        Map.put(entity_params, "created_by", socket.assigns.current_user.id)
-      end
+      # Add created_by for new entities during validation so changeset can be valid
+      entity_params =
+        if socket.assigns.entity.id do
+          entity_params
+        else
+          Map.put(entity_params, "created_by", socket.assigns.current_user.id)
+        end
 
-    changeset =
-      socket.assigns.entity
-      |> Entities.change_entity(entity_params)
-      |> Map.put(:action, :validate)
+      changeset =
+        socket.assigns.entity
+        |> Entities.change_entity(entity_params)
+        |> Map.put(:action, :validate)
 
-    socket = assign(socket, :changeset, changeset)
+      socket = assign(socket, :changeset, changeset)
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    else
+      # Spectator - ignore local changes, wait for broadcasts
+      {:noreply, socket}
+    end
   end
 
   def handle_event("save", %{"entities" => entity_params}, socket) do
-    # Add current fields to entity params
-    entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
+    else
+      # Add current fields to entity params
+      entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
 
-    # Add created_by for new entities
-    entity_params =
-      if socket.assigns.entity.id do
-        entity_params
-      else
-        Map.put(entity_params, "created_by", socket.assigns.current_user.id)
+      # Add created_by for new entities
+      entity_params =
+        if socket.assigns.entity.id do
+          entity_params
+        else
+          Map.put(entity_params, "created_by", socket.assigns.current_user.id)
+        end
+
+      case save_entity(socket, entity_params) do
+        {:ok, _entity} ->
+          # Presence will automatically clean up when LiveView process terminates
+          locale = socket.assigns[:current_locale] || "en"
+
+          socket =
+            socket
+            |> put_flash(:info, gettext("Entity saved successfully"))
+            |> push_navigate(to: Routes.path("/admin/entities", locale: locale))
+
+          {:noreply, socket}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          socket = assign(socket, :changeset, changeset)
+          reply_with_broadcast(socket)
       end
-
-    case save_entity(socket, entity_params) do
-      {:ok, _entity} ->
-        locale = socket.assigns[:current_locale] || "en"
-
-        socket =
-          socket
-          |> put_flash(:info, gettext("Entity saved successfully"))
-          |> push_navigate(to: Routes.path("/admin/entities", locale: locale))
-
-        {:noreply, socket}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        socket = assign(socket, :changeset, changeset)
-        reply_with_broadcast(socket)
     end
   end
 
   def handle_event("reset", _params, socket) do
-    # Reload entity from database or reset to empty state
-    {entity, fields} =
-      if socket.assigns.entity.id do
-        # Reload from database
-        reloaded_entity = Entities.get_entity!(socket.assigns.entity.id)
-        {reloaded_entity, reloaded_entity.fields_definition || []}
-      else
-        # Reset to empty new entity
-        {%Entities{}, []}
-      end
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
+    else
+      # Reload entity from database or reset to empty state
+      {entity, fields} =
+        if socket.assigns.entity.id do
+          # Reload from database
+          reloaded_entity = Entities.get_entity!(socket.assigns.entity.id)
+          {reloaded_entity, reloaded_entity.fields_definition || []}
+        else
+          # Reset to empty new entity
+          {%Entities{}, []}
+        end
 
-    changeset = Entities.change_entity(entity)
+      changeset = Entities.change_entity(entity)
 
-    socket =
-      socket
-      |> assign(:entity, entity)
-      |> assign(:changeset, changeset)
-      |> assign(:fields, fields)
-      |> assign(:show_field_form, false)
-      |> assign(:editing_field_index, nil)
-      |> assign(:field_form, %{})
-      |> assign(:field_error, nil)
-      |> assign(:show_icon_picker, false)
-      |> assign(:delete_confirm_index, nil)
-      |> put_flash(:info, gettext("Changes reset to last saved state"))
+      socket =
+        socket
+        |> assign(:entity, entity)
+        |> assign(:changeset, changeset)
+        |> assign(:fields, fields)
+        |> assign(:show_field_form, false)
+        |> assign(:editing_field_index, nil)
+        |> assign(:field_form, %{})
+        |> assign(:field_error, nil)
+        |> assign(:show_icon_picker, false)
+        |> assign(:delete_confirm_index, nil)
+        |> put_flash(:info, gettext("Changes reset to last saved state"))
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   # Icon Picker Events
@@ -270,46 +325,58 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("generate_entity_slug", _params, socket) do
-    changeset = socket.assigns.changeset
-
-    # Get display_name from changeset
-    display_name = Ecto.Changeset.get_field(changeset, :display_name) || ""
-
-    # Don't generate if display_name is empty
-    if display_name == "" do
+    unless socket.assigns[:lock_owner?] do
       {:noreply, socket}
     else
-      # Generate slug from display_name (snake_case)
-      slug = generate_slug_from_name(display_name)
+      changeset = socket.assigns.changeset
 
-      # Update changeset with generated slug while preserving all other data
-      changeset = update_changeset_field(socket, %{"name" => slug})
+      # Get display_name from changeset
+      display_name = Ecto.Changeset.get_field(changeset, :display_name) || ""
 
-      socket = assign(socket, :changeset, changeset)
-      reply_with_broadcast(socket)
+      # Don't generate if display_name is empty
+      if display_name == "" do
+        {:noreply, socket}
+      else
+        # Generate slug from display_name (snake_case)
+        slug = generate_slug_from_name(display_name)
+
+        # Update changeset with generated slug while preserving all other data
+        changeset = update_changeset_field(socket, %{"name" => slug})
+
+        socket = assign(socket, :changeset, changeset)
+        reply_with_broadcast(socket)
+      end
     end
   end
 
   def handle_event("select_icon", %{"icon" => icon_name}, socket) do
-    # Update the changeset with the selected icon while preserving all other data
-    changeset = update_changeset_field(socket, %{"icon" => icon_name})
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      # Update the changeset with the selected icon while preserving all other data
+      changeset = update_changeset_field(socket, %{"icon" => icon_name})
 
-    socket =
-      socket
-      |> assign(:changeset, changeset)
-      |> assign(:show_icon_picker, false)
-      |> assign(:icon_search, "")
-      |> assign(:selected_category, "All")
+      socket =
+        socket
+        |> assign(:changeset, changeset)
+        |> assign(:show_icon_picker, false)
+        |> assign(:icon_search, "")
+        |> assign(:selected_category, "All")
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("clear_icon", _params, socket) do
-    # Clear the icon field while preserving all other data
-    changeset = update_changeset_field(socket, %{"icon" => nil})
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      # Clear the icon field while preserving all other data
+      changeset = update_changeset_field(socket, %{"icon" => nil})
 
-    socket = assign(socket, :changeset, changeset)
-    reply_with_broadcast(socket)
+      socket = assign(socket, :changeset, changeset)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("search_icons", %{"search" => search_term}, socket) do
@@ -352,36 +419,44 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   # Field Management Events
 
   def handle_event("add_field", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_field_form, true)
-      |> assign(:editing_field_index, nil)
-      |> assign(:field_form, %{
-        "type" => "text",
-        "key" => "",
-        "label" => "",
-        "required" => false,
-        "default" => "",
-        "options" => []
-      })
-      |> assign(:field_error, nil)
-      |> assign(:delete_confirm_index, nil)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
+    else
+      socket =
+        socket
+        |> assign(:show_field_form, true)
+        |> assign(:editing_field_index, nil)
+        |> assign(:field_form, %{
+          "type" => "text",
+          "key" => "",
+          "label" => "",
+          "required" => false,
+          "default" => "",
+          "options" => []
+        })
+        |> assign(:field_error, nil)
+        |> assign(:delete_confirm_index, nil)
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("edit_field", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    field = Enum.at(socket.assigns.fields, index)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
+    else
+      index = String.to_integer(index)
+      field = Enum.at(socket.assigns.fields, index)
 
-    socket =
-      socket
-      |> assign(:show_field_form, true)
-      |> assign(:editing_field_index, index)
-      |> assign(:field_form, field || %{})
-      |> assign(:field_error, nil)
+      socket =
+        socket
+        |> assign(:show_field_form, true)
+        |> assign(:editing_field_index, index)
+        |> assign(:field_form, field || %{})
+        |> assign(:field_error, nil)
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("cancel_field", _params, socket) do
@@ -396,25 +471,29 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("save_field", %{"field" => field_params}, socket) do
-    field_form = socket.assigns.field_form || %{}
-    merged_params = Map.merge(field_form, field_params)
-    sanitized_options = sanitize_field_options(merged_params)
-    merged_params = Map.put(merged_params, "options", sanitized_options)
-
-    with :ok <- validate_field_requirements(merged_params, sanitized_options),
-         :ok <-
-           validate_unique_field_key(
-             merged_params,
-             socket.assigns.fields,
-             socket.assigns.editing_field_index
-           ),
-         {:ok, validated_field} <- FieldTypes.validate_field(merged_params) do
-      socket = save_validated_field(socket, validated_field)
-      reply_with_broadcast(socket)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot save field - you are spectating"))}
     else
-      {:error, error_message} ->
-        socket = assign(socket, :field_error, error_message)
+      field_form = socket.assigns.field_form || %{}
+      merged_params = Map.merge(field_form, field_params)
+      sanitized_options = sanitize_field_options(merged_params)
+      merged_params = Map.put(merged_params, "options", sanitized_options)
+
+      with :ok <- validate_field_requirements(merged_params, sanitized_options),
+           :ok <-
+             validate_unique_field_key(
+               merged_params,
+               socket.assigns.fields,
+               socket.assigns.editing_field_index
+             ),
+           {:ok, validated_field} <- FieldTypes.validate_field(merged_params) do
+        socket = save_validated_field(socket, validated_field)
         reply_with_broadcast(socket)
+      else
+        {:error, error_message} ->
+          socket = assign(socket, :field_error, error_message)
+          reply_with_broadcast(socket)
+      end
     end
   end
 
@@ -428,126 +507,158 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("delete_field", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    fields = List.delete_at(socket.assigns.fields, index)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot delete field - you are spectating"))}
+    else
+      index = String.to_integer(index)
+      fields = List.delete_at(socket.assigns.fields, index)
 
-    socket =
-      socket
-      |> assign(:fields, fields)
-      |> assign(:delete_confirm_index, nil)
+      socket =
+        socket
+        |> assign(:fields, fields)
+        |> assign(:delete_confirm_index, nil)
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("move_field_up", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-
-    if index > 0 do
-      fields = move_field(socket.assigns.fields, index, index - 1)
-      socket = assign(socket, :fields, fields)
-      reply_with_broadcast(socket)
-    else
+    unless socket.assigns[:lock_owner?] do
       {:noreply, socket}
+    else
+      index = String.to_integer(index)
+
+      if index > 0 do
+        fields = move_field(socket.assigns.fields, index, index - 1)
+        socket = assign(socket, :fields, fields)
+        reply_with_broadcast(socket)
+      else
+        {:noreply, socket}
+      end
     end
   end
 
   def handle_event("move_field_down", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-
-    if index < length(socket.assigns.fields) - 1 do
-      fields = move_field(socket.assigns.fields, index, index + 1)
-      socket = assign(socket, :fields, fields)
-      reply_with_broadcast(socket)
-    else
+    unless socket.assigns[:lock_owner?] do
       {:noreply, socket}
+    else
+      index = String.to_integer(index)
+
+      if index < length(socket.assigns.fields) - 1 do
+        fields = move_field(socket.assigns.fields, index, index + 1)
+        socket = assign(socket, :fields, fields)
+        reply_with_broadcast(socket)
+      else
+        {:noreply, socket}
+      end
     end
   end
 
   def handle_event("update_field_form", %{"field" => field_params}, socket) do
-    # Update field form with live changes
-    current_form = socket.assigns.field_form
-    updated_form = Map.merge(current_form, field_params)
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      # Update field form with live changes
+      current_form = socket.assigns.field_form
+      updated_form = Map.merge(current_form, field_params)
 
-    # Auto-generate key from label when adding new field (not editing)
-    updated_form =
-      if is_nil(socket.assigns.editing_field_index) do
-        # Only auto-generate if label changed and key wasn't manually edited
-        label = updated_form["label"] || ""
-        current_key = updated_form["key"] || ""
+      # Auto-generate key from label when adding new field (not editing)
+      updated_form =
+        if is_nil(socket.assigns.editing_field_index) do
+          # Only auto-generate if label changed and key wasn't manually edited
+          label = updated_form["label"] || ""
+          current_key = updated_form["key"] || ""
 
-        # Check if the current key was auto-generated from the previous label
-        previous_label = current_form["label"] || ""
-        auto_generated_key = generate_slug_from_name(previous_label)
+          # Check if the current key was auto-generated from the previous label
+          previous_label = current_form["label"] || ""
+          auto_generated_key = generate_slug_from_name(previous_label)
 
-        # If key matches the auto-generated one or is empty, update it
-        if current_key == "" || current_key == auto_generated_key do
-          Map.put(updated_form, "key", generate_slug_from_name(label))
+          # If key matches the auto-generated one or is empty, update it
+          if current_key == "" || current_key == auto_generated_key do
+            Map.put(updated_form, "key", generate_slug_from_name(label))
+          else
+            # User manually edited the key, don't overwrite it
+            updated_form
+          end
         else
-          # User manually edited the key, don't overwrite it
+          # In edit mode, don't auto-generate
           updated_form
         end
-      else
-        # In edit mode, don't auto-generate
-        updated_form
-      end
 
-    socket =
-      socket
-      |> assign(:field_form, updated_form)
-      # Clear error when user makes changes
-      |> assign(:field_error, nil)
+      socket =
+        socket
+        |> assign(:field_form, updated_form)
+        # Clear error when user makes changes
+        |> assign(:field_error, nil)
 
-    reply_with_broadcast(socket)
+      reply_with_broadcast(socket)
+    end
   end
 
   def handle_event("add_option", _params, socket) do
-    current_options = Map.get(socket.assigns.field_form, "options", [])
-    updated_options = current_options ++ [""]
-
-    field_form = Map.put(socket.assigns.field_form, "options", updated_options)
-    socket = assign(socket, :field_form, field_form)
-
-    reply_with_broadcast(socket)
-  end
-
-  def handle_event("remove_option", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    current_options = Map.get(socket.assigns.field_form, "options", [])
-    updated_options = List.delete_at(current_options, index)
-
-    field_form = Map.put(socket.assigns.field_form, "options", updated_options)
-    socket = assign(socket, :field_form, field_form)
-
-    reply_with_broadcast(socket)
-  end
-
-  def handle_event("update_option", %{"index" => index, "value" => value}, socket) do
-    index = String.to_integer(index)
-    current_options = Map.get(socket.assigns.field_form, "options", [])
-    updated_options = List.replace_at(current_options, index, value)
-
-    field_form = Map.put(socket.assigns.field_form, "options", updated_options)
-    socket = assign(socket, :field_form, field_form)
-
-    reply_with_broadcast(socket)
-  end
-
-  def handle_event("generate_field_key", _params, socket) do
-    # Get label from field form
-    label = Map.get(socket.assigns.field_form, "label", "")
-
-    # Don't generate if label is empty
-    if label == "" do
+    unless socket.assigns[:lock_owner?] do
       {:noreply, socket}
     else
-      # Generate key from label (snake_case)
-      key = generate_slug_from_name(label)
+      current_options = Map.get(socket.assigns.field_form, "options", [])
+      updated_options = current_options ++ [""]
 
-      # Update field form with generated key
-      field_form = Map.put(socket.assigns.field_form, "key", key)
+      field_form = Map.put(socket.assigns.field_form, "options", updated_options)
       socket = assign(socket, :field_form, field_form)
 
       reply_with_broadcast(socket)
+    end
+  end
+
+  def handle_event("remove_option", %{"index" => index}, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      index = String.to_integer(index)
+      current_options = Map.get(socket.assigns.field_form, "options", [])
+      updated_options = List.delete_at(current_options, index)
+
+      field_form = Map.put(socket.assigns.field_form, "options", updated_options)
+      socket = assign(socket, :field_form, field_form)
+
+      reply_with_broadcast(socket)
+    end
+  end
+
+  def handle_event("update_option", %{"index" => index, "value" => value}, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      index = String.to_integer(index)
+      current_options = Map.get(socket.assigns.field_form, "options", [])
+      updated_options = List.replace_at(current_options, index, value)
+
+      field_form = Map.put(socket.assigns.field_form, "options", updated_options)
+      socket = assign(socket, :field_form, field_form)
+
+      reply_with_broadcast(socket)
+    end
+  end
+
+  def handle_event("generate_field_key", _params, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      # Get label from field form
+      label = Map.get(socket.assigns.field_form, "label", "")
+
+      # Don't generate if label is empty
+      if label == "" do
+        {:noreply, socket}
+      else
+        # Generate key from label (snake_case)
+        key = generate_slug_from_name(label)
+
+        # Update field form with generated key
+        field_form = Map.put(socket.assigns.field_form, "key", key)
+        socket = assign(socket, :field_form, field_form)
+
+        reply_with_broadcast(socket)
+      end
     end
   end
 
@@ -578,10 +689,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     end
   end
 
-  def handle_info({:entity_created, _entity_id}, socket) do
-    # Ignore entity creation events - they're handled by the entities list page
-    {:noreply, socket}
-  end
+  def handle_info({:entity_created, _}, socket), do: {:noreply, socket}
 
   def handle_info({:entity_updated, entity_id}, socket) do
     if socket.assigns.entity.id == entity_id do
@@ -628,22 +736,32 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
     end
   end
 
-  @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:entity] && socket.assigns.entity && socket.assigns.entity.id do
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+    # Someone joined or left - check if our role changed
+    if socket.assigns.entity && socket.assigns.entity.id do
       entity_id = socket.assigns.entity.id
+      was_owner = socket.assigns[:lock_owner?]
 
-      # Untrack this editor
-      Presence.untrack("editor:entity:#{entity_id}:#{socket.id}")
+      # Re-evaluate our role
+      socket = assign_editing_role(socket, entity_id)
 
-      # Only clear state if this was the last editor
-      # Check count after untracking to see if we were the last one
-      if Presence.count_tracked("editor:entity:#{entity_id}:") == 0 do
-        Presence.clear_data("state:entity:#{entity_id}")
+      # If we were promoted from spectator to owner, reload fresh data
+      if !was_owner && socket.assigns[:lock_owner?] do
+        entity = Entities.get_entity!(entity_id)
+
+        socket
+        |> assign(:entity, entity)
+        |> assign(:changeset, Entities.change_entity(entity))
+        |> assign(:fields, entity.fields_definition || [])
+        |> assign(:has_unsaved_changes, false)
+        |> then(&{:noreply, &1})
+      else
+        # Just a presence update (someone joined/left as spectator)
+        {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
-
-    :ok
   end
 
   # Helper Functions
@@ -654,9 +772,10 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
 
   defp broadcast_entity_form_state(socket, extra \\ %{}) do
     socket =
-      if connected?(socket) && socket.assigns[:form_key] && socket.assigns.entity.id do
+      if connected?(socket) && socket.assigns[:form_key] && socket.assigns.entity.id &&
+           socket.assigns[:lock_owner?] do
         entity_id = socket.assigns.entity.id
-        editor_count = Presence.count_tracked("editor:entity:#{entity_id}:")
+        topic = PresenceHelpers.editing_topic(:entity, entity_id)
 
         payload =
           %{
@@ -665,15 +784,15 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
           }
           |> Map.merge(extra)
 
-        # Always store state so late-joining editors can load work-in-progress
-        Presence.store_data("state:entity:#{entity_id}", payload)
+        # Update Presence metadata with form state (for spectators to sync)
+        Presence.update(self(), topic, socket.id, fn meta ->
+          Map.put(meta, :form_state, payload)
+        end)
 
-        # Only broadcast when multiple editors are present to avoid PubSub overhead
-        if editor_count > 1 do
-          Events.broadcast_entity_form_change(socket.assigns.form_key, payload,
-            source: socket.assigns.live_source
-          )
-        end
+        # Also broadcast for real-time sync to spectators
+        Events.broadcast_entity_form_change(socket.assigns.form_key, payload,
+          source: socket.assigns.live_source
+        )
 
         socket
       else
@@ -932,4 +1051,40 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   defp generate_slug_from_name(_), do: ""
+
+  defp populate_presence_info(socket, type, id) do
+    # Get all presences sorted by joined_at (FIFO order)
+    presences = PresenceHelpers.get_sorted_presences(type, id)
+
+    # Extract owner (first in list) and spectators (rest of list)
+    {lock_owner_user, lock_info, spectators} =
+      case presences do
+        [] ->
+          {nil, nil, []}
+
+        [{owner_socket_id, owner_meta} | spectator_list] ->
+          # Build owner info - IMPORTANT: use socket_id from KEY not phx_ref
+          lock_info = %{
+            socket_id: owner_socket_id,
+            user_id: owner_meta.user_id
+          }
+
+          # Map spectators to expected format with correct socket IDs
+          spectators =
+            Enum.map(spectator_list, fn {spectator_socket_id, meta} ->
+              %{
+                socket_id: spectator_socket_id,
+                user: meta.user,
+                user_id: meta.user_id
+              }
+            end)
+
+          {owner_meta.user, lock_info, spectators}
+      end
+
+    socket
+    |> assign(:lock_owner_user, lock_owner_user)
+    |> assign(:lock_info, lock_info)
+    |> assign(:spectators, spectators)
+  end
 end

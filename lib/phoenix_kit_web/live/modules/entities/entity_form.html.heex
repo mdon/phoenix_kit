@@ -34,6 +34,18 @@
       </div>
     </header>
 
+    <%!-- Readonly Banner --%>
+    <%= if @readonly? do %>
+      <div class="alert alert-info mb-6">
+        <.icon name="hero-eye" class="w-5 h-5" />
+        <span>
+          {gettext(
+            "This entity is currently being edited by another user. You are in view-only mode."
+          )}
+        </span>
+      </div>
+    <% end %>
+
     <.form
       :let={f}
       for={@changeset}
@@ -60,6 +72,7 @@
                 type="text"
                 placeholder={gettext("Blog Post")}
                 phx-debounce="300"
+                disabled={@readonly?}
               />
               <.label class="label">
                 <span class="label-text-alt">
@@ -78,6 +91,7 @@
                 type="text"
                 placeholder={gettext("Blog Posts")}
                 phx-debounce="300"
+                disabled={@readonly?}
               />
               <.label class="label">
                 <span class="label-text-alt">
@@ -95,6 +109,7 @@
                   class="btn btn-ghost btn-xs ml-2"
                   phx-click="generate_entity_slug"
                   title={gettext("Generate from Entity Name")}
+                  disabled={@readonly?}
                 >
                   <.icon name="hero-arrow-path" class="w-3 h-3" /> {gettext("Generate")}
                 </button>
@@ -104,6 +119,7 @@
                 type="text"
                 placeholder={gettext("blog_post")}
                 phx-debounce="300"
+                disabled={@readonly?}
               />
               <.label class="label">
                 <span class="label-text-alt">
@@ -122,6 +138,7 @@
                     type="text"
                     placeholder={gettext("hero-document-text")}
                     phx-debounce="300"
+                    disabled={@readonly?}
                   />
                 </div>
                 <button
@@ -129,6 +146,7 @@
                   phx-click="open_icon_picker"
                   class="btn btn-outline btn-square"
                   title={gettext("Browse icons")}
+                  disabled={@readonly?}
                 >
                   <.icon name="hero-squares-2x2" class="w-5 h-5" />
                 </button>
@@ -138,6 +156,7 @@
                     phx-click="clear_icon"
                     class="btn btn-outline btn-square btn-error"
                     title={gettext("Clear icon")}
+                    disabled={@readonly?}
                   >
                     <.icon name="hero-x-mark" class="w-5 h-5" />
                   </button>
@@ -163,6 +182,7 @@
                 name={f[:status].name}
                 class="select select-bordered w-full"
                 required
+                disabled={@readonly?}
               >
                 <option value="published" selected={f[:status].value == "published"}>
                   {gettext("Published (active)")}
@@ -192,6 +212,7 @@
               class="textarea textarea-bordered w-full"
               rows="3"
               phx-debounce="300"
+              disabled={@readonly?}
             >{f[:description].value}</textarea>
           </div>
         </div>
@@ -214,6 +235,7 @@
               type="button"
               class="btn btn-primary"
               phx-click="add_field"
+              disabled={@readonly?}
             >
               <.icon name="hero-plus" class="w-4 h-4 mr-2" /> {gettext("Add Field")}
             </button>
@@ -233,6 +255,7 @@
                 type="button"
                 class="btn btn-primary"
                 phx-click="add_field"
+                disabled={@readonly?}
               >
                 <.icon name="hero-plus" class="w-4 h-4 mr-2" /> {gettext("Add Your First Field")}
               </button>
@@ -252,7 +275,7 @@
                           phx-click="move_field_up"
                           phx-value-index={index}
                           title={gettext("Move up")}
-                          disabled={index == 0}
+                          disabled={index == 0 or @readonly?}
                         >
                           <.icon name="hero-chevron-up" class="w-3 h-3" />
                         </button>
@@ -262,7 +285,7 @@
                           phx-click="move_field_down"
                           phx-value-index={index}
                           title={gettext("Move down")}
-                          disabled={index >= length(@fields) - 1}
+                          disabled={index >= length(@fields) - 1 or @readonly?}
                         >
                           <.icon name="hero-chevron-down" class="w-3 h-3" />
                         </button>
@@ -293,6 +316,7 @@
                               class="btn btn-error btn-sm"
                               phx-click="delete_field"
                               phx-value-index={index}
+                              disabled={@readonly?}
                             >
                               {gettext("Confirm?")}
                             </button>
@@ -300,6 +324,7 @@
                               type="button"
                               class="btn btn-outline btn-sm"
                               phx-click="cancel_delete_field"
+                              disabled={@readonly?}
                             >
                               {gettext("Cancel")}
                             </button>
@@ -310,6 +335,7 @@
                               class="btn btn-primary btn-sm"
                               phx-click="edit_field"
                               phx-value-index={index}
+                              disabled={@readonly?}
                             >
                               <.icon name="hero-pencil" class="w-4 h-4" />
                             </button>
@@ -321,6 +347,7 @@
                               phx-click="confirm_delete_field"
                               phx-value-index={index}
                               title={gettext("Delete field")}
+                              disabled={@readonly?}
                             >
                               <.icon name="hero-trash" class="w-4 h-4" />
                             </button>
@@ -354,7 +381,7 @@
             {gettext("Cancel")}
           </.link>
 
-          <button type="button" phx-click="reset" class="btn btn-warning">
+          <button type="button" phx-click="reset" class="btn btn-warning" disabled={@readonly?}>
             <.icon name="hero-arrow-path" class="w-4 h-4" />
             {gettext("Reset Changes")}
           </button>
@@ -363,7 +390,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          disabled={!@changeset.valid?}
+          disabled={!@changeset.valid? or @readonly?}
         >
           {if @entity.id, do: gettext("Update Entity"), else: gettext("Create Entity")}
         </button>

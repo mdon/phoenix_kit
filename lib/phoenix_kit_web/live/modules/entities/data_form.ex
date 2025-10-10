@@ -11,7 +11,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
   alias PhoenixKit.Entities.EntityData
   alias PhoenixKit.Entities.Events
   alias PhoenixKit.Entities.FormBuilder
-  alias PhoenixKit.Admin.SimplePresence, as: Presence
+  alias PhoenixKit.Entities.Presence
+  alias PhoenixKit.Entities.PresenceHelpers
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -113,75 +114,293 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
 
         socket =
           if data_record.id do
-            Presence.track("editor:data:#{data_record.id}:#{socket.id}", %{
-              user_email: current_user.email,
-              socket_id: socket.id,
-              data_id: data_record.id
-            })
+            # Track this user in Presence
+            {:ok, _ref} =
+              PresenceHelpers.track_editing_session(:data, data_record.id, socket, current_user)
 
-            # Load existing collaborative state if other editors are present
-            editor_count = Presence.count_tracked("editor:data:#{data_record.id}:")
+            # Subscribe to presence changes
+            PresenceHelpers.subscribe_to_editing(:data, data_record.id)
 
-            if editor_count > 1 do
-              case Presence.get_data("state:data:#{data_record.id}") do
-                %{params: params} ->
-                  # Apply the remote params
-                  apply_remote_data_params(socket, params)
-                  |> assign(:has_unsaved_changes, true)
+            # Determine our role (owner or spectator)
+            socket = assign_editing_role(socket, data_record.id)
 
-                _ ->
-                  socket
-              end
+            # Load spectator state if we're not the owner
+            if socket.assigns.readonly? do
+              load_spectator_state(socket, data_record.id)
             else
               socket
             end
           else
+            # New record - no lock needed
             socket
+            |> assign(:lock_owner?, true)
+            |> assign(:readonly?, false)
+            |> assign(:lock_owner_user, nil)
+            |> assign(:spectators, [])
           end
 
         socket
       else
+        # Not connected - no lock logic
         socket
+        |> assign(:lock_owner?, true)
+        |> assign(:readonly?, false)
+        |> assign(:lock_owner_user, nil)
+        |> assign(:spectators, [])
       end
 
     {:ok, socket}
   end
 
+  defp assign_editing_role(socket, data_id) do
+    current_user = socket.assigns[:current_user]
+
+    case PresenceHelpers.get_editing_role(:data, data_id, socket.id, current_user.id) do
+      {:owner, _presences} ->
+        # I'm the owner - I can edit (or same user in different tab)
+        socket
+        |> assign(:lock_owner?, true)
+        |> assign(:readonly?, false)
+        |> populate_presence_info(:data, data_id)
+
+      {:spectator, _owner_meta, _presences} ->
+        # Different user is the owner - I'm read-only
+        socket
+        |> assign(:lock_owner?, false)
+        |> assign(:readonly?, true)
+        |> populate_presence_info(:data, data_id)
+    end
+  end
+
+  defp load_spectator_state(socket, data_id) do
+    # Owner might have unsaved changes - sync from their Presence metadata
+    case PresenceHelpers.get_lock_owner(:data, data_id) do
+      %{form_state: form_state} when not is_nil(form_state) ->
+        # Apply owner's form state
+        params = Map.get(form_state, :params) || Map.get(form_state, "params")
+
+        if params do
+          socket
+          |> apply_remote_data_params(params)
+          |> assign(:has_unsaved_changes, true)
+        else
+          socket
+        end
+
+      _ ->
+        # No form state to sync
+        socket
+    end
+  end
+
+  @impl true
+  def terminate(_reason, _socket) do
+    :ok
+  end
+
   @impl true
   def handle_event("validate", %{"phoenix_kit_entity_data" => data_params}, socket) do
-    form_data = Map.get(data_params, "data", %{})
+    if socket.assigns[:lock_owner?] do
+      form_data = Map.get(data_params, "data", %{})
 
-    data_params =
-      if socket.assigns.data_record.id do
-        data_params
-      else
-        Map.put(data_params, "created_by", socket.assigns.current_user.id)
-      end
+      data_params =
+        if socket.assigns.data_record.id do
+          data_params
+        else
+          Map.put(data_params, "created_by", socket.assigns.current_user.id)
+        end
 
-    data_params =
-      if is_nil(socket.assigns.data_record.id) do
-        title = data_params["title"] || ""
-        current_slug = data_params["slug"] || ""
+      data_params =
+        if is_nil(socket.assigns.data_record.id) do
+          title = data_params["title"] || ""
+          current_slug = data_params["slug"] || ""
 
-        current_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
-        previous_title = current_data.title || ""
-        auto_generated_slug = generate_slug_from_title(previous_title)
+          current_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
+          previous_title = current_data.title || ""
+          auto_generated_slug = generate_slug_from_title(previous_title)
 
-        if current_slug == "" || current_slug == auto_generated_slug do
-          Map.put(data_params, "slug", generate_slug_from_title(title))
+          if current_slug == "" || current_slug == auto_generated_slug do
+            Map.put(data_params, "slug", generate_slug_from_title(title))
+          else
+            data_params
+          end
         else
           data_params
         end
-      else
-        data_params
+
+      params_for_broadcast = Map.put(data_params, "data", form_data)
+
+      case FormBuilder.validate_data(socket.assigns.entity, form_data) do
+        {:ok, validated_data} ->
+          params = Map.put(data_params, "data", validated_data)
+
+          changeset =
+            socket.assigns.data_record
+            |> EntityData.change(params)
+            |> Map.put(:action, :validate)
+
+          socket =
+            socket
+            |> assign(:changeset, changeset)
+            |> broadcast_data_form_state(params)
+
+          {:noreply, socket}
+
+        {:error, errors} ->
+          changeset =
+            socket.assigns.data_record
+            |> EntityData.change(data_params)
+            |> add_form_errors(errors)
+            |> Map.put(:action, :validate)
+
+          socket =
+            socket
+            |> assign(:changeset, changeset)
+            |> broadcast_data_form_state(params_for_broadcast)
+
+          {:noreply, socket}
       end
+    else
+      # Spectator - ignore local changes, wait for broadcasts
+      {:noreply, socket}
+    end
+  end
 
-    params_for_broadcast = Map.put(data_params, "data", form_data)
+  def handle_event("save", %{"phoenix_kit_entity_data" => data_params}, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
+    else
+      # Extract the data field from params
+      form_data = Map.get(data_params, "data", %{})
 
-    case FormBuilder.validate_data(socket.assigns.entity, form_data) do
-      {:ok, validated_data} ->
-        params = Map.put(data_params, "data", validated_data)
+      # Validate the form data against entity field definitions
+      case FormBuilder.validate_data(socket.assigns.entity, form_data) do
+        {:ok, validated_data} ->
+          # Add metadata to params
+          params =
+            data_params
+            |> Map.put("data", validated_data)
+            |> maybe_add_creator_id(socket.assigns.current_user, socket.assigns.data_record)
 
+          case save_data_record(socket, params) do
+            {:ok, _data_record} ->
+              # Presence will automatically clean up when LiveView process terminates
+              # Redirect to entity-specific data navigator after successful creation/update
+              entity_name = socket.assigns.entity.name
+              locale = socket.assigns[:current_locale] || "en"
+
+              socket =
+                socket
+                |> put_flash(:info, gettext("Data record saved successfully"))
+                |> push_navigate(
+                  to:
+                    Routes.path("/admin/entities/#{entity_name}/data",
+                      locale: locale
+                    )
+                )
+
+              {:noreply, socket}
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              socket =
+                socket
+                |> assign(:changeset, changeset)
+                |> broadcast_data_form_state(params)
+
+              {:noreply, socket}
+          end
+
+        {:error, errors} ->
+          # Add field validation errors to changeset
+          changeset =
+            socket.assigns.data_record
+            |> EntityData.change(data_params)
+            |> add_form_errors(errors)
+
+          error_list =
+            Enum.map_join(errors, "; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+
+          socket =
+            socket
+            |> assign(:changeset, changeset)
+            |> put_flash(
+              :error,
+              gettext("Field validation errors: %{errors}", errors: error_list)
+            )
+            |> broadcast_data_form_state(Map.put(data_params, "data", form_data))
+
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event("reset", _params, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
+    else
+      # Reload data record from database or reset to empty state
+      {data_record, changeset} =
+        if socket.assigns.data_record.id do
+          # Reload from database
+          reloaded_data = EntityData.get_data!(socket.assigns.data_record.id)
+          {reloaded_data, EntityData.change(reloaded_data)}
+        else
+          # Reset to empty new data record
+          empty_data = %EntityData{entity_id: socket.assigns.entity.id}
+
+          changeset =
+            empty_data
+            |> EntityData.change()
+            |> Ecto.Changeset.put_change(:status, "published")
+
+          {empty_data, changeset}
+        end
+
+      socket =
+        socket
+        |> assign(:data_record, data_record)
+        |> assign(:changeset, changeset)
+        |> put_flash(:info, gettext("Changes reset to last saved state"))
+        |> broadcast_data_form_state(extract_changeset_params(changeset))
+
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("generate_slug", _params, socket) do
+    unless socket.assigns[:lock_owner?] do
+      {:noreply, socket}
+    else
+      changeset = socket.assigns.changeset
+
+      # Get title from changeset (includes both changes and original data)
+      title = Ecto.Changeset.get_field(changeset, :title) || ""
+
+      # Don't generate if title is empty
+      if title == "" do
+        {:noreply, socket}
+      else
+        # Generate slug from title
+        slug = generate_slug_from_title(title)
+
+        # Get ALL current field values from the changeset
+        # This includes both changed values and original struct values
+        entity_id = Ecto.Changeset.get_field(changeset, :entity_id)
+        status = Ecto.Changeset.get_field(changeset, :status) || "draft"
+        data = Ecto.Changeset.get_field(changeset, :data) || %{}
+        created_by = Ecto.Changeset.get_field(changeset, :created_by)
+
+        # Build complete params map with ALL required fields
+        params = %{
+          "entity_id" => entity_id,
+          "title" => title,
+          "slug" => slug,
+          "status" => status,
+          "data" => data,
+          "created_by" => created_by
+        }
+
+        # Update changeset with generated slug while preserving all other fields
         changeset =
           socket.assigns.data_record
           |> EntityData.change(params)
@@ -193,154 +412,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
           |> broadcast_data_form_state(params)
 
         {:noreply, socket}
-
-      {:error, errors} ->
-        changeset =
-          socket.assigns.data_record
-          |> EntityData.change(data_params)
-          |> add_form_errors(errors)
-          |> Map.put(:action, :validate)
-
-        socket =
-          socket
-          |> assign(:changeset, changeset)
-          |> broadcast_data_form_state(params_for_broadcast)
-
-        {:noreply, socket}
-    end
-  end
-
-  def handle_event("save", %{"phoenix_kit_entity_data" => data_params}, socket) do
-    # Extract the data field from params
-    form_data = Map.get(data_params, "data", %{})
-
-    # Validate the form data against entity field definitions
-    case FormBuilder.validate_data(socket.assigns.entity, form_data) do
-      {:ok, validated_data} ->
-        # Add metadata to params
-        params =
-          data_params
-          |> Map.put("data", validated_data)
-          |> maybe_add_creator_id(socket.assigns.current_user, socket.assigns.data_record)
-
-        case save_data_record(socket, params) do
-          {:ok, _data_record} ->
-            # Redirect to entity-specific data navigator after successful creation/update
-            entity_name = socket.assigns.entity.name
-            locale = socket.assigns[:current_locale] || "en"
-
-            socket =
-              socket
-              |> put_flash(:info, gettext("Data record saved successfully"))
-              |> push_navigate(
-                to:
-                  Routes.path("/admin/entities/#{entity_name}/data",
-                    locale: locale
-                  )
-              )
-
-            {:noreply, socket}
-
-          {:error, %Ecto.Changeset{} = changeset} ->
-            socket =
-              socket
-              |> assign(:changeset, changeset)
-              |> broadcast_data_form_state(params)
-
-            {:noreply, socket}
-        end
-
-      {:error, errors} ->
-        # Add field validation errors to changeset
-        changeset =
-          socket.assigns.data_record
-          |> EntityData.change(data_params)
-          |> add_form_errors(errors)
-
-        error_list =
-          Enum.map_join(errors, "; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
-
-        socket =
-          socket
-          |> assign(:changeset, changeset)
-          |> put_flash(:error, gettext("Field validation errors: %{errors}", errors: error_list))
-          |> broadcast_data_form_state(Map.put(data_params, "data", form_data))
-
-        {:noreply, socket}
-    end
-  end
-
-  def handle_event("reset", _params, socket) do
-    # Reload data record from database or reset to empty state
-    {data_record, changeset} =
-      if socket.assigns.data_record.id do
-        # Reload from database
-        reloaded_data = EntityData.get_data!(socket.assigns.data_record.id)
-        {reloaded_data, EntityData.change(reloaded_data)}
-      else
-        # Reset to empty new data record
-        empty_data = %EntityData{entity_id: socket.assigns.entity.id}
-
-        changeset =
-          empty_data
-          |> EntityData.change()
-          |> Ecto.Changeset.put_change(:status, "published")
-
-        {empty_data, changeset}
       end
-
-    socket =
-      socket
-      |> assign(:data_record, data_record)
-      |> assign(:changeset, changeset)
-      |> put_flash(:info, gettext("Changes reset to last saved state"))
-      |> broadcast_data_form_state(extract_changeset_params(changeset))
-
-    {:noreply, socket}
-  end
-
-  def handle_event("generate_slug", _params, socket) do
-    changeset = socket.assigns.changeset
-
-    # Get title from changeset (includes both changes and original data)
-    title = Ecto.Changeset.get_field(changeset, :title) || ""
-
-    # Don't generate if title is empty
-    if title == "" do
-      {:noreply, socket}
-    else
-      # Generate slug from title
-      slug = generate_slug_from_title(title)
-
-      # Get ALL current field values from the changeset
-      # This includes both changed values and original struct values
-      entity_id = Ecto.Changeset.get_field(changeset, :entity_id)
-      status = Ecto.Changeset.get_field(changeset, :status) || "draft"
-      data = Ecto.Changeset.get_field(changeset, :data) || %{}
-      created_by = Ecto.Changeset.get_field(changeset, :created_by)
-
-      # Build complete params map with ALL required fields
-      params = %{
-        "entity_id" => entity_id,
-        "title" => title,
-        "slug" => slug,
-        "status" => status,
-        "data" => data,
-        "created_by" => created_by
-      }
-
-      # Update changeset with generated slug while preserving all other fields
-      changeset =
-        socket.assigns.data_record
-        |> EntityData.change(params)
-        |> Map.put(:action, :validate)
-
-      socket =
-        socket
-        |> assign(:changeset, changeset)
-        |> broadcast_data_form_state(params)
-
-      {:noreply, socket}
     end
   end
 
@@ -359,20 +431,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
         {:noreply, socket}
 
       true ->
-        try do
-          params = Map.get(payload, :params) || Map.get(payload, "params") || %{}
+        params = Map.get(payload, :params) || Map.get(payload, "params") || %{}
 
-          socket =
-            socket
-            |> apply_remote_data_params(params)
+        socket =
+          socket
+          |> apply_remote_data_params(params)
 
-          {:noreply, socket}
-        rescue
-          e ->
-            require Logger
-            Logger.error("Failed to apply remote data form change: #{inspect(e)}")
-            {:noreply, socket}
-        end
+        {:noreply, socket}
     end
   end
 
@@ -428,10 +493,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
     end
   end
 
-  def handle_info({:entity_created, _entity_id}, socket) do
-    # Ignore entity creation events - they're handled by the data navigator page
-    {:noreply, socket}
-  end
+  def handle_info({:entity_created, _}, socket), do: {:noreply, socket}
 
   def handle_info({:entity_updated, entity_id}, socket) do
     if entity_id == socket.assigns.entity.id do
@@ -478,22 +540,31 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
     end
   end
 
-  @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:data_record] && socket.assigns.data_record.id do
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+    # Someone joined or left - check if our role changed
+    if socket.assigns.data_record && socket.assigns.data_record.id do
       data_id = socket.assigns.data_record.id
+      was_owner = socket.assigns[:lock_owner?]
 
-      # Untrack this editor
-      Presence.untrack("editor:data:#{data_id}:#{socket.id}")
+      # Re-evaluate our role
+      socket = assign_editing_role(socket, data_id)
 
-      # Only clear state if this was the last editor
-      # Check count after untracking to see if we were the last one
-      if Presence.count_tracked("editor:data:#{data_id}:") == 0 do
-        Presence.clear_data("state:data:#{data_id}")
+      # If we were promoted from spectator to owner, reload fresh data
+      if !was_owner && socket.assigns[:lock_owner?] do
+        data_record = EntityData.get_data!(data_id)
+
+        socket
+        |> assign(:data_record, data_record)
+        |> assign(:changeset, EntityData.change(data_record))
+        |> assign(:has_unsaved_changes, false)
+        |> then(&{:noreply, &1})
+      else
+        # Just a presence update (someone joined/left as spectator)
+        {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
-
-    :ok
   end
 
   # Helper Functions
@@ -503,22 +574,25 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
       if connected?(socket) &&
            socket.assigns[:form_record_key] &&
            socket.assigns[:entity] &&
-           socket.assigns.data_record.id do
+           socket.assigns.data_record.id &&
+           socket.assigns[:lock_owner?] do
         data_id = socket.assigns.data_record.id
-        editor_count = Presence.count_tracked("editor:data:#{data_id}:")
+        topic = PresenceHelpers.editing_topic(:data, data_id)
 
-        # Always store state so late-joining editors can load work-in-progress
-        Presence.store_data("state:data:#{data_id}", %{params: params})
+        payload = %{params: params}
 
-        # Only broadcast when multiple editors are present to avoid PubSub overhead
-        if editor_count > 1 do
-          Events.broadcast_data_form_change(
-            socket.assigns.entity.id,
-            socket.assigns.form_record_key,
-            %{params: params},
-            source: socket.assigns.live_source
-          )
-        end
+        # Update Presence metadata with form state (for spectators to sync)
+        Presence.update(self(), topic, socket.id, fn meta ->
+          Map.put(meta, :form_state, payload)
+        end)
+
+        # Also broadcast for real-time sync to spectators
+        Events.broadcast_data_form_change(
+          socket.assigns.entity.id,
+          socket.assigns.form_record_key,
+          payload,
+          source: socket.assigns.live_source
+        )
 
         socket
       else
@@ -634,4 +708,40 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
   end
 
   defp generate_slug_from_title(_), do: ""
+
+  defp populate_presence_info(socket, type, id) do
+    # Get all presences sorted by joined_at (FIFO order)
+    presences = PresenceHelpers.get_sorted_presences(type, id)
+
+    # Extract owner (first in list) and spectators (rest of list)
+    {lock_owner_user, lock_info, spectators} =
+      case presences do
+        [] ->
+          {nil, nil, []}
+
+        [{owner_socket_id, owner_meta} | spectator_list] ->
+          # Build owner info
+          lock_info = %{
+            socket_id: owner_socket_id,
+            user_id: owner_meta.user_id
+          }
+
+          # Map spectators to expected format
+          spectators =
+            Enum.map(spectator_list, fn {spectator_socket_id, meta} ->
+              %{
+                socket_id: spectator_socket_id,
+                user: meta.user,
+                user_id: meta.user_id
+              }
+            end)
+
+          {owner_meta.user, lock_info, spectators}
+      end
+
+    socket
+    |> assign(:lock_owner_user, lock_owner_user)
+    |> assign(:lock_info, lock_info)
+    |> assign(:spectators, spectators)
+  end
 end
