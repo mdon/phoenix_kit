@@ -101,6 +101,8 @@ defmodule PhoenixKit.Users.Auth do
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user = Repo.get_by(User, email: email)
+    # Return user if password is valid, regardless of is_active status
+    # The session controller will handle inactive status check separately
     if User.valid_password?(user, password), do: user
   end
 
