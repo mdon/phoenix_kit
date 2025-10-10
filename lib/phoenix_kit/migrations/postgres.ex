@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Multiple providers per user support
   - Magic link registration tokens with nullable user_id
 
-  ### V17 - Entities System (WordPress ACF-like) ⚡ LATEST
+  ### V17 - Entities System (WordPress ACF-like)
   - Phoenix_kit_entities for dynamic content type definitions
   - Phoenix_kit_entity_data for entity records
   - JSONB storage for flexible field schemas
@@ -114,19 +114,27 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Admin interfaces for entity and data management
   - Settings integration (entities_enabled, entities_max_per_user, etc.)
 
+  ### V18 - User Custom Fields ⚡ LATEST
+  - JSONB custom_fields column in phoenix_kit_users table
+  - Flexible key-value storage for user metadata
+  - API functions for custom field management
+  - Support for arbitrary user data without schema changes
+
   ## Migration Paths
 
   ### Fresh Installation (0 → Current)
-  Runs all migrations V01 through V17 in sequence.
+  Runs all migrations V01 through V18 in sequence.
 
   ### Incremental Updates
-  - V01 → V17: Runs V02 through V17 in sequence
-  - V16 → V17: Runs V17 only (adds entities system)
-  - V15 → V17: Runs V16, V17 (adds OAuth providers, then entities)
-  - V14 → V17: Runs V15, V16, V17 (adds email templates, OAuth, entities)
-  - V13 → V17: Runs V14, V15, V16, V17 (adds modules, templates, OAuth, entities)
+  - V01 → V18: Runs V02 through V18 in sequence
+  - V17 → V18: Runs V18 only (adds user custom fields)
+  - V16 → V18: Runs V17, V18 (adds entities, then custom fields)
+  - V15 → V18: Runs V16, V17, V18 (adds OAuth providers, entities, custom fields)
+  - V14 → V18: Runs V15, V16, V17, V18 (adds email templates, OAuth, entities, custom fields)
+  - V13 → V18: Runs V14, V15, V16, V17, V18 (adds modules, templates, OAuth, entities, custom fields)
 
   ### Rollback Support
+  - V18 → V17: Removes user custom fields
   - V17 → V16: Removes entities system
   - V16 → V15: Removes OAuth providers system
   - V15 → V14: Removes email templates system
@@ -167,7 +175,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 17
+  @current_version 18
   @default_prefix "public"
 
   @doc false

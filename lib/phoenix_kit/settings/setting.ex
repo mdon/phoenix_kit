@@ -213,6 +213,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :magic_link_login_enabled, :string
       field :magic_link_registration_enabled, :string
       field :new_user_default_role, :string
+      field :new_user_default_status, :string
       field :week_start_day, :string
       field :time_zone, :string
       field :date_format, :string
@@ -269,6 +270,7 @@ defmodule PhoenixKit.Settings.Setting do
         :magic_link_login_enabled,
         :magic_link_registration_enabled,
         :new_user_default_role,
+        :new_user_default_status,
         :week_start_day,
         :time_zone,
         :date_format,
@@ -286,6 +288,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_required([
         :project_title,
         :new_user_default_role,
+        :new_user_default_status,
         :week_start_day,
         :time_zone,
         :date_format,
@@ -302,6 +305,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_magic_link_enabled(:magic_link_login_enabled)
       |> validate_magic_link_enabled(:magic_link_registration_enabled)
       |> validate_new_user_default_role()
+      |> validate_new_user_default_status()
       |> validate_week_start_day()
       |> validate_timezone()
       |> validate_date_format()
@@ -366,6 +370,13 @@ defmodule PhoenixKit.Settings.Setting do
 
       validate_inclusion(changeset, :new_user_default_role, valid_roles,
         message: "must be a valid role (Owner is reserved for first user)"
+      )
+    end
+
+    # Validates new_user_default_status is a valid boolean string
+    defp validate_new_user_default_status(changeset) do
+      validate_inclusion(changeset, :new_user_default_status, ["true", "false"],
+        message: "must be either 'true' or 'false'"
       )
     end
 

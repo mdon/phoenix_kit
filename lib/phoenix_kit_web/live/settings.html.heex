@@ -548,6 +548,65 @@
               <% end %>
             </div>
 
+            <%!-- New User Default Status Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">New User Default Status</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  Active status for new user registrations
+                </span>
+              </label>
+              <select
+                name="settings[new_user_default_status]"
+                class="select select-bordered w-full focus:select-primary"
+              >
+                <%= for {label, value} <- @setting_options["new_user_default_status"] do %>
+                  <option value={value} selected={value == @settings["new_user_default_status"]}>
+                    {label}
+                  </option>
+                <% end %>
+              </select>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  <%= if @settings["new_user_default_status"] != @saved_settings["new_user_default_status"] do %>
+                    <span class="text-warning">
+                      Selected: {get_option_label(
+                        @settings["new_user_default_status"],
+                        @setting_options["new_user_default_status"]
+                      )}
+                    </span>
+                    <span class="text-base-content/40">
+                      | Saved: {get_option_label(
+                        @saved_settings["new_user_default_status"],
+                        @setting_options["new_user_default_status"]
+                      )}
+                    </span>
+                  <% else %>
+                    Saved: {get_option_label(
+                      @settings["new_user_default_status"],
+                      @setting_options["new_user_default_status"]
+                    )}
+                  <% end %>
+                </span>
+              </div>
+
+              <%!-- Security Warning for Inactive Status --%>
+              <%= if @settings["new_user_default_status"] == "false" do %>
+                <div class="alert alert-warning text-sm mt-2">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_warning class="stroke-current shrink-0 h-5 w-5" />
+                  <div>
+                    <div class="font-semibold">
+                      Security Notice: Inactive Default
+                    </div>
+                    <div class="text-xs">
+                      New users will be created as inactive and will not be able to log in until an admin activates their account.
+                      The first user (Owner) will always be active regardless of this setting.
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
             <%!-- Week Start Day Setting --%>
             <div class="form-control w-full">
               <label class="label">
