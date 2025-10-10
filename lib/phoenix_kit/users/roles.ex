@@ -744,11 +744,33 @@ defmodule PhoenixKit.Users.Roles do
 
       case assign_role_internal(user, role_name) do
         {:ok, _assignment} ->
-          # Ensure first user (Owner) is always active regardless of default status setting
-          if is_nil(existing_owner) && !user.is_active do
-            case repo.update(Ecto.Changeset.change(user, is_active: true)) do
-              {:ok, _updated_user} -> role_type
-              {:error, reason} -> repo.rollback(reason)
+          # Ensure first user (Owner) is always active and email confirmed
+          if is_nil(existing_owner) do
+            changes = %{}
+
+            # Always activate Owner
+            changes = if !user.is_active, do: Map.put(changes, :is_active, true), else: changes
+
+            # Auto-confirm Owner email (first user is system administrator)
+            changes =
+              if is_nil(user.confirmed_at) do
+                Map.put(
+                  changes,
+                  :confirmed_at,
+                  NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+                )
+              else
+                changes
+              end
+
+            # Apply changes if needed
+            if map_size(changes) > 0 do
+              case repo.update(Ecto.Changeset.change(user, changes)) do
+                {:ok, _updated_user} -> role_type
+                {:error, reason} -> repo.rollback(reason)
+              end
+            else
+              role_type
             end
           else
             role_type
