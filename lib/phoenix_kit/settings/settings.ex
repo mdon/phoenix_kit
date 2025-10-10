@@ -61,6 +61,7 @@ defmodule PhoenixKit.Settings do
   The context uses PhoenixKit's configured repository and respects table prefixes
   set during installation.
   """
+  require Logger
 
   import Ecto.Query, warn: false
   import Ecto.Changeset, only: [add_error: 3]
@@ -199,8 +200,6 @@ defmodule PhoenixKit.Settings do
       "default"
   """
   def get_setting_cached(key, default \\ nil) when is_binary(key) do
-    ensure_cache_started()
-
     case PhoenixKit.Cache.get(@cache_name, key) do
       nil ->
         # Cache miss - query database and cache result
@@ -213,7 +212,6 @@ defmodule PhoenixKit.Settings do
   rescue
     error ->
       # Cache system unavailable, fallback to regular database query
-      require Logger
       Logger.warning("Settings cache error: #{inspect(error)}, falling back to database")
       get_setting(key, default)
   end
@@ -234,13 +232,9 @@ defmodule PhoenixKit.Settings do
       %{"date_format" => "F j, Y", "time_format" => "h:i A"}
   """
   def get_settings_cached(keys, defaults \\ %{}) when is_list(keys) do
-    ensure_cache_started()
     PhoenixKit.Cache.get_multiple(@cache_name, keys, defaults)
   rescue
     error ->
-      # Cache system unavailable, fallback to individual database queries
-      require Logger
-
       Logger.warning(
         "Settings cache error: #{inspect(error)}, falling back to individual queries"
       )
@@ -324,8 +318,6 @@ defmodule PhoenixKit.Settings do
       %{"default" => true}
   """
   def get_json_setting_cached(key, default \\ nil) when is_binary(key) do
-    ensure_cache_started()
-
     case PhoenixKit.Cache.get(@cache_name, key) do
       nil ->
         # Cache miss - query database and cache result
@@ -338,7 +330,6 @@ defmodule PhoenixKit.Settings do
   rescue
     error ->
       # Cache system unavailable, fallback to regular database query
-      require Logger
       Logger.warning("Settings cache error: #{inspect(error)}, falling back to database")
       get_json_setting(key, default)
   end
@@ -912,31 +903,13 @@ defmodule PhoenixKit.Settings do
     end
   end
 
-  ## Private Cache Management Functions
+  @doc """
+  Warms the cache by loading all settings from database.
 
-  # Ensures the settings cache is started via the generic cache system
-  defp ensure_cache_started do
-    # First ensure the registry is started if using registry
-    case Registry.start_link(keys: :unique, name: PhoenixKit.Cache.Registry) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-      _ -> :ok
-    end
-
-    # Start the settings cache with warmer function
-    case PhoenixKit.Cache.start_link(name: @cache_name, warmer: &warm_cache_data/0) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-      _ -> :ok
-    end
-  rescue
-    # Cache system optional, continue without it
-    _error -> :ok
-  end
-
-  # Warms the cache by loading all settings from database
-  # This function is called by the generic cache system
-  defp warm_cache_data do
+  Called by PhoenixKit.Cache to pre-populate cache with all existing settings.
+  Prioritizes JSON values over string values for cache storage.
+  """
+  def warm_cache_data do
     settings = repo().all(Setting)
 
     settings
@@ -954,10 +927,11 @@ defmodule PhoenixKit.Settings do
     |> Map.new()
   rescue
     error ->
-      require Logger
       Logger.error("Failed to warm settings cache: #{inspect(error)}")
       %{}
   end
+
+  ## Private Cache Management Functions
 
   # Queries database for a single setting and caches the result
   defp query_and_cache_setting(key) do
@@ -973,7 +947,6 @@ defmodule PhoenixKit.Settings do
     end
   rescue
     error ->
-      require Logger
       Logger.error("Failed to query setting #{key}: #{inspect(error)}")
       nil
   end
@@ -997,7 +970,6 @@ defmodule PhoenixKit.Settings do
     end
   rescue
     error ->
-      require Logger
       Logger.error("Failed to query JSON setting #{key}: #{inspect(error)}")
       nil
   end
