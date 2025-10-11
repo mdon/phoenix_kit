@@ -8,8 +8,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntitiesSettings do
   on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
-  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Entities.EntityData
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Settings
 
   def mount(params, _session, socket) do
