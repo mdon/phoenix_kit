@@ -798,6 +798,130 @@ defmodule PhoenixKit.Settings do
     update_setting_with_module(key, string_value, module)
   end
 
+  ## Content Language Functions
+
+  @doc """
+  Gets the site content language.
+
+  This represents the primary language of website content (not UI language).
+  Falls back to "en" if not configured or Languages module is disabled.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_content_language()
+      "en"
+
+      iex> PhoenixKit.Settings.get_content_language()
+      "es"  # if configured as Spanish
+  """
+  def get_content_language do
+    # If Languages module is enabled, use the configured setting
+    if PhoenixKit.Module.Languages.enabled?() do
+      get_setting("site_content_language", "en")
+    else
+      # Languages module disabled - force "en"
+      "en"
+    end
+  end
+
+  @doc """
+  Sets the site content language.
+
+  Validates against enabled languages if Languages module is active.
+  Broadcasts change event for live updates to connected admin sessions.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.set_content_language("es")
+      {:ok, %Setting{}}
+
+      iex> PhoenixKit.Settings.set_content_language("invalid")
+      {:error, "Language not enabled"}
+  """
+  def set_content_language(language_code) when is_binary(language_code) do
+    # Validate if Languages module is enabled
+    if PhoenixKit.Module.Languages.enabled?() do
+      enabled_codes = PhoenixKit.Module.Languages.enabled_locale_codes()
+
+      if language_code in enabled_codes do
+        case update_setting("site_content_language", language_code) do
+          {:ok, setting} ->
+            # Broadcast change for live updates
+            PhoenixKit.Settings.Events.broadcast_content_language_changed(language_code)
+            {:ok, setting}
+
+          error ->
+            error
+        end
+      else
+        {:error, "Language '#{language_code}' is not enabled in Languages module"}
+      end
+    else
+      # Languages module disabled - only allow "en"
+      if language_code == "en" do
+        case update_setting("site_content_language", "en") do
+          {:ok, setting} ->
+            # Broadcast change for live updates
+            PhoenixKit.Settings.Events.broadcast_content_language_changed("en")
+            {:ok, setting}
+
+          error ->
+            error
+        end
+      else
+        {:error, "Enable Languages module to use non-English content languages"}
+      end
+    end
+  end
+
+  @doc """
+  Gets content language with full details.
+
+  Returns a map with code, name, and native name if Languages module is enabled.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_content_language_details()
+      %{
+        code: "en",
+        name: "English",
+        native: "English",
+        from_languages_module: false
+      }
+  """
+  def get_content_language_details do
+    code = get_content_language()
+
+    if PhoenixKit.Module.Languages.enabled?() do
+      case PhoenixKit.Module.Languages.get_language(code) do
+        %{"code" => lang_code, "name" => name} = lang ->
+          %{
+            code: lang_code,
+            name: name,
+            native: get_in(lang, ["native"]) || name,
+            from_languages_module: true
+          }
+
+        nil ->
+          # Fallback if language not found
+          %{
+            code: code,
+            name: String.capitalize(code),
+            native: String.capitalize(code),
+            from_languages_module: false
+          }
+      end
+    else
+      # Languages module disabled - return English
+      %{
+        code: "en",
+        name: "English",
+        native: "English",
+        from_languages_module: false
+      }
+    end
+  end
+
   ## Settings Form Functions
 
   @doc """
