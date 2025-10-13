@@ -1042,4 +1042,46 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
     </svg>
     """
   end
+
+  @doc """
+  Document/Pages icon component for pages module.
+  """
+  attr :class, :string, default: "w-5 h-5"
+
+  def icon_document(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+      />
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M9 13h6M9 17h6M13 3v6a1 1 0 001 1h6"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  Entities icon component for entities module.
+  """
+  attr :class, :string, default: "w-5 h-5"
+
+  def icon_entities(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+      />
+    </svg>
+    """
+  end
 end

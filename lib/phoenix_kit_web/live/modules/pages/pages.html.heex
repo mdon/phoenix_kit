@@ -1,0 +1,237 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title="{@project_title} Pages"
+  current_path={@url_path}
+  project_title={@project_title}
+  current_locale={@current_locale}
+>
+  <div class="container flex flex-col mx-auto px-4 py-6">
+    <%!-- Header Section --%>
+    <header class="w-full relative mb-6">
+      <%!-- Back Button --%>
+      <.link
+        navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
+        class="btn btn-outline btn-primary btn-sm absolute left-0 top-0"
+      >
+        <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left /> Back to Modules
+      </.link>
+
+      <%!-- Title Section --%>
+      <div class="text-center">
+        <h1 class="text-4xl font-bold text-base-content mb-3">Pages</h1>
+        <p class="text-lg text-base-content">File-based content management</p>
+      </div>
+    </header>
+
+    <%!-- Action Buttons --%>
+    <div class="flex gap-3 mb-6">
+      <button
+        type="button"
+        class="btn btn-primary"
+        phx-click="show_new_file_modal"
+      >
+        <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-4 h-4" /> New File
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        phx-click="show_new_folder_modal"
+      >
+        <PhoenixKitWeb.Components.Core.Icons.icon_plus class="w-4 h-4" /> New Folder
+      </button>
+    </div>
+
+    <%!-- File Tree --%>
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <%!-- Breadcrumb Navigation --%>
+        <div class="flex items-center gap-2 mb-4">
+          <h2 class="card-title">Files:</h2>
+          <div class="breadcrumbs text-sm">
+            <ul>
+              <li>
+                <a
+                  phx-click="navigate_to"
+                  phx-value-path="/"
+                  class="link link-hover"
+                >
+                  Root
+                </a>
+              </li>
+              <%= if @current_path != "/" do %>
+                <%= for {segment, index} <- @current_path |> String.split("/", trim: true) |> Enum.with_index() do %>
+                  <li>
+                    <a
+                      phx-click="navigate_to"
+                      phx-value-path={"/" <> Enum.join(Enum.take(String.split(@current_path, "/", trim: true), index + 1), "/")}
+                      class="link link-hover"
+                    >
+                      {segment}
+                    </a>
+                  </li>
+                <% end %>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+
+        <%= if @items == [] do %>
+          <div class="text-center text-base-content/60 py-8">
+            <p>No files or folders yet.</p>
+            <p class="text-sm">Create your first file or folder to get started.</p>
+          </div>
+        <% else %>
+          <div class="space-y-2">
+            <%= for item <- @items do %>
+              <div class="flex items-center gap-3 p-3 hover:bg-base-200 rounded-lg cursor-pointer">
+                <%= if item.type == :folder do %>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_default class="w-5 h-5 text-warning" />
+                  <span
+                    class="flex-1"
+                    phx-click="toggle_folder"
+                    phx-value-path={item.path}
+                  >
+                    {item.name}/
+                  </span>
+                <% else %>
+                  <PhoenixKitWeb.Components.Core.Icons.icon_default class="w-5 h-5 text-info" />
+                  <span
+                    class="flex-1"
+                    phx-click="open_file"
+                    phx-value-path={item.path}
+                  >
+                    {item.name}
+                  </span>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%!-- New File Modal --%>
+  <%= if @show_new_file_modal do %>
+    <div class="modal modal-open">
+      <div class="modal-box" phx-click-away="close_new_file_modal">
+        <h3 class="font-bold text-lg mb-4">Create New File</h3>
+
+        <form phx-change="update_new_item_name" phx-submit="create_file">
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">File Name</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              class="input input-bordered"
+              placeholder="example.md"
+              value={@new_item_name}
+              autofocus
+            />
+          </div>
+        </form>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn"
+            phx-click="close_new_file_modal"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            phx-click="create_file"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%!-- New Folder Modal --%>
+  <%= if @show_new_folder_modal do %>
+    <div class="modal modal-open">
+      <div class="modal-box" phx-click-away="close_new_folder_modal">
+        <h3 class="font-bold text-lg mb-4">Create New Folder</h3>
+
+        <form phx-change="update_new_item_name" phx-submit="create_folder">
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Folder Name</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              class="input input-bordered"
+              placeholder="blog"
+              value={@new_item_name}
+              autofocus
+            />
+          </div>
+        </form>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn"
+            phx-click="close_new_folder_modal"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            phx-click="create_folder"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%!-- File Editor Modal --%>
+  <%= if @editing_file do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-4xl" phx-click-away="close_editor">
+        <h3 class="font-bold text-lg mb-4">
+          Edit: {Path.basename(@editing_file)}
+        </h3>
+
+        <form phx-change="update_content">
+          <div class="form-control">
+            <textarea
+              name="value"
+              class="textarea textarea-bordered font-mono h-96 w-full"
+              phx-debounce="300"
+            >{@file_content}</textarea>
+          </div>
+        </form>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn"
+            phx-click="close_editor"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            phx-click="save_file"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

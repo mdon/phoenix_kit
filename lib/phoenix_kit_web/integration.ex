@@ -292,6 +292,9 @@ defmodule PhoenixKitWeb.Integration do
 
           live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
             as: :entities_settings
+
+          # Pages Management
+          live "/admin/pages", Live.Modules.Pages.Pages, :index
         end
       end
     end
@@ -393,6 +396,9 @@ defmodule PhoenixKitWeb.Integration do
 
           live "/admin/settings/entities", Live.Modules.Entities.EntitiesSettings, :index,
             as: :entities_settings
+
+          # Pages Management
+          live "/admin/pages", Live.Modules.Pages.Pages, :index
         end
       end
     end
