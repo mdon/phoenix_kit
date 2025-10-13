@@ -45,6 +45,11 @@ defmodule PhoenixKitWeb.Integration do
   - /admin/users/live_sessions, /admin/users/sessions
   - /admin/settings, /admin/modules
 
+  Public pages routes (if Pages module enabled):
+  - /pages/* (explicit prefix)
+  - /* (catch-all at root level)
+  - Example: /test2 renders test2.md
+
   ## DaisyUI Setup
 
   1. Install: `npm install daisyui@latest`
@@ -189,6 +194,9 @@ defmodule PhoenixKitWeb.Integration do
 
         # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
+
+        # Public pages routes (no authentication required)
+        get "/pages/*path", PagesController, :show
       end
 
       # Email export routes (require admin or owner role)
@@ -462,6 +470,15 @@ defmodule PhoenixKitWeb.Integration do
 
       # Generate non-localized routes
       unquote(generate_non_localized_routes(url_prefix))
+
+      # Generate root-level public pages (catch-all, placed last)
+      scope "/", PhoenixKitWeb do
+        pipe_through [:browser, :phoenix_kit_auto_setup]
+
+        # Catch-all route for public pages at root level
+        # This allows /test2 to render test2.md
+        get "/*path", PagesController, :show
+      end
     end
   end
 

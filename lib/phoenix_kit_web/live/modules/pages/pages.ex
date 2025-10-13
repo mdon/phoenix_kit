@@ -175,7 +175,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
     else
       file_path = Path.join(current_path, name)
 
-      # Check if file already exists
+      # Check if anything with this exact name already exists
       if FileOperations.exists?(file_path) do
         socket = put_flash(socket, :error, "A file or folder named '#{name}' already exists")
         {:noreply, socket}
@@ -211,7 +211,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
     else
       folder_path = Path.join(current_path, name)
 
-      # Check if folder already exists
+      # Check if anything with this exact name already exists
       if FileOperations.exists?(folder_path) do
         socket = put_flash(socket, :error, "A file or folder named '#{name}' already exists")
         {:noreply, socket}

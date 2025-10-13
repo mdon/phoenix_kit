@@ -111,7 +111,7 @@ defmodule PhoenixKit.Pages.FileOperations do
   end
 
   @doc """
-  Checks if a path exists.
+  Checks if a path exists (file or folder).
 
   ## Examples
 
@@ -121,6 +121,38 @@ defmodule PhoenixKit.Pages.FileOperations do
   def exists?(relative_path) do
     full_path = build_full_path(relative_path)
     File.exists?(full_path)
+  end
+
+  @doc """
+  Checks if a file (not folder) exists at the path.
+
+  ## Examples
+
+      iex> FileOperations.file_exists?("/hello.md")
+      true
+
+      iex> FileOperations.file_exists?("/blog")
+      false
+  """
+  def file_exists?(relative_path) do
+    full_path = build_full_path(relative_path)
+    File.exists?(full_path) and not File.dir?(full_path)
+  end
+
+  @doc """
+  Checks if a directory exists at the path.
+
+  ## Examples
+
+      iex> FileOperations.directory_exists?("/blog")
+      true
+
+      iex> FileOperations.directory_exists?("/hello.md")
+      false
+  """
+  def directory_exists?(relative_path) do
+    full_path = build_full_path(relative_path)
+    File.dir?(full_path)
   end
 
   @doc """

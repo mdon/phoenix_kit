@@ -1,0 +1,14 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  current_path={@conn.request_path}
+  project_title={PhoenixKit.Settings.get_setting("project_title", "PhoenixKit")}
+  current_locale={assigns[:current_locale] || "en"}
+>
+  <div class="container mx-auto px-4 py-8">
+    <article class="prose lg:prose-xl max-w-none">
+      <%= raw(@html_content) %>
+    </article>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>
