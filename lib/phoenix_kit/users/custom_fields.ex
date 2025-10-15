@@ -64,10 +64,26 @@ defmodule PhoenixKit.Users.CustomFields do
       ]
   """
   def list_field_definitions do
-    case Settings.get_setting(@setting_key) do
-      nil -> []
-      json_string when is_binary(json_string) -> parse_definitions(json_string)
-      definitions when is_list(definitions) -> definitions
+    case Settings.get_json_setting(@setting_key) do
+      nil ->
+        []
+
+      # Handle new wrapped format: %{"fields" => [definitions]}
+      %{"fields" => definitions} when is_list(definitions) ->
+        definitions
+
+      # Handle old format: direct list (for backward compatibility)
+      definitions when is_list(definitions) ->
+        definitions
+
+      # Fallback: try reading from string field for backward compatibility
+      _ ->
+        case Settings.get_setting(@setting_key) do
+          nil -> []
+          json_string when is_binary(json_string) -> parse_definitions(json_string)
+          definitions when is_list(definitions) -> definitions
+          _ -> []
+        end
     end
   end
 
@@ -112,8 +128,8 @@ defmodule PhoenixKit.Users.CustomFields do
       {:ok, _setting}
   """
   def save_field_definitions(definitions) when is_list(definitions) do
-    json_string = Jason.encode!(definitions)
-    Settings.update_setting(@setting_key, json_string)
+    # Wrap the list in a map to match the database schema expectation
+    Settings.update_json_setting(@setting_key, %{"fields" => definitions})
   end
 
   @doc """

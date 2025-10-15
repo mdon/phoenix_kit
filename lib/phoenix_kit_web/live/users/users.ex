@@ -342,8 +342,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
-  
-  
   def handle_event("reset_to_defaults", _params, socket) do
     default_columns = TableColumns.get_default_columns()
 
@@ -387,13 +385,16 @@ defmodule PhoenixKitWeb.Live.Users.Users do
           order_string
           |> String.split(",", trim: true)
           |> Enum.filter(&(&1 != ""))
+
         %{"order" => order} when is_list(order) ->
           order
+
         %{"column_order" => order_string} when is_binary(order_string) ->
           # Parse comma-separated string from hidden input
           order_string
           |> String.split(",", trim: true)
           |> Enum.filter(&(&1 != ""))
+
         _ ->
           []
       end
@@ -405,14 +406,16 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       temp_selected = socket.assigns.temp_selected_columns || []
 
       # Filter and reorder only valid columns from the new order (exclude actions)
-      valid_new_order = Enum.filter(new_order, fn column_id ->
-        column_id in temp_selected and column_id != "actions"
-      end)
+      valid_new_order =
+        Enum.filter(new_order, fn column_id ->
+          column_id in temp_selected and column_id != "actions"
+        end)
 
       # Add any missing columns from the end of the original list (except actions)
-      missing_columns = Enum.reject(temp_selected, fn column_id ->
-        column_id in valid_new_order or column_id == "actions"
-      end)
+      missing_columns =
+        Enum.reject(temp_selected, fn column_id ->
+          column_id in valid_new_order or column_id == "actions"
+        end)
 
       # Combine: reordered columns + missing columns + actions at end
       final_order = valid_new_order ++ missing_columns ++ ["actions"]

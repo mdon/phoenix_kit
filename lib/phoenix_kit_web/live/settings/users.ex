@@ -153,8 +153,15 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
         socket = put_flash(socket, :error, message)
         {:noreply, socket}
 
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to save custom field")
+      {:error, changeset} ->
+        # Handle Ecto changeset errors with detailed messages
+        error_msg =
+          case changeset do
+            %Ecto.Changeset{} -> format_error_message(changeset)
+            _ -> "Failed to save custom field"
+          end
+
+        socket = put_flash(socket, :error, error_msg)
         {:noreply, socket}
     end
   end
