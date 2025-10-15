@@ -1084,4 +1084,76 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
     </svg>
     """
   end
+
+  @doc """
+  Folder icon component.
+  """
+  attr :class, :string, default: "w-5 h-5"
+
+  def icon_folder(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  Duplicate icon component (two overlapping documents).
+  """
+  attr :class, :string, default: "w-4 h-4"
+
+  def icon_duplicate(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  Copy icon component (document with plus).
+  """
+  attr :class, :string, default: "w-4 h-4"
+
+  def icon_copy(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  Move icon component (arrows in/out).
+  """
+  attr :class, :string, default: "w-4 h-4"
+
+  def icon_move(assigns) do
+    ~H"""
+    <svg class={@class} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+      />
+    </svg>
+    """
+  end
 end

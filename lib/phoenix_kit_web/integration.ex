@@ -303,6 +303,8 @@ defmodule PhoenixKitWeb.Integration do
 
           # Pages Management
           live "/admin/pages", Live.Modules.Pages.Pages, :index
+          live "/admin/pages/view", Live.Modules.Pages.View, :view
+          live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
         end
       end
     end
@@ -407,6 +409,8 @@ defmodule PhoenixKitWeb.Integration do
 
           # Pages Management
           live "/admin/pages", Live.Modules.Pages.Pages, :index
+          live "/admin/pages/view", Live.Modules.Pages.View, :view
+          live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
         end
       end
     end

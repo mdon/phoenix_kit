@@ -7,9 +7,11 @@ defmodule PhoenixKitWeb.PagesController do
   @doc """
   Renders a public page from the pages directory.
 
+  Only renders pages with status "published". Draft and archived pages return 404.
+
   Path examples:
-    /pages/test2 -> renders test2.md
-    /pages/blog/hello -> renders blog/hello.md
+    /pages/test2 -> renders test2.md (if published)
+    /pages/blog/hello -> renders blog/hello.md (if published)
   """
   def show(conn, %{"path" => path}) do
     # Check if Pages module is enabled
@@ -22,15 +24,25 @@ defmodule PhoenixKitWeb.PagesController do
       # Add .md extension to path
       file_path = build_file_path(path)
 
-      case Renderer.render_file(file_path) do
-        {:ok, html_content} ->
-          # Get filename for title
-          filename = Path.basename(file_path, ".md")
+      case Renderer.render_file_with_metadata(file_path) do
+        {:ok, html_content, metadata} ->
+          # Check if page is published
+          if metadata.status == "published" do
+            # Use metadata title or fallback to filename
+            page_title = metadata.title || Path.basename(file_path, ".md")
 
-          conn
-          |> assign(:page_title, filename)
-          |> assign(:html_content, html_content)
-          |> render(:show)
+            conn
+            |> assign(:page_title, page_title)
+            |> assign(:html_content, html_content)
+            |> assign(:metadata, metadata)
+            |> render(:show)
+          else
+            # Draft or archived - return 404
+            conn
+            |> put_status(:not_found)
+            |> put_view(html: PhoenixKitWeb.ErrorHTML)
+            |> render(:"404")
+          end
 
         {:error, _reason} ->
           conn

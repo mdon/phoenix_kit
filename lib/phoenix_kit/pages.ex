@@ -50,7 +50,10 @@ defmodule PhoenixKit.Pages do
     path = Path.join([app_root, "priv", "static", "pages"])
 
     require Logger
-    Logger.debug("Pages root_path: parent_app=#{inspect(parent_app)}, app_root=#{inspect(app_root)}, path=#{inspect(path)}")
+
+    Logger.debug(
+      "Pages root_path: parent_app=#{inspect(parent_app)}, app_root=#{inspect(app_root)}, path=#{inspect(path)}"
+    )
 
     case File.mkdir_p(path) do
       :ok ->
