@@ -223,125 +223,117 @@
       <%!-- Entities List --%>
       <%= if @view_mode == "table" do %>
         <%!-- Table View --%>
-        <div class="card bg-base-100 shadow-xl">
-          <div class="card-body p-0">
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
-                <thead>
-                  <tr>
-                    <th>{gettext("Entity")}</th>
-                    <th>{gettext("Slug")}</th>
-                    <th>{gettext("Status")}</th>
-                    <th>{gettext("Fields")}</th>
-                    <th>{gettext("Created")}</th>
-                    <th>{gettext("Actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <%= for entity <- @entities do %>
-                    <tr class="hover">
-                      <td>
-                        <div class="flex items-center gap-3">
-                          <div class="text-2xl">
-                            <%= if entity.icon do %>
-                              <.icon name={entity.icon} class="w-6 h-6" />
-                            <% else %>
-                              <.icon name="hero-cube" class="w-6 h-6" />
-                            <% end %>
-                          </div>
-                          <div>
-                            <div class="font-bold">{entity.display_name}</div>
-                            <%= if entity.description do %>
-                              <div class="text-sm opacity-50 line-clamp-1">
-                                {entity.description}
-                              </div>
-                            <% end %>
-                          </div>
+        <.table_default variant="zebra" size="sm">
+          <.table_default_header>
+            <.table_default_row>
+              <.table_default_header_cell>{gettext("Entity")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Slug")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Fields")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Created")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Actions")}</.table_default_header_cell>
+            </.table_default_row>
+          </.table_default_header>
+          <.table_default_body>
+            <%= for entity <- @entities do %>
+              <.table_default_row>
+                <.table_default_cell>
+                  <div class="flex items-center gap-3">
+                    <div class="text-2xl">
+                      <%= if entity.icon do %>
+                        <.icon name={entity.icon} class="w-6 h-6" />
+                      <% else %>
+                        <.icon name="hero-cube" class="w-6 h-6" />
+                      <% end %>
+                    </div>
+                    <div>
+                      <div class="font-bold">{entity.display_name}</div>
+                      <%= if entity.description do %>
+                        <div class="text-sm opacity-50 line-clamp-1">
+                          {entity.description}
                         </div>
-                      </td>
-                      <td>
-                        <code class="text-xs bg-base-200 px-2 py-1 rounded">{entity.name}</code>
-                      </td>
-                      <td>
-                        <%= case entity.status do %>
-                          <% "published" -> %>
-                            <span class="badge badge-success badge-sm">
-                              {gettext("Published")}
-                            </span>
-                          <% "draft" -> %>
-                            <span class="badge badge-warning badge-sm">{gettext("Draft")}</span>
-                          <% "archived" -> %>
-                            <span class="badge badge-neutral badge-sm">
-                              {gettext("Archived")}
-                            </span>
-                          <% _ -> %>
-                            <span class="badge badge-ghost badge-sm">{gettext("Unknown")}</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <div class="flex items-center gap-1">
-                          <.icon name="hero-list-bullet" class="w-4 h-4" />
-                          <span>
-                            {length(entity.fields_definition || [])}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <span class="text-sm">
-                          {PhoenixKit.Utils.Date.format_date_with_user_format(entity.date_created)}
-                        </span>
-                      </td>
-                      <td>
-                        <div class="flex gap-2">
-                          <.link
-                            navigate={
-                              PhoenixKit.Utils.Routes.locale_aware_path(
-                                assigns,
-                                "/admin/entities/#{entity.name}/data"
-                              )
-                            }
-                            class="btn btn-ghost btn-xs"
-                            title={gettext("View Data")}
-                          >
-                            <.icon name="hero-eye" class="w-4 h-4" />
-                          </.link>
-                          <.link
-                            navigate={
-                              PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.id}/edit")
-                            }
-                            class="btn btn-ghost btn-xs"
-                            title={gettext("Edit")}
-                          >
-                            <.icon name="hero-pencil" class="w-4 h-4" />
-                          </.link>
-                          <%= if entity.status == "archived" do %>
-                            <button
-                              class="btn btn-ghost btn-xs text-success"
-                              phx-click="restore_entity"
-                              phx-value-id={entity.id}
-                              title={gettext("Restore")}
-                            >
-                              <.icon name="hero-arrow-path" class="w-4 h-4" />
-                            </button>
-                          <% else %>
-                            <button
-                              class="btn btn-ghost btn-xs text-error"
-                              phx-click="archive_entity"
-                              phx-value-id={entity.id}
-                              title={gettext("Archive")}
-                            >
-                              <.icon name="hero-trash" class="w-4 h-4" />
-                            </button>
-                          <% end %>
-                        </div>
-                      </td>
-                    </tr>
+                      <% end %>
+                    </div>
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <code class="text-xs bg-base-200 px-2 py-1 rounded">{entity.name}</code>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <%= case entity.status do %>
+                    <% "published" -> %>
+                      <span class="badge badge-success badge-sm">
+                        {gettext("Published")}
+                      </span>
+                    <% "draft" -> %>
+                      <span class="badge badge-warning badge-sm">{gettext("Draft")}</span>
+                    <% "archived" -> %>
+                      <span class="badge badge-neutral badge-sm">
+                        {gettext("Archived")}
+                      </span>
+                    <% _ -> %>
+                      <span class="badge badge-ghost badge-sm">{gettext("Unknown")}</span>
                   <% end %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <div class="flex items-center gap-1">
+                    <.icon name="hero-list-bullet" class="w-4 h-4" />
+                    <span>
+                      {length(entity.fields_definition || [])}
+                    </span>
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <span class="text-sm">
+                    {PhoenixKit.Utils.Date.format_date_with_user_format(entity.date_created)}
+                  </span>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <div class="flex gap-2">
+                    <.link
+                      navigate={
+                        PhoenixKit.Utils.Routes.locale_aware_path(
+                          assigns,
+                          "/admin/entities/#{entity.name}/data"
+                        )
+                      }
+                      class="btn btn-ghost btn-xs"
+                      title={gettext("View Data")}
+                    >
+                      <.icon name="hero-eye" class="w-4 h-4" />
+                    </.link>
+                    <.link
+                      navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.id}/edit")}
+                      class="btn btn-ghost btn-xs"
+                      title={gettext("Edit")}
+                    >
+                      <.icon name="hero-pencil" class="w-4 h-4" />
+                    </.link>
+                    <%= if entity.status == "archived" do %>
+                      <button
+                        class="btn btn-ghost btn-xs text-success"
+                        phx-click="restore_entity"
+                        phx-value-id={entity.id}
+                        title={gettext("Restore")}
+                      >
+                        <.icon name="hero-arrow-path" class="w-4 h-4" />
+                      </button>
+                    <% else %>
+                      <button
+                        class="btn btn-ghost btn-xs text-error"
+                        phx-click="archive_entity"
+                        phx-value-id={entity.id}
+                        title={gettext("Archive")}
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4" />
+                      </button>
+                    <% end %>
+                  </div>
+                </.table_default_cell>
+              </.table_default_row>
+            <% end %>
+          </.table_default_body>
+        </.table_default>
       <% else %>
         <%!-- Card View --%>
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
