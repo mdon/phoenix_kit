@@ -539,6 +539,24 @@
               id="column-order-input"
               value={Enum.join(@temp_selected_columns || @selected_columns, ",")}
             />
+
+            <%!-- Hidden input specifically for reordering --%>
+            <input
+              type="hidden"
+              name="reorder_order"
+              id="reorder-order-input"
+              value=""
+            />
+
+            <%!-- Hidden button for triggering LiveView reorders --%>
+            <button
+              id="reorder-trigger-button"
+              type="button"
+              phx-click="reorder_selected_columns"
+              style="display: none;"
+            >
+              Trigger Reorder
+            </button>
             <div class="flex flex-col lg:flex-row gap-6 mb-6">
               <%!-- Selected Columns Section (Left/Top) --%>
               <div class="flex-1">
@@ -855,17 +873,21 @@
       const container = placeholder.parentElement;
       if (!container) return;
 
-      // Remove placeholder
-      if (placeholder.parentElement) {
-        placeholder.remove();
-      }
-
-      // Insert dragged element at placeholder position
-      container.insertBefore(draggedElement, placeholder);
-
-      // Remove dragging classes
+      // Remove dragging classes first
       draggedElement.classList.remove('opacity-50', 'scale-95', 'shadow-lg');
       delete draggedElement.dataset.isDragging;
+
+      // Remove placeholder and insert dragged element at its position
+      if (placeholder && placeholder.parentElement) {
+        const parent = placeholder.parentElement;
+        parent.insertBefore(draggedElement, placeholder);
+        parent.removeChild(placeholder);
+      } else {
+        // Fallback: just add to the end of the container
+        if (container && draggedElement) {
+          container.appendChild(draggedElement);
+        }
+      }
 
       // Collect the new order
       const newOrder = collectSelectedColumnOrder();
@@ -876,9 +898,16 @@
         hiddenInput.value = newOrder.join(',');
       }
 
-      // Send new order to LiveView (temporary update)
-      if (window.liveSocket) {
-        window.liveSocket.push("reorder_selected_columns", { order: newOrder });
+      // Use hidden button approach for LiveView communication
+      const reorderButton = document.getElementById('reorder-trigger-button');
+      const reorderInput = document.getElementById('reorder-order-input');
+
+      if (reorderButton && reorderInput) {
+        // Update the reorder-specific hidden input with the new order (comma-separated)
+        reorderInput.value = newOrder.join(',');
+
+        // Programmatically click the button to trigger LiveView event
+        reorderButton.click();
       }
 
       // Reset variables

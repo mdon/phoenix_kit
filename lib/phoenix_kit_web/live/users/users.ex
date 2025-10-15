@@ -353,6 +353,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
+  
   # New handlers for two-section layout - using temporary state
   def handle_event("add_column", %{"column_id" => column_id}, socket) do
     temp_selected = socket.assigns.temp_selected_columns || []
@@ -376,22 +377,51 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
-  def handle_event("reorder_selected_columns", %{"order" => new_order}, socket) do
-    # Update the temporary state with the new order
-    temp_selected = socket.assigns.temp_selected_columns || []
+  def handle_event("reorder_selected_columns", params, socket) do
+    # Try to get the order from the reorder input (button approach)
+    new_order =
+      case params do
+        %{"reorder_order" => order_string} when is_binary(order_string) ->
+          # Parse comma-separated string from reorder input
+          order_string
+          |> String.split(",", trim: true)
+          |> Enum.filter(&(&1 != ""))
+        %{"order" => order} when is_list(order) ->
+          order
+        %{"column_order" => order_string} when is_binary(order_string) ->
+          # Parse comma-separated string from hidden input
+          order_string
+          |> String.split(",", trim: true)
+          |> Enum.filter(&(&1 != ""))
+        _ ->
+          []
+      end
 
-    # Filter and reorder only valid columns from the new order
-    valid_new_order = Enum.filter(new_order, &(&1 in temp_selected))
+    if new_order == [] do
+      {:noreply, socket}
+    else
+      # Update the temporary state with the new order
+      temp_selected = socket.assigns.temp_selected_columns || []
 
-    # Add any missing columns from the end of the original list
-    missing_columns = Enum.reject(temp_selected, &(&1 in valid_new_order))
-    final_order = valid_new_order ++ missing_columns
+      # Filter and reorder only valid columns from the new order (exclude actions)
+      valid_new_order = Enum.filter(new_order, fn column_id ->
+        column_id in temp_selected and column_id != "actions"
+      end)
 
-    socket =
-      socket
-      |> assign(:temp_selected_columns, final_order)
+      # Add any missing columns from the end of the original list (except actions)
+      missing_columns = Enum.reject(temp_selected, fn column_id ->
+        column_id in valid_new_order or column_id == "actions"
+      end)
 
-    {:noreply, socket}
+      # Combine: reordered columns + missing columns + actions at end
+      final_order = valid_new_order ++ missing_columns ++ ["actions"]
+
+      socket =
+        socket
+        |> assign(:temp_selected_columns, final_order)
+
+      {:noreply, socket}
+    end
   end
 
   # Helper function for template
