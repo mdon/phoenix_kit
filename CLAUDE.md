@@ -51,7 +51,9 @@ This is **PhoenixKit** - PhoenixKit is a starter kit for building modern web app
 ### PhoenixKit Installation System
 
 - `mix phoenix_kit.install` - Install PhoenixKit using igniter (for new projects)
+- `mix phoenix_kit.install --help` - Show detailed installation help and options
 - `mix phoenix_kit.update` - Update existing PhoenixKit installation to latest version
+- `mix phoenix_kit.update --help` - Show detailed update help and options
 - `mix phoenix_kit.update --status` - Check current version and available updates
 - `mix phoenix_kit.gen.migration` - Generate custom migration files
 
@@ -63,6 +65,32 @@ This is **PhoenixKit** - PhoenixKit is a starter kit for building modern web app
 - **PostgreSQL Validation** - Automatic database adapter detection with warnings for non-PostgreSQL setups
 - **Production Mailer Templates** - Auto-generated configuration examples for SMTP, SendGrid, Mailgun, Amazon SES
 - **Interactive Migration Runner** - Optional automatic migration execution with smart CI detection
+- **Built-in Help System** - Comprehensive help documentation accessible via `--help` flag
+
+**Installation Help:**
+```bash
+# Show detailed installation options and examples
+mix phoenix_kit.install --help
+
+# Quick examples from help:
+mix phoenix_kit.install                                    # Basic installation with auto-detection
+mix phoenix_kit.install --repo MyApp.Repo                 # Specify repository
+mix phoenix_kit.install --prefix auth                     # Custom schema prefix
+mix phoenix_kit.install --theme-enabled                   # Enable daisyUI 5 theme system
+```
+
+**Update Help:**
+```bash
+# Show detailed update options and examples
+mix phoenix_kit.update --help
+
+# Quick examples from help:
+mix phoenix_kit.update                                    # Update to latest version
+mix phoenix_kit.update --status                           # Check current version
+mix phoenix_kit.update --prefix auth                      # Update with custom prefix
+mix phoenix_kit.update -y                                 # Skip confirmation prompts (CI/CD)
+mix phoenix_kit.update --force -y                         # Force update with auto-migration
+```
 
 ### Testing & Code Quality
 
@@ -575,14 +603,36 @@ PhoenixKit.Mailer.deliver_email(email,
 - **Real-time Dashboards** - Live statistics and trending data
 
 **Production Deployment:**
-```elixir
-# Enable email system in production
-config :phoenix_kit,
-  email_enabled: true,
-  email_save_body: false,  # Recommended for storage efficiency
-  email_retention_days: 90,
-  email_sampling_rate: 100
+
+Email system configuration is managed via **Settings Database** (Web UI) or **Environment Variables**.
+
+**Recommended Approach** (Settings DB via Web UI):
+1. Navigate to: `{prefix}/admin/settings/emails`
+2. Enable email system (`email_enabled = true`)
+3. Configure AWS SES settings (region, configuration set)
+4. Set retention (`email_retention_days = 90`)
+5. Set sampling rate (`email_sampling_rate = 100`)
+6. Configure body saving (`email_save_body = false` recommended for efficiency)
+
+**Alternative Approach** (Environment Variables for credentials):
+```bash
+# In production environment, set:
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="eu-north-1"  # Optional, can be set via Settings DB
 ```
+
+**Alternative Approach** (CLI via mix task):
+```bash
+# Configure AWS SES settings
+mix phoenix_kit.configure_aws_ses --config-set "my-app-tracking"
+mix phoenix_kit.configure_aws_ses --region "eu-north-1"
+mix phoenix_kit.configure_aws_ses --status  # Check current config
+```
+
+**⚠️ DO NOT configure email settings in config/config.exs!**
+Email system settings are runtime-configurable via Settings Database.
+Use `config/config.exs` ONLY for basic PhoenixKit integration (repo, mailer module).
 
 ### Migration Architecture
 
@@ -697,54 +747,171 @@ end
 {UtilsDate.format_date(Date.utc_today(), "F j, Y")}  # "September 3, 2025"
 {UtilsDate.format_time(Time.utc_now(), "h:i A")}     # "3:30 PM"
 
-# Email Configuration (optional)
+# Email Configuration Strategy
+
+## Configuration Priority and Storage
+
+PhoenixKit uses **Settings Database** as the primary source for email configuration,
+with Environment Variables as fallback for sensitive credentials.
+
+### 📊 Configuration Sources (by priority, highest to lowest):
+
+1. **Settings Database** (runtime, managed via Web UI at `{prefix}/admin/settings/emails`)
+   - All non-sensitive configuration (queue URLs, regions, retention, etc.)
+   - Can be updated at runtime without restarting the application
+   - Persisted in `phoenix_kit_settings` table
+
+2. **Environment Variables** (production secrets, fallback)
+   - `AWS_ACCESS_KEY_ID` - AWS credentials for SES
+   - `AWS_SECRET_ACCESS_KEY` - AWS secret key
+   - `AWS_REGION` - AWS region (fallback if not in Settings)
+
+3. **config/config.exs** (compile-time, basic app config only)
+   - **NOT used for AWS settings or email configuration**
+   - Only for basic PhoenixKit integration (repo, mailer module)
+
+### 🔐 Security Best Practices:
+
+- ✅ Store AWS credentials in **Environment Variables** (production)
+- ✅ Use **Settings Database** for non-sensitive config (queue URLs, regions, etc.)
+- ❌ **NEVER hardcode credentials** in config files
+
+### 📝 Configuration Methods:
+
+#### Method 1: Web UI (Recommended)
+Navigate to: `{prefix}/admin/settings/emails`
+- Configure AWS SES, SNS, SQS settings
+- Enable/disable email system
+- Set retention, sampling rate, etc.
+- All changes take effect immediately (no restart required)
+
+#### Method 2: Mix Task (CLI)
+```bash
+mix phoenix_kit.configure_aws_ses --config-set "my-app-tracking"
+mix phoenix_kit.configure_aws_ses --region "us-east-1"
+mix phoenix_kit.configure_aws_ses --status  # Check current config
+```
+
+#### Method 3: AWS Setup Script (Full Automation)
+```bash
+cd /app/scripts
+./aws_ses_sqs_setup.sh  # Creates AWS infrastructure + saves to Settings DB
+```
+
+#### Method 4: Environment Variables (Secrets Only)
+```bash
+export AWS_ACCESS_KEY_ID="your-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="eu-north-1"  # Optional, can be set via Settings
+```
+
+### ⚙️ What Gets Stored Where:
+
+**Settings Database** (via Web UI or mix tasks):
+- `aws_region` (default: "eu-north-1")
+- `aws_sqs_queue_url`
+- `aws_sqs_dlq_url`
+- `aws_sqs_queue_arn`
+- `aws_sns_topic_arn`
+- `aws_ses_configuration_set` (default: "phoenixkit-tracking")
+- `email_enabled` (default: false)
+- `email_save_body` (default: false)
+- `email_ses_events` (default: false)
+- `email_retention_days` (default: 90)
+- `email_sampling_rate` (default: 100)
+- `sqs_polling_enabled` (default: false)
+- `sqs_polling_interval_ms` (default: 5000)
+- ...all other email settings
+
+**Environment Variables** (production secrets, fallback):
+- `AWS_ACCESS_KEY_ID` - Used only if not set in Settings DB
+- `AWS_SECRET_ACCESS_KEY` - Used only if not set in Settings DB
+- `AWS_REGION` - Optional fallback
+
+**config/config.exs** (basic app settings only):
+- `repo:` - database repository (required)
+- `mailer:` - override to use parent app's mailer (optional)
+- **DO NOT configure AWS credentials or email settings here**
+
+### 🔑 AWS Credentials Priority:
+
+PhoenixKit uses a **smart fallback system** for AWS credentials:
+
+```
+1. Settings Database (Primary)
+   └─> If aws_access_key_id exists and not empty: USE IT
+   └─> If aws_access_key_id is empty/nil: ↓ fallback
+
+2. Environment Variables (Fallback)
+   └─> Use AWS_ACCESS_KEY_ID from environment
+```
+
+**This means:**
+- ✅ If you configure credentials via Web UI → they take **priority**
+- ✅ If Settings DB is empty → system falls back to **ENV variables**
+- ✅ Both methods work → you choose what's convenient
+- ✅ Settings DB overrides ENV → gives you runtime control
+
+**Example scenarios:**
+
+```bash
+# Scenario 1: Web UI only (Settings DB has values)
+# Web UI: aws_access_key_id = "AKIA...from_ui"
+# ENV: AWS_ACCESS_KEY_ID = "AKIA...from_env"
+# Result: Uses "AKIA...from_ui" ✅ (Settings DB priority)
+
+# Scenario 2: ENV only (Settings DB empty)
+# Settings DB: aws_access_key_id = ""
+# ENV: AWS_ACCESS_KEY_ID = "AKIA...from_env"
+# Result: Uses "AKIA...from_env" ✅ (fallback works)
+
+# Scenario 3: Both empty
+# Settings DB: aws_access_key_id = ""
+# ENV: AWS_ACCESS_KEY_ID not set
+# Result: No credentials ❌ (system reports error)
+```
+
+## Email Configuration (Example - NOT for AWS settings)
+
+**IMPORTANT**: The example below is for understanding the email system architecture.
+**AWS credentials and email configuration are managed via Settings Database and Environment Variables.**
+**DO NOT put AWS settings in config/config.exs - use Web UI or mix tasks instead.**
+
+```elixir
+# config/config.exs - ONLY basic app configuration
 config :phoenix_kit,
-  # Enable email system
-  email_enabled: true,
-  email_save_body: false,  # Save preview only to reduce storage
-  email_retention_days: 90,
-  email_sampling_rate: 100,
+  repo: MyApp.Repo,
+  mailer: MyApp.Mailer  # Optional: delegate to parent app's mailer
 
-  # AWS SES integration for event management
-  email_ses_events: true,
-  aws_ses_configuration_set: "your-app-system"
+# Configure your app's mailer for development
+config :my_app, MyApp.Mailer,
+  adapter: Swoosh.Adapters.AmazonSES,
+  region: "eu-north-1"
+  # AWS credentials are provided by PhoenixKit from Settings Database
+  # Configure credentials via Web UI at: {prefix}/admin/settings/emails
+```
 
-# Email system provides:
-# - Comprehensive email logging and analytics
-# - Real-time delivery, bounce, and engagement management
-# - Anti-spam and rate limiting features
-# - Admin interfaces at {prefix}/admin/emails/*
-# - Automatic integration with PhoenixKit.Mailer
+## Email System Features
 
-# OAuth Authentication Configuration (Optional, V16+)
+The PhoenixKit email system provides:
+- Comprehensive email logging and analytics
+- Real-time delivery, bounce, and engagement management
+- Anti-spam and rate limiting features
+- Admin interfaces at `{prefix}/admin/emails/*`
+- Automatic integration with PhoenixKit.Mailer
+- AWS SES event tracking via SNS/SQS pipeline
+
+# OAuth Authentication Configuration (V16+)
 #
-# OAuth is an OPTIONAL feature with graceful degradation. To enable it, follow these steps:
+# OAuth authentication is built-in to PhoenixKit with all required dependencies included.
+# To enable OAuth functionality, follow these configuration steps:
 #
-# IMPORTANT: PhoenixKit marks OAuth dependencies as `optional: true`, which means they are
-# NOT installed transitively. Your parent application MUST explicitly declare these dependencies
-# in its mix.exs for OAuth to work. Without explicit dependencies, OAuth buttons will be hidden
-# and graceful fallback messages will be shown if users try to access OAuth routes.
-#
-# Step 1: Add OAuth dependencies to your app's mix.exs
-# You MUST explicitly add these dependencies - they will NOT be installed via mix.lock transitively:
-#
-# defp deps do
-#   [
-#     {:phoenix_kit, "~> 1.2.15"},
-#     # OAuth dependencies (REQUIRED if using OAuth - not installed transitively!)
-#     {:ueberauth, "~> 0.10"},
-#     {:ueberauth_google, "~> 0.12"},  # For Google Sign-In
-#     {:ueberauth_apple, "~> 0.1"}      # For Apple Sign-In
-#   ]
-# end
-#
-# Then run: mix deps.get
-#
-# Step 2: Configure providers in your app's config/config.exs
+# Step 1: Configure providers in your app's config/config.exs
 config :ueberauth, Ueberauth,
   providers: [
     google: {Ueberauth.Strategy.Google, []},
-    apple: {Ueberauth.Strategy.Apple, []}
+    apple: {Ueberauth.Strategy.Apple, []},
+    github: {Ueberauth.Strategy.Github, []}
   ]
 
 config :ueberauth, Ueberauth.Strategy.Google.OAuth,
@@ -757,7 +924,11 @@ config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
   key_id: System.get_env("APPLE_KEY_ID"),
   private_key: System.get_env("APPLE_PRIVATE_KEY")
 
-# Step 3: Set environment variables
+config :ueberauth, Ueberauth.Strategy.Github.OAuth,
+  client_id: System.get_env("GITHUB_CLIENT_ID"),
+  client_secret: System.get_env("GITHUB_CLIENT_SECRET")
+
+# Step 2: Set environment variables
 # Make sure to set the required environment variables for your chosen providers.
 # For development, you can use .env file or export them:
 #
@@ -767,16 +938,18 @@ config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
 # export APPLE_TEAM_ID="your-apple-team-id"
 # export APPLE_KEY_ID="your-apple-key-id"
 # export APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+# export GITHUB_CLIENT_ID="your-github-client-id"
+# export GITHUB_CLIENT_SECRET="your-github-client-secret"
 #
-# Step 4: Enable OAuth in PhoenixKit admin settings
+# Step 3: Enable OAuth in PhoenixKit admin settings
 # Navigate to {prefix}/admin/settings and check "Enable OAuth authentication"
 # This setting is stored in the database and can be toggled at runtime.
 #
-# Step 5: Run migrations (if not already done)
+# Step 4: Run migrations (if not already done)
 # mix ecto.migrate  # V16 migration includes oauth_providers table
 #
 # OAuth features:
-# - Graceful degradation: Works without dependencies, shows user-friendly messages
+# - All OAuth dependencies included automatically with PhoenixKit
 # - Runtime control via admin settings (oauth_enabled)
 # - Google, Apple, and GitHub Sign-In support
 # - Automatic account linking by email
@@ -784,7 +957,7 @@ config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
 # - Access at {prefix}/users/auth/:provider
 # - Token storage for future API calls
 # - Referral code support via query params: {prefix}/users/auth/google?referral_code=ABC123
-# - OAuth buttons automatically hide when disabled or dependencies not installed
+# - OAuth buttons automatically hide when disabled in settings
 
 # Magic Link Registration Configuration (V16+)
 config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
@@ -796,6 +969,267 @@ config :phoenix_kit, PhoenixKit.Users.MagicLinkRegistration,
 # - Referral code support
 # - Registration completion at {prefix}/users/register/complete/:token
 ```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Email System Issues
+
+**Problem 1: Email не отправляется с ошибкой `expected a map, got: []`**
+
+**Symptoms:**
+```elixir
+** (FunctionClauseError) no function clause matching in Map.merge/2
+  expected a map, got: []
+```
+
+**Root Cause:**
+Функция `build_message_tags` в `interceptor.ex` возвращала пустой список `[]` вместо map `%{}`, когда `message_tags` передавался как список.
+
+**Solution:**
+✅ **ИСПРАВЛЕНО в версии 1.3.3+**
+
+Type guard добавлен в [`lib/phoenix_kit/emails/interceptor.ex:529-534`](lib/phoenix_kit/emails/interceptor.ex#L529-L534):
+
+```elixir
+defp build_message_tags(%Email{} = email, opts) do
+  # Type guard ensures message_tags is always a map
+  base_tags =
+    case Keyword.get(opts, :message_tags, %{}) do
+      tags when is_map(tags) -> tags
+      _ -> %{}  # Convert any non-map to empty map
+    end
+  # ...
+end
+```
+
+**Verification:**
+```bash
+# Run tests to verify fix
+mix test test/phoenix_kit/emails/interceptor_test.exs
+
+# Expected: 13 tests, 0 failures
+```
+
+---
+
+**Problem 2: Logger warning при компиляции LiveView**
+
+**Symptoms:**
+```
+warning: Logger.error/2 is undefined or private
+```
+
+**Root Cause:**
+`require Logger` находился внутри функции вместо начала модуля.
+
+**Solution:**
+✅ **ИСПРАВЛЕНО**
+
+Переместить `require Logger` в начало модуля:
+
+```elixir
+defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
+  use PhoenixKitWeb, :live_view
+
+  require Logger  # ← Moved here
+
+  alias PhoenixKit.Emails
+  # ...
+end
+```
+
+---
+
+**Problem 3: No repository configured for PhoenixKit**
+
+**Symptoms:**
+```elixir
+** (RuntimeError) No repository configured for PhoenixKit.
+Please configure a repository in your application:
+    config :phoenix_kit, repo: MyApp.Repo
+```
+
+**Root Cause:**
+PhoenixKit требует настроенный repository для работы с базой данных.
+
+**Solution:**
+
+1. **Для production/development** - настроить repository в `config/config.exs`:
+```elixir
+config :phoenix_kit,
+  repo: MyApp.Repo
+```
+
+2. **Для тестов** - большинство функций PhoenixKit требуют БД. Используйте только публичный API, который не требует repository:
+   - `PhoenixKit.Emails.Interceptor.detect_provider/2`
+   - `PhoenixKit.Emails.Interceptor.build_ses_headers/2` (с настоящим Log struct)
+
+**Example test setup:**
+```elixir
+# test/support/data_case.ex
+defmodule PhoenixKit.DataCase do
+  use ExUnit.CaseTemplate
+
+  setup tags do
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(PhoenixKit.Repo)
+    unless tags[:async] do
+      Ecto.Adapters.SQL.Sandbox.mode(PhoenixKit.Repo, {:shared, self()})
+    end
+    :ok
+  end
+end
+```
+
+---
+
+**Problem 4: AWS SES credentials не работают**
+
+**Symptoms:**
+- Email не отправляются
+- Нет ошибок в логах
+- AWS credentials установлены в ENV, но не используются
+
+**Root Cause:**
+PhoenixKit использует Settings Database в качестве primary source для AWS credentials.
+
+**Solution:**
+
+Проверить приоритет конфигурации:
+
+1. **Settings Database** (приоритет) → проверить через Web UI:
+```
+Navigate to: {prefix}/admin/settings/emails
+Check: aws_access_key_id field
+```
+
+2. **Environment Variables** (fallback) → проверить:
+```bash
+echo $AWS_ACCESS_KEY_ID
+echo $AWS_SECRET_ACCESS_KEY
+echo $AWS_REGION
+```
+
+3. **Очистить Settings DB** если хотите использовать только ENV:
+```elixir
+# В iex
+PhoenixKit.Settings.delete_setting("aws_access_key_id")
+PhoenixKit.Settings.delete_setting("aws_secret_access_key")
+```
+
+**Verification:**
+```bash
+# Check current configuration
+mix phoenix_kit.configure_aws_ses --status
+```
+
+---
+
+### Debugging Tips
+
+**Enable detailed logging for email system:**
+
+```elixir
+# config/dev.exs
+config :logger, level: :debug
+
+# In iex
+Logger.configure(level: :debug)
+```
+
+**Check email log for errors:**
+
+```elixir
+# Get last 10 email logs
+logs = PhoenixKit.Emails.list_logs(limit: 10)
+
+# Check for failed emails
+failed = PhoenixKit.Emails.list_logs(status: "failed", limit: 10)
+
+# Inspect specific email
+log = PhoenixKit.Emails.get_log!(123)
+IO.inspect(log.error_message)
+```
+
+**Monitor AWS SQS queue:**
+
+```bash
+# Check SQS queue size
+aws sqs get-queue-attributes \
+  --queue-url "your-queue-url" \
+  --attribute-names ApproximateNumberOfMessages
+```
+
+---
+
+### Performance Issues
+
+**Problem: Slow email sending**
+
+**Symptoms:**
+- Emails take long time to send
+- High database load
+
+**Solutions:**
+
+1. **Disable full body saving:**
+```elixir
+PhoenixKit.Settings.update_setting("email_save_body", "false")
+```
+
+2. **Reduce sampling rate:**
+```elixir
+PhoenixKit.Settings.update_setting("email_sampling_rate", "10")  # Only log 10%
+```
+
+3. **Add database indexes:**
+```sql
+CREATE INDEX idx_email_logs_sent_at ON phoenix_kit_email_logs(sent_at);
+CREATE INDEX idx_email_logs_status ON phoenix_kit_email_logs(status);
+```
+
+---
+
+### Testing Strategies
+
+**Unit tests without database:**
+- Only test pure functions (`detect_provider/2`, etc.)
+- Mock database calls with test doubles
+
+**Integration tests with database:**
+- Use `PhoenixKit.DataCase`
+- Setup test repository
+- Use sandbox mode
+
+**Example:**
+```elixir
+defmodule PhoenixKit.Emails.InterceptorTest do
+  use ExUnit.Case, async: true
+
+  # Only test functions that don't require DB
+  describe "detect_provider/2" do
+    test "detects AWS SES from headers" do
+      email = Email.new() |> Email.header("X-SES-CONFIGURATION-SET", "test")
+      assert Interceptor.detect_provider(email, []) == "aws_ses"
+    end
+  end
+end
+```
+
+---
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. **Check logs**: `tail -f log/dev.log`
+2. **Enable debug mode**: `Logger.configure(level: :debug)`
+3. **Run tests**: `mix test test/phoenix_kit/emails/`
+4. **Check GitHub issues**: https://github.com/phoenixkit/phoenix_kit/issues
+5. **Review CLAUDE.md**: This file contains architecture details
+
+---
 
 ## Key File Structure
 

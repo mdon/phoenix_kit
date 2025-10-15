@@ -34,6 +34,8 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
 
   use PhoenixKitWeb, :live_view
 
+  require Logger
+
   alias PhoenixKit.Emails
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -200,6 +202,11 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
   def handle_info({:send_test_email, recipient}, socket) do
     case PhoenixKit.Mailer.send_test_tracking_email(recipient) do
       {:ok, _email} ->
+        Logger.info("Test email sent successfully", %{
+          recipient: recipient,
+          module: __MODULE__
+        })
+
         {:noreply,
          socket
          |> assign(:test_email_sending, false)
@@ -212,6 +219,12 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
          |> load_stats()}
 
       {:error, reason} ->
+        Logger.error("Failed to send test email", %{
+          recipient: recipient,
+          reason: inspect(reason),
+          module: __MODULE__
+        })
+
         {:noreply,
          socket
          |> assign(:test_email_sending, false)
@@ -219,6 +232,14 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
     end
   rescue
     error ->
+      Logger.error("Exception while sending test email", %{
+        recipient: recipient,
+        error_message: Exception.message(error),
+        error_type: error.__struct__,
+        stacktrace: Exception.format_stacktrace(__STACKTRACE__),
+        module: __MODULE__
+      })
+
       {:noreply,
        socket
        |> assign(:test_email_sending, false)

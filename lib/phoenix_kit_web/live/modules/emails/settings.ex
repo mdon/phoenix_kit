@@ -34,9 +34,12 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
 
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.AWS.InfrastructureSetup
   alias PhoenixKit.Emails
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+
+  @dialyzer {:nowarn_function, handle_event: 3}
 
   def mount(_params, session, socket) do
     # Get current path for navigation
@@ -81,6 +84,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
       |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
       |> assign(:aws_settings, aws_settings)
       |> assign(:saving, false)
+      |> assign(:setting_up_aws, false)
 
     {:ok, socket}
   end
@@ -368,13 +372,151 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
+  def handle_event("setup_aws_infrastructure", _params, socket) do
+    # Start AWS infrastructure setup process
+    socket = assign(socket, :setting_up_aws, true)
+
+    # Get project name from settings
+    project_name =
+      Settings.get_setting("project_title", "myapp")
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9-]/, "-")
+      |> String.trim("-")
+
+    # Get AWS credentials from current settings
+    aws_config = socket.assigns.aws_settings
+    region = aws_config.region || "eu-north-1"
+
+    # Check if credentials are configured
+    access_key_id =
+      if aws_config.access_key_id != "", do: aws_config.access_key_id, else: nil
+
+    secret_access_key =
+      if aws_config.secret_access_key != "", do: aws_config.secret_access_key, else: nil
+
+    if access_key_id && secret_access_key do
+      # Run AWS infrastructure setup
+      case InfrastructureSetup.run(
+             project_name: project_name,
+             region: region,
+             access_key_id: access_key_id,
+             secret_access_key: secret_access_key
+           ) do
+        {:ok, config} ->
+          # Update settings with created infrastructure details
+          case Settings.update_settings_batch(config) do
+            {:ok, _results} ->
+              # Reload AWS settings
+              new_aws_settings = %{
+                access_key_id: access_key_id,
+                secret_access_key: secret_access_key,
+                region: config["aws_region"],
+                sqs_queue_url: config["aws_sqs_queue_url"],
+                sqs_dlq_url: config["aws_sqs_dlq_url"],
+                sqs_queue_arn: config["aws_sqs_queue_arn"],
+                sns_topic_arn: config["aws_sns_topic_arn"],
+                ses_configuration_set: config["aws_ses_configuration_set"],
+                sqs_polling_interval_ms: config["sqs_polling_interval_ms"]
+              }
+
+              socket =
+                socket
+                |> assign(:aws_settings, new_aws_settings)
+                |> assign(:setting_up_aws, false)
+                |> put_flash(:info, """
+                ✅ AWS Email Infrastructure Created Successfully!
+
+                📦 Created Resources:
+                • Project: #{project_name}
+                • Region: #{config["aws_region"]}
+                • SNS Topic: #{config["aws_sns_topic_arn"]}
+                • SQS Queue: #{config["aws_sqs_queue_url"]}
+                • Dead Letter Queue: #{config["aws_sqs_dlq_url"]}
+                • SES Configuration Set: #{config["aws_ses_configuration_set"]}
+
+                🎉 All settings have been automatically filled below.
+                Click "Save AWS Settings" to persist the configuration.
+
+                ⚡ Next steps:
+                1. Verify your email/domain in AWS SES Console
+                2. Enable SQS Polling below
+                3. Start sending emails!
+                """)
+
+              {:noreply, socket}
+
+            {:error, _failed_operation, _failed_value, _changes} ->
+              socket =
+                socket
+                |> assign(:setting_up_aws, false)
+                |> put_flash(:error, """
+                ⚠️ Infrastructure created but failed to save settings.
+
+                AWS resources were created successfully, but there was an error saving configuration to database.
+                Please save AWS settings manually.
+                """)
+
+              {:noreply, socket}
+          end
+
+        {:error, step, reason} ->
+          socket =
+            socket
+            |> assign(:setting_up_aws, false)
+            |> put_flash(:error, """
+            ❌ AWS Setup Failed
+
+            Failed at step: #{step}
+            Reason: #{reason}
+
+            Please check:
+            • AWS credentials are valid
+            • IAM permissions (SQS, SNS, SES, STS)
+            • AWS region is correct
+            • No resource limits exceeded
+
+            You can also use the manual bash script:
+            ./scripts/setup_aws_email_infrastructure.sh
+            """)
+
+          {:noreply, socket}
+      end
+    else
+      socket =
+        socket
+        |> assign(:setting_up_aws, false)
+        |> put_flash(:error, """
+        ❌ AWS Credentials Required
+
+        Please configure AWS Access Key ID and Secret Access Key before running setup.
+
+        You can get these credentials from AWS IAM Console:
+        https://console.aws.amazon.com/iam/home#/users
+        """)
+
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    update_results = update_all_aws_settings(aws_params)
+    # Prepare all settings for batch update
+    settings_to_update = %{
+      "aws_access_key_id" => aws_params["access_key_id"] || "",
+      "aws_secret_access_key" => aws_params["secret_access_key"] || "",
+      "aws_region" => aws_params["region"] || "eu-north-1",
+      "aws_sqs_queue_url" => aws_params["sqs_queue_url"] || "",
+      "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"] || "",
+      "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"] || "",
+      "aws_sns_topic_arn" => aws_params["sns_topic_arn"] || "",
+      "aws_ses_configuration_set" => aws_params["ses_configuration_set"] || "phoenixkit-tracking",
+      "sqs_polling_interval_ms" => aws_params["sqs_polling_interval_ms"] || "5000"
+    }
 
-    case Enum.all?(update_results, &match?({:ok, _}, &1)) do
-      true ->
+    # Update all settings in a single transaction
+    case Settings.update_settings_batch(settings_to_update) do
+      {:ok, _results} ->
         new_aws_settings = build_aws_settings_map(aws_params)
 
         socket =
@@ -385,7 +527,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
 
         {:noreply, socket}
 
-      false ->
+      {:error, _failed_operation, _failed_value, _changes} ->
         socket =
           socket
           |> assign(:saving, false)
@@ -398,27 +540,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
   defp get_current_path(_socket, _session) do
     # For Email settings page
     Routes.path("/admin/settings/emails")
-  end
-
-  # Update all AWS settings in database
-  defp update_all_aws_settings(aws_params) do
-    [
-      Settings.update_setting("aws_access_key_id", aws_params["access_key_id"] || ""),
-      Settings.update_setting("aws_secret_access_key", aws_params["secret_access_key"] || ""),
-      Settings.update_setting("aws_region", aws_params["region"] || "eu-north-1"),
-      Settings.update_setting("aws_sqs_queue_url", aws_params["sqs_queue_url"] || ""),
-      Settings.update_setting("aws_sqs_dlq_url", aws_params["sqs_dlq_url"] || ""),
-      Settings.update_setting("aws_sqs_queue_arn", aws_params["sqs_queue_arn"] || ""),
-      Settings.update_setting("aws_sns_topic_arn", aws_params["sns_topic_arn"] || ""),
-      Settings.update_setting(
-        "aws_ses_configuration_set",
-        aws_params["ses_configuration_set"] || "phoenixkit-tracking"
-      ),
-      Settings.update_setting(
-        "sqs_polling_interval_ms",
-        aws_params["sqs_polling_interval_ms"] || "5000"
-      )
-    ]
   end
 
   # Build AWS settings map from params
