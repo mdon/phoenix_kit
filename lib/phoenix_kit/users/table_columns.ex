@@ -43,11 +43,16 @@ defmodule PhoenixKit.Users.TableColumns do
   if no user preference is saved in settings.
   """
   def get_default_columns do
-    ["email", "role", "status", "actions"]
-  end
+    # Return all standard (non-custom) fields by default
+    available = get_available_columns()
+    standard_fields = Map.keys(available.standard)
 
-  def get_minimal_columns do
-    ["actions"]
+    # Ensure actions is included at the end
+    fields_with_actions = Enum.uniq(standard_fields ++ ["actions"])
+
+    # Ensure actions is at the end
+    other_fields = Enum.reject(fields_with_actions, &(&1 == "actions"))
+    other_fields ++ ["actions"]
   end
 
   @doc """

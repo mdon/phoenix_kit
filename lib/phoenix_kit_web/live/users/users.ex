@@ -342,18 +342,19 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
+  
+  
   def handle_event("reset_to_defaults", _params, socket) do
-    minimal_columns = TableColumns.get_minimal_columns()
+    default_columns = TableColumns.get_default_columns()
 
-    # Update temporary state with minimal columns, don't save yet
+    # Update temporary state with default columns (all standard fields), don't save yet
     socket =
       socket
-      |> assign(:temp_selected_columns, minimal_columns)
+      |> assign(:temp_selected_columns, default_columns)
 
     {:noreply, socket}
   end
 
-  
   # New handlers for two-section layout - using temporary state
   def handle_event("add_column", %{"column_id" => column_id}, socket) do
     temp_selected = socket.assigns.temp_selected_columns || []
