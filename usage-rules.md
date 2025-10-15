@@ -122,18 +122,17 @@ PhoenixKit provides three authentication levels via `on_mount` hooks:
 - Always reference `phoenix_kit_users` when creating foreign keys to users
 - Use `references(:phoenix_kit_users, on_delete: :delete_all)` in migrations
 
-### OAuth Authentication (Optional, V16+)
+### OAuth Authentication (V16+)
 - OAuth providers support (Google, Apple, GitHub) using Ueberauth
-- Graceful degradation when OAuth dependencies not installed
+- All OAuth dependencies included automatically with PhoenixKit
 - Runtime control via admin settings (`oauth_enabled`)
 - Automatic account linking by email address
 - OAuth provider management per user in database
 - Access routes: `/phoenix_kit/users/auth/:provider`
 - Token storage for future API calls
 - Referral code support via query params: `/phoenix_kit/users/auth/google?referral_code=ABC123`
-- OAuth buttons automatically hide when disabled or dependencies missing
+- OAuth buttons automatically hide when disabled in settings
 - Database table: `phoenix_kit_user_oauth_providers`
-- **Important**: OAuth dependencies (`ueberauth`, `ueberauth_google`, `ueberauth_apple`) are optional and must be explicitly added to parent app's `mix.exs`
 
 ### Magic Link Registration (V16+)
 - Passwordless two-step registration via email

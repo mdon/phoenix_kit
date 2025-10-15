@@ -310,14 +310,10 @@ defmodule PhoenixKit.Emails.ApplicationIntegration do
       sqs_config.aws_region != ""
   end
 
-  # Checks for AWS credentials
+  # Checks for AWS credentials (Settings DB or environment variables)
   defp has_aws_credentials? do
-    # Check environment variables
-    access_key = System.get_env("AWS_ACCESS_KEY_ID")
-    secret_key = System.get_env("AWS_SECRET_ACCESS_KEY")
-
-    not is_nil(access_key) and access_key != "" and
-      (not is_nil(secret_key) and secret_key != "")
+    # Use Emails.aws_configured?() which checks Settings DB first, then ENV fallback
+    Emails.aws_configured?()
   end
 
   # Checks if required dependencies are loaded

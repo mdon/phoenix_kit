@@ -26,8 +26,8 @@ defmodule PhoenixKit.Mailer do
 
   alias PhoenixKit.Emails.Interceptor
   alias PhoenixKit.Emails.Templates
-
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Utils.Routes
 
   @doc """
   Gets the mailer module to use for sending emails.
@@ -434,8 +434,7 @@ defmodule PhoenixKit.Mailer do
   """
   def send_test_tracking_email(recipient_email, user_id \\ nil) when is_binary(recipient_email) do
     timestamp = DateTime.utc_now() |> DateTime.to_string()
-    base_url = PhoenixKit.Config.get_dynamic_base_url()
-    test_link_url = "#{base_url}/phoenix_kit/admin/emails"
+    test_link_url = Routes.url("/admin/emails")
 
     # Variables for template substitution
     template_variables = %{
@@ -486,8 +485,7 @@ defmodule PhoenixKit.Mailer do
 
   # HTML version of the test tracking email
   defp test_email_html_body(recipient_email, timestamp) do
-    base_url = PhoenixKit.Config.get_dynamic_base_url()
-    test_link_url = "#{base_url}/phoenix_kit/admin/emails"
+    test_link_url = Routes.url("/admin/emails")
 
     """
     <!DOCTYPE html>
@@ -566,8 +564,7 @@ defmodule PhoenixKit.Mailer do
 
   # Text version of the test tracking email
   defp test_email_text_body(recipient_email, timestamp) do
-    base_url = PhoenixKit.Config.get_dynamic_base_url()
-    test_link_url = "#{base_url}/phoenix_kit/admin/emails"
+    test_link_url = Routes.url("/admin/emails")
 
     """
     TEST TRACKING EMAIL - EMAIL SYSTEM VERIFICATION

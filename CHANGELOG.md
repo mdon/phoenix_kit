@@ -1,3 +1,78 @@
+## 1.3.4 - 2025-10-15
+
+### Added
+- **AWS Infrastructure Automation** - One-click AWS email infrastructure setup from admin web interface
+  - New PhoenixKit.AWS.InfrastructureSetup module for automated resource creation
+  - Creates SNS Topic, SQS Queues, DLQ, and SES Configuration Set with one click
+  - Idempotent operations (safe to run multiple times)
+  - Web interface at `/admin/settings/emails` with "Setup AWS Infrastructure" button
+  - Auto-fills AWS settings form with created resource details
+  - Added `ex_aws_sns ~> 2.3` dependency for SNS operations
+- **Mix Tasks Help System** - Comprehensive `--help` flag support for installation and update tasks
+  - `mix phoenix_kit.install --help` - Detailed installation options with examples
+  - `mix phoenix_kit.update --help` - Update task documentation with CI/CD guidelines
+  - Usage examples, option descriptions, and troubleshooting tips
+  - Auto-detection capabilities explanation
+- **Public AWS Credentials API** - Centralized AWS credentials management with smart fallback
+  - `PhoenixKit.Emails.aws_configured?()` - Public function for checking AWS setup
+  - Settings Database as primary source, Environment Variables as fallback
+  - Improved error messages mentioning both Web UI and ENV configuration
+
+### Changed
+- **AWS Credentials Priority** - Settings Database now takes precedence over Environment Variables
+  - Primary: Settings Database (runtime configuration via Web UI)
+  - Fallback: Environment Variables (for production secrets)
+  - Users can configure credentials via Web UI without ENV duplication
+  - Maintains backward compatibility for ENV-only deployments
+- **Documentation Updates** - Comprehensive guide for AWS setup and credentials management
+  - CLAUDE.md expanded with 540+ new lines
+  - Added AWS Credentials Priority section with configuration scenarios
+  - Removed obsolete config-based email configuration examples
+  - Added Installation and Update help system documentation
+
+### Fixed
+- **AWS Credentials Configuration Bug** - Fixed issue where Settings DB credentials were ignored
+  - `get_sqs_config()` now uses helper functions with Settings DB → ENV fallback
+  - `has_aws_credentials()` properly checks both Settings DB and ENV
+  - SQS Worker now respects Web UI configured credentials
+- **Test Email URLs** - Fixed test email links to use site_url from settings instead of localhost
+
+## 1.3.3 - 2025-10-14
+
+### Changed
+- **Dependency Management** - Made OAuth authentication dependencies mandatory instead of optional
+  - `ueberauth`, `ueberauth_google`, `ueberauth_apple`, and `ueberauth_github` are now required dependencies
+  - Ensures OAuth functionality works out-of-the-box without manual dependency configuration
+  - Simplifies installation process for new users
+- **Email System Dependencies** - Added required dependencies for complete email functionality
+  - `gen_smtp` - Required for Amazon SES SMTP email adapter
+  - `saxy` - Required for AWS SQS XML response parsing
+  - `finch` - HTTP client for AWS API communication (already included)
+  - Ensures complete email system support without additional configuration
+  - Improves reliability of email delivery and event tracking through AWS SES/SQS
+
+### Fixed
+- **AWS Credentials Configuration** - Fixed critical issue where AWS credentials entered via Web UI were ignored
+  - Problem: Settings Database credentials were not being used, system only checked Environment Variables
+  - Solution: Updated `get_sqs_config()` to use Settings DB → ENV fallback pattern
+  - Updated `has_aws_credentials()` to properly check both Settings DB and ENV
+  - Made `aws_configured?()` public function for use across modules
+  - Enhanced error messages to mention both Web UI and ENV configuration methods
+  - Added comprehensive documentation in CLAUDE.md about credentials priority system
+
+### Improved
+- **Settings DB Priority System** - Clarified and enforced credentials configuration priority
+  - Primary: Settings Database (runtime configuration via Web UI at `/admin/settings/emails`)
+  - Fallback: Environment Variables (for production secrets and legacy deployments)
+  - Users can now configure credentials via Web UI without ENV duplication
+  - Maintains backward compatibility for ENV-only deployments
+
+### Migration Notes
+- Projects upgrading from 1.3.2 must run `mix deps.get` to install new required dependencies
+- OAuth features now work automatically without manual dependency installation
+- Amazon SES email adapter now fully functional without additional setup
+- AWS credentials can now be configured via Web UI; ENV variables optional
+
 ## 1.3.2 - 2025-10-10
 
 ### Fixed
