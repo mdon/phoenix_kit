@@ -264,6 +264,7 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/live_sessions", Live.Users.LiveSessions, :index
           live "/admin/users/sessions", Live.Users.Sessions, :index
           live "/admin/settings", Live.Settings, :index
+          live "/admin/settings/users", Live.Settings.Users, :index
           live "/admin/modules", Live.Modules, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
@@ -362,6 +363,7 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/users/live_sessions", Live.Users.LiveSessions, :index
           live "/admin/users/sessions", Live.Users.Sessions, :index
           live "/admin/settings", Live.Settings, :index
+          live "/admin/settings/users", Live.Settings.Users, :index
           live "/admin/modules", Live.Modules, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/emails", Live.Modules.Emails.Settings, :index

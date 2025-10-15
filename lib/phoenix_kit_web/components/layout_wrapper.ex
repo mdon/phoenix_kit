@@ -399,13 +399,21 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       disable_active={true}
                     />
 
-                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages", "/admin/settings/entities"]) do %>
+                    <%= if submenu_open?(@current_path, ["/admin/settings", "/admin/settings/users", "/admin/settings/referral-codes", "/admin/settings/emails", "/admin/settings/languages", "/admin/settings/entities"]) do %>
                       <%!-- Settings submenu items --%>
                       <div class="mt-1">
                         <.admin_nav_item
                           href={Routes.locale_aware_path(assigns, "/admin/settings")}
                           icon="settings"
                           label="General"
+                          current_path={@current_path || ""}
+                          nested={true}
+                        />
+
+                        <.admin_nav_item
+                          href={Routes.locale_aware_path(assigns, "/admin/settings/users")}
+                          icon="users"
+                          label="Users"
                           current_path={@current_path || ""}
                           nested={true}
                         />
