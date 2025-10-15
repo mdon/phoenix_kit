@@ -380,7 +380,7 @@
             <div class="modal modal-open">
               <div class="modal-box max-w-2xl">
                 <h3 class="font-bold text-lg mb-4">
-                  <%= if @editing_field, do: "Edit Custom Field", else: "Add Custom Field" %>
+                  {if @editing_field, do: "Edit Custom Field", else: "Add Custom Field"}
                 </h3>
 
                 <.form :let={f} for={%{}} phx-submit="save_field" class="space-y-4">
@@ -476,7 +476,7 @@
                       Cancel
                     </button>
                     <button type="submit" class="btn btn-primary">
-                      <%= if @editing_field, do: "Update Field", else: "Add Field" %>
+                      {if @editing_field, do: "Update Field", else: "Add Field"}
                     </button>
                   </div>
                 </.form>

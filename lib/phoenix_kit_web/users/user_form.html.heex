@@ -177,7 +177,6 @@
                       placeholder={field_def["label"]}
                       required={field_def["required"]}
                     >{field_value}</textarea>
-
                   <% "number" -> %>
                     <input
                       type="number"
@@ -187,7 +186,6 @@
                       placeholder={field_def["label"]}
                       required={field_def["required"]}
                     />
-
                   <% "boolean" -> %>
                     <div class="flex items-center gap-3 mt-2">
                       <input
@@ -204,7 +202,6 @@
                       />
                       <span class="label-text">Enable this option</span>
                     </div>
-
                   <% "date" -> %>
                     <input
                       type="date"
@@ -213,7 +210,6 @@
                       class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
                       required={field_def["required"]}
                     />
-
                   <% "email" -> %>
                     <input
                       type="email"
@@ -223,7 +219,6 @@
                       placeholder="user@example.com"
                       required={field_def["required"]}
                     />
-
                   <% "url" -> %>
                     <input
                       type="url"
@@ -233,7 +228,6 @@
                       placeholder="https://example.com"
                       required={field_def["required"]}
                     />
-
                   <% "select" -> %>
                     <select
                       name={"user[custom_fields][#{field_key}]"}
@@ -247,7 +241,6 @@
                         </option>
                       <% end %>
                     </select>
-
                   <% _default -> %>
                     <%!-- text, radio, checkbox, and other types default to text input --%>
                     <input

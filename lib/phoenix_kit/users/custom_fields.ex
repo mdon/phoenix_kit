@@ -202,7 +202,7 @@ defmodule PhoenixKit.Users.CustomFields do
       Enum.map(definitions, fn def ->
         Map.put(def, "position", position_map[def["key"]] || 999)
       end)
-      |> Enum.sort_by(&(&1["position"]))
+      |> Enum.sort_by(& &1["position"])
 
     save_field_definitions(updated_definitions)
   end
@@ -363,7 +363,8 @@ defmodule PhoenixKit.Users.CustomFields do
     if String.match?(key, ~r/^[a-z][a-z0-9_]*$/) do
       :ok
     else
-      {:error, "Field key must start with lowercase letter and contain only lowercase letters, numbers, and underscores"}
+      {:error,
+       "Field key must start with lowercase letter and contain only lowercase letters, numbers, and underscores"}
     end
   end
 

@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Users.TableColumns
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
@@ -52,10 +53,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:user_roles, [])
       |> assign(:all_roles, [])
       |> assign(:confirmation_modal, %{show: false})
+      |> assign(:show_column_modal, false)
       |> assign(:page_title, "Users")
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
       |> assign(:current_locale, locale)
+      |> assign(:selected_columns, TableColumns.get_user_table_columns())
+      |> assign(:available_columns, TableColumns.get_available_columns())
       |> load_users()
       |> load_stats()
 
@@ -268,6 +272,143 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     handle_toggle_user_confirmation(%{"user_id" => user_id}, socket)
   end
 
+  # Column management events
+  def handle_event("show_column_modal", _params, socket) do
+    # Initialize temporary selected columns when opening modal
+    current_columns = socket.assigns.selected_columns
+
+    socket =
+      socket
+      |> assign(:show_column_modal, true)
+      |> assign(:temp_selected_columns, current_columns)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("hide_column_modal", _params, socket) do
+    # Clear temporary state when closing modal
+    socket =
+      socket
+      |> assign(:show_column_modal, false)
+      |> assign(:temp_selected_columns, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_table_columns", %{"column_order" => column_order_string}, socket) do
+    # Parse the column order string from the form
+    column_order =
+      column_order_string
+      |> String.split(",", trim: true)
+      |> Enum.filter(&(&1 != ""))
+
+    # Update the temporary state with the new order and save
+    socket =
+      socket
+      |> assign(:temp_selected_columns, column_order)
+      |> save_and_close_modal()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_table_columns", _params, socket) do
+    # Fallback for when column_order is not provided (e.g., form submission without reordering)
+    socket =
+      socket
+      |> save_and_close_modal()
+
+    {:noreply, socket}
+  end
+
+  # Helper function to save the current temporary state and close the modal
+  defp save_and_close_modal(socket) do
+    temp_selected = socket.assigns.temp_selected_columns || []
+
+    case TableColumns.update_user_table_columns(temp_selected) do
+      {:ok, _setting} ->
+        # Get the properly ordered columns back from TableColumns
+        ordered_columns = TableColumns.get_user_table_columns()
+
+        socket
+        |> put_flash(:info, "Table columns updated successfully")
+        |> assign(:selected_columns, ordered_columns)
+        |> assign(:temp_selected_columns, nil)
+        |> assign(:show_column_modal, false)
+
+      {:error, _reason} ->
+        socket
+        |> put_flash(:error, "Failed to update table columns")
+        |> assign(:show_column_modal, false)
+    end
+  end
+
+  def handle_event("reset_to_defaults", _params, socket) do
+    minimal_columns = TableColumns.get_minimal_columns()
+
+    # Update temporary state with minimal columns, don't save yet
+    socket =
+      socket
+      |> assign(:temp_selected_columns, minimal_columns)
+
+    {:noreply, socket}
+  end
+
+  # New handlers for two-section layout - using temporary state
+  def handle_event("add_column", %{"column_id" => column_id}, socket) do
+    temp_selected = socket.assigns.temp_selected_columns || []
+    new_selected = temp_selected ++ [column_id]
+
+    socket =
+      socket
+      |> assign(:temp_selected_columns, new_selected)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_column", %{"column_id" => column_id}, socket) do
+    temp_selected = socket.assigns.temp_selected_columns || []
+    new_selected = Enum.reject(temp_selected, &(&1 == column_id))
+
+    socket =
+      socket
+      |> assign(:temp_selected_columns, new_selected)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("reorder_selected_columns", %{"order" => new_order}, socket) do
+    # Update the temporary state with the new order
+    temp_selected = socket.assigns.temp_selected_columns || []
+
+    # Filter and reorder only valid columns from the new order
+    valid_new_order = Enum.filter(new_order, &(&1 in temp_selected))
+
+    # Add any missing columns from the end of the original list
+    missing_columns = Enum.reject(temp_selected, &(&1 in valid_new_order))
+    final_order = valid_new_order ++ missing_columns
+
+    socket =
+      socket
+      |> assign(:temp_selected_columns, final_order)
+
+    {:noreply, socket}
+  end
+
+  # Helper function for template
+  def get_available_fields_count(available_columns, selected_columns) do
+    standard_available =
+      available_columns.standard
+      |> Map.keys()
+      |> Enum.reject(&(&1 in selected_columns or &1 == "actions"))
+
+    custom_available =
+      available_columns.custom
+      |> Map.keys()
+      |> Enum.reject(&(&1 in selected_columns))
+
+    length(standard_available) + length(custom_available)
+  end
+
   # Keep the original handlers private for internal use
   defp handle_toggle_user_status(%{"user_id" => user_id}, socket) do
     current_user = socket.assigns.phoenix_kit_current_user
@@ -441,6 +582,149 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       "Owner" in roles -> "Owner"
       "Admin" in roles -> "Admin"
       true -> "User"
+    end
+  end
+
+  # Column rendering helpers
+  def render_column_header(column_id) do
+    case TableColumns.get_column_metadata(column_id) do
+      %{label: label} -> label
+      _ -> String.capitalize(String.replace(column_id, "_", " "))
+    end
+  end
+
+  def render_column_cell(user, column_id, current_user, date_time_settings) do
+    case TableColumns.get_column_metadata(column_id) do
+      %{type: :email} ->
+        user.email
+
+      %{type: :string} ->
+        field = get_user_field(user, column_id)
+        if field, do: to_string(field), else: "-"
+
+      %{type: :composite} ->
+        # Handle composite fields like full_name
+        case column_id do
+          "full_name" -> PhoenixKit.Users.Auth.User.full_name(user)
+          _ -> "-"
+        end
+
+      %{type: :roles} ->
+        _roles = get_user_roles(user)
+        get_primary_role_name_unsafe(user)
+
+      %{type: :status} ->
+        if user.is_active, do: "Active", else: "Inactive"
+
+      %{type: :datetime} ->
+        field = get_user_field(user, column_id)
+
+        if field,
+          do:
+            UtilsDate.format_datetime_with_user_timezone_cached(
+              field,
+              current_user,
+              date_time_settings
+            ),
+          else: "-"
+
+      %{type: :location} ->
+        field = get_user_field(user, column_id)
+        if field && field != "", do: field, else: "-"
+
+      %{type: :custom_field, field_type: field_type} ->
+        render_custom_field_cell(user, column_id, field_type)
+
+      _ ->
+        field = get_user_field(user, column_id)
+        if field, do: to_string(field), else: "-"
+    end
+  end
+
+  defp get_user_field(user, column_id) do
+    case column_id do
+      "username" -> user.username
+      "email" -> user.email
+      "first_name" -> user.first_name
+      "last_name" -> user.last_name
+      "inserted_at" -> user.inserted_at
+      "confirmed_at" -> user.confirmed_at
+      "registration_country" -> user.registration_country
+      _ -> "-"
+    end
+  end
+
+  defp render_custom_field_cell(user, column_id, field_type) do
+    # Extract field key from column_id (e.g., "custom_phone" -> "phone")
+    field_key = String.replace_prefix(column_id, "custom_", "")
+
+    case get_custom_field_value(user, field_key) do
+      nil -> "-"
+      value -> format_custom_field_value(value, field_type)
+    end
+  end
+
+  defp get_custom_field_value(user, field_key) do
+    case user.custom_fields do
+      %{} = custom_fields -> Map.get(custom_fields, field_key)
+      _ -> nil
+    end
+  end
+
+  defp format_custom_field_value(value, field_type) do
+    case field_type do
+      "boolean" ->
+        case value do
+          true -> "Yes"
+          false -> "No"
+          "true" -> "Yes"
+          "false" -> "No"
+          _ -> "-"
+        end
+
+      "number" ->
+        if is_number(value) or is_binary(value) do
+          to_string(value)
+        else
+          "-"
+        end
+
+      "date" ->
+        case value do
+          %Date{} -> Date.to_string(value)
+          string when is_binary(string) -> string
+          _ -> "-"
+        end
+
+      "datetime" ->
+        case value do
+          %DateTime{} -> DateTime.to_string(value)
+          string when is_binary(string) -> string
+          _ -> "-"
+        end
+
+      "select" ->
+        to_string(value)
+
+      "radio" ->
+        to_string(value)
+
+      "checkbox" ->
+        case value do
+          true -> "Yes"
+          false -> "No"
+          "true" -> "Yes"
+          "false" -> "No"
+          list when is_list(list) -> Enum.join(list, ", ")
+          _ -> to_string(value)
+        end
+
+      _ ->
+        if value && value != "" do
+          to_string(value)
+        else
+          "-"
+        end
     end
   end
 
