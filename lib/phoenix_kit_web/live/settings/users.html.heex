@@ -472,11 +472,11 @@
 
                   <%!-- Modal Actions --%>
                   <div class="modal-action">
-                    <button type="button" class="btn" phx-click="hide_field_form">
-                      Cancel
-                    </button>
                     <button type="submit" class="btn btn-primary">
                       {if @editing_field, do: "Update Field", else: "Add Field"}
+                    </button>
+                    <button type="button" class="btn" phx-click="hide_field_form">
+                      Cancel
                     </button>
                   </div>
                 </.form>
