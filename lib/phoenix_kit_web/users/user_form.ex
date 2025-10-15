@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Utils.Routes
 
   def mount(params, _session, socket) do
@@ -20,6 +21,9 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user_id = params["id"]
     mode = if user_id, do: :edit, else: :new
 
+    # Load custom field definitions
+    field_definitions = CustomFields.list_enabled_field_definitions()
+
     socket =
       socket
       |> assign(:current_locale, locale)
@@ -28,6 +32,8 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
       |> assign(:show_password_field, false)
+      |> assign(:field_definitions, field_definitions)
+      |> assign(:custom_fields_errors, %{})
       |> load_user_data(mode, user_id)
       |> load_form_data()
 
@@ -150,51 +156,82 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user = socket.assigns.user
     show_password_field = socket.assigns.show_password_field
 
-    # Check if password update is needed
-    password_provided =
-      show_password_field and Map.has_key?(user_params, "password") and
-        user_params["password"] != nil and String.trim(user_params["password"]) != ""
+    # Extract custom fields from params
+    custom_fields_params = Map.get(user_params, "custom_fields", %{})
+    profile_params = Map.delete(user_params, "custom_fields")
 
-    if password_provided do
-      # Update both profile and password
-      case update_profile_and_password(user, user_params) do
-        {:ok, _updated_user} ->
-          socket =
-            socket
-            |> put_flash(:info, "User profile and password updated successfully.")
-            |> push_navigate(to: Routes.path("/admin/users"))
-
-          {:noreply, socket}
-
-        {:error, changeset} ->
-          socket =
-            socket
-            |> assign(:changeset, changeset)
-            |> assign(:form_data, user_params)
-
-          {:noreply, socket}
+    # Validate custom fields if any exist
+    custom_fields_validation =
+      if map_size(custom_fields_params) > 0 do
+        temp_user = %{user | custom_fields: custom_fields_params}
+        CustomFields.validate_user_custom_fields(temp_user)
+      else
+        :ok
       end
-    else
-      # Update profile only (exclude password)
-      profile_params = Map.delete(user_params, "password")
 
-      case Auth.update_user_profile(user, profile_params) do
-        {:ok, _user} ->
-          socket =
-            socket
-            |> put_flash(:info, "User updated successfully.")
-            |> push_navigate(to: Routes.path("/admin/users"))
+    case custom_fields_validation do
+      :ok ->
+        # Check if password update is needed
+        password_provided =
+          show_password_field and Map.has_key?(profile_params, "password") and
+            profile_params["password"] != nil and String.trim(profile_params["password"]) != ""
 
-          {:noreply, socket}
+        result =
+          if password_provided do
+            # Update both profile and password
+            update_profile_and_password(user, profile_params)
+          else
+            # Update profile only (exclude password)
+            cleaned_params = Map.delete(profile_params, "password")
+            Auth.update_user_profile(user, cleaned_params)
+          end
 
-        {:error, %Ecto.Changeset{} = changeset} ->
-          socket =
-            socket
-            |> assign(:changeset, changeset)
-            |> assign(:form_data, user_params)
+        case result do
+          {:ok, updated_user} ->
+            # Also update custom fields if provided
+            final_result =
+              if map_size(custom_fields_params) > 0 do
+                Auth.update_user_custom_fields(updated_user, custom_fields_params)
+              else
+                {:ok, updated_user}
+              end
 
-          {:noreply, socket}
-      end
+            case final_result do
+              {:ok, _final_user} ->
+                socket =
+                  socket
+                  |> put_flash(:info, "User updated successfully.")
+                  |> push_navigate(to: Routes.path("/admin/users"))
+
+                {:noreply, socket}
+
+              {:error, _changeset} ->
+                socket =
+                  socket
+                  |> put_flash(:error, "User profile updated but custom fields failed to save.")
+                  |> push_navigate(to: Routes.path("/admin/users"))
+
+                {:noreply, socket}
+            end
+
+          {:error, changeset} ->
+            socket =
+              socket
+              |> assign(:changeset, changeset)
+              |> assign(:form_data, user_params)
+              |> assign(:custom_fields_errors, %{})
+
+            {:noreply, socket}
+        end
+
+      {:error, errors} ->
+        socket =
+          socket
+          |> assign(:custom_fields_errors, errors)
+          |> assign(:custom_fields_data, custom_fields_params)
+          |> put_flash(:error, "Please fix the custom field errors below.")
+
+        {:noreply, socket}
     end
   end
 
@@ -218,6 +255,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       "first_name" => "",
       "last_name" => ""
     })
+    |> assign(:custom_fields_data, %{})
   end
 
   defp load_form_data(%{assigns: %{mode: :edit, user: user}} = socket) do
@@ -230,6 +268,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       "first_name" => user.first_name || "",
       "last_name" => user.last_name || ""
     })
+    |> assign(:custom_fields_data, user.custom_fields || %{})
   end
 
   defp page_title(:new), do: "Create User"

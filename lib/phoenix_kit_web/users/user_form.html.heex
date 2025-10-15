@@ -145,6 +145,131 @@
             <% end %>
           <% end %>
 
+          <%!-- Custom User Fields Section (Edit mode only) --%>
+          <%= if @mode == :edit && length(@field_definitions) > 0 do %>
+            <div class="divider text-base-content/60 mt-6">Custom User Fields</div>
+
+            <%= for field_def <- Enum.sort_by(@field_definitions, & &1["position"]) do %>
+              <% field_key = field_def["key"] %>
+              <% field_value = Map.get(@custom_fields_data, field_key, field_def["default"] || "") %>
+              <% field_error = Map.get(@custom_fields_errors, field_key) %>
+
+              <div class="form-control w-full">
+                <%!-- Label with required indicator --%>
+                <label class="label">
+                  <span class="label-text font-medium">
+                    {field_def["label"]}
+                    <%= if field_def["required"] do %>
+                      <span class="text-error">*</span>
+                    <% end %>
+                  </span>
+                  <span class="label-text-alt text-xs text-base-content/60">
+                    {String.capitalize(field_def["type"])}
+                  </span>
+                </label>
+
+                <%!-- Dynamic input based on field type --%>
+                <%= case field_def["type"] do %>
+                  <% "textarea" -> %>
+                    <textarea
+                      name={"user[custom_fields][#{field_key}]"}
+                      class={"textarea textarea-bordered w-full #{if field_error, do: "textarea-error", else: ""}"}
+                      placeholder={field_def["label"]}
+                      required={field_def["required"]}
+                    >{field_value}</textarea>
+
+                  <% "number" -> %>
+                    <input
+                      type="number"
+                      name={"user[custom_fields][#{field_key}]"}
+                      value={field_value}
+                      class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
+                      placeholder={field_def["label"]}
+                      required={field_def["required"]}
+                    />
+
+                  <% "boolean" -> %>
+                    <div class="flex items-center gap-3 mt-2">
+                      <input
+                        type="hidden"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value="false"
+                      />
+                      <input
+                        type="checkbox"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value="true"
+                        checked={field_value == true || field_value == "true"}
+                        class="checkbox checkbox-primary"
+                      />
+                      <span class="label-text">Enable this option</span>
+                    </div>
+
+                  <% "date" -> %>
+                    <input
+                      type="date"
+                      name={"user[custom_fields][#{field_key}]"}
+                      value={field_value}
+                      class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
+                      required={field_def["required"]}
+                    />
+
+                  <% "email" -> %>
+                    <input
+                      type="email"
+                      name={"user[custom_fields][#{field_key}]"}
+                      value={field_value}
+                      class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
+                      placeholder="user@example.com"
+                      required={field_def["required"]}
+                    />
+
+                  <% "url" -> %>
+                    <input
+                      type="url"
+                      name={"user[custom_fields][#{field_key}]"}
+                      value={field_value}
+                      class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
+                      placeholder="https://example.com"
+                      required={field_def["required"]}
+                    />
+
+                  <% "select" -> %>
+                    <select
+                      name={"user[custom_fields][#{field_key}]"}
+                      class={"select select-bordered w-full #{if field_error, do: "select-error", else: ""}"}
+                      required={field_def["required"]}
+                    >
+                      <option value="">Select an option</option>
+                      <%= for option <- field_def["options"] || [] do %>
+                        <option value={option} selected={field_value == option}>
+                          {option}
+                        </option>
+                      <% end %>
+                    </select>
+
+                  <% _default -> %>
+                    <%!-- text, radio, checkbox, and other types default to text input --%>
+                    <input
+                      type="text"
+                      name={"user[custom_fields][#{field_key}]"}
+                      value={field_value}
+                      class={"input input-bordered w-full #{if field_error, do: "input-error", else: ""}"}
+                      placeholder={field_def["label"]}
+                      required={field_def["required"]}
+                    />
+                <% end %>
+
+                <%!-- Error message --%>
+                <%= if field_error do %>
+                  <div class="label">
+                    <span class="label-text-alt text-error">{field_error}</span>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          <% end %>
+
           <%= if @mode == :new do %>
             <div class="divider">Additional Information</div>
 
