@@ -70,6 +70,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   slot :inner_block, required: false
 
   def app_layout(assigns) do
+    # Ensure content_language is available in assigns
+    assigns =
+      assigns
+      |> assign_new(:content_language, fn ->
+        PhoenixKit.Settings.get_content_language()
+      end)
+
     # Handle both inner_content (Phoenix 1.7-) and inner_block (Phoenix 1.8+)
     assigns = normalize_content_assigns(assigns)
 
@@ -365,6 +372,15 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           </div>
                         </div>
                       <% end %>
+                    <% end %>
+
+                    <%= if PhoenixKit.Pages.enabled?() do %>
+                      <.admin_nav_item
+                        href={Routes.locale_aware_path(assigns, "/admin/pages")}
+                        icon="document"
+                        label="Pages"
+                        current_path={@current_path || ""}
+                      />
                     <% end %>
 
                     <.admin_nav_item
@@ -747,7 +763,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     ~H"""
     <!DOCTYPE html>
     <html
-      lang="en"
+      lang={@content_language || "en"}
       data-theme="light"
       data-admin-theme-base="system"
       class="[scrollbar-gutter:stable]"

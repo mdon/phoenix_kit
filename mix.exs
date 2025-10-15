@@ -92,6 +92,8 @@ defmodule PhoenixKit.MixProject do
       # Utilities
       {:jason, "~> 1.4"},
       {:timex, "~> 3.7"},
+      {:earmark, "~> 1.4"},
+      {:yaml_elixir, "~> 2.9"},
 
       # AWS integration for emails
       {:ex_aws, "~> 2.4"},

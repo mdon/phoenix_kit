@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Live.Modules do
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.Pages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
 
@@ -25,6 +26,7 @@ defmodule PhoenixKitWeb.Live.Modules do
     email_config = PhoenixKit.Emails.get_config()
     languages_config = Languages.get_config()
     entities_config = Entities.get_config()
+    pages_enabled = Pages.enabled?()
 
     socket =
       socket
@@ -45,6 +47,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:entities_enabled, entities_config.enabled)
       |> assign(:entities_count, entities_config.entity_count)
       |> assign(:entities_total_data, entities_config.total_data_count)
+      |> assign(:pages_enabled, pages_enabled)
       |> assign(:current_locale, locale)
 
     {:ok, socket}
@@ -185,6 +188,38 @@ defmodule PhoenixKitWeb.Live.Modules do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update entities system")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_pages", _params, socket) do
+    # Toggle pages system
+    new_enabled = !socket.assigns.pages_enabled
+
+    result =
+      if new_enabled do
+        Pages.enable_system()
+      else
+        Pages.disable_system()
+      end
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:pages_enabled, new_enabled)
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Pages module enabled",
+              else: "Pages module disabled"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update pages module")
         {:noreply, socket}
     end
   end
