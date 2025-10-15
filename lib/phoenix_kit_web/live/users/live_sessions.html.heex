@@ -161,52 +161,64 @@
     <%!-- Sessions Table --%>
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body p-0">
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
-            <thead>
-              <tr>
-                <th>
-                  <button
-                    phx-click="sort_by"
-                    phx-value-field="type"
-                    class="flex items-center gap-1 hover:text-primary"
-                  >
-                    Type
-                    <%= if @sort_by == :type do %>
-                      <%= if @sort_order == :asc do %>
-                        <.icon name="hero-chevron-up" class="w-4 h-4" />
-                      <% else %>
-                        <.icon name="hero-chevron-down" class="w-4 h-4" />
-                      <% end %>
+        <.table_default variant="zebra">
+          <.table_default_header>
+            <.table_default_row>
+              <.table_default_header_cell>
+                <button
+                  phx-click="sort_by"
+                  phx-value-field="type"
+                  class="flex items-center gap-1 cursor-pointer"
+                >
+                  Type
+                  <%= if @sort_by == :type do %>
+                    <%= if @sort_order == :asc do %>
+                      <.icon name="hero-chevron-up" class="w-4 h-4" />
+                    <% else %>
+                      <.icon name="hero-chevron-down" class="w-4 h-4" />
                     <% end %>
-                  </button>
-                </th>
-                <th>User/Session</th>
-                <th>IP Address</th>
-                <th>Current Page</th>
-                <th>
-                  <button
-                    phx-click="sort_by"
-                    phx-value-field="connected_at"
-                    class="flex items-center gap-1 hover:text-primary"
-                  >
-                    Connected
-                    <%= if @sort_by == :connected_at do %>
-                      <%= if @sort_order == :asc do %>
-                        <.icon name="hero-chevron-up" class="w-4 h-4" />
-                      <% else %>
-                        <.icon name="hero-chevron-down" class="w-4 h-4" />
-                      <% end %>
+                  <% end %>
+                </button>
+              </.table_default_header_cell>
+              <.table_default_header_cell>User/Session</.table_default_header_cell>
+              <.table_default_header_cell>IP Address</.table_default_header_cell>
+              <.table_default_header_cell>Current Page</.table_default_header_cell>
+              <.table_default_header_cell>
+                <button
+                  phx-click="sort_by"
+                  phx-value-field="connected_at"
+                  class="flex items-center gap-1 cursor-pointer"
+                >
+                  Connected
+                  <%= if @sort_by == :connected_at do %>
+                    <%= if @sort_order == :asc do %>
+                      <.icon name="hero-chevron-up" class="w-4 h-4" />
+                    <% else %>
+                      <.icon name="hero-chevron-down" class="w-4 h-4" />
                     <% end %>
-                  </button>
-                </th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+                  <% end %>
+                </button>
+              </.table_default_header_cell>
+              <.table_default_header_cell>Status</.table_default_header_cell>
+            </.table_default_row>
+          </.table_default_header>
+          <.table_default_body>
+            <%= if Enum.empty?(@sessions) do %>
+              <.table_default_row>
+                <.table_default_cell class="text-center py-12" colspan={6}>
+                  <div class="text-base-content/50 mb-4">
+                    <.icon name="hero-inbox" class="w-16 h-16 mx-auto" />
+                  </div>
+                  <h3 class="text-lg font-medium text-base-content mb-2">No active sessions</h3>
+                  <p class="text-base-content/70">
+                    There are currently no active sessions to display.
+                  </p>
+                </.table_default_cell>
+              </.table_default_row>
+            <% else %>
               <%= for session <- @sessions do %>
-                <tr>
-                  <td>
+                <.table_default_row>
+                  <.table_default_cell>
                     <div class="flex items-center gap-2">
                       <%= if session.type == :authenticated do %>
                         <div class="badge badge-success badge-sm">
@@ -218,8 +230,8 @@
                         </div>
                       <% end %>
                     </div>
-                  </td>
-                  <td>
+                  </.table_default_cell>
+                  <.table_default_cell>
                     <%= if session.type == :authenticated do %>
                       <div class="flex items-center gap-2">
                         <div class="w-8 h-8 bg-success rounded-full flex items-center justify-center text-success-content text-xs font-bold">
@@ -249,13 +261,13 @@
                         </div>
                       </div>
                     <% end %>
-                  </td>
-                  <td>
+                  </.table_default_cell>
+                  <.table_default_cell>
                     <code class="text-xs bg-base-200 px-2 py-1 rounded">
                       {session.ip_address || "Unknown"}
                     </code>
-                  </td>
-                  <td>
+                  </.table_default_cell>
+                  <.table_default_cell>
                     <%= if session.current_page do %>
                       <code class="text-xs bg-base-200 px-2 py-1 rounded">
                         {session.current_page}
@@ -263,33 +275,21 @@
                     <% else %>
                       <span class="text-base-content/50">—</span>
                     <% end %>
-                  </td>
-                  <td>
+                  </.table_default_cell>
+                  <.table_default_cell>
                     <.time_ago datetime={session.connected_at} />
-                  </td>
-                  <td>
+                  </.table_default_cell>
+                  <.table_default_cell>
                     <div class="flex items-center gap-1">
                       <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                       <span class="text-xs text-success">Active</span>
                     </div>
-                  </td>
-                </tr>
+                  </.table_default_cell>
+                </.table_default_row>
               <% end %>
-            </tbody>
-          </table>
-
-          <%= if Enum.empty?(@sessions) do %>
-            <div class="text-center py-12">
-              <div class="text-base-content/50 mb-4">
-                <.icon name="hero-inbox" class="w-16 h-16 mx-auto" />
-              </div>
-              <h3 class="text-lg font-medium text-base-content mb-2">No active sessions</h3>
-              <p class="text-base-content/70">
-                There are currently no active sessions to display.
-              </p>
-            </div>
-          <% end %>
-        </div>
+            <% end %>
+          </.table_default_body>
+        </.table_default>
       </div>
     </div>
 

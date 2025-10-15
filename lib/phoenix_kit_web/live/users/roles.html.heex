@@ -139,80 +139,78 @@
     <% end %>
 
     <%!-- Roles List --%>
-    <div class="bg-base-100 rounded-lg shadow-md overflow-hidden">
+    <div class="bg-base-100">
       <%= if length(@roles) > 0 do %>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra w-full">
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th>Users</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= for role <- @roles do %>
-                <tr>
-                  <td>
-                    <div class="flex items-center gap-2">
-                      <.role_badge role={role} />
-                    </div>
-                  </td>
-                  <td>
-                    <%= if role.is_system_role do %>
-                      <span class="badge badge-outline badge-sm">System Role</span>
+        <.table_default variant="zebra">
+          <.table_default_header>
+            <.table_default_row>
+              <.table_default_header_cell>Role</.table_default_header_cell>
+              <.table_default_header_cell>Type</.table_default_header_cell>
+              <.table_default_header_cell>Description</.table_default_header_cell>
+              <.table_default_header_cell>Users</.table_default_header_cell>
+              <.table_default_header_cell>Actions</.table_default_header_cell>
+            </.table_default_row>
+          </.table_default_header>
+          <.table_default_body>
+            <%= for role <- @roles do %>
+              <.table_default_row>
+                <.table_default_cell>
+                  <div class="flex items-center gap-2">
+                    <.role_badge role={role} />
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <%= if role.is_system_role do %>
+                    <span class="badge badge-outline badge-sm">System Role</span>
+                  <% else %>
+                    <span class="badge badge-success badge-sm">Custom Role</span>
+                  <% end %>
+                </.table_default_cell>
+                <.table_default_cell class="max-w-xs">
+                  <div class="text-sm">
+                    <%= if role.description do %>
+                      {role.description}
                     <% else %>
-                      <span class="badge badge-success badge-sm">Custom Role</span>
+                      <span class="text-base-content/50 italic">No description</span>
                     <% end %>
-                  </td>
-                  <td class="max-w-xs">
-                    <div class="text-sm">
-                      <%= if role.description do %>
-                        {role.description}
-                      <% else %>
-                        <span class="text-base-content/50 italic">No description</span>
-                      <% end %>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="flex items-center gap-2">
-                      <.users_count role={role} stats={@role_stats} />
-                      <span class="text-sm text-base-content/70">users</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="flex flex-wrap gap-1">
-                      <%= if !role.is_system_role do %>
-                        <%!-- Edit Button --%>
-                        <button
-                          class="btn btn-xs btn-outline btn-primary"
-                          phx-click="show_edit_role"
-                          phx-value-role_id={role.id}
-                        >
-                          <.icon name="hero-pencil" class="h-3 w-3 mr-1" /> Edit
-                        </button>
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <div class="flex items-center gap-2">
+                    <.users_count role={role} stats={@role_stats} />
+                    <span class="text-sm text-base-content/70">users</span>
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>
+                  <div class="flex flex-wrap gap-1">
+                    <%= if !role.is_system_role do %>
+                      <%!-- Edit Button --%>
+                      <button
+                        class="btn btn-xs btn-outline btn-primary"
+                        phx-click="show_edit_role"
+                        phx-value-role_id={role.id}
+                      >
+                        <.icon name="hero-pencil" class="h-3 w-3 mr-1" /> Edit
+                      </button>
 
-                        <%!-- Delete Button --%>
-                        <button
-                          class="btn btn-xs btn-outline btn-error"
-                          phx-click="request_delete_role"
-                          phx-value-role_id={role.id}
-                          phx-value-role_name={role.name}
-                        >
-                          <.icon name="hero-trash" class="h-3 w-3 mr-1" /> Delete
-                        </button>
-                      <% else %>
-                        <span class="text-xs text-base-content/50">Protected</span>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+                      <%!-- Delete Button --%>
+                      <button
+                        class="btn btn-xs btn-outline btn-error"
+                        phx-click="request_delete_role"
+                        phx-value-role_id={role.id}
+                        phx-value-role_name={role.name}
+                      >
+                        <.icon name="hero-trash" class="h-3 w-3 mr-1" /> Delete
+                      </button>
+                    <% else %>
+                      <span class="text-xs text-base-content/50">Protected</span>
+                    <% end %>
+                  </div>
+                </.table_default_cell>
+              </.table_default_row>
+            <% end %>
+          </.table_default_body>
+        </.table_default>
       <% else %>
         <%!-- Empty state --%>
         <div class="text-center py-12">
