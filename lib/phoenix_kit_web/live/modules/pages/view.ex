@@ -17,14 +17,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.View do
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
 
     # Check if module is enabled
-    unless Pages.enabled?() do
-      socket =
-        socket
-        |> put_flash(:error, "Pages module is not enabled")
-        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
-
-      {:ok, socket}
-    else
+    if Pages.enabled?() do
       socket =
         socket
         |> assign(:page_title, "View Page")
@@ -34,6 +27,13 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.View do
         |> assign(:metadata, nil)
         |> assign(:project_title, PhoenixKit.Settings.get_setting("project_title", "PhoenixKit"))
         |> assign(:current_locale, locale)
+
+      {:ok, socket}
+    else
+      socket =
+        socket
+        |> put_flash(:error, "Pages module is not enabled")
+        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
 
       {:ok, socket}
     end

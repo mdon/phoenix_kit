@@ -17,14 +17,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
 
     # Check if module is enabled
-    unless Pages.enabled?() do
-      socket =
-        socket
-        |> put_flash(:error, "Pages module is not enabled")
-        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
-
-      {:ok, socket}
-    else
+    if Pages.enabled?() do
       # Initialize root directory
       root_path = Pages.root_path()
 
@@ -55,6 +48,13 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
         |> assign(:project_title, PhoenixKit.Settings.get_setting("project_title", "PhoenixKit"))
         |> assign(:current_locale, locale)
         |> assign(:root_path, root_path)
+
+      {:ok, socket}
+    else
+      socket =
+        socket
+        |> put_flash(:error, "Pages module is not enabled")
+        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
 
       {:ok, socket}
     end
@@ -476,6 +476,14 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
     end
   end
 
+  def handle_event("debug_edit_click", %{"path" => path}, socket) do
+    # Navigate to the editor
+    {:noreply,
+     push_navigate(socket,
+       to: PhoenixKit.Utils.Routes.path("/admin/pages/edit?path=#{URI.encode(path)}")
+     )}
+  end
+
   ## Private Helpers
 
   defp refresh_tree(socket) do
@@ -531,8 +539,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
       {:ok, items} ->
         folders =
           items
-          |> Enum.filter(&(&1.type == :folder))
-          |> Enum.filter(&folder_within_sandbox?(&1, root_path))
+          |> Enum.filter(&(&1.type == :folder and folder_within_sandbox?(&1, root_path)))
           |> Enum.flat_map(fn folder ->
             # Add current folder and all its subfolders
             [folder.path | list_all_folders(folder.path)]

@@ -193,6 +193,15 @@
                     >
                       <PhoenixKitWeb.Components.Core.Icons.icon_duplicate class="w-4 h-4" />
                     </button>
+
+                    <.link
+                      class="btn btn-sm btn-ghost"
+                      title="Edit"
+                      phx-click="debug_edit_click"
+                      phx-value-path={item.path}
+                    >
+                      <PhoenixKitWeb.Components.Core.Icons.icon_edit class="w-4 h-4" />
+                    </.link>
                   <% end %>
 
                   <%= if item.type == :file do %>

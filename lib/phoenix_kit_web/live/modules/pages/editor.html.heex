@@ -13,12 +13,14 @@
         <div class="flex items-center justify-between">
           <%!-- Left: Back button and filename --%>
           <div class="flex items-center gap-4">
-            <.link
-              navigate={PhoenixKit.Utils.Routes.path("/admin/pages")}
+            <button
+              type="button"
               class="btn btn-ghost btn-sm"
+              phx-click="attempt_cancel"
+              id="back-button"
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_arrow_left class="w-4 h-4" /> Back
-            </.link>
+            </button>
             <div>
               <h1 class="text-xl font-bold">{Path.basename(@file_path || "")}</h1>
               <%= if @has_changes do %>
@@ -69,7 +71,8 @@
             <button
               type="button"
               class="btn btn-ghost"
-              phx-click="cancel"
+              phx-click="attempt_cancel"
+              id="cancel-button"
             >
               Cancel
             </button>
@@ -98,4 +101,101 @@
       </form>
     </div>
   </div>
+
+  <script>
+    // Initialize the editor unsaved changes protection
+    if (!window.editorUnsavedChanges) {
+      window.editorUnsavedChanges = {
+        hasChanges: false,
+        isNavigating: false
+      };
+
+      // Handle browser navigation (back button, closing tab, URL changes)
+      window.addEventListener('beforeunload', function(e) {
+        if (window.editorUnsavedChanges.hasChanges && !window.editorUnsavedChanges.isNavigating) {
+          // Modern browsers require exactly this format
+          e.preventDefault();
+          // Chrome requires returnValue to be set
+          e.returnValue = '';
+          // Some browsers show the return value, others show a default message
+          return '';
+        }
+      });
+
+      // Intercept LiveView navigation links
+      document.addEventListener('click', function(e) {
+        if (!window.editorUnsavedChanges.hasChanges || window.editorUnsavedChanges.isNavigating) return;
+
+        // Check if the clicked element or any parent is a link
+        let target = e.target;
+        while (target && target !== document) {
+          // Check for Phoenix LiveView links (nav menu, etc.)
+          if (target.hasAttribute && (
+              target.hasAttribute('data-phx-link') ||
+              target.hasAttribute('data-phx-link-state') ||
+              (target.tagName === 'A' && target.hasAttribute('href'))
+          )) {
+            // Found a navigation link, check if it's trying to leave the editor
+            const href = target.getAttribute('href') || target.getAttribute('data-phx-link');
+
+            // If the link is navigating away from the current page
+            if (href && !href.includes(window.location.pathname)) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+
+              if (confirm('You have unsaved changes. Are you sure you want to leave without saving?')) {
+                // User confirmed, allow navigation by triggering a new click
+                window.editorUnsavedChanges.isNavigating = true;
+                window.editorUnsavedChanges.hasChanges = false;
+                target.click(); // Re-trigger the click
+              }
+              return false;
+            }
+          }
+          target = target.parentElement;
+        }
+      }, true); // Use capture phase to intercept before LiveView
+    }
+
+    // Reset state when editor mounts
+    window.editorUnsavedChanges.hasChanges = false;
+    window.editorUnsavedChanges.isNavigating = false;
+  </script>
+
+  <script>
+    // Listen for changes status from LiveView
+    window.addEventListener('phx:changes-status', function(event) {
+      window.editorUnsavedChanges.hasChanges = event.detail.has_changes;
+    });
+
+    // Listen for confirmation request from LiveView
+    window.addEventListener('phx:confirm-navigation', function(event) {
+      console.log("Confirm navigation event received:", event.detail);
+      const message = event.detail.message;
+      if (confirm(message)) {
+        console.log("User confirmed, navigating...");
+        // User confirmed, mark as navigating and trigger cancel event
+        window.editorUnsavedChanges.isNavigating = true;
+        window.editorUnsavedChanges.hasChanges = false;
+
+        // Trigger the hidden button to navigate
+        const hiddenCancelButton = document.getElementById('confirmed-cancel-button');
+        if (hiddenCancelButton) {
+          hiddenCancelButton.click();
+        }
+      } else {
+        console.log("User cancelled navigation");
+      }
+    });
+  </script>
+
+  <%!-- Hidden button for confirmed cancellation --%>
+  <button
+    id="confirmed-cancel-button"
+    phx-click="cancel"
+    style="display: none;"
+    aria-hidden="true"
+  >
+  </button>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>

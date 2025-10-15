@@ -17,14 +17,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
 
     # Check if module is enabled
-    unless Pages.enabled?() do
-      socket =
-        socket
-        |> put_flash(:error, "Pages module is not enabled")
-        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
-
-      {:ok, socket}
-    else
+    if Pages.enabled?() do
       socket =
         socket
         |> assign(:page_title, "Edit Page")
@@ -34,6 +27,13 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
         |> assign(:has_changes, false)
         |> assign(:project_title, PhoenixKit.Settings.get_setting("project_title", "PhoenixKit"))
         |> assign(:current_locale, locale)
+
+      {:ok, socket}
+    else
+      socket =
+        socket
+        |> put_flash(:error, "Pages module is not enabled")
+        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
 
       {:ok, socket}
     end
@@ -58,7 +58,8 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
           |> assign(:current_status, current_status)
           |> assign(:page_title, "Edit: #{Path.basename(path)}")
 
-        {:noreply, socket}
+        # Notify JavaScript hook about initial changes status (no changes)
+        {:noreply, push_event(socket, "changes-status", %{has_changes: false})}
 
       {:error, _reason} ->
         socket =
@@ -90,7 +91,8 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
       |> assign(:file_content, content)
       |> assign(:has_changes, has_changes)
 
-    {:noreply, socket}
+    # Notify JavaScript hook about changes status
+    {:noreply, push_event(socket, "changes-status", %{has_changes: has_changes})}
   end
 
   def handle_event("save", _params, socket) do
@@ -109,7 +111,8 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
           |> assign(:has_changes, false)
           |> put_flash(:info, "File saved: #{Path.basename(file_path)}")
 
-        {:noreply, socket}
+        # Notify JavaScript hook that changes have been saved
+        {:noreply, push_event(socket, "changes-status", %{has_changes: false})}
 
       {:error, _reason} ->
         socket = put_flash(socket, :error, "Failed to save file")
@@ -117,16 +120,23 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
     end
   end
 
-  def handle_event("cancel", _params, socket) do
+  def handle_event("attempt_cancel", _params, socket) do
     if socket.assigns.has_changes do
-      # TODO: Add JS confirmation dialog for unsaved changes
-      # For now, just navigate back
-      socket = redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))
-      {:noreply, socket}
+      # Show browser's native confirm dialog via JavaScript
+      {:noreply,
+       push_event(socket, "confirm-navigation", %{
+         message: "You have unsaved changes. Are you sure you want to leave without saving?",
+         target: "/admin/pages"
+       })}
     else
-      socket = redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))
-      {:noreply, socket}
+      # No changes, navigate immediately
+      {:noreply, redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))}
     end
+  end
+
+  def handle_event("cancel", _params, socket) do
+    # User confirmed via JavaScript, navigate away
+    {:noreply, redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))}
   end
 
   def handle_event("change_status", %{"status" => new_status}, socket) do
