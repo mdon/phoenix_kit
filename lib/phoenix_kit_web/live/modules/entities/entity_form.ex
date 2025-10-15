@@ -8,8 +8,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
-  alias PhoenixKit.Entities.FieldTypes
   alias PhoenixKit.Entities.Events
+  alias PhoenixKit.Entities.FieldTypes
   alias PhoenixKit.Entities.Presence
   alias PhoenixKit.Entities.PresenceHelpers
   alias PhoenixKit.Settings
@@ -234,9 +234,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("save", %{"entities" => entity_params}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       # Add current fields to entity params
       entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
 
@@ -264,13 +262,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
           socket = assign(socket, :changeset, changeset)
           reply_with_broadcast(socket)
       end
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
     end
   end
 
   def handle_event("reset", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       # Reload entity from database or reset to empty state
       {entity, fields} =
         if socket.assigns.entity.id do
@@ -298,6 +296,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> put_flash(:info, gettext("Changes reset to last saved state"))
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
     end
   end
 
@@ -325,9 +325,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("generate_entity_slug", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       changeset = socket.assigns.changeset
 
       # Get display_name from changeset
@@ -346,13 +344,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         socket = assign(socket, :changeset, changeset)
         reply_with_broadcast(socket)
       end
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("select_icon", %{"icon" => icon_name}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       # Update the changeset with the selected icon while preserving all other data
       changeset = update_changeset_field(socket, %{"icon" => icon_name})
 
@@ -364,18 +362,20 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> assign(:selected_category, "All")
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("clear_icon", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       # Clear the icon field while preserving all other data
       changeset = update_changeset_field(socket, %{"icon" => nil})
 
       socket = assign(socket, :changeset, changeset)
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
@@ -419,9 +419,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   # Field Management Events
 
   def handle_event("add_field", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       socket =
         socket
         |> assign(:show_field_form, true)
@@ -438,13 +436,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> assign(:delete_confirm_index, nil)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
     end
   end
 
   def handle_event("edit_field", %{"index" => index}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
       field = Enum.at(socket.assigns.fields, index)
 
@@ -456,6 +454,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> assign(:field_error, nil)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
     end
   end
 
@@ -471,9 +471,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("save_field", %{"field" => field_params}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot save field - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       field_form = socket.assigns.field_form || %{}
       merged_params = Map.merge(field_form, field_params)
       sanitized_options = sanitize_field_options(merged_params)
@@ -494,6 +492,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
           socket = assign(socket, :field_error, error_message)
           reply_with_broadcast(socket)
       end
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot save field - you are spectating"))}
     end
   end
 
@@ -507,9 +507,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
   end
 
   def handle_event("delete_field", %{"index" => index}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot delete field - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
       fields = List.delete_at(socket.assigns.fields, index)
 
@@ -519,13 +517,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> assign(:delete_confirm_index, nil)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot delete field - you are spectating"))}
     end
   end
 
   def handle_event("move_field_up", %{"index" => index}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
 
       if index > 0 do
@@ -535,13 +533,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("move_field_down", %{"index" => index}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
 
       if index < length(socket.assigns.fields) - 1 do
@@ -551,13 +549,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("update_field_form", %{"field" => field_params}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       # Update field form with live changes
       current_form = socket.assigns.field_form
       updated_form = Map.merge(current_form, field_params)
@@ -592,13 +590,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
         |> assign(:field_error, nil)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("add_option", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       current_options = Map.get(socket.assigns.field_form, "options", [])
       updated_options = current_options ++ [""]
 
@@ -606,13 +604,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       socket = assign(socket, :field_form, field_form)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("remove_option", %{"index" => index}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
       current_options = Map.get(socket.assigns.field_form, "options", [])
       updated_options = List.delete_at(current_options, index)
@@ -621,13 +619,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       socket = assign(socket, :field_form, field_form)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("update_option", %{"index" => index, "value" => value}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       index = String.to_integer(index)
       current_options = Map.get(socket.assigns.field_form, "options", [])
       updated_options = List.replace_at(current_options, index, value)
@@ -636,13 +634,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
       socket = assign(socket, :field_form, field_form)
 
       reply_with_broadcast(socket)
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("generate_field_key", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       # Get label from field form
       label = Map.get(socket.assigns.field_form, "label", "")
 
@@ -659,6 +657,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.EntityForm do
 
         reply_with_broadcast(socket)
       end
+    else
+      {:noreply, socket}
     end
   end
 

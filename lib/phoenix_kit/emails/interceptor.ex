@@ -526,7 +526,12 @@ defmodule PhoenixKit.Emails.Interceptor do
 
   # Build message tags for categorization
   defp build_message_tags(%Email{} = email, opts) do
-    base_tags = Keyword.get(opts, :message_tags, %{})
+    # Ensure message_tags is always a map, even if passed as list or other type
+    base_tags =
+      case Keyword.get(opts, :message_tags, %{}) do
+        tags when is_map(tags) -> tags
+        _ -> %{}
+      end
 
     auto_tags = %{}
 

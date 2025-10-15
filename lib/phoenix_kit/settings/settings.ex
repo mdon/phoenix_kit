@@ -724,6 +724,72 @@ defmodule PhoenixKit.Settings do
   end
 
   @doc """
+  Updates or creates multiple settings in a single transaction.
+
+  More efficient version for batch updating settings.
+  Loads all settings in a single query and updates them in a transaction.
+
+  Accepts a map of key-value settings to update.
+  Returns `{:ok, results}` on success, where results is a list of results.
+  Returns `{:error, reason}` on transaction error.
+
+  ## Examples
+
+      iex> settings = %{"aws_region" => "eu-north-1", "aws_access_key_id" => "AKIAIOSFODNN7EXAMPLE"}
+      iex> PhoenixKit.Settings.update_settings_batch(settings)
+      {:ok, [ok: %Setting{}, ok: %Setting{}]}
+
+      iex> PhoenixKit.Settings.update_settings_batch(%{})
+      {:ok, []}
+  """
+  def update_settings_batch(settings_map) when is_map(settings_map) do
+    keys = Map.keys(settings_map)
+
+    # Load all existing settings in a single query
+    existing_settings =
+      Setting
+      |> where([s], s.key in ^keys)
+      |> repo().all()
+      |> Map.new(fn setting -> {setting.key, setting} end)
+
+    # Perform all updates/inserts in a transaction
+    result =
+      Ecto.Multi.new()
+      |> add_batch_operations(settings_map, existing_settings)
+      |> repo().transaction()
+
+    case result do
+      {:ok, _changes} ->
+        # Invalidate cache for all updated keys in a single call
+        PhoenixKit.Cache.invalidate_multiple(@cache_name, keys)
+        result
+
+      {:error, _failed_operation, _failed_value, _changes} ->
+        result
+    end
+  end
+
+  # Helper function to add operations to Multi
+  defp add_batch_operations(multi, settings_map, existing_settings) do
+    Enum.reduce(settings_map, multi, fn {key, value}, acc ->
+      # Convert nil to empty string
+      stored_value = value || ""
+
+      case Map.get(existing_settings, key) do
+        %Setting{} = setting ->
+          # Update existing setting
+          changeset = Setting.update_changeset(setting, %{value: stored_value})
+          Ecto.Multi.update(acc, {:update, key}, changeset)
+
+        nil ->
+          # Create new setting
+          changeset = Setting.changeset(%Setting{}, %{key: key, value: stored_value})
+          Ecto.Multi.insert(acc, {:insert, key}, changeset)
+      end
+    end)
+  end
+
+  @doc """
   Updates or creates a boolean setting with the given key and boolean value.
 
   Converts boolean values to "true"/"false" strings for storage.

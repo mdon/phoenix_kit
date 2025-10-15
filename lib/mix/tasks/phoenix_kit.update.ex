@@ -86,16 +86,124 @@ defmodule Mix.Tasks.PhoenixKit.Update do
 
   @impl Mix.Task
   def run(argv) do
-    # Ensure application is started for proper version detection
-    Mix.Task.run("app.start")
-
-    {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
-
-    if opts[:status] do
-      show_status(opts)
+    # Handle --help flag
+    if "--help" in argv or "-h" in argv do
+      show_help()
     else
-      perform_update(opts)
+      # Ensure application is started for proper version detection
+      Mix.Task.run("app.start")
+
+      {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
+
+      if opts[:status] do
+        show_status(opts)
+      else
+        perform_update(opts)
+      end
     end
+  end
+
+  # Display comprehensive help information
+  defp show_help do
+    Mix.shell().info("""
+
+    mix phoenix_kit.update - Update PhoenixKit to the latest version
+
+    USAGE
+      mix phoenix_kit.update [OPTIONS]
+
+    DESCRIPTION
+      Updates an existing PhoenixKit installation to the latest version by:
+      • Creating upgrade migrations that preserve existing data
+      • Adding new features and improvements
+      • Updating CSS configuration (enables daisyUI themes if disabled)
+      • Rebuilding assets using the Phoenix asset pipeline
+      • Optionally running database migrations automatically
+
+    OPTIONS
+      --prefix SCHEMA         Database schema prefix for PhoenixKit tables
+                              Default: "public" (standard PostgreSQL schema)
+                              Must match prefix used during installation
+                              Example: --prefix "auth"
+
+      --status, -s            Show current installation status and available updates
+                              Does not perform any changes
+
+      --force, -f             Force update even if already up to date
+                              Useful for regenerating migrations
+
+      --skip-assets           Skip automatic asset rebuild check
+                              Default: false
+
+      --yes, -y               Skip confirmation prompts
+                              Automatically runs migrations without asking
+                              Useful for CI/CD environments
+
+      -h, --help              Show this help message
+
+    EXAMPLES
+      # Update PhoenixKit to latest version (uses default "public" schema)
+      mix phoenix_kit.update
+
+      # Check current version and available updates
+      mix phoenix_kit.update --status
+
+      # Update with custom schema prefix (must match installation prefix)
+      mix phoenix_kit.update --prefix "auth"
+
+      # Update without prompts (useful for CI/CD)
+      mix phoenix_kit.update -y
+
+      # Force update and run migrations automatically
+      mix phoenix_kit.update --force -y
+
+      # Update without rebuilding assets
+      mix phoenix_kit.update --skip-assets
+
+    VERSION MANAGEMENT
+      PhoenixKit uses a versioned migration system similar to Oban.
+      Each version contains specific database schema changes that can
+      be applied incrementally.
+
+      Current latest version: V17
+      • V01: Basic authentication with role system
+      • V02: Remove is_active column from role assignments
+      • V03-V06: Additional features and improvements
+      • V07: Email system tables (logs, events, blocklist)
+      • V08-V17: Settings, OAuth, magic links, and more
+
+    SAFE UPDATES
+      All PhoenixKit updates are designed to be:
+      • Non-destructive (existing data is preserved)
+      • Backward compatible (existing code continues to work)
+      • Idempotent (safe to run multiple times)
+      • Rollback-capable (can be reverted if needed)
+
+    AFTER UPDATE
+      1. If migrations weren't run automatically:
+         mix ecto.migrate
+
+      2. Restart your Phoenix server:
+         mix phx.server
+
+      3. Visit your application:
+         http://localhost:4000/phoenix_kit/users/register
+
+    CI/CD USAGE
+      For automated deployments, use the --yes flag to skip prompts:
+      mix phoenix_kit.update -y
+
+    TROUBLESHOOTING
+      If the update fails or you need to check status:
+      • Check version: mix phoenix_kit.update --status
+      • Force regeneration: mix phoenix_kit.update --force
+      • Manual migration: mix ecto.migrate
+      • Rollback: mix ecto.rollback
+
+    DOCUMENTATION
+      For more information, visit:
+      https://hexdocs.pm/phoenix_kit
+    """)
   end
 
   # Show current installation status and available updates

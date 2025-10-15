@@ -248,14 +248,27 @@
 
             <div class="alert alert-info mb-6">
               <.icon name="hero-information-circle" class="w-5 h-5" />
-              <div>
+              <div class="flex-1">
                 <h3 class="font-bold">Configure AWS Infrastructure</h3>
                 <p class="text-sm mt-1">
                   Set up AWS credentials, SNS topics, and SQS queues for advanced emails.
-                  <%!-- Use our setup script:
-                  <code class="text-xs">./scripts/aws_ses_sqs_setup.sh</code> --%>
                 </p>
               </div>
+              <button
+                type="button"
+                phx-click="setup_aws_infrastructure"
+                class={[
+                  "btn btn-accent btn-sm",
+                  if(@setting_up_aws, do: "loading", else: "")
+                ]}
+                disabled={@setting_up_aws}
+              >
+                <%= if @setting_up_aws do %>
+                  Setting up...
+                <% else %>
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Setup AWS Infrastructure
+                <% end %>
+              </button>
             </div>
 
             <form phx-submit="save_aws_settings">

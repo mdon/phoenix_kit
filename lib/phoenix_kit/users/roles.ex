@@ -744,43 +744,51 @@ defmodule PhoenixKit.Users.Roles do
 
       case assign_role_internal(user, role_name) do
         {:ok, _assignment} ->
-          # Ensure first user (Owner) is always active and email confirmed
-          if is_nil(existing_owner) do
-            changes = %{}
-
-            # Always activate Owner
-            changes = if !user.is_active, do: Map.put(changes, :is_active, true), else: changes
-
-            # Auto-confirm Owner email (first user is system administrator)
-            changes =
-              if is_nil(user.confirmed_at) do
-                Map.put(
-                  changes,
-                  :confirmed_at,
-                  NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-                )
-              else
-                changes
-              end
-
-            # Apply changes if needed
-            if map_size(changes) > 0 do
-              case repo.update(Ecto.Changeset.change(user, changes)) do
-                {:ok, _updated_user} -> role_type
-                {:error, reason} -> repo.rollback(reason)
-              end
-            else
-              role_type
-            end
-          else
-            role_type
-          end
+          maybe_activate_first_owner(user, is_nil(existing_owner), role_type, repo)
 
         {:error, reason} ->
           repo.rollback(reason)
       end
     end)
   end
+
+  # Activate and confirm first owner if needed
+  defp maybe_activate_first_owner(user, is_first_owner, role_type, repo) do
+    if is_first_owner do
+      changes = build_owner_changes(user)
+      apply_owner_changes(user, changes, role_type, repo)
+    else
+      role_type
+    end
+  end
+
+  # Build changes map for first owner (activation and email confirmation)
+  defp build_owner_changes(user) do
+    %{}
+    |> maybe_add_is_active(user.is_active)
+    |> maybe_add_confirmed_at(user.confirmed_at)
+  end
+
+  # Add is_active flag if user is not active
+  defp maybe_add_is_active(changes, true), do: changes
+  defp maybe_add_is_active(changes, false), do: Map.put(changes, :is_active, true)
+
+  # Add confirmed_at timestamp if user email is not confirmed
+  defp maybe_add_confirmed_at(changes, nil) do
+    Map.put(changes, :confirmed_at, NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second))
+  end
+
+  defp maybe_add_confirmed_at(changes, _confirmed_at), do: changes
+
+  # Apply changes to user if any exist
+  defp apply_owner_changes(user, changes, role_type, repo) when map_size(changes) > 0 do
+    case repo.update(Ecto.Changeset.change(user, changes)) do
+      {:ok, _updated_user} -> role_type
+      {:error, reason} -> repo.rollback(reason)
+    end
+  end
+
+  defp apply_owner_changes(_user, _changes, role_type, _repo), do: role_type
 
   @doc """
   Safely removes role with Owner protection.

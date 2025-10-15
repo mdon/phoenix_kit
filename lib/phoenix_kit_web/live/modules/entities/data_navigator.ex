@@ -8,8 +8,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
   on_mount PhoenixKitWeb.Live.Modules.Entities.Hooks
 
   alias PhoenixKit.Entities
-  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Entities.EntityData
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -74,39 +74,12 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
 
   def handle_params(params, _url, socket) do
     # Get entity from slug in params (entity_slug or entity_id for backwards compat)
-    {entity, entity_id} =
-      case params["entity_slug"] || params["entity_id"] do
-        nil ->
-          {socket.assigns.selected_entity, socket.assigns.selected_entity_id}
-
-        "" ->
-          {nil, nil}
-
-        slug when is_binary(slug) ->
-          case Entities.get_entity_by_name(slug) do
-            nil -> {nil, nil}
-            entity -> {entity, entity.id}
-          end
-      end
+    {entity, entity_id} = resolve_entity_from_params(params, socket)
 
     # Recalculate stats and subscribe if entity changed
-    socket =
-      if entity_id != socket.assigns.selected_entity_id do
-        if connected?(socket) && entity_id do
-          Events.subscribe_to_entity_data(entity_id)
-        end
+    socket = maybe_update_entity_stats(socket, entity_id)
 
-        stats = EntityData.get_data_stats(entity_id)
-
-        socket
-        |> assign(:total_records, stats.total_records)
-        |> assign(:published_records, stats.published_records)
-        |> assign(:draft_records, stats.draft_records)
-        |> assign(:archived_records, stats.archived_records)
-      else
-        socket
-      end
-
+    # Extract filter params with defaults
     status = params["status"] || "all"
     search_term = params["search"] || ""
     view_mode = params["view"] || socket.assigns.view_mode
@@ -121,6 +94,56 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataNavigator do
       |> apply_filters()
 
     {:noreply, socket}
+  end
+
+  # Resolve entity and entity_id from URL params
+  defp resolve_entity_from_params(params, socket) do
+    case params["entity_slug"] || params["entity_id"] do
+      nil ->
+        {socket.assigns.selected_entity, socket.assigns.selected_entity_id}
+
+      "" ->
+        {nil, nil}
+
+      slug when is_binary(slug) ->
+        resolve_entity_by_slug(slug)
+    end
+  end
+
+  # Look up entity by slug/name
+  defp resolve_entity_by_slug(slug) do
+    case Entities.get_entity_by_name(slug) do
+      nil -> {nil, nil}
+      entity -> {entity, entity.id}
+    end
+  end
+
+  # Update entity stats and subscribe to events if entity changed
+  defp maybe_update_entity_stats(socket, new_entity_id) do
+    if new_entity_id != socket.assigns.selected_entity_id do
+      maybe_subscribe_to_entity(socket, new_entity_id)
+      update_entity_stats(socket, new_entity_id)
+    else
+      socket
+    end
+  end
+
+  # Subscribe to entity data events if connected
+  defp maybe_subscribe_to_entity(socket, entity_id) do
+    if connected?(socket) && entity_id do
+      Events.subscribe_to_entity_data(entity_id)
+    end
+  end
+
+  # Update socket with fresh entity statistics
+  defp update_entity_stats(socket, entity_id) do
+    stats = EntityData.get_data_stats(entity_id)
+
+    socket
+    |> assign(:total_records, stats.total_records)
+    |> assign(:published_records, stats.published_records)
+    |> assign(:draft_records, stats.draft_records)
+    |> assign(:archived_records, stats.archived_records)
   end
 
   def handle_event("toggle_view_mode", %{"mode" => mode}, socket) do

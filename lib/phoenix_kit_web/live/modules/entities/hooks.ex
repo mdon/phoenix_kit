@@ -6,8 +6,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.Hooks do
   """
 
   import Phoenix.LiveView
-  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Entities.Events
   alias PhoenixKit.Users.Auth.Scope
 
   @doc """

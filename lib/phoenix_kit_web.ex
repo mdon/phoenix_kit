@@ -107,6 +107,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.UserInfo
       import PhoenixKitWeb.Components.Core.Pagination
       import PhoenixKitWeb.Components.Core.FileDisplay
+      import PhoenixKitWeb.Components.Core.TableDefault
     end
   end
 

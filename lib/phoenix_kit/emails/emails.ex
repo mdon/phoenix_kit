@@ -349,7 +349,7 @@ defmodule PhoenixKit.Emails do
         end
       else
         {:error,
-         "AWS credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
+         "AWS credentials not configured. Configure via Web UI at /admin/settings/emails or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
       end
     else
       {:error, "Email system is disabled. Please enable it in settings."}
@@ -1196,8 +1196,8 @@ defmodule PhoenixKit.Emails do
       queue_arn: get_sqs_queue_arn(),
       dlq_url: get_sqs_dlq_url(),
       aws_region: get_aws_region(),
-      aws_access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
-      aws_secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY"),
+      aws_access_key_id: get_aws_access_key(),
+      aws_secret_access_key: get_aws_secret_key(),
       polling_enabled: sqs_polling_enabled?(),
       polling_interval_ms: get_sqs_polling_interval(),
       max_messages_per_poll: get_sqs_max_messages(),
@@ -1862,9 +1862,17 @@ defmodule PhoenixKit.Emails do
 
   defp safe_percentage(_, _), do: 0.0
 
-  # Helper function to check if AWS credentials are configured
-  # Checks both settings and environment variables (settings take priority)
-  defp aws_configured? do
+  @doc """
+  Checks if AWS credentials are configured.
+
+  Checks both Settings Database and environment variables (Settings DB takes priority).
+
+  ## Examples
+
+      iex> PhoenixKit.Emails.aws_configured?()
+      true
+  """
+  def aws_configured? do
     access_key = get_aws_access_key()
     secret_key = get_aws_secret_key()
 
@@ -1880,8 +1888,17 @@ defmodule PhoenixKit.Emails do
     ]
   end
 
-  # Helper functions to get AWS settings with fallback
-  defp get_aws_access_key do
+  @doc """
+  Gets AWS access key with Settings DB priority.
+
+  Priority: Settings Database → Environment Variables
+
+  ## Examples
+
+      iex> PhoenixKit.Emails.get_aws_access_key()
+      "AKIA..."
+  """
+  def get_aws_access_key do
     Settings.get_setting("aws_access_key_id")
     |> case do
       key when is_binary(key) and key != "" -> key
@@ -1889,7 +1906,17 @@ defmodule PhoenixKit.Emails do
     end
   end
 
-  defp get_aws_secret_key do
+  @doc """
+  Gets AWS secret key with Settings DB priority.
+
+  Priority: Settings Database → Environment Variables
+
+  ## Examples
+
+      iex> PhoenixKit.Emails.get_aws_secret_key()
+      "secret..."
+  """
+  def get_aws_secret_key do
     Settings.get_setting("aws_secret_access_key")
     |> case do
       key when is_binary(key) and key != "" -> key

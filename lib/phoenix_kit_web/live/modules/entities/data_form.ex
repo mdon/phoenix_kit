@@ -267,9 +267,7 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
   end
 
   def handle_event("save", %{"phoenix_kit_entity_data" => data_params}, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       # Extract the data field from params
       form_data = Map.get(data_params, "data", %{})
 
@@ -331,13 +329,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
 
           {:noreply, socket}
       end
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
     end
   end
 
   def handle_event("reset", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
-    else
+    if socket.assigns[:lock_owner?] do
       # Reload data record from database or reset to empty state
       {data_record, changeset} =
         if socket.assigns.data_record.id do
@@ -364,13 +362,13 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
         |> broadcast_data_form_state(extract_changeset_params(changeset))
 
       {:noreply, socket}
+    else
+      {:noreply, put_flash(socket, :error, gettext("Cannot reset - you are spectating"))}
     end
   end
 
   def handle_event("generate_slug", _params, socket) do
-    unless socket.assigns[:lock_owner?] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:lock_owner?] do
       changeset = socket.assigns.changeset
 
       # Get title from changeset (includes both changes and original data)
@@ -413,6 +411,8 @@ defmodule PhoenixKitWeb.Live.Modules.Entities.DataForm do
 
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 

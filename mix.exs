@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.3.2"
+  @version "1.3.3"
   @description "PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -72,11 +72,13 @@ defmodule PhoenixKit.MixProject do
       # Authentication
       {:bcrypt_elixir, "~> 3.0"},
       {:swoosh, "~> 1.19.5"},
+      {:gen_smtp, "~> 1.2"},
 
-      # OAuth authentication (optional - only needed if using OAuth providers)
-      {:ueberauth, "~> 0.10", optional: true},
-      {:ueberauth_google, "~> 0.12", optional: true},
-      {:ueberauth_apple, "~> 0.1", optional: true},
+      # OAuth authentication
+      {:ueberauth, "~> 0.10"},
+      {:ueberauth_google, "~> 0.12"},
+      {:ueberauth_apple, "~> 0.1"},
+      {:ueberauth_github, "~> 0.8"},
 
       # Development and testing
       {:ex_doc, "~> 0.38.4", only: :dev, runtime: false},
@@ -96,8 +98,11 @@ defmodule PhoenixKit.MixProject do
       # AWS integration for emails
       {:ex_aws, "~> 2.4"},
       {:ex_aws_sqs, "~> 3.4"},
+      {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
+      {:saxy, "~> 1.5"},
+      {:finch, "~> 0.18"},
 
       # Code generation and project patching
       {:igniter, "~> 0.6.27", optional: true}

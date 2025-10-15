@@ -52,6 +52,17 @@ defmodule PhoenixKit.Settings.Setting do
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
 
+  # Settings that are allowed to have empty/nil values
+  @optional_settings [
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_sqs_queue_url",
+    "aws_sqs_dlq_url",
+    "aws_sqs_queue_arn",
+    "aws_sns_topic_arn",
+    "site_url"
+  ]
+
   @primary_key {:id, :id, autogenerate: true}
 
   schema "phoenix_kit_settings" do
@@ -121,23 +132,21 @@ defmodule PhoenixKit.Settings.Setting do
     if value_json do
       changeset
     else
-      case key do
-        "site_url" ->
-          # site_url can be empty, but max 1000 characters
-          # Ensure empty string is preserved, not converted to nil
+      cond do
+        # Optional settings (AWS credentials, site_url, etc.) can be empty
+        key in @optional_settings ->
           case value do
             nil -> put_change(changeset, :value, "")
             _ -> validate_length(changeset, :value, max: 1000)
           end
 
-        _ ->
-          # For settings with JSON data being set, allow nil/empty value
-          if Map.get(changeset.changes, :value_json) do
-            changeset
-          else
-            # All other settings require non-empty values when using string storage
-            validate_length(changeset, :value, min: 1, max: 1000)
-          end
+        # For settings with JSON data being set, allow nil/empty value
+        Map.get(changeset.changes, :value_json) ->
+          changeset
+
+        # All other settings require non-empty values when using string storage
+        true ->
+          validate_length(changeset, :value, min: 1, max: 1000)
       end
     end
   end
@@ -146,6 +155,7 @@ defmodule PhoenixKit.Settings.Setting do
   defp validate_value_exclusivity(changeset) do
     value = get_field(changeset, :value)
     value_json = get_field(changeset, :value_json)
+    key = get_field(changeset, :key)
 
     cond do
       # Both have meaningful values - only allow one
@@ -154,6 +164,10 @@ defmodule PhoenixKit.Settings.Setting do
 
       # At least one meaningful value exists - valid
       (not is_nil(value) and value != "") or not is_nil(value_json) ->
+        changeset
+
+      # Optional settings can be empty
+      key in @optional_settings ->
         changeset
 
       # Both are nil/empty - require at least one for new records
