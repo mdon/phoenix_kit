@@ -8,7 +8,10 @@ defmodule PhoenixKitWeb.Users.UserForm do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
   def mount(params, _session, socket) do
@@ -20,6 +23,15 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user_id = params["id"]
     mode = if user_id, do: :edit, else: :new
 
+    # Load custom field definitions
+    field_definitions = CustomFields.list_enabled_field_definitions()
+
+    # Load all roles for role management
+    all_roles = Roles.list_roles()
+
+    # Load default role for new user creation
+    default_role = Settings.get_setting("new_user_default_role", "User")
+
     socket =
       socket
       |> assign(:current_locale, locale)
@@ -28,6 +40,11 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
       |> assign(:show_password_field, false)
+      |> assign(:field_definitions, field_definitions)
+      |> assign(:custom_fields_errors, %{})
+      |> assign(:all_roles, all_roles)
+      |> assign(:pending_roles, [])
+      |> assign(:default_role, default_role)
       |> load_user_data(mode, user_id)
       |> load_form_data()
 
@@ -116,6 +133,139 @@ defmodule PhoenixKitWeb.Users.UserForm do
     {:noreply, socket}
   end
 
+  def handle_event("open_roles_dropdown", _params, socket) do
+    # Initialize pending roles with current user roles when dropdown opens
+    socket = assign(socket, :pending_roles, socket.assigns.user_roles)
+    {:noreply, socket}
+  end
+
+  def handle_event("toggle_role", %{"role" => role_name}, socket) do
+    # Toggle role in pending_roles list
+    pending_roles = socket.assigns.pending_roles
+
+    new_pending_roles =
+      if role_name in pending_roles do
+        List.delete(pending_roles, role_name)
+      else
+        [role_name | pending_roles]
+      end
+
+    socket = assign(socket, :pending_roles, new_pending_roles)
+    {:noreply, socket}
+  end
+
+  def handle_event("apply_roles", _params, socket) do
+    user = socket.assigns.user
+    current_user = socket.assigns.phoenix_kit_current_user
+
+    # Prevent users from modifying their own roles
+    if user.id == current_user.id do
+      socket =
+        put_flash(socket, :error, "You cannot modify your own roles.")
+
+      {:noreply, socket}
+    else
+      role_names = socket.assigns.pending_roles
+
+      case Roles.sync_user_roles(user, role_names) do
+        {:ok, _assignments} ->
+          socket =
+            socket
+            |> put_flash(:info, "User roles updated successfully.")
+            |> assign(:user_roles, Roles.get_user_roles(user))
+            |> assign(:pending_roles, [])
+
+          {:noreply, socket}
+
+        {:error, reason} ->
+          error_message =
+            case reason do
+              :owner_role_protected -> "Owner role cannot be manually assigned."
+              :cannot_remove_last_owner -> "Cannot remove Owner role from the last Owner."
+              _ -> "Failed to update roles. Please try again."
+            end
+
+          socket = put_flash(socket, :error, error_message)
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event("sync_user_roles", params, socket) do
+    user = socket.assigns.user
+    current_user = socket.assigns.phoenix_kit_current_user
+
+    # Prevent users from modifying their own roles
+    if user.id == current_user.id do
+      socket =
+        put_flash(socket, :error, "You cannot modify your own roles.")
+
+      {:noreply, socket}
+    else
+      # Extract role names from form params
+      role_names =
+        params
+        |> Map.get("roles", %{})
+        |> Enum.filter(fn {_key, value} -> value != "false" end)
+        |> Enum.map(fn {key, _value} -> key end)
+
+      case Roles.sync_user_roles(user, role_names) do
+        {:ok, _assignments} ->
+          socket =
+            socket
+            |> put_flash(:info, "User roles updated successfully.")
+            |> assign(:user_roles, Roles.get_user_roles(user))
+
+          {:noreply, socket}
+
+        {:error, reason} ->
+          error_message =
+            case reason do
+              :owner_role_protected -> "Owner role cannot be manually assigned."
+              :cannot_remove_last_owner -> "Cannot remove Owner role from the last Owner."
+              _ -> "Failed to update roles. Please try again."
+            end
+
+          socket = put_flash(socket, :error, error_message)
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event("toggle_user_status", _params, socket) do
+    user = socket.assigns.user
+    new_status = !user.is_active
+
+    case Auth.update_user_status(user, %{"is_active" => new_status}) do
+      {:ok, updated_user} ->
+        status_text = if new_status, do: "activated", else: "deactivated"
+
+        socket =
+          socket
+          |> put_flash(:info, "User #{status_text} successfully.")
+          |> assign(:user, updated_user)
+          |> reload_changeset_after_status_update(updated_user)
+
+        {:noreply, socket}
+
+      {:error, :cannot_deactivate_last_owner} ->
+        socket =
+          put_flash(
+            socket,
+            :error,
+            "Cannot deactivate the last Owner. Assign the Owner role to another user first."
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket =
+          put_flash(socket, :error, "Failed to update user status. Please try again.")
+
+        {:noreply, socket}
+    end
+  end
+
   defp create_user(socket, user_params) do
     case Auth.register_user(user_params) do
       {:ok, user} ->
@@ -150,61 +300,125 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user = socket.assigns.user
     show_password_field = socket.assigns.show_password_field
 
-    # Check if password update is needed
-    password_provided =
-      show_password_field and Map.has_key?(user_params, "password") and
-        user_params["password"] != nil and String.trim(user_params["password"]) != ""
+    # Extract custom fields from params
+    custom_fields_params = Map.get(user_params, "custom_fields", %{})
+    profile_params = Map.delete(user_params, "custom_fields")
 
-    if password_provided do
-      # Update both profile and password
-      case update_profile_and_password(user, user_params) do
-        {:ok, _updated_user} ->
-          socket =
-            socket
-            |> put_flash(:info, "User profile and password updated successfully.")
-            |> push_navigate(to: Routes.path("/admin/users"))
-
-          {:noreply, socket}
-
-        {:error, changeset} ->
-          socket =
-            socket
-            |> assign(:changeset, changeset)
-            |> assign(:form_data, user_params)
-
-          {:noreply, socket}
+    # Validate custom fields if any exist
+    custom_fields_validation =
+      if map_size(custom_fields_params) > 0 do
+        temp_user = %{user | custom_fields: custom_fields_params}
+        CustomFields.validate_user_custom_fields(temp_user)
+      else
+        :ok
       end
-    else
-      # Update profile only (exclude password)
-      profile_params = Map.delete(user_params, "password")
 
-      case Auth.update_user_profile(user, profile_params) do
-        {:ok, _user} ->
-          socket =
-            socket
-            |> put_flash(:info, "User updated successfully.")
-            |> push_navigate(to: Routes.path("/admin/users"))
+    case custom_fields_validation do
+      :ok ->
+        # Check if password update is needed
+        password_provided =
+          show_password_field and Map.has_key?(profile_params, "password") and
+            profile_params["password"] != nil and String.trim(profile_params["password"]) != ""
 
-          {:noreply, socket}
+        result =
+          if password_provided do
+            # Update both profile and password
+            update_profile_and_password(user, profile_params)
+          else
+            # Update profile only (exclude password)
+            cleaned_params = Map.delete(profile_params, "password")
+            Auth.update_user_profile(user, cleaned_params)
+          end
 
-        {:error, %Ecto.Changeset{} = changeset} ->
-          socket =
-            socket
-            |> assign(:changeset, changeset)
-            |> assign(:form_data, user_params)
+        case result do
+          {:ok, updated_user} ->
+            # Also update custom fields if provided
+            final_result =
+              if map_size(custom_fields_params) > 0 do
+                Auth.update_user_custom_fields(updated_user, custom_fields_params)
+              else
+                {:ok, updated_user}
+              end
 
-          {:noreply, socket}
-      end
+            case final_result do
+              {:ok, final_user} ->
+                # Update roles if they were changed
+                roles_result = update_user_roles_if_changed(socket, final_user)
+
+                case roles_result do
+                  {:ok, _} ->
+                    socket =
+                      socket
+                      |> put_flash(:info, "User updated successfully.")
+                      |> push_navigate(to: Routes.path("/admin/users"))
+
+                    {:noreply, socket}
+
+                  {:error, reason} ->
+                    error_message =
+                      case reason do
+                        :owner_role_protected ->
+                          "User profile updated but Owner role cannot be manually assigned."
+
+                        :cannot_remove_last_owner ->
+                          "User profile updated but cannot remove Owner role from the last Owner."
+
+                        _ ->
+                          "User profile updated but roles failed to update."
+                      end
+
+                    socket =
+                      socket
+                      |> put_flash(:warning, error_message)
+                      |> push_navigate(to: Routes.path("/admin/users"))
+
+                    {:noreply, socket}
+                end
+
+              {:error, _changeset} ->
+                socket =
+                  socket
+                  |> put_flash(:error, "User profile updated but custom fields failed to save.")
+                  |> push_navigate(to: Routes.path("/admin/users"))
+
+                {:noreply, socket}
+            end
+
+          {:error, changeset} ->
+            socket =
+              socket
+              |> assign(:changeset, changeset)
+              |> assign(:form_data, user_params)
+              |> assign(:custom_fields_errors, %{})
+
+            {:noreply, socket}
+        end
+
+      {:error, errors} ->
+        socket =
+          socket
+          |> assign(:custom_fields_errors, errors)
+          |> assign(:custom_fields_data, custom_fields_params)
+          |> put_flash(:error, "Please fix the custom field errors below.")
+
+        {:noreply, socket}
     end
   end
 
   defp load_user_data(socket, :new, _user_id) do
-    assign(socket, :user, %Auth.User{})
+    socket
+    |> assign(:user, %Auth.User{})
+    |> assign(:user_roles, [])
   end
 
   defp load_user_data(socket, :edit, user_id) do
     user = Auth.get_user!(user_id)
-    assign(socket, :user, user)
+    user_roles = Roles.get_user_roles(user)
+
+    socket
+    |> assign(:user, user)
+    |> assign(:user_roles, user_roles)
+    |> assign(:pending_roles, user_roles)
   end
 
   defp load_form_data(%{assigns: %{mode: :new}} = socket) do
@@ -218,6 +432,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       "first_name" => "",
       "last_name" => ""
     })
+    |> assign(:custom_fields_data, %{})
   end
 
   defp load_form_data(%{assigns: %{mode: :edit, user: user}} = socket) do
@@ -230,6 +445,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       "first_name" => user.first_name || "",
       "last_name" => user.last_name || ""
     })
+    |> assign(:custom_fields_data, user.custom_fields || %{})
   end
 
   defp page_title(:new), do: "Create User"
@@ -258,6 +474,12 @@ defmodule PhoenixKitWeb.Users.UserForm do
 
         assign(socket, :changeset, changeset)
     end
+  end
+
+  defp reload_changeset_after_status_update(socket, updated_user) do
+    form_data = socket.assigns.form_data || %{}
+    changeset = Auth.change_user_registration(updated_user, form_data)
+    assign(socket, :changeset, changeset)
   end
 
   defp update_profile_and_password(user, user_params) do
@@ -293,5 +515,28 @@ defmodule PhoenixKitWeb.Users.UserForm do
     Enum.reduce(password_errors, profile_changeset, fn {field, error}, acc ->
       Ecto.Changeset.add_error(acc, field, elem(error, 0), elem(error, 1))
     end)
+  end
+
+  defp update_user_roles_if_changed(socket, user) do
+    current_user = socket.assigns.phoenix_kit_current_user
+    pending_roles = socket.assigns.pending_roles
+    current_roles = socket.assigns.user_roles
+
+    # Check if roles have changed
+    roles_changed? = Enum.sort(pending_roles) != Enum.sort(current_roles)
+
+    cond do
+      # If user is trying to modify their own roles, prevent it
+      user.id == current_user.id and roles_changed? ->
+        {:error, :cannot_modify_own_roles}
+
+      # If roles haven't changed, skip update
+      not roles_changed? ->
+        {:ok, user}
+
+      # Roles have changed and it's allowed, update them
+      true ->
+        Roles.sync_user_roles(user, pending_roles)
+    end
   end
 end
