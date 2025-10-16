@@ -383,7 +383,7 @@
                   {if @editing_field, do: "Edit Custom Field", else: "Add Custom Field"}
                 </h3>
 
-                <.form :let={f} for={%{}} phx-submit="save_field" class="space-y-4">
+                <.form :let={_f} for={%{}} phx-submit="save_field" class="space-y-4">
                   <%!-- Field Key --%>
                   <div class="form-control">
                     <label class="label">

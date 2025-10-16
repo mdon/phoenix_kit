@@ -320,28 +320,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
-  # Helper function to save the current temporary state and close the modal
-  defp save_and_close_modal(socket) do
-    temp_selected = socket.assigns.temp_selected_columns || []
-
-    case TableColumns.update_user_table_columns(temp_selected) do
-      {:ok, _setting} ->
-        # Get the properly ordered columns back from TableColumns
-        ordered_columns = TableColumns.get_user_table_columns()
-
-        socket
-        |> put_flash(:info, "Table columns updated successfully")
-        |> assign(:selected_columns, ordered_columns)
-        |> assign(:temp_selected_columns, nil)
-        |> assign(:show_column_modal, false)
-
-      {:error, _reason} ->
-        socket
-        |> put_flash(:error, "Failed to update table columns")
-        |> assign(:show_column_modal, false)
-    end
-  end
-
   def handle_event("reset_to_defaults", _params, socket) do
     default_columns = TableColumns.get_default_columns()
 
@@ -353,7 +331,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
-  # New handlers for two-section layout - using temporary state
   def handle_event("add_column", %{"column_id" => column_id}, socket) do
     temp_selected = socket.assigns.temp_selected_columns || []
     new_selected = temp_selected ++ [column_id]
@@ -425,6 +402,28 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         |> assign(:temp_selected_columns, final_order)
 
       {:noreply, socket}
+    end
+  end
+
+  # Helper function to save the current temporary state and close the modal
+  defp save_and_close_modal(socket) do
+    temp_selected = socket.assigns.temp_selected_columns || []
+
+    case TableColumns.update_user_table_columns(temp_selected) do
+      {:ok, _setting} ->
+        # Get the properly ordered columns back from TableColumns
+        ordered_columns = TableColumns.get_user_table_columns()
+
+        socket
+        |> put_flash(:info, "Table columns updated successfully")
+        |> assign(:selected_columns, ordered_columns)
+        |> assign(:temp_selected_columns, nil)
+        |> assign(:show_column_modal, false)
+
+      {:error, _reason} ->
+        socket
+        |> put_flash(:error, "Failed to update table columns")
+        |> assign(:show_column_modal, false)
     end
   end
 
