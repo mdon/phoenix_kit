@@ -530,7 +530,7 @@
 
     <%!-- Column Selection Modal --%>
     <%= if @show_column_modal do %>
-      <div class="modal modal-open">
+      <div class="modal modal-open" id="column-modal">
         <div class="modal-box max-w-5xl max-h-[90vh] overflow-hidden">
           <h3 class="font-bold text-xl mb-4">Customize Table Columns</h3>
           <p class="text-base-content/70 mb-6">
@@ -818,124 +818,37 @@
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
 
 <script>
-  // Column drag and drop functionality for two-section layout
   document.addEventListener('DOMContentLoaded', function() {
+    initColumnDragDrop();
+  });
+
+  // Also initialize when modal becomes visible (for LiveView updates)
+  document.addEventListener('click', function(e) {
+    const customizeButton = e.target.closest('[phx-click="show_column_modal"]');
+    if (customizeButton) {
+      // Give LiveView a moment to render the modal
+      setTimeout(() => {
+        initColumnDragDrop();
+      }, 100);
+    }
+  });
+
+  function initColumnDragDrop() {
+    const selectedContainer = document.getElementById('selected-columns-container');
+    if (!selectedContainer) return;
+
+    // Check if already initialized to avoid duplicate listeners
+    if (selectedContainer.dataset.dragInitialized === 'true') return;
+    selectedContainer.dataset.dragInitialized = 'true';
+
     let draggedElement = null;
     let placeholder = null;
-    let currentContainer = null;
 
     function createPlaceholder() {
       const div = document.createElement('div');
       div.className = 'draggable-placeholder border-2 border-dashed border-primary rounded-lg p-3 mb-2 opacity-50 bg-primary/5';
       div.innerHTML = '<div class="text-center text-primary text-sm">Drop here to reorder</div>';
       return div;
-    }
-
-    function handleDragStart(e) {
-      draggedElement = e.target.closest('.draggable-selected-field');
-      if (!draggedElement) return;
-
-      currentContainer = draggedElement.parentElement;
-      placeholder = createPlaceholder();
-
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', draggedElement.innerHTML);
-
-      // Add dragging class for visual feedback
-      draggedElement.classList.add('opacity-50', 'scale-95', 'shadow-lg');
-
-      // Store column ID and section
-      draggedElement.dataset.isDragging = 'true';
-    }
-
-    function handleDragOver(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-
-      if (!draggedElement || !placeholder) return;
-
-      // Find the selected columns container or a valid drop target
-      const selectedContainer = document.getElementById('selected-columns-container');
-      const afterElement = getDragAfterElement(selectedContainer, e.clientY);
-
-      // Remove placeholder if it exists
-      if (placeholder && placeholder.parentElement) {
-        placeholder.remove();
-      }
-
-      if (afterElement == null) {
-        selectedContainer.appendChild(placeholder);
-      } else {
-        selectedContainer.insertBefore(placeholder, afterElement);
-      }
-    }
-
-    function handleDrop(e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (!draggedElement || !placeholder) return;
-
-      const container = placeholder.parentElement;
-      if (!container) return;
-
-      // Remove dragging classes first
-      draggedElement.classList.remove('opacity-50', 'scale-95', 'shadow-lg');
-      delete draggedElement.dataset.isDragging;
-
-      // Remove placeholder and insert dragged element at its position
-      if (placeholder && placeholder.parentElement) {
-        const parent = placeholder.parentElement;
-        parent.insertBefore(draggedElement, placeholder);
-        parent.removeChild(placeholder);
-      } else {
-        // Fallback: just add to the end of the container
-        if (container && draggedElement) {
-          container.appendChild(draggedElement);
-        }
-      }
-
-      // Collect the new order
-      const newOrder = collectSelectedColumnOrder();
-
-      // Update the hidden input for form submission
-      const hiddenInput = document.getElementById('column-order-input');
-      if (hiddenInput) {
-        hiddenInput.value = newOrder.join(',');
-      }
-
-      // Use hidden button approach for LiveView communication
-      const reorderButton = document.getElementById('reorder-trigger-button');
-      const reorderInput = document.getElementById('reorder-order-input');
-
-      if (reorderButton && reorderInput) {
-        // Update the reorder-specific hidden input with the new order (comma-separated)
-        reorderInput.value = newOrder.join(',');
-
-        // Programmatically click the button to trigger LiveView event
-        reorderButton.click();
-      }
-
-      // Reset variables
-      draggedElement = null;
-      placeholder = null;
-      currentContainer = null;
-    }
-
-    function handleDragEnd(e) {
-      // Clean up if drag was cancelled
-      if (draggedElement) {
-        draggedElement.classList.remove('opacity-50', 'scale-95', 'shadow-lg');
-        delete draggedElement.dataset.isDragging;
-      }
-
-      if (placeholder && placeholder.parentElement) {
-        placeholder.remove();
-      }
-
-      draggedElement = null;
-      placeholder = null;
-      currentContainer = null;
     }
 
     function getDragAfterElement(container, y) {
@@ -953,7 +866,8 @@
     }
 
     function collectSelectedColumnOrder() {
-      const selectedContainer = document.getElementById('selected-columns-container');
+      if (!selectedContainer) return [];
+
       const fields = selectedContainer.querySelectorAll('.draggable-selected-field');
       const order = [];
 
@@ -967,53 +881,94 @@
       return order;
     }
 
-    // Add event listeners to all draggable elements
-    function initializeDragAndDrop() {
-      const draggableElements = document.querySelectorAll('.draggable-selected-field');
+    function handleDragStart(e) {
+      draggedElement = e.target.closest('.draggable-selected-field');
+      if (!draggedElement) return;
 
-      draggableElements.forEach(element => {
-        element.addEventListener('dragstart', handleDragStart);
-        element.addEventListener('dragend', handleDragEnd);
-      });
+      placeholder = createPlaceholder();
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', draggedElement.innerHTML);
 
-      // Add dragover and drop listeners to the selected container
-      const selectedContainer = document.getElementById('selected-columns-container');
-      if (selectedContainer) {
-        selectedContainer.addEventListener('dragover', handleDragOver);
-        selectedContainer.addEventListener('drop', handleDrop);
-      }
+      draggedElement.classList.add('opacity-50', 'scale-95', 'shadow-lg');
+      draggedElement.dataset.isDragging = 'true';
     }
 
-    // Initialize when modal is shown
-    function initializeWhenModalVisible() {
-      const modal = document.querySelector('.modal[style*="display: block"], .modal.modal-open');
-      if (modal) {
-        initializeDragAndDrop();
+    function handleDragEnd(e) {
+      if (draggedElement) {
+        draggedElement.classList.remove('opacity-50', 'scale-95', 'shadow-lg');
+        delete draggedElement.dataset.isDragging;
+      }
+
+      if (placeholder && placeholder.parentElement) {
+        placeholder.remove();
+      }
+
+      draggedElement = null;
+      placeholder = null;
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (!draggedElement || !placeholder) return;
+
+      const afterElement = getDragAfterElement(selectedContainer, e.clientY);
+
+      if (placeholder && placeholder.parentElement) {
+        placeholder.remove();
+      }
+
+      if (afterElement == null) {
+        selectedContainer.appendChild(placeholder);
       } else {
-        // Modal not visible yet, try again in a moment
-        setTimeout(initializeWhenModalVisible, 100);
+        selectedContainer.insertBefore(placeholder, afterElement);
       }
     }
 
-    // Watch for modal visibility changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const modal = mutation.target.closest('.modal');
-          if (modal && modal.classList.contains('modal-open')) {
-            setTimeout(initializeDragAndDrop, 50);
-          }
-        }
-      });
-    });
+    function handleDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
 
-    // Start observing for modal changes
-    const modalObserver = document.querySelector('.modal');
-    if (modalObserver) {
-      observer.observe(modalObserver, { attributes: true, attributeFilter: ['class'] });
+      if (!draggedElement || !placeholder) return;
+
+      draggedElement.classList.remove('opacity-50', 'scale-95', 'shadow-lg');
+      delete draggedElement.dataset.isDragging;
+
+      if (placeholder && placeholder.parentElement) {
+        const parent = placeholder.parentElement;
+        parent.insertBefore(draggedElement, placeholder);
+        parent.removeChild(placeholder);
+      }
+
+      const newOrder = collectSelectedColumnOrder();
+
+      const hiddenInput = document.getElementById('column-order-input');
+      if (hiddenInput) {
+        hiddenInput.value = newOrder.join(',');
+      }
+
+      const reorderButton = document.getElementById('reorder-trigger-button');
+      const reorderInput = document.getElementById('reorder-order-input');
+
+      if (reorderButton && reorderInput) {
+        reorderInput.value = newOrder.join(',');
+        reorderButton.click();
+      }
+
+      draggedElement = null;
+      placeholder = null;
     }
 
-    // Initialize if modal is already open
-    initializeWhenModalVisible();
-  });
+    // Attach event listeners using delegation
+    selectedContainer.addEventListener('dragover', handleDragOver);
+    selectedContainer.addEventListener('drop', handleDrop);
+
+    // Attach dragstart/dragend to draggable elements
+    const draggables = selectedContainer.querySelectorAll('.draggable-selected-field');
+    draggables.forEach(element => {
+      element.addEventListener('dragstart', handleDragStart);
+      element.addEventListener('dragend', handleDragEnd);
+    });
+  }
 </script>
