@@ -288,9 +288,9 @@
                               PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.id}")
                             }
                             class="btn btn-xs btn-outline btn-secondary"
+                            title="Edit user"
                           >
-                            <PhoenixKitWeb.Components.Core.Icons.icon_edit class="h-3 w-3 mr-1" />
-                            Edit
+                            <.icon name="hero-pencil" class="h-4 w-4" />
                           </.link>
 
                           <%!-- Role Management --%>
@@ -299,42 +299,44 @@
                               class="btn btn-xs btn-outline btn-primary"
                               phx-click="show_role_management"
                               phx-value-user_id={user.id}
+                              title="Manage roles"
                             >
-                              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="h-3 w-3 mr-1" />
-                              Manage Roles
+                              <.icon name="hero-user-group" class="h-4 w-4" />
                             </button>
                           <% end %>
 
-                          <%!-- Status Toggle --%>
+                          <%!-- Email Confirmation Toggle --%>
                           <%= if user.id != @phoenix_kit_current_user.id && get_primary_role_name_unsafe(user) != "Owner" do %>
                             <button
-                              class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-warning", else: "btn-success"}"}
-                              phx-click="request_status_toggle"
-                              phx-value-user_id={user.id}
-                              phx-value-is_active={to_string(user.is_active)}
-                            >
-                              <%= if user.is_active do %>
-                                <PhoenixKitWeb.Components.Core.Icons.icon_ban class="h-3 w-3 mr-1" />
-                                Deactivate
-                              <% else %>
-                                <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_outline class="h-3 w-3 mr-1" />
-                                Activate
-                              <% end %>
-                            </button>
-
-                            <%!-- Email Confirmation Toggle --%>
-                            <button
-                              class={"btn btn-xs btn-outline #{if user.confirmed_at, do: "btn-warning", else: "btn-info"}"}
+                              class={"btn btn-xs btn-outline #{if user.confirmed_at, do: "btn-success", else: "btn-warning"}"}
                               phx-click="request_confirmation_toggle"
                               phx-value-user_id={user.id}
                               phx-value-is_confirmed={to_string(!!user.confirmed_at)}
+                              title={
+                                if user.confirmed_at, do: "Unconfirm email", else: "Confirm email"
+                              }
                             >
                               <%= if user.confirmed_at do %>
-                                <PhoenixKitWeb.Components.Core.Icons.icon_x_thin class="h-3 w-3 mr-1" />
-                                Unconfirm
+                                <.icon name="hero-envelope-open" class="h-4 w-4" />
                               <% else %>
-                                <PhoenixKitWeb.Components.Core.Icons.icon_shield class="h-3 w-3 mr-1" />
-                                Confirm
+                                <.icon name="hero-envelope" class="h-4 w-4" />
+                              <% end %>
+                            </button>
+
+                            <%!-- Status Toggle --%>
+                            <button
+                              class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-success", else: "btn-warning"}"}
+                              phx-click="request_status_toggle"
+                              phx-value-user_id={user.id}
+                              phx-value-is_active={to_string(user.is_active)}
+                              title={
+                                if user.is_active, do: "Deactivate user", else: "Activate user"
+                              }
+                            >
+                              <%= if user.is_active do %>
+                                <.icon name="hero-check-circle" class="h-4 w-4" />
+                              <% else %>
+                                <.icon name="hero-x-circle" class="h-4 w-4" />
                               <% end %>
                             </button>
                           <% else %>
@@ -342,9 +344,9 @@
                               <.link
                                 navigate={PhoenixKit.Utils.Routes.path("/users/settings")}
                                 class="btn btn-xs btn-outline btn-info"
+                                title="User settings"
                               >
-                                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="h-3 w-3 mr-1" />
-                                Settings
+                                <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
                               </.link>
                             <% else %>
                               <span class="text-xs text-base-content/50">Protected</span>
