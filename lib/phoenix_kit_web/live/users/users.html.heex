@@ -119,23 +119,27 @@
           </form>
         </div>
 
-        <%!-- Add User Button --%>
-        <div class="w-full lg:w-48">
+        <%!-- Quick Actions --%>
+        <div class="w-full lg:w-auto">
           <label class="label">
             <span class="label-text">Quick Actions</span>
           </label>
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
-            class="btn btn-primary w-full mb-2"
-          >
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_add /> Add New User
-          </.link>
-          <button
-            class="btn btn-outline w-full"
-            phx-click="show_column_modal"
-          >
-            <.icon name="hero-bars-3" /> Customize Columns
-          </button>
+          <div class="flex gap-2">
+            <button
+              class="btn btn-info"
+              phx-click="show_column_modal"
+              title="Customize columns"
+            >
+              <.icon name="hero-view-columns" class="h-5 w-5" />
+            </button>
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
+              class="btn btn-primary"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-5 w-5" />
+              Add New User
+            </.link>
+          </div>
         </div>
       </div>
     </div>
