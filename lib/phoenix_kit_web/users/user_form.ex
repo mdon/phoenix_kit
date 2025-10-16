@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
   """
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
@@ -28,6 +29,9 @@ defmodule PhoenixKitWeb.Users.UserForm do
     # Load all roles for role management
     all_roles = Roles.list_roles()
 
+    # Load default role for new user creation
+    default_role = Settings.get_setting("new_user_default_role", "User")
+
     socket =
       socket
       |> assign(:current_locale, locale)
@@ -40,6 +44,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:custom_fields_errors, %{})
       |> assign(:all_roles, all_roles)
       |> assign(:pending_roles, [])
+      |> assign(:default_role, default_role)
       |> load_user_data(mode, user_id)
       |> load_form_data()
 
