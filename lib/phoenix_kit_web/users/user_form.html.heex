@@ -145,6 +145,193 @@
             <% end %>
           <% end %>
 
+          <%!-- User Status Section (Edit mode only) --%>
+          <%= if @mode == :edit do %>
+            <div class="divider text-base-content/60 mt-6">User Status</div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Account Status</span>
+                <%= if @user.is_active do %>
+                  <span class="badge badge-success badge-sm">Active</span>
+                <% else %>
+                  <span class="badge badge-error badge-sm">Inactive</span>
+                <% end %>
+              </label>
+
+              <%= if @user.id == @phoenix_kit_current_user.id do %>
+                <div class="bg-base-200 p-4 rounded-lg">
+                  <div class="flex items-start gap-3">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_info_filled class="w-5 h-5 mt-0.5 text-info" />
+                    <div class="text-sm">
+                      <p class="font-medium">Cannot modify own status</p>
+                      <p class="text-base-content/70 mt-1">
+                        You cannot deactivate your own account for security reasons.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              <% else %>
+                <div class="flex items-center gap-4 mt-2">
+                  <button
+                    type="button"
+                    phx-click="toggle_user_status"
+                    class={"btn btn-sm #{if @user.is_active, do: "btn-error btn-outline", else: "btn-success"}"}
+                  >
+                    <%= if @user.is_active do %>
+                      Deactivate User
+                    <% else %>
+                      Activate User
+                    <% end %>
+                  </button>
+                  <span class="text-sm text-base-content/70">
+                    <%= if @user.is_active do %>
+                      Deactivating will prevent this user from logging in
+                    <% else %>
+                      Activating will allow this user to log in
+                    <% end %>
+                  </span>
+                </div>
+
+                <%= if @user.is_active and PhoenixKit.Users.Roles.user_has_role_owner?(@user) do %>
+                  <div class="text-xs text-base-content/60 mt-3">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_warning_filled class="w-4 h-4 inline mr-1 text-warning" />
+                    <strong>Note:</strong>
+                    Cannot deactivate if this is the last active Owner in the system.
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+
+          <%!-- Roles Management Section (Edit mode only) --%>
+          <%= if @mode == :edit do %>
+            <div class="divider text-base-content/60 mt-6">Role Management</div>
+
+            <%= if @user.id == @phoenix_kit_current_user.id do %>
+              <div class="bg-base-200 p-4 rounded-lg">
+                <div class="flex items-start gap-3">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_info_filled class="w-5 h-5 mt-0.5 text-info" />
+                  <div class="text-sm">
+                    <p class="font-medium">Cannot modify own roles</p>
+                    <p class="text-base-content/70 mt-1">
+                      You cannot modify your own roles for security reasons. Ask another admin to change your roles.
+                    </p>
+                    <div class="mt-3">
+                      <p class="font-medium text-base-content">Your current roles:</p>
+                      <div class="flex flex-wrap gap-2 mt-2">
+                        <%= for role_name <- @user_roles do %>
+                          <.role_badge role={%{name: role_name, is_system_role: false}} size={:sm} />
+                        <% end %>
+                        <%= if Enum.empty?(@user_roles) do %>
+                          <span class="badge badge-ghost badge-sm">No roles assigned</span>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% else %>
+              <div class="form-control w-full">
+                <label class="label">
+                  <span class="label-text font-semibold">User Roles</span>
+                </label>
+
+                <%!-- Multi-select Dropdown --%>
+                <div class="dropdown w-full" id="roles-dropdown">
+                  <div
+                    tabindex="0"
+                    role="button"
+                    class="btn btn-outline w-full justify-between"
+                    phx-click="open_roles_dropdown"
+                  >
+                    <div class="flex flex-wrap gap-2 items-center overflow-hidden">
+                      <%= if Enum.empty?(@user_roles) do %>
+                        <span class="text-base-content/60">Select roles...</span>
+                      <% else %>
+                        <%= for role_name <- @user_roles do %>
+                          <.role_badge role={%{name: role_name, is_system_role: false}} size={:sm} />
+                        <% end %>
+                      <% end %>
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
+
+                  <div
+                    tabindex="0"
+                    class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-full mt-2 max-h-96 overflow-y-auto border border-base-300"
+                  >
+                    <%= if Enum.empty?(@all_roles) do %>
+                      <div class="text-center py-4 text-base-content/70 px-4">
+                        <p class="text-sm">No roles available. Create roles first in Role Management.</p>
+                      </div>
+                    <% else %>
+                      <ul class="space-y-1">
+                        <%= for role <- @all_roles do %>
+                          <% owner_role? = role.name == PhoenixKit.Users.Role.system_roles().owner %>
+                          <% is_selected = role.name in @pending_roles %>
+                          <li>
+                            <a
+                              class={[
+                                "flex items-center gap-3 p-3 rounded hover:bg-base-200",
+                                owner_role? && "cursor-not-allowed opacity-50"
+                              ]}
+                              phx-click={unless owner_role?, do: "toggle_role"}
+                              phx-value-role={role.name}
+                            >
+                              <div class="flex-shrink-0">
+                                <input
+                                  type="checkbox"
+                                  class="checkbox checkbox-primary pointer-events-none"
+                                  checked={is_selected}
+                                  disabled={owner_role?}
+                                />
+                              </div>
+                              <div class="flex-1 flex flex-wrap items-center gap-2">
+                                <.role_badge role={role} size={:sm} />
+                                <%= if role.is_system_role do %>
+                                  <span class="badge badge-outline badge-xs">System</span>
+                                <% end %>
+                                <%= if role.description do %>
+                                  <span class="text-xs text-base-content/70">
+                                    - {role.description}
+                                  </span>
+                                <% end %>
+                                <%= if owner_role? do %>
+                                  <span class="badge badge-warning badge-xs">Protected</span>
+                                <% end %>
+                              </div>
+                            </a>
+                          </li>
+                        <% end %>
+                      </ul>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="text-xs text-base-content/60 mt-2">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_info_filled class="w-4 h-4 inline mr-1" />
+                  <strong>Note:</strong>
+                  Owner role is protected and can only be assigned during initial setup.
+                  Removing the last Owner is not allowed.
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+
           <%!-- Custom User Fields Section (Edit mode only) --%>
           <%= if @mode == :edit && length(@field_definitions) > 0 do %>
             <div class="divider text-base-content/60 mt-6">Custom User Fields</div>
