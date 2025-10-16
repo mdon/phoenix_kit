@@ -147,8 +147,6 @@
 
           <%!-- User Status Section (Edit mode only) --%>
           <%= if @mode == :edit do %>
-            <div class="divider text-base-content/60 mt-6">User Status</div>
-
             <div class="form-control">
               <label class="label">
                 <span class="label-text font-semibold">Account Status</span>
@@ -206,8 +204,6 @@
 
           <%!-- Roles Management Section (Edit mode only) --%>
           <%= if @mode == :edit do %>
-            <div class="divider text-base-content/60 mt-6">Role Management</div>
-
             <%= if @user.id == @phoenix_kit_current_user.id do %>
               <div class="bg-base-200 p-4 rounded-lg">
                 <div class="flex items-start gap-3">
