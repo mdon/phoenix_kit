@@ -211,6 +211,7 @@
               </label>
               <div class="input-group">
                 <input
+                  name="sampling_rate"
                   type="number"
                   placeholder="Enter sampling rate"
                   class="input input-bordered w-full max-w-xs"
@@ -218,7 +219,6 @@
                   min="0"
                   max="100"
                   phx-blur="update_email_sampling_rate"
-                  phx-value-sampling_rate={assigns[:email_sampling_rate]}
                 />
                 <span class="bg-base-200 px-4 py-3 text-sm">%</span>
               </div>
@@ -245,6 +245,7 @@
               <div class="flex gap-2 items-start">
                 <div class="input-group flex-1">
                   <input
+                    name="retention_days"
                     type="number"
                     placeholder="Enter retention days"
                     class="input input-bordered w-full max-w-xs"
@@ -252,7 +253,6 @@
                     min="1"
                     max="365"
                     phx-blur="update_email_retention"
-                    phx-value-retention_days={assigns[:email_retention_days]}
                   />
                   <span class="bg-base-200 px-4 py-3 text-sm">days</span>
                 </div>
@@ -281,49 +281,71 @@
 
             <div class="divider"></div>
 
-            <%!-- Compress Body After Days --%>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text text-lg font-semibold">Compress Email Bodies After</span>
-              </label>
-              <div class="flex gap-2 items-start">
-                <div class="input-group flex-1">
-                  <input
-                    type="number"
-                    placeholder="Enter compression days"
-                    class="input input-bordered w-full max-w-xs"
-                    value={@email_compress_body}
-                    min="7"
-                    max="365"
-                    phx-blur="update_compress_days"
-                    phx-value-compress_days={assigns[:email_compress_body]}
-                  />
-                  <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+            <%= if @email_save_body do %>
+              <%!-- Compress Body After Days --%>
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text text-lg font-semibold">
+                    Compress Email Bodies After
+                  </span>
+                  <span class="label-text-alt text-base-content/70">
+                    Auto-saves when you click outside the input field
+                  </span>
+                </label>
+                <div class="flex gap-2 items-start">
+                  <div class="input-group flex-1">
+                    <input
+                      name="compress_days"
+                      type="number"
+                      placeholder="Enter compression days"
+                      class={[
+                        "input input-bordered w-full max-w-xs",
+                        "transition-colors duration-200",
+                        "focus:input-primary",
+                        if(assigns[:updating_compress_days],
+                          do: "input-warning loading",
+                          else: ""
+                        )
+                      ]}
+                      value={@email_compress_body}
+                      min="7"
+                      max="365"
+                      phx-blur="update_compress_days"
+                      phx-focus="set_compress_days_focused"
+                      phx-keydown="set_compress_days_changed"
+                    />
+                    <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+                  </div>
+                  <button
+                    type="button"
+                    phx-click="run_compression_now"
+                    class={[
+                      "btn btn-info btn-sm",
+                      if(assigns[:running_compression], do: "loading", else: "")
+                    ]}
+                    disabled={assigns[:running_compression]}
+                  >
+                    <%= if assigns[:running_compression] do %>
+                      Compressing...
+                    <% else %>
+                      <.icon name="hero-archive-box-arrow-down" class="w-4 h-4 mr-1" />
+                      Compress Now
+                    <% end %>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  phx-click="run_compression_now"
-                  class={[
-                    "btn btn-info btn-sm",
-                    if(assigns[:running_compression], do: "loading", else: "")
-                  ]}
-                  disabled={assigns[:running_compression]}
-                >
-                  <%= if assigns[:running_compression] do %>
-                    Compressing...
-                  <% else %>
-                    <.icon name="hero-archive-box-arrow-down" class="w-4 h-4 mr-1" /> Compress Now
-                  <% end %>
-                </button>
+                <label class="label">
+                  <span class="label-text-alt text-base-content/70">
+                    <span class="flex items-center gap-1">
+                      <.icon name="hero-information-circle" class="w-3 h-3" />
+                      Compress old email bodies to save storage space (7-365 days).
+                      Changes are saved automatically.
+                    </span>
+                  </span>
+                </label>
               </div>
-              <label class="label">
-                <span class="label-text-alt text-base-content/70">
-                  Compress old email bodies to save storage space (7-365 days)
-                </span>
-              </label>
-            </div>
 
-            <div class="divider"></div>
+              <div class="divider"></div>
+            <% end %>
 
             <%!-- S3 Archival Toggle --%>
             <div class="form-control mb-4">
@@ -346,7 +368,12 @@
             <%= if @email_archive_to_s3 do %>
               <%!-- S3 Archival Action Button --%>
               <div class="form-control mt-2">
-                <div class="flex gap-2 items-center">
+                <div class="flex gap-2 items-start">
+                  <div class="flex-1">
+                    <span class="text-sm text-base-content/70">
+                      Manually trigger S3 archival for emails older than retention period
+                    </span>
+                  </div>
                   <button
                     type="button"
                     phx-click="run_s3_archival_now"
@@ -362,9 +389,6 @@
                       <.icon name="hero-cloud-arrow-up" class="w-4 h-4 mr-1" /> Archive to S3 Now
                     <% end %>
                   </button>
-                  <span class="text-sm text-base-content/70">
-                    Manually trigger S3 archival for emails older than retention period
-                  </span>
                 </div>
               </div>
             <% end %>
@@ -613,6 +637,7 @@
                     </label>
                     <div class="input-group">
                       <input
+                        name="max_messages"
                         type="number"
                         placeholder="Enter max messages"
                         class="input input-bordered w-full max-w-xs"
@@ -620,7 +645,6 @@
                         min="1"
                         max="10"
                         phx-blur="update_max_messages"
-                        phx-value-max_messages={assigns[:sqs_max_messages_per_poll]}
                       />
                       <span class="bg-base-200 px-4 py-3 text-sm">messages</span>
                     </div>
@@ -638,6 +662,7 @@
                     </label>
                     <div class="input-group">
                       <input
+                        name="timeout"
                         type="number"
                         placeholder="Enter timeout"
                         class="input input-bordered w-full max-w-xs"
@@ -645,7 +670,6 @@
                         min="30"
                         max="43200"
                         phx-blur="update_visibility_timeout"
-                        phx-value-timeout={assigns[:sqs_visibility_timeout]}
                       />
                       <span class="bg-base-200 px-4 py-3 text-sm">seconds</span>
                     </div>
