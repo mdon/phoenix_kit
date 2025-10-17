@@ -23,7 +23,7 @@
 - Enable Pages module from `/admin/modules` to use content management
 - Custom fields available in user management submenu
 
-## 1.3.5 - 2025-10-17
+## 1.3.5 - 2025-10-16
 
 ### Added
 - **Pages Module** - File-based content management system spanning admin and public workflows
