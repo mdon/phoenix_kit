@@ -10,7 +10,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Users.TableColumns
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -648,19 +647,35 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     Enum.filter(columns, &should_render_column?/1)
   end
 
+  # Text truncation helper - limits display to max_length characters with ellipsis
+  defp truncate_text(nil, _max_length), do: "-"
+  defp truncate_text("", _max_length), do: "-"
+
+  defp truncate_text(text, max_length) when is_binary(text) do
+    if String.length(text) <= max_length do
+      text
+    else
+      String.slice(text, 0, max_length) <> "..."
+    end
+  end
+
+  defp truncate_text(value, max_length) do
+    truncate_text(to_string(value), max_length)
+  end
+
   def render_column_cell(user, column_id, current_user, date_time_settings) do
     case TableColumns.get_column_metadata(column_id) do
       %{type: :email} ->
-        user.email
+        truncate_text(user.email, 20)
 
       %{type: :string} ->
         field = get_user_field(user, column_id)
-        if field, do: to_string(field), else: "-"
+        if field, do: truncate_text(field, 20), else: "-"
 
       %{type: :composite} ->
         # Handle composite fields like full_name
         case column_id do
-          "full_name" -> PhoenixKit.Users.Auth.User.full_name(user)
+          "full_name" -> truncate_text(PhoenixKit.Users.Auth.User.full_name(user), 20)
           _ -> "-"
         end
 
@@ -676,23 +691,26 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
         if field,
           do:
-            UtilsDate.format_datetime_with_user_timezone_cached(
-              field,
-              current_user,
-              date_time_settings
+            truncate_text(
+              UtilsDate.format_datetime_with_user_timezone_cached(
+                field,
+                current_user,
+                date_time_settings
+              ),
+              20
             ),
           else: "-"
 
       %{type: :location} ->
         field = get_user_field(user, column_id)
-        if field && field != "", do: field, else: "-"
+        if field && field != "", do: truncate_text(field, 20), else: "-"
 
       %{type: :custom_field, field_type: field_type} ->
         render_custom_field_cell(user, column_id, field_type)
 
       _ ->
         field = get_user_field(user, column_id)
-        if field, do: to_string(field), else: "-"
+        if field, do: truncate_text(field, 20), else: "-"
     end
   end
 
@@ -739,30 +757,30 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
       "number" ->
         if is_number(value) or is_binary(value) do
-          to_string(value)
+          truncate_text(value, 20)
         else
           "-"
         end
 
       "date" ->
         case value do
-          %Date{} -> Date.to_string(value)
-          string when is_binary(string) -> string
+          %Date{} -> truncate_text(Date.to_string(value), 20)
+          string when is_binary(string) -> truncate_text(string, 20)
           _ -> "-"
         end
 
       "datetime" ->
         case value do
-          %DateTime{} -> DateTime.to_string(value)
-          string when is_binary(string) -> string
+          %DateTime{} -> truncate_text(DateTime.to_string(value), 20)
+          string when is_binary(string) -> truncate_text(string, 20)
           _ -> "-"
         end
 
       "select" ->
-        to_string(value)
+        truncate_text(value, 20)
 
       "radio" ->
-        to_string(value)
+        truncate_text(value, 20)
 
       "checkbox" ->
         case value do
@@ -770,13 +788,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
           false -> "No"
           "true" -> "Yes"
           "false" -> "No"
-          list when is_list(list) -> Enum.join(list, ", ")
-          _ -> to_string(value)
+          list when is_list(list) -> truncate_text(Enum.join(list, ", "), 20)
+          _ -> truncate_text(value, 20)
         end
 
       _ ->
         if value && value != "" do
-          to_string(value)
+          truncate_text(value, 20)
         else
           "-"
         end
