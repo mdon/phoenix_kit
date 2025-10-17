@@ -71,6 +71,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       socket
       |> assign(:changeset, changeset)
       |> assign(:form_data, user_params)
+      |> assign(:custom_fields_data, Map.get(user_params, "custom_fields", socket.assigns.custom_fields_data))
 
     {:noreply, socket}
   end
