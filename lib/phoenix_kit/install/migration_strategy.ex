@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.MigrationStrategy do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles migration strategy determination and execution for PhoenixKit installation.
 

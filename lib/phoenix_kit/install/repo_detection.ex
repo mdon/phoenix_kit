@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.RepoDetection do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles repository detection and validation for PhoenixKit installation.
 

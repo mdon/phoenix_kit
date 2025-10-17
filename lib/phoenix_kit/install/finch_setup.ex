@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.FinchSetup do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles automatic Finch and HTTP client setup for PhoenixKit installation.
 

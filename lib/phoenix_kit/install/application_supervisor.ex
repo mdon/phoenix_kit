@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.ApplicationSupervisor do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Installation helper for adding PhoenixKit supervisor to parent application.
   Used by `mix phoenix_kit.install` task.
