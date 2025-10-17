@@ -124,8 +124,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             ]
           )
 
-        Process.put(:phoenix_kit_install_opts, elem(opts, 1))
-
         # Run standard igniter process
         result = super(argv)
 
