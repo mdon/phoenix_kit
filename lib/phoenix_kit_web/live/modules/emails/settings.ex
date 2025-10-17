@@ -88,6 +88,9 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
       |> assign(:running_cleanup, false)
       |> assign(:running_compression, false)
       |> assign(:running_archival, false)
+      |> assign(:updating_compress_days, false)
+      |> assign(:compress_days_focused, false)
+      |> assign(:compress_days_changed, false)
       |> assign(
         :sender_settings,
         %{
@@ -213,7 +216,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
-  def handle_event("update_email_sampling_rate", %{"sampling_rate" => value}, socket) do
+  def handle_event("update_email_sampling_rate", params, socket) do
+    # Handle both parameter structures: %{"sampling_rate" => value} and %{"value" => value}
+    value = Map.get(params, "sampling_rate") || Map.get(params, "value")
+
     case Integer.parse(value) do
       {sampling_rate, _} when sampling_rate >= 0 and sampling_rate <= 100 ->
         case Emails.set_sampling_rate(sampling_rate) do
@@ -263,7 +269,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
-  def handle_event("update_email_retention", %{"retention_days" => value}, socket) do
+  def handle_event("update_email_retention", params, socket) do
+    # Handle both parameter structures: %{"retention_days" => value} and %{"value" => value}
+    value = Map.get(params, "retention_days") || Map.get(params, "value")
+
     case Integer.parse(value) do
       {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
         case Emails.set_retention_days(retention_days) do
@@ -286,7 +295,13 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
-  def handle_event("update_compress_days", %{"compress_days" => value}, socket) do
+  def handle_event("update_compress_days", params, socket) do
+    # Handle both parameter structures: %{"compress_days" => value} and %{"value" => value}
+    value = Map.get(params, "compress_days") || Map.get(params, "value")
+
+    # Set updating state for visual feedback
+    socket = assign(socket, :updating_compress_days, true)
+
     case Integer.parse(value) do
       {compress_days, _} when compress_days >= 7 and compress_days <= 365 ->
         case Emails.set_compress_after_days(compress_days) do
@@ -294,19 +309,40 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
             socket =
               socket
               |> assign(:email_compress_body, compress_days)
-              |> put_flash(:info, "Email body compression updated to #{compress_days} days")
+              |> assign(:updating_compress_days, false)
+              |> put_flash(:info, "✅ Compression setting updated to #{compress_days} days")
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update compression days")
+            socket =
+              socket
+              |> assign(:updating_compress_days, false)
+              |> put_flash(:error, "❌ Failed to update compression days")
+
             {:noreply, socket}
         end
 
       _ ->
-        socket = put_flash(socket, :error, "Please enter a valid number between 7 and 365")
+        socket =
+          socket
+          |> assign(:updating_compress_days, false)
+          |> put_flash(:error, "⚠️ Please enter a valid number between 7 and 365")
+
         {:noreply, socket}
     end
+  end
+
+  def handle_event("set_compress_days_focused", _params, socket) do
+    # Track when user focuses on compression input
+    socket = assign(socket, :compress_days_focused, true)
+    {:noreply, socket}
+  end
+
+  def handle_event("set_compress_days_changed", _params, socket) do
+    # Track when user changes compression input value
+    socket = assign(socket, :compress_days_changed, true)
+    {:noreply, socket}
   end
 
   def handle_event("toggle_s3_archival", _params, socket) do
@@ -335,7 +371,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
-  def handle_event("update_max_messages", %{"max_messages" => value}, socket) do
+  def handle_event("update_max_messages", params, socket) do
+    # Handle both parameter structures: %{"max_messages" => value} and %{"value" => value}
+    value = Map.get(params, "max_messages") || Map.get(params, "value")
+
     case Integer.parse(value) do
       {max_messages, _} when max_messages >= 1 and max_messages <= 10 ->
         case Emails.set_sqs_max_messages(max_messages) do
@@ -358,7 +397,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
-  def handle_event("update_visibility_timeout", %{"timeout" => value}, socket) do
+  def handle_event("update_visibility_timeout", params, socket) do
+    # Handle both parameter structures: %{"timeout" => value} and %{"value" => value}
+    value = Map.get(params, "timeout") || Map.get(params, "value")
+
     case Integer.parse(value) do
       {timeout, _} when timeout >= 30 and timeout <= 43_200 ->
         case Emails.set_sqs_visibility_timeout(timeout) do
@@ -642,15 +684,20 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     # Wait for result with timeout
     case Task.yield(task, 60_000) || Task.shutdown(task) do
       {:ok, {compressed_count, bytes_saved}} ->
-        size_mb = Float.round(bytes_saved / 1024 / 1024, 2)
+        # Handle case where bytes_saved might be nil (current implementation)
+        compression_message =
+          if is_number(bytes_saved) do
+            size_mb = Float.round(bytes_saved / 1024 / 1024, 2)
+
+            "✅ Compression completed! Compressed #{compressed_count} email bodies, saved ~#{size_mb} MB of storage."
+          else
+            "✅ Compression completed! Compressed #{compressed_count} email bodies and freed up storage space."
+          end
 
         socket =
           socket
           |> assign(:running_compression, false)
-          |> put_flash(
-            :info,
-            "✅ Compression completed! Compressed #{compressed_count} email bodies, saved ~#{size_mb} MB of storage."
-          )
+          |> put_flash(:info, compression_message)
 
         {:noreply, socket}
 
