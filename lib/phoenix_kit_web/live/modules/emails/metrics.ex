@@ -64,6 +64,8 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
       # Schedule periodic refresh
       if connected?(socket) do
         Process.send_after(self(), :refresh_metrics, @refresh_interval)
+        # Also send initial chart data after a short delay to ensure JS is ready
+        Process.send_after(self(), :initial_chart_push, 500)
       end
 
       socket =
@@ -189,6 +191,20 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
      |> load_metrics_data()}
   end
 
+  @impl true
+  def handle_info(:initial_chart_push, socket) do
+    # Push current chart data to ensure charts are properly initialized
+    socket =
+      if connected?(socket) and socket.assigns.charts_data do
+        Logger.debug("Sent initial chart push event")
+        push_event(socket, "email-charts-update", %{charts: socket.assigns.charts_data})
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
   defp load_metrics_data(socket) do
     period = determine_period(socket.assigns)
 
@@ -243,10 +259,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
     # Get daily delivery trends for the chart
     daily_trends = Emails.get_daily_delivery_trends(period)
 
-    # Debug logging
-    Logger.info("Charts data prepared - daily_trends: #{inspect(daily_trends)}")
-    Logger.info("Charts data prepared - metrics: #{inspect(metrics)}")
-
     charts_data = %{
       delivery_trend: %{
         labels: Map.get(daily_trends, :labels, []),
@@ -290,7 +302,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Metrics do
       }
     }
 
-    Logger.info("Final charts_data: #{inspect(charts_data)}")
     charts_data
   end
 
