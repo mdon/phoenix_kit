@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
+  @max_cell_length 20
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -632,7 +633,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def render_column_header(column_id) do
     case TableColumns.get_column_metadata(column_id) do
       %{label: label} -> label
-      nil -> nil  # Return nil for deleted custom fields
+      # Return nil for deleted custom fields
+      nil -> nil
       _ -> String.capitalize(String.replace(column_id, "_", " "))
     end
   end
@@ -667,17 +669,20 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def render_column_cell(user, column_id, current_user, date_time_settings) do
     case TableColumns.get_column_metadata(column_id) do
       %{type: :email} ->
-        truncate_text(user.email, 20)
+        truncate_text(user.email, @max_cell_length)
 
       %{type: :string} ->
         field = get_user_field(user, column_id)
-        if field, do: truncate_text(field, 20), else: "-"
+        if field, do: truncate_text(field, @max_cell_length), else: "-"
 
       %{type: :composite} ->
         # Handle composite fields like full_name
         case column_id do
-          "full_name" -> truncate_text(PhoenixKit.Users.Auth.User.full_name(user), 20)
-          _ -> "-"
+          "full_name" ->
+            truncate_text(PhoenixKit.Users.Auth.User.full_name(user), @max_cell_length)
+
+          _ ->
+            "-"
         end
 
       %{type: :roles} ->
@@ -698,20 +703,20 @@ defmodule PhoenixKitWeb.Live.Users.Users do
                 current_user,
                 date_time_settings
               ),
-              20
+              @max_cell_length
             ),
           else: "-"
 
       %{type: :location} ->
         field = get_user_field(user, column_id)
-        if field && field != "", do: truncate_text(field, 20), else: "-"
+        if field && field != "", do: truncate_text(field, @max_cell_length), else: "-"
 
       %{type: :custom_field, field_type: field_type} ->
         render_custom_field_cell(user, column_id, field_type)
 
       _ ->
         field = get_user_field(user, column_id)
-        if field, do: truncate_text(field, 20), else: "-"
+        if field, do: truncate_text(field, @max_cell_length), else: "-"
     end
   end
 
@@ -801,8 +806,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_custom_field_value(value, "number"), do: format_number_value(value)
   defp format_custom_field_value(value, "date"), do: format_date_value(value)
   defp format_custom_field_value(value, "datetime"), do: format_datetime_value(value)
-  defp format_custom_field_value(value, "select"), do: to_string(value)
-  defp format_custom_field_value(value, "radio"), do: to_string(value)
+  defp format_custom_field_value(value, "select"), do: truncate_text(value, @max_cell_length)
+  defp format_custom_field_value(value, "radio"), do: truncate_text(value, @max_cell_length)
   defp format_custom_field_value(value, "checkbox"), do: format_checkbox_value(value)
   defp format_custom_field_value(value, _), do: format_default_value(value)
 
@@ -812,83 +817,42 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_boolean_value("false"), do: "No"
   defp format_boolean_value(_), do: "-"
 
-  defp format_number_value(value) when is_number(value) or is_binary(value), do: to_string(value)
+  defp format_number_value(value) when is_number(value) or is_binary(value),
+    do: truncate_text(value, @max_cell_length)
+
   defp format_number_value(_), do: "-"
 
-  defp format_date_value(%Date{} = date), do: Date.to_string(date)
-  defp format_date_value(string) when is_binary(string), do: string
+  defp format_date_value(%Date{} = date),
+    do: truncate_text(Date.to_string(date), @max_cell_length)
+
+  defp format_date_value(string) when is_binary(string),
+    do: truncate_text(string, @max_cell_length)
+
   defp format_date_value(_), do: "-"
 
-  defp format_datetime_value(%DateTime{} = dt), do: DateTime.to_string(dt)
-  defp format_datetime_value(string) when is_binary(string), do: string
+  defp format_datetime_value(%DateTime{} = dt),
+    do: truncate_text(DateTime.to_string(dt), @max_cell_length)
+
+  defp format_datetime_value(string) when is_binary(string),
+    do: truncate_text(string, @max_cell_length)
+
   defp format_datetime_value(_), do: "-"
 
   defp format_checkbox_value(true), do: "Yes"
   defp format_checkbox_value(false), do: "No"
   defp format_checkbox_value("true"), do: "Yes"
   defp format_checkbox_value("false"), do: "No"
-  defp format_checkbox_value(list) when is_list(list), do: Enum.join(list, ", ")
-  defp format_checkbox_value(value), do: to_string(value)
 
-  defp format_default_value(value) when not is_nil(value) and value != "", do: to_string(value)
+  defp format_checkbox_value(list) when is_list(list),
+    do: truncate_text(Enum.join(list, ", "), @max_cell_length)
+
+  defp format_checkbox_value(value), do: truncate_text(value, @max_cell_length)
+
+  defp format_default_value(value) when not is_nil(value) and value != "",
+    do: truncate_text(value, @max_cell_length)
+
   defp format_default_value(_), do: "-"
 
-  defp format_custom_field_value(value, field_type) do
-    case field_type do
-      "boolean" ->
-        case value do
-          true -> "Yes"
-          false -> "No"
-          "true" -> "Yes"
-          "false" -> "No"
-          _ -> "-"
-        end
-
-      "number" ->
-        if is_number(value) or is_binary(value) do
-          truncate_text(value, 20)
-        else
-          "-"
-        end
-
-      "date" ->
-        case value do
-          %Date{} -> truncate_text(Date.to_string(value), 20)
-          string when is_binary(string) -> truncate_text(string, 20)
-          _ -> "-"
-        end
-
-      "datetime" ->
-        case value do
-          %DateTime{} -> truncate_text(DateTime.to_string(value), 20)
-          string when is_binary(string) -> truncate_text(string, 20)
-          _ -> "-"
-        end
-
-      "select" ->
-        truncate_text(value, 20)
-
-      "radio" ->
-        truncate_text(value, 20)
-
-      "checkbox" ->
-        case value do
-          true -> "Yes"
-          false -> "No"
-          "true" -> "Yes"
-          "false" -> "No"
-          list when is_list(list) -> truncate_text(Enum.join(list, ", "), 20)
-          _ -> truncate_text(value, 20)
-        end
-
-      _ ->
-        if value && value != "" do
-          truncate_text(value, 20)
-        else
-          "-"
-        end
-    end
-  end
   ## Live Event Handlers
 
   def handle_info({:user_created, _user}, socket) do
