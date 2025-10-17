@@ -437,23 +437,47 @@ defmodule PhoenixKit.Settings do
   def get_oauth_credentials(provider) when provider in [:google, :apple, :github] do
     case provider do
       :google ->
+        keys = ["oauth_google_client_id", "oauth_google_client_secret"]
+        defaults = %{"oauth_google_client_id" => "", "oauth_google_client_secret" => ""}
+        settings = get_settings_cached(keys, defaults)
+
         %{
-          client_id: get_setting("oauth_google_client_id", ""),
-          client_secret: get_setting("oauth_google_client_secret", "")
+          client_id: settings["oauth_google_client_id"],
+          client_secret: settings["oauth_google_client_secret"]
         }
 
       :apple ->
+        keys = [
+          "oauth_apple_client_id",
+          "oauth_apple_team_id",
+          "oauth_apple_key_id",
+          "oauth_apple_private_key"
+        ]
+
+        defaults = %{
+          "oauth_apple_client_id" => "",
+          "oauth_apple_team_id" => "",
+          "oauth_apple_key_id" => "",
+          "oauth_apple_private_key" => ""
+        }
+
+        settings = get_settings_cached(keys, defaults)
+
         %{
-          client_id: get_setting("oauth_apple_client_id", ""),
-          team_id: get_setting("oauth_apple_team_id", ""),
-          key_id: get_setting("oauth_apple_key_id", ""),
-          private_key: get_setting("oauth_apple_private_key", "")
+          client_id: settings["oauth_apple_client_id"],
+          team_id: settings["oauth_apple_team_id"],
+          key_id: settings["oauth_apple_key_id"],
+          private_key: settings["oauth_apple_private_key"]
         }
 
       :github ->
+        keys = ["oauth_github_client_id", "oauth_github_client_secret"]
+        defaults = %{"oauth_github_client_id" => "", "oauth_github_client_secret" => ""}
+        settings = get_settings_cached(keys, defaults)
+
         %{
-          client_id: get_setting("oauth_github_client_id", ""),
-          client_secret: get_setting("oauth_github_client_secret", "")
+          client_id: settings["oauth_github_client_id"],
+          client_secret: settings["oauth_github_client_secret"]
         }
     end
   end
@@ -499,7 +523,7 @@ defmodule PhoenixKit.Settings do
       true
   """
   def get_boolean_setting(key, default \\ false) when is_binary(key) and is_boolean(default) do
-    raw_value = get_setting(key)
+    raw_value = get_setting_cached(key, nil)
 
     case raw_value do
       "true" -> true
@@ -524,7 +548,7 @@ defmodule PhoenixKit.Settings do
       25  # if "25" is stored in database
   """
   def get_integer_setting(key, default \\ 0) when is_binary(key) and is_integer(default) do
-    raw_value = get_setting(key)
+    raw_value = get_setting_cached(key, nil)
 
     case raw_value do
       nil ->
@@ -885,7 +909,7 @@ defmodule PhoenixKit.Settings do
   def get_content_language do
     # If Languages module is enabled, use the configured setting
     if Code.ensure_loaded?(Languages) and Languages.enabled?() do
-      get_setting("site_content_language", "en")
+      get_setting_cached("site_content_language", "en")
     else
       # Languages module disabled - force "en"
       "en"

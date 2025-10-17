@@ -679,7 +679,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         # Handle composite fields like full_name
         case column_id do
           "full_name" ->
-            truncate_text(PhoenixKit.Users.Auth.User.full_name(user), @max_cell_length)
+            truncate_text(User.full_name(user), @max_cell_length)
 
           _ ->
             "-"
@@ -718,58 +718,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         field = get_user_field(user, column_id)
         if field, do: truncate_text(field, @max_cell_length), else: "-"
     end
-  end
-
-  defp render_cell_by_type(user, _column_id, %{type: :email}, _current_user, _settings) do
-    user.email
-  end
-
-  defp render_cell_by_type(user, column_id, %{type: :string}, _current_user, _settings) do
-    field = get_user_field(user, column_id)
-    if field, do: to_string(field), else: "-"
-  end
-
-  defp render_cell_by_type(user, column_id, %{type: :composite}, _current_user, _settings) do
-    case column_id do
-      "full_name" -> User.full_name(user)
-      _ -> "-"
-    end
-  end
-
-  defp render_cell_by_type(user, _column_id, %{type: :roles}, _current_user, _settings) do
-    get_primary_role_name_unsafe(user)
-  end
-
-  defp render_cell_by_type(user, _column_id, %{type: :status}, _current_user, _settings) do
-    if user.is_active, do: "Active", else: "Inactive"
-  end
-
-  defp render_cell_by_type(user, column_id, %{type: :datetime}, current_user, settings) do
-    field = get_user_field(user, column_id)
-
-    if field,
-      do: UtilsDate.format_datetime_with_user_timezone_cached(field, current_user, settings),
-      else: "-"
-  end
-
-  defp render_cell_by_type(user, column_id, %{type: :location}, _current_user, _settings) do
-    field = get_user_field(user, column_id)
-    if field && field != "", do: field, else: "-"
-  end
-
-  defp render_cell_by_type(
-         user,
-         column_id,
-         %{type: :custom_field, field_type: field_type},
-         _current_user,
-         _settings
-       ) do
-    render_custom_field_cell(user, column_id, field_type)
-  end
-
-  defp render_cell_by_type(user, column_id, _, _current_user, _settings) do
-    field = get_user_field(user, column_id)
-    if field, do: to_string(field), else: "-"
   end
 
   defp get_user_field(user, column_id) do

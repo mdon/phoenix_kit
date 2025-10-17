@@ -300,7 +300,7 @@ defmodule PhoenixKit.Module.Languages do
   """
   def get_languages do
     if enabled?() do
-      case Settings.get_json_setting(@config_key) do
+      case Settings.get_json_setting_cached(@config_key, nil) do
         %{"languages" => languages} when is_list(languages) -> languages
         _ -> []
       end

@@ -6,7 +6,6 @@ defmodule PhoenixKit.Users.CustomFields.Events do
   modifications in real-time.
   """
 
-  alias Phoenix.PubSub
   alias PhoenixKit.PubSub.Manager
 
   @topic_custom_fields "custom_fields"
