@@ -234,9 +234,6 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
     |> Enum.join(", ")
   end
 
-  defp format_error_message(message) when is_binary(message), do: message
-  defp format_error_message(_), do: "An error occurred"
-
   def get_option_label(value, options) do
     Settings.get_option_label(value, options)
   end

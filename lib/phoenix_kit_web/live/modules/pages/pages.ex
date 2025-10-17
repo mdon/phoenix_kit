@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
   alias PhoenixKit.Pages
   alias PhoenixKit.Pages.FileOperations
   alias PhoenixKit.Pages.Metadata
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Set locale
@@ -54,7 +55,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
       socket =
         socket
         |> put_flash(:error, "Pages module is not enabled")
-        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
+        |> redirect(to: Routes.path("/admin/modules"))
 
       {:ok, socket}
     end
@@ -86,7 +87,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
         socket =
           socket
           |> put_flash(:error, "Directory not found: #{path}")
-          |> push_patch(to: PhoenixKit.Utils.Routes.path("/admin/pages"))
+          |> push_patch(to: Routes.path("/admin/pages"))
 
         {:noreply, socket}
     end
@@ -97,7 +98,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
   def handle_event("toggle_folder", %{"path" => path}, socket) do
     # Use push_patch to update URL instead of directly assigning
     # handle_params will handle the actual directory loading
-    {:noreply, push_patch(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages?path=#{path}"))}
+    {:noreply, push_patch(socket, to: Routes.path("/admin/pages?path=#{path}"))}
   end
 
   def handle_event("show_new_file_modal", _params, socket) do
@@ -167,7 +168,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
               |> assign(:show_new_file_modal, false)
               |> assign(:new_item_name, "")
               |> put_flash(:info, "File created: #{name}")
-              |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/pages/edit?path=#{file_path}"))
+              |> redirect(to: Routes.path("/admin/pages/edit?path=#{file_path}"))
 
             {:noreply, socket}
 
@@ -216,7 +217,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
   def handle_event("navigate_to", %{"path" => path}, socket) do
     # Use push_patch to update URL instead of directly assigning
     # handle_params will handle the actual directory loading
-    {:noreply, push_patch(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages?path=#{path}"))}
+    {:noreply, push_patch(socket, to: Routes.path("/admin/pages?path=#{path}"))}
   end
 
   def handle_event("show_delete_modal", %{"path" => path, "name" => name}, socket) do
@@ -479,9 +480,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
   def handle_event("debug_edit_click", %{"path" => path}, socket) do
     # Navigate to the editor
     {:noreply,
-     push_navigate(socket,
-       to: PhoenixKit.Utils.Routes.path("/admin/pages/edit?path=#{URI.encode(path)}")
-     )}
+     push_navigate(socket, to: Routes.path("/admin/pages/edit?path=#{URI.encode(path)}"))}
   end
 
   ## Private Helpers
@@ -498,38 +497,35 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Pages do
   end
 
   defp enrich_items_with_metadata(items) do
-    Enum.map(items, fn item ->
-      if item.type == :file do
-        # Get file info (size, mtime)
-        file_info =
-          case FileOperations.file_info(item.path) do
-            {:ok, info} -> info
-            {:error, _} -> %{size: 0, mtime: nil}
-          end
+    Enum.map(items, &enrich_single_item/1)
+  end
 
-        # Get metadata from file content
-        metadata =
-          case FileOperations.read_file(item.path) do
-            {:ok, content} ->
-              case Metadata.parse(content) do
-                {:ok, meta, _stripped} -> meta
-                {:error, :no_metadata} -> Metadata.default_metadata()
-              end
+  defp enrich_single_item(%{type: :file} = item) do
+    file_info = get_file_info(item.path)
+    metadata = get_file_metadata(item.path)
 
-            {:error, _} ->
-              Metadata.default_metadata()
-          end
+    item
+    |> Map.put(:metadata, metadata)
+    |> Map.put(:size, file_info.size)
+    |> Map.put(:mtime, file_info.mtime)
+  end
 
-        # Merge everything together
-        item
-        |> Map.put(:metadata, metadata)
-        |> Map.put(:size, file_info.size)
-        |> Map.put(:mtime, file_info.mtime)
-      else
-        # Folders don't have metadata
-        item
-      end
-    end)
+  defp enrich_single_item(item), do: item
+
+  defp get_file_info(path) do
+    case FileOperations.file_info(path) do
+      {:ok, info} -> info
+      {:error, _} -> %{size: 0, mtime: nil}
+    end
+  end
+
+  defp get_file_metadata(path) do
+    with {:ok, content} <- FileOperations.read_file(path),
+         {:ok, meta, _stripped} <- Metadata.parse(content) do
+      meta
+    else
+      _ -> Metadata.default_metadata()
+    end
   end
 
   defp list_all_folders(path) do

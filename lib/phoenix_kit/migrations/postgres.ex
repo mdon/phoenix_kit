@@ -174,6 +174,8 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Config
+
   @initial_version 1
   @current_version 18
   @default_prefix "public"
@@ -484,7 +486,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   # Hybrid repo detection with fallback strategies (shared with status command)
   defp get_repo_with_fallback do
     # Strategy 1: Try to get from PhoenixKit application config
-    case Application.get_env(:phoenix_kit, :repo) do
+    case Config.get(:repo, nil) do
       nil ->
         # Strategy 2: Try to ensure PhoenixKit application is started
         case ensure_phoenix_kit_started() do
@@ -504,7 +506,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   # Try to start PhoenixKit application and get repo config
   defp ensure_phoenix_kit_started do
     Application.ensure_all_started(:phoenix_kit)
-    Application.get_env(:phoenix_kit, :repo)
+    Config.get(:repo, nil)
   rescue
     _ -> nil
   end

@@ -8,14 +8,16 @@ defmodule PhoenixKit.RepoHelper do
   the built-in PhoenixKit.Repo for development/testing.
   """
 
+  alias PhoenixKit.Config
+
   @doc """
   Gets the repository module to use.
 
-  Expects repo to be configured via Application.get_env(:phoenix_kit, :repo).
+  Expects repo to be configured via PhoenixKit.Config.get(:repo).
   Raises an error if no repo is configured.
   """
   def repo do
-    case Application.get_env(:phoenix_kit, :repo) do
+    case Config.get(:repo, nil) do
       nil ->
         raise """
         No repository configured for PhoenixKit.

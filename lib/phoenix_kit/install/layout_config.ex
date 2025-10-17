@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.LayoutConfig do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles layout integration configuration for PhoenixKit installation.
 

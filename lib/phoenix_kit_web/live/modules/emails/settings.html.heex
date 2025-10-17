@@ -54,11 +54,94 @@
       </div>
 
       <%= if @email_enabled do %>
-        <%!-- Options Options Card --%>
+        <%!-- Sender Configuration Card --%>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
             <h2 class="card-title text-2xl mb-4">
-              <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Options Options
+              <.icon name="hero-envelope" class="w-6 h-6" /> Sender Configuration
+            </h2>
+
+            <form phx-submit="save_sender_settings">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <%!-- From Email --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text font-medium">From Email</span>
+                  </label>
+                  <input
+                    name="sender[from_email]"
+                    type="email"
+                    placeholder="noreply@example.com"
+                    value={@sender_settings.from_email}
+                    class="input input-bordered focus:input-primary"
+                    required
+                  />
+                  <label class="label">
+                    <span class="label-text-alt">
+                      Email address used as sender for all outgoing emails
+                    </span>
+                  </label>
+                </div>
+
+                <%!-- From Name --%>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text font-medium">From Name</span>
+                  </label>
+                  <input
+                    name="sender[from_name]"
+                    type="text"
+                    placeholder="My Application"
+                    value={@sender_settings.from_name}
+                    class="input input-bordered focus:input-primary"
+                    required
+                  />
+                  <label class="label">
+                    <span class="label-text-alt">Sender name displayed to recipients</span>
+                  </label>
+                </div>
+              </div>
+
+              <%!-- Preview --%>
+              <div class="alert alert-info mb-4">
+                <.icon name="hero-information-circle" class="w-5 h-5" />
+                <div>
+                  <h3 class="font-bold">Preview</h3>
+                  <p class="text-sm mt-1">
+                    Emails will appear as:
+                    <strong>
+                      {@sender_settings.from_name} &lt;{@sender_settings.from_email}&gt;
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <%!-- Save Button --%>
+              <div class="card-actions justify-end">
+                <button
+                  type="submit"
+                  class={[
+                    "btn btn-primary",
+                    if(@saving_sender, do: "loading", else: "")
+                  ]}
+                  disabled={@saving_sender}
+                >
+                  <%= if @saving_sender do %>
+                    Saving...
+                  <% else %>
+                    <.icon name="hero-check" class="w-4 h-4 mr-2" /> Save Sender Settings
+                  <% end %>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <%!-- Options Card --%>
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title text-2xl mb-4">
+              <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Options
             </h2>
 
             <%!-- Save Email Bodies --%>
@@ -159,18 +242,35 @@
               <label class="label">
                 <span class="label-text text-lg font-semibold">Email Retention Period</span>
               </label>
-              <div class="input-group">
-                <input
-                  type="number"
-                  placeholder="Enter retention days"
-                  class="input input-bordered w-full max-w-xs"
-                  value={@email_retention_days}
-                  min="1"
-                  max="365"
-                  phx-blur="update_email_retention"
-                  phx-value-retention_days={assigns[:email_retention_days]}
-                />
-                <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+              <div class="flex gap-2 items-start">
+                <div class="input-group flex-1">
+                  <input
+                    type="number"
+                    placeholder="Enter retention days"
+                    class="input input-bordered w-full max-w-xs"
+                    value={@email_retention_days}
+                    min="1"
+                    max="365"
+                    phx-blur="update_email_retention"
+                    phx-value-retention_days={assigns[:email_retention_days]}
+                  />
+                  <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+                </div>
+                <button
+                  type="button"
+                  phx-click="run_cleanup_now"
+                  class={[
+                    "btn btn-warning btn-sm",
+                    if(assigns[:running_cleanup], do: "loading", else: "")
+                  ]}
+                  disabled={assigns[:running_cleanup]}
+                >
+                  <%= if assigns[:running_cleanup] do %>
+                    Running...
+                  <% else %>
+                    <.icon name="hero-trash" class="w-4 h-4 mr-1" /> Run Cleanup Now
+                  <% end %>
+                </button>
               </div>
               <label class="label">
                 <span class="label-text-alt text-base-content/70">
@@ -186,18 +286,35 @@
               <label class="label">
                 <span class="label-text text-lg font-semibold">Compress Email Bodies After</span>
               </label>
-              <div class="input-group">
-                <input
-                  type="number"
-                  placeholder="Enter compression days"
-                  class="input input-bordered w-full max-w-xs"
-                  value={@email_compress_body}
-                  min="7"
-                  max="365"
-                  phx-blur="update_compress_days"
-                  phx-value-compress_days={assigns[:email_compress_body]}
-                />
-                <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+              <div class="flex gap-2 items-start">
+                <div class="input-group flex-1">
+                  <input
+                    type="number"
+                    placeholder="Enter compression days"
+                    class="input input-bordered w-full max-w-xs"
+                    value={@email_compress_body}
+                    min="7"
+                    max="365"
+                    phx-blur="update_compress_days"
+                    phx-value-compress_days={assigns[:email_compress_body]}
+                  />
+                  <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+                </div>
+                <button
+                  type="button"
+                  phx-click="run_compression_now"
+                  class={[
+                    "btn btn-info btn-sm",
+                    if(assigns[:running_compression], do: "loading", else: "")
+                  ]}
+                  disabled={assigns[:running_compression]}
+                >
+                  <%= if assigns[:running_compression] do %>
+                    Compressing...
+                  <% else %>
+                    <.icon name="hero-archive-box-arrow-down" class="w-4 h-4 mr-1" /> Compress Now
+                  <% end %>
+                </button>
               </div>
               <label class="label">
                 <span class="label-text-alt text-base-content/70">
@@ -225,6 +342,32 @@
                 />
               </label>
             </div>
+
+            <%= if @email_archive_to_s3 do %>
+              <%!-- S3 Archival Action Button --%>
+              <div class="form-control mt-2">
+                <div class="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    phx-click="run_s3_archival_now"
+                    class={[
+                      "btn btn-warning btn-sm",
+                      if(assigns[:running_archival], do: "loading", else: "")
+                    ]}
+                    disabled={assigns[:running_archival]}
+                  >
+                    <%= if assigns[:running_archival] do %>
+                      Archiving...
+                    <% else %>
+                      <.icon name="hero-cloud-arrow-up" class="w-4 h-4 mr-1" /> Archive to S3 Now
+                    <% end %>
+                  </button>
+                  <span class="text-sm text-base-content/70">
+                    Manually trigger S3 archival for emails older than retention period
+                  </span>
+                </div>
+              </div>
+            <% end %>
 
             <div class="alert alert-warning mt-4">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />

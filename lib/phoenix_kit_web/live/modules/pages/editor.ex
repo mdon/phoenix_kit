@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
   alias PhoenixKit.Pages
   alias PhoenixKit.Pages.FileOperations
   alias PhoenixKit.Pages.Metadata
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Set locale
@@ -33,7 +34,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
       socket =
         socket
         |> put_flash(:error, "Pages module is not enabled")
-        |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/modules"))
+        |> redirect(to: Routes.path("/admin/modules"))
 
       {:ok, socket}
     end
@@ -65,7 +66,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
         socket =
           socket
           |> put_flash(:error, "File not found: #{path}")
-          |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/pages"))
+          |> redirect(to: Routes.path("/admin/pages"))
 
         {:noreply, socket}
     end
@@ -76,7 +77,7 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
     socket =
       socket
       |> put_flash(:error, "No file path provided")
-      |> redirect(to: PhoenixKit.Utils.Routes.path("/admin/pages"))
+      |> redirect(to: Routes.path("/admin/pages"))
 
     {:noreply, socket}
   end
@@ -130,13 +131,13 @@ defmodule PhoenixKitWeb.Live.Modules.Pages.Editor do
        })}
     else
       # No changes, navigate immediately
-      {:noreply, redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))}
+      {:noreply, redirect(socket, to: Routes.path("/admin/pages"))}
     end
   end
 
   def handle_event("cancel", _params, socket) do
     # User confirmed via JavaScript, navigate away
-    {:noreply, redirect(socket, to: PhoenixKit.Utils.Routes.path("/admin/pages"))}
+    {:noreply, redirect(socket, to: Routes.path("/admin/pages"))}
   end
 
   def handle_event("change_status", %{"status" => new_status}, socket) do

@@ -193,7 +193,10 @@
 
                 <%= if @user.is_active and PhoenixKit.Users.Roles.user_has_role_owner?(@user) do %>
                   <div class="text-xs text-base-content/60 mt-3">
-                    <.icon name="hero-exclamation-triangle-solid" class="w-4 h-4 inline mr-1 text-warning" />
+                    <.icon
+                      name="hero-exclamation-triangle-solid"
+                      class="w-4 h-4 inline mr-1 text-warning"
+                    />
                     <strong>Note:</strong>
                     Cannot deactivate if this is the last active Owner in the system.
                   </div>
@@ -217,7 +220,10 @@
                       <p class="font-medium text-base-content">Your current roles:</p>
                       <div class="flex flex-wrap gap-2 mt-2">
                         <%= for role_name <- @user_roles do %>
-                          <.role_badge role={%{name: role_name, is_system_role: false}} size={:sm} />
+                          <.role_badge
+                            role={%{name: role_name, is_system_role: false}}
+                            size={:sm}
+                          />
                         <% end %>
                         <%= if Enum.empty?(@user_roles) do %>
                           <span class="badge badge-ghost badge-sm">No roles assigned</span>
@@ -246,7 +252,10 @@
                         <span class="text-base-content/60">Select roles...</span>
                       <% else %>
                         <%= for role_name <- @user_roles do %>
-                          <.role_badge role={%{name: role_name, is_system_role: false}} size={:sm} />
+                          <.role_badge
+                            role={%{name: role_name, is_system_role: false}}
+                            size={:sm}
+                          />
                         <% end %>
                       <% end %>
                     </div>
@@ -272,7 +281,9 @@
                   >
                     <%= if Enum.empty?(@all_roles) do %>
                       <div class="text-center py-4 text-base-content/70 px-4">
-                        <p class="text-sm">No roles available. Create roles first in Role Management.</p>
+                        <p class="text-sm">
+                          No roles available. Create roles first in Role Management.
+                        </p>
                       </div>
                     <% else %>
                       <ul class="space-y-1">
@@ -497,7 +508,10 @@
       <%= if @mode == :edit do %>
         <div class="bg-yellow-50 border border-yellow-200 dark:bg-warning/10 dark:border-warning/30 rounded-lg p-6 mt-6">
           <div class="flex items-start gap-3">
-            <.icon name="hero-exclamation-triangle-solid" class="w-6 h-6 text-yellow-600 dark:text-warning mt-0.5" />
+            <.icon
+              name="hero-exclamation-triangle-solid"
+              class="w-6 h-6 text-yellow-600 dark:text-warning mt-0.5"
+            />
             <div class="flex-1">
               <h3 class="font-semibold text-yellow-800 dark:text-warning mb-2">
                 Password Reset via Email
@@ -514,8 +528,7 @@
                 phx-click="show_reset_password_modal"
                 class="btn btn-warning btn-sm mt-3"
               >
-                <.icon name="hero-lock-closed" class="w-4 h-4 mr-2" />
-                Reset User Password
+                <.icon name="hero-lock-closed" class="w-4 h-4 mr-2" /> Reset User Password
               </button>
             </div>
           </div>
@@ -577,8 +590,7 @@
               class="btn btn-error"
               phx-disable-with="Sending email..."
             >
-              <.icon name="hero-lock-closed" class="w-4 h-4 mr-2" />
-              Yes, Reset Password
+              <.icon name="hero-lock-closed" class="w-4 h-4 mr-2" /> Yes, Reset Password
             </button>
           </div>
         </div>

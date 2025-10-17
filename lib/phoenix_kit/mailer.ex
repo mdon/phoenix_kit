@@ -122,7 +122,7 @@ defmodule PhoenixKit.Mailer do
           email =
             new()
             |> to(recipient)
-            |> from(Keyword.get(opts, :from, {"PhoenixKit", get_from_email()}))
+            |> from(Keyword.get(opts, :from, {get_from_name(), get_from_email()}))
             |> subject(rendered.subject)
             |> html_body(rendered.html_body)
             |> text_body(rendered.text_body)
@@ -171,17 +171,45 @@ defmodule PhoenixKit.Mailer do
 
     result =
       if mailer == __MODULE__ do
-        # Use built-in mailer
-        __MODULE__.deliver(tracked_email)
+        # Use built-in mailer with runtime config for AWS
+        deliver_with_runtime_config(tracked_email, mailer)
       else
-        # Delegate to parent application mailer
-        mailer.deliver(tracked_email)
+        # Check if parent mailer also uses AWS SES
+        app = PhoenixKit.Config.get_parent_app()
+        config = Application.get_env(app, mailer, [])
+
+        if config[:adapter] == Swoosh.Adapters.AmazonSES do
+          # Parent mailer uses AWS SES, provide runtime config
+          deliver_with_runtime_config(tracked_email, mailer, app)
+        else
+          # Non-AWS mailer, use standard delivery
+          mailer.deliver(tracked_email)
+        end
       end
 
     # Handle post-send tracking updates
     handle_delivery_result(tracked_email, result, opts)
 
     result
+  end
+
+  # Deliver email with runtime configuration for AWS SES
+  defp deliver_with_runtime_config(email, mailer, app \\ :phoenix_kit) do
+    config = Application.get_env(app, mailer, [])
+
+    # If using AWS SES, override with runtime settings from DB
+    runtime_config =
+      if config[:adapter] == Swoosh.Adapters.AmazonSES do
+        config
+        |> Keyword.put(:region, PhoenixKit.Emails.get_aws_region())
+        |> Keyword.put(:access_key, PhoenixKit.Emails.get_aws_access_key())
+        |> Keyword.put(:secret, PhoenixKit.Emails.get_aws_secret_key())
+      else
+        config
+      end
+
+    # Use Swoosh.Mailer.deliver with runtime config
+    Swoosh.Mailer.deliver(email, runtime_config)
   end
 
   @doc """
@@ -222,7 +250,7 @@ defmodule PhoenixKit.Mailer do
     email =
       new()
       |> to({user.email, user.email})
-      |> from({"PhoenixKit", get_from_email()})
+      |> from({get_from_name(), get_from_email()})
       |> subject(subject)
       |> html_body(html_body)
       |> text_body(text_body)
@@ -463,7 +491,7 @@ defmodule PhoenixKit.Mailer do
     email =
       new()
       |> to(recipient_email)
-      |> from({"PhoenixKit Test", get_from_email()})
+      |> from({get_from_name(), get_from_email()})
       |> subject(subject)
       |> html_body(html_body)
       |> text_body(text_body)
@@ -604,10 +632,38 @@ defmodule PhoenixKit.Mailer do
   end
 
   # Get the from email address from configuration or use a default
+  # Priority: Settings Database > Config file > Default
   defp get_from_email do
-    case PhoenixKit.Config.get(:from_email) do
-      {:ok, email} -> email
-      :not_found -> "noreply@localhost"
+    # Priority 1: Settings Database (runtime)
+    case PhoenixKit.Settings.get_setting("from_email") do
+      nil ->
+        # Priority 2: Config file (compile-time, fallback)
+        case PhoenixKit.Config.get(:from_email) do
+          {:ok, email} -> email
+          # Priority 3: Default
+          _ -> "noreply@localhost"
+        end
+
+      email ->
+        email
+    end
+  end
+
+  # Get the from name from configuration or use a default
+  # Priority: Settings Database > Config file > Default
+  defp get_from_name do
+    # Priority 1: Settings Database (runtime)
+    case PhoenixKit.Settings.get_setting("from_name") do
+      nil ->
+        # Priority 2: Config file (compile-time, fallback)
+        case PhoenixKit.Config.get(:from_name) do
+          {:ok, name} -> name
+          # Priority 3: Default
+          _ -> "PhoenixKit"
+        end
+
+      name ->
+        name
     end
   end
 end
