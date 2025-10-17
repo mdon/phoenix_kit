@@ -64,7 +64,7 @@ defmodule PhoenixKit.Users.CustomFields do
       ]
   """
   def list_field_definitions do
-    case Settings.get_json_setting(@setting_key) do
+    case Settings.get_json_setting_cached(@setting_key, nil) do
       nil ->
         []
 
