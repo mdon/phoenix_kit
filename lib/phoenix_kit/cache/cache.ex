@@ -110,7 +110,11 @@ defmodule PhoenixKit.Cache do
     GenServer.call(via_tuple(cache_name), {:get, key, default}, 5000)
   rescue
     error in [ArgumentError, RuntimeError] ->
-      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      # Only log if not during compilation (when registry doesn't exist)
+      unless compilation_or_test_mode?() do
+        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      end
+
       default
   catch
     :exit, {:timeout, _} ->
@@ -118,7 +122,11 @@ defmodule PhoenixKit.Cache do
       default
 
     :exit, {:noproc, _} ->
-      Logger.warning("Cache #{cache_name} not started")
+      # Only log if not during compilation
+      unless compilation_or_test_mode?() do
+        Logger.warning("Cache #{cache_name} not started")
+      end
+
       default
   end
 
@@ -138,7 +146,10 @@ defmodule PhoenixKit.Cache do
     GenServer.call(via_tuple(cache_name), {:get_multiple, keys, defaults}, 5000)
   rescue
     error in [ArgumentError, RuntimeError] ->
-      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      unless compilation_or_test_mode?() do
+        Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      end
+
       defaults
   catch
     :exit, {:timeout, _} ->
@@ -146,7 +157,10 @@ defmodule PhoenixKit.Cache do
       defaults
 
     :exit, {:noproc, _} ->
-      Logger.warning("Cache #{cache_name} not started")
+      unless compilation_or_test_mode?() do
+        Logger.warning("Cache #{cache_name} not started")
+      end
+
       defaults
   end
 
@@ -507,5 +521,19 @@ defmodule PhoenixKit.Cache do
     next_key = :ets.next(table, key)
     :ets.delete(table, key)
     evict_n_entries(next_key, table, n - 1)
+  end
+
+  # Check if we're in compilation or test mode where cache infrastructure may not be available
+  defp compilation_or_test_mode? do
+    # During compilation, the application environment is not fully loaded
+    # Check if we're in a context where the registry hasn't been started
+    case Registry.whereis_name({PhoenixKit.Cache.Registry, :settings}) do
+      :undefined -> true
+      pid when is_pid(pid) -> false
+      _ -> true
+    end
+  rescue
+    # If Registry module isn't available or any error occurs, assume compilation mode
+    _ -> true
   end
 end

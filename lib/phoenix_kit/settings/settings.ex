@@ -531,6 +531,9 @@ defmodule PhoenixKit.Settings do
       nil -> default
       _ -> default
     end
+  rescue
+    # During compilation or when infrastructure isn't ready, return default silently
+    _error -> default
   end
 
   @doc """
@@ -1168,7 +1171,11 @@ defmodule PhoenixKit.Settings do
     end
   rescue
     error ->
-      Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      # Only log if we're in runtime (not compilation or test setup)
+      unless compilation_mode?() do
+        Logger.error("Failed to query setting #{key}: #{inspect(error)}")
+      end
+
       nil
   end
 
@@ -1191,7 +1198,24 @@ defmodule PhoenixKit.Settings do
     end
   rescue
     error ->
-      Logger.error("Failed to query JSON setting #{key}: #{inspect(error)}")
+      # Only log if we're in runtime (not compilation or test setup)
+      unless compilation_mode?() do
+        Logger.error("Failed to query JSON setting #{key}: #{inspect(error)}")
+      end
+
       nil
+  end
+
+  # Check if we're in compilation mode where database/cache infrastructure isn't available
+  defp compilation_mode? do
+    # During compilation, Config module may not be fully loaded
+    # Check if repo is configured - if not, we're likely in compilation mode
+    case PhoenixKit.Config.get(:repo, nil) do
+      nil -> true
+      _ -> false
+    end
+  rescue
+    # If we can't even check the config, we're definitely in compilation mode
+    _ -> true
   end
 end

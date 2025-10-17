@@ -352,7 +352,7 @@ PhoenixKit follows professional library patterns:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on setting up a development environment and contributing to PhoenixKit.
+See [CONTRIBUTING.md](https://github.com/BeamLabEU/phoenix_kit/blob/main/CONTRIBUTING.md) for detailed instructions on setting up a development environment and contributing to PhoenixKit.
 
 ## License
 
