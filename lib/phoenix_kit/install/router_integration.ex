@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.RouterIntegration do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles router integration for PhoenixKit installation.
 

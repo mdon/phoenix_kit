@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.MailerConfig do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles mailer configuration for PhoenixKit installation.
 
