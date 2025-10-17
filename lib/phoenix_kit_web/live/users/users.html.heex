@@ -165,210 +165,212 @@
                 <%= for column_id <- @selected_columns do %>
                   <%= if should_render_column?(column_id) do %>
                     <.table_default_cell>
-                    <%= cond do %>
-                      <% column_id == "email" -> %>
-                        <div class="flex flex-col gap-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <span class="font-medium">{user.email}</span>
-                            <%= if user.id == @phoenix_kit_current_user.id do %>
-                              <span class="badge badge-info badge-xs">you</span>
+                      <%= cond do %>
+                        <% column_id == "email" -> %>
+                          <div class="flex flex-col gap-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <span class="font-medium">{user.email}</span>
+                              <%= if user.id == @phoenix_kit_current_user.id do %>
+                                <span class="badge badge-info badge-xs">you</span>
+                              <% end %>
+                            </div>
+                            <%= if user.username do %>
+                              <div class="text-sm text-base-content/60">
+                                @{user.username}
+                              </div>
                             <% end %>
                           </div>
-                          <%= if user.username do %>
-                            <div class="text-sm text-base-content/60">
-                              @{user.username}
-                            </div>
-                          <% end %>
-                        </div>
-                      <% column_id == "full_name" -> %>
-                        <div class="flex flex-col gap-1">
-                          <%= if user.first_name || user.last_name do %>
-                            <div>{PhoenixKit.Users.Auth.User.full_name(user)}</div>
-                          <% else %>
-                            <div class="text-base-content/50">-</div>
-                          <% end %>
-                        </div>
-                      <% column_id == "role" -> %>
-                        <% user_roles = get_user_roles(user) %>
-                        <div class="flex flex-wrap gap-1">
-                          <%= for role_name <- user_roles do %>
-                            <.role_badge
-                              role={%{name: role_name, is_system_role: false}}
-                              size={:sm}
-                            />
-                          <% end %>
-                          <%= if Enum.empty?(user_roles) do %>
-                            <span class="badge badge-ghost badge-sm">No roles</span>
-                          <% end %>
-                        </div>
-                      <% column_id == "status" -> %>
-                        <div class="flex flex-col gap-1">
-                          <%= if user.confirmed_at do %>
-                            <span class="badge badge-success badge-sm">Confirmed</span>
-                          <% else %>
-                            <span class="badge badge-warning badge-sm">Pending</span>
-                          <% end %>
-                          <%= if user.is_active do %>
-                            <span class="badge badge-outline badge-xs">Active</span>
-                          <% else %>
-                            <span class="badge badge-error badge-xs">Inactive</span>
-                          <% end %>
-                        </div>
-                      <% column_id == "registered" -> %>
-                        <div class="text-sm">
+                        <% column_id == "full_name" -> %>
                           <div class="flex flex-col gap-1">
-                            <div>
-                              {UtilsDate.format_date_with_user_timezone_cached(
-                                user.inserted_at,
-                                @phoenix_kit_current_user,
-                                @date_time_settings
-                              )}
-                            </div>
-                            <div class="text-xs text-base-content/70">
-                              {UtilsDate.format_time_with_user_timezone_cached(
-                                user.inserted_at,
-                                @phoenix_kit_current_user,
-                                @date_time_settings
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      <% column_id == "location" -> %>
-                        <div class="text-sm">
-                          <div class="flex flex-col gap-1">
-                            <%= if user.registration_country || user.registration_region || user.registration_city || user.registration_ip do %>
-                              <%= if user.registration_country do %>
-                                <div class="flex items-center gap-1">
-                                  <span class="badge badge-outline badge-xs">
-                                    {user.registration_country}
-                                  </span>
-                                </div>
-                              <% end %>
-                              <%= if user.registration_region || user.registration_city do %>
-                                <div class="text-xs text-base-content/70">
-                                  <%= if user.registration_region && user.registration_city do %>
-                                    {user.registration_region}, {user.registration_city}
-                                  <% else %>
-                                    {user.registration_region || user.registration_city}
-                                  <% end %>
-                                </div>
-                              <% end %>
-                              <%= if user.registration_ip do %>
-                                <div class="text-xs text-base-content/50 font-mono">
-                                  {user.registration_ip}
-                                </div>
-                              <% end %>
+                            <%= if user.first_name || user.last_name do %>
+                              <div>{PhoenixKit.Users.Auth.User.full_name(user)}</div>
                             <% else %>
-                              <div class="text-xs text-base-content/50">No data</div>
+                              <div class="text-base-content/50">-</div>
                             <% end %>
                           </div>
-                        </div>
-                      <% column_id == "last_confirmed" -> %>
-                        <div class="text-sm">
+                        <% column_id == "role" -> %>
+                          <% user_roles = get_user_roles(user) %>
+                          <div class="flex flex-wrap gap-1">
+                            <%= for role_name <- user_roles do %>
+                              <.role_badge
+                                role={%{name: role_name, is_system_role: false}}
+                                size={:sm}
+                              />
+                            <% end %>
+                            <%= if Enum.empty?(user_roles) do %>
+                              <span class="badge badge-ghost badge-sm">No roles</span>
+                            <% end %>
+                          </div>
+                        <% column_id == "status" -> %>
                           <div class="flex flex-col gap-1">
                             <%= if user.confirmed_at do %>
+                              <span class="badge badge-success badge-sm">Confirmed</span>
+                            <% else %>
+                              <span class="badge badge-warning badge-sm">Pending</span>
+                            <% end %>
+                            <%= if user.is_active do %>
+                              <span class="badge badge-outline badge-xs">Active</span>
+                            <% else %>
+                              <span class="badge badge-error badge-xs">Inactive</span>
+                            <% end %>
+                          </div>
+                        <% column_id == "registered" -> %>
+                          <div class="text-sm">
+                            <div class="flex flex-col gap-1">
                               <div>
                                 {UtilsDate.format_date_with_user_timezone_cached(
-                                  user.confirmed_at,
+                                  user.inserted_at,
                                   @phoenix_kit_current_user,
                                   @date_time_settings
                                 )}
                               </div>
                               <div class="text-xs text-base-content/70">
                                 {UtilsDate.format_time_with_user_timezone_cached(
-                                  user.confirmed_at,
+                                  user.inserted_at,
                                   @phoenix_kit_current_user,
                                   @date_time_settings
                                 )}
                               </div>
+                            </div>
+                          </div>
+                        <% column_id == "location" -> %>
+                          <div class="text-sm">
+                            <div class="flex flex-col gap-1">
+                              <%= if user.registration_country || user.registration_region || user.registration_city || user.registration_ip do %>
+                                <%= if user.registration_country do %>
+                                  <div class="flex items-center gap-1">
+                                    <span class="badge badge-outline badge-xs">
+                                      {user.registration_country}
+                                    </span>
+                                  </div>
+                                <% end %>
+                                <%= if user.registration_region || user.registration_city do %>
+                                  <div class="text-xs text-base-content/70">
+                                    <%= if user.registration_region && user.registration_city do %>
+                                      {user.registration_region}, {user.registration_city}
+                                    <% else %>
+                                      {user.registration_region || user.registration_city}
+                                    <% end %>
+                                  </div>
+                                <% end %>
+                                <%= if user.registration_ip do %>
+                                  <div class="text-xs text-base-content/50 font-mono">
+                                    {user.registration_ip}
+                                  </div>
+                                <% end %>
+                              <% else %>
+                                <div class="text-xs text-base-content/50">No data</div>
+                              <% end %>
+                            </div>
+                          </div>
+                        <% column_id == "last_confirmed" -> %>
+                          <div class="text-sm">
+                            <div class="flex flex-col gap-1">
+                              <%= if user.confirmed_at do %>
+                                <div>
+                                  {UtilsDate.format_date_with_user_timezone_cached(
+                                    user.confirmed_at,
+                                    @phoenix_kit_current_user,
+                                    @date_time_settings
+                                  )}
+                                </div>
+                                <div class="text-xs text-base-content/70">
+                                  {UtilsDate.format_time_with_user_timezone_cached(
+                                    user.confirmed_at,
+                                    @phoenix_kit_current_user,
+                                    @date_time_settings
+                                  )}
+                                </div>
+                              <% else %>
+                                <div>Never</div>
+                              <% end %>
+                            </div>
+                          </div>
+                        <% column_id == "actions" -> %>
+                          <div class="flex flex-wrap gap-1">
+                            <%!-- Edit User --%>
+                            <.link
+                              navigate={
+                                PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.id}")
+                              }
+                              class="btn btn-xs btn-outline btn-secondary"
+                              title="Edit user"
+                            >
+                              <.icon name="hero-pencil" class="h-4 w-4" />
+                            </.link>
+
+                            <%!-- Role Management --%>
+                            <%= if user.id != @phoenix_kit_current_user.id do %>
+                              <button
+                                class="btn btn-xs btn-outline btn-primary"
+                                phx-click="show_role_management"
+                                phx-value-user_id={user.id}
+                                title="Manage roles"
+                              >
+                                <.icon name="hero-user-group" class="h-4 w-4" />
+                              </button>
+                            <% end %>
+
+                            <%!-- Email Confirmation Toggle --%>
+                            <%= if user.id != @phoenix_kit_current_user.id && get_primary_role_name_unsafe(user) != "Owner" do %>
+                              <button
+                                class={"btn btn-xs btn-outline #{if user.confirmed_at, do: "btn-success", else: "btn-warning"}"}
+                                phx-click="request_confirmation_toggle"
+                                phx-value-user_id={user.id}
+                                phx-value-is_confirmed={to_string(!!user.confirmed_at)}
+                                title={
+                                  if user.confirmed_at,
+                                    do: "Unconfirm email",
+                                    else: "Confirm email"
+                                }
+                              >
+                                <%= if user.confirmed_at do %>
+                                  <.icon name="hero-envelope-open" class="h-4 w-4" />
+                                <% else %>
+                                  <.icon name="hero-envelope" class="h-4 w-4" />
+                                <% end %>
+                              </button>
+
+                              <%!-- Status Toggle --%>
+                              <button
+                                class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-success", else: "btn-warning"}"}
+                                phx-click="request_status_toggle"
+                                phx-value-user_id={user.id}
+                                phx-value-is_active={to_string(user.is_active)}
+                                title={
+                                  if user.is_active, do: "Deactivate user", else: "Activate user"
+                                }
+                              >
+                                <%= if user.is_active do %>
+                                  <.icon name="hero-check-circle" class="h-4 w-4" />
+                                <% else %>
+                                  <.icon name="hero-x-circle" class="h-4 w-4" />
+                                <% end %>
+                              </button>
                             <% else %>
-                              <div>Never</div>
+                              <%= if user.id == @phoenix_kit_current_user.id do %>
+                                <.link
+                                  navigate={PhoenixKit.Utils.Routes.path("/users/settings")}
+                                  class="btn btn-xs btn-outline btn-info"
+                                  title="User settings"
+                                >
+                                  <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
+                                </.link>
+                              <% else %>
+                                <span class="text-xs text-base-content/50">Protected</span>
+                              <% end %>
                             <% end %>
                           </div>
-                        </div>
-                      <% column_id == "actions" -> %>
-                        <div class="flex flex-wrap gap-1">
-                          <%!-- Edit User --%>
-                          <.link
-                            navigate={
-                              PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.id}")
-                            }
-                            class="btn btn-xs btn-outline btn-secondary"
-                            title="Edit user"
-                          >
-                            <.icon name="hero-pencil" class="h-4 w-4" />
-                          </.link>
-
-                          <%!-- Role Management --%>
-                          <%= if user.id != @phoenix_kit_current_user.id do %>
-                            <button
-                              class="btn btn-xs btn-outline btn-primary"
-                              phx-click="show_role_management"
-                              phx-value-user_id={user.id}
-                              title="Manage roles"
-                            >
-                              <.icon name="hero-user-group" class="h-4 w-4" />
-                            </button>
-                          <% end %>
-
-                          <%!-- Email Confirmation Toggle --%>
-                          <%= if user.id != @phoenix_kit_current_user.id && get_primary_role_name_unsafe(user) != "Owner" do %>
-                            <button
-                              class={"btn btn-xs btn-outline #{if user.confirmed_at, do: "btn-success", else: "btn-warning"}"}
-                              phx-click="request_confirmation_toggle"
-                              phx-value-user_id={user.id}
-                              phx-value-is_confirmed={to_string(!!user.confirmed_at)}
-                              title={
-                                if user.confirmed_at, do: "Unconfirm email", else: "Confirm email"
-                              }
-                            >
-                              <%= if user.confirmed_at do %>
-                                <.icon name="hero-envelope-open" class="h-4 w-4" />
-                              <% else %>
-                                <.icon name="hero-envelope" class="h-4 w-4" />
-                              <% end %>
-                            </button>
-
-                            <%!-- Status Toggle --%>
-                            <button
-                              class={"btn btn-xs btn-outline #{if user.is_active, do: "btn-success", else: "btn-warning"}"}
-                              phx-click="request_status_toggle"
-                              phx-value-user_id={user.id}
-                              phx-value-is_active={to_string(user.is_active)}
-                              title={
-                                if user.is_active, do: "Deactivate user", else: "Activate user"
-                              }
-                            >
-                              <%= if user.is_active do %>
-                                <.icon name="hero-check-circle" class="h-4 w-4" />
-                              <% else %>
-                                <.icon name="hero-x-circle" class="h-4 w-4" />
-                              <% end %>
-                            </button>
-                          <% else %>
-                            <%= if user.id == @phoenix_kit_current_user.id do %>
-                              <.link
-                                navigate={PhoenixKit.Utils.Routes.path("/users/settings")}
-                                class="btn btn-xs btn-outline btn-info"
-                                title="User settings"
-                              >
-                                <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
-                              </.link>
-                            <% else %>
-                              <span class="text-xs text-base-content/50">Protected</span>
-                            <% end %>
-                          <% end %>
-                        </div>
-                      <% true -> %>
-                        <%!-- Handle custom fields and other columns --%>
-                        {render_column_cell(
-                          user,
-                          column_id,
-                          @phoenix_kit_current_user,
-                          @date_time_settings
-                        )}
-                    <% end %>
-                  </.table_default_cell>
+                        <% true -> %>
+                          <%!-- Handle custom fields and other columns --%>
+                          {render_column_cell(
+                            user,
+                            column_id,
+                            @phoenix_kit_current_user,
+                            @date_time_settings
+                          )}
+                      <% end %>
+                    </.table_default_cell>
                   <% end %>
                 <% end %>
               </.table_default_row>
