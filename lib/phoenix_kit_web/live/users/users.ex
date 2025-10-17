@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Users.TableColumns
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -42,6 +43,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         }
       )
 
+    # Get columns and clean up any deleted custom fields
+    selected_columns = TableColumns.get_user_table_columns()
+    valid_columns = get_valid_columns(selected_columns)
+
+    # If we filtered out any deleted columns, save the cleaned list
+    if length(valid_columns) != length(selected_columns) do
+      TableColumns.update_user_table_columns(valid_columns)
+    end
+
     socket =
       socket
       |> assign(:page, 1)
@@ -58,7 +68,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
       |> assign(:current_locale, locale)
-      |> assign(:selected_columns, TableColumns.get_user_table_columns())
+      |> assign(:selected_columns, valid_columns)
       |> assign(:available_columns, TableColumns.get_available_columns())
       |> load_users()
       |> load_stats()
@@ -622,8 +632,20 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def render_column_header(column_id) do
     case TableColumns.get_column_metadata(column_id) do
       %{label: label} -> label
+      nil -> nil  # Return nil for deleted custom fields
       _ -> String.capitalize(String.replace(column_id, "_", " "))
     end
+  end
+
+  # Helper to check if column should be rendered (filters out deleted custom fields)
+  def should_render_column?(column_id) do
+    # Always render "actions" column
+    column_id == "actions" || TableColumns.get_column_metadata(column_id) != nil
+  end
+
+  # Get valid columns only (filters out deleted custom fields)
+  def get_valid_columns(columns) do
+    Enum.filter(columns, &should_render_column?/1)
   end
 
   def render_column_cell(user, column_id, current_user, date_time_settings) do
@@ -837,6 +859,52 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:inactive_users, stats.inactive_users)
       |> assign(:confirmed_users, stats.confirmed_users)
       |> assign(:pending_users, stats.pending_users)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:custom_field_deleted, field_key}, socket) do
+    # When a custom field is deleted, refresh available columns and clean up selected columns
+    column_id = "custom_#{field_key}"
+
+    # Get fresh available columns (deleted field won't be included)
+    available_columns = TableColumns.get_available_columns()
+
+    # Remove the deleted field from selected columns if present
+    selected_columns = socket.assigns.selected_columns
+    new_selected_columns = Enum.reject(selected_columns, &(&1 == column_id))
+
+    # Only update if the column was actually removed
+    socket =
+      if length(new_selected_columns) != length(selected_columns) do
+        # Save the cleaned column list
+        case TableColumns.update_user_table_columns(new_selected_columns) do
+          {:ok, _} ->
+            socket
+            |> assign(:selected_columns, new_selected_columns)
+            |> assign(:available_columns, available_columns)
+
+          {:error, _} ->
+            # If save fails, at least update the UI
+            socket
+            |> assign(:selected_columns, new_selected_columns)
+            |> assign(:available_columns, available_columns)
+        end
+      else
+        # Field wasn't in selected columns, just refresh available columns
+        assign(socket, :available_columns, available_columns)
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:custom_fields_changed, socket) do
+    # Refresh available columns when fields are added/updated/reordered
+    available_columns = TableColumns.get_available_columns()
+
+    socket =
+      socket
+      |> assign(:available_columns, available_columns)
 
     {:noreply, socket}
   end

@@ -151,9 +151,11 @@
           <.table_default_header>
             <.table_default_row>
               <%= for column_id <- @selected_columns do %>
-                <.table_default_header_cell>
-                  {render_column_header(column_id)}
-                </.table_default_header_cell>
+                <%= if should_render_column?(column_id) do %>
+                  <.table_default_header_cell>
+                    {render_column_header(column_id)}
+                  </.table_default_header_cell>
+                <% end %>
               <% end %>
             </.table_default_row>
           </.table_default_header>
@@ -162,7 +164,8 @@
             <%= for user <- @users do %>
               <.table_default_row>
                 <%= for column_id <- @selected_columns do %>
-                  <.table_default_cell>
+                  <%= if should_render_column?(column_id) do %>
+                    <.table_default_cell>
                     <%= cond do %>
                       <% column_id == "email" -> %>
                         <div class="flex flex-col gap-1">
@@ -367,6 +370,7 @@
                         )}
                     <% end %>
                   </.table_default_cell>
+                  <% end %>
                 <% end %>
               </.table_default_row>
             <% end %>
