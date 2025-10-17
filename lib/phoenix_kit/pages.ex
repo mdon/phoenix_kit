@@ -6,6 +6,8 @@ defmodule PhoenixKit.Pages do
   files and folders in a web-based interface.
   """
 
+  alias PhoenixKit.Config
+
   @doc """
   Checks if Pages module is enabled.
 
@@ -67,7 +69,7 @@ defmodule PhoenixKit.Pages do
   # Private Helpers
 
   defp get_parent_app do
-    case Application.get_env(:phoenix_kit, :repo) do
+    case Config.get(:repo, nil) do
       nil ->
         # Fallback to phoenix_kit if no repo configured
         :phoenix_kit
