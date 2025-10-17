@@ -1,3 +1,29 @@
+## 1.4.0 - 2025-10-17
+
+### Added
+- **Pages Content System** - Full Markdown-driven site with admin file navigator, metadata-aware editor, and public rendering at `/pages/*` routes
+- **User Custom Fields** - WordPress ACF-like JSONB custom fields system with column filtering, reordering, and management interface
+- **Collaborative Editing** - FIFO locking system for entities with real-time presence tracking and PubSub event broadcasting
+- **Content Language Module** - Multi-language support with language switcher, locale routing, and language management interface
+- **TableDefault Component** - Standardized table component replacing pure HTML tables across admin interface
+- **User Settings** - Default user status on creation, automatic email confirmation for first user, timezone settings with geolocation IP tracking
+
+### Changed
+- **Email Operations** - Sender profile configuration, one-click AWS infrastructure setup, prioritized credentials (Settings DB → ENV)
+- **Developer Experience** - OAuth/email dependencies now mandatory, `mix phoenix_kit.* --help` support, `IgniterCompat` for cleaner installs
+- **Navigation** - Admin navigation uses LiveView navigate for instant transitions, disabled long-polling for faster cleanup
+
+### Fixed
+- **Custom Fields** - Fixed not saving, being cleared on edit, and column updates when deleting fields
+- **Critical Bugs** - Ecto.SubQueryError in user role filtering, OAuth checkbox errors, PhoenixKit.Config usage issues
+- **Email System** - AWS credential bugs, SQS message loss, chart initialization, idempotency/deduplication improvements
+- **Code Quality** - Cleaned up Dialyzer/Credo warnings, improved logging, removed excessive debug output
+
+### Upgrade Notes
+- Run `mix deps.get` to install mandatory OAuth/email packages
+- Enable Pages module from `/admin/modules` to use content management
+- Custom fields available in user management submenu
+
 ## 1.3.5 - 2025-10-17
 
 ### Added
