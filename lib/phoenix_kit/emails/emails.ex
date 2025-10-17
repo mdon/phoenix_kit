@@ -1884,7 +1884,7 @@ defmodule PhoenixKit.Emails do
     [
       access_key_id: get_aws_access_key(),
       secret_access_key: get_aws_secret_key(),
-      region: __MODULE__.get_aws_region()
+      region: get_aws_region()
     ]
   end
 

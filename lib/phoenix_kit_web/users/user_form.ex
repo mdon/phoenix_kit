@@ -298,111 +298,126 @@ defmodule PhoenixKitWeb.Users.UserForm do
 
   defp update_user(socket, user_params) do
     user = socket.assigns.user
-    show_password_field = socket.assigns.show_password_field
-
-    # Extract custom fields from params
     custom_fields_params = Map.get(user_params, "custom_fields", %{})
     profile_params = Map.delete(user_params, "custom_fields")
 
-    # Validate custom fields if any exist
-    custom_fields_validation =
-      if map_size(custom_fields_params) > 0 do
-        temp_user = %{user | custom_fields: custom_fields_params}
-        CustomFields.validate_user_custom_fields(temp_user)
-      else
-        :ok
-      end
+    with :ok <- validate_custom_fields(user, custom_fields_params),
+         {:ok, updated_user} <- update_user_profile(socket, user, profile_params),
+         {:ok, user_with_fields} <- update_custom_fields(updated_user, custom_fields_params),
+         result <- update_user_roles_if_changed(socket, user_with_fields) do
+      handle_update_result(socket, result)
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
+        handle_profile_update_error(socket, changeset, user_params)
 
-    case custom_fields_validation do
-      :ok ->
-        # Check if password update is needed
-        password_provided =
-          show_password_field and Map.has_key?(profile_params, "password") and
-            profile_params["password"] != nil and String.trim(profile_params["password"]) != ""
+      {:error, :custom_fields, errors} ->
+        handle_custom_fields_error(socket, errors, custom_fields_params)
 
-        result =
-          if password_provided do
-            # Update both profile and password
-            update_profile_and_password(user, profile_params)
-          else
-            # Update profile only (exclude password)
-            cleaned_params = Map.delete(profile_params, "password")
-            Auth.update_user_profile(user, cleaned_params)
-          end
-
-        case result do
-          {:ok, updated_user} ->
-            # Also update custom fields if provided
-            final_result =
-              if map_size(custom_fields_params) > 0 do
-                Auth.update_user_custom_fields(updated_user, custom_fields_params)
-              else
-                {:ok, updated_user}
-              end
-
-            case final_result do
-              {:ok, final_user} ->
-                # Update roles if they were changed
-                roles_result = update_user_roles_if_changed(socket, final_user)
-
-                case roles_result do
-                  {:ok, _} ->
-                    socket =
-                      socket
-                      |> put_flash(:info, "User updated successfully.")
-                      |> push_navigate(to: Routes.path("/admin/users"))
-
-                    {:noreply, socket}
-
-                  {:error, reason} ->
-                    error_message =
-                      case reason do
-                        :owner_role_protected ->
-                          "User profile updated but Owner role cannot be manually assigned."
-
-                        :cannot_remove_last_owner ->
-                          "User profile updated but cannot remove Owner role from the last Owner."
-
-                        _ ->
-                          "User profile updated but roles failed to update."
-                      end
-
-                    socket =
-                      socket
-                      |> put_flash(:warning, error_message)
-                      |> push_navigate(to: Routes.path("/admin/users"))
-
-                    {:noreply, socket}
-                end
-
-              {:error, _changeset} ->
-                socket =
-                  socket
-                  |> put_flash(:error, "User profile updated but custom fields failed to save.")
-                  |> push_navigate(to: Routes.path("/admin/users"))
-
-                {:noreply, socket}
-            end
-
-          {:error, changeset} ->
-            socket =
-              socket
-              |> assign(:changeset, changeset)
-              |> assign(:form_data, user_params)
-              |> assign(:custom_fields_errors, %{})
-
-            {:noreply, socket}
-        end
-
-      {:error, errors} ->
-        socket =
-          socket
-          |> assign(:custom_fields_errors, errors)
-          |> assign(:custom_fields_data, custom_fields_params)
-          |> put_flash(:error, "Please fix the custom field errors below.")
-
-        {:noreply, socket}
+      {:error, :custom_fields_save} ->
+        handle_custom_fields_save_error(socket)
     end
+  end
+
+  defp validate_custom_fields(_user, custom_fields_params)
+       when map_size(custom_fields_params) == 0 do
+    :ok
+  end
+
+  defp validate_custom_fields(user, custom_fields_params) do
+    temp_user = %{user | custom_fields: custom_fields_params}
+
+    case CustomFields.validate_user_custom_fields(temp_user) do
+      :ok -> :ok
+      {:error, errors} -> {:error, :custom_fields, errors}
+    end
+  end
+
+  defp update_user_profile(socket, user, profile_params) do
+    password_provided =
+      socket.assigns.show_password_field &&
+        Map.has_key?(profile_params, "password") &&
+        profile_params["password"] != nil &&
+        String.trim(profile_params["password"]) != ""
+
+    if password_provided do
+      update_profile_and_password(user, profile_params)
+    else
+      cleaned_params = Map.delete(profile_params, "password")
+      Auth.update_user_profile(user, cleaned_params)
+    end
+  end
+
+  defp update_custom_fields(user, custom_fields_params)
+       when map_size(custom_fields_params) == 0 do
+    {:ok, user}
+  end
+
+  defp update_custom_fields(user, custom_fields_params) do
+    case Auth.update_user_custom_fields(user, custom_fields_params) do
+      {:ok, updated_user} -> {:ok, updated_user}
+      {:error, _changeset} -> {:error, :custom_fields_save}
+    end
+  end
+
+  defp handle_update_result(socket, {:ok, _}) do
+    socket =
+      socket
+      |> put_flash(:info, "User updated successfully.")
+      |> push_navigate(to: Routes.path("/admin/users"))
+
+    {:noreply, socket}
+  end
+
+  defp handle_update_result(socket, {:error, reason}) do
+    error_message = format_role_update_error(reason)
+
+    socket =
+      socket
+      |> put_flash(:warning, error_message)
+      |> push_navigate(to: Routes.path("/admin/users"))
+
+    {:noreply, socket}
+  end
+
+  defp format_role_update_error(:owner_role_protected) do
+    "User profile updated but Owner role cannot be manually assigned."
+  end
+
+  defp format_role_update_error(:cannot_remove_last_owner) do
+    "User profile updated but cannot remove Owner role from the last Owner."
+  end
+
+  defp format_role_update_error(_) do
+    "User profile updated but roles failed to update."
+  end
+
+  defp handle_profile_update_error(socket, changeset, user_params) do
+    socket =
+      socket
+      |> assign(:changeset, changeset)
+      |> assign(:form_data, user_params)
+      |> assign(:custom_fields_errors, %{})
+
+    {:noreply, socket}
+  end
+
+  defp handle_custom_fields_error(socket, errors, custom_fields_params) do
+    socket =
+      socket
+      |> assign(:custom_fields_errors, errors)
+      |> assign(:custom_fields_data, custom_fields_params)
+      |> put_flash(:error, "Please fix the custom field errors below.")
+
+    {:noreply, socket}
+  end
+
+  defp handle_custom_fields_save_error(socket) do
+    socket =
+      socket
+      |> put_flash(:error, "User profile updated but custom fields failed to save.")
+      |> push_navigate(to: Routes.path("/admin/users"))
+
+    {:noreply, socket}
   end
 
   defp load_user_data(socket, :new, _user_id) do

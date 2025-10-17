@@ -1,3 +1,30 @@
+## 1.3.5 - 2025-10-17
+
+### Added
+- **Email Sender Configuration** - Dynamic from_email and from_name settings via admin interface
+  - New Sender Configuration form at `/admin/settings/emails`
+  - 3-tier priority system: Settings DB → Config → Defaults
+  - Live preview showing how emails will appear to recipients
+  - All outgoing emails now use dynamic sender information
+  - Settings update immediately without restart
+
+### Fixed
+- **Email Dashboard Chart Initialization** - Resolved chart rendering issues on initial page load
+  - Added Promise-based Chart.js library loading with retry mechanism
+  - Implemented event buffering for chart data when charts not ready
+  - Enhanced lifecycle handling with multiple LiveView events
+  - Added exponential backoff retry (up to 5 attempts)
+  - Charts now reliably render even with slow network conditions
+- **Code Quality Issues** - Fixed Dialyzer warnings and Credo recommendations
+  - Resolved nested module aliasing warnings across 26 files
+  - Fixed function complexity issues (cyclomatic complexity reduced)
+  - Improved code efficiency with Enum.map_join instead of map + join
+  - Fixed "last clause in with is redundant" patterns
+  - Alphabetized module aliases for better organization
+
+### Improved
+- **Documentation** - Minimized Sender Configuration section in CLAUDE.md for better clarity
+
 ## 1.3.4 - 2025-10-15
 
 ### Added

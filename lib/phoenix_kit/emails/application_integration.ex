@@ -222,7 +222,9 @@ defmodule PhoenixKit.Emails.ApplicationIntegration do
       {"sqs_polling_interval_ms", "5000"},
       {"sqs_max_messages_per_poll", "10"},
       {"sqs_visibility_timeout", "300"},
-      {"aws_region", System.get_env("AWS_REGION", "eu-north-1")}
+      {"aws_region", System.get_env("AWS_REGION", "eu-north-1")},
+      {"from_email", get_config_or_default(:from_email, "noreply@localhost")},
+      {"from_name", get_config_or_default(:from_name, "PhoenixKit")}
     ]
 
     Enum.each(default_settings, fn {key, default_value} ->
@@ -241,6 +243,14 @@ defmodule PhoenixKit.Emails.ApplicationIntegration do
   end
 
   ## --- Private Functions ---
+
+  # Get configuration value or use default
+  defp get_config_or_default(key, default) do
+    case PhoenixKit.Config.get(key) do
+      {:ok, value} -> value
+      _ -> default
+    end
+  end
 
   # Determines whether email system should start
   defp should_start_email_system?(opts) do

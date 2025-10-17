@@ -85,6 +85,17 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
       |> assign(:aws_settings, aws_settings)
       |> assign(:saving, false)
       |> assign(:setting_up_aws, false)
+      |> assign(:running_cleanup, false)
+      |> assign(:running_compression, false)
+      |> assign(:running_archival, false)
+      |> assign(
+        :sender_settings,
+        %{
+          from_email: Settings.get_setting("from_email", "noreply@localhost"),
+          from_name: Settings.get_setting("from_name", "PhoenixKit")
+        }
+      )
+      |> assign(:saving_sender, false)
 
     {:ok, socket}
   end
@@ -534,6 +545,224 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
           |> put_flash(:error, "Failed to save AWS settings")
 
         {:noreply, socket}
+    end
+  end
+
+  def handle_event("save_sender_settings", %{"sender" => sender_params}, socket) do
+    socket = assign(socket, :saving_sender, true)
+
+    settings_to_update = %{
+      "from_email" => sender_params["from_email"] || "noreply@localhost",
+      "from_name" => sender_params["from_name"] || "PhoenixKit"
+    }
+
+    case Settings.update_settings_batch(settings_to_update) do
+      {:ok, _results} ->
+        new_sender_settings = %{
+          from_email: sender_params["from_email"],
+          from_name: sender_params["from_name"]
+        }
+
+        socket =
+          socket
+          |> assign(:sender_settings, new_sender_settings)
+          |> assign(:saving_sender, false)
+          |> put_flash(:info, "Sender settings saved successfully")
+
+        {:noreply, socket}
+
+      {:error, _failed_operation, _failed_value, _changes} ->
+        socket =
+          socket
+          |> assign(:saving_sender, false)
+          |> put_flash(:error, "Failed to save sender settings")
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("run_cleanup_now", _params, socket) do
+    # Run cleanup operation for emails older than retention period
+    socket = assign(socket, :running_cleanup, true)
+
+    retention_days = socket.assigns.email_retention_days
+
+    # Run cleanup in a Task to avoid blocking the LiveView process
+    task =
+      Task.async(fn ->
+        Emails.cleanup_old_logs(retention_days)
+      end)
+
+    # Wait for result with timeout
+    case Task.yield(task, 30_000) || Task.shutdown(task) do
+      {:ok, {deleted_count, _}} ->
+        socket =
+          socket
+          |> assign(:running_cleanup, false)
+          |> put_flash(
+            :info,
+            "✅ Cleanup completed successfully! Deleted #{deleted_count} old email logs (older than #{retention_days} days)."
+          )
+
+        {:noreply, socket}
+
+      nil ->
+        socket =
+          socket
+          |> assign(:running_cleanup, false)
+          |> put_flash(
+            :error,
+            "⚠️ Cleanup operation timed out. Please try again or run it manually via mix task."
+          )
+
+        {:noreply, socket}
+
+      _error ->
+        socket =
+          socket
+          |> assign(:running_cleanup, false)
+          |> put_flash(:error, "❌ Failed to run cleanup. Please check logs for details.")
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("run_compression_now", _params, socket) do
+    # Run compression for email bodies older than compress_days
+    socket = assign(socket, :running_compression, true)
+
+    compress_days = socket.assigns.email_compress_body
+
+    # Run compression in a Task to avoid blocking
+    task =
+      Task.async(fn ->
+        Emails.compress_old_bodies(compress_days)
+      end)
+
+    # Wait for result with timeout
+    case Task.yield(task, 60_000) || Task.shutdown(task) do
+      {:ok, {compressed_count, bytes_saved}} ->
+        size_mb = Float.round(bytes_saved / 1024 / 1024, 2)
+
+        socket =
+          socket
+          |> assign(:running_compression, false)
+          |> put_flash(
+            :info,
+            "✅ Compression completed! Compressed #{compressed_count} email bodies, saved ~#{size_mb} MB of storage."
+          )
+
+        {:noreply, socket}
+
+      nil ->
+        socket =
+          socket
+          |> assign(:running_compression, false)
+          |> put_flash(
+            :error,
+            "⚠️ Compression operation timed out. Please try again or run it manually via mix task."
+          )
+
+        {:noreply, socket}
+
+      _error ->
+        socket =
+          socket
+          |> assign(:running_compression, false)
+          |> put_flash(:error, "❌ Failed to run compression. Please check logs for details.")
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("run_s3_archival_now", _params, socket) do
+    # Run S3 archival for emails older than retention period
+    if socket.assigns.email_archive_to_s3 do
+      socket = assign(socket, :running_archival, true)
+
+      retention_days = socket.assigns.email_retention_days
+
+      # Run archival in a Task to avoid blocking
+      task =
+        Task.async(fn ->
+          Emails.archive_to_s3(retention_days)
+        end)
+
+      # Wait for result with longer timeout (S3 operations can take time)
+      case Task.yield(task, 120_000) || Task.shutdown(task) do
+        {:ok, {:ok, archived_count: count}} ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(
+              :info,
+              "✅ S3 archival completed successfully! Archived #{count} email logs to S3."
+            )
+
+          {:noreply, socket}
+
+        {:ok, {:ok, :skipped}} ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(:info, "ℹ️ No emails to archive at this time.")
+
+          {:noreply, socket}
+
+        {:ok, {:error, :s3_not_configured}} ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(
+              :error,
+              "❌ S3 is not configured. Please configure AWS S3 bucket settings first."
+            )
+
+          {:noreply, socket}
+
+        {:ok, {:error, :no_bucket_configured}} ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(
+              :error,
+              "❌ S3 bucket not configured. Please set 'email_s3_bucket' setting."
+            )
+
+          {:noreply, socket}
+
+        {:ok, {:error, reason}} ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(:error, "❌ S3 archival failed: #{inspect(reason)}")
+
+          {:noreply, socket}
+
+        nil ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(
+              :error,
+              "⚠️ S3 archival timed out. Large archives may take longer. Check logs for progress."
+            )
+
+          {:noreply, socket}
+
+        _error ->
+          socket =
+            socket
+            |> assign(:running_archival, false)
+            |> put_flash(:error, "❌ Failed to run S3 archival. Please check logs for details.")
+
+          {:noreply, socket}
+      end
+    else
+      socket =
+        put_flash(socket, :error, "❌ S3 archival is disabled. Please enable it first.")
+
+      {:noreply, socket}
     end
   end
 

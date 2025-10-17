@@ -852,24 +852,13 @@ PhoenixKit uses a **smart fallback system** for AWS credentials:
 - ✅ Both methods work → you choose what's convenient
 - ✅ Settings DB overrides ENV → gives you runtime control
 
-**Example scenarios:**
+### Sender Configuration (from_email, from_name)
 
-```bash
-# Scenario 1: Web UI only (Settings DB has values)
-# Web UI: aws_access_key_id = "AKIA...from_ui"
-# ENV: AWS_ACCESS_KEY_ID = "AKIA...from_env"
-# Result: Uses "AKIA...from_ui" ✅ (Settings DB priority)
+**Priority**: Settings DB → Config → Defaults ("noreply@localhost", "PhoenixKit")
 
-# Scenario 2: ENV only (Settings DB empty)
-# Settings DB: aws_access_key_id = ""
-# ENV: AWS_ACCESS_KEY_ID = "AKIA...from_env"
-# Result: Uses "AKIA...from_env" ✅ (fallback works)
-
-# Scenario 3: Both empty
-# Settings DB: aws_access_key_id = ""
-# ENV: AWS_ACCESS_KEY_ID not set
-# Result: No credentials ❌ (system reports error)
-```
+Configure via Web UI: `{prefix}/admin/settings/emails` → "Sender Configuration"
+- Runtime updates, no restart needed
+- All emails use `{from_name} <{from_email}>` format
 
 ## Email Configuration (Example - NOT for AWS settings)
 

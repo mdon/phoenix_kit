@@ -15,12 +15,7 @@ defmodule PhoenixKitWeb.PagesController do
   """
   def show(conn, %{"path" => path}) do
     # Check if Pages module is enabled
-    unless Pages.enabled?() do
-      conn
-      |> put_status(:not_found)
-      |> put_view(html: PhoenixKitWeb.ErrorHTML)
-      |> render(:"404")
-    else
+    if Pages.enabled?() do
       # Add .md extension to path
       file_path = build_file_path(path)
 
@@ -50,6 +45,11 @@ defmodule PhoenixKitWeb.PagesController do
           |> put_view(html: PhoenixKitWeb.ErrorHTML)
           |> render(:"404")
       end
+    else
+      conn
+      |> put_status(:not_found)
+      |> put_view(html: PhoenixKitWeb.ErrorHTML)
+      |> render(:"404")
     end
   end
 

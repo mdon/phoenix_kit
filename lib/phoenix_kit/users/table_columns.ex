@@ -7,8 +7,9 @@ defmodule PhoenixKit.Users.TableColumns do
   through the settings system.
   """
 
-  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.CustomFields
 
   @doc """
   Gets all available columns for the user table.
@@ -294,7 +295,7 @@ defmodule PhoenixKit.Users.TableColumns do
   end
 
   defp format_full_name(user) do
-    PhoenixKit.Users.Auth.User.full_name(user)
+    User.full_name(user)
   end
 
   # Ensures the "actions" column is always at the end of the list

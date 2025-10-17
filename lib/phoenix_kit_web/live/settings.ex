@@ -7,14 +7,16 @@ defmodule PhoenixKitWeb.Live.Settings do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.Module.Languages
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Events, as: SettingsEvents
   alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   def mount(params, _session, socket) do
     # Subscribe to settings changes for live updates (like entities does)
     if connected?(socket) do
-      PhoenixKit.Settings.Events.subscribe_to_settings()
+      SettingsEvents.subscribe_to_settings()
     end
 
     # Set locale for LiveView process
@@ -33,7 +35,7 @@ defmodule PhoenixKitWeb.Live.Settings do
     changeset = Settings.change_settings(merged_settings)
 
     # Load Languages module status
-    languages_enabled = PhoenixKit.Module.Languages.enabled?()
+    languages_enabled = Languages.enabled?()
 
     # Load content language
     content_language = Settings.get_content_language()
@@ -42,7 +44,7 @@ defmodule PhoenixKitWeb.Live.Settings do
     # Get available languages if module is enabled
     available_languages =
       if languages_enabled do
-        PhoenixKit.Module.Languages.get_enabled_languages()
+        Languages.get_enabled_languages()
       else
         []
       end

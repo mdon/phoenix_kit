@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Users.TableColumns
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -627,51 +628,60 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   end
 
   def render_column_cell(user, column_id, current_user, date_time_settings) do
-    case TableColumns.get_column_metadata(column_id) do
-      %{type: :email} ->
-        user.email
+    metadata = TableColumns.get_column_metadata(column_id)
+    render_cell_by_type(user, column_id, metadata, current_user, date_time_settings)
+  end
 
-      %{type: :string} ->
-        field = get_user_field(user, column_id)
-        if field, do: to_string(field), else: "-"
+  defp render_cell_by_type(user, _column_id, %{type: :email}, _current_user, _settings) do
+    user.email
+  end
 
-      %{type: :composite} ->
-        # Handle composite fields like full_name
-        case column_id do
-          "full_name" -> PhoenixKit.Users.Auth.User.full_name(user)
-          _ -> "-"
-        end
+  defp render_cell_by_type(user, column_id, %{type: :string}, _current_user, _settings) do
+    field = get_user_field(user, column_id)
+    if field, do: to_string(field), else: "-"
+  end
 
-      %{type: :roles} ->
-        _roles = get_user_roles(user)
-        get_primary_role_name_unsafe(user)
-
-      %{type: :status} ->
-        if user.is_active, do: "Active", else: "Inactive"
-
-      %{type: :datetime} ->
-        field = get_user_field(user, column_id)
-
-        if field,
-          do:
-            UtilsDate.format_datetime_with_user_timezone_cached(
-              field,
-              current_user,
-              date_time_settings
-            ),
-          else: "-"
-
-      %{type: :location} ->
-        field = get_user_field(user, column_id)
-        if field && field != "", do: field, else: "-"
-
-      %{type: :custom_field, field_type: field_type} ->
-        render_custom_field_cell(user, column_id, field_type)
-
-      _ ->
-        field = get_user_field(user, column_id)
-        if field, do: to_string(field), else: "-"
+  defp render_cell_by_type(user, column_id, %{type: :composite}, _current_user, _settings) do
+    case column_id do
+      "full_name" -> User.full_name(user)
+      _ -> "-"
     end
+  end
+
+  defp render_cell_by_type(user, _column_id, %{type: :roles}, _current_user, _settings) do
+    get_primary_role_name_unsafe(user)
+  end
+
+  defp render_cell_by_type(user, _column_id, %{type: :status}, _current_user, _settings) do
+    if user.is_active, do: "Active", else: "Inactive"
+  end
+
+  defp render_cell_by_type(user, column_id, %{type: :datetime}, current_user, settings) do
+    field = get_user_field(user, column_id)
+
+    if field,
+      do: UtilsDate.format_datetime_with_user_timezone_cached(field, current_user, settings),
+      else: "-"
+  end
+
+  defp render_cell_by_type(user, column_id, %{type: :location}, _current_user, _settings) do
+    field = get_user_field(user, column_id)
+    if field && field != "", do: field, else: "-"
+  end
+
+  defp render_cell_by_type(
+         user,
+         column_id,
+         %{type: :custom_field, field_type: field_type},
+         _current_user,
+         _settings
+       ) do
+    render_custom_field_cell(user, column_id, field_type)
+  end
+
+  defp render_cell_by_type(user, column_id, _, _current_user, _settings) do
+    field = get_user_field(user, column_id)
+    if field, do: to_string(field), else: "-"
   end
 
   defp get_user_field(user, column_id) do
@@ -704,62 +714,41 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
-  defp format_custom_field_value(value, field_type) do
-    case field_type do
-      "boolean" ->
-        case value do
-          true -> "Yes"
-          false -> "No"
-          "true" -> "Yes"
-          "false" -> "No"
-          _ -> "-"
-        end
+  defp format_custom_field_value(value, "boolean"), do: format_boolean_value(value)
+  defp format_custom_field_value(value, "number"), do: format_number_value(value)
+  defp format_custom_field_value(value, "date"), do: format_date_value(value)
+  defp format_custom_field_value(value, "datetime"), do: format_datetime_value(value)
+  defp format_custom_field_value(value, "select"), do: to_string(value)
+  defp format_custom_field_value(value, "radio"), do: to_string(value)
+  defp format_custom_field_value(value, "checkbox"), do: format_checkbox_value(value)
+  defp format_custom_field_value(value, _), do: format_default_value(value)
 
-      "number" ->
-        if is_number(value) or is_binary(value) do
-          to_string(value)
-        else
-          "-"
-        end
+  defp format_boolean_value(true), do: "Yes"
+  defp format_boolean_value(false), do: "No"
+  defp format_boolean_value("true"), do: "Yes"
+  defp format_boolean_value("false"), do: "No"
+  defp format_boolean_value(_), do: "-"
 
-      "date" ->
-        case value do
-          %Date{} -> Date.to_string(value)
-          string when is_binary(string) -> string
-          _ -> "-"
-        end
+  defp format_number_value(value) when is_number(value) or is_binary(value), do: to_string(value)
+  defp format_number_value(_), do: "-"
 
-      "datetime" ->
-        case value do
-          %DateTime{} -> DateTime.to_string(value)
-          string when is_binary(string) -> string
-          _ -> "-"
-        end
+  defp format_date_value(%Date{} = date), do: Date.to_string(date)
+  defp format_date_value(string) when is_binary(string), do: string
+  defp format_date_value(_), do: "-"
 
-      "select" ->
-        to_string(value)
+  defp format_datetime_value(%DateTime{} = dt), do: DateTime.to_string(dt)
+  defp format_datetime_value(string) when is_binary(string), do: string
+  defp format_datetime_value(_), do: "-"
 
-      "radio" ->
-        to_string(value)
+  defp format_checkbox_value(true), do: "Yes"
+  defp format_checkbox_value(false), do: "No"
+  defp format_checkbox_value("true"), do: "Yes"
+  defp format_checkbox_value("false"), do: "No"
+  defp format_checkbox_value(list) when is_list(list), do: Enum.join(list, ", ")
+  defp format_checkbox_value(value), do: to_string(value)
 
-      "checkbox" ->
-        case value do
-          true -> "Yes"
-          false -> "No"
-          "true" -> "Yes"
-          "false" -> "No"
-          list when is_list(list) -> Enum.join(list, ", ")
-          _ -> to_string(value)
-        end
-
-      _ ->
-        if value && value != "" do
-          to_string(value)
-        else
-          "-"
-        end
-    end
-  end
+  defp format_default_value(value) when not is_nil(value) and value != "", do: to_string(value)
+  defp format_default_value(_), do: "-"
 
   ## Live Event Handlers
 
