@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @per_page 10
+  @max_cell_length 20
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -43,6 +44,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         }
       )
 
+    # Get columns and clean up any deleted custom fields
+    selected_columns = TableColumns.get_user_table_columns()
+    valid_columns = get_valid_columns(selected_columns)
+
+    # If we filtered out any deleted columns, save the cleaned list
+    if length(valid_columns) != length(selected_columns) do
+      TableColumns.update_user_table_columns(valid_columns)
+    end
+
     socket =
       socket
       |> assign(:page, 1)
@@ -59,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
       |> assign(:current_locale, locale)
-      |> assign(:selected_columns, TableColumns.get_user_table_columns())
+      |> assign(:selected_columns, valid_columns)
       |> assign(:available_columns, TableColumns.get_available_columns())
       |> load_users()
       |> load_stats()
@@ -623,13 +633,91 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def render_column_header(column_id) do
     case TableColumns.get_column_metadata(column_id) do
       %{label: label} -> label
+      # Return nil for deleted custom fields
+      nil -> nil
       _ -> String.capitalize(String.replace(column_id, "_", " "))
     end
   end
 
+  # Helper to check if column should be rendered (filters out deleted custom fields)
+  def should_render_column?(column_id) do
+    # Always render "actions" column
+    column_id == "actions" || TableColumns.get_column_metadata(column_id) != nil
+  end
+
+  # Get valid columns only (filters out deleted custom fields)
+  def get_valid_columns(columns) do
+    Enum.filter(columns, &should_render_column?/1)
+  end
+
+  # Text truncation helper - limits display to max_length characters with ellipsis
+  defp truncate_text(nil, _max_length), do: "-"
+  defp truncate_text("", _max_length), do: "-"
+
+  defp truncate_text(text, max_length) when is_binary(text) do
+    if String.length(text) <= max_length do
+      text
+    else
+      String.slice(text, 0, max_length) <> "..."
+    end
+  end
+
+  defp truncate_text(value, max_length) do
+    truncate_text(to_string(value), max_length)
+  end
+
   def render_column_cell(user, column_id, current_user, date_time_settings) do
-    metadata = TableColumns.get_column_metadata(column_id)
-    render_cell_by_type(user, column_id, metadata, current_user, date_time_settings)
+    case TableColumns.get_column_metadata(column_id) do
+      %{type: :email} ->
+        truncate_text(user.email, @max_cell_length)
+
+      %{type: :string} ->
+        field = get_user_field(user, column_id)
+        if field, do: truncate_text(field, @max_cell_length), else: "-"
+
+      %{type: :composite} ->
+        # Handle composite fields like full_name
+        case column_id do
+          "full_name" ->
+            truncate_text(PhoenixKit.Users.Auth.User.full_name(user), @max_cell_length)
+
+          _ ->
+            "-"
+        end
+
+      %{type: :roles} ->
+        _roles = get_user_roles(user)
+        get_primary_role_name_unsafe(user)
+
+      %{type: :status} ->
+        if user.is_active, do: "Active", else: "Inactive"
+
+      %{type: :datetime} ->
+        field = get_user_field(user, column_id)
+
+        if field,
+          do:
+            truncate_text(
+              UtilsDate.format_datetime_with_user_timezone_cached(
+                field,
+                current_user,
+                date_time_settings
+              ),
+              @max_cell_length
+            ),
+          else: "-"
+
+      %{type: :location} ->
+        field = get_user_field(user, column_id)
+        if field && field != "", do: truncate_text(field, @max_cell_length), else: "-"
+
+      %{type: :custom_field, field_type: field_type} ->
+        render_custom_field_cell(user, column_id, field_type)
+
+      _ ->
+        field = get_user_field(user, column_id)
+        if field, do: truncate_text(field, @max_cell_length), else: "-"
+    end
   end
 
   defp render_cell_by_type(user, _column_id, %{type: :email}, _current_user, _settings) do
@@ -718,8 +806,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_custom_field_value(value, "number"), do: format_number_value(value)
   defp format_custom_field_value(value, "date"), do: format_date_value(value)
   defp format_custom_field_value(value, "datetime"), do: format_datetime_value(value)
-  defp format_custom_field_value(value, "select"), do: to_string(value)
-  defp format_custom_field_value(value, "radio"), do: to_string(value)
+  defp format_custom_field_value(value, "select"), do: truncate_text(value, @max_cell_length)
+  defp format_custom_field_value(value, "radio"), do: truncate_text(value, @max_cell_length)
   defp format_custom_field_value(value, "checkbox"), do: format_checkbox_value(value)
   defp format_custom_field_value(value, _), do: format_default_value(value)
 
@@ -729,25 +817,40 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_boolean_value("false"), do: "No"
   defp format_boolean_value(_), do: "-"
 
-  defp format_number_value(value) when is_number(value) or is_binary(value), do: to_string(value)
+  defp format_number_value(value) when is_number(value) or is_binary(value),
+    do: truncate_text(value, @max_cell_length)
+
   defp format_number_value(_), do: "-"
 
-  defp format_date_value(%Date{} = date), do: Date.to_string(date)
-  defp format_date_value(string) when is_binary(string), do: string
+  defp format_date_value(%Date{} = date),
+    do: truncate_text(Date.to_string(date), @max_cell_length)
+
+  defp format_date_value(string) when is_binary(string),
+    do: truncate_text(string, @max_cell_length)
+
   defp format_date_value(_), do: "-"
 
-  defp format_datetime_value(%DateTime{} = dt), do: DateTime.to_string(dt)
-  defp format_datetime_value(string) when is_binary(string), do: string
+  defp format_datetime_value(%DateTime{} = dt),
+    do: truncate_text(DateTime.to_string(dt), @max_cell_length)
+
+  defp format_datetime_value(string) when is_binary(string),
+    do: truncate_text(string, @max_cell_length)
+
   defp format_datetime_value(_), do: "-"
 
   defp format_checkbox_value(true), do: "Yes"
   defp format_checkbox_value(false), do: "No"
   defp format_checkbox_value("true"), do: "Yes"
   defp format_checkbox_value("false"), do: "No"
-  defp format_checkbox_value(list) when is_list(list), do: Enum.join(list, ", ")
-  defp format_checkbox_value(value), do: to_string(value)
 
-  defp format_default_value(value) when not is_nil(value) and value != "", do: to_string(value)
+  defp format_checkbox_value(list) when is_list(list),
+    do: truncate_text(Enum.join(list, ", "), @max_cell_length)
+
+  defp format_checkbox_value(value), do: truncate_text(value, @max_cell_length)
+
+  defp format_default_value(value) when not is_nil(value) and value != "",
+    do: truncate_text(value, @max_cell_length)
+
   defp format_default_value(_), do: "-"
 
   ## Live Event Handlers
@@ -826,6 +929,52 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:inactive_users, stats.inactive_users)
       |> assign(:confirmed_users, stats.confirmed_users)
       |> assign(:pending_users, stats.pending_users)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:custom_field_deleted, field_key}, socket) do
+    # When a custom field is deleted, refresh available columns and clean up selected columns
+    column_id = "custom_#{field_key}"
+
+    # Get fresh available columns (deleted field won't be included)
+    available_columns = TableColumns.get_available_columns()
+
+    # Remove the deleted field from selected columns if present
+    selected_columns = socket.assigns.selected_columns
+    new_selected_columns = Enum.reject(selected_columns, &(&1 == column_id))
+
+    # Only update if the column was actually removed
+    socket =
+      if length(new_selected_columns) != length(selected_columns) do
+        # Save the cleaned column list
+        case TableColumns.update_user_table_columns(new_selected_columns) do
+          {:ok, _} ->
+            socket
+            |> assign(:selected_columns, new_selected_columns)
+            |> assign(:available_columns, available_columns)
+
+          {:error, _} ->
+            # If save fails, at least update the UI
+            socket
+            |> assign(:selected_columns, new_selected_columns)
+            |> assign(:available_columns, available_columns)
+        end
+      else
+        # Field wasn't in selected columns, just refresh available columns
+        assign(socket, :available_columns, available_columns)
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:custom_fields_changed, socket) do
+    # Refresh available columns when fields are added/updated/reordered
+    available_columns = TableColumns.get_available_columns()
+
+    socket =
+      socket
+      |> assign(:available_columns, available_columns)
 
     {:noreply, socket}
   end

@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.CustomFields.Events, as: CustomFieldsEvents
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -169,6 +170,9 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   def handle_event("delete_field", %{"key" => key}, socket) do
     case CustomFields.delete_field_definition(key) do
       {:ok, _setting} ->
+        # Broadcast field deletion to other LiveViews (e.g., users table)
+        CustomFieldsEvents.broadcast_field_deleted(key)
+
         field_definitions = CustomFields.list_field_definitions()
 
         socket =
