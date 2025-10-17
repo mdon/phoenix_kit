@@ -55,6 +55,7 @@ defmodule PhoenixKit.Users.MagicLink do
         expiry_minutes: 15  # Default: 15 minutes
   """
 
+  alias PhoenixKit.Config
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{User, UserToken}
   alias PhoenixKit.Utils.Routes
@@ -266,11 +267,6 @@ defmodule PhoenixKit.Users.MagicLink do
 
   # Get configured repo module
   defp repo do
-    Application.get_env(:phoenix_kit, :repo) ||
-      raise """
-      No repo configured for PhoenixKit. Please add to your config:
-
-      config :phoenix_kit, repo: YourApp.Repo
-      """
+    Config.get(:repo, nil)
   end
 end

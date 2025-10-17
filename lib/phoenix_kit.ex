@@ -3,6 +3,8 @@ defmodule PhoenixKit do
   PhoenixKit
   """
 
+  alias PhoenixKit.Config
+
   @doc """
   Returns the current version of PhoenixKit.
 
@@ -30,7 +32,7 @@ defmodule PhoenixKit do
   """
   @spec configured?() :: boolean()
   def configured? do
-    case Application.get_env(:phoenix_kit, :repo) do
+    case Config.get(:repo, nil) do
       nil -> false
       _repo -> true
     end
