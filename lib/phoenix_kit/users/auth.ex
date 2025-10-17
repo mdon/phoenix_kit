@@ -1069,7 +1069,6 @@ defmodule PhoenixKit.Users.Auth do
       join: assignment in assoc(u, :role_assignments),
       join: role in assoc(assignment, :role),
       where: role.name == ^role_name,
-      where: assignment.is_active == true,
       distinct: u.id
   end
 
