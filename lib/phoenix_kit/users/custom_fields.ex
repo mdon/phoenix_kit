@@ -265,9 +265,8 @@ defmodule PhoenixKit.Users.CustomFields do
   """
   def validate_field_definition(field_def) when is_map(field_def) do
     with :ok <- validate_required_keys(field_def),
-         :ok <- validate_field_type(field_def["type"]),
-         :ok <- validate_field_key(field_def["key"]) do
-      :ok
+         :ok <- validate_field_type(field_def["type"]) do
+      validate_field_key(field_def["key"])
     end
   end
 
@@ -283,9 +282,8 @@ defmodule PhoenixKit.Users.CustomFields do
       {:error, "Field is required"}
   """
   def validate_custom_field_value(field_def, value) do
-    with :ok <- validate_required(field_def, value),
-         :ok <- validate_type(field_def, value) do
-      :ok
+    with :ok <- validate_required(field_def, value) do
+      validate_type(field_def, value)
     end
   end
 

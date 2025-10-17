@@ -66,6 +66,8 @@ defmodule PhoenixKit.Settings do
   import Ecto.Query, warn: false
   import Ecto.Changeset, only: [add_error: 3]
 
+  alias PhoenixKit.Module.Languages
+  alias PhoenixKit.Settings.Events, as: SettingsEvents
   alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Settings.Setting.SettingsForm
   alias PhoenixKit.Users.Role
@@ -882,7 +884,7 @@ defmodule PhoenixKit.Settings do
   """
   def get_content_language do
     # If Languages module is enabled, use the configured setting
-    if PhoenixKit.Module.Languages.enabled?() do
+    if Code.ensure_loaded?(Languages) and Languages.enabled?() do
       get_setting("site_content_language", "en")
     else
       # Languages module disabled - force "en"
@@ -906,14 +908,14 @@ defmodule PhoenixKit.Settings do
   """
   def set_content_language(language_code) when is_binary(language_code) do
     # Validate if Languages module is enabled
-    if PhoenixKit.Module.Languages.enabled?() do
-      enabled_codes = PhoenixKit.Module.Languages.enabled_locale_codes()
+    if Code.ensure_loaded?(Languages) and Languages.enabled?() do
+      enabled_codes = Languages.enabled_locale_codes()
 
       if language_code in enabled_codes do
         case update_setting("site_content_language", language_code) do
           {:ok, setting} ->
             # Broadcast change for live updates
-            PhoenixKit.Settings.Events.broadcast_content_language_changed(language_code)
+            SettingsEvents.broadcast_content_language_changed(language_code)
             {:ok, setting}
 
           error ->
@@ -928,7 +930,7 @@ defmodule PhoenixKit.Settings do
         case update_setting("site_content_language", "en") do
           {:ok, setting} ->
             # Broadcast change for live updates
-            PhoenixKit.Settings.Events.broadcast_content_language_changed("en")
+            SettingsEvents.broadcast_content_language_changed("en")
             {:ok, setting}
 
           error ->
@@ -958,8 +960,8 @@ defmodule PhoenixKit.Settings do
   def get_content_language_details do
     code = get_content_language()
 
-    if PhoenixKit.Module.Languages.enabled?() do
-      case PhoenixKit.Module.Languages.get_language(code) do
+    if Code.ensure_loaded?(Languages) and Languages.enabled?() do
+      case Languages.get_language(code) do
         %{"code" => lang_code, "name" => name} = lang ->
           %{
             code: lang_code,

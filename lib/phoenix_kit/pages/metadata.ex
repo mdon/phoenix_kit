@@ -112,11 +112,10 @@ defmodule PhoenixKit.Pages.Metadata do
         :updated_at
       ])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-      |> Enum.map(fn {key, value} ->
+      |> Enum.map_join("\n", fn {key, value} ->
         formatted_value = format_value(value)
         "#{key}: #{formatted_value}"
       end)
-      |> Enum.join("\n")
 
     """
     #{@metadata_start}
@@ -228,11 +227,9 @@ defmodule PhoenixKit.Pages.Metadata do
   defp to_atom_key(key) when is_atom(key), do: key
 
   defp to_atom_key(key) when is_binary(key) do
-    try do
-      String.to_existing_atom(key)
-    rescue
-      ArgumentError -> String.to_atom(key)
-    end
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> String.to_atom(key)
   end
 
   defp extract_metadata_block(content) do
