@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.CssIntegration do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles automatic Tailwind CSS + DaisyUI integration for PhoenixKit installation.
 

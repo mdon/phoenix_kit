@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Install.DemoFiles do
+  use PhoenixKit.Install.IgniterCompat
+
   @moduledoc """
   Handles copying demo test files for PhoenixKit installation.
 
