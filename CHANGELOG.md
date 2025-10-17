@@ -1,6 +1,36 @@
+## 1.4.0 - 2025-10-17
+
+### Added
+- **Pages Content System** - Full Markdown-driven site with admin file navigator, metadata-aware editor, and public rendering at `/pages/*` routes
+- **User Custom Fields** - WordPress ACF-like JSONB custom fields system with column filtering, reordering, and management interface
+- **Collaborative Editing** - FIFO locking system for entities with real-time presence tracking and PubSub event broadcasting
+- **Content Language Module** - Multi-language support with language switcher, locale routing, and language management interface
+- **TableDefault Component** - Standardized table component replacing pure HTML tables across admin interface
+- **User Settings** - Default user status on creation, automatic email confirmation for first user, timezone settings with geolocation IP tracking
+
+### Changed
+- **Email Operations** - Sender profile configuration, one-click AWS infrastructure setup, prioritized credentials (Settings DB → ENV)
+- **Developer Experience** - OAuth/email dependencies now mandatory, `mix phoenix_kit.* --help` support, `IgniterCompat` for cleaner installs
+- **Navigation** - Admin navigation uses LiveView navigate for instant transitions, disabled long-polling for faster cleanup
+
+### Fixed
+- **Custom Fields** - Fixed not saving, being cleared on edit, and column updates when deleting fields
+- **Critical Bugs** - Ecto.SubQueryError in user role filtering, OAuth checkbox errors, PhoenixKit.Config usage issues
+- **Email System** - AWS credential bugs, SQS message loss, chart initialization, idempotency/deduplication improvements
+- **Code Quality** - Cleaned up Dialyzer/Credo warnings, improved logging, removed excessive debug output
+
+### Upgrade Notes
+- Run `mix deps.get` to install mandatory OAuth/email packages
+- Enable Pages module from `/admin/modules` to use content management
+- Custom fields available in user management submenu
+
 ## 1.3.5 - 2025-10-17
 
 ### Added
+- **Pages Module** - File-based content management system spanning admin and public workflows
+  - Tree-based navigator in `/admin/pages` for creating, moving, duplicating, and deleting Markdown content
+  - Full-screen editor with metadata controls (status, timestamps) and unsaved-change safeguards
+  - Public rendering pipeline that serves published pages at `/pages/*` and the catch-all root route
 - **Email Sender Configuration** - Dynamic from_email and from_name settings via admin interface
   - New Sender Configuration form at `/admin/settings/emails`
   - 3-tier priority system: Settings DB → Config → Defaults
@@ -23,7 +53,8 @@
   - Alphabetized module aliases for better organization
 
 ### Improved
-- **Documentation** - Minimized Sender Configuration section in CLAUDE.md for better clarity
+- **Documentation** - Reduced CLAUDE.md to core guidance and moved module-specific content into Emails/Pages/Entities READMEs plus a new OAuth & Magic Link guide
+- **Installer Experience** - Added an `IgniterCompat` helper so installer modules compile quietly even when Igniter isn't installed
 
 ## 1.3.4 - 2025-10-15
 
