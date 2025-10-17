@@ -1,6 +1,10 @@
 ## 1.3.5 - 2025-10-17
 
 ### Added
+- **Pages Module** - File-based content management system spanning admin and public workflows
+  - Tree-based navigator in `/admin/pages` for creating, moving, duplicating, and deleting Markdown content
+  - Full-screen editor with metadata controls (status, timestamps) and unsaved-change safeguards
+  - Public rendering pipeline that serves published pages at `/pages/*` and the catch-all root route
 - **Email Sender Configuration** - Dynamic from_email and from_name settings via admin interface
   - New Sender Configuration form at `/admin/settings/emails`
   - 3-tier priority system: Settings DB → Config → Defaults
@@ -23,7 +27,8 @@
   - Alphabetized module aliases for better organization
 
 ### Improved
-- **Documentation** - Minimized Sender Configuration section in CLAUDE.md for better clarity
+- **Documentation** - Reduced CLAUDE.md to core guidance and moved module-specific content into Emails/Pages/Entities READMEs plus a new OAuth & Magic Link guide
+- **Installer Experience** - Added an `IgniterCompat` helper so installer modules compile quietly even when Igniter isn't installed
 
 ## 1.3.4 - 2025-10-15
 
