@@ -5,7 +5,6 @@
 - **User Custom Fields** - WordPress ACF-like JSONB custom fields system with column filtering, reordering, and management interface
 - **Collaborative Editing** - FIFO locking system for entities with real-time presence tracking and PubSub event broadcasting
 - **Content Language Module** - Multi-language support with language switcher, locale routing, and language management interface
-- **TableDefault Component** - Standardized table component replacing pure HTML tables across admin interface
 - **User Settings** - Default user status on creation, automatic email confirmation for first user, timezone settings with geolocation IP tracking
 
 ### Changed
@@ -14,7 +13,7 @@
 - **Navigation** - Admin navigation uses LiveView navigate for instant transitions, disabled long-polling for faster cleanup
 
 ### Fixed
-- **Custom Fields** - Fixed not saving, being cleared on edit, and column updates when deleting fields
+- **Custom Fields** - Column updates when deleting custom fields
 - **Critical Bugs** - Ecto.SubQueryError in user role filtering, OAuth checkbox errors, PhoenixKit.Config usage issues
 - **Email System** - AWS credential bugs, SQS message loss, chart initialization, idempotency/deduplication improvements
 - **Code Quality** - Cleaned up Dialyzer/Credo warnings, improved logging, removed excessive debug output
