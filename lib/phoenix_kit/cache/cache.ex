@@ -530,7 +530,6 @@ defmodule PhoenixKit.Cache do
     case Registry.whereis_name({PhoenixKit.Cache.Registry, :settings}) do
       :undefined -> true
       pid when is_pid(pid) -> false
-      _ -> true
     end
   rescue
     # If Registry module isn't available or any error occurs, assume compilation mode

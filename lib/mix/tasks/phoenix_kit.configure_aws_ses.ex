@@ -185,8 +185,14 @@ defmodule Mix.Tasks.PhoenixKit.ConfigureAwsSes do
   defp format_default(""), do: ""
   defp format_default(default), do: " [#{default}]"
 
-  defp prompt_boolean(message, default) do
-    default_text = if default, do: " [Y/n]", else: " [y/N]"
+  @spec prompt_boolean(String.t(), boolean()) :: boolean()
+  defp prompt_boolean(message, default) when is_boolean(default) do
+    default_text =
+      case default do
+        true -> " [Y/n]"
+        false -> " [y/N]"
+      end
+
     input = IO.gets("#{message}#{default_text}: ") |> String.trim() |> String.downcase()
 
     case input do

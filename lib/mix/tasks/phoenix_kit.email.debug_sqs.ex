@@ -63,6 +63,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.DebugSqs do
   alias PhoenixKit.Emails
   alias PhoenixKit.Emails.SQSProcessor
 
+  @impl Mix.Task
   def run(args) do
     Mix.Task.run("app.start")
 

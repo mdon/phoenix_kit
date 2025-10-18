@@ -44,6 +44,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.Cleanup do
   use Mix.Task
   alias PhoenixKit.Emails
 
+  @impl Mix.Task
   def run(args) do
     Mix.Task.run("app.start")
 

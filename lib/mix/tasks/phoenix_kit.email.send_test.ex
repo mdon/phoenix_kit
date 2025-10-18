@@ -43,6 +43,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.SendTest do
   use Mix.Task
   import Swoosh.Email
 
+  @impl Mix.Task
   def run(args) do
     Mix.Task.run("app.start")
 
