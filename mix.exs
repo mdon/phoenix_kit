@@ -62,8 +62,6 @@ defmodule PhoenixKit.MixProject do
 
       # Web functionality
       {:gettext, "~> 0.24"},
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
       {:plug_cowboy, "~> 2.5"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.4.0", only: :dev},
