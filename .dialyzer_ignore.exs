@@ -23,6 +23,8 @@
   {"lib/mix/tasks/phoenix_kit.seed_templates.ex", :unknown_function},
 
   # Mix.Task behaviour callbacks (expected in Mix tasks)
+  # Note: Mix.Task behaviour info is not available to Dialyzer (compile-time only)
+  # Adding @impl Mix.Task does not fix this warning
   {"lib/mix/tasks/phoenix_kit.gen.migration.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.seed_templates.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.install.ex", :callback_info_missing, 2},
@@ -43,19 +45,16 @@
   {"lib/mix/tasks/phoenix_kit.process_sqs_queue.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.sync_email_status.ex", :callback_info_missing, 1},
 
-  # False positive guard clause warnings (function works correctly with boolean parameter)
-  {"lib/mix/tasks/phoenix_kit.configure_aws_ses.ex", :guard_fail, 189},
-
   # False positive pattern match warnings (runtime behavior differs from static analysis)
   {"lib/mix/tasks/phoenix_kit/email_cleanup.ex", :pattern_match, 1},
+  # Dialyzer incorrectly thinks 'false' pattern is unreachable after 'true' in boolean case
+  ~r/lib\/mix\/tasks\/phoenix_kit\.configure_aws_ses\.ex:193:.*pattern_match/,
 
-  # ExAws function call warnings (library type definitions)
-  ~r/lib\/phoenix_kit\/emails\/archiver\.ex:447:.*pattern_match/,
+  # ExAws library type definition issues (false positives from incomplete type specs)
+  ~r/lib\/phoenix_kit\/emails\/archiver\.ex:.*pattern_match/,
   ~r/lib\/phoenix_kit\/emails\/archiver\.ex:.*unused_fun/,
 
-  # Ecto.Multi opaque type false positives (code works correctly)
+  # Ecto.Multi opaque type false positives (Dialyzer limitation with opaque types in pipelines)
+  # Note: Code uses proper pipe syntax, but Dialyzer loses opaque type info
   ~r/lib\/phoenix_kit\/users\/auth\.ex:.*call_without_opaque/
-
-  # Exact comparison warnings for nil checks (legacy warning format - Dialyzer bug)
-  # (No current warnings - exact_compare issue in configure_aws_ses.ex was fixed by using pattern matching)
 ]
