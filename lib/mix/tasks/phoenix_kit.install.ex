@@ -53,6 +53,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       CssIntegration,
       DemoFiles,
       LayoutConfig,
+      MaintenancePlugIntegration,
       MailerConfig,
       MigrationStrategy,
       RepoDetection,
@@ -95,6 +96,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> CssIntegration.add_automatic_css_integration()
       |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
+      |> MaintenancePlugIntegration.add_maintenance_plug_to_browser_pipeline()
       |> MigrationStrategy.create_phoenix_kit_migration_only(opts)
       |> add_completion_notice()
     end
