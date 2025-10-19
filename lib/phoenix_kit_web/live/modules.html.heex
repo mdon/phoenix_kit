@@ -291,7 +291,7 @@
       >
         <:status_badges>
           <span class={"badge #{if @under_construction_module_enabled, do: "badge-success", else: "badge-neutral"}"}>
-            {if @under_construction_module_enabled, do: "Module Enabled", else: "Module Disabled"}
+            {if @under_construction_module_enabled, do: "Enabled", else: "Disabled"}
           </span>
           <%= if @under_construction_module_enabled do %>
             <span class={"badge badge-outline ml-2 #{if @under_construction_enabled, do: "badge-warning", else: "badge-info"}"}>
@@ -302,14 +302,6 @@
 
         <:action_buttons>
           <div class="flex flex-col gap-2 w-full">
-            <%= if @under_construction_enabled do %>
-              <div class="alert alert-warning py-2 px-3">
-                <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
-                <span class="text-xs">
-                  Non-admin users see maintenance page
-                </span>
-              </div>
-            <% end %>
             <%= if @under_construction_module_enabled do %>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/under-construction")}
