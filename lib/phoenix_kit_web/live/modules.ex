@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   alias PhoenixKit.Pages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
+  alias PhoenixKit.UnderConstruction
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -27,6 +28,7 @@ defmodule PhoenixKitWeb.Live.Modules do
     languages_config = Languages.get_config()
     entities_config = Entities.get_config()
     pages_enabled = Pages.enabled?()
+    under_construction_config = UnderConstruction.get_config()
 
     socket =
       socket
@@ -48,6 +50,9 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:entities_count, entities_config.entity_count)
       |> assign(:entities_total_data, entities_config.total_data_count)
       |> assign(:pages_enabled, pages_enabled)
+      |> assign(:under_construction_enabled, under_construction_config.enabled)
+      |> assign(:under_construction_header, under_construction_config.header)
+      |> assign(:under_construction_subtext, under_construction_config.subtext)
       |> assign(:current_locale, locale)
 
     {:ok, socket}
@@ -220,6 +225,38 @@ defmodule PhoenixKitWeb.Live.Modules do
 
       {:error, _changeset} ->
         socket = put_flash(socket, :error, "Failed to update pages module")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_under_construction", _params, socket) do
+    # Toggle under construction (maintenance mode)
+    new_enabled = !socket.assigns.under_construction_enabled
+
+    result =
+      if new_enabled do
+        UnderConstruction.enable_system()
+      else
+        UnderConstruction.disable_system()
+      end
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:under_construction_enabled, new_enabled)
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Maintenance mode enabled - non-admin users will see the maintenance page",
+              else: "Maintenance mode disabled - site is now accessible to all users"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to update maintenance mode")
         {:noreply, socket}
     end
   end
