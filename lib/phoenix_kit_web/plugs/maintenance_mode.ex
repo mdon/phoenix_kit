@@ -113,11 +113,6 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
               <p class="text-xl text-base-content/70 mb-8 leading-relaxed">
                 #{config.subtext}
               </p>
-              <div class="flex justify-center gap-3 mt-8">
-                <div class="w-4 h-4 rounded-full bg-warning animate-pulse"></div>
-                <div class="w-4 h-4 rounded-full bg-warning animate-pulse" style="animation-delay: 0.2s;"></div>
-                <div class="w-4 h-4 rounded-full bg-warning animate-pulse" style="animation-delay: 0.4s;"></div>
-              </div>
             </div>
           </div>
         </div>

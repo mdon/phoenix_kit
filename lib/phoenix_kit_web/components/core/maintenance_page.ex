@@ -61,20 +61,6 @@ defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
               <p class="text-xl text-base-content/70 mb-8 leading-relaxed">
                 {@subtext}
               </p>
-              <%!-- Animated loading dots --%>
-              <div class="flex justify-center gap-3 mt-8">
-                <div class="w-4 h-4 rounded-full bg-warning animate-pulse"></div>
-                <div
-                  class="w-4 h-4 rounded-full bg-warning animate-pulse"
-                  style="animation-delay: 0.2s;"
-                >
-                </div>
-                <div
-                  class="w-4 h-4 rounded-full bg-warning animate-pulse"
-                  style="animation-delay: 0.4s;"
-                >
-                </div>
-              </div>
             </div>
           </div>
         </div>
