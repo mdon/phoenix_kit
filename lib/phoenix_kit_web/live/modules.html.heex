@@ -310,7 +310,13 @@
                 </span>
               </div>
             <% end %>
-            <div class="text-xs text-base-content/70">
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/under-construction")}
+              class={"btn btn-sm #{if @under_construction_enabled, do: "btn-primary", else: "btn-outline"}"}
+            >
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+            </.link>
+            <div class="text-xs text-base-content/70 mt-2">
               <strong>Header:</strong>
               {@under_construction_header}
             </div>
