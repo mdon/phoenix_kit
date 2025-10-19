@@ -63,6 +63,38 @@ defmodule PhoenixKitWeb.Live.Modules.UnderConstruction.Settings do
     {:noreply, socket}
   end
 
+  def handle_event("toggle_maintenance_mode", _params, socket) do
+    # Toggle actual maintenance mode
+    new_enabled = !socket.assigns.enabled
+
+    result =
+      if new_enabled do
+        UnderConstruction.enable_system()
+      else
+        UnderConstruction.disable_system()
+      end
+
+    case result do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:enabled, new_enabled)
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: "Maintenance mode activated - non-admin users will see the maintenance page",
+              else: "Maintenance mode deactivated - site is now accessible to all users"
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        socket = put_flash(socket, :error, "Failed to toggle maintenance mode")
+        {:noreply, socket}
+    end
+  end
+
   def handle_info(:reset_saved, socket) do
     {:noreply, assign(socket, :saved, false)}
   end

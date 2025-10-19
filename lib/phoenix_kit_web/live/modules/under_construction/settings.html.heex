@@ -22,6 +22,41 @@
         <p class="text-lg text-base-content/70">Customize the maintenance page message</p>
       </div>
     </header>
+    <%!-- Maintenance Mode Toggle --%>
+    <div class="card bg-base-100 shadow-xl mb-6">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h2 class="card-title mb-2">
+              <.icon name="hero-power" class="w-5 h-5" /> Maintenance Mode Status
+            </h2>
+            <p class="text-sm text-base-content/70">
+              {if @enabled,
+                do:
+                  "Site is currently in maintenance mode - non-admin users see the maintenance page",
+                else: "Site is operating normally - all users have access"}
+            </p>
+          </div>
+          <div class="flex-shrink-0 ml-4">
+            <input
+              type="checkbox"
+              class="toggle toggle-lg toggle-warning"
+              checked={@enabled}
+              phx-click="toggle_maintenance_mode"
+            />
+          </div>
+        </div>
+        <%= if @enabled do %>
+          <div class="alert alert-warning mt-4">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+            <span>
+              <strong>Active:</strong>
+              Non-admin users are currently seeing the maintenance page below.
+            </span>
+          </div>
+        <% end %>
+      </div>
+    </div>
     <div class="grid gap-6 lg:grid-cols-2">
       <%!-- Settings Form --%>
       <div class="card bg-base-100 shadow-xl">
@@ -66,17 +101,13 @@
                 <span class="label-text-alt">Detailed message shown below the header</span>
               </label>
             </div>
-            <%!-- Status Info --%>
-            <div class={"alert #{if @enabled, do: "alert-warning", else: "alert-info"}"}>
+            <%!-- Reminder Info --%>
+            <div class="alert alert-info">
               <.icon name="hero-information-circle" class="w-5 h-5" />
               <div>
-                <div class="font-bold">
-                  {if @enabled, do: "Maintenance Mode Active", else: "Maintenance Mode Inactive"}
-                </div>
                 <div class="text-sm">
-                  {if @enabled,
-                    do: "Non-admin users are seeing this maintenance page",
-                    else: "Toggle maintenance mode from the Modules dashboard"}
+                  Changes to header and message text take effect immediately.
+                  Use the toggle above to activate or deactivate maintenance mode.
                 </div>
               </div>
             </div>
