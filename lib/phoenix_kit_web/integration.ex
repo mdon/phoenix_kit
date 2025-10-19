@@ -149,6 +149,7 @@ defmodule PhoenixKitWeb.Integration do
 
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
+        plug PhoenixKitWeb.Plugs.MaintenanceMode
         plug PhoenixKitWeb.Integration, :phoenix_kit_auto_setup
       end
 
