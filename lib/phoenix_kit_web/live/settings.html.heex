@@ -38,6 +38,23 @@
             phx-change="validate_settings"
             class="space-y-6"
           >
+            <%!-- Hidden fields for required settings from Users page --%>
+            <input
+              type="hidden"
+              name="settings[new_user_default_role]"
+              value={@settings["new_user_default_role"]}
+            />
+            <input
+              type="hidden"
+              name="settings[new_user_default_status]"
+              value={@settings["new_user_default_status"]}
+            />
+            <input
+              type="hidden"
+              name="settings[track_registration_geolocation]"
+              value={@settings["track_registration_geolocation"]}
+            />
+
             <%!-- Project Title Setting --%>
             <div class="form-control w-full">
               <label class="label">
