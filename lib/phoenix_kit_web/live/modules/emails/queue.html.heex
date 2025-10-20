@@ -37,56 +37,58 @@
     </div>
 
     <%!-- System Status Cards --%>
-    <div class="stats shadow mb-6 w-full">
-      <div class="stat">
-        <div class="stat-figure text-primary">
-          <.icon name="hero-server" class="w-8 h-8" />
-        </div>
-        <div class="stat-title">System Status</div>
-        <div class={[
-          "stat-value",
-          (@system_status[:system_enabled] && "text-success") || "text-error"
-        ]}>
-          {(@system_status[:system_enabled] && "Online") || "Offline"}
-        </div>
-        <div class="stat-desc">
-          Email system is {(@system_status[:system_enabled] && "operational") || "disabled"}
-        </div>
-      </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={if @system_status[:system_enabled], do: "Online", else: "Offline"}
+        title="System Status"
+        subtitle={
+          if @system_status[:system_enabled],
+            do: "Email system is operational",
+            else: "Email system is disabled"
+        }
+      >
+        <:icon>
+          <.icon name="hero-server" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-figure text-secondary">
-          <.icon name="hero-envelope" class="w-8 h-8" />
-        </div>
-        <div class="stat-title">Sent Today</div>
-        <div class="stat-value text-secondary">
-          {format_number(@system_status[:total_sent_today] || 0)}
-        </div>
-        <div class="stat-desc">Total emails sent since midnight</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={format_number(@system_status[:total_sent_today] || 0)}
+        title="Sent Today"
+        subtitle="Total emails sent since midnight"
+      >
+        <:icon>
+          <.icon name="hero-envelope" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-figure text-warning">
-          <.icon name="hero-exclamation-triangle" class="w-8 h-8" />
-        </div>
-        <div class="stat-title">Failed (24h)</div>
-        <div class={[
-          "stat-value",
-          (length(@failed_emails) > 0 && "text-error") || "text-success"
-        ]}>
-          {length(@failed_emails)}
-        </div>
-        <div class="stat-desc">Failed emails in last 24 hours</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={length(@failed_emails)}
+        title="Failed (24h)"
+        subtitle="Failed emails in last 24 hours"
+      >
+        <:icon>
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-figure text-info">
-          <.icon name="hero-clock" class="w-8 h-8" />
-        </div>
-        <div class="stat-title">Retention</div>
-        <div class="stat-value text-info">{@system_status[:retention_days] || 90}</div>
-        <div class="stat-desc">Days of data retention</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@system_status[:retention_days] || 90}
+        title="Retention"
+        subtitle="Days of data retention"
+      >
+        <:icon>
+          <.icon name="hero-clock" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
     <%!-- Rate Limit Status --%>

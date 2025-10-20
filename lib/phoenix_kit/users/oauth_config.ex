@@ -18,16 +18,22 @@ defmodule PhoenixKit.Users.OAuthConfig do
   - On application startup
   - After updating OAuth credentials via admin UI
 
+  Skips configuration if OAuth is disabled in settings (oauth_enabled = false).
+
   ## Examples
 
       iex> PhoenixKit.Users.OAuthConfig.configure_providers()
       :ok
   """
   def configure_providers do
-    configure_ueberauth_base()
-    configure_google()
-    configure_apple()
-    configure_github()
+    # Skip configuration if OAuth is globally disabled
+    if Settings.get_boolean_setting("oauth_enabled", false) do
+      configure_ueberauth_base()
+      configure_google()
+      configure_apple()
+      configure_github()
+    end
+
     :ok
   end
 
@@ -51,12 +57,15 @@ defmodule PhoenixKit.Users.OAuthConfig do
   defp configure_ueberauth_base do
     providers = build_provider_list()
 
-    config = [
-      providers: providers
-    ]
+    # Only configure and log if there are providers to configure
+    if providers != %{} do
+      config = [
+        providers: providers
+      ]
 
-    Application.put_env(:ueberauth, Ueberauth, config)
-    Logger.debug("OAuth: Configured Ueberauth with providers: #{inspect(Map.keys(providers))}")
+      Application.put_env(:ueberauth, Ueberauth, config)
+      Logger.debug("OAuth: Configured Ueberauth with providers: #{inspect(Map.keys(providers))}")
+    end
   end
 
   # Build the list of available providers based on configured credentials

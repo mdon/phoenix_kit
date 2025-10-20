@@ -312,26 +312,32 @@
                   <h2 class="card-title text-lg mb-4">Events Timeline</h2>
 
                   <%= if length(@events) > 0 do %>
-                    <div class="timeline">
+                    <div class="space-y-4">
                       <%= for {event, index} <- Enum.with_index(@events) do %>
-                        <div class="timeline-item">
-                          <div class="timeline-marker">
+                        <div class="flex gap-3">
+                          <%!-- Event Icon --%>
+                          <div class="flex-shrink-0">
                             <div class={event_marker_class(event.event_type)}>
                               <.icon name={event_icon(event.event_type)} class="w-3 h-3" />
                             </div>
                           </div>
 
-                          <div class="timeline-content">
-                            <div class="flex items-center justify-between mb-1">
-                              <h4 class="font-medium text-sm">
+                          <%!-- Event Content --%>
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-start justify-between gap-2 mb-1">
+                              <h4 class="font-medium text-sm text-base-content">
                                 {format_event_title(event.event_type)}
                               </h4>
-                              <time class="text-xs text-base-content/60">
-                                {UtilsDate.format_datetime_with_user_format(event.occurred_at)}
+                              <time class="text-xs text-base-content/60 whitespace-nowrap">
+                                {UtilsDate.format_datetime_full_with_user_format(
+                                  event.occurred_at
+                                )}
                               </time>
                             </div>
 
-                            {render_event_details(event)}
+                            <div class="mt-1">
+                              {render_event_details(event)}
+                            </div>
                           </div>
                         </div>
                       <% end %>

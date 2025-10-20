@@ -37,6 +37,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
   require Logger
 
   alias PhoenixKit.Emails
+  alias PhoenixKit.Emails.TableColumns
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -55,6 +56,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
       # Get project title from settings
       project_title = Settings.get_setting("project_title", "PhoenixKit")
 
+      # Load table columns configuration
+      selected_columns = TableColumns.get_user_table_columns()
+      available_columns = TableColumns.get_available_columns()
+
       socket =
         socket
         |> assign(:page_title, "Emails")
@@ -66,6 +71,9 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
         |> assign(:show_test_email_modal, false)
         |> assign(:test_email_sending, false)
         |> assign(:test_email_form, %{recipient: "", errors: %{}})
+        |> assign(:selected_columns, selected_columns)
+        |> assign(:available_columns, available_columns)
+        |> assign(:show_column_modal, false)
         |> assign_filter_defaults()
         |> assign_pagination_defaults()
 
@@ -193,6 +201,86 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
       }
 
       {:noreply, assign(socket, :test_email_form, form)}
+    end
+  end
+
+  @impl true
+  def handle_event("show_column_modal", _params, socket) do
+    {:noreply, assign(socket, :show_column_modal, true)}
+  end
+
+  @impl true
+  def handle_event("hide_column_modal", _params, socket) do
+    {:noreply, assign(socket, :show_column_modal, false)}
+  end
+
+  @impl true
+  def handle_event("toggle_column", %{"field" => field}, socket) do
+    current_columns = socket.assigns.selected_columns
+    available_columns = socket.assigns.available_columns
+
+    # Check if column is required
+    column_meta = Enum.find(available_columns, fn col -> col.field == field end)
+
+    if column_meta && column_meta.required do
+      # Cannot toggle required columns
+      {:noreply, socket}
+    else
+      # Toggle column visibility
+      updated_columns =
+        if field in current_columns do
+          List.delete(current_columns, field)
+        else
+          # Add column at the end
+          current_columns ++ [field]
+        end
+
+      # Save to settings
+      case TableColumns.update_user_table_columns(updated_columns) do
+        {:ok, _} ->
+          {:noreply, assign(socket, :selected_columns, updated_columns)}
+
+        {:error, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "Failed to save column preferences")}
+      end
+    end
+  end
+
+  @impl true
+  def handle_event("reorder_columns", params, socket) do
+    current_columns = socket.assigns.selected_columns
+    reordered = TableColumns.reorder_columns(current_columns, params)
+
+    # Save to settings
+    case TableColumns.update_user_table_columns(reordered) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :selected_columns, reordered)}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to save column order")}
+    end
+  end
+
+  @impl true
+  def handle_event("reset_columns", _params, socket) do
+    default_columns = TableColumns.reset_columns()
+
+    # Save to settings
+    case TableColumns.update_user_table_columns(default_columns) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:selected_columns, default_columns)
+         |> put_flash(:info, "Columns reset to default")}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to reset columns")}
     end
   end
 
@@ -405,7 +493,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
       "sent" -> "badge badge-info badge-sm"
       "delivered" -> "badge badge-success badge-sm"
       "bounced" -> "badge badge-error badge-sm"
-      "opened" -> "badge badge-primary badge-sm"
+      "opened" -> "badge badge-warning badge-sm"
       "clicked" -> "badge badge-secondary badge-sm"
       "failed" -> "badge badge-error badge-sm"
       _ -> "badge badge-ghost badge-sm"
@@ -419,14 +507,6 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
     start_page..end_page
   end
 
-  defp pagination_class(page_num, current_page) do
-    if page_num == current_page do
-      "btn btn-sm btn-active"
-    else
-      "btn btn-sm"
-    end
-  end
-
   defp build_page_url(page, assigns) do
     params = build_url_params(assigns, %{"page" => page})
     Routes.path("/admin/emails?#{params}")
@@ -438,6 +518,100 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Emails do
   end
 
   defp get_message_tag(_), do: nil
+
+  # Get event timestamp from log's events association
+  # Falls back to log fields if events not loaded
+  defp get_event_time(log, event_type) do
+    case log.events do
+      # Events loaded - search for matching event type
+      events when is_list(events) ->
+        events
+        |> Enum.find(fn event -> event.event_type == event_type end)
+        |> case do
+          nil -> get_fallback_time(log, event_type)
+          event -> event.occurred_at
+        end
+
+      # Events not loaded - use fallback fields
+      _ ->
+        get_fallback_time(log, event_type)
+    end
+  end
+
+  # Fallback to log timestamp fields if event not found
+  defp get_fallback_time(log, "delivery"), do: log.delivered_at
+  defp get_fallback_time(log, "open"), do: log.opened_at
+  defp get_fallback_time(log, "click"), do: log.clicked_at
+  defp get_fallback_time(log, "bounce"), do: log.bounced_at
+  defp get_fallback_time(log, "complaint"), do: log.complained_at
+  defp get_fallback_time(_log, _type), do: nil
+
+  # Builds activity badges list with smart date display
+  # Each badge shows date only when it differs from previous event
+  # Returns list of {badge_class, formatted_text, event_type} tuples
+  defp get_activity_badges(log) do
+    # Get all event times in chronological order
+    events = [
+      {"delivery", get_event_time(log, "delivery"), "badge-success"},
+      {"open", get_event_time(log, "open"), "badge-warning"},
+      {"click", get_event_time(log, "click"), "badge-secondary"},
+      {"bounce", get_event_time(log, "bounce"), "badge-error"},
+      {"complaint", get_event_time(log, "complaint"), "badge-accent"}
+    ]
+
+    # Filter out events that don't exist
+    existing_events = Enum.filter(events, fn {_type, time, _class} -> time != nil end)
+
+    # Start with sent_at date as the reference
+    initial_date = if log.sent_at, do: DateTime.to_date(log.sent_at), else: nil
+
+    # Build badges with smart date display using reduce
+    {badges, _} =
+      Enum.reduce(existing_events, {[], initial_date}, fn {type, time, badge_class},
+                                                          {acc, last_date} ->
+        formatted_text = format_activity_badge(last_date, time)
+        new_date = DateTime.to_date(time)
+        {acc ++ [{badge_class, formatted_text, type}], new_date}
+      end)
+
+    badges
+  end
+
+  # Smart format for activity badges: shows date only if different from previous event
+  # Compares event with previous shown event in the chain
+  # If event happened same day as previous -> shows only time (09:14)
+  # If event happened different day -> shows date+time (21.10 09:14)
+  defp format_activity_badge(_previous_date, nil), do: ""
+
+  defp format_activity_badge(previous_date, event_time) do
+    time_format = Settings.get_setting("time_format", "H:i")
+    time_str = UtilsDate.format_time(event_time, time_format)
+
+    # Compare event date with previous event date
+    event_date = DateTime.to_date(event_time)
+
+    if Date.compare(previous_date, event_date) == :eq do
+      # Same day as previous event - show only time
+      time_str
+    else
+      # Different day from previous event - show date + time
+      date_str = UtilsDate.format_date(event_date, "d.m")
+      "#{date_str} #{time_str}"
+    end
+  end
+
+  # Format datetime for compact sent badge (DD.MM HH:MM format)
+  defp format_sent_badge(nil), do: ""
+
+  defp format_sent_badge(datetime) do
+    time_format = Settings.get_setting("time_format", "H:i")
+
+    # Short date format: d.m (day.month)
+    date_str = UtilsDate.format_date(datetime, "d.m")
+    time_str = UtilsDate.format_time(datetime, time_format)
+
+    "#{date_str} #{time_str}"
+  end
 
   # Validate test email form
   defp validate_test_email_form(recipient) do

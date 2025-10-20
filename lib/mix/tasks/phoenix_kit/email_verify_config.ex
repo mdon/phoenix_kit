@@ -61,6 +61,7 @@ defmodule Mix.Tasks.PhoenixKit.Email.VerifyConfig do
   use Mix.Task
   alias PhoenixKit.Settings
 
+  @impl Mix.Task
   def run(args) do
     Mix.Task.run("app.start")
 

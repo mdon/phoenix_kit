@@ -441,14 +441,19 @@ defmodule PhoenixKitWeb.Integration do
   defmacro phoenix_kit_routes do
     # Initialize OAuth configuration from database on router setup
     # This ensures OAuth providers are configured before any requests
-    if Code.ensure_loaded?(PhoenixKit.Users.OAuthConfig) do
+    # Only runs if OAuth is enabled in settings
+    if Code.ensure_loaded?(PhoenixKit.Users.OAuthConfig) and
+         Code.ensure_loaded?(PhoenixKit.Settings) do
       spawn(fn ->
         # Small delay to ensure database is ready
         Process.sleep(100)
 
         try do
-          alias PhoenixKit.Users.OAuthConfig
-          OAuthConfig.configure_providers()
+          # Only configure if OAuth is enabled in settings
+          if PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false) do
+            alias PhoenixKit.Users.OAuthConfig
+            OAuthConfig.configure_providers()
+          end
         rescue
           error ->
             require Logger

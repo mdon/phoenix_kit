@@ -23,15 +23,20 @@ defmodule PhoenixKit.MixProject do
 
       # Testing
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+
+      # Aliases for development
+      aliases: aliases()
+    ]
+  end
+
+  def cli do
+    [
+      preferred_env: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test
-      ],
-
-      # Aliases for development
-      aliases: aliases()
+      ]
     ]
   end
 
@@ -62,8 +67,6 @@ defmodule PhoenixKit.MixProject do
 
       # Web functionality
       {:gettext, "~> 0.24"},
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
       {:plug_cowboy, "~> 2.5"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.4.0", only: :dev},

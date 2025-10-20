@@ -31,10 +31,21 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
   - `:region` - AWS region (default: "eu-north-1")
   - `:access_key_id` - AWS access key ID (required)
   - `:secret_access_key` - AWS secret access key (required)
-  - `:queue_visibility_timeout` - Main queue visibility timeout in seconds (default: 300)
-  - `:queue_retention` - Message retention period in seconds (default: 345600)
+  - `:queue_visibility_timeout` - Main queue visibility timeout in seconds (default: 600 / 10 minutes)
+  - `:queue_retention` - Message retention period in seconds (default: 1209600 / 14 days)
   - `:max_receive_count` - Max retries before DLQ (default: 3)
   - `:polling_interval_ms` - SQS polling interval in milliseconds (default: 5000)
+
+  ## Queue Configuration (Optimized for Email Events)
+
+  **Main Queue:**
+  - Visibility Timeout: 10 minutes - Allows complex database operations without message redelivery
+  - Message Retention: 14 days - Protects against extended outages (weekends, holidays)
+  - Max Receive Count: 3 attempts - Balances retry attempts with DLQ routing
+
+  **Dead Letter Queue:**
+  - Visibility Timeout: 1 minute - For manual processing and troubleshooting
+  - Message Retention: 14 days - Allows thorough analysis of failed messages
 
   ## Return Values
 
@@ -62,11 +73,17 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
              create_ses_configuration_set: 2,
              create_ses_event_destination: 3}
 
-  @default_visibility_timeout 300
-  @default_retention 345_600
+  # Queue configuration optimized for email event processing
+  # 10 minutes - allows complex DB operations without message redelivery
+  @default_visibility_timeout 600
+  # 14 days - protects against extended outages (weekends, holidays)
+  @default_retention 1_209_600
   @default_max_receive_count 3
   @default_polling_interval 5000
+
+  # Dead Letter Queue configuration
   @default_dlq_visibility_timeout 60
+  # 14 days - allows troubleshooting of failed messages
   @default_dlq_retention 1_209_600
 
   @doc """
