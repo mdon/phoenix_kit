@@ -23,300 +23,357 @@
       </div>
     </header>
 
-    <%!-- Action Buttons --%>
-    <div class="flex justify-between items-center mb-6">
-      <div class="flex gap-2">
-        <.link
-          navigate={Routes.path("/admin/modules/emails/templates")}
-          class="btn btn-outline btn-secondary btn-sm"
-        >
-          <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Templates
-        </.link>
-      </div>
-
-      <div class="flex gap-2">
-        <.button phx-click="show_test_email_modal" class="btn btn-primary btn-sm">
-          <.icon name="hero-envelope" class="w-4 h-4 mr-1" /> Send Test Email
-        </.button>
-
-        <.link
-          href={build_export_url(@filters)}
-          target="_blank"
-          class="btn btn-outline btn-sm"
-        >
-          <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-1" /> Export CSV
-        </.link>
-
-        <.button phx-click="refresh" class="btn btn-outline btn-sm">
-          <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Refresh
-        </.button>
-      </div>
-    </div>
-
     <%!-- Statistics Summary --%>
-    <div class="stats shadow mb-6">
-      <div class="stat">
-        <div class="stat-title">Total Sent</div>
-        <div class="stat-value text-primary">{@stats[:total_sent] || 0}</div>
-        <div class="stat-desc">Last 30 days</div>
-      </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@stats[:total_sent] || 0}
+        title="Total Sent"
+        subtitle="Last 30 days"
+      >
+        <:icon>
+          <.icon name="hero-envelope" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-title">Delivered</div>
-        <div class="stat-value text-success">{@stats[:delivered] || 0}</div>
-        <div class="stat-desc">{@stats[:delivery_rate] || 0}% rate</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@stats[:delivered] || 0}
+        title="Delivered"
+        subtitle={"#{@stats[:delivery_rate] || 0}% rate"}
+      >
+        <:icon>
+          <.icon name="hero-check-circle" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-title">Bounced</div>
-        <div class="stat-value text-error">{@stats[:bounced] || 0}</div>
-        <div class="stat-desc">{@stats[:bounce_rate] || 0}% rate</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@stats[:bounced] || 0}
+        title="Bounced"
+        subtitle={"#{@stats[:bounce_rate] || 0}% rate"}
+      >
+        <:icon>
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
 
-      <div class="stat">
-        <div class="stat-title">Opened</div>
-        <div class="stat-value text-info">{@stats[:opened] || 0}</div>
-        <div class="stat-desc">{@stats[:open_rate] || 0}% rate</div>
-      </div>
+      <PhoenixKitWeb.Components.Core.StatCard.stat_card
+        compact={true}
+        rounded="xl"
+        value={@stats[:opened] || 0}
+        title="Opened"
+        subtitle={"#{@stats[:open_rate] || 0}% rate"}
+      >
+        <:icon>
+          <.icon name="hero-envelope-open" class="w-5 h-5" />
+        </:icon>
+      </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
     <%!-- Filters & Search --%>
-    <div class="card bg-base-100 shadow-sm mb-6">
-      <div class="card-body">
-        <.form for={%{}} phx-change="filter" class="space-y-4">
-          <%!-- Search Bar & Action Buttons (Single Row) --%>
-          <div class="flex gap-2 items-center">
+    <div class="bg-base-200 rounded-lg p-6 mb-6">
+      <.form for={%{}} phx-change="filter" class="space-y-4">
+        <%!-- Search Bar --%>
+        <div class="flex gap-2 items-center">
+          <input
+            type="text"
+            name="search[query]"
+            value={@filters.search}
+            placeholder="Search by recipient, subject, or campaign..."
+            class="input input-bordered flex-1"
+            phx-debounce="300"
+          />
+          <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
+            Clear
+          </button>
+        </div>
+
+        <%!-- Filter Row --%>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <%!-- Status Filter --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Status</span>
+            </label>
+            <select name="filter[status]" class="select select-bordered">
+              <option value="">All Statuses</option>
+              <option value="sent" selected={@filters.status == "sent"}>Sent</option>
+              <option value="delivered" selected={@filters.status == "delivered"}>
+                Delivered
+              </option>
+              <option value="bounced" selected={@filters.status == "bounced"}>Bounced</option>
+              <option value="opened" selected={@filters.status == "opened"}>Opened</option>
+              <option value="clicked" selected={@filters.status == "clicked"}>Clicked</option>
+              <option value="failed" selected={@filters.status == "failed"}>Failed</option>
+            </select>
+          </div>
+
+          <%!-- Message Tags Filter --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Message Type</span>
+            </label>
+            <select name="filter[message_tag]" class="select select-bordered">
+              <option value="">All Types</option>
+              <option value="authentication" selected={@filters.message_tag == "authentication"}>
+                Authentication
+              </option>
+              <option value="registration" selected={@filters.message_tag == "registration"}>
+                Registration
+              </option>
+              <option value="marketing" selected={@filters.message_tag == "marketing"}>
+                Marketing
+              </option>
+              <option value="notification" selected={@filters.message_tag == "notification"}>
+                Notification
+              </option>
+              <option value="transactional" selected={@filters.message_tag == "transactional"}>
+                Transactional
+              </option>
+            </select>
+          </div>
+
+          <%!-- Date Range --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">From Date</span>
+            </label>
             <input
-              type="text"
-              name="search[query]"
-              value={@filters.search}
-              placeholder="Search by recipient, subject, or campaign..."
-              class="input input-bordered flex-1"
-              phx-debounce="300"
+              type="date"
+              name="filter[from_date]"
+              value={@filters.from_date}
+              class="input input-bordered"
             />
-            <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-              Clear
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">To Date</span>
+            </label>
+            <input
+              type="date"
+              name="filter[to_date]"
+              value={@filters.to_date}
+              class="input input-bordered"
+            />
+          </div>
+        </div>
+
+        <%!-- Quick Actions Row --%>
+        <div class="w-full">
+          <label class="label">
+            <span class="label-text">Quick Actions</span>
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              phx-click="show_column_modal"
+              class="btn btn-info btn-sm"
+              title="Customize columns"
+            >
+              <.icon name="hero-view-columns" class="h-5 w-5" />
+              <span class="hidden sm:inline">Columns</span>
+            </button>
+
+            <.link
+              navigate={Routes.path("/admin/modules/emails/templates")}
+              class="btn btn-outline btn-secondary btn-sm"
+            >
+              <.icon name="hero-document-text" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Templates</span>
+            </.link>
+
+            <button
+              type="button"
+              phx-click="show_test_email_modal"
+              class="btn btn-primary btn-sm"
+            >
+              <.icon name="hero-envelope" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Send Test</span>
+            </button>
+
+            <.link
+              href={build_export_url(@filters)}
+              target="_blank"
+              class="btn btn-outline btn-sm"
+            >
+              <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Export CSV</span>
+            </.link>
+
+            <button type="button" phx-click="refresh" class="btn btn-outline btn-sm">
+              <.icon name="hero-arrow-path" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Refresh</span>
             </button>
           </div>
-
-          <%!-- Filter Row --%>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <%!-- Status Filter --%>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">Status</span>
-              </label>
-              <select name="filter[status]" class="select select-bordered">
-                <option value="">All Statuses</option>
-                <option value="sent" selected={@filters.status == "sent"}>Sent</option>
-                <option value="delivered" selected={@filters.status == "delivered"}>
-                  Delivered
-                </option>
-                <option value="bounced" selected={@filters.status == "bounced"}>Bounced</option>
-                <option value="opened" selected={@filters.status == "opened"}>Opened</option>
-                <option value="clicked" selected={@filters.status == "clicked"}>Clicked</option>
-                <option value="failed" selected={@filters.status == "failed"}>Failed</option>
-              </select>
-            </div>
-
-            <%!-- Message Tags Filter --%>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">Message Type</span>
-              </label>
-              <select name="filter[message_tag]" class="select select-bordered">
-                <option value="">All Types</option>
-                <option value="authentication" selected={@filters.message_tag == "authentication"}>
-                  Authentication
-                </option>
-                <option value="registration" selected={@filters.message_tag == "registration"}>
-                  Registration
-                </option>
-                <option value="marketing" selected={@filters.message_tag == "marketing"}>
-                  Marketing
-                </option>
-                <option value="notification" selected={@filters.message_tag == "notification"}>
-                  Notification
-                </option>
-                <option value="transactional" selected={@filters.message_tag == "transactional"}>
-                  Transactional
-                </option>
-              </select>
-            </div>
-
-            <%!-- Date Range --%>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">From Date</span>
-              </label>
-              <input
-                type="date"
-                name="filter[from_date]"
-                value={@filters.from_date}
-                class="input input-bordered"
-              />
-            </div>
-
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">To Date</span>
-              </label>
-              <input
-                type="date"
-                name="filter[to_date]"
-                value={@filters.to_date}
-                class="input input-bordered"
-              />
-            </div>
-          </div>
-        </.form>
-      </div>
+        </div>
+      </.form>
     </div>
 
     <%!-- Emails Table --%>
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body p-0">
-        <%= if @loading do %>
-          <div class="flex justify-center items-center h-32">
-            <span class="loading loading-spinner loading-md"></span>
-            <span class="ml-2">Loading emails...</span>
-          </div>
-        <% else %>
-          <div class="w-full">
-            <table class="table table-hover w-full">
-              <thead>
-                <tr>
-                  <th class="w-1/4">Email</th>
-                  <th class="w-1/4">Subject</th>
-                  <th class="w-1/8">Status</th>
-                  <th class="w-1/6">Details</th>
-                  <th class="w-1/8">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for log <- @logs do %>
-                  <tr class="hover">
-                    <%!-- Email Column --%>
-                    <td>
-                      <div class="space-y-1">
-                        <div class="font-medium text-sm">{log.to}</div>
-                        <%= if log.user_id do %>
-                          <div class="badge badge-ghost badge-xs">User #{log.user_id}</div>
-                        <% end %>
-                      </div>
-                    </td>
-
-                    <%!-- Subject Column --%>
-                    <td>
-                      <div class="space-y-1">
-                        <div class="text-sm truncate" title={log.subject}>
-                          {log.subject || "(no subject)"}
-                        </div>
-                        <%= if log.template_name do %>
-                          <div class="badge badge-outline badge-xs">
-                            {log.template_name}
-                          </div>
-                        <% end %>
-                      </div>
-                    </td>
-
-                    <%!-- Status Column --%>
-                    <td>
-                      <div class="space-y-1">
-                        <div class={status_badge_class(log.status)}>
-                          {log.status}
-                        </div>
-                        <%= if log.error_message do %>
-                          <div class="text-xs text-error truncate" title={log.error_message}>
-                            Error
-                          </div>
-                        <% end %>
-                      </div>
-                    </td>
-
-                    <%!-- Details Column --%>
-                    <td>
-                      <div class="space-y-1 text-xs">
+    <div class="bg-base-100">
+      <%= if @loading do %>
+        <div class="flex justify-center items-center h-32">
+          <span class="loading loading-spinner loading-md"></span>
+          <span class="ml-2">Loading emails...</span>
+        </div>
+      <% else %>
+        <%= if length(@logs) > 0 do %>
+          <.table_default variant="zebra" class="w-full">
+            <.table_default_header>
+              <.table_default_row>
+                <%= for field <- @selected_columns do %>
+                  <% column = Enum.find(@available_columns, fn col -> col.field == field end) %>
+                  <%= if column do %>
+                    <.table_default_header_cell>
+                      <%= if field == "activity" do %>
                         <div class="flex items-center gap-1">
-                          <%= if get_message_tag(log.message_tags) do %>
-                            <div class="badge badge-secondary badge-xs">
-                              {get_message_tag(log.message_tags)}
-                            </div>
-                          <% else %>
-                            <div class="badge badge-ghost badge-xs">no tag</div>
-                          <% end %>
-                          <%= if log.campaign_id do %>
-                            <div class="badge badge-primary badge-xs">{log.campaign_id}</div>
-                          <% end %>
-                        </div>
-                        <div class="text-base-content/70">
-                          {UtilsDate.format_datetime_with_user_format(log.sent_at)}
-                        </div>
-                        <%= if log.delivered_at do %>
-                          <div class="text-success">
-                            ✓ {UtilsDate.format_datetime_with_user_format(log.delivered_at)}
+                          <span>{column.label}</span>
+                          <div
+                            class="tooltip tooltip-right"
+                            data-tip="🔵 Sent (date+time) | 🟢 Delivered | 🟡 Opened | 🟣 Clicked | 🔴 Bounced/Failed | ⚠️ Complaint"
+                          >
+                            <.icon
+                              name="hero-information-circle"
+                              class="w-4 h-4 text-base-content/50 hover:text-base-content cursor-help"
+                            />
                           </div>
-                        <% end %>
-                      </div>
-                    </td>
-
-                    <%!-- Actions Column --%>
-                    <td>
-                      <button
-                        phx-click="view_details"
-                        phx-value-id={log.id}
-                        class="btn btn-xs btn-outline btn-primary"
-                      >
-                        <.icon name="hero-eye" class="w-3 h-3 mr-1" /> View
-                      </button>
-                    </td>
-                  </tr>
+                        </div>
+                      <% else %>
+                        {column.label}
+                      <% end %>
+                    </.table_default_header_cell>
+                  <% end %>
                 <% end %>
+              </.table_default_row>
+            </.table_default_header>
 
-                <%= if length(@logs) == 0 and not @loading do %>
-                  <tr>
-                    <td colspan="5" class="text-center py-8 text-base-content/60">
-                      No emails found matching your criteria
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+            <.table_default_body>
+              <%= for log <- @logs do %>
+                <.table_default_row>
+                  <%= for field <- @selected_columns do %>
+                    <.table_default_cell>
+                      <%= case field do %>
+                        <% "to" -> %>
+                          <div class="space-y-1">
+                            <div class="font-medium text-sm">{log.to}</div>
+                            <%= if log.user_id do %>
+                              <div class="badge badge-ghost badge-xs">User #{log.user_id}</div>
+                            <% end %>
+                          </div>
+                        <% "subject" -> %>
+                          <div class="text-sm truncate" title={log.subject}>
+                            {log.subject || "(no subject)"}
+                          </div>
+                        <% "status" -> %>
+                          <div class="space-y-1">
+                            <div class={status_badge_class(log.status)}>
+                              {log.status}
+                            </div>
+                            <%= if log.error_message do %>
+                              <div class="text-xs text-error truncate" title={log.error_message}>
+                                Error
+                              </div>
+                            <% end %>
+                          </div>
+                        <% "activity" -> %>
+                          <div class="flex flex-wrap gap-1">
+                            <%!-- Sent badge (blue) - always shows date + time --%>
+                            <%= if log.sent_at do %>
+                              <div class="badge badge-info badge-xs">
+                                {format_sent_badge(log.sent_at)}
+                              </div>
+                            <% end %>
+                            <%!-- Activity badges with smart date display --%>
+                            <%!-- Each badge shows date only when different from previous event --%>
+                            <%= for {badge_class, formatted_text, _event_type} <- get_activity_badges(log) do %>
+                              <div class={"badge #{badge_class} badge-xs"}>
+                                {formatted_text}
+                              </div>
+                            <% end %>
+                          </div>
+                        <% "details" -> %>
+                          <div class="space-y-1">
+                            <%= if log.campaign_id do %>
+                              <div class="badge badge-primary badge-xs">{log.campaign_id}</div>
+                            <% end %>
+                            <%= if get_message_tag(log.message_tags) do %>
+                              <div class="badge badge-secondary badge-xs">
+                                {get_message_tag(log.message_tags)}
+                              </div>
+                            <% end %>
+                            <%= if log.template_name do %>
+                              <div class="badge badge-outline badge-xs">{log.template_name}</div>
+                            <% end %>
+                            <%= if !log.campaign_id && !get_message_tag(log.message_tags) && !log.template_name do %>
+                              <span class="text-xs text-base-content/50">—</span>
+                            <% end %>
+                          </div>
+                        <% "actions" -> %>
+                          <button
+                            phx-click="view_details"
+                            phx-value-id={log.id}
+                            class="btn btn-xs btn-outline btn-primary"
+                          >
+                            <.icon name="hero-eye" class="w-3 h-3 mr-1" /> View
+                          </button>
+                        <% _ -> %>
+                          <span class="text-xs text-base-content/50">—</span>
+                      <% end %>
+                    </.table_default_cell>
+                  <% end %>
+                </.table_default_row>
+              <% end %>
+            </.table_default_body>
+          </.table_default>
+        <% else %>
+          <%!-- Empty state --%>
+          <div class="text-center py-12">
+            <.icon name="hero-envelope" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
+            <h3 class="text-lg font-medium text-base-content mb-2">
+              No emails found
+            </h3>
+            <p class="text-base-content/70 mb-4">
+              No emails found matching your criteria
+            </p>
           </div>
-
-          <%!-- Pagination --%>
-          <%= if @total_count > @per_page do %>
-            <div class="border-t bg-base-200 px-4 py-3 flex items-center justify-between">
-              <div class="text-sm text-base-content/70">
-                Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
-              </div>
-
-              <div class="btn-group">
-                <%= if @page > 1 do %>
-                  <.link patch={build_page_url(@page - 1, assigns)} class="btn btn-sm">
-                    « Prev
-                  </.link>
-                <% end %>
-
-                <%= for page_num <- pagination_pages(@page, @total_pages) do %>
-                  <.link
-                    patch={build_page_url(page_num, assigns)}
-                    class={pagination_class(page_num, @page)}
-                  >
-                    {page_num}
-                  </.link>
-                <% end %>
-
-                <%= if @page < @total_pages do %>
-                  <.link patch={build_page_url(@page + 1, assigns)} class="btn btn-sm">
-                    Next »
-                  </.link>
-                <% end %>
-              </div>
-            </div>
-          <% end %>
         <% end %>
-      </div>
+
+        <%!-- Pagination --%>
+        <%= if @total_count > @per_page do %>
+          <div class="flex justify-center p-4 border-t border-base-300">
+            <div class="join">
+              <%= if @page > 1 do %>
+                <.link patch={build_page_url(@page - 1, assigns)} class="join-item btn btn-sm">
+                  « Prev
+                </.link>
+              <% end %>
+
+              <%= for page_num <- pagination_pages(@page, @total_pages) do %>
+                <.link
+                  patch={build_page_url(page_num, assigns)}
+                  class={[
+                    "join-item btn btn-sm",
+                    page_num == @page && "btn-active"
+                  ]}
+                >
+                  {page_num}
+                </.link>
+              <% end %>
+
+              <%= if @page < @total_pages do %>
+                <.link patch={build_page_url(@page + 1, assigns)} class="join-item btn btn-sm">
+                  Next »
+                </.link>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
     </div>
 
     <%!-- Test Email Modal --%>
@@ -401,5 +458,63 @@
         </.form>
       </div>
     </div>
+
+    <%!-- Column Selection Modal --%>
+    <%= if @show_column_modal do %>
+      <div class="modal modal-open" phx-click-away="hide_column_modal">
+        <div class="modal-box max-w-2xl">
+          <h3 class="font-bold text-xl mb-4">Customize Table Columns</h3>
+          <p class="text-base-content/70 mb-6">
+            Select which columns to display in the emails table. Required columns (Email, Subject, Status, Actions) cannot be hidden.
+          </p>
+
+          <div class="space-y-2 max-h-96 overflow-y-auto">
+            <%= for column <- @available_columns do %>
+              <div class="flex items-center p-3 rounded-lg hover:bg-base-200 transition-colors">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-primary"
+                  id={"column-#{column.field}"}
+                  checked={column.field in @selected_columns}
+                  disabled={column.required}
+                  phx-click="toggle_column"
+                  phx-value-field={column.field}
+                />
+                <label for={"column-#{column.field}"} class="ml-3 flex-1 cursor-pointer">
+                  <div class="font-medium text-sm text-base-content">
+                    {column.label}
+                  </div>
+                  <%= if column.required do %>
+                    <div class="text-xs text-base-content/50">
+                      Required column
+                    </div>
+                  <% end %>
+                </label>
+                <%= if column.required do %>
+                  <div class="badge badge-sm badge-ghost">Required</div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="modal-action">
+            <button
+              type="button"
+              phx-click="reset_columns"
+              class="btn btn-outline"
+            >
+              Reset to Default
+            </button>
+            <button
+              type="button"
+              phx-click="hide_column_modal"
+              class="btn btn-primary"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    <% end %>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>

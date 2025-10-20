@@ -333,12 +333,45 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Details do
         </div>
         """
 
+      "delivery" ->
+        assigns = %{event: event}
+
+        ~H"""
+        <div class="text-xs text-base-content/60">
+          <%= if get_in(@event.event_data, ["processingTimeMillis"]) do %>
+            <div>
+              Processing time: <span class="font-medium">{get_in(@event.event_data, ["processingTimeMillis"])} ms</span>
+            </div>
+          <% end %>
+          <%= if get_in(@event.event_data, ["smtpResponse"]) do %>
+            <div>SMTP: <span class="font-mono text-success">{get_in(@event.event_data, ["smtpResponse"])}</span></div>
+          <% end %>
+          <%= if get_in(@event.event_data, ["reportingMTA"]) do %>
+            <div>Server: <span class="font-mono">{get_in(@event.event_data, ["reportingMTA"])}</span></div>
+          <% end %>
+        </div>
+        """
+
+      "send" ->
+        assigns = %{event: event}
+
+        ~H"""
+        <div class="text-xs text-base-content/60">
+          <%= if @event.aws_message_id do %>
+            <div>
+              AWS Message ID:
+              <span class="font-mono text-xs break-all">{String.slice(@event.aws_message_id, 0, 40)}{if String.length(@event.aws_message_id) > 40, do: "..."}</span>
+            </div>
+          <% end %>
+        </div>
+        """
+
       _ ->
         assigns = %{event: event}
 
         ~H"""
         <%= if map_size(@event.event_data) > 0 do %>
-          <div class="text-xs text-gray-600">
+          <div class="text-xs text-base-content/60">
             Additional data available
           </div>
         <% end %>
