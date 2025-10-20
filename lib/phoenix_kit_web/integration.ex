@@ -16,6 +16,16 @@ defmodule PhoenixKitWeb.Integration do
         phoenix_kit_routes()  # Default: /phoenix_kit prefix
       end
 
+  ## Automatic Integration
+
+  When you run `mix phoenix_kit.install`, the following is automatically added to your
+  `:browser` pipeline:
+
+      plug PhoenixKitWeb.Plugs.Integration
+
+  This plug handles all PhoenixKit features including maintenance mode, and ensures
+  they work across your entire application
+
   ## Layout Integration
 
   Configure parent layouts in config.exs:
@@ -149,7 +159,6 @@ defmodule PhoenixKitWeb.Integration do
 
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
-        plug PhoenixKitWeb.Plugs.MaintenanceMode
         plug PhoenixKitWeb.Integration, :phoenix_kit_auto_setup
       end
 
