@@ -448,6 +448,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
+                        <%= if PhoenixKit.UnderConstruction.module_enabled?() do %>
+                          <.admin_nav_item
+                            href={Routes.locale_aware_path(assigns, "/admin/settings/under-construction")}
+                            icon="maintenance"
+                            label="Maintenance"
+                            current_path={@current_path || ""}
+                            nested={true}
+                          />
+                        <% end %>
+
                         <%= if PhoenixKit.Entities.enabled?() do %>
                           <.admin_nav_item
                             href={Routes.path("/admin/settings/entities")}

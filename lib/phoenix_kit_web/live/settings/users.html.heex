@@ -41,6 +41,29 @@
             phx-change="validate_settings"
             class="space-y-6"
           >
+            <%!-- Hidden fields for required settings from General page --%>
+            <input
+              type="hidden"
+              name="settings[project_title]"
+              value={@settings["project_title"]}
+            />
+            <input
+              type="hidden"
+              name="settings[week_start_day]"
+              value={@settings["week_start_day"]}
+            />
+            <input type="hidden" name="settings[time_zone]" value={@settings["time_zone"]} />
+            <input
+              type="hidden"
+              name="settings[date_format]"
+              value={@settings["date_format"]}
+            />
+            <input
+              type="hidden"
+              name="settings[time_format]"
+              value={@settings["time_format"]}
+            />
+
             <%!-- Registration Control Setting --%>
             <div class="form-control w-full">
               <label class="label">

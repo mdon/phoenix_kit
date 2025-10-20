@@ -16,6 +16,16 @@ defmodule PhoenixKitWeb.Integration do
         phoenix_kit_routes()  # Default: /phoenix_kit prefix
       end
 
+  ## Automatic Integration
+
+  When you run `mix phoenix_kit.install`, the following is automatically added to your
+  `:browser` pipeline:
+
+      plug PhoenixKitWeb.Plugs.Integration
+
+  This plug handles all PhoenixKit features including maintenance mode, and ensures
+  they work across your entire application
+
   ## Layout Integration
 
   Configure parent layouts in config.exs:
@@ -269,6 +279,11 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
+
+          live "/admin/settings/under-construction",
+               Live.Modules.UnderConstruction.Settings,
+               :index
+
           live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeForm, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeForm, :edit
@@ -368,6 +383,11 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
+
+          live "/admin/settings/under-construction",
+               Live.Modules.UnderConstruction.Settings,
+               :index
+
           live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index
           live "/admin/users/referral-codes/new", Live.Users.ReferralCodeForm, :new
           live "/admin/users/referral-codes/edit/:id", Live.Users.ReferralCodeForm, :edit

@@ -297,7 +297,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   def on_mount(:phoenix_kit_mount_current_scope, _params, session, socket) do
-    {:cont, mount_phoenix_kit_current_scope(socket, session)}
+    socket = mount_phoenix_kit_current_scope(socket, session)
+    socket = check_maintenance_mode(socket)
+    {:cont, socket}
   end
 
   def on_mount(:phoenix_kit_ensure_authenticated, _params, session, socket) do
@@ -317,6 +319,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   def on_mount(:phoenix_kit_ensure_authenticated_scope, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
+    socket = check_maintenance_mode(socket)
 
     if Scope.authenticated?(socket.assigns.phoenix_kit_current_scope) do
       {:cont, socket}
@@ -342,6 +345,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   def on_mount(:phoenix_kit_redirect_if_authenticated_scope, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
+    socket = check_maintenance_mode(socket)
 
     if Scope.authenticated?(socket.assigns.phoenix_kit_current_scope) do
       {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(socket))}
@@ -352,6 +356,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   def on_mount(:phoenix_kit_ensure_owner, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
+    socket = check_maintenance_mode(socket)
     scope = socket.assigns.phoenix_kit_current_scope
 
     if Scope.owner?(scope) do
@@ -368,6 +373,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   def on_mount(:phoenix_kit_ensure_admin, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
+    socket = check_maintenance_mode(socket)
     scope = socket.assigns.phoenix_kit_current_scope
 
     cond do
@@ -513,6 +519,24 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp handle_scope_refresh(_msg, socket), do: {:cont, socket}
+
+  defp check_maintenance_mode(socket) do
+    # Check if maintenance mode is enabled
+    if PhoenixKit.UnderConstruction.enabled?() do
+      scope = socket.assigns[:phoenix_kit_current_scope]
+
+      # Admins and owners can bypass maintenance mode
+      if scope && (Scope.admin?(scope) || Scope.owner?(scope)) do
+        Phoenix.Component.assign(socket, :show_maintenance, false)
+      else
+        # Non-admin users see maintenance page
+        Phoenix.Component.assign(socket, :show_maintenance, true)
+      end
+    else
+      # Maintenance mode disabled - show normal content
+      Phoenix.Component.assign(socket, :show_maintenance, false)
+    end
+  end
 
   defp refresh_scope_assigns(socket) do
     case socket.assigns[:phoenix_kit_current_user] do
