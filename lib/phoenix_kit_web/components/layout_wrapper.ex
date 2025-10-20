@@ -448,7 +448,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           />
                         <% end %>
 
-                        <%= if PhoenixKit.Maintenance.module_enabled?() do %>
+                        <%= if PhoenixKit.Modules.Maintenance.module_enabled?() do %>
                           <.admin_nav_item
                             href={Routes.locale_aware_path(assigns, "/admin/settings/maintenance")}
                             icon="maintenance"

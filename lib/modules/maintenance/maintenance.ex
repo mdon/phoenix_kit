@@ -1,4 +1,4 @@
-defmodule PhoenixKit.Maintenance do
+defmodule PhoenixKit.Modules.Maintenance do
   @moduledoc """
   Maintenance Mode module for PhoenixKit.
 
@@ -17,23 +17,23 @@ defmodule PhoenixKit.Maintenance do
   ## Usage
 
       # Check if module is enabled (settings page accessible)
-      if PhoenixKit.Maintenance.module_enabled?() do
+      if PhoenixKit.Modules.Maintenance.module_enabled?() do
         # Show settings page
       end
 
       # Check if maintenance mode is enabled
-      if PhoenixKit.Maintenance.enabled?() do
+      if PhoenixKit.Modules.Maintenance.enabled?() do
         # Show maintenance page to non-admin users
       end
 
       # Enable module (makes settings page accessible)
-      PhoenixKit.Maintenance.enable_module()
+      PhoenixKit.Modules.Maintenance.enable_module()
 
       # Enable maintenance mode (shows maintenance page to users)
-      PhoenixKit.Maintenance.enable_system()
+      PhoenixKit.Modules.Maintenance.enable_system()
 
       # Get module configuration
-      config = PhoenixKit.Maintenance.get_config()
+      config = PhoenixKit.Modules.Maintenance.get_config()
       # => %{module_enabled: true, enabled: true, header: "...", subtext: "..."}
   """
 
@@ -47,7 +47,7 @@ defmodule PhoenixKit.Maintenance do
 
   ## Examples
 
-      iex> PhoenixKit.Maintenance.module_enabled?()
+      iex> PhoenixKit.Modules.Maintenance.module_enabled?()
       false
   """
   def module_enabled? do
@@ -73,7 +73,7 @@ defmodule PhoenixKit.Maintenance do
 
   ## Examples
 
-      iex> PhoenixKit.Maintenance.enabled?()
+      iex> PhoenixKit.Modules.Maintenance.enabled?()
       false
   """
   def enabled? do
@@ -103,7 +103,7 @@ defmodule PhoenixKit.Maintenance do
 
   ## Examples
 
-      iex> PhoenixKit.Maintenance.get_header()
+      iex> PhoenixKit.Modules.Maintenance.get_header()
       "Maintenance Mode"
   """
   def get_header do
@@ -122,7 +122,7 @@ defmodule PhoenixKit.Maintenance do
 
   ## Examples
 
-      iex> PhoenixKit.Maintenance.get_subtext()
+      iex> PhoenixKit.Modules.Maintenance.get_subtext()
       "We'll be back soon..."
   """
   def get_subtext do
@@ -147,7 +147,7 @@ defmodule PhoenixKit.Maintenance do
 
   ## Examples
 
-      iex> PhoenixKit.Maintenance.get_config()
+      iex> PhoenixKit.Modules.Maintenance.get_config()
       %{
         module_enabled: false,
         enabled: false,

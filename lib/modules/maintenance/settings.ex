@@ -8,7 +8,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
-  alias PhoenixKit.Maintenance
+  alias PhoenixKit.Modules.Maintenance
 
   def mount(_params, _session, socket) do
     # Get current settings
