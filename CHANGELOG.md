@@ -1,3 +1,38 @@
+## 1.4.1 - 2025-10-20
+
+### Added
+- **OAuth User Settings** - Connected Accounts management interface in user settings
+  - View all linked OAuth providers (Google, Apple, GitHub)
+  - Connect additional OAuth accounts to existing user profile
+  - Disconnect OAuth providers with security validation
+  - User-friendly instructions for OAuth account linking
+  - Email verification matching for OAuth connections
+- **OAuth Setup Instructions** - In-app Google OAuth configuration guide
+  - Step-by-step Google Cloud Console setup instructions
+  - Callback URL display for easy copying
+  - Collapsible instructions panel in admin settings
+  - Reverse proxy configuration examples (nginx/apache)
+
+### Changed
+- **OAuth Infrastructure** - Automatic HTTPS detection and deployment improvements
+  - X-Forwarded-Proto header detection for reverse proxies
+  - OAuth callbacks work out-of-box behind nginx/apache
+  - Manual oauth_base_url override for edge cases
+  - OAuth2.AccessToken serialization in JSONB fields
+- **Email UI** - Enhanced table components
+  - Replace HTML tables with reusable `.table_default` component
+  - Consistent table styling across email details
+
+### Fixed
+- **OAuth Integration** - EnsureOAuthScheme plug integration
+- **Code Quality** - Credo readability improvements in OAuth modules
+- **Icon Management** - Centralized all OAuth icons to Core.Icons module
+
+### Upgrade Notes
+- OAuth providers require matching email addresses between provider and PhoenixKit account
+- Users can manage connected accounts at `/users/settings`
+- At least one authentication method (password or OAuth) required for account access
+
 ## 1.4.0 - 2025-10-17
 
 ### Added
