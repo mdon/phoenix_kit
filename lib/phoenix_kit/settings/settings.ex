@@ -1159,15 +1159,21 @@ defmodule PhoenixKit.Settings do
 
   # Queries database for a single setting and caches the result
   defp query_and_cache_setting(key) do
-    case repo().get_by(Setting, key: key) do
-      %Setting{value: value} ->
-        PhoenixKit.Cache.put(@cache_name, key, value)
-        value
+    # Check if repository is available before attempting query
+    if repo_available?() do
+      case repo().get_by(Setting, key: key) do
+        %Setting{value: value} ->
+          PhoenixKit.Cache.put(@cache_name, key, value)
+          value
 
-      nil ->
-        # Cache the fact that this setting doesn't exist to avoid repeated queries
-        PhoenixKit.Cache.put(@cache_name, key, nil)
-        nil
+        nil ->
+          # Cache the fact that this setting doesn't exist to avoid repeated queries
+          PhoenixKit.Cache.put(@cache_name, key, nil)
+          nil
+      end
+    else
+      # Repository not started yet - return nil silently
+      nil
     end
   rescue
     error ->
@@ -1181,20 +1187,26 @@ defmodule PhoenixKit.Settings do
 
   # Queries database for a single JSON setting and caches the result
   defp query_and_cache_json_setting(key) do
-    case repo().get_by(Setting, key: key) do
-      %Setting{value_json: value_json} when not is_nil(value_json) ->
-        PhoenixKit.Cache.put(@cache_name, key, value_json)
-        value_json
+    # Check if repository is available before attempting query
+    if repo_available?() do
+      case repo().get_by(Setting, key: key) do
+        %Setting{value_json: value_json} when not is_nil(value_json) ->
+          PhoenixKit.Cache.put(@cache_name, key, value_json)
+          value_json
 
-      %Setting{value: value} when not is_nil(value) and value != "" ->
-        # Has meaningful string value but no JSON - cache nil for JSON lookup
-        PhoenixKit.Cache.put(@cache_name, key, nil)
-        nil
+        %Setting{value: value} when not is_nil(value) and value != "" ->
+          # Has meaningful string value but no JSON - cache nil for JSON lookup
+          PhoenixKit.Cache.put(@cache_name, key, nil)
+          nil
 
-      nil ->
-        # Cache the fact that this setting doesn't exist to avoid repeated queries
-        PhoenixKit.Cache.put(@cache_name, key, nil)
-        nil
+        nil ->
+          # Cache the fact that this setting doesn't exist to avoid repeated queries
+          PhoenixKit.Cache.put(@cache_name, key, nil)
+          nil
+      end
+    else
+      # Repository not started yet - return nil silently
+      nil
     end
   rescue
     error ->
@@ -1209,13 +1221,42 @@ defmodule PhoenixKit.Settings do
   # Check if we're in compilation mode where database/cache infrastructure isn't available
   defp compilation_mode? do
     # During compilation, Config module may not be fully loaded
-    # Check if repo is configured - if not, we're likely in compilation mode
+    # Check if repo is configured AND available - if not, we're in compilation mode
     case PhoenixKit.Config.get(:repo, nil) do
-      nil -> true
-      _ -> false
+      nil ->
+        true
+
+      _repo_module ->
+        # Even if repo is configured, it might not be started yet
+        # In that case, we're effectively in "compilation mode" for queries
+        not repo_available?()
     end
   rescue
     # If we can't even check the config, we're definitely in compilation mode
     _ -> true
+  end
+
+  # Check if the repository is available and ready to accept queries
+  defp repo_available? do
+    # First check if repo is configured
+    case PhoenixKit.Config.get(:repo, nil) do
+      nil ->
+        false
+
+      repo_module ->
+        # Check if the repo process is started and available
+        try do
+          # Try to get the repo's PID to verify it's running
+          # This will raise if the repo isn't started
+          pid = GenServer.whereis(repo_module)
+          pid != nil
+        rescue
+          # Repo not started or not accessible
+          _ -> false
+        end
+    end
+  rescue
+    # Config not available
+    _ -> false
   end
 end
