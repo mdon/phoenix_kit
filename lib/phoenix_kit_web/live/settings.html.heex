@@ -260,6 +260,71 @@
                     >
                       Test Credentials
                     </button>
+
+                    <%!-- Google OAuth Setup Instructions --%>
+                    <div class="collapse collapse-arrow bg-base-300 mt-4">
+                      <input type="checkbox" class="peer" />
+                      <div class="collapse-title text-sm font-medium">
+                        Setup Instructions
+                      </div>
+                      <div class="collapse-content text-sm space-y-3">
+                        <div class="alert alert-info py-2">
+                          <svg
+                            class="stroke-current shrink-0 h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <span>
+                            Callback URL:
+                            <code class="ml-1 px-2 py-1 bg-base-100 rounded">
+                              {get_oauth_callback_url(@settings, "google")}
+                            </code>
+                          </span>
+                        </div>
+
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            Visit
+                            <a
+                              href="https://console.cloud.google.com/apis/credentials"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              Google Cloud Console
+                            </a>
+                          </li>
+                          <li>Create project or select existing one</li>
+                          <li>
+                            Go to <strong>Credentials</strong>
+                            → <strong>Create Credentials</strong>
+                            → <strong>OAuth client ID</strong>
+                          </li>
+                          <li>
+                            Select <strong>Web application</strong> type
+                          </li>
+                          <li>
+                            Add callback URL above to <strong>Authorized redirect URIs</strong>
+                          </li>
+                          <li>Copy Client ID and Secret to fields above</li>
+                          <li>
+                            Click <strong>Test Credentials</strong> to verify setup
+                          </li>
+                        </ol>
+
+                        <div class="text-xs text-base-content/60">
+                          <strong>Reverse Proxy Users:</strong>
+                          If behind nginx/apache, ensure <code>X-Forwarded-Proto</code>
+                          header is set to <code>https</code>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 <% end %>
 

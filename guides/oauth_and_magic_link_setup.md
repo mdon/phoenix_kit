@@ -60,6 +60,38 @@ To enable OAuth in a host application:
 - Routes exposed at `{prefix}/users/auth/:provider`
 - Referral code passthrough (`?referral_code=ABC123`)
 - Buttons automatically hide when OAuth is disabled
+- Built-in setup instructions in admin UI
+
+### Reverse Proxy Configuration
+
+When deploying behind a reverse proxy (nginx/apache) that terminates SSL, PhoenixKit automatically
+detects HTTPS via `X-Forwarded-Proto` header. Configure your proxy:
+
+**Nginx:**
+```nginx
+location / {
+    proxy_pass http://localhost:4000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;  # Required for OAuth
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+**Apache:**
+```apache
+<VirtualHost *:443>
+    ProxyPass / http://localhost:4000/
+    ProxyPassReverse / http://localhost:4000/
+    RequestHeader set X-Forwarded-Proto "https"
+</VirtualHost>
+```
+
+**Manual override (if needed):**
+```elixir
+# config/runtime.exs
+config :phoenix_kit,
+  oauth_base_url: System.get_env("OAUTH_BASE_URL") || "https://example.com"
+```
 
 ## Magic Link Registration (V16+)
 

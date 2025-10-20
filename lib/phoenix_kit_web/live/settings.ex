@@ -240,4 +240,12 @@ defmodule PhoenixKitWeb.Live.Settings do
   def get_current_time_example(format) do
     UtilsDate.format_time(Time.utc_now(), format)
   end
+
+  # Helper function to generate OAuth callback URL
+  def get_oauth_callback_url(settings, provider) do
+    site_url = settings["site_url"] || "https://example.com"
+    url_prefix = Application.get_env(:phoenix_kit, :url_prefix, "/phoenix_kit")
+
+    "#{site_url}#{url_prefix}/users/auth/#{provider}/callback"
+  end
 end
