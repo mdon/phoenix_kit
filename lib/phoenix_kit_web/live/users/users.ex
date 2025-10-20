@@ -668,26 +668,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   def render_column_cell(user, column_id, current_user, date_time_settings) do
     case TableColumns.get_column_metadata(column_id) do
-      %{type: :email} ->
-        render_email_cell(user)
-
-      %{type: :string} ->
-        render_string_cell(user, column_id)
-
-      %{type: :composite} ->
-        render_composite_cell(user, column_id)
-
-      %{type: :roles} ->
-        render_roles_cell(user)
-
-      %{type: :status} ->
-        render_status_cell(user)
-
-      %{type: :datetime} ->
-        render_datetime_cell(user, column_id, current_user, date_time_settings)
-
-      %{type: :location} ->
-        render_location_cell(user, column_id)
       %{type: type} = metadata ->
         render_cell_by_type(type, metadata, user, column_id, current_user, date_time_settings)
 
@@ -814,16 +794,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     else
       "-"
     end
-  end
-
-  defp render_location_cell(user, column_id) do
-    field = get_user_field(user, column_id)
-    if field && field != "", do: truncate_text(field, @max_cell_length), else: "-"
-  end
-
-  defp render_default_cell(user, column_id) do
-    field = get_user_field(user, column_id)
-    if field, do: truncate_text(field, @max_cell_length), else: "-"
   end
 
   defp render_location_cell(user, column_id) do
