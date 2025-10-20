@@ -38,8 +38,6 @@ defmodule PhoenixKitWeb.Plugs.Integration do
   zero performance impact when features are not in use.
   """
 
-  import Plug.Conn
-
   @doc """
   Initializes the plug with options.
   """
