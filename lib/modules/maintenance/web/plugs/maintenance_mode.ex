@@ -2,32 +2,25 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   @moduledoc """
   Plug that enforces maintenance mode for non-admin users.
 
-  When the Under Construction module is enabled, this plug will:
+  When the Maintenance module is enabled, this plug will:
   - Allow admins and owners to access the site normally
   - Show maintenance page to all other users
   - Work for both LiveView and regular controller routes
 
   ## Usage
 
-  Add to your browser pipeline in the parent app's router:
+  This plug is automatically called by PhoenixKitWeb.Plugs.Integration which is
+  added to your browser pipeline during installation. No manual setup required.
 
-      pipeline :browser do
-        plug :accepts, ["html"]
-        plug :fetch_session
-        plug :fetch_live_flash
-        plug :put_root_layout, html: {MyAppWeb.Layouts, :root}
-        plug :protect_from_forgery
-        plug :put_secure_browser_headers
-        plug PhoenixKitWeb.Plugs.MaintenanceMode  # Add this line
-      end
+  ## Internal Usage
 
-  That's it! The maintenance mode will now work for all pages.
+  The Integration plug calls this plug internally to check maintenance mode status.
   """
 
   import Plug.Conn
   import Phoenix.Controller
 
-  alias PhoenixKit.UnderConstruction
+  alias PhoenixKit.Maintenance
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
 
@@ -41,7 +34,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   """
   def call(conn, _opts) do
     # Only proceed if maintenance mode is enabled
-    if UnderConstruction.enabled?() do
+    if Maintenance.enabled?() do
       handle_maintenance_mode(conn)
     else
       conn
@@ -99,7 +92,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   end
 
   defp render_maintenance_page(conn) do
-    config = UnderConstruction.get_config()
+    config = Maintenance.get_config()
 
     html = """
     <!DOCTYPE html>
