@@ -76,7 +76,12 @@ defmodule PhoenixKitWeb.Plugs.EnsureOAuthScheme do
   end
 
   defp get_endpoint_url_config(endpoint_module) do
-    otp_app = endpoint_module.__info__(:attributes)[:otp_app] |> List.first()
+    # Safely extract otp_app attribute
+    otp_app =
+      case endpoint_module.__info__(:attributes)[:otp_app] do
+        [app | _] when is_atom(app) -> app
+        _ -> nil
+      end
 
     case Application.get_env(otp_app, endpoint_module) do
       nil -> []

@@ -180,8 +180,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_google_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">Google Sign-In</span>
                   </div>
@@ -192,8 +197,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_apple_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">Apple Sign-In</span>
                   </div>
@@ -208,8 +218,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_github_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">GitHub Sign-In</span>
                   </div>
@@ -219,7 +234,9 @@
               <%!-- OAuth Provider Credential Forms --%>
               <%= if @settings["oauth_enabled"] == "true" do %>
                 <%!-- Google OAuth Credentials --%>
-                <%= if @settings["oauth_google_enabled"] == "true" do %>
+                <div class={[
+                  if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
+                ]}>
                   <div class="card bg-base-200 p-4 mt-3">
                     <h3 class="font-semibold mb-3 flex items-center gap-2">
                       <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
@@ -269,18 +286,7 @@
                       </div>
                       <div class="collapse-content text-sm space-y-3">
                         <div class="alert alert-info py-2">
-                          <svg
-                            class="stroke-current shrink-0 h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
                           <span>
                             Callback URL:
                             <code class="ml-1 px-2 py-1 bg-base-100 rounded">
@@ -326,10 +332,12 @@
                       </div>
                     </div>
                   </div>
-                <% end %>
+                </div>
 
                 <%!-- Apple OAuth Credentials --%>
-                <%= if @settings["oauth_apple_enabled"] == "true" do %>
+                <div class={[
+                  if(@settings["oauth_apple_enabled"] != "true", do: "hidden", else: "")
+                ]}>
                   <div class="card bg-base-200 p-4 mt-3">
                     <h3 class="font-semibold mb-3 flex items-center gap-2">
                       <PhoenixKitWeb.Components.Core.Icons.icon_apple class="h-5 w-5" />
@@ -396,52 +404,53 @@
                       Test Credentials
                     </button>
                   </div>
-                <% end %>
+                </div>
 
                 <%!-- GitHub OAuth Credentials --%>
-                <%= if @settings["oauth_github_enabled"] == "true" do %>
-                  <div class="card bg-base-200 p-4 mt-3">
-                    <h3 class="font-semibold mb-3 flex items-center gap-2">
-                      <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
-                      GitHub OAuth Credentials
-                    </h3>
+                <div class={[
+                  "card bg-base-200 p-4 mt-3",
+                  if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
+                ]}>
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
+                    GitHub OAuth Credentials
+                  </h3>
 
-                    <div class="form-control">
-                      <label class="label">
-                        <span class="label-text">Client ID</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="settings[oauth_github_client_id]"
-                        value={@settings["oauth_github_client_id"] || ""}
-                        placeholder="Your GitHub OAuth Client ID"
-                        class="input input-bordered"
-                      />
-                    </div>
-
-                    <div class="form-control mt-2">
-                      <label class="label">
-                        <span class="label-text">Client Secret</span>
-                      </label>
-                      <input
-                        type="password"
-                        name="settings[oauth_github_client_secret]"
-                        value={@settings["oauth_github_client_secret"] || ""}
-                        placeholder="Your GitHub OAuth Client Secret"
-                        class="input input-bordered"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      phx-click="test_oauth"
-                      phx-value-provider="github"
-                      class="btn btn-sm btn-outline mt-3 w-fit"
-                    >
-                      Test Credentials
-                    </button>
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Client ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="settings[oauth_github_client_id]"
+                      value={@settings["oauth_github_client_id"] || ""}
+                      placeholder="Your GitHub OAuth Client ID"
+                      class="input input-bordered"
+                    />
                   </div>
-                <% end %>
+
+                  <div class="form-control mt-2">
+                    <label class="label">
+                      <span class="label-text">Client Secret</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="settings[oauth_github_client_secret]"
+                      value={@settings["oauth_github_client_secret"] || ""}
+                      placeholder="Your GitHub OAuth Client Secret"
+                      class="input input-bordered"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="github"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    Test Credentials
+                  </button>
+                </div>
 
                 <%!-- OAuth Configuration Notice --%>
                 <div class="alert alert-info text-sm mt-3">

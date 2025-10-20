@@ -9,6 +9,8 @@ defmodule PhoenixKitWeb.Users.Settings do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.OAuth
+  alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Utils.Routes
 
   def mount(%{"token" => token}, _session, socket) do
@@ -34,6 +36,13 @@ defmodule PhoenixKitWeb.Users.Settings do
     setting_options = Settings.get_setting_options()
     timezone_options = [{"Use System Default", nil} | setting_options["time_zone"]]
 
+    # Load OAuth providers for the user
+    oauth_providers = OAuth.get_user_oauth_providers(user.id)
+    oauth_available = OAuthAvailability.oauth_available?()
+
+    # Check which providers are available to connect
+    available_providers = get_available_oauth_providers(oauth_providers)
+
     socket =
       socket
       |> assign(:current_password, nil)
@@ -47,6 +56,9 @@ defmodule PhoenixKitWeb.Users.Settings do
       |> assign(:browser_timezone_offset, nil)
       |> assign(:timezone_mismatch_warning, nil)
       |> assign(:trigger_submit, false)
+      |> assign(:oauth_providers, oauth_providers)
+      |> assign(:oauth_available, oauth_available)
+      |> assign(:available_providers, available_providers)
 
     {:ok, socket}
   end
@@ -180,6 +192,63 @@ defmodule PhoenixKitWeb.Users.Settings do
     end
   end
 
+  def handle_event("connect_oauth_provider", %{"provider" => provider}, socket) do
+    # Redirect to OAuth authorization URL
+    # Store return_to in session so OAuth callback knows to return here
+    oauth_url = Routes.url("/users/auth/#{provider}?return_to=/phoenix_kit/users/settings")
+
+    socket =
+      socket
+      |> put_flash(:info, "Redirecting to #{format_provider_name(provider)}...")
+      |> redirect(external: oauth_url)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("disconnect_oauth_provider", %{"provider" => provider}, socket) do
+    user = socket.assigns.phoenix_kit_current_user
+
+    # Check if user can safely disconnect this provider
+    if can_disconnect_provider?(user, provider) do
+      case OAuth.unlink_oauth_provider(user.id, provider) do
+        {:ok, _} ->
+          # Reload OAuth providers list
+          oauth_providers = OAuth.get_user_oauth_providers(user.id)
+          available_providers = get_available_oauth_providers(oauth_providers)
+
+          socket =
+            socket
+            |> assign(:oauth_providers, oauth_providers)
+            |> assign(:available_providers, available_providers)
+            |> put_flash(
+              :info,
+              "#{format_provider_name(provider)} account disconnected successfully"
+            )
+
+          {:noreply, socket}
+
+        {:error, :not_found} ->
+          socket = put_flash(socket, :error, "Provider not found")
+          {:noreply, socket}
+
+        {:error, _reason} ->
+          socket = put_flash(socket, :error, "Failed to disconnect provider. Please try again.")
+          {:noreply, socket}
+      end
+    else
+      # User cannot disconnect - show warning
+      warning_message =
+        if user.hashed_password == nil do
+          "Cannot disconnect #{format_provider_name(provider)}. This is your only sign-in method. Please set a password or connect another provider first."
+        else
+          "Cannot disconnect #{format_provider_name(provider)}. Please ensure you have at least one sign-in method available."
+        end
+
+      socket = put_flash(socket, :error, warning_message)
+      {:noreply, socket}
+    end
+  end
+
   # Check for timezone mismatch based on current form values
   defp check_timezone_mismatch(socket, selected_timezone) do
     browser_offset = socket.assigns[:browser_timezone_offset]
@@ -265,4 +334,40 @@ defmodule PhoenixKitWeb.Users.Settings do
       _ -> false
     end
   end
+
+  # OAuth helper functions
+
+  defp get_available_oauth_providers(oauth_providers) do
+    # Get list of connected provider names
+    connected = Enum.map(oauth_providers, & &1.provider)
+
+    # All possible providers
+    all_providers = ["google", "apple", "github"]
+
+    # Filter out connected ones and check if each is enabled
+    all_providers
+    |> Enum.reject(&(&1 in connected))
+    |> Enum.filter(&provider_enabled?/1)
+  end
+
+  defp provider_enabled?("google"), do: OAuthAvailability.provider_enabled?(:google)
+  defp provider_enabled?("apple"), do: OAuthAvailability.provider_enabled?(:apple)
+  defp provider_enabled?("github"), do: OAuthAvailability.provider_enabled?(:github)
+  defp provider_enabled?(_), do: false
+
+  defp can_disconnect_provider?(user, _provider) do
+    # User can disconnect if they have:
+    # 1. A password set, OR
+    # 2. Multiple OAuth providers connected
+
+    has_password = user.hashed_password != nil
+    oauth_count = length(OAuth.get_user_oauth_providers(user.id))
+
+    has_password or oauth_count > 1
+  end
+
+  defp format_provider_name("google"), do: "Google"
+  defp format_provider_name("apple"), do: "Apple"
+  defp format_provider_name("github"), do: "GitHub"
+  defp format_provider_name(provider), do: String.capitalize(provider)
 end
