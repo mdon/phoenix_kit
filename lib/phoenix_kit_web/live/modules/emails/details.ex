@@ -340,14 +340,20 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Details do
         <div class="text-xs text-base-content/60">
           <%= if get_in(@event.event_data, ["processingTimeMillis"]) do %>
             <div>
-              Processing time: <span class="font-medium">{get_in(@event.event_data, ["processingTimeMillis"])} ms</span>
+              Processing time:
+              <span class="font-medium">{get_in(@event.event_data, ["processingTimeMillis"])} ms</span>
             </div>
           <% end %>
           <%= if get_in(@event.event_data, ["smtpResponse"]) do %>
-            <div>SMTP: <span class="font-mono text-success">{get_in(@event.event_data, ["smtpResponse"])}</span></div>
+            <div>
+              SMTP:
+              <span class="font-mono text-success">{get_in(@event.event_data, ["smtpResponse"])}</span>
+            </div>
           <% end %>
           <%= if get_in(@event.event_data, ["reportingMTA"]) do %>
-            <div>Server: <span class="font-mono">{get_in(@event.event_data, ["reportingMTA"])}</span></div>
+            <div>
+              Server: <span class="font-mono">{get_in(@event.event_data, ["reportingMTA"])}</span>
+            </div>
           <% end %>
         </div>
         """
@@ -360,7 +366,10 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Details do
           <%= if @event.aws_message_id do %>
             <div>
               AWS Message ID:
-              <span class="font-mono text-xs break-all">{String.slice(@event.aws_message_id, 0, 40)}{if String.length(@event.aws_message_id) > 40, do: "..."}</span>
+              <span class="font-mono text-xs break-all">
+                {String.slice(@event.aws_message_id, 0, 40)}{if String.length(@event.aws_message_id) > 40,
+                  do: "..."}
+              </span>
             </div>
           <% end %>
         </div>
