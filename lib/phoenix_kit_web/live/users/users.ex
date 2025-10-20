@@ -669,55 +669,79 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def render_column_cell(user, column_id, current_user, date_time_settings) do
     case TableColumns.get_column_metadata(column_id) do
       %{type: :email} ->
-        truncate_text(user.email, @max_cell_length)
+        render_email_cell(user)
 
       %{type: :string} ->
-        field = get_user_field(user, column_id)
-        if field, do: truncate_text(field, @max_cell_length), else: "-"
+        render_string_cell(user, column_id)
 
       %{type: :composite} ->
-        # Handle composite fields like full_name
-        case column_id do
-          "full_name" ->
-            truncate_text(User.full_name(user), @max_cell_length)
-
-          _ ->
-            "-"
-        end
+        render_composite_cell(user, column_id)
 
       %{type: :roles} ->
-        _roles = get_user_roles(user)
-        get_primary_role_name_unsafe(user)
+        render_roles_cell(user)
 
       %{type: :status} ->
-        if user.is_active, do: "Active", else: "Inactive"
+        render_status_cell(user)
 
       %{type: :datetime} ->
-        field = get_user_field(user, column_id)
-
-        if field,
-          do:
-            truncate_text(
-              UtilsDate.format_datetime_with_user_timezone_cached(
-                field,
-                current_user,
-                date_time_settings
-              ),
-              @max_cell_length
-            ),
-          else: "-"
+        render_datetime_cell(user, column_id, current_user, date_time_settings)
 
       %{type: :location} ->
-        field = get_user_field(user, column_id)
-        if field && field != "", do: truncate_text(field, @max_cell_length), else: "-"
+        render_location_cell(user, column_id)
 
       %{type: :custom_field, field_type: field_type} ->
         render_custom_field_cell(user, column_id, field_type)
 
       _ ->
-        field = get_user_field(user, column_id)
-        if field, do: truncate_text(field, @max_cell_length), else: "-"
+        render_default_cell(user, column_id)
     end
+  end
+
+  # Column cell rendering helpers
+  defp render_email_cell(user), do: truncate_text(user.email, @max_cell_length)
+
+  defp render_string_cell(user, column_id) do
+    field = get_user_field(user, column_id)
+    if field, do: truncate_text(field, @max_cell_length), else: "-"
+  end
+
+  defp render_composite_cell(user, "full_name"),
+    do: truncate_text(User.full_name(user), @max_cell_length)
+
+  defp render_composite_cell(_user, _column_id), do: "-"
+
+  defp render_roles_cell(user) do
+    _roles = get_user_roles(user)
+    get_primary_role_name_unsafe(user)
+  end
+
+  defp render_status_cell(user), do: if(user.is_active, do: "Active", else: "Inactive")
+
+  defp render_datetime_cell(user, column_id, current_user, date_time_settings) do
+    field = get_user_field(user, column_id)
+
+    if field do
+      truncate_text(
+        UtilsDate.format_datetime_with_user_timezone_cached(
+          field,
+          current_user,
+          date_time_settings
+        ),
+        @max_cell_length
+      )
+    else
+      "-"
+    end
+  end
+
+  defp render_location_cell(user, column_id) do
+    field = get_user_field(user, column_id)
+    if field && field != "", do: truncate_text(field, @max_cell_length), else: "-"
+  end
+
+  defp render_default_cell(user, column_id) do
+    field = get_user_field(user, column_id)
+    if field, do: truncate_text(field, @max_cell_length), else: "-"
   end
 
   defp get_user_field(user, column_id) do

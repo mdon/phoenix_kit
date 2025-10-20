@@ -38,6 +38,8 @@ defmodule PhoenixKitWeb.Plugs.Integration do
   zero performance impact when features are not in use.
   """
 
+  alias PhoenixKitWeb.Plugs.MaintenanceMode
+
   @doc """
   Initializes the plug with options.
   """
@@ -57,6 +59,6 @@ defmodule PhoenixKitWeb.Plugs.Integration do
 
   # Run maintenance mode check
   defp run_maintenance_mode_check(conn) do
-    PhoenixKitWeb.Plugs.MaintenanceMode.call(conn, [])
+    MaintenanceMode.call(conn, [])
   end
 end

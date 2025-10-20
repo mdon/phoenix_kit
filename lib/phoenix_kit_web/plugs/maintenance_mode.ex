@@ -40,28 +40,39 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   Checks if maintenance mode is enabled and renders maintenance page for non-admin users.
   """
   def call(conn, _opts) do
-    # Skip if maintenance mode is disabled
-    if not UnderConstruction.enabled?() do
+    # Only proceed if maintenance mode is enabled
+    if UnderConstruction.enabled?() do
+      handle_maintenance_mode(conn)
+    else
+      conn
+    end
+  end
+
+  # Handle maintenance mode logic
+  defp handle_maintenance_mode(conn) do
+    # Skip maintenance mode for auth routes and static assets
+    if should_skip_maintenance?(conn.request_path) do
       conn
     else
-      # Skip maintenance mode for auth routes and static assets
-      if should_skip_maintenance?(conn.request_path) do
+      # Get user from session and check if admin/owner
+      user = get_user_from_session(conn)
+
+      if user_is_admin_or_owner?(user) do
+        # Admin/Owner bypasses maintenance mode
         conn
       else
-        # Get user from session
-        user = get_user_from_session(conn)
-        scope = Scope.for_user(user)
-
-        # Check if user is admin/owner
-        if scope && (Scope.admin?(scope) || Scope.owner?(scope)) do
-          # Admin/Owner bypasses maintenance mode
-          conn
-        else
-          # Non-admin user - render maintenance page
-          render_maintenance_page(conn)
-        end
+        # Non-admin user - render maintenance page
+        render_maintenance_page(conn)
       end
     end
+  end
+
+  # Check if user is admin or owner
+  defp user_is_admin_or_owner?(nil), do: false
+
+  defp user_is_admin_or_owner?(user) do
+    scope = Scope.for_user(user)
+    Scope.admin?(scope) || Scope.owner?(scope)
   end
 
   # Skip maintenance mode for these paths
