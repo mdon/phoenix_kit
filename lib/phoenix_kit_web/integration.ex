@@ -280,8 +280,8 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
 
-          live "/admin/settings/under-construction",
-               Live.Modules.UnderConstruction.Settings,
+          live "/admin/settings/maintenance",
+               Live.Modules.Maintenance.Settings,
                :index
 
           live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index
@@ -384,8 +384,8 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
 
-          live "/admin/settings/under-construction",
-               Live.Modules.UnderConstruction.Settings,
+          live "/admin/settings/maintenance",
+               Live.Modules.Maintenance.Settings,
                :index
 
           live "/admin/users/referral-codes", Live.Users.ReferralCodes, :index

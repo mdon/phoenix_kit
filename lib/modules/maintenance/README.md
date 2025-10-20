@@ -1,6 +1,6 @@
-# Under Construction (Maintenance Mode) Module
+# Maintenance Mode Module
 
-The Under Construction module provides a system-wide maintenance mode that allows you to temporarily show a maintenance page to non-admin users while you work on the site. Admins and owners can still access the site normally.
+The Maintenance module provides a system-wide maintenance mode that allows you to temporarily show a maintenance page to non-admin users while you work on the site. Admins and owners can still access the site normally.
 
 ## Overview
 
@@ -8,23 +8,34 @@ This is a true maintenance mode system - not just a component you add to pages, 
 
 ## Quick Start (Parent App Setup)
 
-To enable maintenance mode in your parent application, add ONE line to your browser pipeline:
+The maintenance mode module is automatically configured when you install PhoenixKit:
+
+```bash
+# Run the PhoenixKit installer
+mix phoenix_kit.install
+```
+
+The installer automatically adds the required integration plug to your browser pipeline, so maintenance mode will work immediately after installation.
+
+**That's it!** Now when you enable maintenance mode from `/admin/modules`, non-admin users will see the maintenance page on ALL pages of your site.
+
+### What the Installer Does
+
+The installer automatically adds this line to your `lib/your_app_web/router.ex`:
 
 ```elixir
-# In your parent app's router (e.g., lib/my_app_web/router.ex)
-
 pipeline :browser do
   plug :accepts, ["html"]
   plug :fetch_session
   plug :fetch_live_flash
-  plug :put_root_layout, html: {MyAppWeb.Layouts, :root}
+  plug :put_root_layout, html: {YourAppWeb.Layouts, :root}
   plug :protect_from_forgery
   plug :put_secure_browser_headers
-  plug PhoenixKitWeb.Plugs.MaintenanceMode  # ← Add this line
+  plug PhoenixKitWeb.Plugs.Integration  # ← Added automatically
 end
 ```
 
-That's it! Now when you enable maintenance mode from `/admin/modules`, non-admin users will see the maintenance page on ALL pages of your site.
+No manual configuration required!
 
 ## Core Features
 
@@ -35,10 +46,27 @@ That's it! Now when you enable maintenance mode from `/admin/modules`, non-admin
 - **Customizable Content** – Configure header and subtext via database settings
 - **Database Storage** – Settings persisted in `phoenix_kit_settings` table
 
+## Module Structure
+
+```
+lib/modules/maintenance/
+├── README.md                     # This documentation
+├── maintenance.ex               # Main context module (pure Elixir)
+├── settings.ex                   # Settings interface (pure Elixir)
+└── web/                          # Web-specific code
+    ├── plugs/
+    │   └── maintenance_mode.ex   # Maintenance mode plug
+    ├── components/
+    │   └── maintenance_page.ex   # Maintenance page component
+    └── settings.html.heex        # Settings UI template
+```
+
 ## Integration Points
 
-- **Plug:** `PhoenixKitWeb.Plugs.MaintenanceMode` (main entry point)
-- **Context module:** `PhoenixKit.UnderConstruction`
+- **Plug:** `PhoenixKitWeb.Plugs.Integration` (main entry point that internally calls `PhoenixKitWeb.Plugs.MaintenanceMode` at `lib/modules/maintenance/web/plugs/maintenance_mode.ex`)
+- **Context module:** `PhoenixKit.Maintenance` (at `lib/modules/maintenance/maintenance.ex`)
+- **Settings interface:** `PhoenixKit.Maintenance` settings API (at `lib/modules/maintenance/settings.ex`)
+- **Component:** `MaintenancePage.maintenance_page/1` (at `lib/modules/maintenance/web/components/maintenance_page.ex`)
 - **Auth integration:** Checks user session for admin/owner role
 - **Module card:** Displayed in Modules dashboard at `{prefix}/admin/modules`
 - **Settings storage:** Database-backed via `phoenix_kit_settings` table
@@ -104,7 +132,7 @@ end
 
 ## Context API
 
-### `PhoenixKit.UnderConstruction`
+### `PhoenixKit.Maintenance`
 
 **Available functions:**
 
@@ -121,25 +149,25 @@ end
 
 ```elixir
 # Check if maintenance mode is enabled
-if PhoenixKit.UnderConstruction.enabled?() do
+if PhoenixKit.Maintenance.enabled?() do
   # Maintenance mode is active
 end
 
 # Enable maintenance mode
-{:ok, setting} = PhoenixKit.UnderConstruction.enable_system()
+{:ok, setting} = PhoenixKit.Maintenance.enable_system()
 
 # Disable maintenance mode
-{:ok, setting} = PhoenixKit.UnderConstruction.disable_system()
+{:ok, setting} = PhoenixKit.Maintenance.disable_system()
 
 # Update maintenance page content
-PhoenixKit.UnderConstruction.update_header("Coming Soon!")
-PhoenixKit.UnderConstruction.update_subtext("We're launching something amazing...")
+PhoenixKit.Maintenance.update_header("Coming Soon!")
+PhoenixKit.Maintenance.update_subtext("We're launching something amazing...")
 
 # Get full configuration
-config = PhoenixKit.UnderConstruction.get_config()
+config = PhoenixKit.Maintenance.get_config()
 # => %{
 #      enabled: true,
-#      header: "Under Construction",
+#      header: "Maintenance Mode",
 #      subtext: "We'll be back soon..."
 #    }
 ```
@@ -182,9 +210,9 @@ The maintenance mode module appears in the Modules dashboard at `{prefix}/admin/
 The module uses the PhoenixKit Settings system to persist configuration:
 
 **Setting keys:**
-- `under_construction_enabled` (boolean, default: `false`)
-- `under_construction_header` (string, default: `"Under Construction"`)
-- `under_construction_subtext` (string, default: `"We'll be back soon. Our team is working hard to bring you something amazing!"`)
+- `maintenance_enabled` (boolean, default: `false`)
+- `maintenance_header` (string, default: `"Maintenance Mode"`)
+- `maintenance_subtext` (string, default: `"We'll be back soon. Our team is working hard to bring you something amazing!"`)
 
 **Storage:** `phoenix_kit_settings` database table
 
@@ -204,7 +232,7 @@ The module uses the PhoenixKit Settings system to persist configuration:
 2. `on_mount` hook checks maintenance mode → enabled
 3. User is not admin → `@show_maintenance = true`
 4. Layout renders maintenance page instead of content
-5. User sees "Under Construction" message
+5. User sees "Maintenance Mode" message
 6. Admin disables maintenance mode
 7. User refreshes page → sees real content (no redirect needed)
 
@@ -232,26 +260,26 @@ The module uses the PhoenixKit Settings system to persist configuration:
 
 ```elixir
 # Via IEx or Phoenix console
-PhoenixKit.UnderConstruction.update_header("Scheduled Maintenance")
-PhoenixKit.UnderConstruction.update_subtext("We'll be back online at 3:00 PM EST. Thank you for your patience!")
+PhoenixKit.Maintenance.update_header("Scheduled Maintenance")
+PhoenixKit.Maintenance.update_subtext("We'll be back online at 3:00 PM EST. Thank you for your patience!")
 ```
 
 ### Enable/Disable via Code
 
 ```elixir
 # Enable for deployment
-PhoenixKit.UnderConstruction.enable_system()
+PhoenixKit.Maintenance.enable_system()
 
 # Run migrations, deploy new code, test, etc.
 
 # Disable when ready
-PhoenixKit.UnderConstruction.disable_system()
+PhoenixKit.Maintenance.disable_system()
 ```
 
 ### Check Status in Templates
 
 ```heex
-<%= if PhoenixKit.UnderConstruction.enabled?() do %>
+<%= if PhoenixKit.Maintenance.enabled?() do %>
   <div class="alert alert-warning">
     Maintenance mode is currently active for non-admin users.
   </div>
@@ -298,6 +326,6 @@ Potential additions to this module could include:
 
 - Clear browser cache and refresh
 - Check Settings database for correct values
-- Verify `PhoenixKit.UnderConstruction.get_header()` returns expected value
+- Verify `PhoenixKit.Maintenance.get_header()` returns expected value
 
-Update this README whenever new features, components, or workflows are added to the Under Construction module so CLAUDE.md can remain lightweight.
+Update this README whenever new features, components, or workflows are added to the Maintenance module so CLAUDE.md can remain lightweight.

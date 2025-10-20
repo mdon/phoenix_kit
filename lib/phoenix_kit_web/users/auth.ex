@@ -522,7 +522,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp check_maintenance_mode(socket) do
     # Check if maintenance mode is enabled
-    if PhoenixKit.UnderConstruction.enabled?() do
+    if PhoenixKit.Maintenance.enabled?() do
       scope = socket.assigns[:phoenix_kit_current_scope]
 
       # Admins and owners can bypass maintenance mode

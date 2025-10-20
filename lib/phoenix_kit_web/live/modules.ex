@@ -12,7 +12,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   alias PhoenixKit.Pages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
-  alias PhoenixKit.UnderConstruction
+  alias PhoenixKit.Maintenance
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Modules do
     languages_config = Languages.get_config()
     entities_config = Entities.get_config()
     pages_enabled = Pages.enabled?()
-    under_construction_config = UnderConstruction.get_config()
+    under_construction_config = Maintenance.get_config()
 
     socket =
       socket
@@ -236,9 +236,9 @@ defmodule PhoenixKitWeb.Live.Modules do
 
     result =
       if new_module_enabled do
-        UnderConstruction.enable_module()
+        Maintenance.enable_module()
       else
-        UnderConstruction.disable_module()
+        Maintenance.disable_module()
       end
 
     case result do

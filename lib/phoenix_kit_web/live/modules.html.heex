@@ -304,7 +304,7 @@
           <div class="flex flex-col gap-2 w-full">
             <%= if @under_construction_module_enabled do %>
               <.link
-                navigate={PhoenixKit.Utils.Routes.path("/admin/settings/under-construction")}
+                navigate={PhoenixKit.Utils.Routes.path("/admin/settings/maintenance")}
                 class="btn btn-sm btn-primary"
               >
                 <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
@@ -319,7 +319,7 @@
               </div>
             <% else %>
               <.link
-                navigate={PhoenixKit.Utils.Routes.path("/admin/settings/under-construction")}
+                navigate={PhoenixKit.Utils.Routes.path("/admin/settings/maintenance")}
                 class="btn btn-sm btn-outline"
               >
                 <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure

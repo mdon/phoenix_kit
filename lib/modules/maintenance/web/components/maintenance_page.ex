@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
   @moduledoc """
-  Displays a full-page maintenance/under construction message.
+  Displays a full-page maintenance message.
 
-  This component is shown to non-admin users when the Under Construction
+  This component is shown to non-admin users when the Maintenance
   module is enabled, replacing the normal page content.
   """
 
@@ -29,10 +29,10 @@ defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
     assigns =
       assigns
       |> assign_new(:header, fn ->
-        PhoenixKit.UnderConstruction.get_header()
+        PhoenixKit.Maintenance.get_header()
       end)
       |> assign_new(:subtext, fn ->
-        PhoenixKit.UnderConstruction.get_subtext()
+        PhoenixKit.Maintenance.get_subtext()
       end)
 
     ~H"""
