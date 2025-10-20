@@ -29,10 +29,10 @@ defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
     assigns =
       assigns
       |> assign_new(:header, fn ->
-        PhoenixKit.Maintenance.get_header()
+        PhoenixKit.Modules.Maintenance.get_header()
       end)
       |> assign_new(:subtext, fn ->
-        PhoenixKit.Maintenance.get_subtext()
+        PhoenixKit.Modules.Maintenance.get_subtext()
       end)
 
     ~H"""

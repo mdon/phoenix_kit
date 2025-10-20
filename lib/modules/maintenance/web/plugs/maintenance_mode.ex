@@ -20,7 +20,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   import Plug.Conn
   import Phoenix.Controller
 
-  alias PhoenixKit.Maintenance
+  alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
 
