@@ -272,22 +272,26 @@
                         Headers
                       </label>
                       <div class="bg-base-200 p-3 rounded text-sm max-h-40 overflow-y-auto">
-                        <table class="table-auto w-full text-xs">
-                          <thead>
-                            <tr class="border-b">
-                              <th class="text-left py-1 pr-4">Header</th>
-                              <th class="text-left py-1">Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        <.table_default size="xs" class="w-full">
+                          <.table_default_header>
+                            <.table_default_row>
+                              <.table_default_header_cell>Header</.table_default_header_cell>
+                              <.table_default_header_cell>Value</.table_default_header_cell>
+                            </.table_default_row>
+                          </.table_default_header>
+                          <.table_default_body>
                             <%= for {key, value} <- @email_log.headers do %>
-                              <tr class="border-b border-gray-200">
-                                <td class="py-1 pr-4 font-medium">{key}</td>
-                                <td class="py-1 break-all">{value}</td>
-                              </tr>
+                              <.table_default_row>
+                                <.table_default_cell class="font-medium">
+                                  {key}
+                                </.table_default_cell>
+                                <.table_default_cell class="break-all">
+                                  {value}
+                                </.table_default_cell>
+                              </.table_default_row>
                             <% end %>
-                          </tbody>
-                        </table>
+                          </.table_default_body>
+                        </.table_default>
                       </div>
                     </div>
                   <% end %>
