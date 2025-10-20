@@ -8,23 +8,34 @@ This is a true maintenance mode system - not just a component you add to pages, 
 
 ## Quick Start (Parent App Setup)
 
-To enable maintenance mode in your parent application, add ONE line to your browser pipeline:
+The maintenance mode module is automatically configured when you install PhoenixKit:
+
+```bash
+# Run the PhoenixKit installer
+mix phoenix_kit.install
+```
+
+The installer automatically adds the required integration plug to your browser pipeline, so maintenance mode will work immediately after installation.
+
+**That's it!** Now when you enable maintenance mode from `/admin/modules`, non-admin users will see the maintenance page on ALL pages of your site.
+
+### What the Installer Does
+
+The installer automatically adds this line to your `lib/your_app_web/router.ex`:
 
 ```elixir
-# In your parent app's router (e.g., lib/my_app_web/router.ex)
-
 pipeline :browser do
   plug :accepts, ["html"]
   plug :fetch_session
   plug :fetch_live_flash
-  plug :put_root_layout, html: {MyAppWeb.Layouts, :root}
+  plug :put_root_layout, html: {YourAppWeb.Layouts, :root}
   plug :protect_from_forgery
   plug :put_secure_browser_headers
-  plug PhoenixKitWeb.Plugs.MaintenanceMode  # ← Add this line
+  plug PhoenixKitWeb.Plugs.Integration  # ← Added automatically
 end
 ```
 
-That's it! Now when you enable maintenance mode from `/admin/modules`, non-admin users will see the maintenance page on ALL pages of your site.
+No manual configuration required!
 
 ## Core Features
 
@@ -35,10 +46,27 @@ That's it! Now when you enable maintenance mode from `/admin/modules`, non-admin
 - **Customizable Content** – Configure header and subtext via database settings
 - **Database Storage** – Settings persisted in `phoenix_kit_settings` table
 
+## Module Structure
+
+```
+lib/modules/maintenance/
+├── README.md                     # This documentation
+├── under_construction.ex         # Main context module (pure Elixir)
+├── settings.ex                   # Settings interface (pure Elixir)
+└── web/                          # Web-specific code
+    ├── plugs/
+    │   └── maintenance_mode.ex   # Maintenance mode plug
+    ├── components/
+    │   └── maintenance_page.ex   # Maintenance page component
+    └── settings.html.heex        # Settings UI template
+```
+
 ## Integration Points
 
-- **Plug:** `PhoenixKitWeb.Plugs.MaintenanceMode` (main entry point)
-- **Context module:** `PhoenixKit.UnderConstruction`
+- **Plug:** `PhoenixKitWeb.Plugs.Integration` (main entry point that internally calls `PhoenixKitWeb.Plugs.MaintenanceMode` at `lib/modules/maintenance/web/plugs/maintenance_mode.ex`)
+- **Context module:** `PhoenixKit.UnderConstruction` (at `lib/modules/maintenance/under_construction.ex`)
+- **Settings interface:** `PhoenixKit.UnderConstruction` settings API (at `lib/modules/maintenance/settings.ex`)
+- **Component:** `MaintenancePage.maintenance_page/1` (at `lib/modules/maintenance/web/components/maintenance_page.ex`)
 - **Auth integration:** Checks user session for admin/owner role
 - **Module card:** Displayed in Modules dashboard at `{prefix}/admin/modules`
 - **Settings storage:** Database-backed via `phoenix_kit_settings` table
