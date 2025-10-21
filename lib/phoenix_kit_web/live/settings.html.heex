@@ -197,8 +197,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_google_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">Google Sign-In</span>
                   </div>
@@ -209,8 +214,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_apple_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">Apple Sign-In</span>
                   </div>
@@ -225,8 +235,13 @@
                       type="checkbox"
                       value="true"
                       checked={@settings["oauth_github_enabled"] == "true"}
-                      disabled={@settings["oauth_enabled"] != "true"}
-                      class="checkbox checkbox-primary"
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
                     />
                     <span class="label-text">GitHub Sign-In</span>
                   </div>
@@ -236,7 +251,9 @@
               <%!-- OAuth Provider Credential Forms --%>
               <%= if @settings["oauth_enabled"] == "true" do %>
                 <%!-- Google OAuth Credentials --%>
-                <%= if @settings["oauth_google_enabled"] == "true" do %>
+                <div class={[
+                  if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
+                ]}>
                   <div class="card bg-base-200 p-4 mt-3">
                     <h3 class="font-semibold mb-3 flex items-center gap-2">
                       <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
@@ -277,11 +294,67 @@
                     >
                       Test Credentials
                     </button>
+
+                    <%!-- Google OAuth Setup Instructions --%>
+                    <div class="collapse collapse-arrow bg-base-300 mt-4">
+                      <input type="checkbox" class="peer" />
+                      <div class="collapse-title text-sm font-medium">
+                        Setup Instructions
+                      </div>
+                      <div class="collapse-content text-sm space-y-3">
+                        <div class="alert alert-info py-2">
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
+                          <span>
+                            Callback URL:
+                            <code class="ml-1 px-2 py-1 bg-base-100 rounded">
+                              {get_oauth_callback_url(@settings, "google")}
+                            </code>
+                          </span>
+                        </div>
+
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            Visit
+                            <a
+                              href="https://console.cloud.google.com/apis/credentials"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              Google Cloud Console
+                            </a>
+                          </li>
+                          <li>Create project or select existing one</li>
+                          <li>
+                            Go to <strong>Credentials</strong>
+                            → <strong>Create Credentials</strong>
+                            → <strong>OAuth client ID</strong>
+                          </li>
+                          <li>
+                            Select <strong>Web application</strong> type
+                          </li>
+                          <li>
+                            Add callback URL above to <strong>Authorized redirect URIs</strong>
+                          </li>
+                          <li>Copy Client ID and Secret to fields above</li>
+                          <li>
+                            Click <strong>Test Credentials</strong> to verify setup
+                          </li>
+                        </ol>
+
+                        <div class="text-xs text-base-content/60">
+                          <strong>Reverse Proxy Users:</strong>
+                          If behind nginx/apache, ensure <code>X-Forwarded-Proto</code>
+                          header is set to <code>https</code>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                <% end %>
+                </div>
 
                 <%!-- Apple OAuth Credentials --%>
-                <%= if @settings["oauth_apple_enabled"] == "true" do %>
+                <div class={[
+                  if(@settings["oauth_apple_enabled"] != "true", do: "hidden", else: "")
+                ]}>
                   <div class="card bg-base-200 p-4 mt-3">
                     <h3 class="font-semibold mb-3 flex items-center gap-2">
                       <PhoenixKitWeb.Components.Core.Icons.icon_apple class="h-5 w-5" />
@@ -348,52 +421,53 @@
                       Test Credentials
                     </button>
                   </div>
-                <% end %>
+                </div>
 
                 <%!-- GitHub OAuth Credentials --%>
-                <%= if @settings["oauth_github_enabled"] == "true" do %>
-                  <div class="card bg-base-200 p-4 mt-3">
-                    <h3 class="font-semibold mb-3 flex items-center gap-2">
-                      <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
-                      GitHub OAuth Credentials
-                    </h3>
+                <div class={[
+                  "card bg-base-200 p-4 mt-3",
+                  if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
+                ]}>
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
+                    GitHub OAuth Credentials
+                  </h3>
 
-                    <div class="form-control">
-                      <label class="label">
-                        <span class="label-text">Client ID</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="settings[oauth_github_client_id]"
-                        value={@settings["oauth_github_client_id"] || ""}
-                        placeholder="Your GitHub OAuth Client ID"
-                        class="input input-bordered"
-                      />
-                    </div>
-
-                    <div class="form-control mt-2">
-                      <label class="label">
-                        <span class="label-text">Client Secret</span>
-                      </label>
-                      <input
-                        type="password"
-                        name="settings[oauth_github_client_secret]"
-                        value={@settings["oauth_github_client_secret"] || ""}
-                        placeholder="Your GitHub OAuth Client Secret"
-                        class="input input-bordered"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      phx-click="test_oauth"
-                      phx-value-provider="github"
-                      class="btn btn-sm btn-outline mt-3 w-fit"
-                    >
-                      Test Credentials
-                    </button>
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Client ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="settings[oauth_github_client_id]"
+                      value={@settings["oauth_github_client_id"] || ""}
+                      placeholder="Your GitHub OAuth Client ID"
+                      class="input input-bordered"
+                    />
                   </div>
-                <% end %>
+
+                  <div class="form-control mt-2">
+                    <label class="label">
+                      <span class="label-text">Client Secret</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="settings[oauth_github_client_secret]"
+                      value={@settings["oauth_github_client_secret"] || ""}
+                      placeholder="Your GitHub OAuth Client Secret"
+                      class="input input-bordered"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="github"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    Test Credentials
+                  </button>
+                </div>
 
                 <%!-- OAuth Configuration Notice --%>
                 <div class="alert alert-info text-sm mt-3">

@@ -7,8 +7,8 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
-  alias PhoenixKit.Settings
   alias PhoenixKit.Modules.Maintenance
+  alias PhoenixKit.Settings
 
   def mount(_params, _session, socket) do
     # Get current settings
@@ -212,7 +212,6 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
                   </label>
                 </div>
 
-                
                 <%!-- Action Buttons --%>
                 <div class="flex gap-2">
                   <button

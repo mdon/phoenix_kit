@@ -60,7 +60,16 @@ defmodule PhoenixKit.Settings.Setting do
     "aws_sqs_dlq_url",
     "aws_sqs_queue_arn",
     "aws_sns_topic_arn",
-    "site_url"
+    "site_url",
+    # OAuth Provider Credentials
+    "oauth_google_client_id",
+    "oauth_google_client_secret",
+    "oauth_apple_client_id",
+    "oauth_apple_team_id",
+    "oauth_apple_key_id",
+    "oauth_apple_private_key",
+    "oauth_github_client_id",
+    "oauth_github_client_secret"
   ]
 
   @primary_key {:id, :id, autogenerate: true}

@@ -9,10 +9,10 @@ defmodule PhoenixKitWeb.Live.Modules do
 
   alias PhoenixKit.Entities
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Pages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
-  alias PhoenixKit.Modules.Maintenance
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process

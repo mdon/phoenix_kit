@@ -94,7 +94,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
     providers =
       if Settings.has_oauth_credentials?(:github) and
            Settings.get_boolean_setting("oauth_github_enabled", false) do
-        Map.put(providers, :github, {Ueberauth.Strategy.GitHub, []})
+        Map.put(providers, :github, {Ueberauth.Strategy.Github, []})
       else
         providers
       end
@@ -156,7 +156,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
           client_secret: credentials.client_secret
         ]
 
-        Application.put_env(:ueberauth, Ueberauth.Strategy.GitHub.OAuth, config)
+        Application.put_env(:ueberauth, Ueberauth.Strategy.Github.OAuth, config)
         Logger.debug("OAuth: Configured GitHub OAuth provider")
       else
         Logger.debug("OAuth: GitHub enabled but credentials not configured")

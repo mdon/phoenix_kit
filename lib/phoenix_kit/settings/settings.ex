@@ -442,8 +442,8 @@ defmodule PhoenixKit.Settings do
         settings = get_settings_cached(keys, defaults)
 
         %{
-          client_id: settings["oauth_google_client_id"],
-          client_secret: settings["oauth_google_client_secret"]
+          client_id: settings["oauth_google_client_id"] || "",
+          client_secret: settings["oauth_google_client_secret"] || ""
         }
 
       :apple ->
@@ -464,10 +464,10 @@ defmodule PhoenixKit.Settings do
         settings = get_settings_cached(keys, defaults)
 
         %{
-          client_id: settings["oauth_apple_client_id"],
-          team_id: settings["oauth_apple_team_id"],
-          key_id: settings["oauth_apple_key_id"],
-          private_key: settings["oauth_apple_private_key"]
+          client_id: settings["oauth_apple_client_id"] || "",
+          team_id: settings["oauth_apple_team_id"] || "",
+          key_id: settings["oauth_apple_key_id"] || "",
+          private_key: settings["oauth_apple_private_key"] || ""
         }
 
       :github ->
@@ -476,8 +476,8 @@ defmodule PhoenixKit.Settings do
         settings = get_settings_cached(keys, defaults)
 
         %{
-          client_id: settings["oauth_github_client_id"],
-          client_secret: settings["oauth_github_client_secret"]
+          client_id: settings["oauth_github_client_id"] || "",
+          client_secret: settings["oauth_github_client_secret"] || ""
         }
     end
   end
@@ -1106,9 +1106,9 @@ defmodule PhoenixKit.Settings do
     settings_to_update =
       changeset_data
       |> Map.from_struct()
-      # Filter out nil values to avoid validation errors for optional fields
-      |> Enum.filter(fn {_k, v} -> v != nil end)
-      |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+      # Convert nil to empty string for storage (optional fields are allowed to be empty)
+      |> Enum.map(fn {k, v} -> {Atom.to_string(k), v || ""} end)
+      |> Map.new()
 
     # Update each setting in the database
     updated_settings =

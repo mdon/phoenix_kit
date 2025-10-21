@@ -152,11 +152,34 @@ if Code.ensure_loaded?(Ueberauth) do
     defp build_raw_data(oauth_data) do
       %{
         image: oauth_data[:image],
-        raw_info: oauth_data[:raw_info] || %{}
+        raw_info: serialize_raw_info(oauth_data[:raw_info])
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Enum.into(%{})
     end
+
+    defp serialize_raw_info(nil), do: %{}
+
+    defp serialize_raw_info(raw_info) when is_map(raw_info) do
+      Enum.into(raw_info, %{}, fn {key, value} ->
+        {key, serialize_value(value)}
+      end)
+    end
+
+    defp serialize_raw_info(raw_info), do: raw_info
+
+    # Serialize OAuth2.AccessToken if present
+    defp serialize_value(%OAuth2.AccessToken{} = token) do
+      %{
+        access_token: token.access_token,
+        refresh_token: token.refresh_token,
+        expires_at: token.expires_at,
+        token_type: token.token_type,
+        other_params: token.other_params
+      }
+    end
+
+    defp serialize_value(value), do: value
 
     defp maybe_process_referral_code(_user, nil), do: :ok
 

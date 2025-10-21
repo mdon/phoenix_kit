@@ -257,21 +257,23 @@
             <h2 class="card-title text-lg mb-4">Provider Performance</h2>
             <%= if @metrics.by_provider && length(Map.keys(@metrics.by_provider)) > 0 do %>
               <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Provider</th>
-                      <th>Sent</th>
-                      <th>Delivery Rate</th>
-                      <th>Bounce Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <.table_default size="sm">
+                  <.table_default_header>
+                    <.table_default_row>
+                      <.table_default_header_cell>Provider</.table_default_header_cell>
+                      <.table_default_header_cell>Sent</.table_default_header_cell>
+                      <.table_default_header_cell>Delivery Rate</.table_default_header_cell>
+                      <.table_default_header_cell>Bounce Rate</.table_default_header_cell>
+                    </.table_default_row>
+                  </.table_default_header>
+                  <.table_default_body>
                     <%= for {provider, stats} <- @metrics.by_provider do %>
-                      <tr>
-                        <td class="font-medium">{provider}</td>
-                        <td>{format_number(stats.total_sent || 0)}</td>
-                        <td>
+                      <.table_default_row>
+                        <.table_default_cell class="font-medium">{provider}</.table_default_cell>
+                        <.table_default_cell>
+                          {format_number(stats.total_sent || 0)}
+                        </.table_default_cell>
+                        <.table_default_cell>
                           <span class={[
                             "badge badge-sm",
                             ((stats.delivery_rate || 0) >= 95 && "badge-success") ||
@@ -280,12 +282,14 @@
                           ]}>
                             {format_percentage(stats.delivery_rate || 0)}
                           </span>
-                        </td>
-                        <td>{format_percentage(stats.bounce_rate || 0)}</td>
-                      </tr>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          {format_percentage(stats.bounce_rate || 0)}
+                        </.table_default_cell>
+                      </.table_default_row>
                     <% end %>
-                  </tbody>
-                </table>
+                  </.table_default_body>
+                </.table_default>
               </div>
             <% else %>
               <div class="text-center text-base-content/50 py-8">

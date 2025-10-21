@@ -210,21 +210,23 @@
           <% end %>
 
           <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th><input type="checkbox" class="checkbox checkbox-sm" disabled /></th>
-                  <th>Recipient</th>
-                  <th>Subject</th>
-                  <th>Error</th>
-                  <th>Time</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <.table_default size="sm">
+              <.table_default_header>
+                <.table_default_row>
+                  <.table_default_header_cell>
+                    <input type="checkbox" class="checkbox checkbox-sm" disabled />
+                  </.table_default_header_cell>
+                  <.table_default_header_cell>Recipient</.table_default_header_cell>
+                  <.table_default_header_cell>Subject</.table_default_header_cell>
+                  <.table_default_header_cell>Error</.table_default_header_cell>
+                  <.table_default_header_cell>Time</.table_default_header_cell>
+                  <.table_default_header_cell>Actions</.table_default_header_cell>
+                </.table_default_row>
+              </.table_default_header>
+              <.table_default_body>
                 <%= for email <- @failed_emails do %>
-                  <tr>
-                    <td>
+                  <.table_default_row>
+                    <.table_default_cell>
                       <input
                         type="checkbox"
                         class="checkbox checkbox-sm"
@@ -232,16 +234,20 @@
                         phx-click="toggle_email_selection"
                         phx-value-email_id={email.id}
                       />
-                    </td>
-                    <td class="font-mono text-xs">{email.to}</td>
-                    <td class="truncate max-w-xs">{email.subject}</td>
-                    <td class="text-error text-xs truncate max-w-xs">
+                    </.table_default_cell>
+                    <.table_default_cell class="font-mono text-xs">
+                      {email.to}
+                    </.table_default_cell>
+                    <.table_default_cell class="truncate max-w-xs">
+                      {email.subject}
+                    </.table_default_cell>
+                    <.table_default_cell class="text-error text-xs truncate max-w-xs">
                       {email.error_message || "Unknown error"}
-                    </td>
-                    <td class="text-xs">
+                    </.table_default_cell>
+                    <.table_default_cell class="text-xs">
                       {UtilsDate.format_datetime_with_user_format(email.sent_at)}
-                    </td>
-                    <td>
+                    </.table_default_cell>
+                    <.table_default_cell>
                       <button
                         phx-click="retry_email"
                         phx-value-email_id={email.id}
@@ -249,11 +255,11 @@
                       >
                         <.icon name="hero-arrow-path" class="w-3 h-3" /> Retry
                       </button>
-                    </td>
-                  </tr>
+                    </.table_default_cell>
+                  </.table_default_row>
                 <% end %>
-              </tbody>
-            </table>
+              </.table_default_body>
+            </.table_default>
           </div>
         </div>
       </div>
@@ -271,20 +277,20 @@
           </div>
         <% else %>
           <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Recipient</th>
-                  <th>Subject</th>
-                  <th>Sent At</th>
-                  <th>Events</th>
-                </tr>
-              </thead>
-              <tbody>
+            <.table_default size="sm">
+              <.table_default_header>
+                <.table_default_row>
+                  <.table_default_header_cell>Status</.table_default_header_cell>
+                  <.table_default_header_cell>Recipient</.table_default_header_cell>
+                  <.table_default_header_cell>Subject</.table_default_header_cell>
+                  <.table_default_header_cell>Sent At</.table_default_header_cell>
+                  <.table_default_header_cell>Events</.table_default_header_cell>
+                </.table_default_row>
+              </.table_default_header>
+              <.table_default_body>
                 <%= for email <- @recent_activity do %>
-                  <tr>
-                    <td>
+                  <.table_default_row>
+                    <.table_default_cell>
                       <div class={[
                         "badge badge-sm",
                         (email.status == "sent" && "badge-success") ||
@@ -293,13 +299,17 @@
                       ]}>
                         {String.capitalize(email.status || "unknown")}
                       </div>
-                    </td>
-                    <td class="font-mono text-xs">{email.to}</td>
-                    <td class="truncate max-w-xs">{email.subject}</td>
-                    <td class="text-xs">
+                    </.table_default_cell>
+                    <.table_default_cell class="font-mono text-xs">
+                      {email.to}
+                    </.table_default_cell>
+                    <.table_default_cell class="truncate max-w-xs">
+                      {email.subject}
+                    </.table_default_cell>
+                    <.table_default_cell class="text-xs">
                       {UtilsDate.format_datetime_with_user_format(email.sent_at)}
-                    </td>
-                    <td>
+                    </.table_default_cell>
+                    <.table_default_cell>
                       <div class="flex gap-1">
                         <%= if email.delivered_at do %>
                           <div class="badge badge-xs badge-success" title="Delivered">
@@ -317,19 +327,19 @@
                           </div>
                         <% end %>
                       </div>
-                    </td>
-                  </tr>
+                    </.table_default_cell>
+                  </.table_default_row>
                 <% end %>
 
                 <%= if length(@recent_activity) == 0 do %>
-                  <tr>
-                    <td colspan="5" class="text-center py-8 text-base-content/60">
+                  <.table_default_row>
+                    <.table_default_cell colspan={5} class="text-center py-8 text-base-content/60">
                       No recent email activity
-                    </td>
-                  </tr>
+                    </.table_default_cell>
+                  </.table_default_row>
                 <% end %>
-              </tbody>
-            </table>
+              </.table_default_body>
+            </.table_default>
           </div>
         <% end %>
       </div>

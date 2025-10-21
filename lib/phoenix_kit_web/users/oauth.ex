@@ -13,6 +13,7 @@ if Code.ensure_loaded?(Ueberauth) do
 
     use PhoenixKitWeb, :controller
 
+    plug PhoenixKitWeb.Plugs.EnsureOAuthScheme
     plug Ueberauth
 
     alias PhoenixKit.Settings
