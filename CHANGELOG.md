@@ -1,8 +1,8 @@
-## 1.4.1 - 2025-10-20
+## 1.4.1 - 2025-10-21
 
 ### Added
 - **OAuth User Settings** - Connected Accounts management interface in user settings
-  - View all linked OAuth providers (Google, Apple, GitHub)
+  - View all linked OAuth providers (Google, Apple, GitHub, Facebook)
   - Connect additional OAuth accounts to existing user profile
   - Disconnect OAuth providers with security validation
   - User-friendly instructions for OAuth account linking
