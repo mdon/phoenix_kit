@@ -158,14 +158,13 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             tabindex="0"
             phx-click-away={JS.remove_attribute("open", to: "#theme-dropdown")}
           >
-            <%!-- data-theme-target={theme.value} --%>
             <%= for theme <- @dropdown_themes do %>
               <li class="w-full">
                 <button
                   type="button"
                   phx-click={JS.dispatch("phx:set-admin-theme", detail: %{theme: theme.value})}
                   data-tip={theme.value}
-                  data-theme-target={@system_targets}
+                  data-theme-target={theme.value}
                   data-theme-role="dropdown-option"
                   role="option"
                   aria-pressed="false"
