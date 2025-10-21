@@ -73,6 +73,15 @@ defmodule PhoenixKit.Users.OAuthAvailability do
             providers
           end
 
+        # Check Facebook
+        providers =
+          if provider_enabled?(:facebook) and
+               PhoenixKit.Settings.has_oauth_credentials?(:facebook) do
+            [:facebook | providers]
+          else
+            providers
+          end
+
         Enum.reverse(providers)
       rescue
         # Handle cases where repo is not configured (like in tests)
@@ -122,7 +131,7 @@ defmodule PhoenixKit.Users.OAuthAvailability do
       false
   """
   @spec provider_enabled?(atom()) :: boolean()
-  def provider_enabled?(provider) when provider in [:google, :apple, :github] do
+  def provider_enabled?(provider) when provider in [:google, :apple, :github, :facebook] do
     if Code.ensure_loaded?(PhoenixKit.Settings) do
       try do
         master_enabled = PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)

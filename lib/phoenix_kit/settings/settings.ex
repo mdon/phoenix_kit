@@ -106,6 +106,7 @@ defmodule PhoenixKit.Settings do
       "oauth_google_enabled" => "false",
       "oauth_apple_enabled" => "false",
       "oauth_github_enabled" => "false",
+      "oauth_facebook_enabled" => "false",
       "magic_link_login_enabled" => "true",
       "magic_link_registration_enabled" => "true",
       "new_user_default_role" => "User",
@@ -145,7 +146,9 @@ defmodule PhoenixKit.Settings do
       "oauth_apple_key_id" => "",
       "oauth_apple_private_key" => "",
       "oauth_github_client_id" => "",
-      "oauth_github_client_secret" => ""
+      "oauth_github_client_secret" => "",
+      "oauth_facebook_app_id" => "",
+      "oauth_facebook_app_secret" => ""
     }
   end
 
@@ -434,52 +437,71 @@ defmodule PhoenixKit.Settings do
         private_key: "-----BEGIN PRIVATE KEY-----..."
       }
   """
-  def get_oauth_credentials(provider) when provider in [:google, :apple, :github] do
+  def get_oauth_credentials(provider) when provider in [:google, :apple, :github, :facebook] do
     case provider do
-      :google ->
-        keys = ["oauth_google_client_id", "oauth_google_client_secret"]
-        defaults = %{"oauth_google_client_id" => "", "oauth_google_client_secret" => ""}
-        settings = get_settings_cached(keys, defaults)
-
-        %{
-          client_id: settings["oauth_google_client_id"] || "",
-          client_secret: settings["oauth_google_client_secret"] || ""
-        }
-
-      :apple ->
-        keys = [
-          "oauth_apple_client_id",
-          "oauth_apple_team_id",
-          "oauth_apple_key_id",
-          "oauth_apple_private_key"
-        ]
-
-        defaults = %{
-          "oauth_apple_client_id" => "",
-          "oauth_apple_team_id" => "",
-          "oauth_apple_key_id" => "",
-          "oauth_apple_private_key" => ""
-        }
-
-        settings = get_settings_cached(keys, defaults)
-
-        %{
-          client_id: settings["oauth_apple_client_id"] || "",
-          team_id: settings["oauth_apple_team_id"] || "",
-          key_id: settings["oauth_apple_key_id"] || "",
-          private_key: settings["oauth_apple_private_key"] || ""
-        }
-
-      :github ->
-        keys = ["oauth_github_client_id", "oauth_github_client_secret"]
-        defaults = %{"oauth_github_client_id" => "", "oauth_github_client_secret" => ""}
-        settings = get_settings_cached(keys, defaults)
-
-        %{
-          client_id: settings["oauth_github_client_id"] || "",
-          client_secret: settings["oauth_github_client_secret"] || ""
-        }
+      :google -> get_google_oauth_credentials()
+      :apple -> get_apple_oauth_credentials()
+      :github -> get_github_oauth_credentials()
+      :facebook -> get_facebook_oauth_credentials()
     end
+  end
+
+  defp get_google_oauth_credentials do
+    keys = ["oauth_google_client_id", "oauth_google_client_secret"]
+    defaults = %{"oauth_google_client_id" => "", "oauth_google_client_secret" => ""}
+    settings = get_settings_cached(keys, defaults)
+
+    %{
+      client_id: settings["oauth_google_client_id"] || "",
+      client_secret: settings["oauth_google_client_secret"] || ""
+    }
+  end
+
+  defp get_apple_oauth_credentials do
+    keys = [
+      "oauth_apple_client_id",
+      "oauth_apple_team_id",
+      "oauth_apple_key_id",
+      "oauth_apple_private_key"
+    ]
+
+    defaults = %{
+      "oauth_apple_client_id" => "",
+      "oauth_apple_team_id" => "",
+      "oauth_apple_key_id" => "",
+      "oauth_apple_private_key" => ""
+    }
+
+    settings = get_settings_cached(keys, defaults)
+
+    %{
+      client_id: settings["oauth_apple_client_id"] || "",
+      team_id: settings["oauth_apple_team_id"] || "",
+      key_id: settings["oauth_apple_key_id"] || "",
+      private_key: settings["oauth_apple_private_key"] || ""
+    }
+  end
+
+  defp get_github_oauth_credentials do
+    keys = ["oauth_github_client_id", "oauth_github_client_secret"]
+    defaults = %{"oauth_github_client_id" => "", "oauth_github_client_secret" => ""}
+    settings = get_settings_cached(keys, defaults)
+
+    %{
+      client_id: settings["oauth_github_client_id"] || "",
+      client_secret: settings["oauth_github_client_secret"] || ""
+    }
+  end
+
+  defp get_facebook_oauth_credentials do
+    keys = ["oauth_facebook_app_id", "oauth_facebook_app_secret"]
+    defaults = %{"oauth_facebook_app_id" => "", "oauth_facebook_app_secret" => ""}
+    settings = get_settings_cached(keys, defaults)
+
+    %{
+      app_id: settings["oauth_facebook_app_id"] || "",
+      app_secret: settings["oauth_facebook_app_secret"] || ""
+    }
   end
 
   @doc """
@@ -490,22 +512,34 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.has_oauth_credentials?(:google)
       true
   """
-  def has_oauth_credentials?(provider) when provider in [:google, :apple, :github] do
+  def has_oauth_credentials?(provider) when provider in [:google, :apple, :github, :facebook] do
     credentials = get_oauth_credentials(provider)
 
     case provider do
-      :google ->
-        credentials.client_id != "" and credentials.client_secret != ""
-
-      :apple ->
-        credentials.client_id != "" and
-          credentials.team_id != "" and
-          credentials.key_id != "" and
-          credentials.private_key != ""
-
-      :github ->
-        credentials.client_id != "" and credentials.client_secret != ""
+      :google -> validate_google_credentials(credentials)
+      :apple -> validate_apple_credentials(credentials)
+      :github -> validate_github_credentials(credentials)
+      :facebook -> validate_facebook_credentials(credentials)
     end
+  end
+
+  defp validate_google_credentials(credentials) do
+    credentials.client_id != "" and credentials.client_secret != ""
+  end
+
+  defp validate_apple_credentials(credentials) do
+    credentials.client_id != "" and
+      credentials.team_id != "" and
+      credentials.key_id != "" and
+      credentials.private_key != ""
+  end
+
+  defp validate_github_credentials(credentials) do
+    credentials.client_id != "" and credentials.client_secret != ""
+  end
+
+  defp validate_facebook_credentials(credentials) do
+    credentials.app_id != "" and credentials.app_secret != ""
   end
 
   @doc """

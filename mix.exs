@@ -82,6 +82,7 @@ defmodule PhoenixKit.MixProject do
       {:ueberauth_google, "~> 0.12"},
       {:ueberauth_apple, "~> 0.1"},
       {:ueberauth_github, "~> 0.8"},
+      {:ueberauth_facebook, "~> 0.10"},
 
       # Development and testing
       {:ex_doc, "~> 0.38.4", only: :dev, runtime: false},
