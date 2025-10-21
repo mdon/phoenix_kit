@@ -501,15 +501,6 @@ defmodule PhoenixKitWeb.Integration do
 
       # Generate non-localized routes
       unquote(generate_non_localized_routes(url_prefix))
-
-      # Generate root-level public pages (catch-all, placed last)
-      scope "/", PhoenixKitWeb do
-        pipe_through [:browser, :phoenix_kit_auto_setup]
-
-        # Catch-all route for public pages at root level
-        # This allows /test2 to render test2.md
-        get "/*path", PagesController, :show
-      end
     end
   end
 
