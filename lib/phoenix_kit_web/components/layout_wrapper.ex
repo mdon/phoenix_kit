@@ -466,6 +466,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
             <%!-- Auto-close mobile drawer on navigation --%>
             <script>
+              // Mobile drawer and burger menu navigation
               document.addEventListener('DOMContentLoaded', function() {
                 const drawerToggle = document.getElementById('admin-mobile-menu');
                 const adminDrawer = document.getElementById('admin-drawer');
@@ -494,15 +495,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 }
               });
 
+              // Theme configuration and controller
               const themeBaseMap = <%= ThemeConfig.base_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
               const themeLabels = <%= ThemeConfig.label_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
 
               // Admin theme controller for PhoenixKit with animated slider
               const adminThemeController = {
                 init() {
-                  this.dropdownControllers = Array.from(
-                    document.querySelectorAll('[data-theme-dropdown]')
-                  ).map((container) => ({
+                  // Safely query for dropdown controllers with null checks
+                  const dropdownContainers = document.querySelectorAll('[data-theme-dropdown]');
+
+                  this.dropdownControllers = Array.from(dropdownContainers).map((container) => ({
                     container,
                     button: container.querySelector('[data-theme-toggle]'),
                     panel: container.querySelector('[data-theme-dropdown-panel]'),
@@ -510,6 +513,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   }));
 
                   this.registerDropdownAccessibility();
+
                   this.systemMediaQuery =
                     typeof window.matchMedia === 'function'
                       ? window.matchMedia('(prefers-color-scheme: dark)')
@@ -517,7 +521,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
                   if (this.systemMediaQuery) {
                     this.systemMediaQuery.addEventListener('change', () => {
-                  if ((localStorage.getItem('phx:theme') || 'system') === 'system') {
+                      if ((localStorage.getItem('phx:theme') || 'system') === 'system') {
                         this.applyThemeAttributes('system');
                       }
                     });
@@ -547,12 +551,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   }
 
                   // Update active state for all theme buttons
-                  document.querySelectorAll('[data-theme-target]').forEach((btn) => {
+                  const themeButtons = document.querySelectorAll('[data-theme-target]');
+
+                  themeButtons.forEach((btn) => {
                     const targets = (btn.dataset.themeTarget || '')
                       .split(',')
                       .map((value) => value.trim())
                       .filter(Boolean);
-                    const isActive = targets.includes(theme) || targets.includes(resolvedTheme);
+                    const isActive = targets.includes(theme);
 
                     if (btn.dataset.themeRole === 'dropdown-option') {
                       btn.classList.toggle('bg-base-200', isActive);
@@ -573,12 +579,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   });
 
                   // Notify global PhoenixKit theme listeners
+                  // Dispatch from a fake element with data-phx-theme attribute for compatibility with parent app listeners
+                  // The event bubbles up to window, allowing window-level listeners to work correctly
                   try {
-                    window.dispatchEvent(
-                      new CustomEvent('phx:set-theme', {
-                        detail: { theme }
-                      })
-                    );
+                    const fakeTarget = document.createElement('div');
+                    fakeTarget.dataset.phxTheme = theme;
+                    const event = new CustomEvent('phx:set-theme', {
+                      detail: { theme },
+                      bubbles: true
+                    });
+                    fakeTarget.dispatchEvent(event);
                   } catch (error) {
                     console.warn('PhoenixKit admin theme controller: unable to dispatch phx:set-theme', error);
                   }
@@ -590,13 +600,14 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       console.warn('PhoenixKit admin theme controller: unable to sync PhoenixKitTheme', error);
                     }
                   }
-
                 },
 
                 setupListeners() {
                   // Listen to Phoenix LiveView theme events
                   document.addEventListener('phx:set-admin-theme', (e) => {
-                    this.setTheme(e.detail.theme);
+                    if (e?.detail?.theme) {
+                      this.setTheme(e.detail.theme);
+                    }
                   });
                 },
 
@@ -682,8 +693,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 }
               };
 
-              // Initialize admin theme controller
-              adminThemeController.init();
+              // Always initialize after DOM is fully loaded to avoid race conditions
+              if (document.readyState === 'loading' || document.readyState === 'interactive') {
+                // DOM still loading, wait for DOMContentLoaded
+                document.addEventListener('DOMContentLoaded', () => {
+                  adminThemeController.init();
+                });
+              } else {
+                // DOM already loaded (readyState === 'complete'), safe to init immediately
+                adminThemeController.init();
+              }
             </script>
             """
           end
@@ -784,7 +803,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           {assigns[:page_title] || "Admin"}
         </.live_title>
         <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
-        <script defer phx-track-static type="text/javascript" src="/assets/js/app.js" />
       </head>
       <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
         <%!-- Admin pages without parent headers --%>
