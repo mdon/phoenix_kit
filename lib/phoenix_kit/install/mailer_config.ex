@@ -12,6 +12,7 @@ defmodule PhoenixKit.Install.MailerConfig do
 
   alias Igniter.Project.Config
   alias PhoenixKit.Install.FinchSetup
+  alias PhoenixKit.Install.RuntimeDetector
 
   @doc """
   Adds PhoenixKit mailer configuration for development and production.
@@ -55,8 +56,32 @@ defmodule PhoenixKit.Install.MailerConfig do
     end
   end
 
-  # Legacy: Add Local mailer adapter for development
+  # Add Local mailer adapter for development - supports both dev.exs and runtime.exs
   defp add_dev_mailer_config(igniter) do
+    case RuntimeDetector.detect_config_pattern() do
+      :runtime ->
+        add_runtime_mailer_config(igniter)
+      :dev_exs ->
+        add_simple_dev_mailer_config(igniter)
+      :config_exs ->
+        add_config_exs_mailer_config(igniter)
+    end
+  end
+
+  # Add mailer config to runtime.exs file
+  defp add_runtime_mailer_config(igniter) do
+    case RuntimeDetector.find_insertion_point() do
+      {:runtime, line_number} ->
+        insert_into_runtime_file(igniter, line_number)
+      {:dev_exs, line_number} ->
+        add_simple_dev_mailer_config_at_line(igniter, line_number)
+      {:config_exs, line_number} ->
+        add_config_exs_mailer_config_at_line(igniter, line_number)
+    end
+  end
+
+  # Simple dev.exs configuration (legacy behavior)
+  defp add_simple_dev_mailer_config(igniter) do
     Config.configure_new(
       igniter,
       "dev.exs",
@@ -64,6 +89,121 @@ defmodule PhoenixKit.Install.MailerConfig do
       [PhoenixKit.Mailer],
       adapter: Swoosh.Adapters.Local
     )
+  end
+
+  # Add mailer config to config.exs with environment check
+  defp add_config_exs_mailer_config(igniter) do
+    config_content = """
+    # PhoenixKit mailer configuration
+    if config_env() == :dev do
+      config :phoenix_kit, PhoenixKit.Mailer,
+        adapter: Swoosh.Adapters.Local
+    end
+    """
+
+    # Try to append to config.exs, fall back to notice if it fails
+    try do
+      Igniter.update_file(igniter, "config/config.exs", fn source ->
+        current_content = Rewrite.Source.get(source, :content)
+        updated_content = current_content <> "\n" <> config_content
+        Rewrite.Source.update(source, :content, updated_content)
+      end)
+    rescue
+      _ ->
+        add_runtime_config_notice(igniter)
+    end
+  end
+
+  # Insert mailer config into runtime.exs file
+  defp insert_into_runtime_file(igniter, line_number) do
+    mailer_config = """
+      # PhoenixKit mailer configuration
+      config :phoenix_kit, PhoenixKit.Mailer,
+        adapter: Swoosh.Adapters.Local
+    """
+
+    try do
+      Igniter.update_file(igniter, "config/runtime.exs", fn source ->
+        current_content = Rewrite.Source.get(source, :content)
+        lines = String.split(current_content, "\n")
+
+        # Insert at the specified line
+        {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+        updated_content =
+          before_lines ++
+          [mailer_config] ++
+          after_lines
+          |> Enum.join("\n")
+
+        Rewrite.Source.update(source, :content, updated_content)
+      end)
+    rescue
+      _ ->
+        # Fallback to simple notice if insertion fails
+        add_runtime_config_notice(igniter)
+    end
+  end
+
+  # Add dev mailer config at specific line number
+  defp add_simple_dev_mailer_config_at_line(igniter, line_number) do
+    mailer_config = """
+    # PhoenixKit mailer configuration
+    config :phoenix_kit, PhoenixKit.Mailer,
+      adapter: Swoosh.Adapters.Local
+    """
+
+    try do
+      Igniter.update_file(igniter, "config/dev.exs", fn source ->
+        current_content = Rewrite.Source.get(source, :content)
+        lines = String.split(current_content, "\n")
+
+        # Insert at the specified line
+        {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+        updated_content =
+          before_lines ++
+          [mailer_config] ++
+          after_lines
+          |> Enum.join("\n")
+
+        Rewrite.Source.update(source, :content, updated_content)
+      end)
+    rescue
+      _ ->
+        # Fallback to default behavior
+        add_simple_dev_mailer_config(igniter)
+    end
+  end
+
+  # Add config_exs mailer config at specific line number
+  defp add_config_exs_mailer_config_at_line(igniter, line_number) do
+    mailer_config = """
+    # PhoenixKit mailer configuration
+    if config_env() == :dev do
+      config :phoenix_kit, PhoenixKit.Mailer,
+        adapter: Swoosh.Adapters.Local
+    end
+    """
+
+    try do
+      Igniter.update_file(igniter, "config/config.exs", fn source ->
+        current_content = Rewrite.Source.get(source, :content)
+        lines = String.split(current_content, "\n")
+
+        # Insert at the specified line
+        {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+        updated_content =
+          before_lines ++
+          [mailer_config] ++
+          after_lines
+          |> Enum.join("\n")
+
+        Rewrite.Source.update(source, :content, updated_content)
+      end)
+    rescue
+      _ ->
+        # Fallback to notice
+        add_runtime_config_notice(igniter)
+    end
   end
 
   # Get the parent application name
@@ -266,6 +406,21 @@ defmodule PhoenixKit.Install.MailerConfig do
         :not_found ->
           "📧 Email configured (built-in PhoenixKit.Mailer, see config/prod.exs)"
       end
+
+    Igniter.add_notice(igniter, notice)
+  end
+
+  # Add notice when runtime configuration cannot be automatically applied
+  defp add_runtime_config_notice(igniter) do
+    notice = """
+    ⚠️  Runtime configuration detected
+    PhoenixKit couldn't automatically configure the mailer due to complex runtime.exs patterns.
+
+    Please add this configuration manually to your runtime.exs dev block:
+
+    config :phoenix_kit, PhoenixKit.Mailer,
+      adapter: Swoosh.Adapters.Local
+    """
 
     Igniter.add_notice(igniter, notice)
   end
