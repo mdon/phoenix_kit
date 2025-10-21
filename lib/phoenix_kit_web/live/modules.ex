@@ -8,12 +8,11 @@ defmodule PhoenixKitWeb.Live.Modules do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Entities
-  alias PhoenixKit.Maintenance
   alias PhoenixKit.Module.Languages
+  alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Pages
   alias PhoenixKit.ReferralCodes
   alias PhoenixKit.Settings
-  alias PhoenixKit.Modules.Maintenance
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process

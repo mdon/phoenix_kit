@@ -9,6 +9,8 @@ defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
   use Phoenix.Component
   use PhoenixKitWeb, :verified_routes
 
+  alias PhoenixKit.Modules.Maintenance
+
   @doc """
   Renders a full-page maintenance message.
 
@@ -29,10 +31,10 @@ defmodule PhoenixKitWeb.Components.Core.MaintenancePage do
     assigns =
       assigns
       |> assign_new(:header, fn ->
-        PhoenixKit.Modules.Maintenance.get_header()
+        Maintenance.get_header()
       end)
       |> assign_new(:subtext, fn ->
-        PhoenixKit.Modules.Maintenance.get_subtext()
+        Maintenance.get_subtext()
       end)
 
     ~H"""
