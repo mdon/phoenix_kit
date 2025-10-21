@@ -36,10 +36,12 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
       |> assign(:google_enabled, OAuthAvailability.provider_enabled?(:google))
       |> assign(:apple_enabled, OAuthAvailability.provider_enabled?(:apple))
       |> assign(:github_enabled, OAuthAvailability.provider_enabled?(:github))
+      |> assign(:facebook_enabled, OAuthAvailability.provider_enabled?(:facebook))
 
     # Check if at least one provider is enabled
     any_provider_enabled =
-      assigns.google_enabled or assigns.apple_enabled or assigns.github_enabled
+      assigns.google_enabled or assigns.apple_enabled or assigns.github_enabled or
+        assigns.facebook_enabled
 
     assigns = assign(assigns, :any_provider_enabled, any_provider_enabled)
 
@@ -79,6 +81,16 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
             >
               <Icons.icon_github class="w-5 h-5" />
               <span>Continue with GitHub</span>
+            </.link>
+          <% end %>
+          <%!-- Facebook Sign-In Button --%>
+          <%= if @facebook_enabled do %>
+            <.link
+              href={Routes.path("/users/auth/facebook")}
+              class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Icons.icon_facebook class="w-5 h-5" />
+              <span>Continue with Facebook</span>
             </.link>
           <% end %>
         </div>

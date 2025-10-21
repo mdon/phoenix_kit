@@ -32,6 +32,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
       configure_google()
       configure_apple()
       configure_github()
+      configure_facebook()
     end
 
     :ok
@@ -45,11 +46,12 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.configure_provider(:google)
       :ok
   """
-  def configure_provider(provider) when provider in [:google, :apple, :github] do
+  def configure_provider(provider) when provider in [:google, :apple, :github, :facebook] do
     case provider do
       :google -> configure_google()
       :apple -> configure_apple()
       :github -> configure_github()
+      :facebook -> configure_facebook()
     end
   end
 
@@ -95,6 +97,15 @@ defmodule PhoenixKit.Users.OAuthConfig do
       if Settings.has_oauth_credentials?(:github) and
            Settings.get_boolean_setting("oauth_github_enabled", false) do
         Map.put(providers, :github, {Ueberauth.Strategy.Github, []})
+      else
+        providers
+      end
+
+    # Add Facebook if credentials exist
+    providers =
+      if Settings.has_oauth_credentials?(:facebook) and
+           Settings.get_boolean_setting("oauth_facebook_enabled", false) do
+        Map.put(providers, :facebook, {Ueberauth.Strategy.Facebook, []})
       else
         providers
       end
@@ -164,6 +175,25 @@ defmodule PhoenixKit.Users.OAuthConfig do
     end
   end
 
+  # Configure Facebook OAuth
+  defp configure_facebook do
+    if Settings.get_boolean_setting("oauth_facebook_enabled", false) do
+      credentials = Settings.get_oauth_credentials(:facebook)
+
+      if credentials.app_id != "" and credentials.app_secret != "" do
+        config = [
+          client_id: credentials.app_id,
+          client_secret: credentials.app_secret
+        ]
+
+        Application.put_env(:ueberauth, Ueberauth.Strategy.Facebook.OAuth, config)
+        Logger.debug("OAuth: Configured Facebook OAuth provider")
+      else
+        Logger.debug("OAuth: Facebook enabled but credentials not configured")
+      end
+    end
+  end
+
   @doc """
   Validates OAuth credentials for a specific provider.
 
@@ -177,13 +207,14 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.validate_credentials(:apple)
       {:error, "Missing Apple private key"}
   """
-  def validate_credentials(provider) when provider in [:google, :apple, :github] do
+  def validate_credentials(provider) when provider in [:google, :apple, :github, :facebook] do
     credentials = Settings.get_oauth_credentials(provider)
 
     case provider do
       :google -> validate_google_credentials(credentials)
       :apple -> validate_apple_credentials(credentials)
       :github -> validate_github_credentials(credentials)
+      :facebook -> validate_facebook_credentials(credentials)
     end
   end
 
@@ -237,6 +268,22 @@ defmodule PhoenixKit.Users.OAuthConfig do
     |> add_if_missing("client_secret", credentials.client_secret)
   end
 
+  defp validate_facebook_credentials(credentials) do
+    missing = find_missing_facebook_credentials(credentials)
+
+    if missing == [] do
+      {:ok, :facebook}
+    else
+      {:error, "Missing Facebook OAuth credentials: #{Enum.join(missing, ", ")}"}
+    end
+  end
+
+  defp find_missing_facebook_credentials(credentials) do
+    []
+    |> add_if_missing("app_id", credentials.app_id)
+    |> add_if_missing("app_secret", credentials.app_secret)
+  end
+
   defp add_if_missing(list, field_name, value) do
     if value == "" do
       [field_name | list]
@@ -256,7 +303,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.test_connection(:google)
       {:ok, "Google OAuth credentials are properly formatted"}
   """
-  def test_connection(provider) when provider in [:google, :apple, :github] do
+  def test_connection(provider) when provider in [:google, :apple, :github, :facebook] do
     case validate_credentials(provider) do
       {:ok, _provider} ->
         {:ok,
@@ -270,4 +317,5 @@ defmodule PhoenixKit.Users.OAuthConfig do
   defp provider_name(:google), do: "Google"
   defp provider_name(:apple), do: "Apple"
   defp provider_name(:github), do: "GitHub"
+  defp provider_name(:facebook), do: "Facebook"
 end

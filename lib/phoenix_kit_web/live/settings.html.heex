@@ -245,6 +245,27 @@
                     />
                     <span class="label-text">GitHub Sign-In</span>
                   </div>
+                  <div class="flex items-center gap-3">
+                    <input
+                      name="settings[oauth_facebook_enabled]"
+                      type="hidden"
+                      value="false"
+                    />
+                    <input
+                      name="settings[oauth_facebook_enabled]"
+                      type="checkbox"
+                      value="true"
+                      checked={@settings["oauth_facebook_enabled"] == "true"}
+                      class={[
+                        "checkbox checkbox-primary",
+                        if(@settings["oauth_enabled"] != "true",
+                          do: "pointer-events-none",
+                          else: ""
+                        )
+                      ]}
+                    />
+                    <span class="label-text">Facebook Sign-In</span>
+                  </div>
                 </div>
               </div>
 
@@ -463,6 +484,52 @@
                     type="button"
                     phx-click="test_oauth"
                     phx-value-provider="github"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    Test Credentials
+                  </button>
+                </div>
+
+                <%!-- Facebook OAuth Credentials --%>
+                <div class={[
+                  "card bg-base-200 p-4 mt-3",
+                  if(@settings["oauth_facebook_enabled"] != "true", do: "hidden", else: "")
+                ]}>
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="h-5 w-5" />
+                    Facebook OAuth Credentials
+                  </h3>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">App ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="settings[oauth_facebook_app_id]"
+                      value={@settings["oauth_facebook_app_id"] || ""}
+                      placeholder="Your Facebook App ID"
+                      class="input input-bordered"
+                    />
+                  </div>
+
+                  <div class="form-control mt-2">
+                    <label class="label">
+                      <span class="label-text">App Secret</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="settings[oauth_facebook_app_secret]"
+                      value={@settings["oauth_facebook_app_secret"] || ""}
+                      placeholder="Your Facebook App Secret"
+                      class="input input-bordered"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="facebook"
                     class="btn btn-sm btn-outline mt-3 w-fit"
                   >
                     Test Credentials
