@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.4.1"
+  @version "1.4.2"
   @description "PhoenixKit is a starter kit for building modern web applications with Elixir and Phoenix"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -109,7 +109,7 @@ defmodule PhoenixKit.MixProject do
       {:finch, "~> 0.18"},
 
       # Code generation and project patching
-      {:igniter, "~> 0.6.27", optional: true}
+      {:igniter, "~> 0.6.30", optional: true}
     ]
   end
 

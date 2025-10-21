@@ -10,120 +10,9 @@ PhoenixKit is under heavy development and we're looking for early adopters to te
 
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
-## 📦 Current PhoenixKit Features / Modules:
-- [x] Simple installation using Igniter
-- [x] Tailwind and DaisyUI integration
-- [x] App layout integration
-- [x] App database integration (Postgres only for now)
-- [ ] User Module
-  - [x] Registration
-  - [x] Login
-    - [ ] Login screen customizations
-  - [x] Logout
-  - [x] Magic link
-  - [x] Email confirmation (waiting Email Module)
-  - [x] Password reset
-  - [x] User roles
-  - [x] Location of registration (ip, country, region, city)
-  - [x] User's timezone (and mismatch detection)
-  - [x] User's locale
-  - [x] OAuth (google, facebook)
+## Semi-Automatic Installation
 
-- [ ] Backend Admin module
-  - [x] Modules Manager (in progress)
-  - [x] Session Manager Module
-  - [x] Settings (in progress)
-    - [x] Global app title
-    - [x] Global app timezone (using timex)
-    - [x] Global time format (using timex)
-  - [x] User management
-  - [x] Role management
-  - [x] Referral Program
-- [x] Email Module
-- [x] Entities Module (WordPress ACF-like dynamic content types)
-  - [x] Dynamic entity type creation
-  - [x] Flexible field schemas (13 field types)
-  - [x] JSONB storage for flexibility
-  - [x] Full CRUD interfaces
-  - [x] Settings management
-
-## 🛣️ Roadmap / Ideas / Feature requests
-- User module
-  - 2FA
-  - Fail2ban
-- Backend admin
-  - Design / templates / themes
-  - Settings
-    - General
-    - Languages
-  - Email Module
-    - Email templates
-  - Notifications Module
-    - Integration with notification providers (Twilio, etc...)
-  - Content publishing Module
-    - Media / Gallery (with s3 backend)
-    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
-    - Audio
-    - Media / Gallery
-    - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
-    - CDN
-    - Static pages
-    - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
-    - Blog
-    - Comments
-    - Search
-    - Blocks
-      - Sliders
-      - Video player (mp4, youtube, etc)
-  - Billing System Module
-    - Invoices
-    - Integration
-      - Stripe
-      - PayPal
-      - Crypto
-  - Newsletter Module
-  - E-commerce Module
-    - Digital products
-    - Physical products
-  - Membership Module
-  - Cookies Module
-  - Popups Module
-  - Contact Us Module
-  - SEO Module
-  - AI Module
-    - Integration with AI providers
-  - What’s New Module
-  - Chat Module (https://github.com/basecamp/once-campfire)
-  - DB Manager Module
-    - Export / Import
-    - Snapshots
-    - Backups
-  - Customer service Module
-    - Chat
-  - Feedback Module
-  - Roadmap / Ideas Module
-  - CRM Module
-  - Analytics / BI Module
-    - ClickHouse backend
-    - Events
-  - API Module
-  - Cron Modules
-  - Jobs Module (Oban)
-  - Testimonials Module
-  - Team Module
-  - FAQ
-  - Forms Module
-  - Cluster Module
-
-💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
-
-## Installation
-
-PhoenixKit provides multiple installation methods to suit different project needs and developer preferences.
-
-### Semi-Automatic Installation
-
-**Recommended for most projects**
+PhoenixKit provides pretty simple installation method, powered by igniter library, which takes care of all configuration needs.
 
 Add both `phoenix_kit` and `igniter` to your project dependencies:
 
@@ -155,20 +44,123 @@ This will automatically:
 - ✅ Add authentication routes to your router
 - ✅ Provide detailed setup instructions
 
-**Optional parameters:**
+## 📦 Current PhoenixKit Features / Modules:
+- [x] Simple installation using Igniter
+- [x] Tailwind and DaisyUI integration
+- [x] App layout integration
+- [x] App database integration (Postgres only for now)
+- [x] Custom slug prefix (default: `/phoenix_kit`)
+- [x] User Module
+  - [x] Registration
+  - [x] Login
+    - [ ] Login screen customizations
+  - [x] Logout
+  - [x] Magic link
+  - [x] Email confirmation (waiting Email Module)
+  - [x] Password reset
+  - [x] User roles
+  - [x] Custom user fields
+    - [x] JSONB storage for flexibility
+  - [x] Location of registration (ip, country, region, city)
+  - [x] User's timezone (and mismatch detection)
+  - [x] User's locale
+  - [x] OAuth (google, facebook)
 
-```bash
-# Specify custom repository
-mix phoenix_kit.install --repo MyApp.Repo
+- [ ] Backend Admin module
+  - [x] Modules Manager
+  - [x] Session Manager Module
+  - [x] Settings
+    - [x] Global app title
+    - [x] Global app timezone (using timex)
+    - [x] Global time format (using timex)
+  - [x] User management
+  - [x] Role management
+  - [x] Referral Program
+  - [x] Maintenance Mode Module
+  - [x] Email Module
+    - [x] AWS SES integration
+  - [x] Entities Module (WordPress ACF-like dynamic content types)
+    - [x] Dynamic entity type creation
+    - [x] Flexible field schemas (13 field types)
+    - [x] JSONB storage for flexibility
+    - [x] Full CRUD interfaces
+    - [x] Settings management
+  - [x] Pages Module
 
-# Use PostgreSQL schema prefix for table isolation
-mix phoenix_kit.install --prefix "auth" --create-schema
+## 🛣️ Roadmap / Ideas / Feature requests
+- User module
+  - 2FA
+  - Fail2ban
+- Backend admin
+  - Design / templates / themes
+  - Settings
+    - General
+    - Languages
+  - Email Module
+    - Email templates
+  - Notifications Module
+    - Integration with notification providers (Twilio, etc...)
+  - Content publishing Module
+    - Media / Gallery (with s3 backend)
+    - Video (Video processing, streaming, Adaptive Bitrate (ABR): stream in multiple bitrates and resolutions for difference devices, HTTP Live Streaming (HLS): reduce bandwidth usage, playback latency, and buffering, H.264, H.265, VP8 & VP9: optimized next-generation video codecs)
+    - Audio
+    - Media / Gallery
+    - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
+    - CDN
+    - Static pages
+    - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
+    - Blog
+    - Comments
+    - Search
+    - Blocks
+      - Sliders
+      - Video player (mp4, youtube, etc)
+  - Billing System Module
+    - Invoices
+    - Payment
+      - Integration
+        - Stripe
+        - PayPal
+        - Crypto
+    - Orders
+  - Membership Module
+  - Newsletter Module
+  - E-commerce Module
+    - Digital products
+    - Physical products
+  - Cookies Module
+  - Popups Module
+  - Contact Us Module
+  - SEO Module
+  - AI Module
+    - Integration with AI providers
+  - What’s New Module
+  - Chat Module (https://github.com/basecamp/once-campfire)
+  - DB Manager Module
+    - Export / Import
+    - Snapshots
+    - Backups
+  - Customer service Module
+    - Chat
+  - Feedback Module
+  - Roadmap / Ideas Module
+  - CRM Module
+  - Analytics / BI Module
+    - ClickHouse backend
+    - Events
+  - API Module
+  - Cron Modules
+  - Jobs Module (Oban)
+  - Testimonials Module
+  - Team Module
+  - FAQ
+  - Forms Module
+  - Cluster Module
 
-# Specify custom router file path
-mix phoenix_kit.install --router-path lib/my_app_web/router.ex
-```
+💡 Send your ideas and suggestions about any existing modules and features our way. Start building your apps today!
 
-### Manual Installation
+
+## Manual Installation
 
 1. Add `{:phoenix_kit, "~> 1.4"}` to `mix.exs`
 2. Run `mix deps.get && mix phoenix_kit.gen.migration`
@@ -179,8 +171,8 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 ## Quick Start
 
 Visit these URLs after installation:
-- `http://localhost:4000{prefix}/users/register` - User registration
-- `http://localhost:4000{prefix}/users/log-in` - User login
+- `http://localhost:4000/{prefix}/users/register` - User registration
+- `http://localhost:4000/{prefix}/users/log-in` - User login
 
 Where `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 

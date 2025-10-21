@@ -1,3 +1,9 @@
+## 1.4.2 - 2025-10-22
+
+### Fixed
+- We removed unecessary catch all for routing
+- Fixed issue with runtime not working when installing with project is setup to use .env files
+
 ## 1.4.1 - 2025-10-21
 
 ### Added
