@@ -233,6 +233,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :oauth_google_enabled, :string
       field :oauth_apple_enabled, :string
       field :oauth_github_enabled, :string
+      field :oauth_facebook_enabled, :string
       field :magic_link_login_enabled, :string
       field :magic_link_registration_enabled, :string
       field :new_user_default_role, :string
@@ -290,6 +291,7 @@ defmodule PhoenixKit.Settings.Setting do
         :oauth_google_enabled,
         :oauth_apple_enabled,
         :oauth_github_enabled,
+        :oauth_facebook_enabled,
         :magic_link_login_enabled,
         :magic_link_registration_enabled,
         :new_user_default_role,
@@ -307,6 +309,8 @@ defmodule PhoenixKit.Settings.Setting do
         :oauth_apple_private_key,
         :oauth_github_client_id,
         :oauth_github_client_secret
+        # :oauth_facebook_app_id,
+        # :oauth_facebook_app_secret
       ])
       |> validate_required([
         :project_title,
@@ -325,6 +329,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_oauth_provider_enabled(:oauth_google_enabled)
       |> validate_oauth_provider_enabled(:oauth_apple_enabled)
       |> validate_oauth_provider_enabled(:oauth_github_enabled)
+      |> validate_oauth_provider_enabled(:oauth_facebook_enabled)
       |> validate_magic_link_enabled(:magic_link_login_enabled)
       |> validate_magic_link_enabled(:magic_link_registration_enabled)
       |> validate_new_user_default_role()

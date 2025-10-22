@@ -108,6 +108,9 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.Pagination
       import PhoenixKitWeb.Components.Core.FileDisplay
       import PhoenixKitWeb.Components.Core.TableDefault
+      import PhoenixKitWeb.Components.Core.OAuthUtils
+      import PhoenixKitWeb.Components.Core.OAuthProvider
+      import PhoenixKitWeb.Components.Core.OAuthCheckbox
     end
   end
 

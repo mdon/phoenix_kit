@@ -326,7 +326,10 @@
                         <%!-- Callback URL Section --%>
                         <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                           <div class="flex items-start gap-3">
-                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                            <.icon
+                              name="hero-information-circle"
+                              class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                            />
                             <div class="flex-1 min-w-0">
                               <div class="text-sm font-semibold text-base-content mb-2">
                                 Callback URL
@@ -341,7 +344,7 @@
                                   onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "google")}')"}
                                   title="Copy to clipboard"
                                 >
-                                  <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                  <.icon name="hero-clipboard" class="h-4 w-4" />
                                 </button>
                               </div>
                               <div class="text-xs text-base-content/60 mt-2">
@@ -386,7 +389,10 @@
                         <%!-- Reverse Proxy Notice --%>
                         <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
                           <div class="flex items-start gap-2">
-                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                            <.icon
+                              name="hero-information-circle"
+                              class="h-4 w-4 text-info shrink-0 mt-0.5"
+                            />
                             <div class="text-base-content/80">
                               <strong class="text-base-content">Reverse Proxy Users:</strong>
                               If behind nginx/apache, ensure
@@ -485,7 +491,10 @@
                         <%!-- Callback URL Section --%>
                         <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                           <div class="flex items-start gap-3">
-                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                            <.icon
+                              name="hero-information-circle"
+                              class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                            />
                             <div class="flex-1 min-w-0">
                               <div class="text-sm font-semibold text-base-content mb-2">
                                 Callback URL
@@ -500,7 +509,7 @@
                                   onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "apple")}')"}
                                   title="Copy to clipboard"
                                 >
-                                  <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                  <.icon name="hero-clipboard" class="h-4 w-4" />
                                 </button>
                               </div>
                               <div class="text-xs text-base-content/60 mt-2">
@@ -555,7 +564,10 @@
                         <%!-- Reverse Proxy Notice --%>
                         <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
                           <div class="flex items-start gap-2">
-                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                            <.icon
+                              name="hero-information-circle"
+                              class="h-4 w-4 text-info shrink-0 mt-0.5"
+                            />
                             <div class="text-base-content/80">
                               <strong class="text-base-content">Reverse Proxy Users:</strong>
                               If behind nginx/apache, ensure
@@ -629,7 +641,10 @@
                       <%!-- Callback URL Section --%>
                       <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                         <div class="flex items-start gap-3">
-                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                          <.icon
+                            name="hero-information-circle"
+                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                          />
                           <div class="flex-1 min-w-0">
                             <div class="text-sm font-semibold text-base-content mb-2">
                               Callback URL
@@ -644,7 +659,7 @@
                                 onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "github")}')"}
                                 title="Copy to clipboard"
                               >
-                                <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                <.icon name="hero-clipboard" class="h-4 w-4" />
                               </button>
                             </div>
                             <div class="text-xs text-base-content/60 mt-2">
@@ -693,7 +708,10 @@
                       <%!-- Reverse Proxy Notice --%>
                       <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
                         <div class="flex items-start gap-2">
-                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                          <.icon
+                            name="hero-information-circle"
+                            class="h-4 w-4 text-info shrink-0 mt-0.5"
+                          />
                           <div class="text-base-content/80">
                             <strong class="text-base-content">Reverse Proxy Users:</strong>
                             If behind nginx/apache, ensure
@@ -766,7 +784,10 @@
                       <%!-- Callback URL Section --%>
                       <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                         <div class="flex items-start gap-3">
-                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                          <.icon
+                            name="hero-information-circle"
+                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                          />
                           <div class="flex-1 min-w-0">
                             <div class="text-sm font-semibold text-base-content mb-2">
                               Callback URL
@@ -781,7 +802,7 @@
                                 onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "facebook")}')"}
                                 title="Copy to clipboard"
                               >
-                                <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                <.icon name="hero-clipboard" class="h-4 w-4" />
                               </button>
                             </div>
                             <div class="text-xs text-base-content/60 mt-2">
@@ -838,7 +859,10 @@
                       <%!-- Reverse Proxy Notice --%>
                       <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
                         <div class="flex items-start gap-2">
-                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                          <.icon
+                            name="hero-information-circle"
+                            class="h-4 w-4 text-info shrink-0 mt-0.5"
+                          />
                           <div class="text-base-content/80">
                             <strong class="text-base-content">Reverse Proxy Users:</strong>
                             If behind nginx/apache, ensure
@@ -858,7 +882,7 @@
 
                 <%!-- OAuth Configuration Notice --%>
                 <div class="alert alert-info text-sm mt-3">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
+                  <.icon name="hero-information-circle" class="stroke-current shrink-0 h-5 w-5" />
                   <div>
                     <div class="font-semibold">OAuth Setup Instructions</div>
                     <div class="text-xs">
@@ -1062,7 +1086,7 @@
 
               <%!-- Info Alert --%>
               <div class="alert alert-info text-sm mb-4">
-                <PhoenixKitWeb.Components.Core.Icons.icon_info class="w-5 h-5" />
+                <.icon name="hero-information-circle" class="w-5 h-5" />
                 <div>
                   <h3 class="font-bold text-sm">Content Language vs Interface Language</h3>
                   <div class="text-xs mt-1 space-y-1">
