@@ -104,24 +104,19 @@ if Code.ensure_loaded?(Ueberauth) do
     defp extract_oauth_data(%Ueberauth.Auth{} = auth) do
       %{
         provider: to_string(auth.provider),
-        provider_uid: auth.uid,
+        provider_uid: to_string(auth.uid),
         email: auth.info.email,
         first_name: auth.info.first_name,
         last_name: auth.info.last_name,
         image: auth.info.image,
-        access_token: get_in(auth, [Access.key(:credentials), Access.key(:token)]),
-        refresh_token: get_in(auth, [Access.key(:credentials), Access.key(:refresh_token)]),
+        access_token: auth.credentials[:token],
+        refresh_token: auth.credentials[:refresh_token],
         token_expires_at: get_token_expires_at(auth.credentials),
-        raw_info: get_in(auth, [Access.key(:extra), Access.key(:raw_info)])
+        raw_info: auth.extra[:raw_info]
       }
     end
 
     defp get_token_expires_at(%{expires_at: expires_at}) when is_integer(expires_at) do
-      DateTime.from_unix!(expires_at)
-    end
-
-    defp get_token_expires_at(%{expires: true, expires_at: expires_at})
-         when is_integer(expires_at) do
       DateTime.from_unix!(expires_at)
     end
 

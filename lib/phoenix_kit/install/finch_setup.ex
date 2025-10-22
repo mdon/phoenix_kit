@@ -62,18 +62,16 @@ defmodule PhoenixKit.Install.FinchSetup do
   defp add_swoosh_api_client_config(igniter) do
     # Always configure Finch as the API client in config.exs
     # This allows users to switch to HTTP-based adapters later without conflicts
-    try do
-      Config.configure_new(
-        igniter,
-        "config.exs",
-        :swoosh,
-        [:api_client],
-        Swoosh.ApiClient.Finch
-      )
-    rescue
-      _ ->
-        add_swoosh_config_simple(igniter)
-    end
+    Config.configure_new(
+      igniter,
+      "config.exs",
+      :swoosh,
+      [:api_client],
+      Swoosh.ApiClient.Finch
+    )
+  rescue
+    _ ->
+      add_swoosh_config_simple(igniter)
   end
 
   # Simple file append for Swoosh config when Igniter fails

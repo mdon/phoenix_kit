@@ -106,6 +106,10 @@ defmodule PhoenixKitWeb.Live.Settings do
         {:noreply, socket}
 
       {:error, errors} ->
+        # Debug: Log the actual error to understand the issue
+        require Logger
+        Logger.error("Settings save error: #{inspect(errors)}")
+
         error_msg = format_error_message(errors)
 
         socket =

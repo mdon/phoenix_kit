@@ -140,52 +140,48 @@ defmodule PhoenixKit.Install.LayoutConfig do
 
   # Phoenix v1.8+ layout configuration - uses function components, no router-level config needed
   defp add_modern_layout_config(igniter, layouts_module) do
-    try do
-      igniter
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:layouts_module],
-        layouts_module
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:phoenix_version_strategy],
-        :modern
-      )
-    rescue
-      _ ->
-        add_layout_config_simple(igniter, layouts_module, :modern)
-    end
+    igniter
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:layouts_module],
+      layouts_module
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:phoenix_version_strategy],
+      :modern
+    )
+  rescue
+    _ ->
+      add_layout_config_simple(igniter, layouts_module, :modern)
   end
 
   # Phoenix v1.7- legacy layout configuration
   defp add_legacy_layout_config(igniter, layouts_module) do
-    try do
-      igniter
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:layout],
-        {layouts_module, :app}
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:root_layout],
-        {layouts_module, :root}
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:phoenix_version_strategy],
-        :legacy
-      )
-    rescue
-      _ ->
-        add_layout_config_simple(igniter, layouts_module, :legacy)
-    end
+    igniter
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:layout],
+      {layouts_module, :app}
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:root_layout],
+      {layouts_module, :root}
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:phoenix_version_strategy],
+      :legacy
+    )
+  rescue
+    _ ->
+      add_layout_config_simple(igniter, layouts_module, :legacy)
   end
 
   # Simple file append for layout configuration when Igniter fails

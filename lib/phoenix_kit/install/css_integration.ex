@@ -67,15 +67,13 @@ defmodule PhoenixKit.Install.CssIntegration do
 
   # Automatically integrate CSS with PhoenixKit requirements
   defp integrate_css_automatically(igniter, css_path) do
-    try do
-      igniter
-      |> Igniter.update_file(css_path, &add_smart_integration/1)
-      |> add_integration_success_notice(css_path)
-    rescue
-      e ->
-        IO.warn("Failed to automatically integrate CSS: #{inspect(e)}")
-        add_manual_integration_instructions(igniter)
-    end
+    igniter
+    |> Igniter.update_file(css_path, &add_smart_integration/1)
+    |> add_integration_success_notice(css_path)
+  rescue
+    e ->
+      IO.warn("Failed to automatically integrate CSS: #{inspect(e)}")
+      add_manual_integration_instructions(igniter)
   end
 
   # Smart integration that handles all cases within Igniter context

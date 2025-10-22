@@ -43,8 +43,10 @@ if Code.ensure_loaded?(Ueberauth) do
             )
             |> redirect(to: Routes.path("/users/log-in"))
 
-          providers when is_list(providers) ->
-            provider_names = Enum.map(providers, &to_string(elem(&1, 0)))
+          providers when providers != [] ->
+            provider_names =
+              Enum.map(providers, fn {provider, _strategy} -> to_string(provider) end)
+
             Logger.debug("PhoenixKit OAuth: Available providers: #{inspect(provider_names)}")
 
             if provider in provider_names do
@@ -101,7 +103,14 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp get_ueberauth_providers do
-      Application.get_env(:ueberauth, Ueberauth, [])[:providers] || []
+      providers = Application.get_env(:ueberauth, Ueberauth, [])[:providers] || []
+
+      # Normalize Map or List to list of {provider_atom, strategy} tuples
+      case providers do
+        p when is_map(p) -> Map.to_list(p)
+        p when is_list(p) -> p
+        _ -> []
+      end
     end
 
     defp oauth_enabled_in_settings? do
