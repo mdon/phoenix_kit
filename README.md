@@ -10,12 +10,47 @@ PhoenixKit is under heavy development and we're looking for early adopters to te
 
 With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common SaaS patterns.
 
+## Semi-Automatic Installation
+
+PhoenixKit provides pretty simple installation method, powered by igniter library, which takes care of all configuration needs.
+
+Add both `phoenix_kit` and `igniter` to your project dependencies:
+
+```elixir
+# mix.exs
+def deps do
+  [
+    {:phoenix_kit, "~> 1.4"},
+    {:igniter, "~> 0.6.30", only: [:dev]}
+  ]
+end
+```
+
+Then run the PhoenixKit installer:
+
+```bash
+mix deps.get
+mix phoenix_kit.install
+```
+
+This will automatically:
+- ✅ Auto-detect your Ecto repository
+- ✅ **Validate PostgreSQL compatibility** with adapter detection
+- ✅ Generate migration files for authentication tables
+- ✅ **Optionally run migrations interactively** for instant setup
+- ✅ Add PhoenixKit configuration to `config/config.exs`
+- ✅ Configure mailer settings for development
+- ✅ **Create production mailer templates** in `config/prod.exs`
+- ✅ Add authentication routes to your router
+- ✅ Provide detailed setup instructions
+
 ## 📦 Current PhoenixKit Features / Modules:
 - [x] Simple installation using Igniter
 - [x] Tailwind and DaisyUI integration
 - [x] App layout integration
 - [x] App database integration (Postgres only for now)
-- [ ] User Module
+- [x] Custom slug prefix (default: `/phoenix_kit`)
+- [x] User Module
   - [x] Registration
   - [x] Login
     - [ ] Login screen customizations
@@ -24,28 +59,33 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
   - [x] Email confirmation (waiting Email Module)
   - [x] Password reset
   - [x] User roles
+  - [x] Custom user fields
+    - [x] JSONB storage for flexibility
   - [x] Location of registration (ip, country, region, city)
   - [x] User's timezone (and mismatch detection)
   - [x] User's locale
   - [x] OAuth (google, facebook)
 
 - [ ] Backend Admin module
-  - [x] Modules Manager (in progress)
+  - [x] Modules Manager
   - [x] Session Manager Module
-  - [x] Settings (in progress)
+  - [x] Settings
     - [x] Global app title
     - [x] Global app timezone (using timex)
     - [x] Global time format (using timex)
   - [x] User management
   - [x] Role management
   - [x] Referral Program
-- [x] Email Module
-- [x] Entities Module (WordPress ACF-like dynamic content types)
-  - [x] Dynamic entity type creation
-  - [x] Flexible field schemas (13 field types)
-  - [x] JSONB storage for flexibility
-  - [x] Full CRUD interfaces
-  - [x] Settings management
+  - [x] Maintenance Mode Module
+  - [x] Email Module
+    - [x] AWS SES integration
+  - [x] Entities Module (WordPress ACF-like dynamic content types)
+    - [x] Dynamic entity type creation
+    - [x] Flexible field schemas (13 field types)
+    - [x] JSONB storage for flexibility
+    - [x] Full CRUD interfaces
+    - [x] Settings management
+  - [x] Pages Module
 
 ## 🛣️ Roadmap / Ideas / Feature requests
 - User module
@@ -77,15 +117,17 @@ With PhoenixKit, you will be able to create production-ready Elixir/Phoenix apps
       - Video player (mp4, youtube, etc)
   - Billing System Module
     - Invoices
-    - Integration
-      - Stripe
-      - PayPal
-      - Crypto
+    - Payment
+      - Integration
+        - Stripe
+        - PayPal
+        - Crypto
+    - Orders
+  - Membership Module
   - Newsletter Module
   - E-commerce Module
     - Digital products
     - Physical products
-  - Membership Module
   - Cookies Module
   - Popups Module
   - Contact Us Module
@@ -168,9 +210,9 @@ mix phoenix_kit.install --prefix "auth" --create-schema
 mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 ```
 
-### Manual Installation
+## Manual Installation
 
-1. Add `{:phoenix_kit, "~> 1.3"}` to `mix.exs`
+1. Add `{:phoenix_kit, "~> 1.4"}` to `mix.exs`
 2. Run `mix deps.get && mix phoenix_kit.gen.migration`
 3. Configure repository: `config :phoenix_kit, repo: MyApp.Repo`
 4. Add `phoenix_kit_routes()` to your router
@@ -179,8 +221,8 @@ mix phoenix_kit.install --router-path lib/my_app_web/router.ex
 ## Quick Start
 
 Visit these URLs after installation:
-- `http://localhost:4000{prefix}/users/register` - User registration
-- `http://localhost:4000{prefix}/users/log-in` - User login
+- `http://localhost:4000/{prefix}/users/register` - User registration
+- `http://localhost:4000/{prefix}/users/log-in` - User login
 
 Where `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 
