@@ -152,21 +152,127 @@ defmodule PhoenixKit.Install.RepoDetection do
   defp add_repo_config_to_files(igniter, repo_module) do
     alias Igniter.Project.Config
 
-    igniter
-    # Add repo config to main config.exs
-    |> Config.configure_new(
-      "config.exs",
-      :phoenix_kit,
-      [:repo],
-      repo_module
-    )
-    # Also add repo config to test.exs for testing
-    |> Config.configure_new(
-      "test.exs",
-      :phoenix_kit,
-      [:repo],
-      repo_module
-    )
+    try do
+      igniter
+      # Add repo config to main config.exs
+      |> Config.configure_new(
+        "config.exs",
+        :phoenix_kit,
+        [:repo],
+        repo_module
+      )
+      # Also add repo config to test.exs for testing
+      |> Config.configure_new(
+        "test.exs",
+        :phoenix_kit,
+        [:repo],
+        repo_module
+      )
+    rescue
+      _ ->
+        # Fallback to simple file operations
+        add_repo_config_simple(igniter, repo_module)
+    end
+  end
+
+  # Simple file append for repo configuration when Igniter fails
+  defp add_repo_config_simple(igniter, repo_module) do
+    repo_config = """
+
+    # PhoenixKit repo configuration
+    config :phoenix_kit, repo: #{inspect(repo_module)}
+    """
+
+    try do
+      # Try appending to config.exs
+      config_path = "config/config.exs"
+
+      if File.exists?(config_path) do
+        content = File.read!(config_path)
+
+        # Check if already configured
+        unless String.contains?(content, "config :phoenix_kit, repo:") do
+          # Find insertion point before import_config
+          updated_content =
+            case find_import_config_location_simple(content) do
+              {:before_import, before_content, after_content} ->
+                before_content <> repo_config <> "\n" <> after_content
+
+              :append_to_end ->
+                content <> repo_config
+            end
+
+          File.write!(config_path, updated_content)
+        end
+      end
+
+      # Try appending to test.exs
+      test_path = "config/test.exs"
+
+      if File.exists?(test_path) do
+        test_content = File.read!(test_path)
+
+        unless String.contains?(test_content, "config :phoenix_kit, repo:") do
+          updated_test_content = test_content <> repo_config
+          File.write!(test_path, updated_test_content)
+        end
+      end
+
+      igniter
+    rescue
+      e ->
+        IO.warn("Failed to configure repo automatically: #{inspect(e)}")
+        add_repo_config_manual_notice(igniter, repo_module)
+    end
+  end
+
+  # Helper to find import_config location (simplified version)
+  defp find_import_config_location_simple(content) do
+    if String.contains?(content, "import_config") do
+      lines = String.split(content, "\n")
+
+      import_index =
+        Enum.find_index(lines, fn line ->
+          String.contains?(line, "import_config")
+        end)
+
+      case import_index do
+        nil ->
+          :append_to_end
+
+        index ->
+          # Find start of import block
+          start_index = max(0, index - 3)
+          before_lines = Enum.take(lines, start_index)
+          after_lines = Enum.drop(lines, start_index)
+
+          before_content = Enum.join(before_lines, "\n")
+          after_content = Enum.join(after_lines, "\n")
+
+          {:before_import, before_content, after_content}
+      end
+    else
+      :append_to_end
+    end
+  end
+
+  # Manual configuration notice for repo
+  defp add_repo_config_manual_notice(igniter, repo_module) do
+    notice = """
+    ⚠️  Manual Repo Configuration Required
+
+    PhoenixKit couldn't automatically configure the repository.
+
+    Please add this to config/config.exs:
+
+      config :phoenix_kit, repo: #{inspect(repo_module)}
+
+    And also add to config/test.exs:
+
+      config :phoenix_kit, repo: #{inspect(repo_module)}
+    """
+
+    Igniter.add_notice(igniter, notice)
   end
 
   # Create warning message when repository cannot be found
