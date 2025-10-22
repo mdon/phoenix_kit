@@ -317,55 +317,88 @@
                     </button>
 
                     <%!-- Google OAuth Setup Instructions --%>
-                    <div class="collapse collapse-arrow bg-base-300 mt-4">
+                    <div class="collapse collapse-arrow bg-base-200 mt-4">
                       <input type="checkbox" class="peer" />
                       <div class="collapse-title text-sm font-medium">
                         Setup Instructions
                       </div>
-                      <div class="collapse-content text-sm space-y-3">
-                        <div class="alert alert-info py-2">
-                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5" />
-                          <span>
-                            Callback URL:
-                            <code class="ml-1 px-2 py-1 bg-base-100 rounded">
-                              {get_oauth_callback_url(@settings, "google")}
-                            </code>
-                          </span>
+                      <div class="collapse-content text-sm space-y-4">
+                        <%!-- Callback URL Section --%>
+                        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                          <div class="flex items-start gap-3">
+                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                            <div class="flex-1 min-w-0">
+                              <div class="text-sm font-semibold text-base-content mb-2">
+                                Callback URL
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                  {get_oauth_callback_url(@settings, "google")}
+                                </code>
+                                <button
+                                  type="button"
+                                  class="btn btn-sm btn-square btn-outline"
+                                  onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "google")}')"}
+                                  title="Copy to clipboard"
+                                >
+                                  <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                </button>
+                              </div>
+                              <div class="text-xs text-base-content/60 mt-2">
+                                Copy this URL to Google Cloud Console
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                          <li>
-                            Visit
-                            <a
-                              href="https://console.cloud.google.com/apis/credentials"
-                              target="_blank"
-                              class="link link-primary"
-                            >
-                              Google Cloud Console
-                            </a>
-                          </li>
-                          <li>Create project or select existing one</li>
-                          <li>
-                            Go to <strong>Credentials</strong>
-                            → <strong>Create Credentials</strong>
-                            → <strong>OAuth client ID</strong>
-                          </li>
-                          <li>
-                            Select <strong>Web application</strong> type
-                          </li>
-                          <li>
-                            Add callback URL above to <strong>Authorized redirect URIs</strong>
-                          </li>
-                          <li>Copy Client ID and Secret to fields above</li>
-                          <li>
-                            Click <strong>Test Credentials</strong> to verify setup
-                          </li>
-                        </ol>
+                        <%!-- Step-by-step Instructions --%>
+                        <div class="space-y-3">
+                          <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                            <li>
+                              Visit
+                              <a
+                                href="https://console.cloud.google.com/apis/credentials"
+                                target="_blank"
+                                class="link link-primary"
+                              >
+                                Google Cloud Console
+                              </a>
+                            </li>
+                            <li>Create project or select existing one</li>
+                            <li>
+                              Go to <strong>Credentials</strong>
+                              → <strong>Create Credentials</strong>
+                              → <strong>OAuth client ID</strong>
+                            </li>
+                            <li>
+                              Select <strong>Web application</strong> type
+                            </li>
+                            <li>
+                              Add callback URL above to <strong>Authorized redirect URIs</strong>
+                            </li>
+                            <li>Copy Client ID and Secret to fields above</li>
+                            <li>
+                              Click <strong>Test Credentials</strong> to verify setup
+                            </li>
+                          </ol>
+                        </div>
 
-                        <div class="text-xs text-base-content/60">
-                          <strong>Reverse Proxy Users:</strong>
-                          If behind nginx/apache, ensure <code>X-Forwarded-Proto</code>
-                          header is set to <code>https</code>
+                        <%!-- Reverse Proxy Notice --%>
+                        <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                          <div class="flex items-start gap-2">
+                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                            <div class="text-base-content/80">
+                              <strong class="text-base-content">Reverse Proxy Users:</strong>
+                              If behind nginx/apache, ensure
+                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                                X-Forwarded-Proto
+                              </code>
+                              header is set to
+                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                                https
+                              </code>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -441,6 +474,103 @@
                     >
                       Test Credentials
                     </button>
+
+                    <%!-- Apple OAuth Setup Instructions --%>
+                    <div class="collapse collapse-arrow bg-base-200 mt-4">
+                      <input type="checkbox" class="peer" />
+                      <div class="collapse-title text-sm font-medium">
+                        Setup Instructions
+                      </div>
+                      <div class="collapse-content text-sm space-y-4">
+                        <%!-- Callback URL Section --%>
+                        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                          <div class="flex items-start gap-3">
+                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                            <div class="flex-1 min-w-0">
+                              <div class="text-sm font-semibold text-base-content mb-2">
+                                Callback URL
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                  {get_oauth_callback_url(@settings, "apple")}
+                                </code>
+                                <button
+                                  type="button"
+                                  class="btn btn-sm btn-square btn-outline"
+                                  onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "apple")}')"}
+                                  title="Copy to clipboard"
+                                >
+                                  <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                                </button>
+                              </div>
+                              <div class="text-xs text-base-content/60 mt-2">
+                                Copy this URL to Apple Developer Console
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <%!-- Step-by-step Instructions --%>
+                        <div class="space-y-3">
+                          <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                            <li>
+                              Visit
+                              <a
+                                href="https://developer.apple.com/account/resources/identifiers/list"
+                                target="_blank"
+                                class="link link-primary"
+                              >
+                                Apple Developer Console
+                              </a>
+                            </li>
+                            <li>Create an App ID or select existing one</li>
+                            <li>
+                              Enable <strong>Sign in with Apple</strong> capability
+                            </li>
+                            <li>
+                              Create a <strong>Services ID</strong> for web authentication
+                            </li>
+                            <li>
+                              Configure <strong>Sign in with Apple</strong> for the Services ID
+                            </li>
+                            <li>
+                              Add callback URL above to <strong>Return URLs</strong>
+                            </li>
+                            <li>
+                              Create a <strong>Private Key</strong>
+                              with Sign in with Apple enabled
+                            </li>
+                            <li>
+                              Copy <strong>Team ID</strong>, <strong>Key ID</strong>,
+                              <strong>Client ID</strong>
+                              (Services ID), and <strong>Private Key</strong>
+                              to fields above
+                            </li>
+                            <li>
+                              Click <strong>Test Credentials</strong> to verify setup
+                            </li>
+                          </ol>
+                        </div>
+
+                        <%!-- Reverse Proxy Notice --%>
+                        <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                          <div class="flex items-start gap-2">
+                            <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                            <div class="text-base-content/80">
+                              <strong class="text-base-content">Reverse Proxy Users:</strong>
+                              If behind nginx/apache, ensure
+                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                                X-Forwarded-Proto
+                              </code>
+                              header is set to
+                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                                https
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -488,6 +618,97 @@
                   >
                     Test Credentials
                   </button>
+
+                  <%!-- GitHub OAuth Setup Instructions --%>
+                  <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title text-sm font-medium">
+                      Setup Instructions
+                    </div>
+                    <div class="collapse-content text-sm space-y-4">
+                      <%!-- Callback URL Section --%>
+                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-base-content mb-2">
+                              Callback URL
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                {get_oauth_callback_url(@settings, "github")}
+                              </code>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-square btn-outline"
+                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "github")}')"}
+                                title="Copy to clipboard"
+                              >
+                                <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="text-xs text-base-content/60 mt-2">
+                              Copy this URL to GitHub OAuth Apps
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <%!-- Step-by-step Instructions --%>
+                      <div class="space-y-3">
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            Visit
+                            <a
+                              href="https://github.com/settings/developers"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              GitHub Developer Settings
+                            </a>
+                          </li>
+                          <li>
+                            Go to <strong>OAuth Apps</strong> → <strong>New OAuth App</strong>
+                          </li>
+                          <li>
+                            Enter <strong>Application name</strong>
+                            and <strong>Homepage URL</strong>
+                          </li>
+                          <li>
+                            Add callback URL above to <strong>Authorization callback URL</strong>
+                          </li>
+                          <li>
+                            Click <strong>Register application</strong>
+                          </li>
+                          <li>
+                            Copy <strong>Client ID</strong>
+                            and generate/copy <strong>Client Secret</strong>
+                          </li>
+                          <li>
+                            Click <strong>Test Credentials</strong> to verify setup
+                          </li>
+                        </ol>
+                      </div>
+
+                      <%!-- Reverse Proxy Notice --%>
+                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                        <div class="flex items-start gap-2">
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                          <div class="text-base-content/80">
+                            <strong class="text-base-content">Reverse Proxy Users:</strong>
+                            If behind nginx/apache, ensure
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              X-Forwarded-Proto
+                            </code>
+                            header is set to
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              https
+                            </code>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <%!-- Facebook OAuth Credentials --%>
@@ -534,6 +755,105 @@
                   >
                     Test Credentials
                   </button>
+
+                  <%!-- Facebook OAuth Setup Instructions --%>
+                  <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title text-sm font-medium">
+                      Setup Instructions
+                    </div>
+                    <div class="collapse-content text-sm space-y-4">
+                      <%!-- Callback URL Section --%>
+                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-base-content mb-2">
+                              Callback URL
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                {get_oauth_callback_url(@settings, "facebook")}
+                              </code>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-square btn-outline"
+                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "facebook")}')"}
+                                title="Copy to clipboard"
+                              >
+                                <PhoenixKitWeb.Components.Core.Icons.icon_clipboard class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="text-xs text-base-content/60 mt-2">
+                              Copy this URL to Facebook App Settings
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <%!-- Step-by-step Instructions --%>
+                      <div class="space-y-3">
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            Visit
+                            <a
+                              href="https://developers.facebook.com/apps"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              Facebook Developers Console
+                            </a>
+                          </li>
+                          <li>
+                            Create a new app or select existing one
+                          </li>
+                          <li>
+                            Add <strong>Facebook Login</strong> product
+                          </li>
+                          <li>
+                            Go to <strong>Facebook Login</strong> → <strong>Settings</strong>
+                          </li>
+                          <li>
+                            Add callback URL above to <strong>Valid OAuth Redirect URIs</strong>
+                          </li>
+                          <li>
+                            Go to <strong>Settings</strong> → <strong>Basic</strong>
+                          </li>
+                          <li>
+                            Copy <strong>App ID</strong>
+                            and <strong>App Secret</strong>
+                            to fields above
+                          </li>
+                          <li>
+                            Switch app from <strong>Development</strong>
+                            to <strong>Live</strong>
+                            mode
+                          </li>
+                          <li>
+                            Click <strong>Test Credentials</strong> to verify setup
+                          </li>
+                        </ol>
+                      </div>
+
+                      <%!-- Reverse Proxy Notice --%>
+                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                        <div class="flex items-start gap-2">
+                          <PhoenixKitWeb.Components.Core.Icons.icon_info class="h-4 w-4 text-info shrink-0 mt-0.5" />
+                          <div class="text-base-content/80">
+                            <strong class="text-base-content">Reverse Proxy Users:</strong>
+                            If behind nginx/apache, ensure
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              X-Forwarded-Proto
+                            </code>
+                            header is set to
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              https
+                            </code>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <%!-- OAuth Configuration Notice --%>
