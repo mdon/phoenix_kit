@@ -69,7 +69,9 @@ defmodule PhoenixKit.Settings.Setting do
     "oauth_apple_key_id",
     "oauth_apple_private_key",
     "oauth_github_client_id",
-    "oauth_github_client_secret"
+    "oauth_github_client_secret",
+    "oauth_facebook_app_id",
+    "oauth_facebook_app_secret"
   ]
 
   @primary_key {:id, :id, autogenerate: true}
@@ -252,6 +254,8 @@ defmodule PhoenixKit.Settings.Setting do
       field :oauth_apple_private_key, :string
       field :oauth_github_client_id, :string
       field :oauth_github_client_secret, :string
+      field :oauth_facebook_app_id, :string
+      field :oauth_facebook_app_secret, :string
     end
 
     @doc """
@@ -308,9 +312,9 @@ defmodule PhoenixKit.Settings.Setting do
         :oauth_apple_key_id,
         :oauth_apple_private_key,
         :oauth_github_client_id,
-        :oauth_github_client_secret
-        # :oauth_facebook_app_id,
-        # :oauth_facebook_app_secret
+        :oauth_github_client_secret,
+        :oauth_facebook_app_id,
+        :oauth_facebook_app_secret
       ])
       |> validate_required([
         :project_title,
