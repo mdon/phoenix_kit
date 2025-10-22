@@ -131,7 +131,7 @@ Add both `phoenix_kit` and `igniter` to your project dependencies:
 # mix.exs
 def deps do
   [
-    {:phoenix_kit, "~> 1.3"},
+    {:phoenix_kit, "~> 1.4.3"},
     {:igniter, "~> 0.6.0", only: [:dev]}
   ]
 end
