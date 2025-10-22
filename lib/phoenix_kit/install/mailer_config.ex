@@ -170,14 +170,6 @@ defmodule PhoenixKit.Install.MailerConfig do
         Igniter.update_file(igniter, "config/runtime.exs", fn source ->
           content = Rewrite.Source.get(source, :content)
 
-        # Insert at the specified line
-        {before_lines, after_lines} = Enum.split(lines, line_number - 1)
-
-        updated_content =
-          (before_lines ++
-             [mailer_config] ++
-             after_lines)
-          |> Enum.join("\n")
           # Check if already configured
           if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
             source
@@ -337,14 +329,6 @@ defmodule PhoenixKit.Install.MailerConfig do
         Igniter.update_file(igniter, "config/config.exs", fn source ->
           content = Rewrite.Source.get(source, :content)
 
-        # Insert at the specified line
-        {before_lines, after_lines} = Enum.split(lines, line_number - 1)
-
-        updated_content =
-          (before_lines ++
-             [mailer_config] ++
-             after_lines)
-          |> Enum.join("\n")
           # Check if already configured
           if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
             source
