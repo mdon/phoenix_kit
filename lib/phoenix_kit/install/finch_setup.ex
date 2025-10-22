@@ -85,26 +85,27 @@ defmodule PhoenixKit.Install.FinchSetup do
     """
 
     try do
-      config_path = "config/config.exs"
+      igniter =
+        Igniter.update_file(igniter, "config/config.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
 
-      if File.exists?(config_path) do
-        content = File.read!(config_path)
+          # Check if already configured
+          if String.contains?(content, "config :swoosh, api_client:") do
+            source
+          else
+            # Find insertion point before import_config
+            updated_content =
+              case find_import_config_location_simple(content) do
+                {:before_import, before_content, after_content} ->
+                  before_content <> swoosh_config <> "\n" <> after_content
 
-        # Check if already configured
-        unless String.contains?(content, "config :swoosh, api_client:") do
-          # Find insertion point before import_config
-          updated_content =
-            case find_import_config_location_simple(content) do
-              {:before_import, before_content, after_content} ->
-                before_content <> swoosh_config <> "\n" <> after_content
+                :append_to_end ->
+                  content <> swoosh_config
+              end
 
-              :append_to_end ->
-                content <> swoosh_config
-            end
-
-          File.write!(config_path, updated_content)
-        end
-      end
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
 
       igniter
     rescue

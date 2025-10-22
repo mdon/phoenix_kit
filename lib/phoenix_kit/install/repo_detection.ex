@@ -184,39 +184,41 @@ defmodule PhoenixKit.Install.RepoDetection do
     """
 
     try do
-      # Try appending to config.exs
-      config_path = "config/config.exs"
+      # Try appending to config.exs using Igniter
+      igniter =
+        Igniter.update_file(igniter, "config/config.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
 
-      if File.exists?(config_path) do
-        content = File.read!(config_path)
+          # Check if already configured
+          if String.contains?(content, "config :phoenix_kit, repo:") do
+            source
+          else
+            # Find insertion point before import_config
+            updated_content =
+              case find_import_config_location_simple(content) do
+                {:before_import, before_content, after_content} ->
+                  before_content <> repo_config <> "\n" <> after_content
 
-        # Check if already configured
-        unless String.contains?(content, "config :phoenix_kit, repo:") do
-          # Find insertion point before import_config
-          updated_content =
-            case find_import_config_location_simple(content) do
-              {:before_import, before_content, after_content} ->
-                before_content <> repo_config <> "\n" <> after_content
+                :append_to_end ->
+                  content <> repo_config
+              end
 
-              :append_to_end ->
-                content <> repo_config
-            end
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
 
-          File.write!(config_path, updated_content)
-        end
-      end
+      # Try appending to test.exs using Igniter
+      igniter =
+        Igniter.update_file(igniter, "config/test.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
 
-      # Try appending to test.exs
-      test_path = "config/test.exs"
-
-      if File.exists?(test_path) do
-        test_content = File.read!(test_path)
-
-        unless String.contains?(test_content, "config :phoenix_kit, repo:") do
-          updated_test_content = test_content <> repo_config
-          File.write!(test_path, updated_test_content)
-        end
-      end
+          if String.contains?(content, "config :phoenix_kit, repo:") do
+            source
+          else
+            updated_content = content <> repo_config
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
 
       igniter
     rescue

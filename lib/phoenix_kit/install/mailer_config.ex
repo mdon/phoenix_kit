@@ -156,7 +156,7 @@ defmodule PhoenixKit.Install.MailerConfig do
     end
   end
 
-  # Simple append to runtime.exs using raw File operations (no AST parsing)
+  # Simple append to runtime.exs using Igniter (no AST parsing)
   defp append_to_runtime_file_simple(igniter) do
     mailer_config = """
 
@@ -166,25 +166,33 @@ defmodule PhoenixKit.Install.MailerConfig do
     """
 
     try do
-      file_path = "config/runtime.exs"
-      content = File.read!(file_path)
+      igniter =
+        Igniter.update_file(igniter, "config/runtime.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
 
-      # Find insertion point before import_config statements
-      insertion_point = find_import_config_location(content)
+          # Check if already configured
+          if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
+            source
+          else
+            # Find insertion point before import_config statements
+            insertion_point = find_import_config_location(content)
 
-      case insertion_point do
-        {:before_import, before_content, after_content} ->
-          # Insert before import_config
-          updated_content = before_content <> mailer_config <> "\n" <> after_content
-          File.write!(file_path, updated_content)
-          igniter
+            updated_content =
+              case insertion_point do
+                {:before_import, before_content, after_content} ->
+                  # Insert before import_config
+                  before_content <> mailer_config <> "\n" <> after_content
 
-        :append_to_end ->
-          # No import_config found, append to end
-          updated_content = content <> mailer_config
-          File.write!(file_path, updated_content)
-          igniter
-      end
+                :append_to_end ->
+                  # No import_config found, append to end
+                  content <> mailer_config
+              end
+
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
+
+      igniter
     rescue
       e ->
         # Last resort: show manual instructions
@@ -281,12 +289,21 @@ defmodule PhoenixKit.Install.MailerConfig do
       )
     rescue
       _ ->
-        # Fallback to simple file append
+        # Fallback to simple file append using Igniter
         try do
-          file_path = "config/dev.exs"
-          content = File.read!(file_path)
-          updated_content = content <> mailer_config
-          File.write!(file_path, updated_content)
+          igniter =
+            Igniter.update_file(igniter, "config/dev.exs", fn source ->
+              content = Rewrite.Source.get(source, :content)
+
+              # Check if already configured
+              if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
+                source
+              else
+                updated_content = content <> mailer_config
+                Rewrite.Source.update(source, :content, updated_content)
+              end
+            end)
+
           igniter
         rescue
           e ->
@@ -308,26 +325,33 @@ defmodule PhoenixKit.Install.MailerConfig do
     """
 
     try do
-      # Try simple file append with import_config detection
-      file_path = "config/config.exs"
-      content = File.read!(file_path)
+      igniter =
+        Igniter.update_file(igniter, "config/config.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
 
-      # Find insertion point before import_config statements
-      insertion_point = find_import_config_location(content)
+          # Check if already configured
+          if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
+            source
+          else
+            # Find insertion point before import_config statements
+            insertion_point = find_import_config_location(content)
 
-      case insertion_point do
-        {:before_import, before_content, after_content} ->
-          # Insert before import_config
-          updated_content = before_content <> mailer_config <> "\n" <> after_content
-          File.write!(file_path, updated_content)
-          igniter
+            updated_content =
+              case insertion_point do
+                {:before_import, before_content, after_content} ->
+                  # Insert before import_config
+                  before_content <> mailer_config <> "\n" <> after_content
 
-        :append_to_end ->
-          # No import_config found, append to end
-          updated_content = content <> mailer_config
-          File.write!(file_path, updated_content)
-          igniter
-      end
+                :append_to_end ->
+                  # No import_config found, append to end
+                  content <> mailer_config
+              end
+
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
+
+      igniter
     rescue
       e ->
         IO.warn("Failed to configure config.exs: #{inspect(e)}")
