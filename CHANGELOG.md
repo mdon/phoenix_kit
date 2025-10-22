@@ -1,3 +1,25 @@
+## 1.4.3 - 2025-10-22
+
+### Fixed
+- **Installer Robustness** - Universal compatibility with complex config files
+  - Added support for runtime.exs with Dotenvy and environment variables
+  - Comprehensive error handling prevents crashes on complex syntax
+  - Smart import_config detection ensures proper configuration order
+  - Multiple fallback strategies (AST parsing → File operations → manual instructions)
+- **Duplicate Prevention** - Installation now truly idempotent
+  - Added duplicate detection for all configurations (repo, layout, mailer, Swoosh)
+  - Integration plug no longer duplicates on multiple installs
+  - All config checks prevent adding same configuration twice
+- **Igniter Tracking** - Fixed file change tracking warnings
+  - All file modifications now properly tracked by Igniter
+  - Eliminated "file changed since read" warnings
+
+### Changed
+- **Error Recovery** - Graceful degradation with clear user feedback
+  - All installer modules wrapped in comprehensive try/rescue blocks
+  - Clear manual configuration instructions when automatic fails
+  - IO.warn messages for debugging failed operations
+ 
 ## 1.4.2 - 2025-10-22
 
 ### Fixed
