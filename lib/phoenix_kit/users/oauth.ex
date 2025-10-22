@@ -104,7 +104,7 @@ if Code.ensure_loaded?(Ueberauth) do
     defp extract_oauth_data(%Ueberauth.Auth{} = auth) do
       %{
         provider: to_string(auth.provider),
-        provider_uid: auth.uid,
+        provider_uid: to_string(auth.uid),
         email: auth.info.email,
         first_name: auth.info.first_name,
         last_name: auth.info.last_name,

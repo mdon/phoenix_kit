@@ -61,8 +61,10 @@ defmodule PhoenixKit.Install.MailerConfig do
     case RuntimeDetector.detect_config_pattern() do
       :runtime ->
         add_runtime_mailer_config(igniter)
+
       :dev_exs ->
         add_simple_dev_mailer_config(igniter)
+
       :config_exs ->
         add_config_exs_mailer_config(igniter)
     end
@@ -73,8 +75,10 @@ defmodule PhoenixKit.Install.MailerConfig do
     case RuntimeDetector.find_insertion_point() do
       {:runtime, line_number} ->
         insert_into_runtime_file(igniter, line_number)
+
       {:dev_exs, line_number} ->
         add_simple_dev_mailer_config_at_line(igniter, line_number)
+
       {:config_exs, line_number} ->
         add_config_exs_mailer_config_at_line(igniter, line_number)
     end
@@ -129,10 +133,11 @@ defmodule PhoenixKit.Install.MailerConfig do
 
         # Insert at the specified line
         {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+
         updated_content =
-          before_lines ++
-          [mailer_config] ++
-          after_lines
+          (before_lines ++
+             [mailer_config] ++
+             after_lines)
           |> Enum.join("\n")
 
         Rewrite.Source.update(source, :content, updated_content)
@@ -159,10 +164,11 @@ defmodule PhoenixKit.Install.MailerConfig do
 
         # Insert at the specified line
         {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+
         updated_content =
-          before_lines ++
-          [mailer_config] ++
-          after_lines
+          (before_lines ++
+             [mailer_config] ++
+             after_lines)
           |> Enum.join("\n")
 
         Rewrite.Source.update(source, :content, updated_content)
@@ -191,10 +197,11 @@ defmodule PhoenixKit.Install.MailerConfig do
 
         # Insert at the specified line
         {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+
         updated_content =
-          before_lines ++
-          [mailer_config] ++
-          after_lines
+          (before_lines ++
+             [mailer_config] ++
+             after_lines)
           |> Enum.join("\n")
 
         Rewrite.Source.update(source, :content, updated_content)

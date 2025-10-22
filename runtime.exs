@@ -83,7 +83,9 @@ if config_env() == :test do
     username: Dotenvy.env!("DB_USERNAME", :string, "postgres"),
     password: Dotenvy.env!("DB_PASSWORD", :string, "postgres"),
     hostname: Dotenvy.env!("DB_HOSTNAME", :string, "localhost"),
-    database: Dotenvy.env!("DB_DATABASE", :string, "alive_test") <> (System.get_env("MIX_TEST_PARTITION") || ""),
+    database:
+      Dotenvy.env!("DB_DATABASE", :string, "alive_test") <>
+        (System.get_env("MIX_TEST_PARTITION") || ""),
     pool: Ecto.Adapters.SQL.Sandbox,
     pool_size: System.schedulers_online() * 2
 
