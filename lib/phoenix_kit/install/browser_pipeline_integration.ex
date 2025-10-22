@@ -46,13 +46,41 @@ defmodule PhoenixKit.Install.BrowserPipelineIntegration do
         )
 
       {igniter, router_module} ->
-        # Use Igniter's built-in append_to_pipeline function
-        IgniterPhoenix.append_to_pipeline(
-          igniter,
-          :browser,
-          "plug PhoenixKitWeb.Plugs.Integration",
-          router: router_module
-        )
+        # Check if plug already exists before adding
+        if plug_already_exists?(igniter, router_module) do
+          igniter
+        else
+          # Use Igniter's built-in append_to_pipeline function
+          IgniterPhoenix.append_to_pipeline(
+            igniter,
+            :browser,
+            "plug PhoenixKitWeb.Plugs.Integration",
+            router: router_module
+          )
+        end
     end
+  end
+
+  # Check if Integration plug already exists in the router
+  defp plug_already_exists?(igniter, router_module) do
+    router_path = module_to_file_path(router_module)
+
+    case Map.get(igniter.rewrite.sources, router_path) do
+      nil ->
+        false
+
+      source ->
+        content = Rewrite.Source.get(source, :content)
+        String.contains?(content, "PhoenixKitWeb.Plugs.Integration")
+    end
+  end
+
+  # Convert module name to file path
+  defp module_to_file_path(module) do
+    module
+    |> Module.split()
+    |> Enum.map(&Macro.underscore/1)
+    |> Path.join()
+    |> then(&"lib/#{&1}.ex")
   end
 end

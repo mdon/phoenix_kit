@@ -8,7 +8,6 @@ defmodule PhoenixKit.Install.RuntimeDetector do
   - The correct insertion location for PhoenixKit configuration
   """
 
-  
   @doc """
   Detects if the project uses runtime configuration patterns.
 
@@ -53,6 +52,7 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     case File.read("config/runtime.exs") do
       {:ok, content} ->
         runtime_patterns?(content)
+
       {:error, _} ->
         false
     end
@@ -69,6 +69,7 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     case File.read("config/dev.exs") do
       {:ok, content} ->
         not (runtime_patterns?(content) or has_complex_conditionals?(content))
+
       {:error, _} ->
         false
     end
@@ -104,8 +105,10 @@ defmodule PhoenixKit.Install.RuntimeDetector do
       :runtime ->
         line_num = find_runtime_insertion_point()
         {:runtime, line_num}
+
       :dev_exs ->
         {:dev_exs, find_end_of_file("config/dev.exs")}
+
       :config_exs ->
         {:config_exs, find_end_of_file("config/config.exs")}
     end
@@ -127,6 +130,7 @@ defmodule PhoenixKit.Install.RuntimeDetector do
         case find_dev_block_end(lines) do
           {:ok, line_num} ->
             line_num
+
           {:error, :no_dev_block} ->
             # If no dev block found, insert after imports
             find_insertion_after_imports(lines)
@@ -153,9 +157,12 @@ defmodule PhoenixKit.Install.RuntimeDetector do
 
   defp has_complex_conditionals?(content) do
     patterns = [
-      ~r/if.*do.*end/s,  # Multi-line if blocks
-      ~r/case.*do.*end/s,  # Case statements
-      ~r/cond.*do/s       # Cond statements
+      # Multi-line if blocks
+      ~r/if.*do.*end/s,
+      # Case statements
+      ~r/case.*do.*end/s,
+      # Cond statements
+      ~r/cond.*do/s
     ]
 
     Enum.any?(patterns, &Regex.match?(&1, content))
@@ -166,18 +173,21 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     |> Enum.with_index()
     |> Enum.find(fn {line, _index} ->
       String.contains?(line, "config :swoosh, :api_client, false") &&
-      String.contains?(line, "end")
+        String.contains?(line, "end")
     end)
     |> case do
       {_line, index} ->
         # Find the actual "end" of the dev block
         remaining_lines = Enum.drop(lines, index + 1)
+
         case find_next_config_block(remaining_lines) do
           {:ok, next_line_num} ->
             {:ok, index + 1 + next_line_num - 1}
+
           :not_found ->
             {:ok, index + 1}
         end
+
       nil ->
         {:error, :no_dev_block}
     end
@@ -188,7 +198,7 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     |> Enum.with_index()
     |> Enum.find(fn {line, _index} ->
       String.starts_with?(String.trim(line), "config ") ||
-      String.starts_with?(String.trim(line), "if config_env")
+        String.starts_with?(String.trim(line), "if config_env")
     end)
     |> case do
       {_, index} -> {:ok, index}
@@ -212,6 +222,7 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     case File.read(file_path) do
       {:ok, content} ->
         String.split(content, "\n") |> length()
+
       {:error, _} ->
         1
     end
