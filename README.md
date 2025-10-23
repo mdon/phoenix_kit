@@ -44,26 +44,28 @@ This will automatically:
 - Add authentication routes to your router
 
 ## 📦 Current PhoenixKit Features / Modules:
-- ✅ Simple installation using Igniter
-- ✅ Tailwind and DaisyUI integration
-- ✅ App layout integration
-- ✅ App database integration (Postgres only for now)
-- ✅ Custom slug prefix (default: `/phoenix_kit`)
-- ✅ User Module
-  - ✅ Registration
-  - ✅ Login
-    - [ ] Login screen customizations
-  - ✅ Logout
-  - ✅ Magic link
-  - ✅ Email confirmation (waiting Email Module)
-  - ✅ Password reset
-  - ✅ User roles
-  - ✅ Custom user fields
-    - ✅ JSONB storage for flexibility
-  - ✅ Location of registration (ip, country, region, city)
-  - ✅ User's timezone (and mismatch detection)
-  - ✅ User's locale
-  - ✅ OAuth (google, facebook)
+```
+✅ Simple installation using Igniter
+✅ Tailwind and DaisyUI integration
+✅ App layout integration
+✅ App database integration (Postgres only for now)
+✅ Custom slug prefix (default: `/phoenix_kit`)
+✅ User Module
+  ✅ Registration
+  ✅ Login
+    [ ] Login screen customizations
+  ✅ Logout
+  ✅ Magic link
+  ✅ Email confirmation (waiting Email Module)
+  ✅ Password reset
+  ✅ User roles
+  ✅ Custom user fields
+    ✅ JSONB storage for flexibility
+  ✅ Location of registration (ip, country, region, city)
+  ✅ User's timezone (and mismatch detection)
+  ✅ User's locale
+  ✅ OAuth (google, facebook)
+```
 
 - [ ] Backend Admin module
   - [x] Modules Manager
