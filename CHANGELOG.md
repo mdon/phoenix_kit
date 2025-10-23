@@ -1,3 +1,9 @@
+## 1.4.4 - 2025-10-23
+### Fixed
+- Refactor parent project modules identification
+- Update OAuth settings UI with new components
+- Updated igniter script with more bulletproofing
+
 ## 1.4.3 - 2025-10-22
 
 ### Fixed
