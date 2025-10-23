@@ -1,6 +1,4 @@
 defmodule PhoenixKit.Install.LayoutConfig do
-  use PhoenixKit.Install.IgniterCompat
-
   @moduledoc """
   Handles layout integration configuration for PhoenixKit installation.
 
@@ -10,10 +8,11 @@ defmodule PhoenixKit.Install.LayoutConfig do
   - Handle recompilation requirements
   - Generate appropriate notices for layout setup
   """
+  use PhoenixKit.Install.IgniterCompat
 
-  alias Igniter.Project.{Application, Config}
-  alias Igniter.Project.Module, as: IgniterModule
+  alias Igniter.Project.Config
 
+  alias PhoenixKit.Install.IgniterHelpers
   alias PhoenixKit.Utils.PhoenixVersion
 
   @doc """
@@ -41,33 +40,12 @@ defmodule PhoenixKit.Install.LayoutConfig do
 
   # Detect app layouts using IgniterPhoenix
   defp detect_app_layouts(igniter) do
-    case Application.app_name(igniter) do
-      nil -> {igniter, nil}
-      app_name -> detect_layouts_for_app(igniter, app_name)
-    end
-  end
+    layouts_module = IgniterHelpers.get_parent_app_module_web_layouts(igniter)
 
-  # Try to detect layouts module following Phoenix conventions
-  defp detect_layouts_for_app(igniter, app_name) do
-    app_web_module = Module.concat([Macro.camelize(to_string(app_name)) <> "Web"])
-    layouts_module = Module.concat([app_web_module, "Layouts"])
-
-    case IgniterModule.module_exists(igniter, layouts_module) do
-      {true, igniter} ->
-        {igniter, {layouts_module, :app}}
-
-      {false, igniter} ->
-        try_alternative_layouts_pattern(igniter, app_name)
-    end
-  end
-
-  # Try alternative patterns like MyApp.Layouts
-  defp try_alternative_layouts_pattern(igniter, app_name) do
-    alt_layouts_module = Module.concat([Macro.camelize(to_string(app_name)), "Layouts"])
-
-    case IgniterModule.module_exists(igniter, alt_layouts_module) do
-      {true, igniter} -> {igniter, {alt_layouts_module, :app}}
-      {false, igniter} -> {igniter, nil}
+    if layouts_module != nil do
+      {igniter, {layouts_module, :app}}
+    else
+      {igniter, nil}
     end
   end
 
@@ -140,52 +118,48 @@ defmodule PhoenixKit.Install.LayoutConfig do
 
   # Phoenix v1.8+ layout configuration - uses function components, no router-level config needed
   defp add_modern_layout_config(igniter, layouts_module) do
-    try do
-      igniter
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:layouts_module],
-        layouts_module
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:phoenix_version_strategy],
-        :modern
-      )
-    rescue
-      _ ->
-        add_layout_config_simple(igniter, layouts_module, :modern)
-    end
+    igniter
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:layouts_module],
+      layouts_module
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:phoenix_version_strategy],
+      :modern
+    )
+  rescue
+    _ ->
+      add_layout_config_simple(igniter, layouts_module, :modern)
   end
 
   # Phoenix v1.7- legacy layout configuration
   defp add_legacy_layout_config(igniter, layouts_module) do
-    try do
-      igniter
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:layout],
-        {layouts_module, :app}
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:root_layout],
-        {layouts_module, :root}
-      )
-      |> Config.configure_new(
-        "config.exs",
-        :phoenix_kit,
-        [:phoenix_version_strategy],
-        :legacy
-      )
-    rescue
-      _ ->
-        add_layout_config_simple(igniter, layouts_module, :legacy)
-    end
+    igniter
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:layout],
+      {layouts_module, :app}
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:root_layout],
+      {layouts_module, :root}
+    )
+    |> Config.configure_new(
+      "config.exs",
+      :phoenix_kit,
+      [:phoenix_version_strategy],
+      :legacy
+    )
+  rescue
+    _ ->
+      add_layout_config_simple(igniter, layouts_module, :legacy)
   end
 
   # Simple file append for layout configuration when Igniter fails

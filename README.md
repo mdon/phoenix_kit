@@ -34,37 +34,38 @@ mix phoenix_kit.install
 ```
 
 This will automatically:
-- ✅ Auto-detect your Ecto repository
-- ✅ **Validate PostgreSQL compatibility** with adapter detection
-- ✅ Generate migration files for authentication tables
-- ✅ **Optionally run migrations interactively** for instant setup
-- ✅ Add PhoenixKit configuration to `config/config.exs`
-- ✅ Configure mailer settings for development
-- ✅ **Create production mailer templates** in `config/prod.exs`
-- ✅ Add authentication routes to your router
-- ✅ Provide detailed setup instructions
+- Auto-detect your Ecto repository
+- **Validate PostgreSQL compatibility** with adapter detection
+- Generate migration files for authentication tables
+- **Optionally run migrations interactively** for instant setup
+- Add PhoenixKit configuration to `config/config.exs`
+- Configure mailer settings for development
+- **Create production mailer templates** in `config/prod.exs`
+- Add authentication routes to your router
 
 ## 📦 Current PhoenixKit Features / Modules:
-- [x] Simple installation using Igniter
-- [x] Tailwind and DaisyUI integration
-- [x] App layout integration
-- [x] App database integration (Postgres only for now)
-- [x] Custom slug prefix (default: `/phoenix_kit`)
-- [x] User Module
-  - [x] Registration
-  - [x] Login
-    - [ ] Login screen customizations
-  - [x] Logout
-  - [x] Magic link
-  - [x] Email confirmation (waiting Email Module)
-  - [x] Password reset
-  - [x] User roles
-  - [x] Custom user fields
-    - [x] JSONB storage for flexibility
-  - [x] Location of registration (ip, country, region, city)
-  - [x] User's timezone (and mismatch detection)
-  - [x] User's locale
-  - [x] OAuth (google, facebook)
+```
+✅ Simple installation using Igniter
+✅ Tailwind and DaisyUI integration
+✅ App layout integration
+✅ App database integration (Postgres only for now)
+✅ Custom slug prefix (default: `/phoenix_kit`)
+✅ User Module
+  ✅ Registration
+  ✅ Login
+    [ ] Login screen customizations
+  ✅ Logout
+  ✅ Magic link
+  ✅ Email confirmation (waiting Email Module)
+  ✅ Password reset
+  ✅ User roles
+  ✅ Custom user fields
+    ✅ JSONB storage for flexibility
+  ✅ Location of registration (ip, country, region, city)
+  ✅ User's timezone (and mismatch detection)
+  ✅ User's locale
+  ✅ OAuth (google, facebook)
+```
 
 - [ ] Backend Admin module
   - [x] Modules Manager
@@ -88,9 +89,9 @@ This will automatically:
   - [x] Pages Module
 
 ## 🛣️ Roadmap / Ideas / Feature requests
-- User module
+- User Auth
   - 2FA
-  - Fail2ban
+  - Fail2ban (userbased, ip based, region based)
 - Backend admin
   - Design / templates / themes
   - Settings
@@ -98,6 +99,7 @@ This will automatically:
     - Languages
   - Email Module
     - Email templates
+  - Newsletter Module
   - Notifications Module
     - Integration with notification providers (Twilio, etc...)
   - Content publishing Module
@@ -108,7 +110,6 @@ This will automatically:
     - Local / External storage support (AWS S3, Azure Storage, Google Storage, Cloudflare R2, and DigitalOcean Spaces)
     - CDN
     - Static pages
-    - Legal (Cookies, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
     - Blog
     - Comments
     - Search
@@ -123,34 +124,37 @@ This will automatically:
         - PayPal
         - Crypto
     - Orders
-  - Membership Module
-  - Newsletter Module
+  - Membership / Subscription Module
   - E-commerce Module
-    - Digital products
+    - Digital and downloadable products
     - Physical products
   - Cookies Module
+  - Complience and Legal Module (Cookies usage, Terms Of Service, Acceptable Use, GDPR, Privacy & Data Policy)
+  - Booking Module (Calendar based)
   - Popups Module
   - Contact Us Module
   - SEO Module
   - AI Module
-    - Integration with AI providers
+    - OpenRouter Integration
+    - Integration with other AI providers
   - What’s New Module
-  - Chat Module (https://github.com/basecamp/once-campfire)
+  - Internal Chat Module (https://github.com/basecamp/once-campfire)
   - DB Manager Module
     - Export / Import
     - Snapshots
-    - Backups
+    - Backups (onsite/offsite)
   - Customer service Module
     - Chat
   - Feedback Module
   - Roadmap / Ideas Module
   - CRM Module
-  - Analytics / BI Module
+  - App Analytics / BI Module
     - ClickHouse backend
     - Events
+    - Charts, trends and notifications
   - API Module
   - Cron Modules
-  - Jobs Module (Oban)
+  - Jobs Module (Oban powered)
   - Testimonials Module
   - Team Module
   - FAQ

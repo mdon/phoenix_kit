@@ -1,6 +1,4 @@
 defmodule PhoenixKit.Install.RepoDetection do
-  use PhoenixKit.Install.IgniterCompat
-
   @moduledoc """
   Handles repository detection and validation for PhoenixKit installation.
 
@@ -9,9 +7,11 @@ defmodule PhoenixKit.Install.RepoDetection do
   - Validate PostgreSQL adapter usage
   - Handle custom repository specifications
   """
+  use PhoenixKit.Install.IgniterCompat
 
   alias Igniter.Libs.Ecto
   alias Igniter.Project.Module, as: IgniterModule
+  alias PhoenixKit.Install.IgniterHelpers
 
   @doc """
   Adds PhoenixKit configuration with detected or specified repository.
@@ -67,7 +67,7 @@ defmodule PhoenixKit.Install.RepoDetection do
 
   # Method 2: Try Application config directly
   defp try_application_config(igniter) do
-    parent_app_name = Mix.Project.config()[:app]
+    parent_app_name = IgniterHelpers.get_parent_app_name(igniter)
 
     case Elixir.Application.get_env(parent_app_name, :ecto_repos, []) do
       [repo | _] -> validate_postgres_adapter(igniter, repo)
@@ -79,7 +79,7 @@ defmodule PhoenixKit.Install.RepoDetection do
 
   # Method 3: Try common naming patterns
   defp try_naming_patterns(igniter) do
-    parent_app_name = Mix.Project.config()[:app]
+    parent_app_name = IgniterHelpers.get_parent_app_name(igniter)
 
     case parent_app_name do
       nil ->
