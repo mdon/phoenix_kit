@@ -1,6 +1,4 @@
 defmodule PhoenixKit.Install.MailerConfig do
-  use PhoenixKit.Install.IgniterCompat
-
   @moduledoc """
   Handles mailer configuration for PhoenixKit installation.
 
@@ -9,9 +7,11 @@ defmodule PhoenixKit.Install.MailerConfig do
   - Add production mailer templates for various providers
   - Generate appropriate notices for mailer setup
   """
+  use PhoenixKit.Install.IgniterCompat
 
   alias Igniter.Project.Config
   alias PhoenixKit.Install.FinchSetup
+  alias PhoenixKit.Install.IgniterHelpers
   alias PhoenixKit.Install.RuntimeDetector
 
   @doc """
@@ -37,9 +37,9 @@ defmodule PhoenixKit.Install.MailerConfig do
 
   # Add mailer delegation configuration - detects and uses parent app's mailer
   defp add_mailer_delegation_config(igniter) do
-    parent_app = get_parent_app_name()
+    parent_app_name = IgniterHelpers.get_parent_app_name(igniter)
 
-    case detect_parent_mailer(parent_app) do
+    case detect_parent_mailer(parent_app_name) do
       {:ok, parent_mailer} ->
         # Configure PhoenixKit to use parent app's mailer
         Config.configure_new(
@@ -359,11 +359,6 @@ defmodule PhoenixKit.Install.MailerConfig do
     end
   end
 
-  # Get the parent application name
-  defp get_parent_app_name do
-    Mix.Project.config()[:app]
-  end
-
   # Detect parent application's mailer module
   defp detect_parent_mailer(app_name) do
     app_module = app_name |> to_string() |> Macro.camelize()
@@ -442,7 +437,7 @@ defmodule PhoenixKit.Install.MailerConfig do
   defp get_prod_mailer_template do
     """
     # Configure PhoenixKit mailer for production
-    # 
+    #
     # IMPORTANT: Configure sender email address
     # config :phoenix_kit,
     #   from_email: "noreply@yourcompany.com",
@@ -531,7 +526,7 @@ defmodule PhoenixKit.Install.MailerConfig do
 
     # STEP 5: AWS SES Setup Checklist
     # □ Create AWS IAM user with SES permissions (ses:*)
-    # □ Verify sender email address in AWS SES Console  
+    # □ Verify sender email address in AWS SES Console
     # □ Verify recipient email addresses (if in sandbox mode)
     # □ Ensure correct AWS region matches your verification
     # □ Request production access to send to any email
@@ -543,7 +538,7 @@ defmodule PhoenixKit.Install.MailerConfig do
     # Common AWS SES regions:
     # - eu-west-1 (Ireland)
     # - us-east-1 (N. Virginia)
-    # - us-west-2 (Oregon)  
+    # - us-west-2 (Oregon)
     # - eu-north-1 (Stockholm)
 
 
@@ -562,10 +557,10 @@ defmodule PhoenixKit.Install.MailerConfig do
 
   # Add brief notice about mailer configuration
   defp add_mailer_production_notice(igniter) do
-    parent_app = get_parent_app_name()
+    parent_app_name = IgniterHelpers.get_parent_app_name(igniter)
 
     notice =
-      case detect_parent_mailer(parent_app) do
+      case detect_parent_mailer(parent_app_name) do
         {:ok, parent_mailer} ->
           "📧 Email configured to use #{inspect(parent_mailer)} (see config/prod.exs for production setup)"
 

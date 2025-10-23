@@ -1,6 +1,4 @@
 defmodule PhoenixKit.Install.LayoutConfig do
-  use PhoenixKit.Install.IgniterCompat
-
   @moduledoc """
   Handles layout integration configuration for PhoenixKit installation.
 
@@ -10,10 +8,11 @@ defmodule PhoenixKit.Install.LayoutConfig do
   - Handle recompilation requirements
   - Generate appropriate notices for layout setup
   """
+  use PhoenixKit.Install.IgniterCompat
 
-  alias Igniter.Project.{Application, Config}
-  alias Igniter.Project.Module, as: IgniterModule
+  alias Igniter.Project.Config
 
+  alias PhoenixKit.Install.IgniterHelpers
   alias PhoenixKit.Utils.PhoenixVersion
 
   @doc """
@@ -41,33 +40,12 @@ defmodule PhoenixKit.Install.LayoutConfig do
 
   # Detect app layouts using IgniterPhoenix
   defp detect_app_layouts(igniter) do
-    case Application.app_name(igniter) do
-      nil -> {igniter, nil}
-      app_name -> detect_layouts_for_app(igniter, app_name)
-    end
-  end
+    layouts_module = IgniterHelpers.get_parent_app_module_web_layouts(igniter)
 
-  # Try to detect layouts module following Phoenix conventions
-  defp detect_layouts_for_app(igniter, app_name) do
-    app_web_module = Module.concat([Macro.camelize(to_string(app_name)) <> "Web"])
-    layouts_module = Module.concat([app_web_module, "Layouts"])
-
-    case IgniterModule.module_exists(igniter, layouts_module) do
-      {true, igniter} ->
-        {igniter, {layouts_module, :app}}
-
-      {false, igniter} ->
-        try_alternative_layouts_pattern(igniter, app_name)
-    end
-  end
-
-  # Try alternative patterns like MyApp.Layouts
-  defp try_alternative_layouts_pattern(igniter, app_name) do
-    alt_layouts_module = Module.concat([Macro.camelize(to_string(app_name)), "Layouts"])
-
-    case IgniterModule.module_exists(igniter, alt_layouts_module) do
-      {true, igniter} -> {igniter, {alt_layouts_module, :app}}
-      {false, igniter} -> {igniter, nil}
+    if layouts_module != nil do
+      {igniter, {layouts_module, :app}}
+    else
+      {igniter, nil}
     end
   end
 
