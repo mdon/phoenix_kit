@@ -111,6 +111,9 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.OAuthUtils
       import PhoenixKitWeb.Components.Core.OAuthProvider
       import PhoenixKitWeb.Components.Core.OAuthCheckbox
+      import PhoenixKitWeb.Components.Core.AWSRegionSelect
+      import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
+      import PhoenixKitWeb.Components.Core.Accordion
     end
   end
 

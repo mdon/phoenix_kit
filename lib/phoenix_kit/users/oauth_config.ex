@@ -250,22 +250,22 @@ defmodule PhoenixKit.Users.OAuthConfig do
 
   defp find_missing_google_credentials(credentials) do
     []
-    |> add_if_missing("client_id", credentials.client_id)
-    |> add_if_missing("client_secret", credentials.client_secret)
+    |> add_if_missing("Client ID", credentials.client_id)
+    |> add_if_missing("Client Secret", credentials.client_secret)
   end
 
   defp find_missing_apple_credentials(credentials) do
     []
-    |> add_if_missing("client_id", credentials.client_id)
-    |> add_if_missing("team_id", credentials.team_id)
-    |> add_if_missing("key_id", credentials.key_id)
-    |> add_if_missing("private_key", credentials.private_key)
+    |> add_if_missing("Client ID", credentials.client_id)
+    |> add_if_missing("Team ID", credentials.team_id)
+    |> add_if_missing("Key ID", credentials.key_id)
+    |> add_if_missing("Private Key", credentials.private_key)
   end
 
   defp find_missing_github_credentials(credentials) do
     []
-    |> add_if_missing("client_id", credentials.client_id)
-    |> add_if_missing("client_secret", credentials.client_secret)
+    |> add_if_missing("Client ID", credentials.client_id)
+    |> add_if_missing("Client Secret", credentials.client_secret)
   end
 
   defp validate_facebook_credentials(credentials) do
@@ -280,8 +280,8 @@ defmodule PhoenixKit.Users.OAuthConfig do
 
   defp find_missing_facebook_credentials(credentials) do
     []
-    |> add_if_missing("app_id", credentials.app_id)
-    |> add_if_missing("app_secret", credentials.app_secret)
+    |> add_if_missing("App ID", credentials.app_id)
+    |> add_if_missing("App Secret", credentials.app_secret)
   end
 
   defp add_if_missing(list, field_name, value) do

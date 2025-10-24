@@ -1144,21 +1144,41 @@ defmodule PhoenixKit.Settings do
       |> Enum.map(fn {k, v} -> {Atom.to_string(k), v || ""} end)
       |> Map.new()
 
-    # Update each setting in the database
-    updated_settings =
-      Enum.reduce(settings_to_update, %{}, fn {key, value}, acc ->
+    # Update each setting in the database and collect errors
+    {updated_settings, failed_settings} =
+      Enum.reduce(settings_to_update, {%{}, []}, fn {key, value}, {acc_success, acc_failed} ->
         case update_setting(key, value) do
-          {:ok, _setting} -> Map.put(acc, key, value)
-          {:error, _changeset} -> acc
+          {:ok, _setting} ->
+            {Map.put(acc_success, key, value), acc_failed}
+
+          {:error, changeset} ->
+            error_msg = extract_setting_error_message(changeset)
+            Logger.warning("Failed to save setting #{key}: #{error_msg}")
+            {acc_success, [{key, error_msg} | acc_failed]}
         end
       end)
 
     # Check if all settings were updated successfully
-    if map_size(updated_settings) == map_size(settings_to_update) do
+    if failed_settings == [] do
       {:ok, updated_settings}
     else
-      {:error, "Some settings failed to update"}
+      # Format detailed error message with specific fields that failed
+      failed_keys =
+        Enum.map_join(failed_settings, ", ", fn {key, error} -> "#{key} (#{error})" end)
+
+      error_msg = "Failed to save settings: #{failed_keys}"
+      Logger.error("Settings batch update error: #{error_msg}")
+      {:error, error_msg}
     end
+  end
+
+  # Helper function to extract error messages from Setting changeset
+  defp extract_setting_error_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Map.values()
+    |> List.flatten()
+    |> Enum.join(", ")
   end
 
   @doc """
