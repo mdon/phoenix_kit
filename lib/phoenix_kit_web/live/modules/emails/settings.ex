@@ -34,6 +34,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
 
   use PhoenixKitWeb, :live_view
 
+  alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.AWS.InfrastructureSetup
   alias PhoenixKit.Emails
   alias PhoenixKit.Settings
@@ -55,13 +56,12 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     aws_settings = %{
       access_key_id: Settings.get_setting("aws_access_key_id", ""),
       secret_access_key: Settings.get_setting("aws_secret_access_key", ""),
-      region: Settings.get_setting("aws_region", "eu-north-1"),
+      region: Settings.get_setting("aws_region", ""),
       sqs_queue_url: Settings.get_setting("aws_sqs_queue_url", ""),
       sqs_dlq_url: Settings.get_setting("aws_sqs_dlq_url", ""),
       sqs_queue_arn: Settings.get_setting("aws_sqs_queue_arn", ""),
       sns_topic_arn: Settings.get_setting("aws_sns_topic_arn", ""),
-      ses_configuration_set:
-        Settings.get_setting("aws_ses_configuration_set", "phoenixkit-tracking"),
+      ses_configuration_set: Settings.get_setting("aws_ses_configuration_set", ""),
       sqs_polling_interval_ms: Settings.get_setting("sqs_polling_interval_ms", "5000")
     }
 
@@ -99,6 +99,13 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
         }
       )
       |> assign(:saving_sender, false)
+      |> assign(:verifying_credentials, false)
+      # :pending, :verifying, :success, :error
+      |> assign(:credential_verification_status, :pending)
+      |> assign(:credential_verification_message, "")
+      |> assign(:available_regions, [])
+      |> assign(:selected_region, "")
+      |> assign(:aws_permissions, %{})
 
     {:ok, socket}
   end
@@ -207,6 +214,38 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
               else: "AWS SES events tracking disabled"
             )
           )
+
+        # Auto-load regions when enabling SES events
+        socket =
+          if new_ses_events do
+            aws_settings = socket.assigns.aws_settings
+
+            # Only load if credentials are present
+            if aws_settings.access_key_id != "" and aws_settings.secret_access_key != "" do
+              # Load regions asynchronously
+              task =
+                Task.async(fn ->
+                  CredentialsVerifier.get_available_regions(
+                    aws_settings.access_key_id,
+                    aws_settings.secret_access_key,
+                    aws_settings.region
+                  )
+                end)
+
+              case Task.yield(task, 10_000) || Task.shutdown(task) do
+                {:ok, {:ok, regions}} ->
+                  assign(socket, :available_regions, regions)
+
+                _ ->
+                  # Silently fail - user can manually refresh regions
+                  socket
+              end
+            else
+              socket
+            end
+          else
+            socket
+          end
 
         {:noreply, socket}
 
@@ -623,6 +662,150 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     end
   end
 
+  def handle_event("verify_aws_credentials", _params, socket) do
+    aws_settings = socket.assigns.aws_settings
+
+    # Check if we have the required credentials
+    if String.trim(aws_settings.access_key_id) == "" or
+         String.trim(aws_settings.secret_access_key) == "" do
+      socket =
+        socket
+        |> assign(:credential_verification_status, :error)
+        |> assign(
+          :credential_verification_message,
+          "Please enter Access Key ID and Secret Access Key before verification."
+        )
+        |> assign(:verifying_credentials, false)
+
+      {:noreply, socket}
+    else
+      # Start verification
+      socket = assign(socket, :verifying_credentials, true)
+
+      # Run verification in a task to avoid blocking the LiveView
+      task =
+        Task.async(fn ->
+          # First verify credentials
+          with {:ok, credential_info} <-
+                 CredentialsVerifier.verify_credentials(
+                   aws_settings.access_key_id,
+                   aws_settings.secret_access_key,
+                   aws_settings.region
+                 ),
+               # Then check permissions
+               {:ok, permissions} <-
+                 CredentialsVerifier.check_permissions(
+                   aws_settings.access_key_id,
+                   aws_settings.secret_access_key,
+                   aws_settings.region
+                 ) do
+            {:ok, credential_info, permissions}
+          else
+            {:error, reason} -> {:error, reason}
+            {:error, reason, message} -> {:error, reason, message}
+          end
+        end)
+
+      case Task.yield(task, 15_000) || Task.shutdown(task) do
+        {:ok, result} ->
+          updated_socket =
+            case result do
+              {:ok, credential_info, permissions} ->
+                socket
+                |> assign(:verifying_credentials, false)
+                |> assign(:credential_verification_status, :success)
+                |> assign(
+                  :credential_verification_message,
+                  "✅ Credentials verified successfully! Account: #{credential_info.account_id}"
+                )
+                |> assign(:aws_permissions, permissions)
+
+              # Note: Don't reload regions here - user's selected region should be preserved
+              # If user wants to see available regions, they can manually trigger refresh
+
+              {:error, :invalid_credentials, message} ->
+                socket
+                |> assign(:verifying_credentials, false)
+                |> assign(:credential_verification_status, :error)
+                |> assign(:credential_verification_message, "❌ Invalid credentials: #{message}")
+
+              {:error, :authentication_failed, message} ->
+                socket
+                |> assign(:verifying_credentials, false)
+                |> assign(:credential_verification_status, :error)
+                |> assign(:credential_verification_message, "❌ Authentication failed: #{message}")
+
+              {:error, reason} ->
+                socket
+                |> assign(:verifying_credentials, false)
+                |> assign(:credential_verification_status, :error)
+                |> assign(:credential_verification_message, "❌ Verification failed: #{reason}")
+            end
+
+          {:noreply, updated_socket}
+
+        nil ->
+          socket =
+            socket
+            |> assign(:verifying_credentials, false)
+            |> assign(:credential_verification_status, :error)
+            |> assign(
+              :credential_verification_message,
+              "❌ Verification timed out. Please try again."
+            )
+
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event("select_region", %{"region" => region}, socket) do
+    socket =
+      socket
+      |> assign(:selected_region, region)
+      |> assign(:aws_settings, %{socket.assigns.aws_settings | region: region})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("fetch_available_regions", _params, socket) do
+    aws_settings = socket.assigns.aws_settings
+
+    # Get regions in a task
+    task =
+      Task.async(fn ->
+        CredentialsVerifier.get_available_regions(
+          aws_settings.access_key_id,
+          aws_settings.secret_access_key,
+          aws_settings.region
+        )
+      end)
+
+    case Task.yield(task, 10_000) || Task.shutdown(task) do
+      {:ok, {:ok, regions}} ->
+        socket =
+          socket
+          |> assign(:available_regions, regions)
+          |> assign(:selected_region, aws_settings.region)
+
+        {:noreply, socket}
+
+      {:ok, {:error, reason}} ->
+        socket =
+          socket
+          |> put_flash(:error, "Failed to load regions: #{reason}")
+
+        {:noreply, socket}
+
+      nil ->
+        socket =
+          socket
+          |> put_flash(:error, "Region loading timed out.")
+
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("run_cleanup_now", _params, socket) do
     # Run cleanup operation for emails older than retention period
     socket = assign(socket, :running_cleanup, true)
@@ -823,12 +1006,12 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
     %{
       access_key_id: aws_params["access_key_id"] || "",
       secret_access_key: aws_params["secret_access_key"] || "",
-      region: aws_params["region"] || "eu-north-1",
+      region: aws_params["region"] || "",
       sqs_queue_url: aws_params["sqs_queue_url"] || "",
       sqs_dlq_url: aws_params["sqs_dlq_url"] || "",
       sqs_queue_arn: aws_params["sqs_queue_arn"] || "",
       sns_topic_arn: aws_params["sns_topic_arn"] || "",
-      ses_configuration_set: aws_params["ses_configuration_set"] || "phoenixkit-tracking",
+      ses_configuration_set: aws_params["ses_configuration_set"] || "",
       sqs_polling_interval_ms: aws_params["sqs_polling_interval_ms"] || "5000"
     }
   end

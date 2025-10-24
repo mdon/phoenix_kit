@@ -90,6 +90,9 @@ defmodule PhoenixKitWeb.Live.Settings do
 
     case Settings.update_settings(settings_params) do
       {:ok, updated_settings} ->
+        # Reload OAuth configuration to apply new credentials immediately
+        OAuthConfig.configure_providers()
+
         # Update socket with new settings
         changeset = Settings.change_settings(updated_settings)
 
