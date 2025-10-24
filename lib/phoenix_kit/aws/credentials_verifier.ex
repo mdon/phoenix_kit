@@ -192,13 +192,22 @@ defmodule PhoenixKit.AWS.CredentialsVerifier do
   end
 
   @doc """
-  Validates minimum permissions required for email operations.
+  Performs basic AWS permissions check using List operations.
 
-  Checks specific AWS permissions needed for "Setup AWS Infrastructure" script:
-  - SQS: CreateQueue, GetQueueAttributes, SetQueueAttributes
-  - SNS: CreateTopic, Subscribe, SetTopicAttributes
-  - SES: CreateConfigurationSet, DescribeConfigurationSet
-  - EC2: DescribeRegions (optional)
+  ⚠️ **Important Disclaimer:**
+  - This checks READ permissions (List operations), NOT CREATE permissions
+  - `ListQueues` does NOT guarantee `CreateQueue` permission
+  - `ListTopics` does NOT guarantee `CreateTopic` permission
+  - Actual CREATE permissions are verified during "Setup AWS Infrastructure"
+
+  This provides a basic sanity check that credentials have SOME access to required services.
+
+  ## Checked Operations
+
+  - SQS: `ListQueues` (indicates basic SQS access)
+  - SNS: `ListTopics` (indicates basic SNS access)
+  - SES: `ListConfigurationSets` (indicates basic SES access)
+  - EC2: `DescribeRegions` (optional - for auto-loading regions feature)
 
   ## Parameters
 
@@ -211,14 +220,10 @@ defmodule PhoenixKit.AWS.CredentialsVerifier do
     - `{:ok, permissions_map}` where permissions_map is:
       ```
       %{
-        sqs: %{
-          "CreateQueue" => :granted | :denied | :unknown,
-          "GetQueueAttributes" => :granted | :denied | :unknown,
-          "SetQueueAttributes" => :granted | :denied | :unknown
-        },
-        sns: %{...},
-        ses: %{...},
-        ec2: %{...}
+        sqs: %{"ListQueues" => :granted | :denied},
+        sns: %{"ListTopics" => :granted | :denied},
+        ses: %{"ListConfigurationSets" => :granted | :denied},
+        ec2: %{"DescribeRegions" => :granted | :denied, optional: true}
       }
       ```
     - `{:error, reason}` if configuration fails
@@ -240,113 +245,81 @@ defmodule PhoenixKit.AWS.CredentialsVerifier do
     end
   end
 
-  # Check SQS permissions
+  # Check SQS permissions - only ListQueues (basic access indicator)
   defp check_sqs_permissions(config) do
     %{
-      "CreateQueue" => check_sqs_create_queue(config),
-      "GetQueueAttributes" => check_sqs_get_queue_attributes(config),
-      "SetQueueAttributes" => check_sqs_set_queue_attributes(config)
+      "ListQueues" => check_sqs_list_queues(config)
     }
   end
 
-  # Check SNS permissions
+  # Check SNS permissions - only ListTopics (basic access indicator)
   defp check_sns_permissions(config) do
     %{
-      "CreateTopic" => check_sns_create_topic(config),
-      "Subscribe" => check_sns_subscribe(config),
-      "SetTopicAttributes" => check_sns_set_topic_attributes(config)
+      "ListTopics" => check_sns_list_topics(config)
     }
   end
 
-  # Check SES permissions
+  # Check SES permissions - only ListConfigurationSets (basic access indicator)
   defp check_ses_permissions(config, region) do
     %{
-      "CreateConfigurationSet" => check_ses_create_configuration_set(config, region),
-      "DescribeConfigurationSet" => check_ses_describe_configuration_set(config, region)
+      "ListConfigurationSets" => check_ses_list_configuration_sets(config, region)
     }
   end
 
-  # Check EC2 permissions
+  # Check EC2 permissions - optional feature for auto-loading regions
   defp check_ec2_permissions(config) do
     %{
-      "DescribeRegions" => check_ec2_describe_regions(config)
+      "DescribeRegions" => check_ec2_describe_regions(config),
+      optional: true
     }
   end
 
-  # SQS permission checks
-  defp check_sqs_create_queue(config) do
-    # Try to list queues - if we can list, we can likely create
+  # SQS permission checks - ListQueues only
+  defp check_sqs_list_queues(config) do
     case SQS.list_queues() |> ExAws.request(config) do
       {:ok, _} -> :granted
       {:error, {:http_error, 403, _}} -> :denied
       {:error, %{status_code: 403}} -> :denied
-      _ -> :unknown
+      _ -> :denied
     end
   rescue
-    _ -> :unknown
+    _ -> :denied
   end
 
-  defp check_sqs_get_queue_attributes(_config) do
-    # Cannot check without existing queue - assume granted if list_queues works
-    :unknown
-  end
-
-  defp check_sqs_set_queue_attributes(_config) do
-    # Cannot check without existing queue - assume granted if list_queues works
-    :unknown
-  end
-
-  # SNS permission checks
-  defp check_sns_create_topic(config) do
-    # Try to list topics - if we can list, we can likely create
+  # SNS permission checks - ListTopics only
+  defp check_sns_list_topics(config) do
     case SNS.list_topics() |> ExAws.request(config) do
       {:ok, _} -> :granted
       {:error, {:http_error, 403, _}} -> :denied
       {:error, %{status_code: 403}} -> :denied
-      _ -> :unknown
+      _ -> :denied
     end
   rescue
-    _ -> :unknown
+    _ -> :denied
   end
 
-  defp check_sns_subscribe(_config) do
-    # Cannot check without existing topic - assume granted if list_topics works
-    :unknown
-  end
-
-  defp check_sns_set_topic_attributes(_config) do
-    # Cannot check without existing topic - assume granted if list_topics works
-    :unknown
-  end
-
-  # SES permission checks
-  defp check_ses_create_configuration_set(config, region) do
-    # Try to list configuration sets
+  # SES permission checks - ListConfigurationSets only
+  defp check_ses_list_configuration_sets(config, region) do
     case call_ses_api("ListConfigurationSets", %{}, config, region) do
       {:ok, _} -> :granted
       {:error, {:http_error, 403, _}} -> :denied
       {:error, %{status_code: 403}} -> :denied
-      _ -> :unknown
+      _ -> :denied
     end
   rescue
-    _ -> :unknown
+    _ -> :denied
   end
 
-  defp check_ses_describe_configuration_set(config, region) do
-    # Same as create - use list operation
-    check_ses_create_configuration_set(config, region)
-  end
-
-  # EC2 permission checks
+  # EC2 permission checks - DescribeRegions (optional feature)
   defp check_ec2_describe_regions(config) do
     case EC2.describe_regions() |> ExAws.request(config) do
       {:ok, _} -> :granted
       {:error, {:http_error, 403, _}} -> :denied
       {:error, %{status_code: 403}} -> :denied
-      _ -> :unknown
+      _ -> :denied
     end
   rescue
-    _ -> :unknown
+    _ -> :denied
   end
 
   # Helper to call SES API directly (ExAws doesn't have SES module)

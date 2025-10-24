@@ -122,9 +122,15 @@ defmodule PhoenixKitWeb.Components.Core.AWSCredentialsVerify do
       <%!-- Permissions Check Section (shown only when verification succeeded) --%>
       <%= if @verified == :success and map_size(@permissions) > 0 do %>
         <div class="mt-4 border-t border-base-300 pt-4">
-          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+          <h3 class="text-sm font-semibold mb-2 flex items-center gap-2">
             <.icon name="hero-shield-check" class="w-4 h-4" /> AWS Permissions Check
           </h3>
+          <div class="alert alert-info mb-3 py-2 text-xs">
+            <.icon name="hero-information-circle" class="w-4 h-4" />
+            <p class="text-xs">
+              ℹ️ Basic permissions checked using List operations. Actual CREATE permissions will be verified during "Setup AWS Infrastructure".
+            </p>
+          </div>
 
           <div class="space-y-3">
             <%!-- SQS Permissions --%>
@@ -169,30 +175,35 @@ defmodule PhoenixKitWeb.Components.Core.AWSCredentialsVerify do
               </div>
             <% end %>
 
-            <%!-- EC2 Permissions (Optional) --%>
+            <%!-- EC2 Permissions (Optional - for auto-loading regions) --%>
             <%= if Map.has_key?(@permissions, :ec2) do %>
-              <div class="bg-base-200 rounded-lg p-3">
-                <h4 class="text-xs font-semibold text-base-content/70 mb-2">
-                  EC2 (Optional)
+              <div class="bg-base-200 rounded-lg p-3 border border-info/30">
+                <h4 class="text-xs font-semibold text-base-content/70 mb-1 flex items-center gap-2">
+                  EC2 (Optional Feature)
+                  <span class="badge badge-info badge-xs">auto-loading regions</span>
                 </h4>
+                <p class="text-xs text-base-content/60 mb-2">
+                  Used for automatic region discovery. Manual region selection available if denied.
+                </p>
                 <div class="space-y-1">
                   <%= for {permission, status} <- @permissions.ec2 do %>
-                    <.permission_row permission={permission} status={status} />
+                    <%= if permission != :optional do %>
+                      <.permission_row permission={permission} status={status} />
+                    <% end %>
                   <% end %>
                 </div>
               </div>
             <% end %>
           </div>
 
-          <%!-- Warning if critical permissions are missing --%>
+          <%!-- Warning if critical permissions are missing (SQS/SNS/SES only, EC2 is optional) --%>
           <%= if has_denied_permissions(@permissions) do %>
             <div class="alert alert-warning mt-3 text-xs">
               <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
               <div>
-                <p class="font-semibold">Missing Critical Permissions</p>
+                <p class="font-semibold">Missing Critical Permissions (SQS/SNS/SES)</p>
                 <p class="text-xs mt-1">
-                  Some permissions are denied. "Setup AWS Infrastructure" may fail. Please review IAM
-                  policy.
+                  Some required List permissions are denied. "Setup AWS Infrastructure" will likely fail without CREATE permissions. Please review your IAM policy.
                 </p>
               </div>
             </div>
@@ -229,12 +240,22 @@ defmodule PhoenixKitWeb.Components.Core.AWSCredentialsVerify do
     """
   end
 
-  # Helper to check if any permissions are denied
+  # Helper to check if any CRITICAL permissions are denied
+  # EC2 is optional (for auto-loading regions), so we ignore it here
   defp has_denied_permissions(permissions) when is_map(permissions) do
-    permissions
-    |> Enum.any?(fn {_service, perms} ->
-      perms
-      |> Enum.any?(fn {_perm, status} -> status == :denied end)
+    [:sqs, :sns, :ses]
+    |> Enum.any?(fn service ->
+      case Map.get(permissions, service) do
+        nil ->
+          false
+
+        perms when is_map(perms) ->
+          perms
+          |> Enum.any?(fn
+            {_perm, :denied} -> true
+            _ -> false
+          end)
+      end
     end)
   end
 

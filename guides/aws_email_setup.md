@@ -62,6 +62,17 @@ The AWS email infrastructure enables you to:
 4. Click "Verify Credentials" to test connectivity
 5. Click "Save AWS Settings" to persist the configuration
 
+> **Understanding Credentials Verification**
+>
+> When you click "Verify Credentials", PhoenixKit calls AWS STS GetCallerIdentity to verify:
+> - ✅ Credentials are valid (not expired or revoked)
+> - ✅ AWS account ID is accessible
+> - ✅ Credentials can authenticate with AWS
+>
+> **Permissions are NOT checked during verification.** Actual permissions (CreateQueue, CreateTopic, etc.)
+> are verified during "Setup AWS Infrastructure" (next step). If permissions are missing, you'll receive
+> a specific error message indicating which permission is required.
+
 ### 5. Setup AWS Infrastructure
 
 1. After saving credentials, click "Setup AWS Infrastructure"
@@ -84,6 +95,36 @@ The AWS email infrastructure enables you to:
 1. Return to PhoenixKit settings
 2. Toggle "Enable Emails" to ON
 3. Configure other settings as needed
+
+### 8. Understanding AWS Permissions
+
+PhoenixKit requires the following AWS permissions for full email functionality:
+
+#### Required Permissions (for Setup AWS Infrastructure)
+
+- **SQS** (Simple Queue Service):
+  - `sqs:CreateQueue`, `sqs:GetQueueAttributes`, `sqs:SetQueueAttributes`
+  - `sqs:ReceiveMessage`, `sqs:DeleteMessage` (for SQS worker)
+
+- **SNS** (Simple Notification Service):
+  - `sns:CreateTopic`, `sns:Subscribe`, `sns:SetTopicAttributes`
+
+- **SES** (Simple Email Service):
+  - `ses:CreateConfigurationSet`, `ses:CreateConfigurationSetEventDestination`
+  - `ses:SendEmail`, `ses:SendRawEmail` (for sending emails)
+
+- **STS** (Security Token Service):
+  - `sts:GetCallerIdentity` (for credentials verification)
+
+#### Optional Permissions
+
+- **EC2** `ec2:DescribeRegions`:
+  - Used for automatic region discovery in the admin UI
+  - If not granted, manual region selection from common regions list is available
+  - NOT required for email functionality
+
+If any required permission is missing, "Setup AWS Infrastructure" will fail with a specific error message
+indicating which permission is needed. Simply add the permission to your IAM policy and try again.
 
 ## Detailed Instructions
 
@@ -141,6 +182,7 @@ For production, use least-privilege permissions:
       "Resource": "*"
     },
     {
+      "Sid": "OptionalEC2ForAutoRegionDiscovery",
       "Effect": "Allow",
       "Action": "ec2:DescribeRegions",
       "Resource": "*"

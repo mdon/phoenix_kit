@@ -656,40 +656,28 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
       # Run verification in a task to avoid blocking the LiveView
       task =
         Task.async(fn ->
-          # First verify credentials
-          with {:ok, credential_info} <-
-                 CredentialsVerifier.verify_credentials(
-                   aws_settings.access_key_id,
-                   aws_settings.secret_access_key,
-                   aws_settings.region
-                 ),
-               # Then check permissions
-               {:ok, permissions} <-
-                 CredentialsVerifier.check_permissions(
-                   aws_settings.access_key_id,
-                   aws_settings.secret_access_key,
-                   aws_settings.region
-                 ) do
-            {:ok, credential_info, permissions}
-          else
-            {:error, reason} -> {:error, reason}
-            {:error, reason, message} -> {:error, reason, message}
-          end
+          # Verify credentials only (STS GetCallerIdentity)
+          # Actual permissions will be verified during "Setup AWS Infrastructure"
+          CredentialsVerifier.verify_credentials(
+            aws_settings.access_key_id,
+            aws_settings.secret_access_key,
+            aws_settings.region
+          )
         end)
 
       case Task.yield(task, 15_000) || Task.shutdown(task) do
         {:ok, result} ->
           updated_socket =
             case result do
-              {:ok, credential_info, permissions} ->
+              {:ok, credential_info} ->
                 socket
                 |> assign(:verifying_credentials, false)
                 |> assign(:credential_verification_status, :success)
                 |> assign(
                   :credential_verification_message,
-                  "✅ Credentials verified successfully! Account: #{credential_info.account_id}"
+                  "✅ Credentials verified! Account: #{credential_info.account_id}. Ready for Setup AWS Infrastructure."
                 )
-                |> assign(:aws_permissions, permissions)
+                |> assign(:aws_permissions, %{})
 
               # Note: Don't reload regions here - user's selected region should be preserved
               # If user wants to see available regions, they can manually trigger refresh
