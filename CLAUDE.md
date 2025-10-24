@@ -691,6 +691,28 @@ end
 - `priv/static/examples/tailwind_config_daisyui5.js` - Tailwind CSS 3 example config
 - `priv/static/examples/tailwind_css4_config.css` - Tailwind CSS 4 example config
 
+### AWS Infrastructure Setup
+
+**PhoenixKit 1.4.5+ includes critical fixes for containerized environments:**
+
+- ✅ **Works in Docker/Kubernetes** - No AWS CLI dependency required
+- ✅ **Compatible with sweet_xml** - Handles both atom and string key responses
+- ✅ **Idempotent setup** - Safe to run multiple times
+- ✅ **Proper error handling** - Clear logging and error messages
+
+**All 9 setup steps automated via API:**
+1. Get AWS Account ID
+2. Create Dead Letter Queue (DLQ)
+3. Set DLQ policy
+4. Create SNS Topic
+5. Create Main Queue with DLQ redrive policy
+6. Set Main Queue policy
+7. Subscribe SQS to SNS
+8. Create SES Configuration Set (via SES v2 API)
+9. Configure SES event tracking (via SES v2 API)
+
+**No manual AWS Console configuration required** - complete automation through `PhoenixKit.AWS.InfrastructureSetup.run/1`
+
 ## Development Workflow
 
 PhoenixKit supports a complete professional development workflow:

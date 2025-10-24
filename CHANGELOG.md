@@ -1,4 +1,42 @@
+## 1.4.5 - 2025-10-24
+
+### Fixed
+- **CRITICAL: AWS Infrastructure Setup** - Email sending now works in containerized environments
+  - Removed AWS CLI dependency for SES configuration (steps 8-9)
+  - Fixed sweet_xml compatibility when library is installed
+  - Fixed SQS queue attribute format (atom keys instead of string keys)
+  - Infrastructure setup now works reliably in Docker, Kubernetes, and all environments
+
+### Changed
+- **AWS Integration** - Improved reliability and idempotency
+  - SES configuration set creation now uses SES v2 REST API
+  - SES event destination setup now uses SES v2 REST API
+  - Response parsing handles both atom-key and string-key formats
+  - Queue creation properly handles existing resources
+
+### Added
+- **SES v2 API Module** - `PhoenixKit.AWS.SESv2`
+  - `create_configuration_set/2` - Creates SES configuration set via API
+  - `create_configuration_set_event_destination/4` - Configures event tracking
+  - Automatic "already exists" error handling
+  - Production-ready error messages
+
+### Technical Details
+- **Issue #1 (sweet_xml):** ExAws + sweet_xml returns flat maps with atom keys
+  - Fixed: Account ID, SNS Topic ARN, Subscription ARN parsing
+- **Issue #2 (SQS attributes):** ExAws.SQS requires keyword lists with atom keys
+  - Fixed: Queue creation and policy setting across all steps
+- **Issue #3 (AWS CLI):** Email sending failed silently in Docker/Kubernetes
+  - Fixed: Complete SES v2 API implementation without external dependencies
+
+### Upgrade Notes
+- **No action required** - All changes are backward compatible
+- Existing AWS infrastructure continues to work
+- Docker/Kubernetes deployments now work without manual intervention
+- Re-run setup if previous attempts failed: `PhoenixKit.AWS.InfrastructureSetup.run(project_name: "yourapp")`
+
 ## 1.4.4 - 2025-10-23
+
 ### Fixed
 - Refactor parent project modules identification
 - Update OAuth settings UI with new components
