@@ -105,6 +105,7 @@ defmodule PhoenixKit.MixProject do
       {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
+      {:ex_aws_ec2, "~> 2.0"},
       {:saxy, "~> 1.5"},
       {:finch, "~> 0.18"},
 

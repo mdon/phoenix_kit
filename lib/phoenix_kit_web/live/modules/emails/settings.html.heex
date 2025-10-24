@@ -102,20 +102,6 @@
                 </div>
               </div>
 
-              <%!-- Preview --%>
-              <div class="alert alert-info mb-4">
-                <.icon name="hero-information-circle" class="w-5 h-5" />
-                <div>
-                  <h3 class="font-bold">Preview</h3>
-                  <p class="text-sm mt-1">
-                    Emails will appear as:
-                    <strong>
-                      {@sender_settings.from_name} &lt;{@sender_settings.from_email}&gt;
-                    </strong>
-                  </p>
-                </div>
-              </div>
-
               <%!-- Save Button --%>
               <div class="card-actions justify-end">
                 <button
@@ -413,30 +399,137 @@
               <.icon name="hero-cog-6-tooth" class="w-6 h-6" /> AWS Configuration
             </h2>
 
-            <div class="alert alert-info mb-6">
-              <.icon name="hero-information-circle" class="w-5 h-5" />
-              <div class="flex-1">
-                <h3 class="font-bold">Configure AWS Infrastructure</h3>
-                <p class="text-sm mt-1">
-                  Set up AWS credentials, SNS topics, and SQS queues for advanced emails.
-                </p>
+            <%!-- AWS Setup Guide (daisyUI collapse) --%>
+            <div class="collapse collapse-arrow bg-base-200 mb-6">
+              <input type="checkbox" class="peer" />
+              <div class="collapse-title text-sm font-medium">
+                <span class="flex items-center gap-2">
+                  <.icon name="hero-book-open" class="w-5 h-5" /> AWS Setup Guide
+                </span>
               </div>
-              <button
-                type="button"
-                phx-click="setup_aws_infrastructure"
-                class={[
-                  "btn btn-accent btn-sm",
-                  if(@setting_up_aws, do: "loading", else: "")
-                ]}
-                disabled={@setting_up_aws}
-              >
-                <%= if @setting_up_aws do %>
-                  Setting up...
-                <% else %>
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Setup AWS Infrastructure
-                <% end %>
-              </button>
+              <div class="collapse-content text-sm space-y-4">
+                <%!-- Step 1: Create IAM User --%>
+                <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                  <h4 class="font-semibold mb-2 text-base-content">1. Create IAM User</h4>
+                  <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                    <li>
+                      Visit
+                      <a
+                        href="https://console.aws.amazon.com/iam/"
+                        target="_blank"
+                        class="link link-primary"
+                      >
+                        AWS IAM Console
+                      </a>
+                    </li>
+                    <li>Create new user with programmatic access</li>
+                    <li>
+                      Attach policies: <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
+                      <strong>STS:GetCallerIdentity</strong>
+                    </li>
+                    <li>Save Access Key ID and Secret Access Key</li>
+                  </ol>
+                </div>
+
+                <%!-- Step 2: Configure Credentials --%>
+                <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                  <h4 class="font-semibold mb-2 text-base-content">2. Configure Credentials</h4>
+                  <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                    <li>
+                      Enter Access Key ID (20 characters, e.g., <code>AKIAIOSFODNN7EXAMPLE</code>)
+                    </li>
+                    <li>Enter Secret Access Key</li>
+                    <li>Click <strong>"Verify Credentials"</strong> to test connectivity</li>
+                    <li>Select your AWS region from the dropdown</li>
+                  </ol>
+                </div>
+
+                <%!-- Step 3: Save and Setup --%>
+                <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                  <h4 class="font-semibold mb-2 text-base-content">
+                    3. Save and Setup Infrastructure
+                  </h4>
+                  <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                    <li>Click <strong>"Save AWS Settings"</strong> to persist configuration</li>
+                    <li>
+                      Click <strong>"Setup AWS Infrastructure"</strong>
+                      to create SNS/SQS resources
+                    </li>
+                    <li>Wait for setup completion (typically 30-60 seconds)</li>
+                  </ol>
+                </div>
+
+                <%!-- Step 4: Verify Email --%>
+                <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                  <h4 class="font-semibold mb-2 text-base-content">
+                    4. Verify Email/Domain in SES
+                  </h4>
+                  <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                    <li>
+                      Go to
+                      <a
+                        href="https://console.aws.amazon.com/ses/"
+                        target="_blank"
+                        class="link link-primary"
+                      >
+                        AWS SES Console
+                      </a>
+                    </li>
+                    <li>Verify your sender email address or domain</li>
+                    <li>Request production access (if needed to exit sandbox mode)</li>
+                  </ol>
+                </div>
+
+                <%!-- Required Permissions --%>
+                <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                  <div class="flex items-start gap-2">
+                    <.icon
+                      name="hero-information-circle"
+                      class="h-4 w-4 text-info shrink-0 mt-0.5"
+                    />
+                    <div class="text-base-content/80">
+                      <strong class="text-base-content">Required IAM Permissions:</strong>
+                      <ul class="list-disc list-inside mt-1 space-y-1">
+                        <li><code>sqs:*</code> - Simple Queue Service</li>
+                        <li><code>sns:*</code> - Simple Notification Service</li>
+                        <li><code>ses:*</code> - Simple Email Service</li>
+                        <li><code>sts:GetCallerIdentity</code> - Credential verification</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <%!-- Full Documentation Link --%>
+                <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                  <div class="flex items-start gap-2">
+                    <.icon
+                      name="hero-book-open"
+                      class="h-4 w-4 text-success shrink-0 mt-0.5"
+                    />
+                    <div class="text-base-content/80">
+                      <strong class="text-base-content">Need more help?</strong>
+                      <p class="mt-1">
+                        See <code>guides/aws_email_setup.md</code>
+                        for comprehensive documentation including security best practices, cost optimization, and troubleshooting.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            <%!-- Credentials Verification Section --%>
+            <.aws_credentials_verify
+              access_key_id={@aws_settings.access_key_id}
+              secret_access_key={@aws_settings.secret_access_key}
+              region={@aws_settings.region}
+              verifying={@verifying_credentials}
+              verified={@credential_verification_status}
+              message={@credential_verification_message}
+              permissions={@aws_permissions}
+              phx_click="verify_aws_credentials"
+              disabled={@saving or @setting_up_aws}
+            />
 
             <form phx-submit="save_aws_settings">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -448,12 +541,14 @@
                   <input
                     name="aws_settings[access_key_id]"
                     type="text"
-                    placeholder="AKIA..."
+                    placeholder="AKIAIOSFODNN7EXAMPLE"
                     value={@aws_settings.access_key_id}
                     class="input input-bordered focus:input-primary"
                   />
                   <label class="label">
-                    <span class="label-text-alt">Your AWS access key for SQS access</span>
+                    <span class="label-text-alt text-sm text-base-content/70">
+                      Example: AKIAIOSFODNN7EXAMPLE (20 characters)
+                    </span>
                   </label>
                 </div>
 
@@ -465,250 +560,342 @@
                   <input
                     name="aws_settings[secret_access_key]"
                     type="password"
-                    placeholder="******************"
+                    placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
                     value={@aws_settings.secret_access_key}
                     class="input input-bordered focus:input-primary"
                   />
                   <label class="label">
-                    <span class="label-text-alt">Hidden for security</span>
+                    <span class="label-text-alt text-sm text-base-content/70">
+                      Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+                    </span>
                   </label>
                 </div>
 
                 <%!-- AWS Region --%>
-                <div class="form-control">
+                <div class="form-control md:col-span-2">
+                  <div class="flex gap-2">
+                    <.aws_region_select
+                      id="aws-region-select"
+                      name="aws_settings[region]"
+                      value={@aws_settings.region}
+                      regions={@available_regions}
+                      selected_region={@selected_region}
+                      verifying={@verifying_credentials}
+                      verified={@credential_verification_status}
+                      phx_change="select_region"
+                      class="flex-1"
+                    />
+
+                    <%!-- Button to refresh regions --%>
+                    <button
+                      type="button"
+                      phx-click="fetch_available_regions"
+                      disabled={
+                        @verifying_credentials or String.trim(@aws_settings.access_key_id) == "" or
+                          String.trim(@aws_settings.secret_access_key) == ""
+                      }
+                      class="btn btn-outline btn-sm h-fit"
+                      title="Refresh available regions"
+                    >
+                      <%= if @verifying_credentials do %>
+                        <span class="loading loading-spinner loading-xs"></span>
+                      <% else %>
+                        <.icon name="hero-arrow-path" class="w-4 h-4" />
+                      <% end %>
+                    </button>
+                  </div>
+
+                  <%!-- Helper text for regions --%>
                   <label class="label">
-                    <span class="label-text font-medium">AWS Region</span>
-                  </label>
-                  <input
-                    name="aws_settings[region]"
-                    type="text"
-                    placeholder="  #eu-north-1"
-                    value={@aws_settings.region}
-                    class="input input-bordered focus:input-primary"
-                  />
-                  <label class="label">
-                    <span class="label-text-alt">AWS region for your services</span>
+                    <span class="label-text-alt text-sm text-base-content/70">
+                      <%= if Enum.empty?(@available_regions) do %>
+                        Click "Refresh regions" to load available AWS regions.
+                      <% else %>
+                        Available AWS regions loaded. {length(@available_regions)} regions found.
+                      <% end %>
+                    </span>
                   </label>
                 </div>
               </div>
 
               <%= if @email_ses_events do %>
-                <%!-- SES/SQS Settings (only when SES Events enabled) --%>
-                <div class="divider">AWS SES & SQS Settings</div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <%!-- SES Configuration Set --%>
-                  <div class="form-control">
-                    <label class="label">
-                      <span class="label-text font-medium">SES Configuration Set</span>
-                    </label>
-                    <input
-                      name="aws_settings[ses_configuration_set]"
-                      type="text"
-                      placeholder="phoenixkit-emails"
-                      value={@aws_settings.ses_configuration_set}
-                      class="input input-bordered focus:input-primary"
-                    />
-                    <label class="label">
-                      <span class="label-text-alt">SES configuration set name</span>
-                    </label>
-                  </div>
-
-                  <%!-- SQS Polling Interval --%>
-                  <div class="form-control">
-                    <label class="label">
-                      <span class="label-text font-medium">SQS Polling Interval</span>
-                    </label>
-                    <div class="input-group">
-                      <input
-                        name="aws_settings[sqs_polling_interval_ms]"
-                        type="number"
-                        placeholder="5000"
-                        value={@aws_settings.sqs_polling_interval_ms}
-                        class="input input-bordered focus:input-primary w-full max-w-xs"
-                        min="1000"
-                        max="60000"
-                      />
-                      <span class="bg-base-200 px-4 py-3 text-sm">ms</span>
-                    </div>
-                    <label class="label">
-                      <span class="label-text-alt">
-                        How often to check for SQS messages (1-60 seconds)
-                      </span>
-                    </label>
-                  </div>
-
-                  <%!-- SNS Topic ARN --%>
-                  <div class="form-control md:col-span-2">
-                    <label class="label">
-                      <span class="label-text font-medium">SNS Topic ARN</span>
-                    </label>
-                    <input
-                      name="aws_settings[sns_topic_arn]"
-                      type="text"
-                      placeholder="arn:aws:sns:eu-north-1:123456789012:email-events"
-                      value={@aws_settings.sns_topic_arn}
-                      class="input input-bordered focus:input-primary"
-                    />
-                    <label class="label">
-                      <span class="label-text-alt">SNS topic for email events</span>
-                    </label>
-                  </div>
-
-                  <%!-- SQS Queue URL --%>
-                  <div class="form-control md:col-span-2">
-                    <label class="label">
-                      <span class="label-text font-medium">SQS Queue URL</span>
-                    </label>
-                    <input
-                      name="aws_settings[sqs_queue_url]"
-                      type="url"
-                      placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events"
-                      value={@aws_settings.sqs_queue_url}
-                      class="input input-bordered focus:input-primary"
-                    />
-                    <label class="label">
-                      <span class="label-text-alt">Main queue for email events</span>
-                    </label>
-                  </div>
-
-                  <%!-- SQS Queue ARN --%>
-                  <div class="form-control md:col-span-1">
-                    <label class="label">
-                      <span class="label-text font-medium">SQS Queue ARN</span>
-                    </label>
-                    <input
-                      name="aws_settings[sqs_queue_arn]"
-                      type="text"
-                      placeholder="arn:aws:sqs:eu-north-1:123456789012:email-events"
-                      value={@aws_settings.sqs_queue_arn}
-                      class="input input-bordered focus:input-primary"
-                    />
-                    <label class="label">
-                      <span class="label-text-alt">SQS queue ARN for permissions</span>
-                    </label>
-                  </div>
-
-                  <%!-- SQS DLQ URL --%>
-                  <div class="form-control md:col-span-1">
-                    <label class="label">
-                      <span class="label-text font-medium">SQS Dead Letter Queue URL</span>
-                    </label>
-                    <input
-                      name="aws_settings[sqs_dlq_url]"
-                      type="url"
-                      placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events-dlq"
-                      value={@aws_settings.sqs_dlq_url}
-                      class="input input-bordered focus:input-primary"
-                    />
-                    <label class="label">
-                      <span class="label-text-alt">Dead letter queue for failed messages</span>
-                    </label>
-                  </div>
-                </div>
-
-                <%!-- SQS Worker Options --%>
-                <div class="divider">SQS Worker Settings</div>
-
-                <div class="form-control mb-4">
-                  <label class="label cursor-pointer">
-                    <span class="label-text text-lg">
-                      <span class="font-semibold">Enable SQS Polling</span>
-                      <div class="text-sm text-base-content/70 mt-1">
-                        Automatically poll SQS queue for email events in background
-                      </div>
+                <%!-- Advanced AWS Settings (collapse) --%>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                  <input type="checkbox" />
+                  <div class="collapse-title text-sm font-medium">
+                    <span class="flex items-center gap-2">
+                      <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> Advanced AWS Settings
                     </span>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-info"
-                      checked={@sqs_polling_enabled}
-                      phx-click="toggle_sqs_polling"
-                    />
-                  </label>
+                  </div>
+                  <div class="collapse-content text-sm space-y-4">
+                    <p class="text-base-content/70 mb-4">
+                      These settings are automatically configured when you run "Setup AWS Infrastructure".
+                      Manual changes may break the integration.
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <%!-- SES Configuration Set --%>
+                      <div class="form-control">
+                        <label class="label">
+                          <span class="label-text font-medium">SES Configuration Set</span>
+                        </label>
+                        <input
+                          name="aws_settings[ses_configuration_set]"
+                          type="text"
+                          placeholder="phoenixkit-emails"
+                          value={@aws_settings.ses_configuration_set}
+                          class="input input-bordered focus:input-primary"
+                        />
+                        <label class="label">
+                          <span class="label-text-alt">SES configuration set name</span>
+                        </label>
+                      </div>
+
+                      <%!-- SNS Topic ARN --%>
+                      <div class="form-control md:col-span-2">
+                        <label class="label">
+                          <span class="label-text font-medium">SNS Topic ARN</span>
+                        </label>
+                        <input
+                          name="aws_settings[sns_topic_arn]"
+                          type="text"
+                          placeholder="arn:aws:sns:eu-north-1:123456789012:email-events"
+                          value={@aws_settings.sns_topic_arn}
+                          class="input input-bordered focus:input-primary"
+                        />
+                        <label class="label">
+                          <span class="label-text-alt">SNS topic for email events</span>
+                        </label>
+                      </div>
+
+                      <%!-- SQS Queue URL --%>
+                      <div class="form-control md:col-span-2">
+                        <label class="label">
+                          <span class="label-text font-medium">SQS Queue URL</span>
+                        </label>
+                        <input
+                          name="aws_settings[sqs_queue_url]"
+                          type="url"
+                          placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events"
+                          value={@aws_settings.sqs_queue_url}
+                          class="input input-bordered focus:input-primary"
+                        />
+                        <label class="label">
+                          <span class="label-text-alt">Main queue for email events</span>
+                        </label>
+                      </div>
+
+                      <%!-- SQS Queue ARN --%>
+                      <div class="form-control md:col-span-1">
+                        <label class="label">
+                          <span class="label-text font-medium">SQS Queue ARN</span>
+                        </label>
+                        <input
+                          name="aws_settings[sqs_queue_arn]"
+                          type="text"
+                          placeholder="arn:aws:sqs:eu-north-1:123456789012:email-events"
+                          value={@aws_settings.sqs_queue_arn}
+                          class="input input-bordered focus:input-primary"
+                        />
+                        <label class="label">
+                          <span class="label-text-alt">SQS queue ARN for permissions</span>
+                        </label>
+                      </div>
+
+                      <%!-- SQS DLQ URL --%>
+                      <div class="form-control md:col-span-1">
+                        <label class="label">
+                          <span class="label-text font-medium">SQS Dead Letter Queue URL</span>
+                        </label>
+                        <input
+                          name="aws_settings[sqs_dlq_url]"
+                          type="url"
+                          placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events-dlq"
+                          value={@aws_settings.sqs_dlq_url}
+                          class="input input-bordered focus:input-primary"
+                        />
+                        <label class="label">
+                          <span class="label-text-alt">
+                            Dead letter queue for failed messages
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <%= if @sqs_polling_enabled do %>
-                  <div class="divider"></div>
-
-                  <%!-- SQS Max Messages Per Poll --%>
-                  <div class="form-control mb-4">
-                    <label class="label">
-                      <span class="label-text text-lg font-semibold">Max Messages Per Poll</span>
-                    </label>
-                    <div class="input-group">
-                      <input
-                        name="max_messages"
-                        type="number"
-                        placeholder="Enter max messages"
-                        class="input input-bordered w-full max-w-xs"
-                        value={@sqs_max_messages_per_poll}
-                        min="1"
-                        max="10"
-                        phx-blur="update_max_messages"
-                      />
-                      <span class="bg-base-200 px-4 py-3 text-sm">messages</span>
-                    </div>
-                    <label class="label">
-                      <span class="label-text-alt text-base-content/70">
-                        Maximum number of messages to process in each polling cycle (1-10)
-                      </span>
-                    </label>
+                <%!-- SQS Worker Settings (collapse) --%>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                  <input type="checkbox" />
+                  <div class="collapse-title text-sm font-medium">
+                    <span class="flex items-center gap-2">
+                      <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> SQS Worker Settings
+                    </span>
                   </div>
-
-                  <%!-- SQS Visibility Timeout --%>
-                  <div class="form-control">
-                    <label class="label">
-                      <span class="label-text text-lg font-semibold">Visibility Timeout</span>
-                    </label>
-                    <div class="input-group">
-                      <input
-                        name="timeout"
-                        type="number"
-                        placeholder="Enter timeout"
-                        class="input input-bordered w-full max-w-xs"
-                        value={@sqs_visibility_timeout}
-                        min="30"
-                        max="43200"
-                        phx-blur="update_visibility_timeout"
-                      />
-                      <span class="bg-base-200 px-4 py-3 text-sm">seconds</span>
+                  <div class="collapse-content text-sm space-y-4">
+                    <%!-- Enable SQS Polling --%>
+                    <div class="form-control">
+                      <label class="label cursor-pointer">
+                        <span class="label-text text-lg">
+                          <span class="font-semibold">Enable SQS Polling</span>
+                          <div class="text-sm text-base-content/70 mt-1">
+                            Automatically poll SQS queue for email events in background
+                          </div>
+                        </span>
+                        <input
+                          type="checkbox"
+                          class="toggle toggle-info"
+                          checked={@sqs_polling_enabled}
+                          phx-click="toggle_sqs_polling"
+                        />
+                      </label>
                     </div>
-                    <label class="label">
-                      <span class="label-text-alt text-base-content/70">
-                        How long messages remain invisible after being received (30-43200 seconds)
-                      </span>
-                    </label>
+
+                    <%!-- SQS Polling Interval --%>
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text font-medium">SQS Polling Interval</span>
+                      </label>
+                      <div class="input-group">
+                        <input
+                          name="aws_settings[sqs_polling_interval_ms]"
+                          type="number"
+                          placeholder="5000"
+                          value={@aws_settings.sqs_polling_interval_ms}
+                          class="input input-bordered focus:input-primary w-full max-w-xs"
+                          min="1000"
+                          max="60000"
+                        />
+                        <span class="bg-base-200 px-4 py-3 text-sm">ms</span>
+                      </div>
+                      <label class="label">
+                        <span class="label-text-alt">
+                          How often to check for SQS messages (1-60 seconds)
+                        </span>
+                      </label>
+                    </div>
+
+                    <%= if @sqs_polling_enabled do %>
+                      <%!-- SQS Max Messages Per Poll --%>
+                      <div class="form-control">
+                        <label class="label">
+                          <span class="label-text font-medium">Max Messages Per Poll</span>
+                        </label>
+                        <div class="input-group">
+                          <input
+                            name="max_messages"
+                            type="number"
+                            placeholder="Enter max messages"
+                            class="input input-bordered w-full max-w-xs"
+                            value={@sqs_max_messages_per_poll}
+                            min="1"
+                            max="10"
+                            phx-blur="update_max_messages"
+                          />
+                          <span class="bg-base-200 px-4 py-3 text-sm">messages</span>
+                        </div>
+                        <label class="label">
+                          <span class="label-text-alt text-base-content/70">
+                            Maximum number of messages to process in each polling cycle (1-10)
+                          </span>
+                        </label>
+                      </div>
+
+                      <%!-- SQS Visibility Timeout --%>
+                      <div class="form-control">
+                        <label class="label">
+                          <span class="label-text font-medium">Visibility Timeout</span>
+                        </label>
+                        <div class="input-group">
+                          <input
+                            name="timeout"
+                            type="number"
+                            placeholder="Enter timeout"
+                            class="input input-bordered w-full max-w-xs"
+                            value={@sqs_visibility_timeout}
+                            min="30"
+                            max="43200"
+                            phx-blur="update_visibility_timeout"
+                          />
+                          <span class="bg-base-200 px-4 py-3 text-sm">seconds</span>
+                        </div>
+                        <label class="label">
+                          <span class="label-text-alt text-base-content/70">
+                            How long messages remain invisible after being received (30-43200 seconds)
+                          </span>
+                        </label>
+                      </div>
+                    <% end %>
+
+                    <%!-- Performance Optimization Tips --%>
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                      <h4 class="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                        <.icon name="hero-light-bulb" class="w-4 h-4" /> Performance Tips
+                      </h4>
+                      <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• Use longer polling intervals (5-10 seconds) to reduce API calls</li>
+                        <li>• Set visibility timeout to match processing time</li>
+                        <li>• Monitor queue depth and adjust max messages accordingly</li>
+                        <li>• Enable compression to reduce storage requirements</li>
+                      </ul>
+                    </div>
                   </div>
-                <% end %>
-              <% else %>
-                <%!-- Message when SES Events are disabled --%>
-                <div class="alert alert-info mt-4">
-                  <.icon name="hero-information-circle" class="w-5 h-5" />
+                </div>
+              <% end %>
+
+              <%!-- Warning for credentials changes --%>
+              <%= if String.trim(@aws_settings.access_key_id) != "" or String.trim(@aws_settings.secret_access_key) != "" do %>
+                <div class="alert alert-warning mb-4">
+                  <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
                   <div>
-                    <h3 class="font-bold">AWS SES Integration Disabled</h3>
+                    <h3 class="font-bold">Configuration Changes Detected</h3>
                     <p class="text-sm mt-1">
-                      Enable "AWS SES Events Options" above to access advanced SES and SQS configuration options.
+                      You've modified your AWS credentials. Click "Save AWS Settings" first, then use "Setup AWS Infrastructure" to create the required resources.
                     </p>
                   </div>
                 </div>
               <% end %>
 
-              <%!-- Save Button --%>
-              <div class="card-actions justify-end mt-6">
-                <button
-                  type="submit"
-                  class={[
-                    "btn btn-primary",
-                    if(@saving, do: "loading", else: "")
-                  ]}
-                  disabled={@saving}
-                >
-                  <%= if @saving do %>
-                    Saving...
-                  <% else %>
-                    <.icon name="hero-check" class="w-4 h-4 mr-2" /> Save AWS Settings
-                  <% end %>
-                </button>
+              <%!-- Action Buttons --%>
+              <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                <div class="flex-1">
+                  <button
+                    type="submit"
+                    class={[
+                      "btn btn-primary w-full sm:w-auto",
+                      if(@saving, do: "loading", else: "")
+                    ]}
+                    disabled={@saving or @verifying_credentials}
+                  >
+                    <%= if @saving do %>
+                      Saving...
+                    <% else %>
+                      <.icon name="hero-check" class="w-4 h-4 mr-2" /> Save AWS Settings
+                    <% end %>
+                  </button>
+                </div>
+
+                <div class="flex-1">
+                  <button
+                    type="button"
+                    phx-click="setup_aws_infrastructure"
+                    class={[
+                      "btn btn-accent w-full sm:w-auto",
+                      if(@setting_up_aws, do: "loading", else: "")
+                    ]}
+                    disabled={
+                      @setting_up_aws or @saving or String.trim(@aws_settings.access_key_id) == "" or
+                        String.trim(@aws_settings.secret_access_key) == ""
+                    }
+                  >
+                    <%= if @setting_up_aws do %>
+                      Setting up...
+                    <% else %>
+                      <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-2" />
+                      Setup AWS Infrastructure
+                    <% end %>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

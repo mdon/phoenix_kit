@@ -216,36 +216,7 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
           )
 
         # Auto-load regions when enabling SES events
-        socket =
-          if new_ses_events do
-            aws_settings = socket.assigns.aws_settings
-
-            # Only load if credentials are present
-            if aws_settings.access_key_id != "" and aws_settings.secret_access_key != "" do
-              # Load regions asynchronously
-              task =
-                Task.async(fn ->
-                  CredentialsVerifier.get_available_regions(
-                    aws_settings.access_key_id,
-                    aws_settings.secret_access_key,
-                    aws_settings.region
-                  )
-                end)
-
-              case Task.yield(task, 10_000) || Task.shutdown(task) do
-                {:ok, {:ok, regions}} ->
-                  assign(socket, :available_regions, regions)
-
-                _ ->
-                  # Silently fail - user can manually refresh regions
-                  socket
-              end
-            else
-              socket
-            end
-          else
-            socket
-          end
+        socket = maybe_auto_load_regions(socket, new_ses_events)
 
         {:noreply, socket}
 
@@ -993,6 +964,40 @@ defmodule PhoenixKitWeb.Live.Modules.Emails.Settings do
         put_flash(socket, :error, "❌ S3 archival is disabled. Please enable it first.")
 
       {:noreply, socket}
+    end
+  end
+
+  # Auto-load AWS regions when SES events are enabled
+  defp maybe_auto_load_regions(socket, false), do: socket
+
+  defp maybe_auto_load_regions(socket, true) do
+    aws_settings = socket.assigns.aws_settings
+
+    # Only load if credentials are present
+    if aws_settings.access_key_id != "" and aws_settings.secret_access_key != "" do
+      load_regions_async(socket, aws_settings)
+    else
+      socket
+    end
+  end
+
+  defp load_regions_async(socket, aws_settings) do
+    task =
+      Task.async(fn ->
+        CredentialsVerifier.get_available_regions(
+          aws_settings.access_key_id,
+          aws_settings.secret_access_key,
+          aws_settings.region
+        )
+      end)
+
+    case Task.yield(task, 10_000) || Task.shutdown(task) do
+      {:ok, {:ok, regions}} ->
+        assign(socket, :available_regions, regions)
+
+      _ ->
+        # Silently fail - user can manually refresh regions
+        socket
     end
   end
 
