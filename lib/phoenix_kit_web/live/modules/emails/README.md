@@ -439,6 +439,71 @@ PhoenixKit uses the Settings Database as the primary source for AWS credentials.
 mix phoenix_kit.configure_aws_ses --status
 ```
 
+---
+
+#### Problem 5: ConfigurationSetDoesNotExist error
+
+**Symptoms**
+
+```
+AWS SES error: ConfigurationSetDoesNotExist
+Configuration set 'myapp-emailing' does not exist
+```
+
+**Root Cause**
+
+PhoenixKit versions before 1.4.5 required AWS CLI for SES setup (steps 8-9). In Docker/Kubernetes environments without AWS CLI installed, the setup appeared successful but the SES configuration set was never actually created in AWS.
+
+**Solution (PhoenixKit 1.4.5+)**
+
+✅ **Automatic** - infrastructure setup now uses SES v2 API without AWS CLI dependency
+
+Simply re-run the setup:
+```elixir
+PhoenixKit.AWS.InfrastructureSetup.run(project_name: "yourapp")
+```
+
+**Solution (PhoenixKit < 1.4.5)**
+
+1. **Recommended:** Upgrade to PhoenixKit 1.4.5+
+2. Re-run setup: `PhoenixKit.AWS.InfrastructureSetup.run(project_name: "yourapp")`
+
+**Manual workaround (if upgrade not possible):**
+
+```bash
+# Create configuration set manually
+aws sesv2 create-configuration-set \
+  --configuration-set-name "yourapp-emailing" \
+  --region eu-north-1
+
+# Configure event destination
+aws sesv2 create-configuration-set-event-destination \
+  --configuration-set-name "yourapp-emailing" \
+  --event-destination-name "email-events-to-sns" \
+  --event-destination '{
+    "Enabled": true,
+    "MatchingEventTypes": [
+      "SEND", "REJECT", "BOUNCE", "COMPLAINT",
+      "DELIVERY", "OPEN", "CLICK", "RENDERING_FAILURE"
+    ],
+    "SnsDestination": {
+      "TopicArn": "arn:aws:sns:eu-north-1:123456:yourapp-email-events"
+    }
+  }' \
+  --region eu-north-1
+```
+
+**Verification**
+
+Check that all 9 setup steps completed successfully:
+```elixir
+# Look for these log messages:
+# [AWS Setup] [8/9] Creating SES Configuration Set...
+# [AWS Setup]   ✓ SES Configuration Set created
+# [AWS Setup] [9/9] Configuring SES event tracking to SNS...
+# [AWS Setup]   ✓ SES Event Tracking configured
+```
+
 ## Debugging Tips
 
 - Enable verbose logging:
