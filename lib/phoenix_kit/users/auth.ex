@@ -904,7 +904,11 @@ defmodule PhoenixKit.Users.Auth do
   defp maybe_update_custom_fields(user, attrs) when map_size(attrs) == 0, do: {:ok, user}
 
   defp maybe_update_custom_fields(user, attrs) do
-    update_user_custom_fields(user, attrs)
+    # Merge new custom fields with existing ones (don't replace entirely)
+    existing_custom_fields = user.custom_fields || %{}
+    merged_custom_fields = Map.merge(existing_custom_fields, attrs)
+
+    update_user_custom_fields(user, merged_custom_fields)
   end
 
   @doc """
