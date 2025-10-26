@@ -63,8 +63,14 @@ defmodule PhoenixKit.Modules.Maintenance do
 
   @doc """
   Disables the Maintenance module (hides settings page).
+
+  Also automatically disables maintenance mode to prevent users from being locked out.
   """
   def disable_module do
+    # First disable maintenance mode
+    disable_system()
+
+    # Then disable the module (hides settings page)
     Settings.update_boolean_setting("maintenance_module_enabled", false)
   end
 
