@@ -55,7 +55,6 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
 
   require Logger
 
-  alias ExAws.Operation.JSON
   alias ExAws.SNS
   alias ExAws.SQS
   alias ExAws.STS
@@ -69,9 +68,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
              step_6_set_main_queue_policy: 5,
              step_7_subscribe_sqs_to_sns: 3,
              step_8_create_ses_config_set: 1,
-             step_9_configure_ses_events: 3,
-             create_ses_configuration_set: 2,
-             create_ses_event_destination: 3}
+             step_9_configure_ses_events: 3}
 
   # Queue configuration optimized for email event processing
   # 10 minutes - allows complex DB operations without message redelivery
@@ -177,14 +174,18 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
     case STS.get_caller_identity()
          |> ExAws.request(aws_config(config)) do
       {:ok, %{body: body}} ->
-        account_id =
-          body
-          |> Map.get("GetCallerIdentityResponse")
-          |> Map.get("GetCallerIdentityResult")
-          |> Map.get("Account")
+        # Handle both sweet_xml parsed (atom keys) and raw XML (string keys) responses
+        account_id = body[:account] || body["account"]
 
-        Logger.info("[AWS Setup]   ✓ Account ID: #{account_id}")
-        {:ok, account_id}
+        if account_id do
+          Logger.info("[AWS Setup]   ✓ Account ID: #{account_id}")
+          {:ok, account_id}
+        else
+          return_error(
+            "get_account_id",
+            "Could not parse account ID from response: #{inspect(body)}"
+          )
+        end
 
       {:error, reason} ->
         return_error("get_account_id", "Failed to get AWS Account ID: #{inspect(reason)}")
@@ -197,38 +198,26 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
 
     dlq_name = "#{config.project_name}-email-dlq"
 
-    attributes = [
-      {"VisibilityTimeout", Integer.to_string(config.dlq_visibility_timeout)},
-      {"MessageRetentionPeriod", Integer.to_string(config.dlq_retention)},
-      {"SqsManagedSseEnabled", "true"}
-    ]
-
-    case dlq_name
-         |> SQS.create_queue(attributes)
+    case SQS.create_queue(dlq_name,
+           visibility_timeout: Integer.to_string(config.dlq_visibility_timeout),
+           message_retention_period: Integer.to_string(config.dlq_retention),
+           sqs_managed_sse_enabled: "true"
+         )
          |> ExAws.request(aws_config(config)) do
       {:ok, %{body: body}} ->
-        dlq_url = Map.get(body, "QueueUrl")
+        dlq_url = get_queue_url_from_response(body)
         dlq_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{dlq_name}"
         Logger.info("[AWS Setup]   ✓ DLQ Created")
         Logger.info("[AWS Setup]     URL: #{dlq_url}")
         Logger.info("[AWS Setup]     ARN: #{dlq_arn}")
         {:ok, dlq_url, dlq_arn}
 
-      {:error, {:http_error, 400, %{body: body}}} ->
+      {:error, {:http_error, 400, %{body: body}}} when is_binary(body) ->
         # Queue might already exist
         if String.contains?(body, "QueueAlreadyExists") do
-          case SQS.get_queue_url(dlq_name) |> ExAws.request(aws_config(config)) do
-            {:ok, %{body: %{"QueueUrl" => dlq_url}}} ->
-              dlq_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{dlq_name}"
-              Logger.info("[AWS Setup]   ✓ DLQ Found (already exists)")
-              Logger.info("[AWS Setup]     URL: #{dlq_url}")
-              {:ok, dlq_url, dlq_arn}
-
-            error ->
-              return_error("create_dlq", "Failed to get existing DLQ URL: #{inspect(error)}")
-          end
+          handle_existing_queue(dlq_name, account_id, config, "DLQ")
         else
-          return_error("create_dlq", "Failed to create DLQ: #{body}")
+          return_error("create_dlq", body)
         end
 
       {:error, reason} ->
@@ -258,8 +247,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
 
     policy_json = Jason.encode!(policy)
 
-    case dlq_url
-         |> SQS.set_queue_attributes([{"Policy", policy_json}])
+    case SQS.set_queue_attributes(dlq_url, policy: policy_json)
          |> ExAws.request(aws_config(config)) do
       {:ok, _} ->
         Logger.info("[AWS Setup]   ✓ DLQ Policy set")
@@ -279,11 +267,8 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
     case SNS.create_topic(topic_name)
          |> ExAws.request(aws_config(config)) do
       {:ok, %{body: body}} ->
-        topic_arn =
-          body
-          |> Map.get("CreateTopicResponse")
-          |> Map.get("CreateTopicResult")
-          |> Map.get("TopicArn")
+        # Handle both sweet_xml parsed (atom keys) and raw XML (string keys) responses
+        topic_arn = body[:topic_arn] || body["TopicArn"] || body["topic_arn"]
 
         Logger.info("[AWS Setup]   ✓ SNS Topic Created/Found")
         Logger.info("[AWS Setup]     ARN: #{topic_arn}")
@@ -305,41 +290,27 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
       "maxReceiveCount" => config.max_receive_count
     }
 
-    attributes = [
-      {"VisibilityTimeout", Integer.to_string(config.queue_visibility_timeout)},
-      {"MessageRetentionPeriod", Integer.to_string(config.queue_retention)},
-      {"ReceiveMessageWaitTimeSeconds", "20"},
-      {"RedrivePolicy", Jason.encode!(redrive_policy)},
-      {"SqsManagedSseEnabled", "true"}
-    ]
-
-    case queue_name
-         |> SQS.create_queue(attributes)
+    case SQS.create_queue(queue_name,
+           visibility_timeout: Integer.to_string(config.queue_visibility_timeout),
+           message_retention_period: Integer.to_string(config.queue_retention),
+           receive_message_wait_time_seconds: "20",
+           redrive_policy: Jason.encode!(redrive_policy),
+           sqs_managed_sse_enabled: "true"
+         )
          |> ExAws.request(aws_config(config)) do
       {:ok, %{body: body}} ->
-        queue_url = Map.get(body, "QueueUrl")
+        queue_url = get_queue_url_from_response(body)
         queue_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{queue_name}"
         Logger.info("[AWS Setup]   ✓ Main Queue Created")
         Logger.info("[AWS Setup]     URL: #{queue_url}")
         Logger.info("[AWS Setup]     ARN: #{queue_arn}")
         {:ok, queue_url, queue_arn}
 
-      {:error, {:http_error, 400, %{body: body}}} ->
+      {:error, {:http_error, 400, %{body: body}}} when is_binary(body) ->
         if String.contains?(body, "QueueAlreadyExists") do
-          case SQS.get_queue_url(queue_name) |> ExAws.request(aws_config(config)) do
-            {:ok, %{body: %{"QueueUrl" => queue_url}}} ->
-              queue_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{queue_name}"
-              Logger.info("[AWS Setup]   ✓ Main Queue Found (already exists)")
-              {:ok, queue_url, queue_arn}
-
-            error ->
-              return_error(
-                "create_main_queue",
-                "Failed to get existing queue URL: #{inspect(error)}"
-              )
-          end
+          handle_existing_queue(queue_name, account_id, config, "Main Queue")
         else
-          return_error("create_main_queue", "Failed to create main queue: #{body}")
+          return_error("create_main_queue", body)
         end
 
       {:error, reason} ->
@@ -388,8 +359,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
 
     policy_json = Jason.encode!(policy)
 
-    case queue_url
-         |> SQS.set_queue_attributes([{"Policy", policy_json}])
+    case SQS.set_queue_attributes(queue_url, policy: policy_json)
          |> ExAws.request(aws_config(config)) do
       {:ok, _} ->
         Logger.info("[AWS Setup]   ✓ Main Queue Policy set")
@@ -407,11 +377,9 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
     case SNS.subscribe(sns_topic_arn, "sqs", queue_arn)
          |> ExAws.request(aws_config(config)) do
       {:ok, %{body: body}} ->
+        # Handle both sweet_xml parsed (atom keys) and raw XML (string keys) responses
         subscription_arn =
-          body
-          |> Map.get("SubscribeResponse")
-          |> Map.get("SubscribeResult")
-          |> Map.get("SubscriptionArn")
+          body[:subscription_arn] || body["SubscriptionArn"] || body["subscription_arn"]
 
         Logger.info("[AWS Setup]   ✓ SNS → SQS Subscription created")
 
@@ -434,20 +402,16 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
 
     config_set_name = "#{config.project_name}-emailing"
 
-    # Use HTTP request directly for SES operations
-    case create_ses_configuration_set(config, config_set_name) do
-      {:ok, _} ->
-        Logger.info("[AWS Setup]   ✓ SES Configuration Set created/verified")
+    alias PhoenixKit.AWS.SESv2
+
+    case SESv2.create_configuration_set(config_set_name, aws_config(config)) do
+      {:ok, ^config_set_name} ->
+        Logger.info("[AWS Setup]   ✓ SES Configuration Set created")
         Logger.info("[AWS Setup]     Name: #{config_set_name}")
         {:ok, config_set_name}
 
       {:error, reason} ->
-        if String.contains?(inspect(reason), "AlreadyExists") do
-          Logger.info("[AWS Setup]   ✓ SES Configuration Set already exists")
-          {:ok, config_set_name}
-        else
-          return_error("create_ses_config_set", inspect(reason))
-        end
+        return_error("create_ses_config_set", inspect(reason))
     end
   end
 
@@ -455,84 +419,27 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
   defp step_9_configure_ses_events(config, config_set_name, sns_topic_arn) do
     Logger.info("[AWS Setup] [9/9] Configuring SES event tracking to SNS...")
 
-    case create_ses_event_destination(config, config_set_name, sns_topic_arn) do
-      {:ok, _} ->
+    alias PhoenixKit.AWS.SESv2
+
+    case SESv2.create_configuration_set_event_destination(
+           config_set_name,
+           "email-events-to-sns",
+           sns_topic_arn,
+           aws_config(config)
+         ) do
+      :ok ->
         Logger.info("[AWS Setup]   ✓ SES Event Tracking configured")
 
         Logger.info(
-          "[AWS Setup]     Events: send, reject, bounce, complaint, delivery, open, click, renderingFailure"
+          "[AWS Setup]     Events: SEND, REJECT, BOUNCE, COMPLAINT, DELIVERY, OPEN, CLICK, RENDERING_FAILURE"
         )
 
-        Logger.info("[AWS Setup]     Destination: SNS → SQS")
+        Logger.info("[AWS Setup]     Destination: #{sns_topic_arn}")
         :ok
 
       {:error, reason} ->
-        if String.contains?(inspect(reason), "AlreadyExists") do
-          Logger.info("[AWS Setup]   ℹ️  Event destination already exists")
-          :ok
-        else
-          return_error("configure_ses_events", inspect(reason))
-        end
+        return_error("configure_ses_events", inspect(reason))
     end
-  end
-
-  # Helper: Create SES Configuration Set using HTTP request
-  defp create_ses_configuration_set(config, name) do
-    body = %{
-      "ConfigurationSetName" => name
-    }
-
-    headers = [
-      {"Content-Type", "application/x-amz-json-1.1"},
-      {"X-Amz-Target", "SimpleEmailService_v2.CreateConfigurationSet"}
-    ]
-
-    JSON.new(:ses, %{
-      http_method: :post,
-      headers: headers,
-      data: body,
-      service: :ses,
-      path: "/"
-    })
-    |> ExAws.request(aws_config(config))
-  end
-
-  # Helper: Create SES Event Destination using HTTP request
-  defp create_ses_event_destination(config, config_set_name, sns_topic_arn) do
-    body = %{
-      "ConfigurationSetName" => config_set_name,
-      "EventDestinationName" => "sns-destination",
-      "EventDestination" => %{
-        "Enabled" => true,
-        "MatchingEventTypes" => [
-          "SEND",
-          "REJECT",
-          "BOUNCE",
-          "COMPLAINT",
-          "DELIVERY",
-          "OPEN",
-          "CLICK",
-          "RENDERING_FAILURE"
-        ],
-        "SnsDestination" => %{
-          "TopicArn" => sns_topic_arn
-        }
-      }
-    }
-
-    headers = [
-      {"Content-Type", "application/x-amz-json-1.1"},
-      {"X-Amz-Target", "SimpleEmailService_v2.CreateConfigurationSetEventDestination"}
-    ]
-
-    JSON.new(:ses, %{
-      http_method: :post,
-      headers: headers,
-      data: body,
-      service: :ses,
-      path: "/"
-    })
-    |> ExAws.request(aws_config(config))
   end
 
   # Helper: Build AWS configuration
@@ -550,6 +457,30 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
     |> String.downcase()
     |> String.replace(~r/[^a-z0-9-]/, "-")
     |> String.trim("-")
+  end
+
+  # Helper: Extract queue URL from various response formats
+  defp get_queue_url_from_response(body) when is_map(body) do
+    body[:queue_url] || body["QueueUrl"] || body["queue_url"]
+  end
+
+  # Helper: Handle existing queue scenario (idempotent setup)
+  defp handle_existing_queue(queue_name, account_id, config, queue_type) do
+    case SQS.get_queue_url(queue_name) |> ExAws.request(aws_config(config)) do
+      {:ok, %{body: body}} ->
+        queue_url = get_queue_url_from_response(body)
+        region = config.region
+        queue_arn = "arn:aws:sqs:#{region}:#{account_id}:#{queue_name}"
+        Logger.info("[AWS Setup]   ✓ #{queue_type} Found (already exists)")
+        Logger.info("[AWS Setup]     URL: #{queue_url}")
+        {:ok, queue_url, queue_arn}
+
+      {:error, reason} ->
+        return_error(
+          "get_existing_queue",
+          "Failed to get existing #{queue_type}: #{inspect(reason)}"
+        )
+    end
   end
 
   # Helper: Return error tuple

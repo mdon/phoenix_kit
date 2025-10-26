@@ -17,6 +17,7 @@ defmodule PhoenixKit.Install.BrowserPipelineIntegration do
   """
 
   alias Igniter.Libs.Phoenix, as: IgniterPhoenix
+  alias Igniter.Project.Module, as: IgniterModule
 
   @doc """
   Adds the PhoenixKit Integration plug to the :browser pipeline in the Phoenix router.
@@ -63,24 +64,13 @@ defmodule PhoenixKit.Install.BrowserPipelineIntegration do
 
   # Check if Integration plug already exists in the router
   defp plug_already_exists?(igniter, router_module) do
-    router_path = module_to_file_path(router_module)
-
-    case Map.get(igniter.rewrite.sources, router_path) do
-      nil ->
-        false
-
-      source ->
+    case IgniterModule.find_module(igniter, router_module) do
+      {:ok, {_igniter, source, _zipper}} ->
         content = Rewrite.Source.get(source, :content)
         String.contains?(content, "PhoenixKitWeb.Plugs.Integration")
-    end
-  end
 
-  # Convert module name to file path
-  defp module_to_file_path(module) do
-    module
-    |> Module.split()
-    |> Enum.map(&Macro.underscore/1)
-    |> Path.join()
-    |> then(&"lib/#{&1}.ex")
+      {:error, _igniter} ->
+        false
+    end
   end
 end
