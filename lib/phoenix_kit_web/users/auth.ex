@@ -526,16 +526,40 @@ defmodule PhoenixKitWeb.Users.Auth do
     if Maintenance.enabled?() do
       scope = socket.assigns[:phoenix_kit_current_scope]
 
-      # Admins and owners can bypass maintenance mode
-      if scope && (Scope.admin?(scope) || Scope.owner?(scope)) do
-        Phoenix.Component.assign(socket, :show_maintenance, false)
-      else
-        # Non-admin users see maintenance page
-        Phoenix.Component.assign(socket, :show_maintenance, true)
+      # Check if this is an authentication route that should bypass maintenance
+      is_auth_route = is_auth_route?(socket)
+
+      cond do
+        # Authentication routes (login, reset-password, etc.) always bypass maintenance
+        is_auth_route ->
+          Phoenix.Component.assign(socket, :show_maintenance, false)
+
+        # Admins and owners can bypass maintenance mode
+        scope && (Scope.admin?(scope) || Scope.owner?(scope)) ->
+          Phoenix.Component.assign(socket, :show_maintenance, false)
+
+        # All other users see maintenance page
+        true ->
+          Phoenix.Component.assign(socket, :show_maintenance, true)
       end
     else
       # Maintenance mode disabled - show normal content
       Phoenix.Component.assign(socket, :show_maintenance, false)
+    end
+  end
+
+  # Check if the current socket is for an authentication route
+  defp is_auth_route?(socket) do
+    case socket.view do
+      PhoenixKitWeb.Users.Login -> true
+      PhoenixKitWeb.Users.ForgotPassword -> true
+      PhoenixKitWeb.Users.ResetPassword -> true
+      PhoenixKitWeb.Users.MagicLink -> true
+      PhoenixKitWeb.Users.MagicLinkRegistrationRequest -> true
+      PhoenixKitWeb.Users.MagicLinkRegistration -> true
+      PhoenixKitWeb.Users.Confirmation -> true
+      PhoenixKitWeb.Users.ConfirmationInstructions -> true
+      _ -> false
     end
   end
 
