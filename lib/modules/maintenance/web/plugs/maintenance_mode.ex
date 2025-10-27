@@ -33,30 +33,97 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   Checks if maintenance mode is enabled and renders maintenance page for non-admin users.
   """
   def call(conn, _opts) do
+    # Debug logging
+    require Logger
+    Logger.debug("MaintenanceMode plug called for path: #{conn.request_path}")
+
     # Only proceed if maintenance mode is enabled
     if Maintenance.enabled?() do
+      Logger.debug("Maintenance mode is ENABLED")
       handle_maintenance_mode(conn)
     else
+      Logger.debug("Maintenance mode is DISABLED")
       conn
     end
   end
 
   # Handle maintenance mode logic
   defp handle_maintenance_mode(conn) do
+    require Logger
+
     # Skip maintenance mode for auth routes and static assets
     if should_skip_maintenance?(conn.request_path) do
+      Logger.debug("Skipping maintenance for path: #{conn.request_path}")
       conn
     else
-      # Get user from session and check if admin/owner
-      user = get_user_from_session(conn)
-
-      if user_is_admin_or_owner?(user) do
-        # Admin/Owner bypasses maintenance mode
+      # Check if this is a LiveView route (Phoenix LiveView handles maintenance in-place)
+      # Regular controller routes get the maintenance page response
+      if is_live_view_route?(conn) do
+        Logger.debug("LiveView route detected, letting through: #{conn.request_path}")
+        # Let LiveView handle maintenance mode rendering in-place
+        # This allows users to stay on their current page when maintenance is disabled
         conn
       else
-        # Non-admin user - render maintenance page
-        render_maintenance_page(conn)
+        Logger.debug("Controller route detected: #{conn.request_path}")
+        # Get user from session and check if admin/owner
+        user = get_user_from_session(conn)
+
+        if user_is_admin_or_owner?(user) do
+          Logger.debug("User is admin/owner, bypassing maintenance")
+          # Admin/Owner bypasses maintenance mode
+          conn
+        else
+          Logger.debug("Rendering maintenance page for non-admin user")
+          # Non-admin user - render maintenance page (only for controller routes)
+          render_maintenance_page(conn)
+        end
       end
+    end
+  end
+
+  # Check if the request is for a LiveView route
+  defp is_live_view_route?(conn) do
+    require Logger
+    # Get the configured URL prefix
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+    Logger.debug("URL prefix: #{inspect(url_prefix)}")
+
+    # Check if this request is for a PhoenixKit route
+    # The path must actually start with the prefix to be a PhoenixKit route
+    is_phoenix_kit_route =
+      case url_prefix do
+        "" ->
+          # No prefix configured - check if path looks like a PhoenixKit route
+          # PhoenixKit routes typically have /users/, /admin/, etc.
+          String.contains?(conn.request_path, ["/users/", "/admin/", "/pages/", "/entities/"])
+
+        "/" ->
+          # Root prefix - check if path looks like a PhoenixKit route
+          String.contains?(conn.request_path, ["/users/", "/admin/", "/pages/", "/entities/"])
+
+        prefix ->
+          # Has a prefix (e.g., /phoenix_kit) - check if path starts with it
+          String.starts_with?(conn.request_path, prefix)
+      end
+
+    Logger.debug("Is PhoenixKit route? #{is_phoenix_kit_route} for path: #{conn.request_path}")
+
+    # Only let LiveView routes through if they're PhoenixKit routes
+    if is_phoenix_kit_route do
+      # LiveView routes use WebSocket upgrades or have specific markers
+      case get_req_header(conn, "x-requested-with") do
+        ["live-view"] ->
+          true
+
+        _ ->
+          # Check if the request path matches LiveView patterns
+          # Most PhoenixKit pages are LiveViews, controller routes are mostly POST actions
+          conn.method == "GET" && !String.contains?(conn.request_path, ["/auth/", "/webhooks/"])
+      end
+    else
+      # Not a PhoenixKit route - don't let it through as LiveView
+      Logger.debug("Not a PhoenixKit route, will show full maintenance page")
+      false
     end
   end
 
@@ -70,12 +137,30 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
 
   # Skip maintenance mode for these paths
   defp should_skip_maintenance?(path) do
+    # Get the configured URL prefix
+    url_prefix = PhoenixKit.Config.get_url_prefix()
+
+    # Build prefix-aware paths
+    prefix_path = fn route ->
+      case url_prefix do
+        "" -> route
+        "/" -> route
+        prefix -> prefix <> route
+      end
+    end
+
     # Authentication routes (for existing users only - no registration)
+    # Check both with and without prefix for compatibility
     # Static assets
-    String.contains?(path, "/users/log-in") ||
+    String.contains?(path, prefix_path.("/users/log-in")) ||
+      String.contains?(path, "/users/log-in") ||
+      String.contains?(path, prefix_path.("/users/reset-password")) ||
       String.contains?(path, "/users/reset-password") ||
+      String.contains?(path, prefix_path.("/users/confirm")) ||
       String.contains?(path, "/users/confirm") ||
+      String.contains?(path, prefix_path.("/users/magic-link")) ||
       String.contains?(path, "/users/magic-link") ||
+      String.contains?(path, prefix_path.("/users/auth/")) ||
       String.contains?(path, "/users/auth/") ||
       String.starts_with?(path, "/assets/") ||
       String.starts_with?(path, "/images/") ||
