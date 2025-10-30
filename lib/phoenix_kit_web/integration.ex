@@ -56,9 +56,11 @@ defmodule PhoenixKitWeb.Integration do
   - /admin/settings, /admin/modules
 
   Public pages routes (if Pages module enabled):
-  - /pages/* (explicit prefix)
-  - /* (catch-all at root level)
-  - Example: /test2 renders test2.md
+  - {prefix}/pages/* (explicit prefix - e.g., /phoenix_kit/pages/test)
+  - /* (catch-all at root level - e.g., /test, /blog/post)
+  - Both routes serve published pages from priv/static/pages/*.md
+  - The catch-all can optionally serve a custom 404 markdown file when enabled
+  - Example: /test or /phoenix_kit/pages/test renders test.md
 
   ## DaisyUI Setup
 
@@ -205,8 +207,8 @@ defmodule PhoenixKitWeb.Integration do
         # Email webhook endpoint (no authentication required)
         post "/webhooks/email", Controllers.EmailWebhookController, :handle
 
-        # Public pages routes (no authentication required)
-        get "/pages/*path", PagesController, :show
+        # Pages routes temporarily disabled
+        # get "/pages/*path", PagesController, :show
       end
 
       # Email export routes (require admin or owner role)
@@ -218,6 +220,22 @@ defmodule PhoenixKitWeb.Integration do
         get "/admin/emails/blocklist/export", Controllers.EmailExportController, :export_blocklist
         get "/admin/emails/:id/export", Controllers.EmailExportController, :export_email_details
       end
+    end
+  end
+
+  # Helper function to generate catch-all root route for pages
+  # This allows accessing pages from the root level (e.g., /test, /blog/post)
+  # Must be placed at the end of the router to not interfere with other routes
+  defp generate_pages_catch_all do
+    quote do
+      # Catch-all route for published pages at root level
+      # This route should be last to avoid conflicting with app routes
+      # scope "/", PhoenixKitWeb do
+      #   pipe_through [:browser, :phoenix_kit_auto_setup]
+      #
+      #   # Catch-all for root-level pages (must be last route)
+      #   get "/*path", PagesController, :show
+      # end
     end
   end
 
@@ -276,6 +294,12 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings", Live.Settings, :index
           live "/admin/settings/users", Live.Settings.Users, :index
           live "/admin/modules", Live.Modules, :index
+          live "/admin/publishing", Live.Modules.Publishing.Index, :index
+          live "/admin/publishing/:type", Live.Modules.Publishing.Type, :type
+          live "/admin/publishing/:type/edit", Live.Modules.Publishing.Editor, :edit
+          live "/admin/publishing/:type/preview", Live.Modules.Publishing.Preview, :preview
+          live "/admin/settings/publishing", Live.Modules.Publishing.Settings, :index
+          # live "/admin/settings/pages", Live.Modules.Pages.Settings, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/email-tracking", Live.Modules.Emails.EmailTracking, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
@@ -318,9 +342,9 @@ defmodule PhoenixKitWeb.Integration do
             as: :entities_settings
 
           # Pages Management
-          live "/admin/pages", Live.Modules.Pages.Pages, :index
-          live "/admin/pages/view", Live.Modules.Pages.View, :view
-          live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
+          # live "/admin/pages", Live.Modules.Pages.Pages, :index
+          # live "/admin/pages/view", Live.Modules.Pages.View, :view
+          # live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
         end
       end
     end
@@ -380,6 +404,12 @@ defmodule PhoenixKitWeb.Integration do
           live "/admin/settings", Live.Settings, :index
           live "/admin/settings/users", Live.Settings.Users, :index
           live "/admin/modules", Live.Modules, :index
+          live "/admin/publishing", Live.Modules.Publishing.Index, :index
+          live "/admin/publishing/:type", Live.Modules.Publishing.Type, :type
+          live "/admin/publishing/:type/edit", Live.Modules.Publishing.Editor, :edit
+          live "/admin/publishing/:type/preview", Live.Modules.Publishing.Preview, :preview
+          live "/admin/settings/publishing", Live.Modules.Publishing.Settings, :index
+          # live "/admin/settings/pages", Live.Modules.Pages.Settings, :index
           live "/admin/settings/referral-codes", Live.Modules.ReferralCodes, :index
           live "/admin/settings/emails", Live.Modules.Emails.Settings, :index
           live "/admin/settings/languages", Live.Modules.Languages, :index
@@ -430,36 +460,18 @@ defmodule PhoenixKitWeb.Integration do
             as: :entities_settings
 
           # Pages Management
-          live "/admin/pages", Live.Modules.Pages.Pages, :index
-          live "/admin/pages/view", Live.Modules.Pages.View, :view
-          live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
+          # live "/admin/pages", Live.Modules.Pages.Pages, :index
+          # live "/admin/pages/view", Live.Modules.Pages.View, :view
+          # live "/admin/pages/edit", Live.Modules.Pages.Editor, :edit
         end
       end
     end
   end
 
   defmacro phoenix_kit_routes do
-    # Initialize OAuth configuration from database on router setup
-    # This ensures OAuth providers are configured before any requests
-    # Runs regardless of oauth_enabled setting to ensure Ueberauth always has valid configuration
-    if Code.ensure_loaded?(PhoenixKit.Users.OAuthConfig) and
-         Code.ensure_loaded?(PhoenixKit.Settings) do
-      spawn(fn ->
-        # Small delay to ensure database is ready
-        Process.sleep(100)
-
-        try do
-          # Always configure providers to ensure Ueberauth has valid configuration
-          # The oauth_enabled flag controls UI visibility, not provider initialization
-          alias PhoenixKit.Users.OAuthConfig
-          OAuthConfig.configure_providers()
-        rescue
-          error ->
-            require Logger
-            Logger.debug("OAuth config initialization error: #{inspect(error)}")
-        end
-      end)
-    end
+    # OAuth configuration is handled by PhoenixKit.Workers.OAuthConfigLoader
+    # which runs synchronously during supervisor startup
+    # No need for async spawn() here anymore
 
     # Get URL prefix at compile time and handle empty string case for router compatibility
     raw_prefix =
@@ -500,6 +512,9 @@ defmodule PhoenixKitWeb.Integration do
 
       # Generate non-localized routes
       unquote(generate_non_localized_routes(url_prefix))
+
+      # Generate catch-all route for pages at root level (must be last)
+      unquote(generate_pages_catch_all())
     end
   end
 
