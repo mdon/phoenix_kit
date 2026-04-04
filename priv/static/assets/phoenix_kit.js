@@ -1458,8 +1458,26 @@ if (typeof window.Chart === "undefined") {
           var mode = btn.dataset.viewAction;
           localStorage.setItem(self.storageKey, mode);
           self.applyMode(mode);
+          // Notify other TableCardView instances sharing the same key
+          window.dispatchEvent(new CustomEvent("phx:table-view-change", {
+            detail: { key: self.storageKey, mode: mode }
+          }));
         });
       });
+
+      // Listen for view changes from other instances with the same key
+      this._onViewChange = function(e) {
+        if (e.detail.key === self.storageKey) {
+          self.applyMode(e.detail.mode);
+        }
+      };
+      window.addEventListener("phx:table-view-change", this._onViewChange);
+    },
+
+    destroyed() {
+      if (this._onViewChange) {
+        window.removeEventListener("phx:table-view-change", this._onViewChange);
+      }
     },
 
     applyMode(mode) {
@@ -1766,7 +1784,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.4/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.6/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 

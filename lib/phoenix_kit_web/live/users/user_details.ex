@@ -10,8 +10,9 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  @compile {:no_warn_undefined, PhoenixKitUserConnections}
+
   alias PhoenixKit.Admin.Events
-  alias PhoenixKit.Modules.Connections
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.AdminNote
   alias PhoenixKit.Users.Auth
@@ -37,24 +38,35 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
 
         custom_field_definitions = CustomFields.list_field_definitions()
 
-        # Load connections stats if module is enabled
-        connections_enabled = Connections.enabled?()
-
-        connections_stats =
-          if connections_enabled do
-            %{
-              followers: Connections.followers_count(user),
-              following: Connections.following_count(user),
-              connections: Connections.connections_count(user),
-              pending: Connections.pending_requests_count(user),
-              blocked: length(Connections.list_blocked(user))
-            }
+        # Load connections stats if module is available and enabled
+        {connections_enabled, connections_stats} =
+          if Code.ensure_loaded?(PhoenixKitUserConnections) and
+               PhoenixKitUserConnections.enabled?() do
+            {true,
+             %{
+               followers: PhoenixKitUserConnections.followers_count(user),
+               following: PhoenixKitUserConnections.following_count(user),
+               connections: PhoenixKitUserConnections.connections_count(user),
+               pending: PhoenixKitUserConnections.pending_requests_count(user),
+               blocked: length(PhoenixKitUserConnections.list_blocked(user))
+             }}
           else
-            nil
+            {false, nil}
           end
 
         # Load admin notes
         admin_notes = Auth.list_admin_notes(user)
+
+        # Organization accounts
+        org_accounts_enabled =
+          Settings.get_boolean_setting("enable_organization_accounts", false)
+
+        organization_members =
+          if org_accounts_enabled && user.account_type == "organization" do
+            Auth.list_organization_members(user.uuid)
+          else
+            []
+          end
 
         socket =
           socket
@@ -69,6 +81,8 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> assign(:admin_notes, admin_notes)
           |> assign(:note_form, to_form(Auth.change_admin_note(%AdminNote{})))
           |> assign(:editing_note_uuid, nil)
+          |> assign(:org_accounts_enabled, org_accounts_enabled)
+          |> assign(:organization_members, organization_members)
 
         {:ok, socket}
     end
@@ -221,6 +235,24 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
+  @impl true
+  def handle_event("remove_member", %{"uuid" => member_uuid}, socket) do
+    member = Auth.get_user!(member_uuid)
+
+    case Auth.remove_from_organization(member) do
+      {:ok, _} ->
+        members = Auth.list_organization_members(socket.assigns.user.uuid)
+
+        {:noreply,
+         socket
+         |> assign(:organization_members, members)
+         |> put_flash(:info, gettext("Member removed from organization"))}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to remove member"))}
+    end
+  end
+
   # --- PubSub Handlers ---
 
   @impl true
@@ -280,7 +312,13 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> push_navigate(to: Routes.path("/admin/users"))
 
         user ->
-          assign(socket, :user, user)
+          socket = assign(socket, :user, user)
+
+          if socket.assigns.org_accounts_enabled && user.account_type == "organization" do
+            assign(socket, :organization_members, Auth.list_organization_members(user.uuid))
+          else
+            socket
+          end
       end
     else
       socket

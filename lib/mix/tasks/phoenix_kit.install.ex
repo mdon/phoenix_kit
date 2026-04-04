@@ -52,8 +52,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BasicConfiguration,
       BrowserPipelineIntegration,
       CssIntegration,
+      DbConnectionCheck,
       DemoFiles,
       EndpointIntegration,
+      JsIntegration,
       LayoutConfig,
       MailerConfig,
       MigrationStrategy,
@@ -102,6 +104,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> ObanConfig.add_oban_supervisor()
       |> LayoutConfig.add_layout_integration_configuration()
       |> CssIntegration.add_automatic_css_integration()
+      |> JsIntegration.add_js_integration()
       |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
@@ -173,6 +176,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
             # Run standard igniter process
             result = super(argv)
+
+            # Verify database is reachable before running migrations
+            DbConnectionCheck.ensure_connected!()
 
             # After igniter is done, handle interactive migration
             MigrationStrategy.handle_interactive_migration_after_config(elem(opts, 1))

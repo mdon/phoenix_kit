@@ -8,6 +8,8 @@ defmodule PhoenixKit.Install.CssIntegration do
   - Ensure idempotent operations (safe to run multiple times)
   - Provide fallback instructions if automatic integration fails
   """
+
+  require Logger
   use PhoenixKit.Install.IgniterCompat
 
   @phoenix_kit_css_marker "/* PhoenixKit Integration - DO NOT REMOVE */"
@@ -15,6 +17,8 @@ defmodule PhoenixKit.Install.CssIntegration do
   @phoenix_kit_integration """
   #{@phoenix_kit_css_marker}
   @source "../../deps/phoenix_kit";
+  @source "../../../phoenix_kit";
+  @import "./_phoenix_kit_sources.css";
   """
 
   @doc """
@@ -82,8 +86,8 @@ defmodule PhoenixKit.Install.CssIntegration do
 
     source =
       if existing.phoenix_kit_source do
-        # No changes needed - PhoenixKit source already integrated
-        source
+        # PhoenixKit source exists, but check for missing plugin module sources
+        add_missing_integration_parts(source, existing)
       else
         # No PhoenixKit integration exists, add it
         add_complete_integration(source, existing)
@@ -134,8 +138,20 @@ defmodule PhoenixKit.Install.CssIntegration do
       if existing.phoenix_kit_source do
         missing_parts
       else
-        [@phoenix_kit_css_marker, "@source \"../../deps/phoenix_kit\";"] ++
+        [
+          @phoenix_kit_css_marker,
+          "@source \"../../deps/phoenix_kit\";",
+          "@source \"../../../phoenix_kit\";"
+        ] ++
           missing_parts
+      end
+
+    # Add the auto-generated CSS import if missing
+    missing_parts =
+      if String.contains?(content, "_phoenix_kit_sources.css") do
+        missing_parts
+      else
+        missing_parts ++ ["@import \"./_phoenix_kit_sources.css\";"]
       end
 
     missing_parts =
@@ -147,11 +163,8 @@ defmodule PhoenixKit.Install.CssIntegration do
 
     if missing_parts != [] do
       updated_content = insert_missing_parts(content, missing_parts, existing)
-
-      # Use Rewrite.Source.update instead of map update syntax
       Rewrite.Source.update(source, :content, updated_content)
     else
-      # No changes needed
       source
     end
   end
@@ -198,9 +211,12 @@ defmodule PhoenixKit.Install.CssIntegration do
   defp insert_after_existing_sources(lines) do
     {pre_sources, post_sources} = find_source_insertion_point(lines)
 
-    phoenix_kit_lines = [
-      "@source \"../../deps/phoenix_kit\";"
-    ]
+    phoenix_kit_lines =
+      [
+        "@source \"../../deps/phoenix_kit\";",
+        "@source \"../../../phoenix_kit\";",
+        "@import \"./_phoenix_kit_sources.css\";"
+      ]
 
     pre_sources ++ phoenix_kit_lines ++ post_sources
   end
@@ -325,8 +341,11 @@ defmodule PhoenixKit.Install.CssIntegration do
     ```css
     @import "tailwindcss";
     @source "../../deps/phoenix_kit";
+    @source "../../../phoenix_kit";
     @plugin "daisyui";
     ```
+
+    If you use phoenix_kit_* plugin modules, also add @source lines for each.
 
     Common locations: assets/css/app.css, priv/static/assets/app.css
     """

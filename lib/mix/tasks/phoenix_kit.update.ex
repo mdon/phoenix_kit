@@ -88,7 +88,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BasicConfiguration,
       Common,
       CssIntegration,
+      DbConnectionCheck,
       IgniterHelpers,
+      JsIntegration,
       ObanConfig,
       RateLimiterConfig
     }
@@ -221,6 +223,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
               Application.put_env(:phoenix_kit, :update_mode, true)
 
               Mix.Task.run("app.start")
+
+              # Verify database is reachable before running update
+              DbConnectionCheck.ensure_connected!()
+
               result = super(argv)
               post_igniter_tasks(elem(opts, 0))
 
@@ -577,6 +583,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Update CSS integration (enables daisyUI themes if disabled)
       update_css_integration()
 
+      # Update JS hooks file
+      JsIntegration.update_js_file()
+
       # Always rebuild assets unless explicitly skipped
       unless Keyword.get(opts, :skip_assets, false) do
         AssetRebuild.check_and_rebuild(verbose: true)
@@ -932,24 +941,51 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           content = File.read!(css_path)
           existing = CssIntegration.check_existing_integration(content)
 
-          if existing.daisyui_themes_disabled do
-            # Use regex to update themes: false -> themes: all
-            pattern = ~r/@plugin\s+(["'][^"']*daisyui["'])\s*\{([^}]*themes:\s*)false([^}]*)\}/
+          content =
+            if existing.daisyui_themes_disabled do
+              pattern = ~r/@plugin\s+(["'][^"']*daisyui["'])\s*\{([^}]*themes:\s*)false([^}]*)\}/
 
-            updated_content =
-              String.replace(content, pattern, fn match ->
-                String.replace(match, ~r/(themes:\s*)false/, "\\1all")
-              end)
+              updated =
+                String.replace(content, pattern, fn match ->
+                  String.replace(match, ~r/(themes:\s*)false/, "\\1all")
+                end)
 
-            File.write!(css_path, updated_content)
+              Mix.shell().info("""
 
-            Mix.shell().info("""
+              ✅ Updated daisyUI configuration to enable all themes!
+              File: #{css_path}
+              Changed: themes: false → themes: all
+              """)
 
-            ✅ Updated daisyUI configuration to enable all themes!
-            File: #{css_path}
-            Changed: themes: false → themes: all
-            """)
-          end
+              updated
+            else
+              content
+            end
+
+          # Ensure auto-generated CSS sources import is present
+          content =
+            if String.contains?(content, "_phoenix_kit_sources.css") do
+              content
+            else
+              updated =
+                String.replace(
+                  content,
+                  ~r/(@source\s+["'][^"']*phoenix_kit["'];)/,
+                  "\\1\n@import \"./_phoenix_kit_sources.css\";",
+                  global: false
+                )
+
+              Mix.shell().info("""
+
+              ✅ Added auto-generated CSS sources import!
+              File: #{css_path}
+              Added: @import "./_phoenix_kit_sources.css";
+              """)
+
+              updated
+            end
+
+          File.write!(css_path, content)
       end
     rescue
       error ->

@@ -102,6 +102,7 @@ defmodule PhoenixKit.Modules.Sitemap do
   use PhoenixKit.Module
 
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Modules.Sitemap.SchedulerWorker
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   require Logger
@@ -131,6 +132,7 @@ defmodule PhoenixKit.Modules.Sitemap do
   @include_registration_key "sitemap_include_registration"
   @publishing_split_key "sitemap_publishing_split_by_group"
   @module_stats_key "sitemap_module_stats"
+  @llm_text_enabled_key "sitemap_llm_text_enabled"
 
   # Default values
   @default_schedule_enabled true
@@ -258,7 +260,8 @@ defmodule PhoenixKit.Modules.Sitemap do
       default_changefreq: get_default_changefreq(),
       default_priority: get_default_priority(),
       last_generated: get_last_generated(),
-      url_count: get_url_count()
+      url_count: get_url_count(),
+      llm_text_enabled: llm_text_enabled?()
     }
   end
 
@@ -686,6 +689,17 @@ defmodule PhoenixKit.Modules.Sitemap do
     settings_call(:get_boolean_setting, [@publishing_split_key, false])
   end
 
+  @doc """
+  Returns true if LLM text generation (llms.txt) is enabled.
+
+  When enabled, generates AI/LLM-friendly text files from publishing content.
+  Default: false.
+  """
+  @spec llm_text_enabled?() :: boolean()
+  def llm_text_enabled? do
+    settings_call(:get_boolean_setting, [@llm_text_enabled_key, false])
+  end
+
   ## Module Stats Functions
 
   @doc """
@@ -730,6 +744,17 @@ defmodule PhoenixKit.Modules.Sitemap do
   # ============================================================================
   # Module Behaviour Callbacks
   # ============================================================================
+
+  @impl PhoenixKit.Module
+  def children do
+    base = [{Task, fn -> SchedulerWorker.ensure_scheduled() end}]
+
+    if llm_text_enabled?() do
+      base ++ [PhoenixKit.Modules.Sitemap.LLMText.PublishingSubscriber]
+    else
+      base
+    end
+  end
 
   @impl PhoenixKit.Module
   def module_key, do: "sitemap"

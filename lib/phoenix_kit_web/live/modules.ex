@@ -152,10 +152,9 @@ defmodule PhoenixKitWeb.Live.Modules do
   end
 
   # Special cases with inter-module dependencies
-  defp dispatch_toggle(socket, "billing"), do: toggle_billing(socket)
   defp dispatch_toggle(socket, "legal"), do: toggle_legal(socket)
-  defp dispatch_toggle(socket, "shop"), do: toggle_shop(socket)
   defp dispatch_toggle(socket, "newsletters"), do: toggle_newsletters(socket)
+  defp dispatch_toggle(socket, "maintenance"), do: toggle_maintenance(socket)
   defp dispatch_toggle(socket, key), do: generic_toggle(socket, key)
 
   # ============================================================================
@@ -210,90 +209,6 @@ defmodule PhoenixKitWeb.Live.Modules do
   # Private — Special Toggle Handlers
   # ============================================================================
 
-  defp toggle_billing(socket) do
-    configs = socket.assigns.module_configs
-    billing_config = configs["billing"] || %{}
-    new_enabled = !(billing_config[:enabled] || false)
-
-    billing_mod = ModuleRegistry.get_by_key("billing")
-    result = if new_enabled, do: billing_mod.enable_system(), else: billing_mod.disable_system()
-
-    case normalize_result(result) do
-      :ok ->
-        # Disable shop AFTER billing succeeds to avoid orphaned state on failure
-        shop_was_disabled = maybe_disable_shop_first(new_enabled, configs)
-        broadcast_billing_events(new_enabled, shop_was_disabled)
-
-        updated_configs =
-          reload_configs(configs, ["billing"] ++ if(shop_was_disabled, do: ["shop"], else: []))
-
-        socket =
-          socket
-          |> assign(:module_configs, updated_configs)
-          |> put_flash(
-            :info,
-            if(new_enabled, do: "Billing module enabled", else: "Billing module disabled")
-          )
-
-        {:noreply, socket}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Failed to update billing module")}
-    end
-  end
-
-  defp maybe_disable_shop_first(true, _configs), do: false
-
-  defp maybe_disable_shop_first(false, configs) do
-    shop_config = configs["shop"] || %{}
-
-    if shop_config[:enabled] do
-      shop_mod = ModuleRegistry.get_by_key("shop")
-
-      if shop_mod do
-        case shop_mod.disable_system() do
-          :ok ->
-            true
-
-          {:ok, _} ->
-            true
-
-          error ->
-            require Logger
-
-            Logger.warning(
-              "Failed to disable shop module during billing cascade: #{inspect(error)}"
-            )
-
-            false
-        end
-      else
-        false
-      end
-    else
-      false
-    end
-  end
-
-  defp broadcast_billing_events(true, _shop_was_disabled) do
-    Events.broadcast_module_enabled("billing")
-  end
-
-  defp broadcast_billing_events(false, shop_was_disabled) do
-    Events.broadcast_module_disabled("billing")
-    if shop_was_disabled, do: Events.broadcast_module_disabled("shop")
-  end
-
-  defp reload_configs(configs, keys) do
-    Enum.reduce(keys, configs, fn key, acc ->
-      mod = ModuleRegistry.get_by_key(key)
-
-      if mod && Code.ensure_loaded?(mod) && function_exported?(mod, :get_config, 0),
-        do: Map.put(acc, key, mod.get_config()),
-        else: acc
-    end)
-  end
-
   defp toggle_legal(socket) do
     configs = socket.assigns.module_configs
     legal_config = configs["legal"] || %{}
@@ -323,9 +238,12 @@ defmodule PhoenixKitWeb.Live.Modules do
                 do: gettext("Legal module disabled"),
                 else: gettext("Legal module enabled")
 
+            configs = Map.put(socket.assigns.module_configs, "legal", config)
+
             {:noreply,
              socket
-             |> update(:module_configs, &Map.put(&1, "legal", config))
+             |> assign(:module_configs, configs)
+             |> assign(:external_modules, load_external_modules(configs))
              |> put_flash(:info, label)}
 
           {:error, _} ->
@@ -338,48 +256,6 @@ defmodule PhoenixKitWeb.Live.Modules do
                gettext("Failed to %{action} Legal module", action: action)
              )}
         end
-    end
-  end
-
-  defp toggle_shop(socket) do
-    configs = socket.assigns.module_configs
-    shop_config = configs["shop"] || %{}
-    shop_enabled = shop_config[:enabled] || false
-    billing_enabled = (configs["billing"] || %{})[:enabled] || false
-    shop_mod = ModuleRegistry.get_by_key("shop")
-
-    if shop_enabled do
-      case normalize_result(shop_mod.disable_system()) do
-        :ok ->
-          Events.broadcast_module_disabled("shop")
-          config = shop_mod.get_config()
-
-          {:noreply,
-           socket
-           |> update(:module_configs, &Map.put(&1, "shop", config))
-           |> put_flash(:info, gettext("E-Commerce module disabled"))}
-
-        _ ->
-          {:noreply, put_flash(socket, :error, gettext("Failed to disable E-Commerce module"))}
-      end
-    else
-      if billing_enabled do
-        case normalize_result(shop_mod.enable_system()) do
-          :ok ->
-            Events.broadcast_module_enabled("shop")
-            config = shop_mod.get_config()
-
-            {:noreply,
-             socket
-             |> update(:module_configs, &Map.put(&1, "shop", config))
-             |> put_flash(:info, gettext("E-Commerce module enabled"))}
-
-          _ ->
-            {:noreply, put_flash(socket, :error, gettext("Failed to enable E-Commerce module"))}
-        end
-      else
-        {:noreply, put_flash(socket, :error, gettext("Please enable Billing module first"))}
-      end
     end
   end
 
@@ -400,6 +276,35 @@ defmodule PhoenixKitWeb.Live.Modules do
         {:noreply, put_flash(socket, :error, "Please enable Emails module first")}
       end
     end
+  end
+
+  defp toggle_maintenance(socket) do
+    alias PhoenixKit.Modules.Maintenance
+
+    configs = socket.assigns.module_configs
+    config = configs["maintenance"] || %{}
+    currently_enabled = config[:module_enabled] || false
+
+    if currently_enabled do
+      Maintenance.disable_module()
+      Events.broadcast_module_disabled("maintenance")
+    else
+      Maintenance.enable_module()
+      Events.broadcast_module_enabled("maintenance")
+    end
+
+    config = Maintenance.get_config()
+    configs = Map.put(configs, "maintenance", config)
+
+    socket =
+      socket
+      |> assign(:module_configs, configs)
+      |> put_flash(
+        :info,
+        "Maintenance #{if currently_enabled, do: "disabled", else: "enabled"}"
+      )
+
+    {:noreply, socket}
   end
 
   # ============================================================================
@@ -446,31 +351,57 @@ defmodule PhoenixKitWeb.Live.Modules do
     |> Enum.filter(fn mod ->
       Code.ensure_loaded?(mod) and function_exported?(mod, :module_key, 0)
     end)
-    |> Enum.map(fn mod ->
-      key = mod.module_key()
-      config = module_configs[key] || %{}
-      perm = if function_exported?(mod, :permission_metadata, 0), do: mod.permission_metadata()
-
-      %{
-        module: mod,
-        key: key,
-        name: mod.module_name(),
-        icon: (perm && perm[:icon]) || "hero-puzzle-piece",
-        description: (perm && perm[:description]) || "External module",
-        enabled: config[:enabled] || false,
-        version: if(function_exported?(mod, :version, 0), do: mod.version(), else: "0.0.0"),
-        required_modules:
-          if(function_exported?(mod, :required_modules, 0), do: mod.required_modules(), else: []),
-        admin_links: extract_admin_links(mod)
-      }
-    end)
+    |> Enum.map(&build_external_module_data(&1, module_configs))
     |> Enum.sort_by(& &1.name)
+  end
+
+  defp build_external_module_data(mod, module_configs) do
+    key = mod.module_key()
+    config = module_configs[key] || %{}
+    perm = if function_exported?(mod, :permission_metadata, 0), do: mod.permission_metadata()
+
+    %{
+      module: mod,
+      key: key,
+      name: mod.module_name(),
+      icon: (perm && perm[:icon]) || "hero-puzzle-piece",
+      description: (perm && perm[:description]) || "External module",
+      enabled: config[:enabled] || false,
+      config: safe_get_config(mod),
+      version: if(function_exported?(mod, :version, 0), do: mod.version(), else: "0.0.0"),
+      required_modules:
+        if(function_exported?(mod, :required_modules, 0), do: mod.required_modules(), else: []),
+      admin_links: extract_admin_links(mod),
+      settings_path: extract_settings_path(mod)
+    }
+  end
+
+  defp safe_get_config(mod) do
+    if function_exported?(mod, :get_config, 0), do: mod.get_config(), else: %{}
+  rescue
+    _ -> %{}
+  end
+
+  defp extract_settings_path(mod) do
+    if Code.ensure_loaded?(mod) and function_exported?(mod, :settings_tabs, 0) do
+      case mod.settings_tabs() do
+        [first | _] -> "/admin/settings/" <> first.path
+        _ -> nil
+      end
+    else
+      nil
+    end
+  rescue
+    _ -> nil
   end
 
   defp extract_admin_links(mod) do
     if Code.ensure_loaded?(mod) and function_exported?(mod, :admin_tabs, 0) do
       mod.admin_tabs()
-      |> Enum.filter(fn tab -> tab.live_view != nil and tab.visible != false end)
+      |> Enum.filter(fn tab ->
+        tab.live_view != nil and tab.visible != false and tab.parent != nil
+      end)
+      |> Enum.uniq_by(fn tab -> tab.path end)
       |> Enum.take(3)
       |> Enum.map(fn tab -> %{label: tab.label, path: "/admin/" <> tab.path, icon: tab.icon} end)
     else

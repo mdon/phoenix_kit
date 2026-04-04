@@ -529,7 +529,49 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V84 - Rename mailing tables to newsletters ⚡ LATEST
+  ### V92 - Organization Accounts ⚡ LATEST
+  - Adds `account_type` column (VARCHAR(20), NOT NULL, DEFAULT 'person') with CHECK constraint
+  - Adds `organization_name` column (VARCHAR(255)) for organization display names
+  - Adds `organization_uuid` self-referencing FK to link persons to organizations
+  - Indexes on `account_type` and `organization_uuid`
+
+  ### V91 - Locations tables
+  - `phoenix_kit_location_types` for user-defined location categories
+  - `phoenix_kit_locations` for physical locations with type reference
+  - `phoenix_kit_location_type_assignments` for many-to-many join
+
+  ### V90 - Activity feed
+  - `phoenix_kit_activities` table for business-level action logging
+
+  ### V89 - Catalogue pricing
+  - Renames `price` to `base_price` in `phoenix_kit_cat_items`
+  - Adds `markup_percentage` decimal column to `phoenix_kit_cat_catalogues`
+
+  ### V88 - Publishing schema V2
+  - Restructures posts/versions/contents for publishing module
+  - Adds `active_version_uuid`, `trashed_at` to posts
+  - Adds `published_at` to versions
+  - Data migration from legacy columns
+  - Drops legacy post columns: `scheduled_at`, `status`, `published_at`, `primary_language`, `data`
+
+  ### V87 - Add Catalogue tables
+  - Creates `phoenix_kit_cat_manufacturers` — manufacturer directory
+  - Creates `phoenix_kit_cat_suppliers` — supplier directory
+  - Creates `phoenix_kit_cat_manufacturer_suppliers` — many-to-many join with unique constraint
+  - Creates `phoenix_kit_cat_catalogues` — top-level catalogue groupings
+  - Creates `phoenix_kit_cat_categories` — subdivisions within a catalogue (with position ordering)
+  - Creates `phoenix_kit_cat_items` — individual products/materials with SKU, price, unit
+
+  ### V86 - Add Document Creator tables
+  - Creates `phoenix_kit_doc_headers_footers` — reusable header/footer designs
+  - Creates `phoenix_kit_doc_templates` — document templates with GrapesJS editor content
+  - Creates `phoenix_kit_doc_documents` — documents created from templates with baked header/footer
+
+  ### V85 - Add system_prompt to AI prompts
+  - Adds `system_prompt` (text) column to `phoenix_kit_ai_prompts`
+  - Allows storing system-level instructions separately from user prompt content
+
+  ### V84 - Rename mailing tables to newsletters
   - Idempotently renames `phoenix_kit_mailing_*` tables to `phoenix_kit_newsletters_*`
   - Fixes databases that ran the old V79 (which created `mailing_*` tables)
   - Safe to run multiple times — uses IF EXISTS guards
@@ -650,7 +692,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 84
+  @current_version 92
   @default_prefix "public"
 
   @doc false

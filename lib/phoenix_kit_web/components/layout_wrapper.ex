@@ -1,4 +1,7 @@
 defmodule PhoenixKitWeb.Components.LayoutWrapper do
+  @compile {:no_warn_undefined,
+            [PhoenixKit.Modules.Legal, PhoenixKit.Modules.Legal.CookieConsent]}
+
   @moduledoc """
   Dynamic layout wrapper component for Phoenix v1.7- and v1.8+ compatibility.
 
@@ -33,17 +36,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   require Logger
 
   import PhoenixKitWeb.Components.Core.Flash, only: [flash_group: 1]
-  import PhoenixKitWeb.Components.Core.CookieConsent, only: [cookie_consent: 1]
+
   import PhoenixKitWeb.Components.Core.PhoenixKitGlobals
   import PhoenixKitWeb.Components.AdminNav
   import PhoenixKitWeb.Components.Dashboard.AdminSidebar, only: [admin_sidebar: 1]
+  import PhoenixKitWeb.Components.InvitationBanner, only: [invitation_banners: 1]
 
   alias Phoenix.HTML
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
-  alias PhoenixKit.Modules.Legal
   alias PhoenixKit.Modules.SEO
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
@@ -77,6 +81,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :project_title, :string, default: nil
   attr :current_locale, :string, default: nil
   attr :from_layout, :boolean, default: false
+  attr :pk_pending_invitations, :list, default: []
 
   slot :inner_block, required: false
 
@@ -236,7 +241,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               current_locale: assigns[:current_locale],
               current_locale_base:
                 assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
-              scope: assigns[:phoenix_kit_current_scope]
+              scope: assigns[:phoenix_kit_current_scope],
+              auth_logo_url:
+                case PhoenixKit.Settings.get_setting("auth_logo_file_uuid", "") do
+                  uuid when is_binary(uuid) and uuid != "" -> URLSigner.signed_url(uuid, "medium")
+                  _ -> nil
+                end
             }
 
             assigns = template_assigns
@@ -276,14 +286,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 <%!-- Left: Burger Menu, Logo and Title --%>
                 <div class="flex items-center gap-3">
                   <%!-- Burger Menu Button (Far left) --%>
-                  <label for="admin-mobile-menu" class="btn btn-square btn-primary drawer-button p-0">
+                  <label
+                    for="admin-mobile-menu"
+                    class="btn btn-square btn-primary drawer-button p-0 lg:hidden"
+                  >
                     <PhoenixKitWeb.Components.Core.Icons.icon_menu />
                   </label>
 
                   <%!-- Logo --%>
-                  <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <PhoenixKitWeb.Components.Core.Icons.icon_shield />
-                  </div>
+                  <%= if @auth_logo_url do %>
+                    <img src={@auth_logo_url} alt={@project_title} class="h-8 w-8 object-contain rounded-lg" />
+                  <% end %>
 
                   <%!-- Project title and Admin label grouped together --%>
                   <div class="flex items-center gap-1 min-w-0">
@@ -300,7 +313,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 <%!-- Right: Theme Switcher, Language Dropdown, and User Dropdown --%>
                 <div class="flex items-center gap-3">
                   <.admin_theme_controller mobile={true} />
-                  <.admin_language_dropdown
+                  <PhoenixKitWeb.Components.Core.LanguageSwitcher.language_switcher_dropdown
                     current_path={@current_path}
                     current_locale={@current_locale}
                   />
@@ -648,6 +661,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     ~H"""
     <main class="min-h-screen bg-base-100 transition-colors">
       <.flash_group flash={@flash} />
+      <.invitation_banners invitations={@pk_pending_invitations} />
       {render_slot(@inner_block)}
     </main>
     """
@@ -680,20 +694,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
         <%!-- PhoenixKit Cookie Consent Widget Setup --%>
         <.phoenix_kit_globals />
-        <script defer src={Routes.path("/assets/phoenix_kit_consent.js")}>
-        </script>
+        <%= if Code.ensure_loaded?(PhoenixKit.Modules.Legal) do %>
+          <script defer src={Routes.path("/assets/phoenix_kit_consent.js")}>
+          </script>
+        <% end %>
       </head>
       <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
         <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
+          <.invitation_banners invitations={@pk_pending_invitations} />
           {render_slot(@inner_block)}
         </main>
 
         <%!-- Cookie Consent Widget --%>
-        <%= if Legal.consent_widget_enabled?() do %>
-          <% config = Legal.get_consent_widget_config() %>
-          <.cookie_consent
+        <%= if Code.ensure_loaded?(PhoenixKit.Modules.Legal) and
+               PhoenixKit.Modules.Legal.consent_widget_enabled?() do %>
+          <% config = PhoenixKit.Modules.Legal.get_consent_widget_config() %>
+          <PhoenixKit.Modules.Legal.CookieConsent.cookie_consent
             frameworks={config.frameworks}
             consent_mode={config.consent_mode}
             icon_position={config.icon_position}
@@ -717,6 +735,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     ~H"""
     <PhoenixKitWeb.Layouts.root {prepare_phoenix_kit_assigns(assigns)}>
+      <.invitation_banners invitations={@pk_pending_invitations} />
       {render_slot(@inner_block)}
     </PhoenixKitWeb.Layouts.root>
     """

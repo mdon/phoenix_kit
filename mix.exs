@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.81"
+  @version "1.7.88"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -102,15 +102,15 @@ defmodule PhoenixKit.MixProject do
 
       # Development and testing
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
-      {:usage_rules, "~> 0.1", only: :dev, runtime: false},
+      {:usage_rules, "~> 1.2", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
-      {:hackney, "~> 1.9"},
+      {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2"},
+      {:leaf, "~> 0.2.6"},
 
       # Utilities
       {:jason, "~> 1.4"},
@@ -179,7 +179,6 @@ defmodule PhoenixKit.MixProject do
         "guides/auth-header-integration.md",
         "guides/draggable-list-component.md",
         "guides/README.md",
-        "guides/entities-guide.md",
         "guides/custom-admin-pages.md",
         "lib/phoenix_kit/dashboard/ADMIN_README.md"
       ],

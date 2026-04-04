@@ -75,7 +75,6 @@ defmodule PhoenixKit.Settings do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  @default_locale PhoenixKit.Config.default_locale()
   @cache_name :settings
 
   @doc """
@@ -143,6 +142,8 @@ defmodule PhoenixKit.Settings do
       # SEO
       "seo_module_enabled" => "false",
       "seo_no_index" => "false",
+      # Organization Accounts
+      "enable_organization_accounts" => "false",
       # Webhook Security Settings
       "webhook_verify_sns_signature" => "true",
       "webhook_check_aws_ip" => "true",
@@ -157,9 +158,7 @@ defmodule PhoenixKit.Settings do
       "oauth_github_client_id" => "",
       "oauth_github_client_secret" => "",
       "oauth_facebook_app_id" => "",
-      "oauth_facebook_app_secret" => "",
-      # Admin Panel Languages - default is just the default locale for fresh installs
-      "admin_languages" => Jason.encode!([@default_locale])
+      "oauth_facebook_app_secret" => ""
     }
   end
 
