@@ -290,12 +290,6 @@ defmodule PhoenixKitWeb.Integration do
             :xsl_index_stylesheet
       end
 
-      # LLM text routes - public plain text endpoints for AI/LLM consumption
-      scope unquote(url_prefix) do
-        get "/llms.txt", PhoenixKit.Modules.Sitemap.LLMText.Controller, :index
-        get "/llms/*path", PhoenixKit.Modules.Sitemap.LLMText.Controller, :show
-      end
-
       # Shop public routes are generated via generate_shop_public_routes/1 helper
       # This supports locale-prefixed URLs (/:locale/shop/...) with language switching
       # Shop user dashboard routes are now in phoenix_kit_authenticated_routes/1.
@@ -423,6 +417,9 @@ defmodule PhoenixKitWeb.Integration do
         live "/admin/settings/users", Live.Settings.Users, :index
         live "/admin/settings/authorization", Live.Settings.Authorization, :index
         live "/admin/settings/organization", Live.Settings.Organization, :index
+        live "/admin/settings/integrations", Live.Settings.Integrations, :index
+        live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
+        live "/admin/settings/integrations/:provider/:name", Live.Settings.IntegrationForm, :edit
         live "/admin/modules", Live.Modules, :index
 
         live "/admin/settings/languages", Live.Modules.Languages, :index
