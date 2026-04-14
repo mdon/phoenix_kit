@@ -431,6 +431,7 @@ defmodule PhoenixKitWeb.Integration do
         live "/admin/settings/media/buckets/new", Live.Modules.Storage.BucketForm, :new
         live "/admin/settings/media/buckets/:id/edit", Live.Modules.Storage.BucketForm, :edit
         live "/admin/settings/media/dimensions", Live.Modules.Storage.Dimensions, :index
+        live "/admin/settings/media/health", Live.Modules.Storage.Health, :index
 
         live "/admin/settings/media/dimensions/new/image",
              Live.Modules.Storage.DimensionForm,
@@ -674,7 +675,7 @@ defmodule PhoenixKitWeb.Integration do
   # ## Tab config example
   #
   #     config :phoenix_kit, :admin_dashboard_tabs, [
-  #       %{id: :admin_analytics, label: "Analytics", path: "/admin/analytics",
+  #       %{id: :admin_analytics, label: "Analytics", path: "analytics",
   #         live_view: {MyAppWeb.AnalyticsLive, :index}, permission: "dashboard"}
   #     ]
   #

@@ -153,7 +153,12 @@ if (typeof window.Chart === "undefined") {
       style.textContent = [
         ".sortable-ghost { opacity: 0.5; }",
         ".sortable-chosen { outline: 2px solid oklch(var(--p)); outline-offset: 2px; }",
-        ".sortable-drag { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }"
+        ".sortable-drag { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }",
+        "@keyframes pk-sortable-wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-1.5deg); } 75% { transform: rotate(1.5deg); } }",
+        ".pk-sortable-wiggle { animation: pk-sortable-wiggle 0.4s ease-in-out infinite; }",
+        ".pk-sortable-wiggle:nth-child(even) { animation-delay: 0.1s; }",
+        ".pk-sortable-wiggle:nth-child(3n) { animation-delay: 0.2s; }",
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }"
       ].join("\n");
       document.head.appendChild(style);
     }
@@ -220,6 +225,7 @@ if (typeof window.Chart === "undefined") {
         var self = this;
         var container = this.el;
         var eventName = container.dataset.sortableEvent || "reorder_items";
+        var hideSource = container.dataset.sortableHideSource === "true";
 
         injectStyles();
 
@@ -234,6 +240,15 @@ if (typeof window.Chart === "undefined") {
           ghostClass: "sortable-ghost",
           chosenClass: "sortable-chosen",
           dragClass: "sortable-drag",
+          onStart: function() {
+            if (hideSource) {
+              // Hide the fallback clone that SortableJS places at the initial position on body
+              setTimeout(function() {
+                var fallback = document.querySelector("body > .sortable-fallback");
+                if (fallback) fallback.style.display = "none";
+              }, 0);
+            }
+          },
           onEnd: function(evt) {
             var items = container.querySelectorAll(".sortable-item[data-id]");
             var orderedIds = Array.from(items).map(function(el) {
@@ -1982,7 +1997,113 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ============================================================================
+  // MEDIA DRAG & DROP HOOK
+  // ============================================================================
 
+  window.PhoenixKitHooks.MediaDragDrop = {
+    mounted: function() {
+      // Sync saved view mode to server
+      var savedMode = localStorage.getItem("phoenix_kit_media_view_mode");
+      if (savedMode && savedMode !== "grid") {
+        this.pushEvent("set_view_mode", { mode: savedMode });
+      }
+
+      // Restore tree state from localStorage
+      var expandedRaw = localStorage.getItem("phoenix_kit_media_expanded_folders");
+      var sidebarCollapsed = localStorage.getItem("phoenix_kit_media_sidebar_collapsed") === "true";
+      var expanded = [];
+      try { expanded = expandedRaw ? JSON.parse(expandedRaw) : []; } catch(e) {}
+      if (expanded.length > 0 || sidebarCollapsed) {
+        this.pushEvent("restore_tree_state", {
+          expanded: expanded,
+          sidebar_collapsed: sidebarCollapsed
+        });
+      }
+
+      // Listen for tree state changes from server
+      var self = this;
+      this.handleEvent("save_tree_state", function(data) {
+        localStorage.setItem("phoenix_kit_media_expanded_folders", JSON.stringify(data.expanded || []));
+        localStorage.setItem("phoenix_kit_media_sidebar_collapsed", data.sidebar_collapsed ? "true" : "false");
+      });
+
+      this.setupDragDrop();
+      this.setupViewModePersistence();
+    },
+
+    updated: function() {
+      this.setupDragDrop();
+    },
+
+    setupViewModePersistence: function() {
+      this.el.querySelectorAll("[data-view-mode]").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          var mode = btn.dataset.viewMode;
+          localStorage.setItem("phoenix_kit_media_view_mode", mode);
+          document.documentElement.dataset.mediaView = mode;
+        });
+      });
+    },
+
+    setupDragDrop: function() {
+      var self = this;
+      var container = this.el;
+
+      // Make file items draggable
+      var files = container.querySelectorAll("[data-draggable-file]");
+      files.forEach(function(el) {
+        el.setAttribute("draggable", "true");
+
+        el.removeEventListener("dragstart", el._dragstart);
+        el._dragstart = function(e) {
+          e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
+          e.dataTransfer.effectAllowed = "move";
+          el.classList.add("opacity-50");
+        };
+        el.addEventListener("dragstart", el._dragstart);
+
+        el.removeEventListener("dragend", el._dragend);
+        el._dragend = function() {
+          el.classList.remove("opacity-50");
+        };
+        el.addEventListener("dragend", el._dragend);
+      });
+
+      // Make folder targets droppable (grid, list rows, and sidebar)
+      var dropTargets = document.querySelectorAll("[data-drop-folder]");
+      dropTargets.forEach(function(target) {
+        target.removeEventListener("dragover", target._dragover);
+        target._dragover = function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          target.classList.add("ring-2", "ring-primary", "bg-primary/10");
+        };
+        target.addEventListener("dragover", target._dragover);
+
+        target.removeEventListener("dragleave", target._dragleave);
+        target._dragleave = function() {
+          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
+        };
+        target.addEventListener("dragleave", target._dragleave);
+
+        target.removeEventListener("drop", target._drop);
+        target._drop = function(e) {
+          e.preventDefault();
+          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
+          var fileUuid = e.dataTransfer.getData("text/plain");
+          var folderUuid = target.dataset.dropFolder;
+          if (fileUuid && folderUuid) {
+            self.pushEvent("move_file_to_folder", {
+              file_uuid: fileUuid,
+              folder_uuid: folderUuid === "root" ? "" : folderUuid
+            });
+          }
+        };
+        target.addEventListener("drop", target._drop);
+      });
+    }
+  };
   // ============================================================================
   // INITIALIZATION COMPLETE
   // ============================================================================
