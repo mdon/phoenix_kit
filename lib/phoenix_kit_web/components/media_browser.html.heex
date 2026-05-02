@@ -1270,13 +1270,13 @@
               </button>
             <% end %>
             <%= cond do %>
-              <% String.starts_with?(f.mime_type, "image/") -> %>
+              <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
                 <img
                   src={f.urls["original"] || f.urls["medium"]}
                   alt={f.filename}
                   class="max-w-full max-h-full object-contain rounded"
                 />
-              <% String.starts_with?(f.mime_type, "video/") -> %>
+              <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
                   src={f.urls["original"]}
                   controls
@@ -1288,6 +1288,7 @@
               <% f.mime_type == "application/pdf" -> %>
                 <iframe
                   src={f.urls["original"]}
+                  sandbox="allow-same-origin"
                   class="w-full h-full rounded border-0"
                   title={f.filename}
                 >
