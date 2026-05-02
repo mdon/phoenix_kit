@@ -1,3 +1,41 @@
+## 1.7.103 - 2026-05-02
+
+### Added
+- V107 migration: pin AI endpoints to a specific integration row via `integration_uuid` + add the missing unique index on `lower(name)` (PR #511)
+  - Nullable `integration_uuid uuid` column on `phoenix_kit_ai_endpoints` with btree index
+  - Backfill maps existing `provider` strings to integration rows: exact `"provider:name"` matches get the corresponding storage row; bare `"provider"` gets the most-recently-validated `integration:provider:*` row, tiebreaking on `uuid ASC` (UUIDv7 time-ordered). Unresolvable endpoints stay NULL
+  - Unique index `phoenix_kit_ai_endpoints_name_index ON (lower(name))` — the `unique_constraint(:name)` declaration in the changeset has been dead code since V34 created this table without the index
+- V108 migration: `position integer DEFAULT 0` on three admin list surfaces — `phoenix_kit_entities`, `phoenix_kit_cat_catalogues`, `phoenix_kit_cat_items` — so drag-and-drop reordering can persist user-driven order (PR #512)
+- Strict-UUID Integrations public API (PR #511)
+  - Write-side APIs now take only the integration row's uuid — no more deriving storage keys from JSONB fields
+  - `Integrations.resolve_to_uuid/1` — dual-input lookup primitive that accepts a uuid or a `provider:name` string (for `migrate_legacy/0` callbacks)
+  - `migrate_legacy/0` optional callback on `PhoenixKit.Module` — each module owns its legacy data shape; core provides primitives. Orchestrated by `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0`
+  - Mistral, DeepSeek, and Microsoft 365 added to the built-in providers registry
+  - `integration_picker` updated: no auto-select on single-provider, toggle-to-deselect support
+- Drag-and-drop core infrastructure (PR #512)
+  - `<.draggable_list>` new `:draggable` boolean attr (default `true`) — when false, renders without SortableJS hook and grab-cursor styling
+  - `<.table_default>` new `:on_reorder`, `:reorder_scope`, `:reorder_group`, `:item_id` attrs — wire the card-view container as a SortableGrid hook target for cross-container drag
+  - `SortableGrid` hook (JS): `data-sortable-group` for cross-container drag, `readScope/1` helper for `data-sortable-scope-*` attrs, cross-container `onEnd` detection with `from*` scope prefix, `try/catch` wrapping
+  - `TableCardView` hook (JS): `updated()` callback re-applies saved view mode after LV re-renders so card/table toggle survives SortableJS drops
+- Media viewer modal on `MediaBrowser` (PR #513)
+  - New `viewer={true}` attr — clicking a file opens an in-place modal with image/video/PDF/icon preview, metadata sidebar (filename, type, MIME, size, uploaded date), and Download button. Closes via X / Esc / backdrop
+  - Prev/next chevrons and ArrowLeft/ArrowRight keyboard shortcuts step through the current page's files; arrows hide at boundaries
+  - `PhoenixKitComments.Web.CommentsComponent` embedded in the sidebar when the Comments module is installed and enabled (optional-dep wiring: `@compile {:no_warn_undefined}` + `Code.ensure_loaded?` + `@dialyzer :nowarn_function`)
+- Arity-2 `dynamic_children_fn` `@typedoc` + test-only delegate for the admin sidebar dispatcher (PR #506 follow-up in #512)
+
+### Changed
+- `handle_event("click_file", …)` in MediaBrowser refactored from two-mode `if/else` to four-clause `cond`: `select_mode` → `admin` → `viewer` → picker default (PR #513)
+- `connected_at` semantics clarified in AGENTS.md — rewritten on every successful re-test (not one-shot); `last_validated_at` rewritten unconditionally on every validation attempt, success or failure
+- Bumped `leaf` editor dependency `~> 0.2.10 → ~> 0.2.11` and the matching CDN URL (PR #513)
+
+### Fixed
+- AGENTS.md doc drift: `PhoenixKit.Modules.run_all_legacy_migrations/0` corrected to `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0`; V107 moduledoc tiebreak clarified as `uuid ASC` not `inserted_at ASC` (PR #511 review)
+- V107 unique-name index verified with three new integration tests: index exists, duplicate names rejected, case-only differences collide (PR #511 review)
+- Media viewer modal: `String.starts_with?/2` guarded with `is_binary(f.mime_type)` so nil mime_type falls through to the icon fallback instead of crashing (PR #513 review)
+- Media viewer modal: PDF iframe hardened with `sandbox="allow-same-origin"` to block embedded JavaScript in same-origin deployments (PR #513 review)
+- `<.draggable_list>` `data-id` now always emitted regardless of `:draggable` attr so click-to-select handlers and test selectors work in both modes (PR #512 review)
+- `:reorder_scope` attr doc on `<.table_default>` now documents the camelCase round-trip (`:category_uuid` → `"categoryUuid"` in the LV handler payload) (PR #512 review)
+
 ## 1.7.102 - 2026-04-29
 
 ### Added
