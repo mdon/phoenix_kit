@@ -109,7 +109,6 @@ defmodule PhoenixKitWeb.Integration do
 
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb
-  alias PhoenixKitWeb.Routes.CustomerServiceRoutes
   alias PhoenixKitWeb.Routes.ReferralsRoutes
 
   @doc """
@@ -383,17 +382,11 @@ defmodule PhoenixKitWeb.Integration do
     # so plugin LiveViews don't need to wrap with LayoutWrapper themselves
     plugin_admin_routes = compile_plugin_admin_routes(__CALLER__.module)
 
-    {tickets_admin, referrals_admin} =
+    referrals_admin =
       if suffix == :_locale do
-        {
-          safe_route_call(CustomerServiceRoutes, :admin_locale_routes, []),
-          safe_route_call(ReferralsRoutes, :admin_locale_routes, [])
-        }
+        safe_route_call(ReferralsRoutes, :admin_locale_routes, [])
       else
-        {
-          safe_route_call(CustomerServiceRoutes, :admin_routes, []),
-          safe_route_call(ReferralsRoutes, :admin_routes, [])
-        }
+        safe_route_call(ReferralsRoutes, :admin_routes, [])
       end
 
     # Shop admin routes via safe_route_call (only when phoenix_kit_ecommerce is installed)
@@ -481,7 +474,6 @@ defmodule PhoenixKitWeb.Integration do
           unquote(shop_admin)
 
           # Routes from external route modules
-          unquote(tickets_admin)
           unquote(referrals_admin)
 
           # Custom admin routes from :admin_dashboard_tabs config
@@ -575,25 +567,33 @@ defmodule PhoenixKitWeb.Integration do
         end
       end
 
+    cs_user_routes =
+      if Code.ensure_loaded?(PhoenixKitCustomerService.Web.UserList) do
+        quote do
+          live "/dashboard/customer-service/tickets",
+               PhoenixKitCustomerService.Web.UserList,
+               :index,
+               as: :tickets_user_list
+
+          live "/dashboard/customer-service/tickets/new",
+               PhoenixKitCustomerService.Web.UserNew,
+               :new,
+               as: :tickets_user_new
+
+          live "/dashboard/customer-service/tickets/:id",
+               PhoenixKitCustomerService.Web.UserDetails,
+               :show,
+               as: :tickets_user_details
+        end
+      else
+        quote do
+        end
+      end
+
     quote do
       unquote(shop_user_routes)
       unquote(billing_user_routes)
-
-      # Tickets user pages
-      live "/dashboard/customer-service/tickets",
-           PhoenixKit.Modules.CustomerService.Web.UserList,
-           :index,
-           as: :tickets_user_list
-
-      live "/dashboard/customer-service/tickets/new",
-           PhoenixKit.Modules.CustomerService.Web.UserNew,
-           :new,
-           as: :tickets_user_new
-
-      live "/dashboard/customer-service/tickets/:id",
-           PhoenixKit.Modules.CustomerService.Web.UserDetails,
-           :show,
-           as: :tickets_user_details
+      unquote(cs_user_routes)
     end
   end
 
@@ -635,25 +635,33 @@ defmodule PhoenixKitWeb.Integration do
         end
       end
 
+    cs_user_locale_routes =
+      if Code.ensure_loaded?(PhoenixKitCustomerService.Web.UserList) do
+        quote do
+          live "/dashboard/customer-service/tickets",
+               PhoenixKitCustomerService.Web.UserList,
+               :index,
+               as: :tickets_user_list_locale
+
+          live "/dashboard/customer-service/tickets/new",
+               PhoenixKitCustomerService.Web.UserNew,
+               :new,
+               as: :tickets_user_new_locale
+
+          live "/dashboard/customer-service/tickets/:id",
+               PhoenixKitCustomerService.Web.UserDetails,
+               :show,
+               as: :tickets_user_details_locale
+        end
+      else
+        quote do
+        end
+      end
+
     quote do
       unquote(shop_user_locale_routes)
       unquote(billing_user_locale_routes)
-
-      # Tickets user pages (locale variants)
-      live "/dashboard/customer-service/tickets",
-           PhoenixKit.Modules.CustomerService.Web.UserList,
-           :index,
-           as: :tickets_user_list_locale
-
-      live "/dashboard/customer-service/tickets/new",
-           PhoenixKit.Modules.CustomerService.Web.UserNew,
-           :new,
-           as: :tickets_user_new_locale
-
-      live "/dashboard/customer-service/tickets/:id",
-           PhoenixKit.Modules.CustomerService.Web.UserDetails,
-           :show,
-           as: :tickets_user_details_locale
+      unquote(cs_user_locale_routes)
     end
   end
 
@@ -1153,10 +1161,6 @@ defmodule PhoenixKitWeb.Integration do
     # Actual validation of whether the locale is supported happens in the validation plug
     pattern = "[a-z]{2,3}(?:-[A-Za-z]{2,4})?"
 
-    # Call route generators BEFORE quote block (aliases work in this context)
-    # Uses safe_route_call/3 so modules can be safely extracted to separate packages
-    customer_service_routes = safe_route_call(CustomerServiceRoutes, :generate, [url_prefix])
-
     # External route modules with public/non-admin routes
     external_public_routes = compile_external_public_routes(url_prefix)
 
@@ -1186,9 +1190,6 @@ defmodule PhoenixKitWeb.Integration do
       # Auto-discovered public routes from external modules MUST come before publishing/localized
       # routes to prevent /:language/:group catch-alls from intercepting them (e.g., unsubscribe)
       unquote_splicing(module_public_routes)
-
-      # Generate module routes from separate files (improves compilation time)
-      unquote(customer_service_routes)
 
       # Generate localized routes
       unquote(generate_localized_routes(url_prefix, pattern))
