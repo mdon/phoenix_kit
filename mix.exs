@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.101"
+  @version "1.7.103"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -113,10 +113,11 @@ defmodule PhoenixKit.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2.6"},
+      {:leaf, "~> 0.2.11"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

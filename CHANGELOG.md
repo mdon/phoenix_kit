@@ -1,3 +1,63 @@
+## 1.7.103 - 2026-05-02
+
+### Added
+- V107 migration: pin AI endpoints to a specific integration row via `integration_uuid` + add the missing unique index on `lower(name)` (PR #511)
+  - Nullable `integration_uuid uuid` column on `phoenix_kit_ai_endpoints` with btree index
+  - Backfill maps existing `provider` strings to integration rows: exact `"provider:name"` matches get the corresponding storage row; bare `"provider"` gets the most-recently-validated `integration:provider:*` row, tiebreaking on `uuid ASC` (UUIDv7 time-ordered). Unresolvable endpoints stay NULL
+  - Unique index `phoenix_kit_ai_endpoints_name_index ON (lower(name))` — the `unique_constraint(:name)` declaration in the changeset has been dead code since V34 created this table without the index
+- V108 migration: `position integer DEFAULT 0` on three admin list surfaces — `phoenix_kit_entities`, `phoenix_kit_cat_catalogues`, `phoenix_kit_cat_items` — so drag-and-drop reordering can persist user-driven order (PR #512)
+- Strict-UUID Integrations public API (PR #511)
+  - Write-side APIs now take only the integration row's uuid — no more deriving storage keys from JSONB fields
+  - `Integrations.resolve_to_uuid/1` — dual-input lookup primitive that accepts a uuid or a `provider:name` string (for `migrate_legacy/0` callbacks)
+  - `migrate_legacy/0` optional callback on `PhoenixKit.Module` — each module owns its legacy data shape; core provides primitives. Orchestrated by `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0`
+  - Mistral, DeepSeek, and Microsoft 365 added to the built-in providers registry
+  - `integration_picker` updated: no auto-select on single-provider, toggle-to-deselect support
+- Drag-and-drop core infrastructure (PR #512)
+  - `<.draggable_list>` new `:draggable` boolean attr (default `true`) — when false, renders without SortableJS hook and grab-cursor styling
+  - `<.table_default>` new `:on_reorder`, `:reorder_scope`, `:reorder_group`, `:item_id` attrs — wire the card-view container as a SortableGrid hook target for cross-container drag
+  - `SortableGrid` hook (JS): `data-sortable-group` for cross-container drag, `readScope/1` helper for `data-sortable-scope-*` attrs, cross-container `onEnd` detection with `from*` scope prefix, `try/catch` wrapping
+  - `TableCardView` hook (JS): `updated()` callback re-applies saved view mode after LV re-renders so card/table toggle survives SortableJS drops
+- Media viewer modal on `MediaBrowser` (PR #513)
+  - New `viewer={true}` attr — clicking a file opens an in-place modal with image/video/PDF/icon preview, metadata sidebar (filename, type, MIME, size, uploaded date), and Download button. Closes via X / Esc / backdrop
+  - Prev/next chevrons and ArrowLeft/ArrowRight keyboard shortcuts step through the current page's files; arrows hide at boundaries
+  - `PhoenixKitComments.Web.CommentsComponent` embedded in the sidebar when the Comments module is installed and enabled (optional-dep wiring: `@compile {:no_warn_undefined}` + `Code.ensure_loaded?` + `@dialyzer :nowarn_function`)
+- Arity-2 `dynamic_children_fn` `@typedoc` + test-only delegate for the admin sidebar dispatcher (PR #506 follow-up in #512)
+
+### Changed
+- `handle_event("click_file", …)` in MediaBrowser refactored from two-mode `if/else` to four-clause `cond`: `select_mode` → `admin` → `viewer` → picker default (PR #513)
+- `connected_at` semantics clarified in AGENTS.md — rewritten on every successful re-test (not one-shot); `last_validated_at` rewritten unconditionally on every validation attempt, success or failure
+- Bumped `leaf` editor dependency `~> 0.2.10 → ~> 0.2.11` and the matching CDN URL (PR #513)
+
+### Fixed
+- AGENTS.md doc drift: `PhoenixKit.Modules.run_all_legacy_migrations/0` corrected to `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0`; V107 moduledoc tiebreak clarified as `uuid ASC` not `inserted_at ASC` (PR #511 review)
+- V107 unique-name index verified with three new integration tests: index exists, duplicate names rejected, case-only differences collide (PR #511 review)
+- Media viewer modal: `String.starts_with?/2` guarded with `is_binary(f.mime_type)` so nil mime_type falls through to the icon fallback instead of crashing (PR #513 review)
+- Media viewer modal: PDF iframe hardened with `sandbox="allow-same-origin"` to block embedded JavaScript in same-origin deployments (PR #513 review)
+- `<.draggable_list>` `data-id` now always emitted regardless of `:draggable` attr so click-to-select handlers and test selectors work in both modes (PR #512 review)
+- `:reorder_scope` attr doc on `<.table_default>` now documents the camelCase round-trip (`:category_uuid` → `"categoryUuid"` in the LV handler payload) (PR #512 review)
+
+## 1.7.102 - 2026-04-29
+
+### Added
+- V105 migration: CRM tables for the upcoming `phoenix_kit_crm` plugin (PR #507)
+  - `phoenix_kit_crm_role_settings` — one row per role with `enabled BOOLEAN NOT NULL DEFAULT false` so existing roles stay opted out until explicitly enabled. PK on `role_uuid`; FK → `phoenix_kit_user_roles(uuid)` ON DELETE CASCADE
+  - `phoenix_kit_crm_user_role_view` — per-user, per-scope view preferences (column selection, ordering, filters). UUIDv7 PK; unique `(user_uuid, scope)`; index on `(user_uuid)`; FK → `phoenix_kit_users(uuid)` ON DELETE CASCADE. `scope` is a string like `"role:<uuid>"` or `"companies"`
+- V106 migration: split `phoenix_kit_projects.name` uniqueness across templates and real projects (PR #510)
+  - Replaces V101's single global unique index on `lower(name)` with two partial unique indexes: `phoenix_kit_projects_name_template_index WHERE is_template = true` and `phoenix_kit_projects_name_project_index WHERE is_template = false`
+  - Lets a template `"Onboarding"` and a real project `"Onboarding"` coexist, unblocking `Projects.create_project_from_template/2` for the common reuse-the-template-name path
+  - `down/1` recreates V101's single global index; lossy if a template and a real project share a name post-V106 — resolve duplicates before rolling back
+- Legal module i18n — translations across `de/fr/it/pl` plus refreshed `ru/es`. New `de/fr/it/pl` POs created via `mix gettext.merge --locale` with proper `Plural-Forms` headers (German `n != 1`, French `n > 1`, Italian `n != 1`, Polish 3-form rule). Pre-existing non-empty `msgstr` values preserved (PR #509)
+- `lib/phoenix_kit_web/legal_gettext_manifest.ex` — re-emits the 50 translatable strings used by `phoenix_kit_legal` so the gettext extractor (which doesn't walk into deps) records them into core's POT. Never called at runtime; pure extraction target with refresh procedure documented in the moduledoc (PR #509)
+- `css_sources/0` accepts string entries — `@callback css_sources()` widened from `[atom()]` to `[atom() | String.t()]`. Strings flow through `format_source/2` → `source_for_path/1` (absolute paths emit `@source "<abs>";` verbatim, relative get the standard `../../` prefix); atoms continue to resolve via parent app's mix.exs deps. Lets modules mix OTP-app atoms with literal path strings — first known consumer is `phoenix_kit_legal`, which ships a path-dep absolute fallback alongside its OTP-app entry so both Hex and path-dep installs work without parent-app toggles. Backwards compatible: existing `def css_sources, do: [:phoenix_kit_my_module]` keeps working unchanged (PR #509)
+
+### Changed
+- Bumped `leaf` editor dependency `~> 0.2.6 → ~> 0.2.10` and the matching CDN URL in `priv/static/assets/phoenix_kit.js` so the runtime loader pulls the same version. Includes `min-width: 0` + toolbar-wrap fixes so the editor stops claiming an unbounded intrinsic width on mount (PR #508)
+- `priv/gettext/default.pot` cleanup — dropped ~900 phantom msgids left over from modules extracted to standalone packages (billing, publishing, entities, etc.) (PR #509)
+
+### Fixed
+- `application/pdf` uploads in MediaBrowser. `determine_file_type/1` returned `"pdf"`, but the `File` changeset validates `file_type` against `["image", "video", "audio", "document", "archive", "other"]` — every PDF upload silently failed validation and never reached any bucket. Now maps `application/pdf` → `"document"`, matching how form-upload integrations already classify PDFs (PR #507)
+- V106 `COMMENT ON TABLE` version values were off by one (`up` wrote `'105'` instead of `'106'`, `down` wrote `'104'` instead of `'105'`). The migration framework reads this comment as the source of truth for the migrated version, so on the incremental V105 → V106 upgrade path the comment never advanced past `'105'` — V106.up would replay on every deploy and the admin dashboard / `mix phoenix_kit.status` would report a stale version. Fresh installs masked the bug because `handle_version_recording/4` stamps the final version on multi-step runs and overrode V106's bad write. Caught in review of PR #510 and amended in place since V106 had not yet shipped to Hex
+
 ## 1.7.101 - 2026-04-24
 
 ### Added

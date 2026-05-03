@@ -226,12 +226,35 @@ if (typeof window.Chart === "undefined") {
         var container = this.el;
         var eventName = container.dataset.sortableEvent || "reorder_items";
         var hideSource = container.dataset.sortableHideSource === "true";
+        var groupName = container.dataset.sortableGroup;
 
         injectStyles();
 
         this._itemCount = container.querySelectorAll(".sortable-item[data-id]").length;
 
-        this.sortable = window.Sortable.create(container, {
+        // Helper: read all data-sortable-scope-* attrs off an element and
+        // turn them into a `{key: value}` map. dataset already gives
+        // camelCase keys; we just strip the "sortableScope" prefix and
+        // lowercase the first letter.
+        var readScope = function(el) {
+          var out = {};
+          for (var key in el.dataset) {
+            if (key.indexOf("sortableScope") === 0 && key.length > "sortableScope".length) {
+              var fieldName = key.substring("sortableScope".length);
+              fieldName = fieldName.charAt(0).toLowerCase() + fieldName.slice(1);
+              out[fieldName] = el.dataset[key];
+            }
+          }
+          return out;
+        };
+
+        // SortableJS `group` controls which sortables can exchange items.
+        // - String form: simple shared group (any matching name accepts/donates).
+        // - Object form: {name, pull: true, put: true} when consumer needs
+        //   explicit cross-container behavior. We keep it as a plain string
+        //   here; the default pull/put = true is what cross-container DnD
+        //   needs.
+        var sortableOpts = {
           animation: 150,
           draggable: ".sortable-item",
           filter: ".sortable-ignore",
@@ -242,21 +265,70 @@ if (typeof window.Chart === "undefined") {
           dragClass: "sortable-drag",
           onStart: function() {
             if (hideSource) {
-              // Hide the fallback clone that SortableJS places at the initial position on body
               setTimeout(function() {
                 var fallback = document.querySelector("body > .sortable-fallback");
                 if (fallback) fallback.style.display = "none";
               }, 0);
             }
           },
+          // onEnd assumes the hook has exclusive control over the
+          // .sortable-item nodes inside its container — i.e. the LV
+          // owns this DOM subtree. If a third-party script ever
+          // injects nodes with `class="sortable-item" data-id=...`
+          // alongside ours, those IDs will be picked up by the
+          // querySelectorAll below; the LV handler should then
+          // reject unknown IDs at the server side. Trust your own DOM.
+          //
+          // The whole body is wrapped in try/catch so a single bad
+          // dataset value (e.g. corrupt JSON in a custom scope attr,
+          // or a missing source container after a fast unmount) flashes
+          // a console error instead of leaving SortableJS in a half-
+          // initialized state with the LV unable to reorder again.
           onEnd: function(evt) {
-            var items = container.querySelectorAll(".sortable-item[data-id]");
-            var orderedIds = Array.from(items).map(function(el) {
-              return el.dataset.id;
-            });
-            self.pushEvent(eventName, { ordered_ids: orderedIds });
+            try {
+              var fromContainer = evt.from;
+              var toContainer = evt.to;
+              var crossContainer = fromContainer !== toContainer;
+
+              // The destination container's items reflect the new ordering;
+              // the source's lost one but its remaining order is preserved
+              // by SortableJS, so we don't need a server reorder there.
+              var destItems = toContainer.querySelectorAll(".sortable-item[data-id]");
+              var orderedIds = Array.from(destItems).map(function(el) {
+                return el.dataset.id;
+              });
+
+              var payload = { ordered_ids: orderedIds };
+              var destScope = readScope(toContainer);
+              for (var k in destScope) payload[k] = destScope[k];
+
+              if (crossContainer) {
+                payload.moved_id = evt.item.dataset.id;
+                var fromScope = readScope(fromContainer);
+                for (var k2 in fromScope) {
+                  // Capitalize first letter so `categoryUuid` becomes
+                  // `fromCategoryUuid` (camelCase preserved).
+                  var capped = k2.charAt(0).toUpperCase() + k2.slice(1);
+                  payload["from" + capped] = fromScope[k2];
+                }
+                // Use the destination's event name so the LV handler is
+                // co-located with the table the item ended up in.
+                var destEvent = toContainer.dataset.sortableEvent || eventName;
+                self.pushEvent(destEvent, payload);
+              } else {
+                self.pushEvent(eventName, payload);
+              }
+            } catch (err) {
+              console.error("PhoenixKitHooks.SortableGrid.onEnd failed:", err);
+            }
           }
-        });
+        };
+
+        if (groupName) {
+          sortableOpts.group = groupName;
+        }
+
+        this.sortable = window.Sortable.create(container, sortableOpts);
       }
     };
   })();
@@ -1080,6 +1152,79 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // CopyToClipboard Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Mount on a button. The button must have `data-copy-target` pointing
+  // at a CSS selector for the element whose value should be copied
+  // (typically a sibling `<input>`). Optional: an inner element with
+  // `data-copy-feedback` whose `hidden` class is toggled briefly to
+  // show "Copied!" feedback, and an inner element with `data-copy-idle`
+  // whose `hidden` class is the inverse so only one shows at a time.
+  //
+  // Usage in LiveView template:
+  //   <button phx-hook="CopyToClipboard"
+  //           id="copy-foo"
+  //           data-copy-target="#field-foo"
+  //           type="button">
+  //     <span data-copy-idle>Copy</span>
+  //     <span data-copy-feedback class="hidden">Copied!</span>
+  //   </button>
+  //
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.CopyToClipboard = {
+    mounted() {
+      const targetSelector = this.el.getAttribute("data-copy-target");
+      if (!targetSelector) return;
+
+      this.handler = async (e) => {
+        e.preventDefault();
+        const target = document.querySelector(targetSelector);
+        if (!target) return;
+        const value = target.value !== undefined ? target.value : target.textContent;
+        if (!value) return;
+
+        try {
+          await navigator.clipboard.writeText(value);
+        } catch (_err) {
+          // Fallback for older browsers or insecure contexts: select the
+          // input and execCommand("copy"). Best-effort; if both paths
+          // fail we just bail without feedback.
+          if (target.select) {
+            const masked = target.type === "password";
+            if (masked) target.type = "text";
+            target.select();
+            try { document.execCommand("copy"); } catch (_) {}
+            if (masked) target.type = "password";
+            window.getSelection && window.getSelection().removeAllRanges();
+          }
+        }
+
+        const idle = this.el.querySelector("[data-copy-idle]");
+        const feedback = this.el.querySelector("[data-copy-feedback]");
+        if (idle) idle.classList.add("hidden");
+        if (feedback) feedback.classList.remove("hidden");
+
+        clearTimeout(this.feedbackTimer);
+        this.feedbackTimer = setTimeout(() => {
+          if (idle) idle.classList.remove("hidden");
+          if (feedback) feedback.classList.add("hidden");
+        }, 1500);
+      };
+
+      this.el.addEventListener("click", this.handler);
+    },
+    destroyed() {
+      clearTimeout(this.feedbackTimer);
+      if (this.handler) {
+        this.el.removeEventListener("click", this.handler);
+      }
+    }
+  };
+
+
+  // ---------------------------------------------------------------------------
   // TimeAgo Hook
   // ---------------------------------------------------------------------------
   //
@@ -1465,6 +1610,7 @@ if (typeof window.Chart === "undefined") {
       var key = this.el.dataset.storageKey || (this.el.id + "-view");
       var saved = localStorage.getItem(key) || "table";
       this.storageKey = key;
+      this.currentMode = saved;
       this.applyMode(saved);
 
       var self = this;
@@ -1472,6 +1618,7 @@ if (typeof window.Chart === "undefined") {
         btn.addEventListener("click", function() {
           var mode = btn.dataset.viewAction;
           localStorage.setItem(self.storageKey, mode);
+          self.currentMode = mode;
           self.applyMode(mode);
           // Notify other TableCardView instances sharing the same key
           window.dispatchEvent(new CustomEvent("phx:table-view-change", {
@@ -1483,10 +1630,22 @@ if (typeof window.Chart === "undefined") {
       // Listen for view changes from other instances with the same key
       this._onViewChange = function(e) {
         if (e.detail.key === self.storageKey) {
+          self.currentMode = e.detail.mode;
           self.applyMode(e.detail.mode);
         }
       };
       window.addEventListener("phx:table-view-change", this._onViewChange);
+    },
+
+    updated() {
+      // The LV re-render may have reset the inner divs' class attrs back
+      // to their template defaults (e.g. tableEl class="hidden md:block",
+      // cardEl class="md:hidden ..."). Re-apply the user's chosen mode so
+      // a SortableJS drop or any other LV-driven update doesn't snap the
+      // view back to the default.
+      if (this.currentMode) {
+        this.applyMode(this.currentMode);
+      }
     },
 
     destroyed() {
@@ -1927,7 +2086,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.6/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.11/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 

@@ -186,19 +186,31 @@ Centralized management of external service connections (OAuth, API keys, bot tok
 - `lib/phoenix_kit_web/live/settings/integration_form.ex` — Add/edit page (OAuth flow, test connection)
 - `lib/phoenix_kit_web/components/core/integration_picker.ex` — Reusable picker component for module UIs
 
-**Storage:** Uses existing `phoenix_kit_settings` table with `value_json` JSONB. Keys follow `integration:{provider}:{name}` convention (e.g., `integration:google:default`). Connections are referenced by their settings row UUID.
+**Storage:** Uses existing `phoenix_kit_settings` table with `value_json` JSONB. Keys follow `integration:{provider}:{name}` convention (e.g., `integration:google:default`). **Consumers reference connections by the storage row's UUID** — that uuid is the stable handle that survives renames.
 
 **Auth types:** `:oauth2` (Google, Microsoft), `:api_key` (OpenRouter, Stripe), `:key_secret` (AWS), `:bot_token` (Telegram, Discord), `:credentials` (SMTP, databases).
 
-**Named connections:** Multiple connections per provider (e.g., `google:default`, `google:personal`). Use `add_connection/2`, `remove_connection/2`, `list_connections/1`. "default" cannot be removed. Connection names must match `[a-zA-Z0-9][a-zA-Z0-9\-_]*`.
+**Named connections:** Multiple connections per provider (e.g., `google:default`, `google:personal`). Use `add_connection/3`, `remove_connection/2`, `rename_connection/3`, `list_connections/1`. **Names are pure user-chosen labels** — `"default"` is no longer privileged; any connection can be renamed or removed. Connection names must match `[a-zA-Z0-9][a-zA-Z0-9\-_]*`.
 
-**Validation:** `validate_connection/1` tests if credentials work — calls provider's userinfo endpoint (OAuth) or validation endpoint (API key/bot token). Results stored in integration data.
+**API shape (uuid-strict).** Every operation past row creation takes the row's `uuid`. The structural rule: `"integration:{provider}:{name}"` storage-key construction happens only inside `add_connection/3` (creation) and module-side `migrate_legacy/0` migrators (translation of legacy data). Every other public API takes a uuid:
 
-**Events (PubSub):** Topic `"phoenix_kit:integrations"`. Events: `integration_setup_saved`, `integration_connected`, `integration_disconnected`, `integration_validated`, `integration_connection_added`, `integration_connection_removed`.
+- Mutating: `save_setup(uuid, attrs, actor)`, `disconnect(uuid, actor)`, `remove_connection(uuid, actor)`, `rename_connection(uuid, new_name, actor)`, `record_validation(uuid, result)`
+- OAuth: `authorization_url(uuid, redirect_uri, ...)`, `exchange_code(uuid, code, ...)`, `refresh_access_token(uuid)`
+- HTTP: `authenticated_request(uuid, method, url, opts)`, `validate_connection(uuid, actor)`
+- Read shims (dual-input — uuid OR `provider:name` string — for legacy data walks): `get_integration/1`, `get_credentials/1`, `connected?/1`
+- Migration primitive: `find_uuid_by_provider_name/1` (string → uuid for `migrate_legacy/0` callbacks)
 
-**Module callbacks:** `required_integrations/0` — declares provider keys this module needs (shown in "Used by" on settings page). `integration_providers/0` — contributes custom provider definitions to the registry.
+A corrupted JSONB `provider`/`name` field cannot leak into a new storage key because no public write API derives keys from JSONB. Provider+name are sourced only from the row's `key` column when needed for display.
 
-**Legacy migration:** Automatically migrates old `document_creator_google_oauth` settings key to `integration:google:default` on first access.
+**Consumer pattern (uuid-everywhere):** Modules that depend on an integration store its uuid on their own records (e.g. `phoenix_kit_ai_endpoints.integration_uuid`, `document_creator_settings.google_connection`). Lookups go through `get_integration_by_uuid/1` or `get_credentials/1` (dual-input). The system does **not** silently fall back to "any connected row of this provider" — consumers must specify which integration they want.
+
+**Validation:** `validate_connection/2` tests if credentials work — calls provider's userinfo endpoint (OAuth) or validation endpoint (API key/bot token). Results stored in integration data. Successful validation flips `status` to `"connected"` and rewrites `connected_at` on every successful re-test (matches the OAuth `exchange_code/4` path; the form's "Connected N ago" reading bumps when the operator re-tests after fixing credentials). `last_validated_at` is rewritten unconditionally on every validation attempt, success or failure.
+
+**Events (PubSub):** Topic `"phoenix_kit:integrations"`. Events: `integration_setup_saved`, `integration_connected`, `integration_disconnected`, `integration_validated`, `integration_connection_added`, `integration_connection_removed`, `integration_connection_renamed`.
+
+**Module callbacks:** `required_integrations/0` — declares provider keys this module needs. `integration_providers/0` — contributes custom provider definitions to the registry.
+
+**Legacy migration:** Each module that has legacy data implements an optional `migrate_legacy/0` callback on `PhoenixKit.Module`. Host apps call `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0` from `Application.start/2`; the orchestrator walks every registered module and invokes its callback (idempotent per module, errors caught + logged, never crashes the boot). Each module owns its own data shape — core provides primitives like `Integrations.find_uuid_by_provider_name/1` that modules use in their migrators. The pre-uuid `Integrations.run_legacy_migrations/0` is now a deprecated shim that delegates to the orchestrator.
 
 **Plan:** `dev_docs/plans/integrations-system.md`
 
@@ -461,10 +473,20 @@ Template:
 
 `parent_uploads={@uploads}` is required (the component renders a hidden `<.live_file_input>` from the parent's upload config). That's a LiveView constraint — `allow_upload` must live on the parent socket.
 
-### `admin` attr — picker vs admin mode
+### Click behavior — three modes
 
-- `admin={false}` (default) — clicking a file toggles selection and turns on `select_mode`. Picker behavior. Use outside `/admin/media`.
-- `admin={true}` — clicking a file `push_navigate`s to `/admin/media/:uuid`. Only the admin media page sets this.
+The `click_file` handler picks one branch in this order:
+
+1. `select_mode` already on (anywhere, any caller) → toggle this file in/out of the selection set, stay in selection mode.
+2. `admin={true}` → `push_navigate` to `/admin/media/:uuid` (the rich admin detail page with delete / restore / edit / regenerate).
+3. `viewer={true}` → open a read-only **modal** in-place showing the clicked file (image / video / PDF / icon) with its metadata and a Download button. Closes via X / Esc / backdrop click. Prev / Next chevrons (and ← / → keys) step through the current page's `uploaded_files`; arrows hide at boundaries. No navigation. If `PhoenixKitComments` is installed AND enabled (admin toggle), a comments thread for `resource_type="file"` is rendered under the metadata; the thread is keyed by `file_uuid` so prev/next remounts cleanly.
+4. Default — enter `select_mode` and toggle the clicked file in. Picker behaviour.
+
+So a non-admin caller has two choices:
+- Pure picker (no `admin`, no `viewer`) — clicking selects.
+- Viewer modal (no `admin`, set `viewer={true}`) — clicking pops up an in-place modal with the file preview.
+
+The modal renders inside the MediaBrowser itself; there's no separate route or page. To see another file, close the modal and click another tile (or, if a future ergonomic tweak adds it, the click-while-open could swap content).
 
 ### Other useful attrs
 
@@ -636,4 +658,39 @@ If auto-discovery fails, register route modules explicitly as a fallback:
 config :phoenix_kit,
   route_modules: [PhoenixKitEntities.Routes]
 ```
+
+
+## TODOs
+
+Workspace-tracked items that aren't ready for inline `# TODO`
+comments in `lib/` (per the playbook, those should be resolved or
+moved here).
+
+### Component test coverage for `phoenix_kit_web/components/core/`
+
+There are no tests under `test/phoenix_kit_web/components/core/` —
+the directory doesn't exist. Several components in
+`lib/phoenix_kit_web/components/core/` are now non-trivial and would
+benefit from `Phoenix.LiveViewTest`-style render-and-assert
+coverage:
+
+- `<.draggable_list>` — recently grew a `:draggable` attr that
+  conditionally hides the SortableJS hook + `cursor-grab` styling.
+  Both branches need at least one rendered-HTML assertion.
+- `<.table_default>` — recently grew `:on_reorder` / `:reorder_scope`
+  / `:reorder_group` / `:item_id` attrs that wire the card-view
+  container as a sortable target. With- and without-DnD branches
+  need rendered-HTML assertions to pin `phx-hook="SortableGrid"`,
+  `data-sortable-*`, `data-id`, `class="sortable-item"`, and the
+  drag-handle footer row.
+- `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — the
+  canonical form primitives; surveyed for inline error rendering,
+  daisyUI variant classes, and the FormField vs raw `name=`/`value=`
+  dispatch.
+- `<.flash>`, `<.modal>` (if either's complexity has grown).
+
+Surfaced 2026-05-02 by the C12 triage during the V108 / DnD core
+work. Treated as out of scope for that PR (a single fixture in an
+empty test dir is awkward); fold into a future component-coverage
+sweep.
 
