@@ -990,7 +990,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"comments", "/admin/comments"},
     {"billing", "/admin/billing"},
     {"entities", "/admin/entities"},
-    {"customer_service", "/admin/customer-service/tickets"},
+    {"customer_support", "/admin/customer-support/tickets"},
     {"emails", "/admin/emails"},
     {"ai", "/admin/ai"},
     {"jobs", "/admin/jobs"},

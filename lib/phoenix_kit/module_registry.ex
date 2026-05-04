@@ -135,7 +135,7 @@ defmodule PhoenixKit.ModuleRegistry do
   @doc """
   Build a feature_enabled_checks map from registered modules.
 
-  Returns `%{"customer_service" => {PhoenixKit.Modules.CustomerService, :enabled?}, ...}`
+  Returns `%{"referrals" => {PhoenixKit.Modules.Referrals, :enabled?}, ...}`
   """
   @spec feature_enabled_checks() :: %{String.t() => {module(), atom()}}
   def feature_enabled_checks do
@@ -408,7 +408,6 @@ defmodule PhoenixKit.ModuleRegistry do
       PhoenixKit.Modules.SEO,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,
-      PhoenixKit.Modules.CustomerService,
       PhoenixKit.Jobs
     ]
   end
@@ -417,6 +416,16 @@ defmodule PhoenixKit.ModuleRegistry do
   # can show "not installed" cards for packages the user hasn't added yet.
   defp known_external_packages do
     [
+      %{
+        module: PhoenixKitCustomerSupport,
+        key: "customer_support",
+        hex_package: "phoenix_kit_customer_support",
+        name: "Customer Support",
+        description:
+          "Support ticket management with status workflow, threaded comments, internal notes, and file attachments.",
+        icon: "🎫",
+        hex_url: "https://hex.pm/packages/phoenix_kit_customer_support"
+      },
       %{
         module: PhoenixKit.Newsletters,
         key: "newsletters",
