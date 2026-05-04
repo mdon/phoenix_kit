@@ -568,20 +568,20 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     cs_user_routes =
-      if Code.ensure_loaded?(PhoenixKitCustomerService.Web.UserList) do
+      if Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList) do
         quote do
-          live "/dashboard/customer-service/tickets",
-               PhoenixKitCustomerService.Web.UserList,
+          live "/dashboard/customer-support/tickets",
+               PhoenixKitCustomerSupport.Web.UserList,
                :index,
                as: :tickets_user_list
 
-          live "/dashboard/customer-service/tickets/new",
-               PhoenixKitCustomerService.Web.UserNew,
+          live "/dashboard/customer-support/tickets/new",
+               PhoenixKitCustomerSupport.Web.UserNew,
                :new,
                as: :tickets_user_new
 
-          live "/dashboard/customer-service/tickets/:id",
-               PhoenixKitCustomerService.Web.UserDetails,
+          live "/dashboard/customer-support/tickets/:id",
+               PhoenixKitCustomerSupport.Web.UserDetails,
                :show,
                as: :tickets_user_details
         end
@@ -636,20 +636,20 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     cs_user_locale_routes =
-      if Code.ensure_loaded?(PhoenixKitCustomerService.Web.UserList) do
+      if Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList) do
         quote do
-          live "/dashboard/customer-service/tickets",
-               PhoenixKitCustomerService.Web.UserList,
+          live "/dashboard/customer-support/tickets",
+               PhoenixKitCustomerSupport.Web.UserList,
                :index,
                as: :tickets_user_list_locale
 
-          live "/dashboard/customer-service/tickets/new",
-               PhoenixKitCustomerService.Web.UserNew,
+          live "/dashboard/customer-support/tickets/new",
+               PhoenixKitCustomerSupport.Web.UserNew,
                :new,
                as: :tickets_user_new_locale
 
-          live "/dashboard/customer-service/tickets/:id",
-               PhoenixKitCustomerService.Web.UserDetails,
+          live "/dashboard/customer-support/tickets/:id",
+               PhoenixKitCustomerSupport.Web.UserDetails,
                :show,
                as: :tickets_user_details_locale
         end

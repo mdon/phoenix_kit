@@ -417,14 +417,14 @@ defmodule PhoenixKit.ModuleRegistry do
   defp known_external_packages do
     [
       %{
-        module: PhoenixKitCustomerService,
-        key: "customer_service",
-        hex_package: "phoenix_kit_customer_service",
-        name: "Customer Service",
+        module: PhoenixKitCustomerSupport,
+        key: "customer_support",
+        hex_package: "phoenix_kit_customer_support",
+        name: "Customer Support",
         description:
           "Support ticket management with status workflow, threaded comments, internal notes, and file attachments.",
         icon: "🎫",
-        hex_url: "https://hex.pm/packages/phoenix_kit_customer_service"
+        hex_url: "https://hex.pm/packages/phoenix_kit_customer_support"
       },
       %{
         module: PhoenixKit.Newsletters,

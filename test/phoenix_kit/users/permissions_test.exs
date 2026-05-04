@@ -48,7 +48,7 @@ defmodule PhoenixKit.Users.PermissionsTest do
     test "returns expected feature keys" do
       keys = Permissions.feature_module_keys()
       assert is_list(keys)
-      assert "customer_service" in keys
+      assert "customer_support" in keys
     end
 
     test "does not include core keys" do
@@ -275,7 +275,7 @@ defmodule PhoenixKit.Users.PermissionsTest do
   describe "valid_module_key?/1" do
     test "returns true for built-in keys" do
       assert Permissions.valid_module_key?("dashboard")
-      assert Permissions.valid_module_key?("customer_service")
+      assert Permissions.valid_module_key?("customer_support")
     end
 
     test "returns true for all 19 built-in keys" do
