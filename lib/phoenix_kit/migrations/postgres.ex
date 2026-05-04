@@ -534,6 +534,17 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
   - Updates `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
 
+  ### V108 - Position columns for entity / catalogue / item lists
+  - Adds nullable `position integer DEFAULT 0` to `phoenix_kit_entities`,
+    `phoenix_kit_cat_catalogues`, and `phoenix_kit_cat_items` so the
+    three corresponding admin lists support drag-and-drop reordering
+  - LV reorder handlers re-index the visible group to `1..N` on the
+    first user drag — the default `0` is only ever observed transiently
+  - No btree indexes on the new columns; lists are small and other
+    scope filters are already indexed
+  - `phoenix_kit_entity_data.position` (V81) and category/smart-catalogue
+    `position` columns (V87/V102) are unchanged
+
   ### V107 - Pin AI endpoints to integration via `integration_uuid`
   Adds `phoenix_kit_ai_endpoints.integration_uuid uuid` (nullable) so each
   endpoint references the specific integration row it consumes, rather

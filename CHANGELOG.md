@@ -1,3 +1,33 @@
+## 1.7.104 - 2026-05-04
+
+### Changed
+- Customer Service module extracted from core into the standalone `phoenix_kit_customer_support` Hex package — companion repo: [BeamLabEU/phoenix_kit_customer_support](https://github.com/BeamLabEU/phoenix_kit_customer_support) (PR #514)
+  - Removed `lib/modules/customer_service/` (~6 KLOC, 22 files) and `lib/phoenix_kit_web/routes/customer_service.ex`; the module is now an external optional dependency
+  - `module_registry.ex` — dropped `PhoenixKit.Modules.CustomerService` from `internal_modules/0`, added the corresponding `phoenix_kit_customer_support` entry to `known_external_packages/0`
+  - `integration.ex` — replaced inline `/dashboard/customer-service/tickets` route blocks with `Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList)` guards so absent-package = no routes
+  - DB tables (`phoenix_kit_tickets`, `phoenix_kit_ticket_*`) stay in core under their existing names — they're domain-shaped, not module-shaped, and the prior migrations (V35/V51/V53/V58/V72/V74/V75/V77) remain in core's migration history
+- Renamed "Customer Service" → "Customer Support" across the public surface (PR #514)
+  - Module: `PhoenixKitCustomerService` → `PhoenixKitCustomerSupport`
+  - OTP app: `:phoenix_kit_customer_service` → `:phoenix_kit_customer_support`
+  - Hex package: `phoenix_kit_customer_service` → `phoenix_kit_customer_support`
+  - Settings keys: `customer_service_*` → `customer_support_*` (7 keys)
+  - URL paths: `/customer-service/*` → `/customer-support/*` (admin + user-facing, both base and locale-prefixed routes)
+  - Permission key: `customer_service` → `customer_support`
+  - Dashboard module card and admin nav target updated to match
+
+### Added
+- V109 migration: rename Customer Service module identifiers in-place so existing installs migrate cleanly (PR #514)
+  - Renames 7 settings keys from `customer_service_*` → `customer_support_*` in `phoenix_kit_settings`
+  - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
+  - Renames `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
+  - Idempotent (`IF EXISTS` guards on every rename); reversible `down/1` for emergency rollback
+  - `@current_version` 108 → 109; ⚡ LATEST tag moved off V107 onto V109
+
+### Fixed
+- `PhoenixKit.Users.Auth.anonymize_user_tickets/1` was a no-op since the original Tickets → CustomerService rename — `Module.concat([PhoenixKit, Modules, Tickets, Ticket])` resolved to a never-loaded module so the `Code.ensure_loaded?` guard always failed and ticket anonymization silently skipped on user deletion. Now points at `PhoenixKitCustomerSupport.Ticket` (PR #514)
+- V108 (drag-and-drop position columns, shipped in 1.7.103) was missing from the `lib/phoenix_kit/migrations/postgres.ex` per-version docstring catalog. Backfilled in this release alongside the V109 entry (PR #514 review)
+- `lib/phoenix_kit/migrations/postgres/v109.ex` `rename_role_permission/4` carried an unused `_prefix` arg — the table name is already prefix-qualified at the call site. Trimmed to `/3` (PR #514 review)
+
 ## 1.7.103 - 2026-05-02
 
 ### Added
