@@ -28,6 +28,8 @@ defmodule PhoenixKit.MigrationTest do
 
   use ExUnit.Case, async: true
 
+  alias PhoenixKit.Migration.Runner
+
   # `function_exported?/3` flakes across async test suites because of
   # module-load ordering. `Module.__info__(:functions)` membership is
   # deterministic and identical in cost. See workspace memory
@@ -39,13 +41,40 @@ defmodule PhoenixKit.MigrationTest do
 
   describe "PhoenixKit.Migration.Runner" do
     test "exports up/0 and down/0 (Ecto.Migrator's up/4 + down/4 contract)" do
-      assert exports?(PhoenixKit.Migration.Runner, :up, 0)
-      assert exports?(PhoenixKit.Migration.Runner, :down, 0)
+      assert exports?(Runner, :up, 0)
+      assert exports?(Runner, :down, 0)
     end
 
     test "is a real `Ecto.Migration` module" do
       # `use Ecto.Migration` adds the `__migration__/0` reflection.
-      assert exports?(PhoenixKit.Migration.Runner, :__migration__, 0)
+      assert exports?(Runner, :__migration__, 0)
+    end
+  end
+
+  describe "Runner.runner_opts/1 (prefix forwarding)" do
+    # Regression: a `prefix: "auth"` flowing into `ensure_current/2` has
+    # to reach `PhoenixKit.Migration.up/1` as `prefix: "auth"` —
+    # otherwise migrations silently land in `"public"` instead of the
+    # caller's tenant schema. The previous internal `runner_opts/0`
+    # closure read `prefix()` from the live runner process and could
+    # not be unit-tested without spinning up `Ecto.Migration.Runner`.
+    # Splitting the pure transform out as `runner_opts/1` lets us pin
+    # the contract directly here.
+
+    test "returns [] when prefix is nil so the public default isn't clobbered" do
+      # `with_defaults/2` in `PhoenixKit.Migrations.Postgres` uses
+      # `Enum.into(opts, %{prefix: "public", …})` — a literal
+      # `prefix: nil` would override the default and crash inside
+      # `String.replace(nil, "'", "\\'")`.
+      assert Runner.runner_opts(nil) == []
+    end
+
+    test "forwards a non-nil prefix verbatim" do
+      assert Runner.runner_opts("auth") == [prefix: "auth"]
+    end
+
+    test "forwards an arbitrary tenant prefix verbatim" do
+      assert Runner.runner_opts("tenant_42") == [prefix: "tenant_42"]
     end
   end
 

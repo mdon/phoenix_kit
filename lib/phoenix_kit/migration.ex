@@ -228,6 +228,13 @@ defmodule PhoenixKit.Migration do
       silence)
     * `:prefix` — runs PhoenixKit's tables under a non-default schema
 
+  ## Return contract
+
+  Returns `:ok` on success. Failures (advisory-lock contention,
+  migration crashes, connection errors) propagate as raises from
+  `Ecto.Migrator.up/4`; `ensure_current/2` does not wrap them in
+  `{:error, _}`.
+
   ## Example
 
       # In test/test_helper.exs
@@ -278,18 +285,21 @@ defmodule PhoenixKit.Migration.Runner do
 
   use Ecto.Migration
 
-  def up, do: PhoenixKit.Migration.up(runner_opts())
-  def down, do: PhoenixKit.Migration.down(runner_opts())
+  def up, do: PhoenixKit.Migration.up(runner_opts(prefix()))
+  def down, do: PhoenixKit.Migration.down(runner_opts(prefix()))
 
+  # Pure transform of the runner-context prefix into opts threaded to
+  # `PhoenixKit.Migration.up/1` / `down/1`. Split out of `up/0` and
+  # `down/0` so it can be regression-tested without standing up a real
+  # `Ecto.Migration.Runner` process — see
+  # `test/phoenix_kit/migration_test.exs`.
+  #
   # `prefix/0` returns nil when no `:prefix` opt was passed to
   # `Ecto.Migrator.up/4`. Forwarding `prefix: nil` to PhoenixKit's
   # migrator would override the `"public"` default in `with_defaults/2`
   # and crash inside `String.replace/4`. Only thread `:prefix` when it's
   # actually set.
-  defp runner_opts do
-    case prefix() do
-      nil -> []
-      p -> [prefix: p]
-    end
-  end
+  @doc false
+  def runner_opts(nil), do: []
+  def runner_opts(prefix), do: [prefix: prefix]
 end
