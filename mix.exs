@@ -197,7 +197,14 @@ defmodule PhoenixKit.MixProject do
       groups_for_extras: [
         Guides: ~r/(guides\/.*|ADMIN_README)/
       ],
-      groups_for_modules: []
+      groups_for_modules: [],
+      # CHANGELOG is a historical record — entries cite functions/
+      # modules that may have since been renamed, made private, or
+      # extracted to another package (e.g. external Ecto modules
+      # referenced by code spans). Don't fail the docs build over
+      # stale historical references; module-level docs still get
+      # full reference checking.
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
     ]
   end
 
