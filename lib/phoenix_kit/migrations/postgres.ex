@@ -529,7 +529,17 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V109 - Rename Customer Service module to Customer Support ⚡ LATEST
+  ### V110 - Add `language` to Document Creator templates ⚡ LATEST
+  - Adds nullable `language VARCHAR(10)` to `phoenix_kit_doc_templates` so
+    each template can be tagged with a single locale (full code, e.g.
+    `en-US`, `et-EE`). Parent apps read it back via the public listing
+    API to fill template variables in the matching language.
+  - Documents intentionally do not get a language column — they inherit
+    from `template_uuid → templates.language`.
+  - Existing rows survive without a backfill; the form pre-selects the
+    project's primary language when creating new templates.
+
+  ### V109 - Rename Customer Service module to Customer Support
   - Renames 7 settings keys from `customer_service_*` → `customer_support_*`
   - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
   - Updates `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
@@ -813,7 +823,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 109
+  @current_version 110
   @default_prefix "public"
 
   @doc false
