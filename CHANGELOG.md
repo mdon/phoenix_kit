@@ -1,3 +1,31 @@
+## 1.7.105 - 2026-05-05
+
+### Added
+- `PhoenixKit.Migration.ensure_current/2` — re-runnable analog of `mix ecto.migrate` for test helpers and any boot path running against a long-lived database (PR #515)
+  - Passes a fresh wall-clock version (`:os.system_time(:microsecond)`) to `Ecto.Migrator.up/4` on every call so Ecto sees a "new" migration each time and invokes the inner runner; PhoenixKit's own marker (the comment on the `phoenix_kit` table) short-circuits internally if there's nothing new to apply
+  - Forwards `:prefix` from the Ecto.Migration runner context inside the new private `PhoenixKit.Migration.Runner` wrapper so callers passing `prefix: "auth"` aren't silently routed to `"public"`
+  - Microsecond precision keeps the collision and clock-skew windows small enough that an NTP correction would have to rewind the clock by µs at exactly the wrong moment to hide a newly-shipped migration; bigint-safe (Postgres covers ~292 years)
+  - The `schema_migrations` table accumulates one row per call — cosmetic noise acceptable for the test-DB use case; production migrations via `mix ecto.migrate` / `mix phoenix_kit.update` remain unchanged
+- V110 migration: nullable `language VARCHAR(10)` column on `phoenix_kit_doc_templates` so each Document Creator template can be tagged with a single locale (PR #515)
+  - Full locale codes (`en-US`, `et-EE`, `ja`) — matches `PhoenixKit.Module.Languages.get_enabled_languages/0` output; lossless, consumers that want bare base codes can derive them via `DialectMapper.dialect_to_base/1`
+  - Existing rows survive without a backfill; the form (landing in `phoenix_kit_document_creator` separately) pre-selects the project's primary language when creating new templates
+  - Documents intentionally do not get a language column — they inherit from `template_uuid → templates.language`
+  - `@current_version` 109 → 110; ⚡ LATEST tag moved off V109 onto V110
+- `PhoenixKit.Migration.Runner.runner_opts/1` — pure transform of the runner-context prefix into opts threaded to `PhoenixKit.Migration.up/1` / `down/1` (PR #515 review follow-up)
+  - Split out of the previous closure-style `runner_opts/0` so the prefix-forwarding behaviour can be regression-tested without spinning up a real `Ecto.Migration.Runner` process (which conflicts with the Ecto sandbox)
+  - Three new unit assertions in `test/phoenix_kit/migration_test.exs` pin the contract: `nil → []` (drop, so `with_defaults/2`'s `"public"` default isn't clobbered), `"auth" → [prefix: "auth"]`, arbitrary tenant prefix forwarded verbatim. If someone "simplifies" `runner_opts` to always return `[]`, CI now fails
+- "Return contract" section in the `ensure_current/2` moduledoc clarifying that failures (advisory-lock contention, migration crashes, connection errors) raise from `Ecto.Migrator.up/4` rather than being wrapped in `{:error, _}` (PR #515 review follow-up)
+
+### Changed
+- `test/test_helper.exs` switched from path-form `Ecto.Migrator.run(repo, migrations_path, :up, all: true)` to `PhoenixKit.Migration.ensure_current/2` (PR #515)
+  - Deletes the now-redundant wrapper migration `test/support/postgres/migrations/20260316000000_add_phoenix_kit.exs`
+- `AGENTS.md` test-infra section updated: `test_helper.exs` is now the canonical migration application point, with a **Do not** warning against the stale tuple form `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` (PR #515)
+
+### Fixed
+- Documented test-helper migration patterns silently went stale after the first run (PR #515)
+  - Both the tuple form (`Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)`, documented in `dev_docs/migration_cleanup.md`) and the path form (used by core's own test_helper via the `20260316000000_add_phoenix_kit.exs` wrapper) hit the same trap: Ecto.Migrator records the version in `schema_migrations` after the first call and filters that entry out of pending on every subsequent boot. `PhoenixKit.Migration.up/1` was never re-invoked, so newly-shipped Vxxx migrations didn't apply on subsequent boots even though PhoenixKit's own marker was idempotent. Symptom: `column ... does not exist` after `mix deps.update phoenix_kit` brought in new migrations but the test DB stayed at the old marker
+  - Verified empirically — core's own `phoenix_kit_test` was at marker 107 even though Hex 1.7.103 shipped V108 + V109; first boot after switching to `ensure_current/2` advanced the marker through V108 / V109 / V110 correctly
+
 ## 1.7.104 - 2026-05-04
 
 ### Changed
