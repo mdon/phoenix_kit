@@ -11,7 +11,6 @@ defmodule PhoenixKit.ModuleTest do
     PhoenixKit.Modules.SEO,
     PhoenixKit.Modules.Sitemap,
     PhoenixKit.Modules.Storage,
-    PhoenixKit.Modules.CustomerService,
     PhoenixKit.Jobs
   ]
 

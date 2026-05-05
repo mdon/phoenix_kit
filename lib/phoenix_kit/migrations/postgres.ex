@@ -529,7 +529,12 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V107 - Pin AI endpoints to integration via `integration_uuid` ⚡ LATEST
+  ### V109 - Rename Customer Service module to Customer Support ⚡ LATEST
+  - Renames 7 settings keys from `customer_service_*` → `customer_support_*`
+  - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
+  - Updates `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
+
+  ### V107 - Pin AI endpoints to integration via `integration_uuid`
   Adds `phoenix_kit_ai_endpoints.integration_uuid uuid` (nullable) so each
   endpoint references the specific integration row it consumes, rather
   than a bare provider string that the resolver had to guess against.
@@ -797,7 +802,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 108
+  @current_version 109
   @default_prefix "public"
 
   @doc false

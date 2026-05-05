@@ -2687,7 +2687,7 @@ defmodule PhoenixKit.Users.Auth do
 
   # Anonymize tickets for support history
   defp anonymize_user_tickets(user_uuid) do
-    module = Module.concat([PhoenixKit, Modules, Tickets, Ticket])
+    module = Module.concat([PhoenixKitCustomerSupport, Ticket])
 
     if Code.ensure_loaded?(module) and function_exported?(module, :__schema__, 1) do
       dynamic_query = dynamic([t], t.user_uuid == ^user_uuid)

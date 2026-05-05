@@ -287,8 +287,9 @@ defmodule PhoenixKit.Integrations.Providers do
         %{
           title: gettext("Create a Mistral account"),
           steps: [
-            {gettext("Go to [console.mistral.ai](https://console.mistral.ai) and sign up or log in"),
-             nil},
+            {gettext(
+               "Go to [console.mistral.ai](https://console.mistral.ai) and sign up or log in"
+             ), nil},
             {gettext("You may need to verify your phone number before creating API keys"), nil}
           ]
         },
@@ -424,7 +425,12 @@ defmodule PhoenixKit.Integrations.Providers do
           options: nil
         }
       ],
-      capabilities: [:microsoft_outlook, :microsoft_onedrive, :microsoft_teams, :microsoft_calendar],
+      capabilities: [
+        :microsoft_outlook,
+        :microsoft_onedrive,
+        :microsoft_teams,
+        :microsoft_calendar
+      ],
       instructions: [
         %{
           title: gettext("Register an application in Microsoft Entra ID (Azure AD)"),
@@ -436,9 +442,7 @@ defmodule PhoenixKit.Integrations.Providers do
             {gettext(
                "Under **Supported account types**, choose the audience: *Personal Microsoft accounts only*, *Accounts in any organizational directory*, or *Accounts in this organizational directory only* depending on who should sign in"
              ), nil},
-            {gettext(
-               "Under **Redirect URI**, choose **Web** and enter: `{redirect_uri}`"
-             ), nil},
+            {gettext("Under **Redirect URI**, choose **Web** and enter: `{redirect_uri}`"), nil},
             {gettext("Click **Register**"), nil}
           ],
           note:
