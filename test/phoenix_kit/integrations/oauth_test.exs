@@ -74,6 +74,36 @@ defmodule PhoenixKit.Integrations.OAuthTest do
       assert url =~ "scope=scope1"
       assert url =~ "foo=bar"
     end
+
+    test "interpolates {placeholder} from integration_data (Microsoft 365 tenant)" do
+      config = %{
+        auth_url: "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize",
+        url_defaults: %{"tenant_id" => "common"}
+      }
+
+      data = %{"client_id" => "abc", "tenant_id" => "11111111-2222-3333-4444-555555555555"}
+      {:ok, url} = OAuth.authorization_url(config, data, "http://localhost/cb")
+      assert url =~ "/11111111-2222-3333-4444-555555555555/oauth2/v2.0/authorize"
+      refute url =~ "{tenant_id}"
+    end
+
+    test "falls back to url_defaults when integration_data is missing the placeholder" do
+      config = %{
+        auth_url: "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize",
+        url_defaults: %{"tenant_id" => "common"}
+      }
+
+      data = %{"client_id" => "abc"}
+      {:ok, url} = OAuth.authorization_url(config, data, "http://localhost/cb")
+      assert url =~ "/common/oauth2/v2.0/authorize"
+      refute url =~ "{tenant_id}"
+    end
+
+    test "URLs without {placeholder} pass through unchanged" do
+      data = %{"client_id" => "abc", "tenant_id" => "ignored"}
+      {:ok, url} = OAuth.authorization_url(@google_oauth_config, data, "http://localhost/cb")
+      assert url =~ "accounts.google.com/o/oauth2/v2/auth?"
+    end
   end
 
   describe "generate_state/0" do

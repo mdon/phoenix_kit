@@ -52,7 +52,11 @@ defmodule PhoenixKit.Integrations.OAuth do
 
       params = if state, do: Map.put(params, "state", state), else: params
 
-      url = "#{oauth_config[:auth_url] || oauth_config["auth_url"]}?#{URI.encode_query(params)}"
+      auth_url =
+        (oauth_config[:auth_url] || oauth_config["auth_url"])
+        |> interpolate_url(oauth_config, integration_data)
+
+      url = "#{auth_url}?#{URI.encode_query(params)}"
       {:ok, url}
     else
       {:error, :client_id_not_configured}
@@ -66,7 +70,9 @@ defmodule PhoenixKit.Integrations.OAuth do
           {:ok, map()} | {:error, term()}
   def exchange_code(oauth_config, integration_data, code, redirect_uri) do
     with {:ok, client_id, client_secret} <- validate_client_credentials(integration_data) do
-      token_url = oauth_config[:token_url] || oauth_config["token_url"]
+      token_url =
+        (oauth_config[:token_url] || oauth_config["token_url"])
+        |> interpolate_url(oauth_config, integration_data)
 
       token_url
       |> post_token_request(
@@ -89,7 +95,9 @@ defmodule PhoenixKit.Integrations.OAuth do
 
     if is_binary(refresh_token) and refresh_token != "" do
       with {:ok, client_id, client_secret} <- validate_client_credentials(integration_data) do
-        token_url = oauth_config[:token_url] || oauth_config["token_url"]
+        token_url =
+          (oauth_config[:token_url] || oauth_config["token_url"])
+          |> interpolate_url(oauth_config, integration_data)
 
         case post_token_request(token_url,
                refresh_token: refresh_token,
@@ -212,6 +220,27 @@ defmodule PhoenixKit.Integrations.OAuth do
 
   defp maybe_put_refresh_token(fields, new_refresh_token),
     do: Map.put(fields, "refresh_token", new_refresh_token)
+
+  # Substitutes `{key}` placeholders in URLs with values from
+  # `integration_data` (string-keyed JSONB). Falls back to
+  # `oauth_config[:url_defaults]`'s value for the same key. Used by
+  # providers (e.g. Microsoft 365) that need per-row URL pieces such
+  # as a tenant ID without forking the URL into multiple OAuth flows.
+  defp interpolate_url(url, oauth_config, integration_data) when is_binary(url) do
+    if String.contains?(url, "{") do
+      defaults = oauth_config[:url_defaults] || oauth_config["url_defaults"] || %{}
+
+      Regex.replace(~r/\{([a-zA-Z0-9_]+)\}/, url, fn _, key ->
+        integration_data[key] ||
+          defaults[key] || defaults[String.to_atom(key)] ||
+          ""
+      end)
+    else
+      url
+    end
+  end
+
+  defp interpolate_url(url, _oauth_config, _integration_data), do: url
 
   defp log_token_error(message, status) do
     Logger.warning("[Integrations.OAuth] #{message}: status=#{status}")
