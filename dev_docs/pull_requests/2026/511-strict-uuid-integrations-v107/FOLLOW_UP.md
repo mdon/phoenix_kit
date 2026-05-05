@@ -48,11 +48,6 @@ were addressed between merge and this triage:
   by the reviewer ("not a regression — same risk existed pre-PR").
   `migrate_legacy/0` callbacks are the boot-time mitigation. No
   in-PR fix required.~~
-- ~~**NITPICK #10: `verify_oauth_state/2` is permissive when no state
-  was stored.** Reviewer's own risk assessment: "low because an
-  attacker would need to forge a callback hitting a row with no
-  stored state." Tightening to `{:error, :state_mismatch}` is
-  suggested but not blocking — not applied in this batch.~~
 
 ## Fixed (Batch 1 — 2026-05-06)
 
@@ -87,13 +82,22 @@ were addressed between merge and this triage:
 
   All 21 OAuth tests pass.~~
 
+- ~~**NITPICK #10: `verify_oauth_state/2` is permissive when no state
+  was stored.** Tightened to return `{:error, :state_mismatch}` on
+  the missing-state branch
+  (`lib/phoenix_kit_web/live/settings/integration_form.ex:626-642`).
+  Comment updated to explain why: post-2026-05 every `connect_oauth`
+  event saves state via `save_oauth_state/2` before redirect (`:227`),
+  so a missing state at callback time means either (a) someone
+  bypassed `connect_oauth` or (b) the row was mutated between
+  authorize and callback — both shapes are CSRF-relevant. The older
+  lenient flow that justified the original `:ok` is gone. No tests
+  exercised the lenient branch (verified via grep), so no test churn.~~
+
 ## Skipped
 
-- **NITPICK #6** (`integration_picker` divergence doc note) and
-  **NITPICK #10** (tighten `verify_oauth_state` on missing state)
-  remain unaddressed — both are reviewer-acknowledged-as-non-blocking
-  improvements. Surface to Max if either should land in a future
-  cleanup batch.
+- **NITPICK #6** (`integration_picker` divergence doc note) remains
+  unaddressed pending Max's read on the trade-off — see "Open" below.
 
 ## Files touched
 
@@ -101,6 +105,7 @@ were addressed between merge and this triage:
 |------|--------|
 | `lib/phoenix_kit/integrations/oauth.ex` | Add `interpolate_url/3` private helper; wire into `authorization_url/5`, `exchange_code/4`, `refresh_access_token/2` |
 | `lib/phoenix_kit/integrations/providers.ex` | Microsoft 365: `{tenant_id}` placeholders + `url_defaults` + `tenant_id` setup field; rewrite instructions note |
+| `lib/phoenix_kit_web/live/settings/integration_form.ex` | Tighten `verify_oauth_state/2` — missing/empty stored state now returns `{:error, :state_mismatch}` instead of `:ok` |
 | `test/phoenix_kit/integrations/oauth_test.exs` | 3 new tests pinning the URL interpolation contract |
 
 ## Verification
@@ -110,4 +115,6 @@ test/phoenix_kit/integrations/oauth_test.exs).
 
 ## Open
 
-None.
+- **NITPICK #6 (integration_picker divergence)** — surfaced to Max for
+  a decision on whether to add a moduledoc note documenting the
+  divergence with the management list.
