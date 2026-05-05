@@ -104,7 +104,7 @@ end
 
 - `test/support/test_repo.ex` — `PhoenixKit.Test.Repo` (Ecto repo for tests)
 - `test/support/data_case.ex` — `PhoenixKit.DataCase` (sandbox setup, `:integration` tag)
-- `test/support/postgres/migrations/` — Migration wrapper calling `PhoenixKit.Migrations.up()`
+- `test/test_helper.exs` — calls `PhoenixKit.Migration.ensure_current/2` to apply all versioned migrations on every boot. **Do not** swap in `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` — that pattern silently goes stale (see `PhoenixKit.Migration.ensure_current/2` moduledoc for the staleness trap)
 - `config/test.exs` — DB config, sandbox pool, repo wiring
 
 ### Code Search
