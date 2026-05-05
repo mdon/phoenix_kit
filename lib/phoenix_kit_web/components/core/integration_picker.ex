@@ -167,19 +167,14 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
               </span>
 
               <div class="flex-1 min-w-0">
-                <%!-- Connection name --%>
+                <%!-- Connection name (always the user-chosen label —
+                     `default` is no longer system-privileged post-#511) --%>
                 <div class="flex items-center gap-2">
                   <span class="font-medium truncate">
-                    {if conn.name == "default",
-                      do:
-                        if(is_map(conn[:provider]),
-                          do: conn.provider.name,
-                          else: conn.data["provider"] || gettext("Default")
-                        ),
-                      else: conn.name}
+                    {conn.name}
                   </span>
                   <span
-                    :if={conn.name != "default" && is_map(conn[:provider])}
+                    :if={is_map(conn[:provider])}
                     class="badge badge-ghost badge-xs shrink-0"
                   >
                     {conn.provider.name}

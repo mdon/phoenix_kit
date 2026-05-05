@@ -28,12 +28,6 @@ were addressed between merge and this triage:
   for sort order.** Reviewer's own assessment: "benign UI
   ergonomics — keeping `default` at the top is reasonable."
   Acknowledged; no change required.~~
-- ~~**NITPICK #6: `integration_picker.ex` still substitutes provider
-  name when `conn.name == "default"`.** Reviewer's own assessment:
-  "intentional UX (shows users the provider they're picking, not a
-  meaningless `default` label)." A one-liner moduledoc note
-  documenting the divergence is suggested but not blocking; not
-  applied in this batch.~~
 - ~~**NITPICK #7: V107 / V106 tests replicate the migration SQL
   verbatim.** Documented limitation rather than a bug — the
   migration helpers can't run outside an `Ecto.Migrator` runner.
@@ -94,10 +88,21 @@ were addressed between merge and this triage:
   lenient flow that justified the original `:ok` is gone. No tests
   exercised the lenient branch (verified via grep), so no test churn.~~
 
+- ~~**NITPICK #6: `integration_picker.ex` still substitutes provider
+  name when `conn.name == "default"`.** Removed the substitution
+  (`lib/phoenix_kit_web/components/core/integration_picker.ex:169-184`).
+  The picker now always renders `conn.name` verbatim — `default` is
+  no longer system-privileged per PR #511's own moduledoc ("Names are
+  pure user-chosen labels with no system semantics"), so the picker
+  contradicting that was the actual bug, not just a doc-omission.
+  Provider badge is also unconditional now (drop the `conn.name !=
+  "default"` guard) so users always see which provider they're
+  picking regardless of how the connection is named. Only call site
+  of the substitution; no other surface depended on it.~~
+
 ## Skipped
 
-- **NITPICK #6** (`integration_picker` divergence doc note) remains
-  unaddressed pending Max's read on the trade-off — see "Open" below.
+None.
 
 ## Files touched
 
@@ -106,6 +111,7 @@ were addressed between merge and this triage:
 | `lib/phoenix_kit/integrations/oauth.ex` | Add `interpolate_url/3` private helper; wire into `authorization_url/5`, `exchange_code/4`, `refresh_access_token/2` |
 | `lib/phoenix_kit/integrations/providers.ex` | Microsoft 365: `{tenant_id}` placeholders + `url_defaults` + `tenant_id` setup field; rewrite instructions note |
 | `lib/phoenix_kit_web/live/settings/integration_form.ex` | Tighten `verify_oauth_state/2` — missing/empty stored state now returns `{:error, :state_mismatch}` instead of `:ok` |
+| `lib/phoenix_kit_web/components/core/integration_picker.ex` | Remove `conn.name == "default"` substitution; always render the user-chosen name + provider badge |
 | `test/phoenix_kit/integrations/oauth_test.exs` | 3 new tests pinning the URL interpolation contract |
 
 ## Verification
@@ -115,6 +121,4 @@ test/phoenix_kit/integrations/oauth_test.exs).
 
 ## Open
 
-- **NITPICK #6 (integration_picker divergence)** — surfaced to Max for
-  a decision on whether to add a moduledoc note documenting the
-  divergence with the management list.
+None.
