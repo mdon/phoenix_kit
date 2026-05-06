@@ -1241,13 +1241,25 @@
       phx-window-keydown="viewer_keydown"
       phx-target={@myself}
     >
-      <%!-- Near-full-screen modal: 95% viewport width, 90% viewport height. --%>
-      <%!-- max-w-none clears daisyUI's default modal-box max-width cap so   --%>
-      <%!-- the w-[95vw] actually applies on wide screens.                   --%>
-      <div class="modal-box w-[95vw] max-w-none h-[90vh] p-0 overflow-hidden">
-        <div class="flex flex-col lg:flex-row lg:h-full">
+      <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
+      <%!--   position: fixed; inset: 0;                                    --%>
+      <%!-- This bypasses daisyUI's grid layout AND iOS Safari's 100vh /   --%>
+      <%!-- 100dvh quirks — the box just covers top:0 right:0 bottom:0     --%>
+      <%!-- left:0 of whatever the visual viewport is, no math involved.   --%>
+      <%!-- `w-auto h-auto` lets the inset declarations actually drive the --%>
+      <%!-- size; otherwise an intrinsic width/height could win.           --%>
+      <%!--                                                                 --%>
+      <%!-- lg+: revert to a normal centred modal with 95vw × 90vh + soft  --%>
+      <%!-- rounded corners.                                               --%>
+      <%!--                                                                 --%>
+      <%!-- The `!` (important) prefix is required because daisyUI v5's    --%>
+      <%!-- .modal-box defaults (width: calc(11/12 * 100%), max-width:     --%>
+      <%!-- 32rem, max-height: 100vh) win the cascade over plain Tailwind  --%>
+      <%!-- utilities.                                                     --%>
+      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+        <div class="flex flex-col lg:flex-row h-full overflow-hidden">
           <%!-- Viewer (image / video / pdf / icon) --%>
-          <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-2 min-h-[40vh] lg:min-h-0">
+          <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0">
             <%= if has_prev do %>
               <button
                 type="button"
@@ -1277,7 +1289,7 @@
                 <img
                   src={f.urls["original"] || f.urls["medium"]}
                   alt={f.filename}
-                  class="max-w-full max-h-full object-contain rounded"
+                  class="w-full h-auto max-h-full object-contain lg:rounded"
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
@@ -1306,16 +1318,21 @@
           </div>
 
           <%!-- Sidebar --%>
-          <div class="flex-[3] flex flex-col gap-3 p-4 lg:min-w-[280px] lg:overflow-y-auto bg-base-100">
-            <div class="flex items-start justify-between gap-2">
-              <h2 class="text-base font-bold break-all leading-tight min-w-0">
+          <div class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] bg-base-100">
+            <%!-- Title row with always-visible close button. flex-shrink-0 on    --%>
+            <%!-- the button + min-w-0 on the h2 guarantees the X is never        --%>
+            <%!-- squeezed off-screen by a long filename, and putting it in       --%>
+            <%!-- normal flow means it can't be clipped by overflow:hidden,       --%>
+            <%!-- iPhone's rounded corners, or DevTools' device-frame chrome.     --%>
+            <div class="flex items-start gap-2">
+              <h2 class="text-base font-bold break-all leading-tight flex-1 min-w-0">
                 {f.filename}
               </h2>
               <button
                 type="button"
                 phx-click="close_viewer"
                 phx-target={@myself}
-                class="btn btn-ghost btn-sm btn-circle shrink-0"
+                class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
                 title="Close"
               >
                 <.icon name="hero-x-mark" class="w-4 h-4" />
