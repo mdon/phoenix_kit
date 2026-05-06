@@ -462,14 +462,6 @@ defmodule PhoenixKitWeb.Integration do
                :index,
                as: :sitemap_settings
 
-          # DB Explorer routes
-          live "/admin/db", PhoenixKit.Modules.DB.Web.Index, :index, as: :db_index
-
-          live "/admin/db/activity", PhoenixKit.Modules.DB.Web.Activity, :activity,
-            as: :db_activity
-
-          live "/admin/db/:schema/:table", PhoenixKit.Modules.DB.Web.Show, :show, as: :db_show
-
           # Shop admin routes (only when phoenix_kit_ecommerce is installed)
           unquote(shop_admin)
 
