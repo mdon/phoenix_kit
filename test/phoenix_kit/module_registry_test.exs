@@ -18,7 +18,6 @@ defmodule PhoenixKit.ModuleRegistryTest do
       # Verify known modules are present rather than asserting a hardcoded count,
       # so this test doesn't break when modules are extracted or added.
       expected = [
-        PhoenixKit.Modules.DB,
         PhoenixKit.Modules.Languages,
         PhoenixKit.Modules.Maintenance,
         PhoenixKit.Modules.Referrals,
@@ -152,7 +151,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a list of permission metadata maps" do
       metadata = ModuleRegistry.all_permission_metadata()
       assert is_list(metadata)
-      assert length(metadata) >= 8
+      assert length(metadata) >= 7
 
       for meta <- metadata do
         assert is_map(meta)
@@ -173,7 +172,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns sorted list of feature keys" do
       keys = ModuleRegistry.all_feature_keys()
       assert is_list(keys)
-      assert length(keys) >= 8
+      assert length(keys) >= 7
       assert keys == Enum.sort(keys)
     end
 
@@ -196,7 +195,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => {module, :enabled?}" do
       checks = ModuleRegistry.feature_enabled_checks()
       assert is_map(checks)
-      assert map_size(checks) >= 8
+      assert map_size(checks) >= 7
 
       for {key, {mod, fun}} <- checks do
         assert is_binary(key)
