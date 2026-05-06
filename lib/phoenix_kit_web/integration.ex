@@ -68,13 +68,6 @@ defmodule PhoenixKitWeb.Integration do
   - /admin/users/live_sessions, /admin/users/sessions
   - /admin/settings, /admin/modules
 
-  Public pages routes (if Pages module enabled):
-  - {prefix}/pages/* (explicit prefix - e.g., /phoenix_kit/pages/test)
-  - /* (catch-all at root level - e.g., /test, /blog/post)
-  - Both routes serve published pages from priv/static/pages/*.md
-  - The catch-all can optionally serve a custom 404 markdown file when enabled
-  - Example: /test or /phoenix_kit/pages/test renders test.md
-
   ## Configuration
 
   You can disable the user dashboard by setting the environment variable in your config:
@@ -461,14 +454,6 @@ defmodule PhoenixKitWeb.Integration do
                PhoenixKit.Modules.Sitemap.Web.Settings,
                :index,
                as: :sitemap_settings
-
-          # DB Explorer routes
-          live "/admin/db", PhoenixKit.Modules.DB.Web.Index, :index, as: :db_index
-
-          live "/admin/db/activity", PhoenixKit.Modules.DB.Web.Activity, :activity,
-            as: :db_activity
-
-          live "/admin/db/:schema/:table", PhoenixKit.Modules.DB.Web.Show, :show, as: :db_show
 
           # Shop admin routes (only when phoenix_kit_ecommerce is installed)
           unquote(shop_admin)
