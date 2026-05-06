@@ -1557,9 +1557,9 @@ ModuleRegistry.unregister(MyModule)
 | `lib/phoenix_kit_web/live/modules.ex` | Admin modules page LiveView |
 | **External examples** | |
 | `phoenix_kit_hello_world/` | Minimal plugin template with comprehensive README |
+| `phoenix_kit_db/` | Supervisor child (`Postgrex.Notifications` GenServer) + multi-page admin tabs |
 | `phoenix_kit_document_creator/` | Full-featured plugin (13 tabs, migrations, base64 JS, shared components) |
 | **Internal module examples** | |
 | `lib/modules/seo/seo.ex` | Minimal — settings tab only |
-| `lib/modules/db/db.ex` | Supervisor child and admin tab |
 | `lib/modules/maintenance/maintenance.ex` | Two enable levels (module vs mode) |
 | `lib/modules/billing/billing.ex` | Cascade to shop module |
