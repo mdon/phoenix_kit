@@ -68,13 +68,6 @@ defmodule PhoenixKitWeb.Integration do
   - /admin/users/live_sessions, /admin/users/sessions
   - /admin/settings, /admin/modules
 
-  Public pages routes (if Pages module enabled):
-  - {prefix}/pages/* (explicit prefix - e.g., /phoenix_kit/pages/test)
-  - /* (catch-all at root level - e.g., /test, /blog/post)
-  - Both routes serve published pages from priv/static/pages/*.md
-  - The catch-all can optionally serve a custom 404 markdown file when enabled
-  - Example: /test or /phoenix_kit/pages/test renders test.md
-
   ## Configuration
 
   You can disable the user dashboard by setting the environment variable in your config:
