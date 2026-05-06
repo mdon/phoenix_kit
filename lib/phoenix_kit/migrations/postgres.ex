@@ -529,7 +529,30 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V110 - Add `language` to Document Creator templates ⚡ LATEST
+  ### V111 - PDF library tables for catalogue ⚡ LATEST
+  - Creates `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid`
+    FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue
+    manages the file lifecycle; core prune can't delete files we
+    reference). Soft-delete via `status` sentinel
+    (`active` / `trashed`) + `trashed_at`. Two uploads of identical
+    content (different filenames) → two `phoenix_kit_cat_pdfs` rows
+    sharing one `phoenix_kit_files` row + one extraction.
+  - Creates `phoenix_kit_cat_pdf_extractions` — keyed by
+    `file_uuid` PK. Holds the worker state machine
+    (`pending → extracting → extracted | scanned_no_text | failed`),
+    `page_count`, `extracted_at`, `error_message`. Cascades on file
+    hard delete.
+  - Creates `phoenix_kit_cat_pdf_page_contents` — content-addressed
+    page dedup cache. PK on `content_hash` (SHA-256 hex of normalized
+    page text). Same page text across multiple PDFs is stored once.
+  - Creates `phoenix_kit_cat_pdf_pages` — per-page join. Composite
+    PK `(file_uuid, page_number)`; `content_hash` FK to the dedup
+    cache (RESTRICT; orphaned content rows GC'd by a catalogue-side
+    helper).
+  - Enables `pg_trgm` extension; the GIN trigram index lives on the
+    dedup cache (smaller index — duplicates indexed once).
+
+  ### V110 - Add `language` to Document Creator templates
   - Adds nullable `language VARCHAR(10)` to `phoenix_kit_doc_templates` so
     each template can be tagged with a single locale (full code, e.g.
     `en-US`, `et-EE`). Parent apps read it back via the public listing
@@ -823,7 +846,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 110
+  @current_version 111
   @default_prefix "public"
 
   @doc false
