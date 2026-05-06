@@ -227,6 +227,12 @@ if (typeof window.Chart === "undefined") {
         var eventName = container.dataset.sortableEvent || "reorder_items";
         var hideSource = container.dataset.sortableHideSource === "true";
         var groupName = container.dataset.sortableGroup;
+        // Optional drag-handle selector. When set, SortableJS only initiates
+        // a drag when the pointer is over a descendant matching this selector
+        // — the rest of the .sortable-item is non-draggable surface (clicks,
+        // text selection, button presses pass through normally). Unset →
+        // backward-compatible whole-item drag.
+        var handleSelector = container.dataset.sortableHandle;
 
         injectStyles();
 
@@ -326,6 +332,10 @@ if (typeof window.Chart === "undefined") {
 
         if (groupName) {
           sortableOpts.group = groupName;
+        }
+
+        if (handleSelector) {
+          sortableOpts.handle = handleSelector;
         }
 
         this.sortable = window.Sortable.create(container, sortableOpts);

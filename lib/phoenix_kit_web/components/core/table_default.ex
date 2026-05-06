@@ -227,6 +227,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         data-sortable-items={if @on_reorder, do: ".sortable-item"}
         data-sortable-hide-source="false"
         data-sortable-group={@reorder_group}
+        data-sortable-handle={if @on_reorder, do: ".pk-drag-handle"}
         phx-hook={if @on_reorder, do: "SortableGrid"}
         {@reorder_scope_attrs}
       >
@@ -234,7 +235,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
           :for={item <- @items}
           class={[
             "card card-sm bg-base-200 shadow-sm",
-            @on_reorder && "sortable-item cursor-grab active:cursor-grabbing"
+            @on_reorder && "sortable-item"
           ]}
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
@@ -262,7 +263,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             >
               <div
                 :if={@on_reorder}
-                class="text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
+                class="pk-drag-handle text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
                 title={gettext("Drag to reorder")}
               >
                 <.icon name="hero-bars-3" class="w-4 h-4" />
