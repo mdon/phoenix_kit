@@ -1241,8 +1241,11 @@
       phx-window-keydown="viewer_keydown"
       phx-target={@myself}
     >
-      <div class="modal-box w-11/12 max-w-7xl p-0 overflow-hidden">
-        <div class="flex flex-col lg:flex-row lg:h-[80vh]">
+      <%!-- Near-full-screen modal: 95% viewport width, 90% viewport height. --%>
+      <%!-- max-w-none clears daisyUI's default modal-box max-width cap so   --%>
+      <%!-- the w-[95vw] actually applies on wide screens.                   --%>
+      <div class="modal-box w-[95vw] max-w-none h-[90vh] p-0 overflow-hidden">
+        <div class="flex flex-col lg:flex-row lg:h-full">
           <%!-- Viewer (image / video / pdf / icon) --%>
           <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-2 min-h-[40vh] lg:min-h-0">
             <%= if has_prev do %>
