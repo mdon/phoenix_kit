@@ -1257,6 +1257,19 @@
       <%!-- 32rem, max-height: 100vh) win the cascade over plain Tailwind  --%>
       <%!-- utilities.                                                     --%>
       <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+        <%!-- Close button — top-right of modal-box. Solid bg-base-100 + ring +  --%>
+        <%!-- shadow-lg keeps it visible against any image content (the previous --%>
+        <%!-- bg-base-100/80 blended into light photos and disappeared). z-30    --%>
+        <%!-- sits above the chevron buttons (z-10) and the comments thread.    --%>
+        <button
+          type="button"
+          phx-click="close_viewer"
+          phx-target={@myself}
+          class="btn btn-ghost btn-sm btn-circle absolute top-3 right-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
+          title="Close"
+        >
+          <.icon name="hero-x-mark" class="w-4 h-4" />
+        </button>
         <div class="flex flex-col lg:flex-row h-full overflow-hidden">
           <%!-- Viewer (image / video / pdf / icon) --%>
           <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0">
@@ -1319,25 +1332,9 @@
 
           <%!-- Sidebar --%>
           <div class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] bg-base-100">
-            <%!-- Title row with always-visible close button. flex-shrink-0 on    --%>
-            <%!-- the button + min-w-0 on the h2 guarantees the X is never        --%>
-            <%!-- squeezed off-screen by a long filename, and putting it in       --%>
-            <%!-- normal flow means it can't be clipped by overflow:hidden,       --%>
-            <%!-- iPhone's rounded corners, or DevTools' device-frame chrome.     --%>
-            <div class="flex items-start gap-2">
-              <h2 class="text-base font-bold break-all leading-tight flex-1 min-w-0">
-                {f.filename}
-              </h2>
-              <button
-                type="button"
-                phx-click="close_viewer"
-                phx-target={@myself}
-                class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-                title="Close"
-              >
-                <.icon name="hero-x-mark" class="w-4 h-4" />
-              </button>
-            </div>
+            <h2 class="text-base font-bold break-all leading-tight pr-10">
+              {f.filename}
+            </h2>
 
             <%= if f.urls["original"] do %>
               <a
