@@ -473,20 +473,15 @@ Template:
 
 `parent_uploads={@uploads}` is required (the component renders a hidden `<.live_file_input>` from the parent's upload config). That's a LiveView constraint — `allow_upload` must live on the parent socket.
 
-### Click behavior — three modes
+### Click behavior
 
 The `click_file` handler picks one branch in this order:
 
-1. `select_mode` already on (anywhere, any caller) → toggle this file in/out of the selection set, stay in selection mode.
+1. `select_mode` already on (anywhere, any caller) → toggle this file in/out of the selection set, stay in selection mode. The toolbar's Select button is the way callers reach bulk-select.
 2. `admin={true}` → `push_navigate` to `/admin/media/:uuid` (the rich admin detail page with delete / restore / edit / regenerate).
-3. `viewer={true}` → open a read-only **modal** in-place showing the clicked file (image / video / PDF / icon) with its metadata and a Download button. Closes via X / Esc / backdrop click. Prev / Next chevrons (and ← / → keys) step through the current page's `uploaded_files`; arrows hide at boundaries. No navigation. If `PhoenixKitComments` is installed AND enabled (admin toggle), a comments thread for `resource_type="file"` is rendered under the metadata; the thread is keyed by `file_uuid` so prev/next remounts cleanly.
-4. Default — enter `select_mode` and toggle the clicked file in. Picker behaviour.
+3. **Default (non-admin, not in select mode)** → open a read-only **modal** in-place showing the clicked file (image / video / PDF / icon) with its metadata and a Download button. Closes via X / Esc / backdrop click. Prev / Next chevrons (and ← / → keys) step through the current page's `uploaded_files`; arrows hide at boundaries. No navigation. If `PhoenixKitComments` is installed AND enabled (admin toggle), a comments thread for `resource_type="file"` is rendered under the metadata; the thread is keyed by `file_uuid` so prev/next remounts cleanly.
 
-So a non-admin caller has two choices:
-- Pure picker (no `admin`, no `viewer`) — clicking selects.
-- Viewer modal (no `admin`, set `viewer={true}`) — clicking pops up an in-place modal with the file preview.
-
-The modal renders inside the MediaBrowser itself; there's no separate route or page. To see another file, close the modal and click another tile (or, if a future ergonomic tweak adds it, the click-while-open could swap content).
+The modal renders inside the MediaBrowser itself; there's no separate route or page. Pickers (forms that need the user to select files for some downstream purpose) get there by clicking the toolbar's Select button — that flips `select_mode` on and from then on clicks toggle selection instead of opening the modal.
 
 ### Other useful attrs
 
