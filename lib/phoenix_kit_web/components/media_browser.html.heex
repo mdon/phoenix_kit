@@ -1300,9 +1300,11 @@
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
                 <img
+                  id={"media-zoom-" <> f.file_uuid}
+                  phx-hook="MediaImageZoom"
                   src={f.urls["original"] || f.urls["medium"]}
                   alt={f.filename}
-                  class="w-full h-auto max-h-full object-contain lg:rounded"
+                  class="w-full h-auto max-h-full object-contain lg:rounded cursor-grab"
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video

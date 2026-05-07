@@ -335,6 +335,90 @@ if (typeof window.Chart === "undefined") {
 
 
   // ============================================================================
+  // 1.5. MEDIA IMAGE ZOOM HOOK
+  // ============================================================================
+  //
+  // Lazy-loads Panzoom from jsDelivr (mirrors SortableJS pattern above) and
+  // attaches it to a given <img> via the MediaImageZoom hook. Used by the
+  // MediaBrowser modal viewer so users can wheel/pinch/double-tap zoom and
+  // drag-pan the original image. The hook is only mounted on image files
+  // (the modal's cond branch for non-images doesn't render the <img> tag).
+  //
+  // ============================================================================
+
+  (function() {
+    if (window.PhoenixKitMediaZoom) return;
+    window.PhoenixKitMediaZoom = true;
+
+    var PANZOOM_CDN = "https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.6.0/dist/panzoom.min.js";
+    var panzoomLoading = false;
+    var panzoomCallbacks = [];
+
+    function loadPanzoom(callback) {
+      if (window.Panzoom) {
+        callback();
+        return;
+      }
+
+      panzoomCallbacks.push(callback);
+
+      if (panzoomLoading) return;
+      panzoomLoading = true;
+
+      var script = document.createElement("script");
+      script.src = PANZOOM_CDN;
+      script.onload = function() {
+        panzoomCallbacks.forEach(function(cb) { cb(); });
+        panzoomCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:MediaImageZoom] Failed to load Panzoom from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.MediaImageZoom = {
+      mounted: function() {
+        var self = this;
+        loadPanzoom(function() {
+          // The element may have been swapped out (e.g. user closed the modal
+          // or stepped to another file) while Panzoom was downloading.
+          if (!self.el.isConnected) return;
+
+          self.panzoom = window.Panzoom(self.el, {
+            maxScale: 8,
+            minScale: 1,
+            contain: "outside",
+            cursor: "grab"
+          });
+
+          // Wheel listener attaches to the parent so the cursor doesn't have
+          // to land on the image itself. zoomWithWheel calls preventDefault,
+          // stopping the wheel event from scrolling the page underneath.
+          self._parent = self.el.parentElement;
+          if (self._parent) {
+            self._wheelHandler = function(e) {
+              if (self.panzoom) self.panzoom.zoomWithWheel(e);
+            };
+            self._parent.addEventListener("wheel", self._wheelHandler);
+          }
+        });
+      },
+
+      destroyed: function() {
+        if (this._parent && this._wheelHandler) {
+          this._parent.removeEventListener("wheel", this._wheelHandler);
+        }
+        if (this.panzoom) {
+          try { this.panzoom.destroy(); } catch (e) { /* ignore */ }
+          this.panzoom = null;
+        }
+      }
+    };
+  })();
+
+
+  // ============================================================================
   // 2. COOKIE CONSENT MODULE
   // ============================================================================
   //
