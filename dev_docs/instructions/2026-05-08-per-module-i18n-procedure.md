@@ -340,6 +340,34 @@ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+js
 
 The user keeps unpushed commits on local `main` for development. Pushing `main` to origin would expose them. Always work via a feature branch cherry-picked from `origin/main`.
 
+### Gotcha 10: `System.cmd("psql", …)` crashes with `:enoent` when psql isn't installed
+
+**Symptom:** `mix test` aborts before running any test with `(ErlangError) Erlang error: :enoent` raised from `:erlang.open_port/2`.
+
+**Diagnosis:** the package's `test/test_helper.exs` runs a DB-existence probe via `System.cmd("psql", ["-lqt"], …)` to decide whether to include `:integration` tests. `System.cmd/3` does not catch `:enoent` from a missing executable — it raises an ErlangError. Containers without the `postgresql-client` package on PATH (most CI images, by default) hit this immediately.
+
+**Fix:** wrap the `System.cmd` call in `try/rescue`, returning `:try_connect` (or whatever the file's "fall back to TCP probe" branch is) on any error:
+
+```elixir
+db_check =
+  try do
+    case System.cmd("psql", ["-lqt"], stderr_to_stdout: true) do
+      {output, 0} ->
+        # … existing parse-output logic …
+        if exists, do: :exists, else: :not_found
+
+      _ ->
+        :try_connect
+    end
+  rescue
+    _ -> :try_connect
+  end
+```
+
+**When to apply:** every package that has `System.cmd("psql", …)` (or any other system binary call) without an existing rescue clause in `test_helper.exs`. Found and fixed on `phoenix_kit_customer_support` (PR [#3](https://github.com/BeamLabEU/phoenix_kit_customer_support/pull/3)). Newsletters did not have this — its `test_helper.exs` was a bare `ExUnit.start()` before the i18n migration.
+
+If your module's `test_helper.exs` already has a different DB-probe shape, audit it for the same class of bug — any `System.cmd`-style call without `try/rescue` is a CI crash waiting to happen on a slim container.
+
 ---
 
 ## PR body skeleton
