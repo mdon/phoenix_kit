@@ -2,89 +2,163 @@ defmodule PhoenixKit.KnownPackages do
   @moduledoc """
   Live catalog of known external PhoenixKit packages fetched from Hex.pm.
 
-  Results are cached in-process for 10 minutes via `:persistent_term`.
-  On Hex fetch failure, returns stale cached data when available, otherwise
-  returns `extra_known_packages` config entries only.
+  Fetched on demand and cached in an ETS table for 10 minutes. On Hex
+  failure, returns stale cached data when within the 24h max-stale-age
+  cap, otherwise returns `extra_known_packages` config entries only.
+
+  Cache uses an ETS named table (`:phoenix_kit_known_packages_cache`) with
+  `read_concurrency: true` rather than `:persistent_term`, to avoid
+  global-GC write amplification on multi-node cold deploys.
+
+  ## Public API
+
+    * `list/0` and `list/1` — return the catalog (cached).
+    * `clear_cache/0` — wipes the cache (for tests).
+
+  `list/1` accepts opts (intended for tests, not production):
+
+    * `:ttl_ms` — cache TTL (default `:timer.minutes(10)`)
+    * `:max_stale_age_ms` — how long stale data may be served on Hex
+      failure (default `:timer.hours(24)`)
+    * `:req_options` — pass-through to `Req.get/2`
   """
 
   require Logger
 
-  @cache_key {__MODULE__, :cache}
+  @table :phoenix_kit_known_packages_cache
+  @cache_key :cache
   @hex_search_url "https://hex.pm/api/packages"
   @icon_marker_re ~r/\bhex_docs_icon_name:\s*([a-z0-9-]+)/
   @default_icon "hero-puzzle-piece"
   @skip_packages ["phoenix_kit"]
   @ttl_ms :timer.minutes(10)
+  @max_stale_age_ms :timer.hours(24)
+  @default_req_options [receive_timeout: 3000]
+  @beamlab_org "BeamLabEU"
 
   @doc """
   Returns the list of known external PhoenixKit packages.
 
-  Fetches from Hex.pm on cache miss (up to every 10 minutes).
-  Always merges `config :phoenix_kit, extra_known_packages: [...]` on top.
+  Each entry is a map with keys: `key`, `module`, `package`,
+  `hex_package`, `name`, `description`, `icon`, `hex_url`, `github_url`,
+  `latest_version`, `source`.
 
-  Each entry is a map with keys: `key`, `package`, `name`, `description`,
-  `icon`, `hex_url`, `source`.
+  See module doc for `opts`.
   """
-  @spec list() :: [map()]
-  def list do
+  @spec list(keyword()) :: [map()]
+  def list(opts \\ []) do
+    ensure_table()
     now = System.monotonic_time(:millisecond)
+    ttl = Keyword.get(opts, :ttl_ms, @ttl_ms)
 
-    case :persistent_term.get(@cache_key, nil) do
-      {expires_at, cached} when expires_at > now ->
+    case lookup() do
+      {fetched_at, cached} when now - fetched_at < ttl ->
         cached
 
       _ ->
-        fetch_and_cache()
+        fetch_and_cache(now, opts)
     end
   end
 
   @doc "Clears the in-process cache. Intended for tests."
   @spec clear_cache() :: :ok
   def clear_cache do
-    :persistent_term.erase(@cache_key)
+    ensure_table()
+    :ets.delete(@table, @cache_key)
     :ok
   end
 
   # ---------------------------------------------------------------------------
-  # Private
+  # Private — cache mechanics
   # ---------------------------------------------------------------------------
 
-  defp fetch_and_cache do
-    case fetch_from_hex() do
-      {:ok, hex_list} ->
-        merged = merge_extras(hex_list)
-        expires_at = System.monotonic_time(:millisecond) + @ttl_ms
-        :persistent_term.put(@cache_key, {expires_at, merged})
-        merged
+  defp ensure_table do
+    case :ets.whereis(@table) do
+      :undefined ->
+        :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
 
-      {:error, reason} ->
-        Logger.warning(
-          "PhoenixKit.KnownPackages: Hex fetch failed (#{inspect(reason)}) — " <>
-            "returning config extras only"
-        )
+      _ ->
+        :ok
+    end
+  rescue
+    ArgumentError -> :ok
+  end
 
-        case :persistent_term.get(@cache_key, nil) do
-          {_expired_at, stale} -> stale
-          nil -> merge_extras([])
-        end
+  defp lookup do
+    case :ets.lookup(@table, @cache_key) do
+      [{@cache_key, fetched_at, list}] -> {fetched_at, list}
+      [] -> nil
     end
   end
 
-  defp fetch_from_hex do
-    url = @hex_search_url <> "?search=phoenix_kit_&sort=name"
-    fetch_hex_page(url, [])
+  defp fetch_and_cache(now, opts) do
+    case fetch_from_hex(opts) do
+      {:ok, hex_list} ->
+        merged = merge_extras(hex_list)
+        :ets.insert(@table, {@cache_key, now, merged})
+        merged
+
+      {:error, reason} ->
+        handle_hex_failure(reason, now, opts)
+    end
   end
 
-  defp fetch_hex_page(nil, acc), do: {:ok, acc}
+  defp handle_hex_failure(reason, now, opts) do
+    max_stale = Keyword.get(opts, :max_stale_age_ms, @max_stale_age_ms)
 
-  defp fetch_hex_page(url, acc) do
-    opts = Application.get_env(:phoenix_kit, :_known_packages_req_opts, receive_timeout: 3000)
+    case lookup() do
+      {fetched_at, stale} when now - fetched_at <= max_stale ->
+        age_minutes = div(now - fetched_at, :timer.minutes(1))
 
-    case Req.get(url, opts) do
+        Logger.warning(
+          "PhoenixKit.KnownPackages: Hex fetch failed (#{inspect(reason)}) — " <>
+            "serving stale data (age=#{age_minutes}m)"
+        )
+
+        stale
+
+      {fetched_at, _stale} ->
+        age_hours = div(now - fetched_at, :timer.hours(1))
+
+        Logger.error(
+          "PhoenixKit.KnownPackages: Hex fetch failed (#{inspect(reason)}) and " <>
+            "cached data exceeds max stale age (#{age_hours}h) — returning extras only"
+        )
+
+        :ets.delete(@table, @cache_key)
+        merge_extras([])
+
+      nil ->
+        Logger.warning(
+          "PhoenixKit.KnownPackages: Hex fetch failed (#{inspect(reason)}) and " <>
+            "no cached data — returning extras only"
+        )
+
+        merge_extras([])
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private — Hex fetch
+  # ---------------------------------------------------------------------------
+
+  defp fetch_from_hex(opts) do
+    url = @hex_search_url <> "?search=phoenix_kit_&sort=name"
+    req_options = Keyword.get(opts, :req_options, @default_req_options)
+    fetch_hex_page(url, [], req_options)
+  end
+
+  defp fetch_hex_page(nil, acc, _opts), do: {:ok, acc}
+
+  defp fetch_hex_page(url, acc, req_options) do
+    case Req.get(url, req_options) do
       {:ok, %{status: 200, body: packages, headers: headers}} when is_list(packages) ->
         valid = packages |> Enum.reject(&skip_package?/1) |> Enum.map(&shape_entry/1)
         next_url = parse_next_link(headers)
-        fetch_hex_page(next_url, acc ++ valid)
+        fetch_hex_page(next_url, acc ++ valid, req_options)
+
+      {:ok, %{status: 200}} ->
+        {:error, :malformed_response}
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
@@ -99,6 +173,22 @@ defmodule PhoenixKit.KnownPackages do
   defp skip_package?(%{"name" => name}), do: name in @skip_packages
   defp skip_package?(_), do: false
 
+  defp parse_next_link(headers) when is_map(headers) do
+    link = headers |> Map.get("link", []) |> List.first()
+
+    with binary when is_binary(binary) <- link,
+         [_, url] <- Regex.run(~r/<([^>]+)>;\s*rel="next"/, binary) do
+      url
+    else
+      _ -> nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private — entry shape (kept backward-compatible with the previous
+  # hardcoded list: includes module/hex_package/github_url/latest_version)
+  # ---------------------------------------------------------------------------
+
   defp shape_entry(pkg) do
     package = pkg["name"]
     key = String.replace_prefix(package, "phoenix_kit_", "")
@@ -107,13 +197,36 @@ defmodule PhoenixKit.KnownPackages do
 
     %{
       key: key,
+      module: derive_module_atom(package),
       package: package,
+      hex_package: package,
       name: humanize_key(key),
       description: stripped_description,
       icon: icon,
       hex_url: "https://hex.pm/packages/#{package}",
+      github_url: github_url_for(pkg, package),
+      latest_version: pkg["latest_version"],
       source: "hex"
     }
+  end
+
+  defp derive_module_atom(package) do
+    package
+    |> String.split("_")
+    |> Enum.map_join("", &String.capitalize/1)
+    |> then(&("Elixir." <> &1))
+    |> String.to_atom()
+  end
+
+  defp github_url_for(pkg, package) do
+    links = get_in(pkg, ["meta", "links"]) || %{}
+    github = links["GitHub"] || links["Github"] || links["github"]
+
+    if is_binary(github) and String.contains?(github, "github.com") do
+      github
+    else
+      "https://github.com/#{@beamlab_org}/#{package}"
+    end
   end
 
   defp humanize_key(key) do
@@ -131,24 +244,28 @@ defmodule PhoenixKit.KnownPackages do
     end
   end
 
-  defp parse_next_link(headers) when is_map(headers) do
-    link = headers |> Map.get("link", []) |> List.first()
-
-    with binary when is_binary(binary) <- link,
-         [_, url] <- Regex.run(~r/<([^>]+)>;\s*rel="next"/, binary) do
-      url
-    else
-      _ -> nil
-    end
-  end
+  # ---------------------------------------------------------------------------
+  # Private — config extras (parent-app-provided private/forked packages)
+  # ---------------------------------------------------------------------------
 
   defp merge_extras(hex_list) do
     extras =
-      Application.get_env(:phoenix_kit, :extra_known_packages, [])
-      |> Enum.map(&Map.put(&1, :source, "config"))
+      :phoenix_kit
+      |> Application.get_env(:extra_known_packages, [])
+      |> Enum.map(&normalize_config_entry/1)
 
-    # Config wins: concat config first, then hex; uniq_by keeps first (config)
-    (extras ++ hex_list)
-    |> Enum.uniq_by(& &1.package)
+    # Config wins: concat config first, then hex; uniq_by keeps the first
+    (extras ++ hex_list) |> Enum.uniq_by(& &1.package)
+  end
+
+  defp normalize_config_entry(entry) do
+    package = Map.get(entry, :package)
+
+    entry
+    |> Map.put(:source, "config")
+    |> Map.put_new(:hex_package, package)
+    |> Map.put_new(:module, nil)
+    |> Map.put_new(:github_url, nil)
+    |> Map.put_new(:latest_version, nil)
   end
 end

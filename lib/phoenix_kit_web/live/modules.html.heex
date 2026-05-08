@@ -758,7 +758,12 @@
 
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                   <span class="badge badge-ghost badge-outline">Not installed</span>
-                  <a href={pkg.hex_url} target="_blank" class="btn btn-xs btn-outline">
+                  <a
+                    :if={pkg.hex_url}
+                    href={pkg.hex_url}
+                    target="_blank"
+                    class="btn btn-xs btn-outline"
+                  >
                     <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" /> Hex.pm
                   </a>
                 </div>
