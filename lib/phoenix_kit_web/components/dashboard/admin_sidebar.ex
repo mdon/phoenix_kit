@@ -23,7 +23,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
 
   require Logger
 
-  alias PhoenixKit.Dashboard.{Registry, Tab}
+  alias PhoenixKit.Dashboard.{Group, Registry, Tab}
   alias PhoenixKitWeb.Components.Dashboard.TabItem
 
   import PhoenixKit.Dashboard.TabHelpers
@@ -98,13 +98,13 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
   defp admin_tab_group(assigns) do
     ~H"""
     <div class="space-y-1" data-group-id={@group.id}>
-      <%= if @group.label do %>
+      <%= if Group.localized_label(@group) do %>
         <div class="px-3 py-2 text-xs font-semibold text-base-content/50 uppercase tracking-wider">
           <span class="flex items-center gap-2">
             <%= if @group.icon do %>
               <.icon name={@group.icon} class="w-3.5 h-3.5" />
             <% end %>
-            {@group.label}
+            {Group.localized_label(@group)}
           </span>
         </div>
       <% end %>
@@ -270,6 +270,16 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
 
   defp invoke_dynamic_children(fun, scope, _locale) when is_function(fun, 1),
     do: fun.(scope)
+
+  @doc false
+  # Test-only public delegate. The internal dispatch helper is `defp` because
+  # it shouldn't be part of the runtime API; this `@doc false` wrapper lets
+  # the unit suite exercise the actual arity dispatch (rather than just
+  # re-asserting Elixir's call semantics on anonymous functions). Not
+  # recommended for runtime callers — the contract is `dynamic_children_fn`,
+  # not this wrapper.
+  def __invoke_dynamic_children_for_test__(fun, scope, locale),
+    do: invoke_dynamic_children(fun, scope, locale)
 
   # Recursively checks if any descendant (children, grandchildren, etc.) is active.
   # Includes depth limit and cycle detection for safety with parent-app-registered tabs.

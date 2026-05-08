@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.102"
+  @version "1.7.106"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -113,10 +113,11 @@ defmodule PhoenixKit.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2.10"},
+      {:leaf, "~> 0.2.11"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
@@ -191,12 +192,20 @@ defmodule PhoenixKit.MixProject do
         "guides/draggable-list-component.md",
         "guides/README.md",
         "guides/custom-admin-pages.md",
+        "guides/per-module-i18n.md",
         "lib/phoenix_kit/dashboard/ADMIN_README.md"
       ],
       groups_for_extras: [
         Guides: ~r/(guides\/.*|ADMIN_README)/
       ],
-      groups_for_modules: []
+      groups_for_modules: [],
+      # CHANGELOG is a historical record — entries cite functions/
+      # modules that may have since been renamed, made private, or
+      # extracted to another package (e.g. external Ecto modules
+      # referenced by code spans). Don't fail the docs build over
+      # stale historical references; module-level docs still get
+      # full reference checking.
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
     ]
   end
 

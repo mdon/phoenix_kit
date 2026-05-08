@@ -32,6 +32,8 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
       ModuleRegistry.feature_enabled_checks()  # Build {mod, :enabled?} map
       ModuleRegistry.get_by_key("tickets")   # Find module by key
+      ModuleRegistry.get_module_key_for_namespace("PhoenixKitTickets")
+                                             # Resolve top-level namespace → key
   """
 
   use GenServer
@@ -135,7 +137,7 @@ defmodule PhoenixKit.ModuleRegistry do
   @doc """
   Build a feature_enabled_checks map from registered modules.
 
-  Returns `%{"customer_service" => {PhoenixKit.Modules.CustomerService, :enabled?}, ...}`
+  Returns `%{"referrals" => {PhoenixKit.Modules.Referrals, :enabled?}, ...}`
   """
   @spec feature_enabled_checks() :: %{String.t() => {module(), atom()}}
   def feature_enabled_checks do
@@ -182,6 +184,27 @@ defmodule PhoenixKit.ModuleRegistry do
   end
 
   @doc """
+  Find a registered module's key by matching a top-level Elixir namespace.
+
+  Used by the admin permission layer to resolve a plugin LiveView's namespace
+  (e.g. `"PhoenixKitEntities"` from `PhoenixKitEntities.Web.Entities`) to the
+  plugin's permission key (e.g. `"entities"`).
+
+  Returns the key string or `nil` when no registered module matches.
+  """
+  @spec get_module_key_for_namespace(String.t()) :: String.t() | nil
+  def get_module_key_for_namespace(top_namespace) when is_binary(top_namespace) do
+    Enum.find_value(all_modules(), fn mod ->
+      with [^top_namespace] <- Module.split(mod),
+           key when is_binary(key) <- safe_call(mod, :module_key, nil) do
+        key
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  @doc """
   Returns dependency warnings for the Modules page.
 
   Each warning is a map:
@@ -221,8 +244,14 @@ defmodule PhoenixKit.ModuleRegistry do
   """
   @spec not_installed_packages() :: [map()]
   def not_installed_packages do
+    installed_otp_apps =
+      PhoenixKit.ModuleDiscovery.discover_external_modules()
+      |> Enum.map(&Application.get_application/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new(&Atom.to_string/1)
+
     known_external_packages()
-    |> Enum.reject(fn pkg -> Code.ensure_loaded?(pkg.module) end)
+    |> Enum.reject(&MapSet.member?(installed_otp_apps, &1.package))
   end
 
   @doc "Returns all feature module key strings from registered modules."
@@ -401,149 +430,26 @@ defmodule PhoenixKit.ModuleRegistry do
   # remove it from this list and add it to :modules config instead.
   defp internal_modules do
     [
-      PhoenixKit.Modules.DB,
       PhoenixKit.Modules.Languages,
       PhoenixKit.Modules.Maintenance,
       PhoenixKit.Modules.Referrals,
       PhoenixKit.Modules.SEO,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,
-      PhoenixKit.Modules.CustomerService,
       PhoenixKit.Jobs
     ]
   end
 
-  # Known external PhoenixKit packages. Listed here so the admin Modules page
-  # can show "not installed" cards for packages the user hasn't added yet.
-  defp known_external_packages do
-    [
-      %{
-        module: PhoenixKit.Newsletters,
-        key: "newsletters",
-        hex_package: "phoenix_kit_newsletters",
-        name: "Newsletters",
-        description:
-          "Email newsletter management with list subscriptions, broadcast campaigns, and delivery tracking.",
-        icon: "📧",
-        hex_url: "https://hex.pm/packages/phoenix_kit_newsletters"
-      },
-      %{
-        module: PhoenixKitSync,
-        key: "sync",
-        hex_package: "phoenix_kit_sync",
-        name: "Sync",
-        description:
-          "Peer-to-peer data synchronization between PhoenixKit instances with token-based connections and transfer tracking.",
-        icon: "🔄",
-        hex_url: "https://hex.pm/packages/phoenix_kit_sync"
-      },
-      %{
-        module: PhoenixKitPosts,
-        key: "posts",
-        hex_package: "phoenix_kit_posts",
-        name: "Posts",
-        description:
-          "Blog posts, tags, groups, likes, media attachments, and scheduled publishing.",
-        icon: "📝",
-        hex_url: "https://hex.pm/packages/phoenix_kit_posts"
-      },
-      %{
-        module: PhoenixKit.Modules.Emails,
-        key: "emails",
-        hex_package: "phoenix_kit_emails",
-        name: "Emails",
-        description:
-          "Email tracking, templates, SQS integration, blocklist, and delivery analytics.",
-        icon: "📨",
-        hex_url: "https://hex.pm/packages/phoenix_kit_emails"
-      },
-      %{
-        module: PhoenixKit.Modules.Publishing,
-        key: "publishing",
-        hex_package: "phoenix_kit_publishing",
-        name: "Publishing",
-        description:
-          "Content publishing with groups, multilingual support, versioning, and collaborative editing.",
-        icon: "📰",
-        hex_url: "https://hex.pm/packages/phoenix_kit_publishing"
-      },
-      %{
-        module: PhoenixKitEntities,
-        key: "entities",
-        hex_package: "phoenix_kit_entities",
-        name: "Entities",
-        description:
-          "Custom data entities with fields, forms, multilingual support, and data navigation.",
-        icon: "🧩",
-        hex_url: "https://hex.pm/packages/phoenix_kit_entities"
-      },
-      %{
-        module: PhoenixKitAI,
-        key: "ai",
-        hex_package: "phoenix_kit_ai",
-        name: "AI",
-        description:
-          "AI endpoint management, prompt templates, completions via OpenRouter, and usage tracking.",
-        icon: "🤖",
-        hex_url: "https://hex.pm/packages/phoenix_kit_ai"
-      },
-      %{
-        module: PhoenixKit.Modules.Legal,
-        key: "legal",
-        hex_package: "phoenix_kit_legal",
-        name: "Legal",
-        description:
-          "GDPR/CCPA compliance with legal page generation, cookie consent widget, and consent audit logging.",
-        icon: "⚖️",
-        hex_url: "https://hex.pm/packages/phoenix_kit_legal"
-      },
-      %{
-        module: PhoenixKitCatalogue,
-        key: "catalogue",
-        hex_package: "phoenix_kit_catalogue",
-        name: "Catalogue",
-        description: "Product catalogues with manufacturers, suppliers, categories, and items.",
-        icon: "📦",
-        hex_url: "https://hex.pm/packages/phoenix_kit_catalogue"
-      },
-      %{
-        module: PhoenixKitDocumentCreator,
-        key: "document_creator",
-        hex_package: "phoenix_kit_document_creator",
-        name: "Document Creator",
-        description: "Document template management and PDF generation via Google Docs API.",
-        icon: "📄",
-        hex_url: "https://hex.pm/packages/phoenix_kit_document_creator"
-      },
-      %{
-        module: PhoenixKitUserConnections,
-        key: "user_connections",
-        hex_package: "phoenix_kit_user_connections",
-        name: "User Connections",
-        description:
-          "Social relationships with follows, mutual connections, blocking, and audit history.",
-        icon: "🤝",
-        hex_url: "https://hex.pm/packages/phoenix_kit_user_connections"
-      },
-      %{
-        module: PhoenixKitComments,
-        key: "comments",
-        hex_package: "phoenix_kit_comments",
-        name: "Comments",
-        description: "Comment system with likes and admin management.",
-        icon: "💬",
-        hex_url: "https://hex.pm/packages/phoenix_kit_comments"
-      },
-      %{
-        module: PhoenixKitHelloWorld,
-        key: "hello_world",
-        hex_package: "phoenix_kit_hello_world",
-        name: "Hello World",
-        description: "Example module template for building new PhoenixKit modules.",
-        icon: "👋",
-        hex_url: "https://hex.pm/packages/phoenix_kit_hello_world"
-      }
-    ]
+  @doc """
+  Returns the full catalog of known external PhoenixKit packages.
+
+  Fetches live from Hex.pm with a 10-minute in-memory cache.
+  Merged with any entries from `config :phoenix_kit, extra_known_packages: [...]`.
+  Config entries take precedence over Hex entries when the `package` field collides.
+  """
+  @spec known_external_packages() :: [map()]
+  def known_external_packages do
+    PhoenixKit.KnownPackages.list()
   end
 
   defp warn_duplicate_tab_ids(tabs) do
@@ -595,6 +501,90 @@ defmodule PhoenixKit.ModuleRegistry do
         )
       end
     end
+  end
+
+  @doc """
+  Run every enabled module's `migrate_legacy/0` callback.
+
+  Iterates registered modules, calls `migrate_legacy/0` on each that
+  implements it, swallows per-module errors so the host-app boot can't
+  be taken down by a flaky migration. Each module's implementation is
+  expected to be idempotent (safe to re-run on every boot).
+
+  Activity logging happens inside each module's `migrate_legacy/0` —
+  this orchestrator only logs the per-module pass/fail outcome to the
+  Logger, not to Activity.
+
+  Designed to be called once from a host app's `Application.start/2`
+  after the Repo and supervision tree are up:
+
+      def start(_type, _args) do
+        children = [...]
+        result = Supervisor.start_link(children, opts)
+        PhoenixKit.ModuleRegistry.run_all_legacy_migrations()
+        result
+      end
+
+  Returns a summary map: `%{module_atom => :ok | {:error, term()}}`.
+  """
+  @spec run_all_legacy_migrations() :: %{module() => :ok | {:error, term()}}
+  def run_all_legacy_migrations do
+    all_modules()
+    |> Enum.reduce(%{}, fn mod, acc ->
+      Map.put(acc, mod, run_one_legacy_migration(mod))
+    end)
+  end
+
+  defp run_one_legacy_migration(mod) do
+    cond do
+      not Code.ensure_loaded?(mod) ->
+        {:error, :module_not_loaded}
+
+      not function_exported?(mod, :migrate_legacy, 0) ->
+        :ok
+
+      true ->
+        do_run_legacy_migration(mod)
+    end
+  end
+
+  defp do_run_legacy_migration(mod) do
+    case mod.migrate_legacy() do
+      :ok ->
+        :ok
+
+      {:ok, _summary} ->
+        :ok
+
+      {:error, reason} = err ->
+        Logger.warning(
+          "[ModuleRegistry] #{inspect(mod)}.migrate_legacy/0 returned error: #{inspect(reason)}"
+        )
+
+        err
+
+      other ->
+        Logger.warning(
+          "[ModuleRegistry] #{inspect(mod)}.migrate_legacy/0 returned unexpected shape: " <>
+            inspect(other)
+        )
+
+        {:error, {:unexpected_return, other}}
+    end
+  rescue
+    error ->
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.migrate_legacy/0 raised: #{Exception.message(error)}"
+      )
+
+      {:error, error}
+  catch
+    :exit, reason ->
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.migrate_legacy/0 exited: #{inspect(reason)}"
+      )
+
+      {:error, {:exit, reason}}
   end
 
   # Safely call an optional callback on a module, returning the default

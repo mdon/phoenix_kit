@@ -40,6 +40,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
@@ -461,7 +462,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
     end
@@ -477,7 +478,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -527,7 +528,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -565,7 +566,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -611,7 +612,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -990,7 +991,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"comments", "/admin/comments"},
     {"billing", "/admin/billing"},
     {"entities", "/admin/entities"},
-    {"customer_service", "/admin/customer-service/tickets"},
+    {"customer_support", "/admin/customer-support/tickets"},
     {"emails", "/admin/emails"},
     {"ai", "/admin/ai"},
     {"jobs", "/admin/jobs"},
@@ -1146,7 +1147,27 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs"
   }
 
-  defp permission_key_for_admin_view(view_module) do
+  # Resolve a LiveView module to its permission key.
+  #
+  # Resolution order (first non-nil wins):
+  #
+  #   1. `@admin_view_permissions` static map — core admin views.
+  #   2. `infer_permission_from_custom_tabs/1` — modules that registered
+  #      admin tabs with a `live_view:` field.
+  #   3. `PhoenixKit.Modules.<X>.Web.*` namespace inference — internal
+  #      modules under the core namespace.
+  #   4. Plugin top-level namespace via `ModuleRegistry` — external
+  #      packages whose top-level module name matches a registered
+  #      module (e.g. `PhoenixKitEntities` → `"entities"`).
+  #
+  # Returns `nil` for views that don't resolve through any path —
+  # callers must apply their own fail-closed default.
+  #
+  # Exposed as `@doc false def` (rather than `defp`) so unit tests can
+  # exercise the resolution layers directly without LiveView mounting
+  # machinery. Not part of the public API.
+  @doc false
+  def permission_key_for_admin_view(view_module) do
     case Map.get(@admin_view_permissions, view_module) do
       nil ->
         infer_permission_from_custom_tabs(view_module) ||
@@ -1164,14 +1185,16 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> Map.get(view_module)
   end
 
-  # Infer permission key from PhoenixKit.Modules.<Name>.Web.* namespace
+  # Infer permission key from `PhoenixKit.Modules.<Name>.Web.*` (core) or from a
+  # registered external plugin's top-level namespace
+  # (`PhoenixKitEntities.*`, `PhoenixKitBilling.*`, …) via `ModuleRegistry`.
   defp infer_permission_key_from_module(view_module) do
     case Module.split(view_module) do
       ["PhoenixKit", "Modules", module_name | _rest] ->
         Macro.underscore(module_name)
 
-      _ ->
-        nil
+      [top | _rest] ->
+        ModuleRegistry.get_module_key_for_namespace(top)
     end
   end
 
@@ -1616,6 +1639,35 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  # LiveView counterpart to maybe_store_return_to/1: builds a login URL
+  # carrying the original request path as a ?return_to= query param.
+  # The login LiveView reads it (sanitize_return_to/1), the form posts
+  # it back, session.ex stashes it as :user_return_to, log_in_user/3
+  # redirects there. We skip the param when the URI isn't available or
+  # the user is already on the login page (guards against self-loops).
+  #
+  # The self-loop check trims trailing slashes on both sides so
+  # `/users/log-in` and `/users/log-in/` are treated as the same path —
+  # without the trim, a hand-typed trailing-slash URL would round-trip
+  # back to itself via `?return_to=`.
+  defp login_path_with_return_to(socket) do
+    login_path = Routes.path("/users/log-in")
+    login_path_canonical = String.trim_trailing(login_path, "/")
+
+    case Phoenix.LiveView.get_connect_info(socket, :uri) do
+      %URI{path: path} = uri when is_binary(path) ->
+        if String.trim_trailing(path, "/") == login_path_canonical do
+          login_path
+        else
+          query = if uri.query, do: "?" <> uri.query, else: ""
+          login_path <> "?return_to=" <> URI.encode_www_form(path <> query)
+        end
+
+      _ ->
+        login_path
+    end
+  end
 
   defp signed_in_path(_conn), do: "/"
 

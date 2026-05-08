@@ -158,7 +158,21 @@ if (typeof window.Chart === "undefined") {
         ".pk-sortable-wiggle { animation: pk-sortable-wiggle 0.4s ease-in-out infinite; }",
         ".pk-sortable-wiggle:nth-child(even) { animation-delay: 0.1s; }",
         ".pk-sortable-wiggle:nth-child(3n) { animation-delay: 0.2s; }",
-        "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }"
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }",
+        // Reorder result flash — green on success, red on failure.
+        // The hook applies the class transiently after the LV emits a
+        // sortable:flash push_event. We overlay a pseudo-element
+        // (::after) instead of animating background-color directly,
+        // so cards with their own bg (e.g. bg-base-200) don't briefly
+        // become transparent during the keyframe interpolation and
+        // bleed the page bg through.
+        ".pk-sortable-flash-ok, .pk-sortable-flash-err { position: relative; }",
+        ".pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; z-index: 1; }",
+        "@keyframes pk-sortable-flash-ok { 0% { background-color: rgba(34, 197, 94, 0); } 15% { background-color: rgba(34, 197, 94, 0.35); } 100% { background-color: rgba(34, 197, 94, 0); } }",
+        "@keyframes pk-sortable-flash-err { 0% { background-color: rgba(239, 68, 68, 0); } 15% { background-color: rgba(239, 68, 68, 0.35); } 100% { background-color: rgba(239, 68, 68, 0); } }",
+        ".pk-sortable-flash-ok::after { animation: pk-sortable-flash-ok 1.1s ease-out; }",
+        ".pk-sortable-flash-err::after { animation: pk-sortable-flash-err 1.1s ease-out; }",
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { animation: none; } }"
       ].join("\n");
       document.head.appendChild(style);
     }
@@ -197,6 +211,49 @@ if (typeof window.Chart === "undefined") {
     window.PhoenixKitHooks.SortableGrid = {
       mounted: function() {
         var self = this;
+
+        // Server-driven flash: the LV pushes `sortable:flash` after each
+        // reorder attempt with `{uuid, status: "ok" | "error"}`. We
+        // find the row by `data-id` and apply a transient highlight
+        // class. Idempotent — the offsetWidth read forces a reflow so
+        // re-flashing the same row restarts the animation.
+        this.handleEvent("sortable:flash", function(payload) {
+          if (!payload || !payload.uuid) return;
+          // Apply to *every* element with the data-id — table view and
+          // card view each render the same item, so both DOM nodes
+          // need the class. Whichever is currently visible (md:
+          // breakpoint controls it) animates in front of the user.
+          var items = document.querySelectorAll(
+            '[data-id="' + payload.uuid + '"]'
+          );
+          if (!items.length) return;
+          // Explicit map — treat anything that isn't "ok" or "error" as
+          // a typo on the server side and bail rather than silently
+          // falling into the err-class branch.
+          var cls =
+            payload.status === "ok"
+              ? "pk-sortable-flash-ok"
+              : payload.status === "error"
+                ? "pk-sortable-flash-err"
+                : null;
+          if (!cls) return;
+          items.forEach(function(item) {
+            item.classList.remove(
+              "pk-sortable-flash-ok",
+              "pk-sortable-flash-err"
+            );
+            // Force reflow so a second consecutive flash re-runs the
+            // keyframes on this element.
+            void item.offsetWidth;
+            item.classList.add(cls);
+          });
+          setTimeout(function() {
+            items.forEach(function(item) {
+              item.classList.remove(cls);
+            });
+          }, 1200);
+        });
+
         loadSortableJS(function() {
           setTimeout(function() {
             self.initSortable();
@@ -226,12 +283,41 @@ if (typeof window.Chart === "undefined") {
         var container = this.el;
         var eventName = container.dataset.sortableEvent || "reorder_items";
         var hideSource = container.dataset.sortableHideSource === "true";
+        var groupName = container.dataset.sortableGroup;
+        // Optional drag-handle selector. When set, SortableJS only initiates
+        // a drag when the pointer is over a descendant matching this selector
+        // — the rest of the .sortable-item is non-draggable surface (clicks,
+        // text selection, button presses pass through normally). Unset →
+        // backward-compatible whole-item drag.
+        var handleSelector = container.dataset.sortableHandle;
 
         injectStyles();
 
         this._itemCount = container.querySelectorAll(".sortable-item[data-id]").length;
 
-        this.sortable = window.Sortable.create(container, {
+        // Helper: read all data-sortable-scope-* attrs off an element and
+        // turn them into a `{key: value}` map. dataset already gives
+        // camelCase keys; we just strip the "sortableScope" prefix and
+        // lowercase the first letter.
+        var readScope = function(el) {
+          var out = {};
+          for (var key in el.dataset) {
+            if (key.indexOf("sortableScope") === 0 && key.length > "sortableScope".length) {
+              var fieldName = key.substring("sortableScope".length);
+              fieldName = fieldName.charAt(0).toLowerCase() + fieldName.slice(1);
+              out[fieldName] = el.dataset[key];
+            }
+          }
+          return out;
+        };
+
+        // SortableJS `group` controls which sortables can exchange items.
+        // - String form: simple shared group (any matching name accepts/donates).
+        // - Object form: {name, pull: true, put: true} when consumer needs
+        //   explicit cross-container behavior. We keep it as a plain string
+        //   here; the default pull/put = true is what cross-container DnD
+        //   needs.
+        var sortableOpts = {
           animation: 150,
           draggable: ".sortable-item",
           filter: ".sortable-ignore",
@@ -240,23 +326,191 @@ if (typeof window.Chart === "undefined") {
           ghostClass: "sortable-ghost",
           chosenClass: "sortable-chosen",
           dragClass: "sortable-drag",
+          // Lock <tr> cell widths before drag — when SortableJS clones
+          // the row to <body> for the drag preview (forceFallback +
+          // fallbackOnBody), the <tr> loses its <table> ancestor and
+          // each <td> collapses to its content width. Snapshot the
+          // computed widths and pin them inline so the floating row
+          // keeps its column layout. Restore on drag end.
+          onChoose: function(evt) {
+            var item = evt.item;
+            if (item && item.tagName === "TR") {
+              item._pkCellWidths = [];
+              var cells = item.children;
+              for (var i = 0; i < cells.length; i++) {
+                item._pkCellWidths.push(cells[i].style.width);
+                cells[i].style.width = cells[i].offsetWidth + "px";
+              }
+            }
+          },
+          onUnchoose: function(evt) {
+            var item = evt.item;
+            if (item && item.tagName === "TR" && item._pkCellWidths) {
+              var cells = item.children;
+              for (var i = 0; i < cells.length && i < item._pkCellWidths.length; i++) {
+                cells[i].style.width = item._pkCellWidths[i];
+              }
+              delete item._pkCellWidths;
+            }
+          },
           onStart: function() {
             if (hideSource) {
-              // Hide the fallback clone that SortableJS places at the initial position on body
               setTimeout(function() {
                 var fallback = document.querySelector("body > .sortable-fallback");
                 if (fallback) fallback.style.display = "none";
               }, 0);
             }
           },
+          // onEnd assumes the hook has exclusive control over the
+          // .sortable-item nodes inside its container — i.e. the LV
+          // owns this DOM subtree. If a third-party script ever
+          // injects nodes with `class="sortable-item" data-id=...`
+          // alongside ours, those IDs will be picked up by the
+          // querySelectorAll below; the LV handler should then
+          // reject unknown IDs at the server side. Trust your own DOM.
+          //
+          // The whole body is wrapped in try/catch so a single bad
+          // dataset value (e.g. corrupt JSON in a custom scope attr,
+          // or a missing source container after a fast unmount) flashes
+          // a console error instead of leaving SortableJS in a half-
+          // initialized state with the LV unable to reorder again.
           onEnd: function(evt) {
-            var items = container.querySelectorAll(".sortable-item[data-id]");
-            var orderedIds = Array.from(items).map(function(el) {
-              return el.dataset.id;
-            });
-            self.pushEvent(eventName, { ordered_ids: orderedIds });
+            try {
+              var fromContainer = evt.from;
+              var toContainer = evt.to;
+              var crossContainer = fromContainer !== toContainer;
+
+              // The destination container's items reflect the new ordering;
+              // the source's lost one but its remaining order is preserved
+              // by SortableJS, so we don't need a server reorder there.
+              var destItems = toContainer.querySelectorAll(".sortable-item[data-id]");
+              var orderedIds = Array.from(destItems).map(function(el) {
+                return el.dataset.id;
+              });
+
+              // `moved_id` is always included so the LV can push back
+               // a sortable:flash event keyed to the just-moved row.
+              var payload = {
+                ordered_ids: orderedIds,
+                moved_id: evt.item.dataset.id
+              };
+              var destScope = readScope(toContainer);
+              for (var k in destScope) payload[k] = destScope[k];
+
+              if (crossContainer) {
+                var fromScope = readScope(fromContainer);
+                for (var k2 in fromScope) {
+                  // Capitalize first letter so `categoryUuid` becomes
+                  // `fromCategoryUuid` (camelCase preserved).
+                  var capped = k2.charAt(0).toUpperCase() + k2.slice(1);
+                  payload["from" + capped] = fromScope[k2];
+                }
+                // Use the destination's event name so the LV handler is
+                // co-located with the table the item ended up in.
+                var destEvent = toContainer.dataset.sortableEvent || eventName;
+                self.pushEvent(destEvent, payload);
+              } else {
+                self.pushEvent(eventName, payload);
+              }
+            } catch (err) {
+              console.error("PhoenixKitHooks.SortableGrid.onEnd failed:", err);
+            }
+          }
+        };
+
+        if (groupName) {
+          sortableOpts.group = groupName;
+        }
+
+        if (handleSelector) {
+          sortableOpts.handle = handleSelector;
+        }
+
+        this.sortable = window.Sortable.create(container, sortableOpts);
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // 1.5. MEDIA IMAGE ZOOM HOOK
+  // ============================================================================
+  //
+  // Lazy-loads Panzoom from jsDelivr (mirrors SortableJS pattern above) and
+  // attaches it to a given <img> via the MediaImageZoom hook. Used by the
+  // MediaBrowser modal viewer so users can wheel/pinch/double-tap zoom and
+  // drag-pan the original image. The hook is only mounted on image files
+  // (the modal's cond branch for non-images doesn't render the <img> tag).
+  //
+  // ============================================================================
+
+  (function() {
+    if (window.PhoenixKitMediaZoom) return;
+    window.PhoenixKitMediaZoom = true;
+
+    var PANZOOM_CDN = "https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.6.0/dist/panzoom.min.js";
+    var panzoomLoading = false;
+    var panzoomCallbacks = [];
+
+    function loadPanzoom(callback) {
+      if (window.Panzoom) {
+        callback();
+        return;
+      }
+
+      panzoomCallbacks.push(callback);
+
+      if (panzoomLoading) return;
+      panzoomLoading = true;
+
+      var script = document.createElement("script");
+      script.src = PANZOOM_CDN;
+      script.onload = function() {
+        panzoomCallbacks.forEach(function(cb) { cb(); });
+        panzoomCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:MediaImageZoom] Failed to load Panzoom from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.MediaImageZoom = {
+      mounted: function() {
+        var self = this;
+        loadPanzoom(function() {
+          // The element may have been swapped out (e.g. user closed the modal
+          // or stepped to another file) while Panzoom was downloading.
+          if (!self.el.isConnected) return;
+
+          self.panzoom = window.Panzoom(self.el, {
+            maxScale: 8,
+            minScale: 1,
+            contain: "outside",
+            cursor: "grab"
+          });
+
+          // Wheel listener attaches to the parent so the cursor doesn't have
+          // to land on the image itself. zoomWithWheel calls preventDefault,
+          // stopping the wheel event from scrolling the page underneath.
+          self._parent = self.el.parentElement;
+          if (self._parent) {
+            self._wheelHandler = function(e) {
+              if (self.panzoom) self.panzoom.zoomWithWheel(e);
+            };
+            self._parent.addEventListener("wheel", self._wheelHandler);
           }
         });
+      },
+
+      destroyed: function() {
+        if (this._parent && this._wheelHandler) {
+          this._parent.removeEventListener("wheel", this._wheelHandler);
+        }
+        if (this.panzoom) {
+          try { this.panzoom.destroy(); } catch (e) { /* ignore */ }
+          this.panzoom = null;
+        }
       }
     };
   })();
@@ -1080,6 +1334,79 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // CopyToClipboard Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Mount on a button. The button must have `data-copy-target` pointing
+  // at a CSS selector for the element whose value should be copied
+  // (typically a sibling `<input>`). Optional: an inner element with
+  // `data-copy-feedback` whose `hidden` class is toggled briefly to
+  // show "Copied!" feedback, and an inner element with `data-copy-idle`
+  // whose `hidden` class is the inverse so only one shows at a time.
+  //
+  // Usage in LiveView template:
+  //   <button phx-hook="CopyToClipboard"
+  //           id="copy-foo"
+  //           data-copy-target="#field-foo"
+  //           type="button">
+  //     <span data-copy-idle>Copy</span>
+  //     <span data-copy-feedback class="hidden">Copied!</span>
+  //   </button>
+  //
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.CopyToClipboard = {
+    mounted() {
+      const targetSelector = this.el.getAttribute("data-copy-target");
+      if (!targetSelector) return;
+
+      this.handler = async (e) => {
+        e.preventDefault();
+        const target = document.querySelector(targetSelector);
+        if (!target) return;
+        const value = target.value !== undefined ? target.value : target.textContent;
+        if (!value) return;
+
+        try {
+          await navigator.clipboard.writeText(value);
+        } catch (_err) {
+          // Fallback for older browsers or insecure contexts: select the
+          // input and execCommand("copy"). Best-effort; if both paths
+          // fail we just bail without feedback.
+          if (target.select) {
+            const masked = target.type === "password";
+            if (masked) target.type = "text";
+            target.select();
+            try { document.execCommand("copy"); } catch (_) {}
+            if (masked) target.type = "password";
+            window.getSelection && window.getSelection().removeAllRanges();
+          }
+        }
+
+        const idle = this.el.querySelector("[data-copy-idle]");
+        const feedback = this.el.querySelector("[data-copy-feedback]");
+        if (idle) idle.classList.add("hidden");
+        if (feedback) feedback.classList.remove("hidden");
+
+        clearTimeout(this.feedbackTimer);
+        this.feedbackTimer = setTimeout(() => {
+          if (idle) idle.classList.remove("hidden");
+          if (feedback) feedback.classList.add("hidden");
+        }, 1500);
+      };
+
+      this.el.addEventListener("click", this.handler);
+    },
+    destroyed() {
+      clearTimeout(this.feedbackTimer);
+      if (this.handler) {
+        this.el.removeEventListener("click", this.handler);
+      }
+    }
+  };
+
+
+  // ---------------------------------------------------------------------------
   // TimeAgo Hook
   // ---------------------------------------------------------------------------
   //
@@ -1465,6 +1792,7 @@ if (typeof window.Chart === "undefined") {
       var key = this.el.dataset.storageKey || (this.el.id + "-view");
       var saved = localStorage.getItem(key) || "table";
       this.storageKey = key;
+      this.currentMode = saved;
       this.applyMode(saved);
 
       var self = this;
@@ -1472,6 +1800,7 @@ if (typeof window.Chart === "undefined") {
         btn.addEventListener("click", function() {
           var mode = btn.dataset.viewAction;
           localStorage.setItem(self.storageKey, mode);
+          self.currentMode = mode;
           self.applyMode(mode);
           // Notify other TableCardView instances sharing the same key
           window.dispatchEvent(new CustomEvent("phx:table-view-change", {
@@ -1483,10 +1812,22 @@ if (typeof window.Chart === "undefined") {
       // Listen for view changes from other instances with the same key
       this._onViewChange = function(e) {
         if (e.detail.key === self.storageKey) {
+          self.currentMode = e.detail.mode;
           self.applyMode(e.detail.mode);
         }
       };
       window.addEventListener("phx:table-view-change", this._onViewChange);
+    },
+
+    updated() {
+      // The LV re-render may have reset the inner divs' class attrs back
+      // to their template defaults (e.g. tableEl class="hidden md:block",
+      // cardEl class="md:hidden ..."). Re-apply the user's chosen mode so
+      // a SortableJS drop or any other LV-driven update doesn't snap the
+      // view back to the default.
+      if (this.currentMode) {
+        this.applyMode(this.currentMode);
+      }
     },
 
     destroyed() {
@@ -1927,7 +2268,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.10/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.11/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
