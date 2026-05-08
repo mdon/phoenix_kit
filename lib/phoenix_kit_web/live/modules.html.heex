@@ -747,7 +747,7 @@
             <div class="card bg-base-100 shadow border-2 border-dashed border-base-300">
               <div class="card-body">
                 <div class="flex items-center gap-3">
-                  <div class="text-3xl opacity-60">{pkg.icon}</div>
+                  <.icon name={pkg.icon} class="w-8 h-8 opacity-60" />
                   <div class="flex-1">
                     <h3 class="card-title text-base-content/70">{pkg.name}</h3>
                     <p class="text-sm text-base-content/50">{pkg.description}</p>
@@ -766,7 +766,7 @@
                 <div class="mt-2">
                   <p class="text-xs text-base-content/40 mb-1">Add to mix.exs:</p>
                   <code class="block text-xs bg-base-200 rounded p-2 font-mono">
-                    {~s|{:#{pkg.hex_package}, "~> 0.1"}|}
+                    {~s|{:#{pkg.package}, "~> 0.1"}|}
                   </code>
                 </div>
               </div>
