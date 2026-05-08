@@ -192,6 +192,7 @@ defmodule PhoenixKit.MixProject do
         "guides/draggable-list-component.md",
         "guides/README.md",
         "guides/custom-admin-pages.md",
+        "guides/per-module-i18n.md",
         "lib/phoenix_kit/dashboard/ADMIN_README.md"
       ],
       groups_for_extras: [
