@@ -304,32 +304,45 @@ defmodule PhoenixKit.Dashboard.Tab do
     * `gettext_backend` is `nil` (default — no translation configured)
     * the label is `nil` (e.g. divider tabs)
     * gettext has no translation for the msgid (gettext's own fallback)
+
+  Reads `gettext_backend` and `gettext_domain` via `Map.get/2` rather than
+  pattern matching, so an old-shape struct cached in ETS or `:persistent_term`
+  before the 1.8.0 upgrade — which lacks those keys entirely — gracefully
+  falls back to the raw label instead of raising `FunctionClauseError`.
   """
   @spec localized_label(t()) :: String.t() | nil
   def localized_label(%__MODULE__{label: nil}), do: nil
-  def localized_label(%__MODULE__{gettext_backend: nil, label: label}), do: label
 
-  def localized_label(%__MODULE__{gettext_backend: backend, gettext_domain: domain, label: label}),
-    do: Gettext.dgettext(backend, domain, label)
+  def localized_label(%__MODULE__{label: label} = tab) do
+    case Map.get(tab, :gettext_backend) do
+      nil ->
+        label
+
+      backend ->
+        domain = Map.get(tab, :gettext_domain) || "default"
+        Gettext.dgettext(backend, domain, label)
+    end
+  end
 
   @doc """
   Returns the tab's tooltip, translated via the configured gettext backend if one is set.
 
-  Falls back to the raw tooltip string when:
-    * `gettext_backend` is `nil` (default — no translation configured)
-    * the tooltip is `nil`
-    * gettext has no translation for the msgid (gettext's own fallback)
+  Same fallback semantics as `localized_label/1`, including resilience to old
+  struct shapes cached before the 1.8.0 upgrade.
   """
   @spec localized_tooltip(t()) :: String.t() | nil
   def localized_tooltip(%__MODULE__{tooltip: nil}), do: nil
-  def localized_tooltip(%__MODULE__{gettext_backend: nil, tooltip: tooltip}), do: tooltip
 
-  def localized_tooltip(%__MODULE__{
-        gettext_backend: backend,
-        gettext_domain: domain,
-        tooltip: tooltip
-      }),
-      do: Gettext.dgettext(backend, domain, tooltip)
+  def localized_tooltip(%__MODULE__{tooltip: tooltip} = tab) do
+    case Map.get(tab, :gettext_backend) do
+      nil ->
+        tooltip
+
+      backend ->
+        domain = Map.get(tab, :gettext_domain) || "default"
+        Gettext.dgettext(backend, domain, tooltip)
+    end
+  end
 
   @doc """
   Creates a divider pseudo-tab for visual separation.

@@ -102,6 +102,23 @@ defmodule PhoenixKit.Dashboard.TabTest do
       tab = %Tab{id: :legacy, label: "Legacy", path: "legacy"}
       assert Tab.localized_label(tab) == "Legacy"
     end
+
+    test "tolerates an old-shape struct missing :gettext_backend / :gettext_domain keys" do
+      # Simulates the hot-reload + ETS scenario: a parent app's Registry GenServer
+      # cached Tab structs under phoenix_kit ~> 1.7.x, where neither key existed
+      # in defstruct. After upgrading to 1.8 without restarting, those cached
+      # structs still flow through the sidebar render path. Map.get-based access
+      # in localized_label/1 must fall back to the raw label instead of raising
+      # FunctionClauseError.
+      stale =
+        Tab.new!(id: :legacy, label: "Legacy", path: "legacy")
+        |> Map.delete(:gettext_backend)
+        |> Map.delete(:gettext_domain)
+
+      refute Map.has_key?(stale, :gettext_backend)
+      refute Map.has_key?(stale, :gettext_domain)
+      assert Tab.localized_label(stale) == "Legacy"
+    end
   end
 
   describe "localized_tooltip/1" do
@@ -155,6 +172,15 @@ defmodule PhoenixKit.Dashboard.TabTest do
         )
 
       assert Tab.localized_tooltip(tab) == @unknown_msgid
+    end
+
+    test "tolerates an old-shape struct missing gettext keys (hot-reload safety)" do
+      stale =
+        Tab.new!(id: :legacy, label: "Legacy", path: "/legacy", tooltip: "Help text")
+        |> Map.delete(:gettext_backend)
+        |> Map.delete(:gettext_domain)
+
+      assert Tab.localized_tooltip(stale) == "Help text"
     end
   end
 

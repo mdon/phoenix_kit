@@ -71,6 +71,21 @@ defmodule PhoenixKit.Dashboard.GroupTest do
       group = %Group{id: :legacy, label: "Legacy"}
       assert Group.localized_label(group) == "Legacy"
     end
+
+    test "tolerates an old-shape struct missing :gettext_backend / :gettext_domain keys" do
+      # Hot-reload + ETS scenario — see the matching test in tab_test.exs
+      # for the full rationale. A %Group{} cached under phoenix_kit ~> 1.7.x
+      # does not carry the new keys; localized_label/1 must gracefully fall
+      # back to the raw label rather than raise FunctionClauseError.
+      stale =
+        %Group{id: :legacy, label: "Legacy"}
+        |> Map.delete(:gettext_backend)
+        |> Map.delete(:gettext_domain)
+
+      refute Map.has_key?(stale, :gettext_backend)
+      refute Map.has_key?(stale, :gettext_domain)
+      assert Group.localized_label(stale) == "Legacy"
+    end
   end
 
   describe "Group.new/1 round-trips gettext fields" do

@@ -44,13 +44,25 @@ defmodule PhoenixKit.Dashboard.Group do
     * `gettext_backend` is `nil` (default — no translation configured)
     * the label is `nil` (unlabeled groups)
     * gettext has no translation for the msgid (gettext's own fallback)
+
+  Reads `gettext_backend` and `gettext_domain` via `Map.get/2` rather than
+  pattern matching, so an old-shape struct cached in ETS or `:persistent_term`
+  before the 1.8.0 upgrade — which lacks those keys entirely — gracefully
+  falls back to the raw label instead of raising `FunctionClauseError`.
   """
   @spec localized_label(t()) :: String.t() | nil
   def localized_label(%__MODULE__{label: nil}), do: nil
-  def localized_label(%__MODULE__{gettext_backend: nil, label: label}), do: label
 
-  def localized_label(%__MODULE__{gettext_backend: backend, gettext_domain: domain, label: label}),
-    do: Gettext.dgettext(backend, domain, label)
+  def localized_label(%__MODULE__{label: label} = group) do
+    case Map.get(group, :gettext_backend) do
+      nil ->
+        label
+
+      backend ->
+        domain = Map.get(group, :gettext_domain) || "default"
+        Gettext.dgettext(backend, domain, label)
+    end
+  end
 
   @doc """
   Creates a new group from a map or keyword list.
