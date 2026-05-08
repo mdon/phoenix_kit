@@ -269,6 +269,33 @@ if (typeof window.Chart === "undefined") {
           ghostClass: "sortable-ghost",
           chosenClass: "sortable-chosen",
           dragClass: "sortable-drag",
+          // Lock <tr> cell widths before drag — when SortableJS clones
+          // the row to <body> for the drag preview (forceFallback +
+          // fallbackOnBody), the <tr> loses its <table> ancestor and
+          // each <td> collapses to its content width. Snapshot the
+          // computed widths and pin them inline so the floating row
+          // keeps its column layout. Restore on drag end.
+          onChoose: function(evt) {
+            var item = evt.item;
+            if (item && item.tagName === "TR") {
+              item._pkCellWidths = [];
+              var cells = item.children;
+              for (var i = 0; i < cells.length; i++) {
+                item._pkCellWidths.push(cells[i].style.width);
+                cells[i].style.width = cells[i].offsetWidth + "px";
+              }
+            }
+          },
+          onUnchoose: function(evt) {
+            var item = evt.item;
+            if (item && item.tagName === "TR" && item._pkCellWidths) {
+              var cells = item.children;
+              for (var i = 0; i < cells.length && i < item._pkCellWidths.length; i++) {
+                cells[i].style.width = item._pkCellWidths[i];
+              }
+              delete item._pkCellWidths;
+            }
+          },
           onStart: function() {
             if (hideSource) {
               setTimeout(function() {

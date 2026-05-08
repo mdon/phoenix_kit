@@ -254,12 +254,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 <div>{field.value}</div>
               <% end %>
             </div>
-            <%!-- Footer row: drag handle (bottom-left, when sortable) +
-                 actions (bottom-right, when present). Always rendered
-                 if either is present so the alignment is consistent. --%>
+            <%!-- Footer row: drag handle (leftmost), action buttons
+                 (rightmost via ml-auto on the wrapper). Both sit in a
+                 flex-wrap so they share rows when buttons must wrap on
+                 narrow cards instead of leaving the handle alone above
+                 an empty space. --%>
             <div
               :if={@on_reorder || @card_actions != []}
-              class="card-actions flex items-center justify-between pt-1 border-t border-base-200 mt-auto"
+              class="flex flex-wrap items-center gap-2 pt-1 border-t border-base-200 mt-auto"
             >
               <div
                 :if={@on_reorder}
@@ -268,10 +270,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
               >
                 <.icon name="hero-bars-3" class="w-4 h-4" />
               </div>
-              <%!-- Spacer when sortable but no actions, so the handle
-                   stays left and we don't collapse the row. --%>
-              <span :if={@on_reorder && @card_actions == []}></span>
-              <div :if={@card_actions != []} class="flex gap-2 ml-auto">
+              <div :if={@card_actions != []} class="flex flex-wrap items-center gap-1 ml-auto">
                 {render_slot(@card_actions, item)}
               </div>
             </div>
