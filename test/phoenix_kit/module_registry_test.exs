@@ -141,6 +141,14 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns nil for an unknown namespace" do
       assert ModuleRegistry.get_module_key_for_namespace("NotARegisteredModule") == nil
     end
+
+    test "does not match modules whose path only starts with the namespace" do
+      # Internal modules like PhoenixKit.Modules.<X> have Module.split starting
+      # with "PhoenixKit", but a query for "PhoenixKit" must NOT resolve to one
+      # of them — only exact top-level segments (PhoenixKitEntities,
+      # PhoenixKitBilling, …) qualify.
+      assert ModuleRegistry.get_module_key_for_namespace("PhoenixKit") == nil
+    end
   end
 
   describe "all_admin_tabs/0" do
