@@ -115,6 +115,42 @@ defmodule PhoenixKit.ModuleRegistryTest do
     end
   end
 
+  describe "get_module_key_for_namespace/1" do
+    # Module.create/3 with an explicit top-level name — `defmodule X` inside a
+    # test would get auto-nested under PhoenixKit.ModuleRegistryTest.
+    setup do
+      Module.create(
+        PhoenixKitNamespaceFixture,
+        quote do
+          def module_key, do: "namespace_fixture"
+        end,
+        Macro.Env.location(__ENV__)
+      )
+
+      :ok
+    end
+
+    test "resolves a registered module's top-level namespace to its key" do
+      ModuleRegistry.register(PhoenixKitNamespaceFixture)
+      on_exit(fn -> ModuleRegistry.unregister(PhoenixKitNamespaceFixture) end)
+
+      assert ModuleRegistry.get_module_key_for_namespace("PhoenixKitNamespaceFixture") ==
+               "namespace_fixture"
+    end
+
+    test "returns nil for an unknown namespace" do
+      assert ModuleRegistry.get_module_key_for_namespace("NotARegisteredModule") == nil
+    end
+
+    test "does not match modules whose path only starts with the namespace" do
+      # Internal modules like PhoenixKit.Modules.<X> have Module.split starting
+      # with "PhoenixKit", but a query for "PhoenixKit" must NOT resolve to one
+      # of them — only exact top-level segments (PhoenixKitEntities,
+      # PhoenixKitBilling, …) qualify.
+      assert ModuleRegistry.get_module_key_for_namespace("PhoenixKit") == nil
+    end
+  end
+
   describe "all_admin_tabs/0" do
     test "returns a list of Tab structs" do
       tabs = ModuleRegistry.all_admin_tabs()
