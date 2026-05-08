@@ -226,14 +226,19 @@ defmodule PhoenixKit.Integrations.OAuth do
   # `oauth_config[:url_defaults]`'s value for the same key. Used by
   # providers (e.g. Microsoft 365) that need per-row URL pieces such
   # as a tenant ID without forking the URL into multiple OAuth flows.
+  #
+  # Both `integration_data` and `url_defaults` are string-keyed by
+  # convention. The previous atom-key fallback was dead code (no
+  # provider in `Providers.providers/0` ships an atom-keyed
+  # `url_defaults`), and `String.to_atom/1` on a regex-bounded but
+  # still-effectively-arbitrary key was a code smell. Provider
+  # authors must use string keys.
   defp interpolate_url(url, oauth_config, integration_data) when is_binary(url) do
     if String.contains?(url, "{") do
       defaults = oauth_config[:url_defaults] || oauth_config["url_defaults"] || %{}
 
       Regex.replace(~r/\{([a-zA-Z0-9_]+)\}/, url, fn _, key ->
-        integration_data[key] ||
-          defaults[key] || defaults[String.to_atom(key)] ||
-          ""
+        integration_data[key] || defaults[key] || ""
       end)
     else
       url

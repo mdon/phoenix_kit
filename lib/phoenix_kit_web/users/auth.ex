@@ -1147,6 +1147,25 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs"
   }
 
+  # Resolve a LiveView module to its permission key.
+  #
+  # Resolution order (first non-nil wins):
+  #
+  #   1. `@admin_view_permissions` static map — core admin views.
+  #   2. `infer_permission_from_custom_tabs/1` — modules that registered
+  #      admin tabs with a `live_view:` field.
+  #   3. `PhoenixKit.Modules.<X>.Web.*` namespace inference — internal
+  #      modules under the core namespace.
+  #   4. Plugin top-level namespace via `ModuleRegistry` — external
+  #      packages whose top-level module name matches a registered
+  #      module (e.g. `PhoenixKitEntities` → `"entities"`).
+  #
+  # Returns `nil` for views that don't resolve through any path —
+  # callers must apply their own fail-closed default.
+  #
+  # Exposed as `@doc false def` (rather than `defp`) so unit tests can
+  # exercise the resolution layers directly without LiveView mounting
+  # machinery. Not part of the public API.
   @doc false
   def permission_key_for_admin_view(view_module) do
     case Map.get(@admin_view_permissions, view_module) do
@@ -1627,13 +1646,23 @@ defmodule PhoenixKitWeb.Users.Auth do
   # it back, session.ex stashes it as :user_return_to, log_in_user/3
   # redirects there. We skip the param when the URI isn't available or
   # the user is already on the login page (guards against self-loops).
+  #
+  # The self-loop check trims trailing slashes on both sides so
+  # `/users/log-in` and `/users/log-in/` are treated as the same path —
+  # without the trim, a hand-typed trailing-slash URL would round-trip
+  # back to itself via `?return_to=`.
   defp login_path_with_return_to(socket) do
     login_path = Routes.path("/users/log-in")
+    login_path_canonical = String.trim_trailing(login_path, "/")
 
     case Phoenix.LiveView.get_connect_info(socket, :uri) do
-      %URI{path: path} = uri when is_binary(path) and path != login_path ->
-        query = if uri.query, do: "?" <> uri.query, else: ""
-        login_path <> "?return_to=" <> URI.encode_www_form(path <> query)
+      %URI{path: path} = uri when is_binary(path) ->
+        if String.trim_trailing(path, "/") == login_path_canonical do
+          login_path
+        else
+          query = if uri.query, do: "?" <> uri.query, else: ""
+          login_path <> "?return_to=" <> URI.encode_www_form(path <> query)
+        end
 
       _ ->
         login_path

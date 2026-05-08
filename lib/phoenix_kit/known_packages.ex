@@ -21,6 +21,23 @@ defmodule PhoenixKit.KnownPackages do
     * `:max_stale_age_ms` — how long stale data may be served on Hex
       failure (default `:timer.hours(24)`)
     * `:req_options` — pass-through to `Req.get/2`
+
+  ## Operational signals
+
+  Hex outages emit Logger entries at three levels — each maps to a
+  distinct degradation state operators can alert on:
+
+    * `:warning` "Hex fetch failed … serving stale data" — cache hit
+      within `max_stale_age_ms`. Catalog still works; Hex briefly
+      unavailable. Transient.
+    * `:warning` "Hex fetch failed … no cached data" — Hex unreachable
+      AND cache empty. Catalog shows config extras only. Visible
+      degradation, but not a crisis (admin Modules page is the only
+      consumer).
+    * `:error` "Hex fetch failed … exceeds max stale age" — Hex
+      unreachable for over `max_stale_age_ms`. Cached entries
+      dropped, catalog falls back to config extras. The escalation
+      level: page on this if it persists.
   """
 
   require Logger
@@ -81,6 +98,9 @@ defmodule PhoenixKit.KnownPackages do
         :ok
     end
   rescue
+    # Race: another process called :ets.new/2 between our :ets.whereis/1
+    # check and our :ets.new/2. The named table now exists; nothing
+    # more to do.
     ArgumentError -> :ok
   end
 
@@ -145,17 +165,33 @@ defmodule PhoenixKit.KnownPackages do
   defp fetch_from_hex(opts) do
     url = @hex_search_url <> "?search=phoenix_kit_&sort=name"
     req_options = Keyword.get(opts, :req_options, @default_req_options)
-    fetch_hex_page(url, [], req_options)
+    fetch_hex_page(url, [], req_options, 1)
   end
 
-  defp fetch_hex_page(nil, acc, _opts), do: {:ok, acc}
+  # `page_count` cap (`@max_pages`) bounds the recursion: a malformed
+  # `Link` header (next URL pointing back to the same page, or hex
+  # returning many more results than expected) can't loop forever.
+  # 100 packages/page * 20 pages = 2000 packages — comfortable
+  # headroom for the `phoenix_kit_*` namespace today.
+  @max_pages 20
 
-  defp fetch_hex_page(url, acc, req_options) do
+  defp fetch_hex_page(_url, acc, _opts, page) when page > @max_pages do
+    Logger.warning(
+      "PhoenixKit.KnownPackages: Hex pagination exceeded #{@max_pages} pages — " <>
+        "stopping (returning #{length(acc)} entries collected so far)"
+    )
+
+    {:ok, acc}
+  end
+
+  defp fetch_hex_page(nil, acc, _opts, _page), do: {:ok, acc}
+
+  defp fetch_hex_page(url, acc, req_options, page) do
     case Req.get(url, req_options) do
       {:ok, %{status: 200, body: packages, headers: headers}} when is_list(packages) ->
         valid = packages |> Enum.reject(&skip_package?/1) |> Enum.map(&shape_entry/1)
         next_url = parse_next_link(headers)
-        fetch_hex_page(next_url, acc ++ valid, req_options)
+        fetch_hex_page(next_url, acc ++ valid, req_options, page + 1)
 
       {:ok, %{status: 200}} ->
         {:error, :malformed_response}

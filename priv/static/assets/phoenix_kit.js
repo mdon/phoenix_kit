@@ -227,10 +227,16 @@ if (typeof window.Chart === "undefined") {
             '[data-id="' + payload.uuid + '"]'
           );
           if (!items.length) return;
+          // Explicit map — treat anything that isn't "ok" or "error" as
+          // a typo on the server side and bail rather than silently
+          // falling into the err-class branch.
           var cls =
             payload.status === "ok"
               ? "pk-sortable-flash-ok"
-              : "pk-sortable-flash-err";
+              : payload.status === "error"
+                ? "pk-sortable-flash-err"
+                : null;
+          if (!cls) return;
           items.forEach(function(item) {
             item.classList.remove(
               "pk-sortable-flash-ok",

@@ -115,14 +115,20 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     default: nil,
     doc: """
     Optional list of per-translation URLs that override the locale-rewrite
-    default. Each entry is `%{code: <display_code>, url: <full_url>}`. Useful
-    when a feature module (e.g. `phoenix_kit_publishing`) has computed
-    canonical URLs for each available translation that the simple
-    locale-rewrite default can't reproduce — for example when a post has
-    per-language URL slugs. Pass
-    `assigns[:phoenix_kit_publishing_translations]` from the layout; the
-    switcher resolves each language's `base_code` against the list and
-    falls back to the locale-rewrite URL when no entry matches.
+    default. Each entry is `%{code: <display_code>, url: <full_url>}`.
+    Both atom-keyed (`%{code: ..., url: ...}`) and string-keyed
+    (`%{"code" => ..., "url" => ...}`) entries are accepted — useful
+    when the list comes from JSON/JSONB rather than Elixir code.
+
+    Useful when a feature module (e.g. `phoenix_kit_publishing`) has
+    computed canonical URLs for each available translation that the
+    simple locale-rewrite default can't reproduce — for example when
+    a post has per-language URL slugs. Pass
+    `assigns[:phoenix_kit_publishing_translations]` from the layout;
+    the switcher resolves each language's `base_code` against the list
+    (via `DialectMapper.extract_base/1`) and falls back to the
+    locale-rewrite URL when no entry matches or the matched entry
+    has a `nil` `url` (e.g. an unpublished draft).
     """
   )
 
@@ -221,18 +227,17 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                   </li>
                 <% end %>
                 <%= for language <- langs do %>
+                  <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                   <li
                     class="w-full language-item"
                     data-name={String.downcase(language["name"] || "")}
                     data-native={String.downcase(language["native"] || "")}
                   >
                     <a
-                      href={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+                      href={url}
                       phx-click="phoenix_kit_set_locale"
                       phx-value-locale={language["base_code"]}
-                      phx-value-url={
-                        resolve_url(language["base_code"], @current_path, @per_translation_urls)
-                      }
+                      phx-value-url={url}
                       class={[
                         "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                         if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
@@ -289,18 +294,17 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                 </li>
               <% end %>
               <%= for language <- @languages do %>
+                <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                 <li
                   class="w-full language-item"
                   data-name={String.downcase(language["name"] || "")}
                   data-native={String.downcase(language["native"] || "")}
                 >
                   <a
-                    href={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+                    href={url}
                     phx-click="phoenix_kit_set_locale"
                     phx-value-locale={language["base_code"]}
-                    phx-value-url={
-                      resolve_url(language["base_code"], @current_path, @per_translation_urls)
-                    }
+                    phx-value-url={url}
                     class={[
                       "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                       if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
@@ -435,11 +439,12 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     ~H"""
     <div class={["flex gap-2", @class]}>
       <%= for language <- @languages do %>
+        <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
         <a
-          href={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+          href={url}
           phx-click="phoenix_kit_set_locale"
           phx-value-locale={language["base_code"]}
-          phx-value-url={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+          phx-value-url={url}
           class={[
             "btn btn-sm",
             if(language["base_code"] == @current_base,
@@ -554,15 +559,16 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     ~H"""
     <div class={["flex gap-4 items-center", @class]}>
       <%= for {language, index} <- Enum.with_index(@languages) do %>
+        <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
         <div class="flex items-center gap-1">
           <%= if index > 0 do %>
             <span class="text-base-content/30">|</span>
           <% end %>
           <a
-            href={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+            href={url}
             phx-click="phoenix_kit_set_locale"
             phx-value-locale={language["base_code"]}
-            phx-value-url={resolve_url(language["base_code"], @current_path, @per_translation_urls)}
+            phx-value-url={url}
             class={[
               "text-sm transition hover:text-primary",
               if(language["base_code"] == @current_base,

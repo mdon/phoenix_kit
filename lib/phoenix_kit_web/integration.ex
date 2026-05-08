@@ -1215,6 +1215,16 @@ defmodule PhoenixKitWeb.Integration do
   # compiler's static-resolution pass. Drop both once publishing becomes a
   # required dep (it isn't, by design — installs without publishing should
   # compile without it on the system).
+  #
+  # The `apply/3` calls also have a runtime resolution path: the host BEAM
+  # compiles the macro expansion (containing literal `apply` calls into
+  # `RouterDispatch`) and resolves them at request time. If a host removes
+  # publishing from their deps without recompiling core, the cached BEAM
+  # would `UndefinedFunctionError` at the next request. This is covered
+  # by the `__mix_recompile__?/0` mechanism injected by `phoenix_kit_routes/0`
+  # below — the host router's recompile-trigger hash includes the
+  # discovered module set, so removing publishing flips the hash and
+  # forces a recompile. The `apply` calls drop out of the regenerated AST.
   @doc false
   defp compile_publishing_routing(url_prefix) do
     if Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch) do

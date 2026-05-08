@@ -1228,9 +1228,11 @@
   <% end %>
 
   <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>
-  <%!-- Activated by passing `viewer={true}` to the component. Clicking a file --%>
-  <%!-- (outside select_mode and admin) sets viewer_file and shows the preview --%>
-  <%!-- + metadata + Download. Closes via X / Esc / backdrop click.            --%>
+  <%!-- Default click target for non-admin, non-select_mode browsers — the    --%>
+  <%!-- click_file handler stashes the clicked file in :viewer_file and this  --%>
+  <%!-- block renders the preview + metadata + Download. Pickers reach        --%>
+  <%!-- bulk-select via the toolbar's Select button (`select_mode` toggle).   --%>
+  <%!-- Closes via X / Esc / backdrop click.                                  --%>
   <%= if assigns[:viewer_file] do %>
     <% f = @viewer_file %>
     <% viewer_idx = Enum.find_index(@uploaded_files, &(&1.file_uuid == f.file_uuid)) %>
