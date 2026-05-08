@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.ModuleDiscovery
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Settings
@@ -403,7 +404,9 @@ defmodule PhoenixKitWeb.Live.Modules do
       end)
       |> Enum.uniq_by(fn tab -> tab.path end)
       |> Enum.take(3)
-      |> Enum.map(fn tab -> %{label: tab.label, path: "/admin/" <> tab.path, icon: tab.icon} end)
+      |> Enum.map(fn tab ->
+        %{label: Tab.localized_label(tab), path: "/admin/" <> tab.path, icon: tab.icon}
+      end)
     else
       []
     end
