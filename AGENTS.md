@@ -654,6 +654,45 @@ config :phoenix_kit,
   route_modules: [PhoenixKitEntities.Routes]
 ```
 
+### Publishing routing strategy
+
+`phoenix_kit_routes/0` emits a publishing-specific dispatch shim when
+`PhoenixKitPublishing.RouterDispatch` is loaded. The shim exists because
+publishing's `/:language/:group/*path` catch-all matches every two-or-
+more-segment URL and Phoenix has no fall-through after a route matches —
+so any host route declared after `phoenix_kit_routes()` shaped
+`/:locale/<literal>/...` was silently shadowed (`/fr/services/view/foo`
+hitting publishing's 404 instead of the host's `ServicesLive`).
+
+Three pieces, all emitted by `compile_publishing_routing/1` in
+`integration.ex`:
+
+1. An internal scope at `/<url_prefix>/__phoenix_kit_publishing_dispatch`
+   that registers publishing's catch-all under the standard `:browser` +
+   `:phoenix_kit_*` pipelines, plus a `:phoenix_kit_publishing_internal`
+   pipeline that runs `PhoenixKitPublishing.RouterDispatch.restore_path/2`.
+2. A `def call/2` override on the host router (Phoenix.Router publishes
+   `defoverridable init: 1, call: 2` from `match_dispatch/0`). The
+   override calls `RouterDispatch.maybe_rewrite/1`; on cache hit it
+   prepends the internal prefix to `path_info` + `request_path` and stashes
+   the originals in `conn.private`, then `super(conn, opts)` runs Phoenix's
+   matcher against the internal-prefix scope. On miss, the conn passes
+   through unchanged so host routes win.
+3. `restore_path/2` un-rewrites the conn after the route binds but before
+   the controller runs, so canonical-URL generation reads the URL the
+   client sent — without it, publishing's `default_language_no_prefix`
+   redirect spins on the internal prefix forever.
+
+Compile-time gated on `Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch)`:
+installs without publishing in the dep tree get an empty AST. **`mix
+phx.routes` shows publishing routes under the internal prefix**, not at
+the user-facing URL — known blind spot, surface in support docs.
+
+The mechanism generalizes to any future module with a similar dynamic
+catch-all problem. For now it's hardcoded to publishing per the
+"don't generalize prematurely" principle; lift to a registry shape
+when a second module needs it.
+
 
 ## TODOs
 

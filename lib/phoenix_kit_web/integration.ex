@@ -1152,6 +1152,21 @@ defmodule PhoenixKitWeb.Integration do
     # Auto-discovered public routes from external PhoenixKit modules
     module_public_routes = compile_module_public_routes(url_prefix)
 
+    # Publishing routing-strategy integration. When the publishing module
+    # (with its `RouterDispatch` helper) is in the dep tree, emit:
+    #
+    #   * the internal-prefix scope (`/__phoenix_kit_publishing_dispatch/...`)
+    #     under which publishing's catch-all routes are registered
+    #   * a `def call/2` override that path-rewrites publishing-bound URLs
+    #     into that prefix so Phoenix's matcher dispatches via the standard
+    #     pipeline (sessions, CSRF, locale, scope) and host routes still
+    #     win for URLs that don't resolve to a known publishing group.
+    #
+    # See `PhoenixKitPublishing.RouterDispatch` for the full mechanism
+    # (`maybe_rewrite/1`, `restore_path/2`, the `defoverridable call/2`
+    # extension point on Phoenix.Router).
+    publishing_routing = compile_publishing_routing(url_prefix)
+
     # Snapshot discovered modules so the host router auto-recompiles when deps change
     current_hash = PhoenixKit.ModuleDiscovery.module_hash()
     mix_lock_path = Path.expand("mix.lock")
@@ -1184,6 +1199,69 @@ defmodule PhoenixKitWeb.Integration do
 
       # External route modules with public routes
       unquote_splicing(external_public_routes)
+
+      # Publishing internal-prefix scope + call/2 override (when publishing is installed)
+      unquote(publishing_routing)
+    end
+  end
+
+  # Build the publishing routing-strategy AST. Returns `quote do end` (no-op)
+  # when publishing is not installed, so the macro stays a single-shape
+  # expansion without compile-time conditionals leaking into the host module.
+  #
+  # `apply/3` is the idiomatic dodge for the compile-time "undefined function"
+  # warning when calling into an optional dep — the `Code.ensure_loaded?/1`
+  # guard above is the runtime correctness check; `apply/3` shields the
+  # compiler's static-resolution pass. Drop both once publishing becomes a
+  # required dep (it isn't, by design — installs without publishing should
+  # compile without it on the system).
+  @doc false
+  defp compile_publishing_routing(url_prefix) do
+    if Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch) do
+      internal_prefix = apply(PhoenixKitPublishing.RouterDispatch, :internal_prefix, [])
+
+      internal_scope_path =
+        case url_prefix do
+          "/" -> "/" <> internal_prefix
+          prefix -> prefix <> "/" <> internal_prefix
+        end
+
+      quote do
+        pipeline :phoenix_kit_publishing_internal do
+          plug PhoenixKitPublishing.RouterDispatch, :restore_path
+        end
+
+        scope unquote(internal_scope_path), PhoenixKit.Modules.Publishing.Web do
+          pipe_through [
+            :browser,
+            :phoenix_kit_auto_setup,
+            :phoenix_kit_locale_validation,
+            :phoenix_kit_optional_scope,
+            :phoenix_kit_publishing_internal
+          ]
+
+          get "/:language/:group", Controller, :show
+          get "/:language/:group/*path", Controller, :show
+          get "/:group", Controller, :show
+          get "/:group/*path", Controller, :show
+        end
+
+        # Override Phoenix.Router's call/2 (defoverridable from `use Phoenix.Router`).
+        # Path-rewrites publishing-bound URLs before super() runs the matcher.
+        # See PhoenixKitPublishing.RouterDispatch for the rationale.
+        def call(conn, opts) do
+          conn =
+            case PhoenixKitPublishing.RouterDispatch.maybe_rewrite(conn) do
+              {:rewrite, rewritten} -> rewritten
+              :pass -> conn
+            end
+
+          super(conn, opts)
+        end
+      end
+    else
+      quote do
+      end
     end
   end
 
