@@ -72,6 +72,10 @@ Understanding the .phk publishing file format.
 
 Using the draggable list component for sortable UIs.
 
+#### [Per-Module i18n with Gettext](per-module-i18n.md)
+
+Translate sidebar tab labels, group labels, and tooltips inside your PhoenixKit module. Each module ships its own Gettext backend and `.po` files; tabs render localized labels at request time. Required for every module that exposes UI on `phoenix_kit ~> 1.8`.
+
 ---
 
 ## Guide Purpose
