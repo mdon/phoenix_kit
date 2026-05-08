@@ -89,15 +89,16 @@ This also matches the `dynamic_children/2` callback contract: arity-2 dynamic-ch
 | # | Step | Where |
 |---|------|-------|
 | 1 | Bump the `phoenix_kit` dep to the release that ships the `gettext_backend` API (see PhoenixKit CHANGELOG) | `mix.exs` |
-| 2 | Add `:gettext` to `extra_applications` (verify) | `mix.exs` |
-| 3 | Create the module's own Gettext backend | `lib/phoenix_kit_<x>/gettext.ex` |
-| 4 | Replace every `use Gettext, backend: PhoenixKitWeb.Gettext` with the module's own backend | `grep -rl "PhoenixKitWeb.Gettext" lib/` |
-| 5 | Run `mix gettext.extract --merge` | shell |
-| 6 | For each target locale: `mix gettext.merge priv/gettext --locale <loc>` | shell |
-| 7 | Set `gettext_backend:` (and `gettext_domain:` if needed) on **every** `%Tab{}` and `%Group{}` registration | `admin_tabs/0`, route module |
-| 8 | Fill `priv/gettext/<locale>/LC_MESSAGES/default.po` with translations | manual |
-| 9 | Add a smoke test (see [Test pattern](#test-pattern)) | `test/` |
-| 10 | Bump module version, publish to Hex | `mix.exs`, `mix hex.publish` |
+| 2 | Add `:gettext` to `extra_applications` and to `deps` | `mix.exs` |
+| 3 | Add `priv` to `package: [files: ...]` so `.po` files ship to Hex | `mix.exs` |
+| 4 | Create the module's own Gettext backend | `lib/phoenix_kit_<x>/gettext.ex` |
+| 5 | Replace every `use Gettext, backend: PhoenixKitWeb.Gettext` with the module's own backend | `grep -rl "PhoenixKitWeb.Gettext" lib/` |
+| 6 | Set `gettext_backend:` (and `gettext_domain:` if needed) on **every** `%Tab{}` and `%Group{}` registration | `admin_tabs/0`, route module |
+| 7 | Maintain `priv/gettext/default.pot` and `priv/gettext/<locale>/LC_MESSAGES/default.po` manually (`mix gettext.extract` does **not** see `Tab.new!(label: "…")` plain strings) | `priv/gettext/` |
+| 8 | Fill translations for each target locale (`en` is 1:1) | `priv/gettext/<locale>/LC_MESSAGES/default.po` |
+| 9 | Add conditional skip in `test/test_helper.exs` so CI building against a pre-API `phoenix_kit` doesn't fail (see [§ Conditional CI skip](#conditional-ci-skip)) | `test/test_helper.exs` |
+| 10 | Add a smoke test (see [§ Test pattern](#test-pattern)) | `test/` |
+| 11 | Bump module `@version` and add a CHANGELOG entry | `mix.exs`, `CHANGELOG.md` |
 
 ---
 
@@ -358,17 +359,98 @@ end
 
 For each existing `phoenix_kit_<x>` module being uplifted to the new API:
 
-- [ ] `mix.exs` — bump `phoenix_kit` dep to the release that ships the `gettext_backend` API (see PhoenixKit CHANGELOG)
-- [ ] `mix.exs` — confirm `:gettext` is in `extra_applications`
+- [ ] `mix.exs` — confirm `phoenix_kit` dep constraint admits the release that ships `gettext_backend` (typically `~> 1.7` is wide enough; pin tighter if needed)
+- [ ] `mix.exs` — `:gettext` is in `extra_applications` AND `{:gettext, "~> 1.0"}` is in `deps`
+- [ ] `mix.exs` — `package: [files: ~w(lib priv …)]` includes `priv` (verify with `mix hex.build` + `tar -tzf | grep priv/gettext`)
 - [ ] Create `lib/phoenix_kit_<x>/gettext.ex` with `use Gettext.Backend, otp_app: :phoenix_kit_<x>`
 - [ ] `grep -rl "PhoenixKitWeb.Gettext" lib/` returns **zero** results
-- [ ] Run `mix gettext.extract --merge`
-- [ ] `priv/gettext/{en,ru,et,…}/LC_MESSAGES/default.po` exist and `en/default.po` has `msgstr` = `msgid` for every entry
+- [ ] Maintain `priv/gettext/default.pot` and `priv/gettext/{en,ru,et,…}/LC_MESSAGES/default.po` manually — `mix gettext.extract` does **not** see plain `Tab.new!(label: "…")` strings (no `dgettext` macro call). `en/default.po` has `msgstr` = `msgid` for every entry; `ru`/`et` are filled
 - [ ] Every `Tab.new!`, `%Tab{}`, `Tab.divider/1`, `Tab.group_header/1`, `%Group{}`, `Group.new/1` in your module sets `gettext_backend:`
 - [ ] `dynamic_children:` callbacks return tabs with `gettext_backend:` set (when labels are msgids, not user data)
-- [ ] One smoke test passes (see [Test pattern](#test-pattern))
-- [ ] `mix test` and `mix gettext.extract --merge --check-up-to-date` clean
-- [ ] CHANGELOG entry, version bump, `mix hex.publish`
+- [ ] `test/test_helper.exs` has the conditional `:requires_phoenix_kit_i18n_api` skip (see [§ Conditional CI skip](#conditional-ci-skip))
+- [ ] Smoke test in `test/phoenix_kit/<x>/i18n_test.exs` carries `@moduletag :requires_phoenix_kit_i18n_api` and passes locally with `phoenix_kit` resolved to a release that ships the API
+- [ ] `mix test` clean (locally with API; on CI without API, i18n tests excluded automatically — also clean)
+- [ ] CHANGELOG entry, `@version` bump, commit on a feature branch, push, open PR. `mix hex.publish` is the maintainer's call after the PR merges
+
+---
+
+## Hex package shape
+
+`mix.exs` `package files:` **must include `priv`**. The directory is otherwise excluded from the Hex tarball, so the new `.po` files would not ship and `Gettext.dgettext/3` would silently return raw msgids in production for every consumer that installed from Hex.
+
+```elixir
+defp package do
+  [
+    licenses: ["MIT"],
+    links: %{"GitHub" => @source_url},
+    files: ~w(lib priv .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
+    #         ^^^^ this
+  ]
+end
+```
+
+Verify locally with:
+
+```bash
+mix hex.build
+tar -tzf phoenix_kit_<x>-*.tar | grep priv/gettext
+# should list every .po and .pot file
+```
+
+---
+
+## Conditional CI skip
+
+The `gettext_backend` API was introduced by [PR #522](https://github.com/BeamLabEU/phoenix_kit/pull/522) on `phoenix_kit` core. Until the consumer's `phoenix_kit` dep resolves to a published release that includes it, `PhoenixKit.Dashboard.Tab.localized_label/1` does not exist and the i18n smoke test would raise `UndefinedFunctionError`. To keep CI green on consumers who haven't yet upgraded, gate the smoke test with a `:requires_phoenix_kit_i18n_api` tag and detect availability in `test_helper.exs`:
+
+```elixir
+# test/test_helper.exs
+require Logger
+
+if Code.ensure_loaded?(PhoenixKit.Dashboard.Tab) and
+     function_exported?(PhoenixKit.Dashboard.Tab, :localized_label, 1) do
+  ExUnit.start()
+else
+  Logger.info(
+    "[test_helper] PhoenixKit.Dashboard.Tab.localized_label/1 not available — " <>
+      "i18n tests excluded. They will run automatically once `phoenix_kit` is " <>
+      "upgraded to a release that ships the gettext_backend API."
+  )
+
+  ExUnit.start(exclude: [:requires_phoenix_kit_i18n_api])
+end
+```
+
+```elixir
+# test/phoenix_kit/<x>/i18n_test.exs
+defmodule PhoenixKit.<X>.I18nTest do
+  use ExUnit.Case, async: false
+
+  @moduletag :requires_phoenix_kit_i18n_api
+
+  # ...
+end
+```
+
+`Code.ensure_loaded?/1` is load-bearing — without it, `function_exported?/3` returns `false` if the `Tab` module hasn't been loaded yet at helper-init time, and the i18n tests get excluded even when the API is available.
+
+---
+
+## Version bump and CHANGELOG (owned packages)
+
+Unlike `phoenix_kit` core (which is maintained by BeamLab — version and CHANGELOG are set by the maintainer at release time), every `phoenix_kit_<x>` package is maintained directly by the team that owns the fork. So for these packages:
+
+- Bump `@version` in `mix.exs` (typically a patch level — `0.1.x → 0.1.(x+1)`).
+- Add a CHANGELOG entry under that version. Format:
+
+```markdown
+## 0.1.3 - 2026-05-08
+
+### Added
+- Per-module Gettext backend (`PhoenixKit.<X>.Gettext`) with `en`/`ru`/`et` catalogues for all admin sidebar tab labels. Requires `phoenix_kit` release that ships the `gettext_backend` Tab API (BeamLabEU/phoenix_kit#522); on older releases tabs render raw English (graceful degradation).
+```
+
+Both go in the same commit as the i18n wiring.
 
 ---
 
@@ -379,6 +461,11 @@ A single smoke test per module is sufficient — core's tests already cover the 
 ```elixir
 defmodule PhoenixKit<X>.I18nSmokeTest do
   use ExUnit.Case, async: false
+
+  # Excluded by `test/test_helper.exs` when running against a `phoenix_kit`
+  # release that pre-dates the `gettext_backend` API. Once the consumer
+  # upgrades, the helper detects it and these tests run automatically.
+  @moduletag :requires_phoenix_kit_i18n_api
 
   alias PhoenixKit.Dashboard.Tab
 
@@ -406,7 +493,7 @@ defmodule PhoenixKit<X>.I18nSmokeTest do
 end
 ```
 
-`async: false` is required because `Gettext.put_locale/2` mutates the calling process's process dictionary; `on_exit` restores it cleanly.
+`async: false` is required because `Gettext.put_locale/2` mutates the calling process's process dictionary; `on_exit` restores it cleanly. Pair this module with the conditional helper from [§ Conditional CI skip](#conditional-ci-skip).
 
 ---
 
