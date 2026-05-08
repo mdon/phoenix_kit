@@ -668,9 +668,14 @@ Three pieces, all emitted by `compile_publishing_routing/1` in
 `integration.ex`:
 
 1. An internal scope at `/<url_prefix>/__phoenix_kit_publishing_dispatch`
-   that registers publishing's catch-all under the standard `:browser` +
-   `:phoenix_kit_*` pipelines, plus a `:phoenix_kit_publishing_internal`
-   pipeline that runs `PhoenixKitPublishing.RouterDispatch.restore_path/2`.
+   with two sub-scopes — `/localized` (binds `:language` + `:group`) and
+   `/root` (binds `:group` only). Without the discriminator, both forms
+   match a 2-segment internal path and Phoenix's first-match-wins picks
+   the wrong one; the override picks the right sub-scope based on which
+   segment resolved to a known group. Both sub-scopes use the standard
+   `:browser` + `:phoenix_kit_*` pipelines plus a
+   `:phoenix_kit_publishing_internal` pipeline that runs
+   `PhoenixKitPublishing.RouterDispatch.restore_path/2`.
 2. A `def call/2` override on the host router (Phoenix.Router publishes
    `defoverridable init: 1, call: 2` from `match_dispatch/0`). The
    override calls `RouterDispatch.maybe_rewrite/1`; on cache hit it

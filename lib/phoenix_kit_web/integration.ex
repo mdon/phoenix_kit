@@ -1219,12 +1219,17 @@ defmodule PhoenixKitWeb.Integration do
   defp compile_publishing_routing(url_prefix) do
     if Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch) do
       internal_prefix = apply(PhoenixKitPublishing.RouterDispatch, :internal_prefix, [])
+      localized_segment = apply(PhoenixKitPublishing.RouterDispatch, :localized_segment, [])
+      root_segment = apply(PhoenixKitPublishing.RouterDispatch, :root_segment, [])
 
       internal_scope_path =
         case url_prefix do
           "/" -> "/" <> internal_prefix
           prefix -> prefix <> "/" <> internal_prefix
         end
+
+      localized_sub = "/" <> localized_segment
+      root_sub = "/" <> root_segment
 
       quote do
         pipeline :phoenix_kit_publishing_internal do
@@ -1240,10 +1245,21 @@ defmodule PhoenixKitWeb.Integration do
             :phoenix_kit_publishing_internal
           ]
 
-          get "/:language/:group", Controller, :show
-          get "/:language/:group/*path", Controller, :show
-          get "/:group", Controller, :show
-          get "/:group/*path", Controller, :show
+          # Localized form — URL had a leading locale; bind :language + :group.
+          scope unquote(localized_sub) do
+            get "/:language/:group", Controller, :show
+            get "/:language/:group/*path", Controller, :show
+          end
+
+          # Non-localized form — URL had no leading locale; bind :group only.
+          # Without this discriminator scope, the localized routes above would
+          # also match a 2-segment internal path (Phoenix first-match-wins),
+          # binding `language=<group-slug>` and `group=<post-slug>` — which
+          # then 404s in the controller because the post slug isn't a group.
+          scope unquote(root_sub) do
+            get "/:group", Controller, :show
+            get "/:group/*path", Controller, :show
+          end
         end
 
         # Override Phoenix.Router's call/2 (defoverridable from `use Phoenix.Router`).
