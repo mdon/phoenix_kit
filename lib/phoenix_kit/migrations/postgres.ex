@@ -529,7 +529,65 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V105 - CRM tables ⚡ LATEST
+  ### V111 - PDF library tables for catalogue ⚡ LATEST
+  - Creates `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid`
+    FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue
+    manages the file lifecycle; core prune can't delete files we
+    reference). Soft-delete via `status` sentinel
+    (`active` / `trashed`) + `trashed_at`. Two uploads of identical
+    content (different filenames) → two `phoenix_kit_cat_pdfs` rows
+    sharing one `phoenix_kit_files` row + one extraction.
+  - Creates `phoenix_kit_cat_pdf_extractions` — keyed by
+    `file_uuid` PK. Holds the worker state machine
+    (`pending → extracting → extracted | scanned_no_text | failed`),
+    `page_count`, `extracted_at`, `error_message`. Cascades on file
+    hard delete.
+  - Creates `phoenix_kit_cat_pdf_page_contents` — content-addressed
+    page dedup cache. PK on `content_hash` (SHA-256 hex of normalized
+    page text). Same page text across multiple PDFs is stored once.
+  - Creates `phoenix_kit_cat_pdf_pages` — per-page join. Composite
+    PK `(file_uuid, page_number)`; `content_hash` FK to the dedup
+    cache (RESTRICT; orphaned content rows GC'd by a catalogue-side
+    helper).
+  - Enables `pg_trgm` extension; the GIN trigram index lives on the
+    dedup cache (smaller index — duplicates indexed once).
+
+  ### V110 - Add `language` to Document Creator templates
+  - Adds nullable `language VARCHAR(10)` to `phoenix_kit_doc_templates` so
+    each template can be tagged with a single locale (full code, e.g.
+    `en-US`, `et-EE`). Parent apps read it back via the public listing
+    API to fill template variables in the matching language.
+  - Documents intentionally do not get a language column — they inherit
+    from `template_uuid → templates.language`.
+  - Existing rows survive without a backfill; the form pre-selects the
+    project's primary language when creating new templates.
+
+  ### V109 - Rename Customer Service module to Customer Support
+  - Renames 7 settings keys from `customer_service_*` → `customer_support_*`
+  - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
+  - Updates `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
+
+  ### V108 - Position columns for entity / catalogue / item lists
+  - Adds nullable `position integer DEFAULT 0` to `phoenix_kit_entities`,
+    `phoenix_kit_cat_catalogues`, and `phoenix_kit_cat_items` so the
+    three corresponding admin lists support drag-and-drop reordering
+  - LV reorder handlers re-index the visible group to `1..N` on the
+    first user drag — the default `0` is only ever observed transiently
+  - No btree indexes on the new columns; lists are small and other
+    scope filters are already indexed
+  - `phoenix_kit_entity_data.position` (V81) and category/smart-catalogue
+    `position` columns (V87/V102) are unchanged
+
+  ### V107 - Pin AI endpoints to integration via `integration_uuid`
+  Adds `phoenix_kit_ai_endpoints.integration_uuid uuid` (nullable) so each
+  endpoint references the specific integration row it consumes, rather
+  than a bare provider string that the resolver had to guess against.
+  Backfills from existing `provider` strings — exact match for
+  `provider:name` shapes, most-recently-validated for bare providers.
+
+  ### V106 - Split phoenix_kit_projects.name uniqueness across templates and projects
+
+  ### V105 - CRM tables
   Two tables for the upcoming `phoenix_kit_crm` plugin:
   - **phoenix_kit_crm_role_settings**: tracks which user roles are opted into
     the CRM module (`enabled BOOLEAN NOT NULL DEFAULT false`; FK to
@@ -788,7 +846,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 106
+  @current_version 111
   @default_prefix "public"
 
   @doc false

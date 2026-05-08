@@ -68,13 +68,6 @@ defmodule PhoenixKitWeb.Integration do
   - /admin/users/live_sessions, /admin/users/sessions
   - /admin/settings, /admin/modules
 
-  Public pages routes (if Pages module enabled):
-  - {prefix}/pages/* (explicit prefix - e.g., /phoenix_kit/pages/test)
-  - /* (catch-all at root level - e.g., /test, /blog/post)
-  - Both routes serve published pages from priv/static/pages/*.md
-  - The catch-all can optionally serve a custom 404 markdown file when enabled
-  - Example: /test or /phoenix_kit/pages/test renders test.md
-
   ## Configuration
 
   You can disable the user dashboard by setting the environment variable in your config:
@@ -109,7 +102,6 @@ defmodule PhoenixKitWeb.Integration do
 
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb
-  alias PhoenixKitWeb.Routes.CustomerServiceRoutes
   alias PhoenixKitWeb.Routes.ReferralsRoutes
 
   @doc """
@@ -383,17 +375,11 @@ defmodule PhoenixKitWeb.Integration do
     # so plugin LiveViews don't need to wrap with LayoutWrapper themselves
     plugin_admin_routes = compile_plugin_admin_routes(__CALLER__.module)
 
-    {tickets_admin, referrals_admin} =
+    referrals_admin =
       if suffix == :_locale do
-        {
-          safe_route_call(CustomerServiceRoutes, :admin_locale_routes, []),
-          safe_route_call(ReferralsRoutes, :admin_locale_routes, [])
-        }
+        safe_route_call(ReferralsRoutes, :admin_locale_routes, [])
       else
-        {
-          safe_route_call(CustomerServiceRoutes, :admin_routes, []),
-          safe_route_call(ReferralsRoutes, :admin_routes, [])
-        }
+        safe_route_call(ReferralsRoutes, :admin_routes, [])
       end
 
     # Shop admin routes via safe_route_call (only when phoenix_kit_ecommerce is installed)
@@ -431,7 +417,7 @@ defmodule PhoenixKitWeb.Integration do
         live "/admin/settings/organization", Live.Settings.Organization, :index
         live "/admin/settings/integrations", Live.Settings.Integrations, :index
         live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
-        live "/admin/settings/integrations/:provider/:name", Live.Settings.IntegrationForm, :edit
+        live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
         live "/admin/modules", Live.Modules, :index
 
         live "/admin/settings/languages", Live.Modules.Languages, :index
@@ -469,19 +455,10 @@ defmodule PhoenixKitWeb.Integration do
                :index,
                as: :sitemap_settings
 
-          # DB Explorer routes
-          live "/admin/db", PhoenixKit.Modules.DB.Web.Index, :index, as: :db_index
-
-          live "/admin/db/activity", PhoenixKit.Modules.DB.Web.Activity, :activity,
-            as: :db_activity
-
-          live "/admin/db/:schema/:table", PhoenixKit.Modules.DB.Web.Show, :show, as: :db_show
-
           # Shop admin routes (only when phoenix_kit_ecommerce is installed)
           unquote(shop_admin)
 
           # Routes from external route modules
-          unquote(tickets_admin)
           unquote(referrals_admin)
 
           # Custom admin routes from :admin_dashboard_tabs config
@@ -575,25 +552,33 @@ defmodule PhoenixKitWeb.Integration do
         end
       end
 
+    cs_user_routes =
+      if Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList) do
+        quote do
+          live "/dashboard/customer-support/tickets",
+               PhoenixKitCustomerSupport.Web.UserList,
+               :index,
+               as: :tickets_user_list
+
+          live "/dashboard/customer-support/tickets/new",
+               PhoenixKitCustomerSupport.Web.UserNew,
+               :new,
+               as: :tickets_user_new
+
+          live "/dashboard/customer-support/tickets/:id",
+               PhoenixKitCustomerSupport.Web.UserDetails,
+               :show,
+               as: :tickets_user_details
+        end
+      else
+        quote do
+        end
+      end
+
     quote do
       unquote(shop_user_routes)
       unquote(billing_user_routes)
-
-      # Tickets user pages
-      live "/dashboard/customer-service/tickets",
-           PhoenixKit.Modules.CustomerService.Web.UserList,
-           :index,
-           as: :tickets_user_list
-
-      live "/dashboard/customer-service/tickets/new",
-           PhoenixKit.Modules.CustomerService.Web.UserNew,
-           :new,
-           as: :tickets_user_new
-
-      live "/dashboard/customer-service/tickets/:id",
-           PhoenixKit.Modules.CustomerService.Web.UserDetails,
-           :show,
-           as: :tickets_user_details
+      unquote(cs_user_routes)
     end
   end
 
@@ -635,25 +620,33 @@ defmodule PhoenixKitWeb.Integration do
         end
       end
 
+    cs_user_locale_routes =
+      if Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList) do
+        quote do
+          live "/dashboard/customer-support/tickets",
+               PhoenixKitCustomerSupport.Web.UserList,
+               :index,
+               as: :tickets_user_list_locale
+
+          live "/dashboard/customer-support/tickets/new",
+               PhoenixKitCustomerSupport.Web.UserNew,
+               :new,
+               as: :tickets_user_new_locale
+
+          live "/dashboard/customer-support/tickets/:id",
+               PhoenixKitCustomerSupport.Web.UserDetails,
+               :show,
+               as: :tickets_user_details_locale
+        end
+      else
+        quote do
+        end
+      end
+
     quote do
       unquote(shop_user_locale_routes)
       unquote(billing_user_locale_routes)
-
-      # Tickets user pages (locale variants)
-      live "/dashboard/customer-service/tickets",
-           PhoenixKit.Modules.CustomerService.Web.UserList,
-           :index,
-           as: :tickets_user_list_locale
-
-      live "/dashboard/customer-service/tickets/new",
-           PhoenixKit.Modules.CustomerService.Web.UserNew,
-           :new,
-           as: :tickets_user_new_locale
-
-      live "/dashboard/customer-service/tickets/:id",
-           PhoenixKit.Modules.CustomerService.Web.UserDetails,
-           :show,
-           as: :tickets_user_details_locale
+      unquote(cs_user_locale_routes)
     end
   end
 
@@ -1153,15 +1146,26 @@ defmodule PhoenixKitWeb.Integration do
     # Actual validation of whether the locale is supported happens in the validation plug
     pattern = "[a-z]{2,3}(?:-[A-Za-z]{2,4})?"
 
-    # Call route generators BEFORE quote block (aliases work in this context)
-    # Uses safe_route_call/3 so modules can be safely extracted to separate packages
-    customer_service_routes = safe_route_call(CustomerServiceRoutes, :generate, [url_prefix])
-
     # External route modules with public/non-admin routes
     external_public_routes = compile_external_public_routes(url_prefix)
 
     # Auto-discovered public routes from external PhoenixKit modules
     module_public_routes = compile_module_public_routes(url_prefix)
+
+    # Publishing routing-strategy integration. When the publishing module
+    # (with its `RouterDispatch` helper) is in the dep tree, emit:
+    #
+    #   * the internal-prefix scope (`/__phoenix_kit_publishing_dispatch/...`)
+    #     under which publishing's catch-all routes are registered
+    #   * a `def call/2` override that path-rewrites publishing-bound URLs
+    #     into that prefix so Phoenix's matcher dispatches via the standard
+    #     pipeline (sessions, CSRF, locale, scope) and host routes still
+    #     win for URLs that don't resolve to a known publishing group.
+    #
+    # See `PhoenixKitPublishing.RouterDispatch` for the full mechanism
+    # (`maybe_rewrite/1`, `restore_path/2`, the `defoverridable call/2`
+    # extension point on Phoenix.Router).
+    publishing_routing = compile_publishing_routing(url_prefix)
 
     # Snapshot discovered modules so the host router auto-recompiles when deps change
     current_hash = PhoenixKit.ModuleDiscovery.module_hash()
@@ -1187,9 +1191,6 @@ defmodule PhoenixKitWeb.Integration do
       # routes to prevent /:language/:group catch-alls from intercepting them (e.g., unsubscribe)
       unquote_splicing(module_public_routes)
 
-      # Generate module routes from separate files (improves compilation time)
-      unquote(customer_service_routes)
-
       # Generate localized routes
       unquote(generate_localized_routes(url_prefix, pattern))
 
@@ -1198,6 +1199,107 @@ defmodule PhoenixKitWeb.Integration do
 
       # External route modules with public routes
       unquote_splicing(external_public_routes)
+
+      # Publishing internal-prefix scope + call/2 override (when publishing is installed)
+      unquote(publishing_routing)
+    end
+  end
+
+  # Build the publishing routing-strategy AST. Returns `quote do end` (no-op)
+  # when publishing is not installed, so the macro stays a single-shape
+  # expansion without compile-time conditionals leaking into the host module.
+  #
+  # `apply/3` is the idiomatic dodge for the compile-time "undefined function"
+  # warning when calling into an optional dep — the `Code.ensure_loaded?/1`
+  # guard above is the runtime correctness check; `apply/3` shields the
+  # compiler's static-resolution pass. (Variable indirection like
+  # `mod = PhoenixKitPublishing.RouterDispatch; mod.fun()` does NOT
+  # shield the warning — Elixir's compiler tracks the binding's value
+  # and still emits `UndefinedFunctionError` warnings on the dispatch.
+  # Verified empirically; `apply/3` is the only escape valve for this
+  # specific shape.) Drop the `apply/3` calls once publishing becomes
+  # a required dep (it isn't, by design — installs without publishing
+  # should compile without it on the system).
+  #
+  # The credo `Refactor.Apply` warnings on the `apply/3` calls below are
+  # intentional — see comment above for why the variable-indirection
+  # alternative doesn't work.
+  #
+  # The `apply/3` calls also have a runtime resolution path: the host BEAM
+  # compiles the macro expansion (containing literal `apply` calls into
+  # `RouterDispatch`) and resolves them at request time. If a host removes
+  # publishing from their deps without recompiling core, the cached BEAM
+  # would `UndefinedFunctionError` at the next request. This is covered
+  # by the `__mix_recompile__?/0` mechanism injected by `phoenix_kit_routes/0`
+  # below — the host router's recompile-trigger hash includes the
+  # discovered module set, so removing publishing flips the hash and
+  # forces a recompile. The `apply` calls drop out of the regenerated AST.
+  @doc false
+  defp compile_publishing_routing(url_prefix) do
+    if Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch) do
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      internal_prefix = apply(PhoenixKitPublishing.RouterDispatch, :internal_prefix, [])
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      localized_segment = apply(PhoenixKitPublishing.RouterDispatch, :localized_segment, [])
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      root_segment = apply(PhoenixKitPublishing.RouterDispatch, :root_segment, [])
+
+      internal_scope_path =
+        case url_prefix do
+          "/" -> "/" <> internal_prefix
+          prefix -> prefix <> "/" <> internal_prefix
+        end
+
+      localized_sub = "/" <> localized_segment
+      root_sub = "/" <> root_segment
+
+      quote do
+        pipeline :phoenix_kit_publishing_internal do
+          plug PhoenixKitPublishing.RouterDispatch, :restore_path
+        end
+
+        scope unquote(internal_scope_path), PhoenixKit.Modules.Publishing.Web do
+          pipe_through [
+            :browser,
+            :phoenix_kit_auto_setup,
+            :phoenix_kit_locale_validation,
+            :phoenix_kit_optional_scope,
+            :phoenix_kit_publishing_internal
+          ]
+
+          # Localized form — URL had a leading locale; bind :language + :group.
+          scope unquote(localized_sub) do
+            get "/:language/:group", Controller, :show
+            get "/:language/:group/*path", Controller, :show
+          end
+
+          # Non-localized form — URL had no leading locale; bind :group only.
+          # Without this discriminator scope, the localized routes above would
+          # also match a 2-segment internal path (Phoenix first-match-wins),
+          # binding `language=<group-slug>` and `group=<post-slug>` — which
+          # then 404s in the controller because the post slug isn't a group.
+          scope unquote(root_sub) do
+            get "/:group", Controller, :show
+            get "/:group/*path", Controller, :show
+          end
+        end
+
+        # Override Phoenix.Router's call/2 (defoverridable from `use Phoenix.Router`).
+        # Path-rewrites publishing-bound URLs before super() runs the matcher.
+        # See PhoenixKitPublishing.RouterDispatch for the rationale.
+        def call(conn, opts) do
+          conn =
+            case PhoenixKitPublishing.RouterDispatch.maybe_rewrite(conn) do
+              {:rewrite, rewritten} -> rewritten
+              :pass -> conn
+            end
+
+          super(conn, opts)
+        end
+      end
+    else
+      quote do
+      end
     end
   end
 

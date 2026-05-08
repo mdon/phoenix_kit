@@ -112,11 +112,21 @@ defmodule PhoenixKit.Dashboard.Tab do
 
   @type level :: :user | :admin | :all
 
-  # `dynamic_children` may have arity 1 (receives scope) or arity 2 (receives scope
-  # and the current locale). The 2-arity variant lets modules render locale-aware
-  # children (e.g. translated tab labels) without having to fall back on
-  # `Gettext.get_locale/1` at render time. The sidebar dispatches on arity; both
-  # forms are supported for backwards compatibility.
+  @typedoc """
+  Callback that produces a parent tab's children at render time.
+
+  Two arities are supported and dispatched on at the sidebar layer:
+
+  - **Arity 1** — `(scope -> [tab])`. The original contract; most modules
+    use this form.
+  - **Arity 2** — `(scope, locale -> [tab])`. Receives the current locale
+    (or `nil` outside a localised request) so callbacks can render
+    locale-aware children (e.g. translated tab labels) without falling
+    back on `Gettext.get_locale/1` at render time. The locale is passed
+    explicitly so plugins don't depend on Gettext process state.
+
+  `nil` means "no dynamic children"; the parent tab renders alone.
+  """
   @type dynamic_children_fn ::
           (map() -> [t()])
           | (map(), String.t() | nil -> [t()])
@@ -149,7 +159,9 @@ defmodule PhoenixKit.Dashboard.Tab do
           new_tab: boolean(),
           attention: atom() | nil,
           metadata: map(),
-          inserted_at: DateTime.t() | nil
+          inserted_at: DateTime.t() | nil,
+          gettext_backend: module() | nil,
+          gettext_domain: String.t()
         }
 
   defstruct [
@@ -170,6 +182,7 @@ defmodule PhoenixKit.Dashboard.Tab do
     :permission,
     :live_view,
     :dynamic_children,
+    :gettext_backend,
     priority: 500,
     level: :user,
     subtab_display: :when_active,
@@ -179,7 +192,8 @@ defmodule PhoenixKit.Dashboard.Tab do
     visible: true,
     external: false,
     new_tab: false,
-    metadata: %{}
+    metadata: %{},
+    gettext_domain: "default"
   ]
 
   @doc """
@@ -258,7 +272,9 @@ defmodule PhoenixKit.Dashboard.Tab do
       attention: parse_attention(get_attr(attrs, :attention)),
       live_view: get_attr(attrs, :live_view),
       metadata: get_attr(attrs, :metadata) || %{},
-      inserted_at: UtilsDate.utc_now()
+      inserted_at: UtilsDate.utc_now(),
+      gettext_backend: get_attr(attrs, :gettext_backend),
+      gettext_domain: get_attr(attrs, :gettext_domain) || "default"
     }
   end
 
@@ -282,6 +298,53 @@ defmodule PhoenixKit.Dashboard.Tab do
   end
 
   @doc """
+  Returns the tab's label, translated via the configured gettext backend if one is set.
+
+  Falls back to the raw label string when:
+    * `gettext_backend` is `nil` (default — no translation configured)
+    * the label is `nil` (e.g. divider tabs)
+    * gettext has no translation for the msgid (gettext's own fallback)
+
+  Reads `gettext_backend` and `gettext_domain` via `Map.get/2` rather than
+  pattern matching, so an old-shape struct cached in ETS or `:persistent_term`
+  before the 1.8.0 upgrade — which lacks those keys entirely — gracefully
+  falls back to the raw label instead of raising `FunctionClauseError`.
+  """
+  @spec localized_label(t()) :: String.t() | nil
+  def localized_label(%__MODULE__{label: nil}), do: nil
+
+  def localized_label(%__MODULE__{label: label} = tab) do
+    case Map.get(tab, :gettext_backend) do
+      nil ->
+        label
+
+      backend ->
+        domain = Map.get(tab, :gettext_domain) || "default"
+        Gettext.dgettext(backend, domain, label)
+    end
+  end
+
+  @doc """
+  Returns the tab's tooltip, translated via the configured gettext backend if one is set.
+
+  Same fallback semantics as `localized_label/1`, including resilience to old
+  struct shapes cached before the 1.8.0 upgrade.
+  """
+  @spec localized_tooltip(t()) :: String.t() | nil
+  def localized_tooltip(%__MODULE__{tooltip: nil}), do: nil
+
+  def localized_tooltip(%__MODULE__{tooltip: tooltip} = tab) do
+    case Map.get(tab, :gettext_backend) do
+      nil ->
+        tooltip
+
+      backend ->
+        domain = Map.get(tab, :gettext_domain) || "default"
+        Gettext.dgettext(backend, domain, tooltip)
+    end
+  end
+
+  @doc """
   Creates a divider pseudo-tab for visual separation.
 
   ## Options
@@ -290,6 +353,8 @@ defmodule PhoenixKit.Dashboard.Tab do
   - `:priority` - Sort order (required to position the divider)
   - `:group` - Group this divider belongs to (optional)
   - `:label` - Optional label text for the divider (shows as a header)
+  - `:gettext_backend` - Optional Gettext backend module for label translation (default: nil)
+  - `:gettext_domain` - Gettext domain for translation lookups (default: "default")
 
   ## Examples
 
@@ -309,7 +374,9 @@ defmodule PhoenixKit.Dashboard.Tab do
       group: opts[:group],
       match: :exact,
       visible: if(is_nil(opts[:visible]), do: true, else: opts[:visible]),
-      metadata: %{type: :divider}
+      metadata: %{type: :divider},
+      gettext_backend: opts[:gettext_backend],
+      gettext_domain: opts[:gettext_domain] || "default"
     }
   end
 
@@ -324,6 +391,8 @@ defmodule PhoenixKit.Dashboard.Tab do
   - `:icon` - Optional icon for the header
   - `:collapsible` - Whether the group can be collapsed (default: false)
   - `:collapsed` - Initial collapsed state (default: false)
+  - `:gettext_backend` - Optional Gettext backend module for label translation (default: nil)
+  - `:gettext_domain` - Gettext domain for translation lookups (default: "default")
 
   ## Examples
 
@@ -345,7 +414,9 @@ defmodule PhoenixKit.Dashboard.Tab do
         type: :group_header,
         collapsible: opts[:collapsible] || false,
         collapsed: opts[:collapsed] || false
-      }
+      },
+      gettext_backend: opts[:gettext_backend],
+      gettext_domain: opts[:gettext_domain] || "default"
     }
   end
 
