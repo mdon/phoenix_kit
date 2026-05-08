@@ -368,4 +368,41 @@ defmodule PhoenixKit.ModuleRegistryTest do
       assert is_map(ModuleRegistry.run_all_legacy_migrations())
     end
   end
+
+  describe "known_external_packages/0" do
+    test "delegates to KnownPackages.list/0 and returns a list" do
+      # This function now fetches live from Hex.pm (or cache).
+      # We test contract shape here; detailed behavior is in known_packages_test.exs.
+      packages = ModuleRegistry.known_external_packages()
+      assert is_list(packages)
+    end
+  end
+
+  describe "not_installed_packages/0" do
+    test "returns a list of maps" do
+      not_installed = ModuleRegistry.not_installed_packages()
+      assert is_list(not_installed)
+    end
+
+    test "every entry has required fields" do
+      for pkg <- ModuleRegistry.not_installed_packages() do
+        assert is_binary(pkg.package)
+        assert is_binary(pkg.name)
+        assert is_binary(pkg.key)
+      end
+    end
+
+    test "does not include packages whose OTP app is loaded" do
+      not_installed = ModuleRegistry.not_installed_packages()
+
+      loaded_otp_apps =
+        :application.loaded_applications()
+        |> MapSet.new(fn {name, _desc, _vsn} -> Atom.to_string(name) end)
+
+      for pkg <- not_installed do
+        refute MapSet.member?(loaded_otp_apps, pkg.package),
+               "#{pkg.package} is an active OTP app but appeared in not_installed_packages"
+      end
+    end
+  end
 end

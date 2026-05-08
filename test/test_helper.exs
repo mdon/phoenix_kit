@@ -7,20 +7,25 @@ db_name =
   Application.get_env(:phoenix_kit, PhoenixKit.Test.Repo)[:database] || "phoenix_kit_test"
 
 db_check =
-  case System.cmd("psql", ["-lqt"], stderr_to_stdout: true) do
-    {output, 0} ->
-      exists =
-        output
-        |> String.split("\n")
-        |> Enum.any?(fn line ->
-          line |> String.split("|") |> List.first("") |> String.trim() == db_name
-        end)
+  try do
+    case System.cmd("psql", ["-lqt"], stderr_to_stdout: true) do
+      {output, 0} ->
+        exists =
+          output
+          |> String.split("\n")
+          |> Enum.any?(fn line ->
+            line |> String.split("|") |> List.first("") |> String.trim() == db_name
+          end)
 
-      if exists, do: :exists, else: :not_found
+        if exists, do: :exists, else: :not_found
 
-    _ ->
-      # psql not available (CI without postgresql-client) — try connecting directly
-      :try_connect
+      _ ->
+        # psql not available (CI without postgresql-client) — try connecting directly
+        :try_connect
+    end
+  rescue
+    # psql binary not found on this system — try connecting directly
+    ErlangError -> :try_connect
   end
 
 repo_available =

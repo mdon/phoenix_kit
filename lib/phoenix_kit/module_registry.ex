@@ -244,8 +244,14 @@ defmodule PhoenixKit.ModuleRegistry do
   """
   @spec not_installed_packages() :: [map()]
   def not_installed_packages do
+    installed_otp_apps =
+      PhoenixKit.ModuleDiscovery.discover_external_modules()
+      |> Enum.map(&Application.get_application/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new(&Atom.to_string/1)
+
     known_external_packages()
-    |> Enum.reject(fn pkg -> Code.ensure_loaded?(pkg.module) end)
+    |> Enum.reject(&MapSet.member?(installed_otp_apps, &1.package))
   end
 
   @doc "Returns all feature module key strings from registered modules."
@@ -434,147 +440,16 @@ defmodule PhoenixKit.ModuleRegistry do
     ]
   end
 
-  # Known external PhoenixKit packages. Listed here so the admin Modules page
-  # can show "not installed" cards for packages the user hasn't added yet.
-  defp known_external_packages do
-    [
-      %{
-        module: PhoenixKitCustomerSupport,
-        key: "customer_support",
-        hex_package: "phoenix_kit_customer_support",
-        name: "Customer Support",
-        description:
-          "Support ticket management with status workflow, threaded comments, internal notes, and file attachments.",
-        icon: "🎫",
-        hex_url: "https://hex.pm/packages/phoenix_kit_customer_support"
-      },
-      %{
-        module: PhoenixKit.Newsletters,
-        key: "newsletters",
-        hex_package: "phoenix_kit_newsletters",
-        name: "Newsletters",
-        description:
-          "Email newsletter management with list subscriptions, broadcast campaigns, and delivery tracking.",
-        icon: "📧",
-        hex_url: "https://hex.pm/packages/phoenix_kit_newsletters"
-      },
-      %{
-        module: PhoenixKitSync,
-        key: "sync",
-        hex_package: "phoenix_kit_sync",
-        name: "Sync",
-        description:
-          "Peer-to-peer data synchronization between PhoenixKit instances with token-based connections and transfer tracking.",
-        icon: "🔄",
-        hex_url: "https://hex.pm/packages/phoenix_kit_sync"
-      },
-      %{
-        module: PhoenixKitPosts,
-        key: "posts",
-        hex_package: "phoenix_kit_posts",
-        name: "Posts",
-        description:
-          "Blog posts, tags, groups, likes, media attachments, and scheduled publishing.",
-        icon: "📝",
-        hex_url: "https://hex.pm/packages/phoenix_kit_posts"
-      },
-      %{
-        module: PhoenixKit.Modules.Emails,
-        key: "emails",
-        hex_package: "phoenix_kit_emails",
-        name: "Emails",
-        description:
-          "Email tracking, templates, SQS integration, blocklist, and delivery analytics.",
-        icon: "📨",
-        hex_url: "https://hex.pm/packages/phoenix_kit_emails"
-      },
-      %{
-        module: PhoenixKit.Modules.Publishing,
-        key: "publishing",
-        hex_package: "phoenix_kit_publishing",
-        name: "Publishing",
-        description:
-          "Content publishing with groups, multilingual support, versioning, and collaborative editing.",
-        icon: "📰",
-        hex_url: "https://hex.pm/packages/phoenix_kit_publishing"
-      },
-      %{
-        module: PhoenixKitEntities,
-        key: "entities",
-        hex_package: "phoenix_kit_entities",
-        name: "Entities",
-        description:
-          "Custom data entities with fields, forms, multilingual support, and data navigation.",
-        icon: "🧩",
-        hex_url: "https://hex.pm/packages/phoenix_kit_entities"
-      },
-      %{
-        module: PhoenixKitAI,
-        key: "ai",
-        hex_package: "phoenix_kit_ai",
-        name: "AI",
-        description:
-          "AI endpoint management, prompt templates, completions via OpenRouter, and usage tracking.",
-        icon: "🤖",
-        hex_url: "https://hex.pm/packages/phoenix_kit_ai"
-      },
-      %{
-        module: PhoenixKit.Modules.Legal,
-        key: "legal",
-        hex_package: "phoenix_kit_legal",
-        name: "Legal",
-        description:
-          "GDPR/CCPA compliance with legal page generation, cookie consent widget, and consent audit logging.",
-        icon: "⚖️",
-        hex_url: "https://hex.pm/packages/phoenix_kit_legal"
-      },
-      %{
-        module: PhoenixKitCatalogue,
-        key: "catalogue",
-        hex_package: "phoenix_kit_catalogue",
-        name: "Catalogue",
-        description: "Product catalogues with manufacturers, suppliers, categories, and items.",
-        icon: "📦",
-        hex_url: "https://hex.pm/packages/phoenix_kit_catalogue"
-      },
-      %{
-        module: PhoenixKitDocumentCreator,
-        key: "document_creator",
-        hex_package: "phoenix_kit_document_creator",
-        name: "Document Creator",
-        description: "Document template management and PDF generation via Google Docs API.",
-        icon: "📄",
-        hex_url: "https://hex.pm/packages/phoenix_kit_document_creator"
-      },
-      %{
-        module: PhoenixKitUserConnections,
-        key: "user_connections",
-        hex_package: "phoenix_kit_user_connections",
-        name: "User Connections",
-        description:
-          "Social relationships with follows, mutual connections, blocking, and audit history.",
-        icon: "🤝",
-        hex_url: "https://hex.pm/packages/phoenix_kit_user_connections"
-      },
-      %{
-        module: PhoenixKitComments,
-        key: "comments",
-        hex_package: "phoenix_kit_comments",
-        name: "Comments",
-        description: "Comment system with likes and admin management.",
-        icon: "💬",
-        hex_url: "https://hex.pm/packages/phoenix_kit_comments"
-      },
-      %{
-        module: PhoenixKitHelloWorld,
-        key: "hello_world",
-        hex_package: "phoenix_kit_hello_world",
-        name: "Hello World",
-        description: "Example module template for building new PhoenixKit modules.",
-        icon: "👋",
-        hex_url: "https://hex.pm/packages/phoenix_kit_hello_world"
-      }
-    ]
+  @doc """
+  Returns the full catalog of known external PhoenixKit packages.
+
+  Fetches live from Hex.pm with a 10-minute in-memory cache.
+  Merged with any entries from `config :phoenix_kit, extra_known_packages: [...]`.
+  Config entries take precedence over Hex entries when the `package` field collides.
+  """
+  @spec known_external_packages() :: [map()]
+  def known_external_packages do
+    PhoenixKit.KnownPackages.list()
   end
 
   defp warn_duplicate_tab_ids(tabs) do
