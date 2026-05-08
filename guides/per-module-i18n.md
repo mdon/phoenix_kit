@@ -2,7 +2,7 @@
 
 **Translate sidebar tab labels, group labels, and tooltips inside your PhoenixKit module.**
 
-This guide shows how each PhoenixKit module owns its own Gettext backend, ships its own `.po` files, and registers admin/settings/dashboard tabs with `gettext_backend:` so labels translate at render time according to the user's locale. Applies to **every** module that exposes UI — both new modules being authored from day 1 and existing modules being uplifted to `phoenix_kit ~> 1.8`.
+This guide shows how each PhoenixKit module owns its own Gettext backend, ships its own `.po` files, and registers admin/settings/dashboard tabs with `gettext_backend:` so labels translate at render time according to the user's locale. Applies to **every** module that exposes UI — both new modules being authored from day 1 and existing modules being uplifted to the PhoenixKit release that introduces the `gettext_backend` / `gettext_domain` API. Confirm the exact minimum version against the PhoenixKit CHANGELOG.
 
 ---
 
@@ -19,7 +19,9 @@ def application, do: [extra_applications: [:logger, :gettext]]
 
 defp deps do
   [
-    {:phoenix_kit, "~> 1.8"},
+    # Use the version that introduces the gettext_backend API
+    # — check PhoenixKit's CHANGELOG for the exact minimum.
+    {:phoenix_kit, "~> X.Y"},
     {:gettext, "~> 1.0"}
   ]
 end
@@ -51,9 +53,9 @@ end
 
 ---
 
-## What core gives you (PhoenixKit ≥ 1.8)
+## What core gives you
 
-`PhoenixKit.Dashboard.Tab` and `PhoenixKit.Dashboard.Group` accept two optional fields:
+Starting with the PhoenixKit release that introduces this API (see CHANGELOG for the exact version), `PhoenixKit.Dashboard.Tab` and `PhoenixKit.Dashboard.Group` accept two optional fields:
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
@@ -86,7 +88,7 @@ This also matches the `dynamic_children/2` callback contract: arity-2 dynamic-ch
 
 | # | Step | Where |
 |---|------|-------|
-| 1 | Bump `{:phoenix_kit, "~> 1.8"}` | `mix.exs` |
+| 1 | Bump the `phoenix_kit` dep to the release that ships the `gettext_backend` API (see PhoenixKit CHANGELOG) | `mix.exs` |
 | 2 | Add `:gettext` to `extra_applications` (verify) | `mix.exs` |
 | 3 | Create the module's own Gettext backend | `lib/phoenix_kit_<x>/gettext.ex` |
 | 4 | Replace every `use Gettext, backend: PhoenixKitWeb.Gettext` with the module's own backend | `grep -rl "PhoenixKitWeb.Gettext" lib/` |
@@ -129,7 +131,9 @@ end
 
 defp deps do
   [
-    {:phoenix_kit, "~> 1.8"},
+    # Use the version that introduces the gettext_backend API
+    # — check PhoenixKit's CHANGELOG for the exact minimum.
+    {:phoenix_kit, "~> X.Y"},
     {:gettext, "~> 1.0"}
   ]
 end
@@ -352,9 +356,9 @@ end
 
 ## Retrofitting an existing module
 
-For each existing `phoenix_kit_<x>` module being uplifted to 1.8:
+For each existing `phoenix_kit_<x>` module being uplifted to the new API:
 
-- [ ] `mix.exs` — bump `{:phoenix_kit, "~> 1.8"}`
+- [ ] `mix.exs` — bump `phoenix_kit` dep to the release that ships the `gettext_backend` API (see PhoenixKit CHANGELOG)
 - [ ] `mix.exs` — confirm `:gettext` is in `extra_applications`
 - [ ] Create `lib/phoenix_kit_<x>/gettext.ex` with `use Gettext.Backend, otp_app: :phoenix_kit_<x>`
 - [ ] `grep -rl "PhoenixKitWeb.Gettext" lib/` returns **zero** results
@@ -426,7 +430,7 @@ end
 
 | Phase | Repo | What |
 |-------|------|------|
-| 1 ✅ | `phoenix_kit` (core) | Released `1.8.0` with `gettext_backend` / `gettext_domain` API |
+| 1 ✅ | `phoenix_kit` (core) | `gettext_backend` / `gettext_domain` API merged on `dev`. Maintainer ships the API in an upcoming release — see PhoenixKit CHANGELOG for the version. |
 | 2 ⏳ | each `phoenix_kit_<x>` package | Apply this guide. Pilot: `phoenix_kit_projects` |
 | 3 ⏳ | parent apps | Drop ETS-patching hacks; pass `gettext_backend:` to their own tabs |
 
