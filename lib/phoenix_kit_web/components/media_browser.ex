@@ -75,15 +75,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   - `scope_folder_id` — constrain the browser to a virtual root folder
   - `on_navigate` — when truthy, enables controlled mode (URL-sync via parent)
   - `admin` — when `true`, clicking a file opens the admin detail page at
-    `/admin/media/:uuid`. When `false` (default), clicks toggle selection
-    instead, so the component behaves as a picker when embedded outside the
-    admin UI.
-  - `viewer` — when `true`, clicks open a read-only modal showing the
-    clicked file (image / video / PDF / icon) with its metadata and a
-    Download button. Standard close behaviour (X button, Esc, click on
-    backdrop). `admin` and `select_mode` both win over `viewer` if also
-    set, so a caller can opt into modal viewing without losing the
-    selection picker for users who explicitly enable select mode.
+    `/admin/media/:uuid`. When `false` (default), clicks open a read-only
+    in-place modal viewer (image / video / PDF / icon + metadata + Download
+    + prev/next navigation). Bulk-select is still reachable via the
+    toolbar's Select button — once `select_mode` is on, clicks toggle
+    selection instead of opening the modal.
   """
   use PhoenixKitWeb, :live_component
 
@@ -109,7 +105,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
-      |> assign_new(:viewer, fn -> false end)
       |> assign_new(:viewer_file, fn -> nil end)
 
     cond do
@@ -992,6 +987,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("click_file", %{"file-uuid" => file_uuid}, socket) do
     cond do
       # Already in selection mode → toggle this file in/out, stay in selection mode.
+      # The toolbar's "Select" button is how callers reach bulk-select; once on,
+      # clicks add/remove rather than open the modal.
       socket.assigns.select_mode ->
         {:noreply, do_toggle_file(socket, file_uuid)}
 
@@ -999,14 +996,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       socket.assigns.admin ->
         {:noreply, push_navigate(socket, to: Routes.path("/admin/media/#{file_uuid}"))}
 
-      # Caller opted into the modal viewer → stash the clicked file in
-      # viewer_file so the modal at the bottom of the template renders.
-      socket.assigns.viewer ->
-        {:noreply, assign(socket, :viewer_file, find_uploaded_file(socket, file_uuid))}
-
-      # Default picker behaviour: enter selection mode and toggle this file in.
+      # Anywhere else (non-admin, not in select mode) → open the in-place
+      # modal viewer for that file. This is the default and is what every
+      # embedded MediaBrowser gets unless `admin={true}` is set.
       true ->
-        {:noreply, socket |> do_toggle_file(file_uuid) |> assign(:select_mode, true)}
+        {:noreply, assign(socket, :viewer_file, find_uploaded_file(socket, file_uuid))}
     end
   end
 

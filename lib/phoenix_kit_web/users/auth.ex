@@ -461,7 +461,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
     end
@@ -477,7 +477,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -527,7 +527,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -565,7 +565,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -611,7 +611,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/log-in"))
+          |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -1616,6 +1616,25 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  # LiveView counterpart to maybe_store_return_to/1: builds a login URL
+  # carrying the original request path as a ?return_to= query param.
+  # The login LiveView reads it (sanitize_return_to/1), the form posts
+  # it back, session.ex stashes it as :user_return_to, log_in_user/3
+  # redirects there. We skip the param when the URI isn't available or
+  # the user is already on the login page (guards against self-loops).
+  defp login_path_with_return_to(socket) do
+    login_path = Routes.path("/users/log-in")
+
+    case Phoenix.LiveView.get_connect_info(socket, :uri) do
+      %URI{path: path} = uri when is_binary(path) and path != login_path ->
+        query = if uri.query, do: "?" <> uri.query, else: ""
+        login_path <> "?return_to=" <> URI.encode_www_form(path <> query)
+
+      _ ->
+        login_path
+    end
+  end
 
   defp signed_in_path(_conn), do: "/"
 
