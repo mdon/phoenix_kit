@@ -94,7 +94,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         rel={if @tab.new_tab, do: "noopener noreferrer", else: nil}
         class={@tab_class}
         style={@tab_style}
-        title={@tab.tooltip}
+        title={Tab.localized_tooltip(@tab)}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
       >
@@ -115,7 +115,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         navigate={@path}
         class={@tab_class}
         style={@tab_style}
-        title={@tab.tooltip}
+        title={Tab.localized_tooltip(@tab)}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
       >
@@ -134,12 +134,12 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
 
   defp render_divider(assigns) do
     ~H"""
-    <%= if @tab.label do %>
+    <%= if Tab.localized_label(@tab) do %>
       <div class={[
         "px-3 py-2 text-xs font-semibold text-base-content/50 uppercase tracking-wider",
         @class
       ]}>
-        {@tab.label}
+        {Tab.localized_label(@tab)}
       </div>
     <% else %>
       <div class={["divider my-1", @class]}></div>
@@ -172,7 +172,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         <%= if @tab.icon do %>
           <.icon name={@tab.icon} class="w-3.5 h-3.5" />
         <% end %>
-        {@tab.label}
+        {Tab.localized_label(@tab)}
       </span>
       <%= if @collapsible do %>
         <.icon
@@ -230,7 +230,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
           if(@wrap_label, do: "break-words leading-tight", else: "truncate"),
           @is_subtab && (@subtab_style[:text_size] || "text-sm")
         ]}>
-          {@tab.label}
+          {Tab.localized_label(@tab)}
         </span>
       <% end %>
     </div>
@@ -275,7 +275,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
             </span>
           <% end %>
         </div>
-        <span class="text-xs mt-1 truncate">{@tab.label}</span>
+        <span class="text-xs mt-1 truncate">{Tab.localized_label(@tab)}</span>
       </.link>
       """
     else
