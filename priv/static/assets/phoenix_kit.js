@@ -158,7 +158,21 @@ if (typeof window.Chart === "undefined") {
         ".pk-sortable-wiggle { animation: pk-sortable-wiggle 0.4s ease-in-out infinite; }",
         ".pk-sortable-wiggle:nth-child(even) { animation-delay: 0.1s; }",
         ".pk-sortable-wiggle:nth-child(3n) { animation-delay: 0.2s; }",
-        "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }"
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }",
+        // Reorder result flash — green on success, red on failure.
+        // The hook applies the class transiently after the LV emits a
+        // sortable:flash push_event. We overlay a pseudo-element
+        // (::after) instead of animating background-color directly,
+        // so cards with their own bg (e.g. bg-base-200) don't briefly
+        // become transparent during the keyframe interpolation and
+        // bleed the page bg through.
+        ".pk-sortable-flash-ok, .pk-sortable-flash-err { position: relative; }",
+        ".pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; z-index: 1; }",
+        "@keyframes pk-sortable-flash-ok { 0% { background-color: rgba(34, 197, 94, 0); } 15% { background-color: rgba(34, 197, 94, 0.35); } 100% { background-color: rgba(34, 197, 94, 0); } }",
+        "@keyframes pk-sortable-flash-err { 0% { background-color: rgba(239, 68, 68, 0); } 15% { background-color: rgba(239, 68, 68, 0.35); } 100% { background-color: rgba(239, 68, 68, 0); } }",
+        ".pk-sortable-flash-ok::after { animation: pk-sortable-flash-ok 1.1s ease-out; }",
+        ".pk-sortable-flash-err::after { animation: pk-sortable-flash-err 1.1s ease-out; }",
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { animation: none; } }"
       ].join("\n");
       document.head.appendChild(style);
     }
@@ -197,6 +211,43 @@ if (typeof window.Chart === "undefined") {
     window.PhoenixKitHooks.SortableGrid = {
       mounted: function() {
         var self = this;
+
+        // Server-driven flash: the LV pushes `sortable:flash` after each
+        // reorder attempt with `{uuid, status: "ok" | "error"}`. We
+        // find the row by `data-id` and apply a transient highlight
+        // class. Idempotent — the offsetWidth read forces a reflow so
+        // re-flashing the same row restarts the animation.
+        this.handleEvent("sortable:flash", function(payload) {
+          if (!payload || !payload.uuid) return;
+          // Apply to *every* element with the data-id — table view and
+          // card view each render the same item, so both DOM nodes
+          // need the class. Whichever is currently visible (md:
+          // breakpoint controls it) animates in front of the user.
+          var items = document.querySelectorAll(
+            '[data-id="' + payload.uuid + '"]'
+          );
+          if (!items.length) return;
+          var cls =
+            payload.status === "ok"
+              ? "pk-sortable-flash-ok"
+              : "pk-sortable-flash-err";
+          items.forEach(function(item) {
+            item.classList.remove(
+              "pk-sortable-flash-ok",
+              "pk-sortable-flash-err"
+            );
+            // Force reflow so a second consecutive flash re-runs the
+            // keyframes on this element.
+            void item.offsetWidth;
+            item.classList.add(cls);
+          });
+          setTimeout(function() {
+            items.forEach(function(item) {
+              item.classList.remove(cls);
+            });
+          }, 1200);
+        });
+
         loadSortableJS(function() {
           setTimeout(function() {
             self.initSortable();
@@ -331,12 +382,16 @@ if (typeof window.Chart === "undefined") {
                 return el.dataset.id;
               });
 
-              var payload = { ordered_ids: orderedIds };
+              // `moved_id` is always included so the LV can push back
+               // a sortable:flash event keyed to the just-moved row.
+              var payload = {
+                ordered_ids: orderedIds,
+                moved_id: evt.item.dataset.id
+              };
               var destScope = readScope(toContainer);
               for (var k in destScope) payload[k] = destScope[k];
 
               if (crossContainer) {
-                payload.moved_id = evt.item.dataset.id;
                 var fromScope = readScope(fromContainer);
                 for (var k2 in fromScope) {
                   // Capitalize first letter so `categoryUuid` becomes
