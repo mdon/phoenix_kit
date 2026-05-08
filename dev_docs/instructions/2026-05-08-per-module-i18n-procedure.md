@@ -368,6 +368,59 @@ db_check =
 
 If your module's `test_helper.exs` already has a different DB-probe shape, audit it for the same class of bug — any `System.cmd`-style call without `try/rescue` is a CI crash waiting to happen on a slim container.
 
+### Gotcha 11: Module reads `mix.exs` from the working tree, but the commit shape is what matters
+
+When verifying that `mix.exs` is clean (no `path:` override) before pushing, a reviewer or follow-up agent might `Read` the working tree file and see `path: "/tmp/pk-pr/i18n", override: true` — and panic that the path leaked into the commit. It didn't. The committed snapshot is clean; the working tree retains the local dev override (uncommitted).
+
+**Verification rule:** always check the committed form via `git show <sha>:mix.exs`, not by reading the file from the working tree. The two diverge by design under the established workflow.
+
+### Gotcha 12: Skip-worktree may already be lifted (`H` not `S`)
+
+The playbook's step 1 (lift `skip-worktree` on `mix.exs`) is a precaution. Several packages had already-`H` (normal) status — the lift was a no-op. If `git ls-files -t mix.exs` returns `H` rather than `S`, skip step 1 and proceed to step 2.
+
+### Gotcha 13: Dynamic-label tabs do NOT receive `gettext_backend:`
+
+If a module builds `%Tab{label: …}` with a **runtime** value rather than a static string (e.g. `label: role.name` for a per-role admin tab, or `label: project.title` for a per-project tab), do **not** add `gettext_backend:`. There is no static msgid for gettext to look up — the runtime string would be passed to `Gettext.dgettext/3` which would fail to find it in the catalogue and return the raw string anyway, just with an unnecessary call per render.
+
+The "every `%Tab{}`" rule in the public guide implicitly applies to **static-label** tabs (admin nav, settings nav, fixed sidebar items). Dynamic-label tabs (built from DB rows, user input, etc.) keep their raw `label: <value>` and stay untouched.
+
+Found on `phoenix_kit_crm`'s `sidebar_bootstrap.ex` (`role_tab/1` builds tabs from CRM role names).
+
+### Gotcha 14: `use PhoenixKitWeb, :live_view` files are off-limits for the migration
+
+If a module's LiveView file begins with `use PhoenixKitWeb, :live_view` (or `:controller`), that file is **deliberately part of the host app's web layer dependency chain**. The host's web module injects Gettext, router helpers, and other compile-time macros at the host-app level. The package can't override that with its own backend without breaking host apps.
+
+**Rule:** if a file does NOT have a direct `use Gettext, backend: ...` declaration of its own, but uses `PhoenixKitWeb.Gettext` only via `use PhoenixKitWeb, :live_view`, leave it alone. Migrating it would break runtime translations.
+
+Found on `phoenix_kit_crm/web/settings_live.ex`. Confirmed correct by reviewer.
+
+### Gotcha 15: Body-string `PhoenixKitWeb.Gettext` references in `lib/.../web/*` are out of scope
+
+Several modules (notably `phoenix_kit_billing` with 23 files, `phoenix_kit_ecommerce` with `shop_web.ex`, `phoenix_kit_legal` with calls in `legal.ex`) have **pre-existing** `use Gettext, backend: PhoenixKitWeb.Gettext` declarations or `Gettext.gettext(PhoenixKitWeb.Gettext, …)` calls in their LiveView/controller body code. These translate **page body strings** (form labels, button text, table headers) — not Tab labels.
+
+The per-module-i18n migration is **scoped to sidebar Tab labels only**. Body-string i18n is a separate, much larger sweep:
+
+- Replace every `use Gettext, backend: PhoenixKitWeb.Gettext` with `use Gettext, backend: PhoenixKit<X>.Gettext`
+- Run `mix gettext.extract` to discover all body-string msgids (often hundreds per module)
+- Produce translations in `ru` / `et` (or leave empty for graceful fallback)
+
+**Document body-string tech debt in the PR description** as out-of-scope, with the file count. Don't mix it into the tab-label PR — keep the diff focused. CRM was the exception: it had `gettext()` wrappers ON Tab labels themselves, so the wrapper-strip + backend-swap was bundled with the tab migration; for purely-body-string modules (billing, ecommerce, legal) the body-string sweep stays a separate PR.
+
+### Gotcha 16: Tab count vs. unique msgid count
+
+A module can have N `Tab.new!` sites but only M unique msgid values (M ≤ N), because the same label often appears across `admin_tabs/0`, `settings_tabs/0`, and `user_dashboard_tabs/0` (e.g. "Newsletters" parent in admin, "Newsletters" settings root, "Newsletters" user dashboard root — all the same msgid).
+
+Count msgids by reading the file's distinct `label:` values, not by counting `Tab.new!` sites. The `.pot` and `.po` files should have M entries, not N.
+
+Reported counts from the rollout:
+- `newsletters`: 9 sites → 9 msgids (no repeats)
+- `customer_support`: 4 sites → 3 msgids ("Customer Support" repeats)
+- `emails`: 10 sites → 8 msgids ("Emails" repeats)
+- `billing`: 13 sites → 11 msgids ("Billing" repeats)
+- `ecommerce`: 10 sites → 9 msgids ("E-Commerce" repeats)
+- `legal`: 1 site → 1 msgid
+- `crm`: 4 sites → 3 msgids ("CRM" repeats)
+
 ---
 
 ## PR body skeleton
