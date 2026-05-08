@@ -195,8 +195,10 @@ defmodule PhoenixKit.ModuleRegistry do
   @spec get_module_key_for_namespace(String.t()) :: String.t() | nil
   def get_module_key_for_namespace(top_namespace) when is_binary(top_namespace) do
     Enum.find_value(all_modules(), fn mod ->
-      case Module.split(mod) do
-        [^top_namespace | _] -> safe_call(mod, :module_key, nil)
+      with [^top_namespace] <- Module.split(mod),
+           key when is_binary(key) <- safe_call(mod, :module_key, nil) do
+        key
+      else
         _ -> nil
       end
     end)
