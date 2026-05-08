@@ -32,6 +32,8 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
       ModuleRegistry.feature_enabled_checks()  # Build {mod, :enabled?} map
       ModuleRegistry.get_by_key("tickets")   # Find module by key
+      ModuleRegistry.get_module_key_for_namespace("PhoenixKitTickets")
+                                             # Resolve top-level namespace → key
   """
 
   use GenServer
@@ -178,6 +180,25 @@ defmodule PhoenixKit.ModuleRegistry do
   def get_by_key(key) when is_binary(key) do
     Enum.find(all_modules(), fn mod ->
       safe_call(mod, :module_key, nil) == key
+    end)
+  end
+
+  @doc """
+  Find a registered module's key by matching a top-level Elixir namespace.
+
+  Used by the admin permission layer to resolve a plugin LiveView's namespace
+  (e.g. `"PhoenixKitEntities"` from `PhoenixKitEntities.Web.Entities`) to the
+  plugin's permission key (e.g. `"entities"`).
+
+  Returns the key string or `nil` when no registered module matches.
+  """
+  @spec get_module_key_for_namespace(String.t()) :: String.t() | nil
+  def get_module_key_for_namespace(top_namespace) when is_binary(top_namespace) do
+    Enum.find_value(all_modules(), fn mod ->
+      case Module.split(mod) do
+        [^top_namespace | _] -> safe_call(mod, :module_key, nil)
+        _ -> nil
+      end
     end)
   end
 

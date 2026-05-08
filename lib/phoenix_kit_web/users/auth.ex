@@ -40,6 +40,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
@@ -1146,7 +1147,8 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs"
   }
 
-  defp permission_key_for_admin_view(view_module) do
+  @doc false
+  def permission_key_for_admin_view(view_module) do
     case Map.get(@admin_view_permissions, view_module) do
       nil ->
         infer_permission_from_custom_tabs(view_module) ||
@@ -1164,14 +1166,16 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> Map.get(view_module)
   end
 
-  # Infer permission key from PhoenixKit.Modules.<Name>.Web.* namespace
+  # Infer permission key from `PhoenixKit.Modules.<Name>.Web.*` (core) or from a
+  # registered external plugin's top-level namespace
+  # (`PhoenixKitEntities.*`, `PhoenixKitBilling.*`, …) via `ModuleRegistry`.
   defp infer_permission_key_from_module(view_module) do
     case Module.split(view_module) do
       ["PhoenixKit", "Modules", module_name | _rest] ->
         Macro.underscore(module_name)
 
-      _ ->
-        nil
+      [top | _rest] ->
+        ModuleRegistry.get_module_key_for_namespace(top)
     end
   end
 
