@@ -1300,3 +1300,58 @@ separator: false    # Disable separator entirely
 - **Multiple contexts**: Dropdown appears based on position setting
 - **Context switch**: POST to `/phoenix_kit/context/:uuid`, session updated, page redirects back
 - **Persistence**: Selection stored in session, survives navigation
+
+## Localizing Tab and Group Labels
+
+PhoenixKit 1.8+ supports optional gettext-driven translation of tab and group labels via two new fields: `gettext_backend` and `gettext_domain`.
+
+### Fields
+
+| Field | Default | Description |
+|---|---|---|
+| `gettext_backend` | `nil` | A Gettext backend module (e.g. `MyApp.Gettext`). When `nil`, raw labels are rendered unchanged. |
+| `gettext_domain` | `"default"` | The gettext domain to use for translation lookups. |
+
+### Basic Example
+
+```elixir
+Tab.new(
+  id: :dashboard,
+  label: "Dashboard",
+  path: "/dashboard",
+  icon: "hero-home",
+  gettext_backend: MyApp.Gettext
+)
+```
+
+With this configuration, `Tab.localized_label(tab)` will call `Gettext.dgettext(MyApp.Gettext, "default", "Dashboard")` and return the translated string for the current locale.
+
+To use a custom domain:
+
+```elixir
+Tab.new(
+  id: :orders,
+  label: "Orders",
+  path: "/orders",
+  gettext_backend: MyApp.Gettext,
+  gettext_domain: "navigation"
+)
+```
+
+Groups support the same fields:
+
+```elixir
+Group.new(
+  id: :main,
+  label: "Main Navigation",
+  gettext_backend: MyApp.Gettext
+)
+```
+
+### Tooltips
+
+`Tab.localized_tooltip/1` follows the same fallback chain for the `tooltip` field.
+
+### Backwards Compatibility
+
+Tabs and groups without `gettext_backend` continue rendering the raw `label` string unchanged. No migration is required for existing tab registrations.
