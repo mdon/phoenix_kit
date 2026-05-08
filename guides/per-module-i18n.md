@@ -511,7 +511,7 @@ end
 
 ❌ **Do NOT** ship without `mix gettext.extract --merge` — stale `.pot` means newly added msgids never reach `.po` and translators have nothing to translate.
 
-❌ **Do NOT** pattern-match on `gettext_backend` / `gettext_domain` from a generic Tab handler. The library's resolvers (`Tab.localized_label/1` etc.) deliberately use `Map.get/2` so old-shape Tab structs cached in ETS or `:persistent_term` from before the upgrade — missing both new keys — flow through gracefully instead of raising `KeyError`. If you write your own iteration over `Registry.all_admin_tabs/0`, prefer `Tab.localized_label/1` over reaching into the struct directly. This matters during the rolling-upgrade window where a parent app's Phoenix server keeps running across the `phoenix_kit` upgrade.
+❌ **Do NOT** pattern-match on `gettext_backend` / `gettext_domain` from a generic Tab handler. The library's resolvers (`Tab.localized_label/1` etc.) deliberately use `Map.get/2` so old-shape Tab structs cached in ETS or `:persistent_term` from before the upgrade — missing both new keys — flow through gracefully instead of raising `KeyError`. If you write your own iteration over `PhoenixKit.ModuleRegistry.all_admin_tabs/0`, prefer `Tab.localized_label/1` over reaching into the struct directly. This matters during the rolling-upgrade window where a parent app's Phoenix server keeps running across the `phoenix_kit` upgrade.
 
 ---
 
