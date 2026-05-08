@@ -1212,9 +1212,18 @@ defmodule PhoenixKitWeb.Integration do
   # `apply/3` is the idiomatic dodge for the compile-time "undefined function"
   # warning when calling into an optional dep — the `Code.ensure_loaded?/1`
   # guard above is the runtime correctness check; `apply/3` shields the
-  # compiler's static-resolution pass. Drop both once publishing becomes a
-  # required dep (it isn't, by design — installs without publishing should
-  # compile without it on the system).
+  # compiler's static-resolution pass. (Variable indirection like
+  # `mod = PhoenixKitPublishing.RouterDispatch; mod.fun()` does NOT
+  # shield the warning — Elixir's compiler tracks the binding's value
+  # and still emits `UndefinedFunctionError` warnings on the dispatch.
+  # Verified empirically; `apply/3` is the only escape valve for this
+  # specific shape.) Drop the `apply/3` calls once publishing becomes
+  # a required dep (it isn't, by design — installs without publishing
+  # should compile without it on the system).
+  #
+  # The credo `Refactor.Apply` warnings on the `apply/3` calls below are
+  # intentional — see comment above for why the variable-indirection
+  # alternative doesn't work.
   #
   # The `apply/3` calls also have a runtime resolution path: the host BEAM
   # compiles the macro expansion (containing literal `apply` calls into
@@ -1228,8 +1237,11 @@ defmodule PhoenixKitWeb.Integration do
   @doc false
   defp compile_publishing_routing(url_prefix) do
     if Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch) do
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
       internal_prefix = apply(PhoenixKitPublishing.RouterDispatch, :internal_prefix, [])
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
       localized_segment = apply(PhoenixKitPublishing.RouterDispatch, :localized_segment, [])
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
       root_segment = apply(PhoenixKitPublishing.RouterDispatch, :root_segment, [])
 
       internal_scope_path =

@@ -17,6 +17,19 @@ Triage of `CLAUDE_REVIEW.md` against current code.
   at runtime. Closes the "what about `mix deps.compile` cache
   staleness?" gap.~~
 
+- ~~**Pre-existing credo refactoring opportunities (3) on the `apply/3`
+  calls in `compile_publishing_routing/1`** — silenced with inline
+  `# credo:disable-for-next-line Credo.Check.Refactor.Apply`
+  annotations on each of the three calls. Verified empirically that
+  the variable-indirection alternative (`mod = ModuleName; mod.fun()`)
+  does NOT shield the compiler's static-resolution warning — Elixir's
+  compiler tracks the binding's value and still emits
+  `UndefinedFunctionError` warnings on the dispatch. `apply/3` remains
+  the only escape valve for this specific shape; the leading comment
+  block now documents that empirical finding so the next reader doesn't
+  re-derive it. `mix credo --strict` now reports zero issues across
+  the whole tree.~~
+
 ## Skipped (deferred / out-of-scope)
 
 - **IMPROVEMENT - MEDIUM: No automated test coverage for the macro
