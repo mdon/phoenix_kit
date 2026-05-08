@@ -227,6 +227,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         data-sortable-items={if @on_reorder, do: ".sortable-item"}
         data-sortable-hide-source="false"
         data-sortable-group={@reorder_group}
+        data-sortable-handle={if @on_reorder, do: ".pk-drag-handle"}
         phx-hook={if @on_reorder, do: "SortableGrid"}
         {@reorder_scope_attrs}
       >
@@ -234,7 +235,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
           :for={item <- @items}
           class={[
             "card card-sm bg-base-200 shadow-sm",
-            @on_reorder && "sortable-item cursor-grab active:cursor-grabbing"
+            @on_reorder && "sortable-item"
           ]}
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
@@ -253,24 +254,23 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 <div>{field.value}</div>
               <% end %>
             </div>
-            <%!-- Footer row: drag handle (bottom-left, when sortable) +
-                 actions (bottom-right, when present). Always rendered
-                 if either is present so the alignment is consistent. --%>
+            <%!-- Footer row: drag handle (leftmost), action buttons
+                 (rightmost via ml-auto on the wrapper). Both sit in a
+                 flex-wrap so they share rows when buttons must wrap on
+                 narrow cards instead of leaving the handle alone above
+                 an empty space. --%>
             <div
               :if={@on_reorder || @card_actions != []}
-              class="card-actions flex items-center justify-between pt-1 border-t border-base-200 mt-auto"
+              class="flex flex-wrap items-center gap-2 pt-1 border-t border-base-200 mt-auto"
             >
               <div
                 :if={@on_reorder}
-                class="text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
+                class="pk-drag-handle text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
                 title={gettext("Drag to reorder")}
               >
                 <.icon name="hero-bars-3" class="w-4 h-4" />
               </div>
-              <%!-- Spacer when sortable but no actions, so the handle
-                   stays left and we don't collapse the row. --%>
-              <span :if={@on_reorder && @card_actions == []}></span>
-              <div :if={@card_actions != []} class="flex gap-2 ml-auto">
+              <div :if={@card_actions != []} class="flex flex-wrap items-center gap-1 ml-auto">
                 {render_slot(@card_actions, item)}
               </div>
             </div>
