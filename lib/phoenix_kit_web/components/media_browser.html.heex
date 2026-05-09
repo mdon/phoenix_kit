@@ -1228,9 +1228,11 @@
   <% end %>
 
   <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>
-  <%!-- Activated by passing `viewer={true}` to the component. Clicking a file --%>
-  <%!-- (outside select_mode and admin) sets viewer_file and shows the preview --%>
-  <%!-- + metadata + Download. Closes via X / Esc / backdrop click.            --%>
+  <%!-- Default click target for non-admin, non-select_mode browsers — the    --%>
+  <%!-- click_file handler stashes the clicked file in :viewer_file and this  --%>
+  <%!-- block renders the preview + metadata + Download. Pickers reach        --%>
+  <%!-- bulk-select via the toolbar's Select button (`select_mode` toggle).   --%>
+  <%!-- Closes via X / Esc / backdrop click.                                  --%>
   <%= if assigns[:viewer_file] do %>
     <% f = @viewer_file %>
     <% viewer_idx = Enum.find_index(@uploaded_files, &(&1.file_uuid == f.file_uuid)) %>
@@ -1241,40 +1243,78 @@
       phx-window-keydown="viewer_keydown"
       phx-target={@myself}
     >
-      <div class="modal-box w-11/12 max-w-7xl p-0 overflow-hidden">
-        <div class="flex flex-col lg:flex-row lg:h-[80vh]">
+      <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
+      <%!--   position: fixed; inset: 0;                                    --%>
+      <%!-- This bypasses daisyUI's grid layout AND iOS Safari's 100vh /   --%>
+      <%!-- 100dvh quirks — the box just covers top:0 right:0 bottom:0     --%>
+      <%!-- left:0 of whatever the visual viewport is, no math involved.   --%>
+      <%!-- `w-auto h-auto` lets the inset declarations actually drive the --%>
+      <%!-- size; otherwise an intrinsic width/height could win.           --%>
+      <%!--                                                                 --%>
+      <%!-- lg+: revert to a normal centred modal with 95vw × 90vh + soft  --%>
+      <%!-- rounded corners.                                               --%>
+      <%!--                                                                 --%>
+      <%!-- The `!` (important) prefix is required because daisyUI v5's    --%>
+      <%!-- .modal-box defaults (width: calc(11/12 * 100%), max-width:     --%>
+      <%!-- 32rem, max-height: 100vh) win the cascade over plain Tailwind  --%>
+      <%!-- utilities.                                                     --%>
+      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+        <%!-- Close button — top-right of modal-box. Solid bg-base-100 + ring +  --%>
+        <%!-- shadow-lg keeps it visible against any image content (the previous --%>
+        <%!-- bg-base-100/80 blended into light photos and disappeared). z-30    --%>
+        <%!-- sits above the chevron buttons (z-10) and the comments thread.    --%>
+        <button
+          type="button"
+          phx-click="close_viewer"
+          phx-target={@myself}
+          class="btn btn-ghost btn-sm btn-circle absolute top-3 right-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
+          title="Close"
+        >
+          <.icon name="hero-x-mark" class="w-4 h-4" />
+        </button>
+        <div class="flex flex-col lg:flex-row h-full overflow-hidden">
           <%!-- Viewer (image / video / pdf / icon) --%>
-          <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-2 min-h-[40vh] lg:min-h-0">
+          <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0">
+            <%!-- Chevron positioning sits on a wrapper div, not the button.    --%>
+            <%!-- daisyUI's active-state CSS replaces `transform` with          --%>
+            <%!-- `scale(0.97)` on click, which would clobber a -translate-y-1/2 --%>
+            <%!-- on the button itself and make it jump down 50% of its height. --%>
             <%= if has_prev do %>
-              <button
-                type="button"
-                phx-click="step_viewer"
-                phx-value-dir="prev"
-                phx-target={@myself}
-                class="btn btn-circle btn-ghost absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-base-100/80 hover:bg-base-100 shadow-md"
-                title="Previous (←)"
-              >
-                <.icon name="hero-chevron-left" class="w-5 h-5" />
-              </button>
+              <div class="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+                <button
+                  type="button"
+                  phx-click="step_viewer"
+                  phx-value-dir="prev"
+                  phx-target={@myself}
+                  class="btn btn-circle btn-ghost bg-base-100/80 hover:bg-base-100 shadow-md"
+                  title="Previous (←)"
+                >
+                  <.icon name="hero-chevron-left" class="w-5 h-5" />
+                </button>
+              </div>
             <% end %>
             <%= if has_next do %>
-              <button
-                type="button"
-                phx-click="step_viewer"
-                phx-value-dir="next"
-                phx-target={@myself}
-                class="btn btn-circle btn-ghost absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-base-100/80 hover:bg-base-100 shadow-md"
-                title="Next (→)"
-              >
-                <.icon name="hero-chevron-right" class="w-5 h-5" />
-              </button>
+              <div class="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                <button
+                  type="button"
+                  phx-click="step_viewer"
+                  phx-value-dir="next"
+                  phx-target={@myself}
+                  class="btn btn-circle btn-ghost bg-base-100/80 hover:bg-base-100 shadow-md"
+                  title="Next (→)"
+                >
+                  <.icon name="hero-chevron-right" class="w-5 h-5" />
+                </button>
+              </div>
             <% end %>
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
                 <img
+                  id={"media-zoom-" <> f.file_uuid}
+                  phx-hook="MediaImageZoom"
                   src={f.urls["original"] || f.urls["medium"]}
                   alt={f.filename}
-                  class="max-w-full max-h-full object-contain rounded"
+                  class="w-full h-auto max-h-full object-contain lg:rounded cursor-grab"
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
@@ -1303,21 +1343,10 @@
           </div>
 
           <%!-- Sidebar --%>
-          <div class="flex-[3] flex flex-col gap-3 p-4 lg:min-w-[280px] lg:overflow-y-auto bg-base-100">
-            <div class="flex items-start justify-between gap-2">
-              <h2 class="text-base font-bold break-all leading-tight min-w-0">
-                {f.filename}
-              </h2>
-              <button
-                type="button"
-                phx-click="close_viewer"
-                phx-target={@myself}
-                class="btn btn-ghost btn-sm btn-circle shrink-0"
-                title="Close"
-              >
-                <.icon name="hero-x-mark" class="w-4 h-4" />
-              </button>
-            </div>
+          <div class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] bg-base-100">
+            <h2 class="text-base font-bold break-all leading-tight pr-10">
+              {f.filename}
+            </h2>
 
             <%= if f.urls["original"] do %>
               <a

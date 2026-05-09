@@ -165,9 +165,7 @@ defmodule PhoenixKit.Migrations.Postgres.V111 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute(
-      "DROP INDEX IF EXISTS #{p}phoenix_kit_cat_pdf_page_contents_text_trgm_index"
-    )
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_cat_pdf_page_contents_text_trgm_index")
 
     drop_if_exists(table(:phoenix_kit_cat_pdf_pages, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_cat_pdf_page_contents, prefix: prefix))

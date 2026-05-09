@@ -31,18 +31,20 @@ defmodule PhoenixKit.KnownPackagesTest do
     KnownPackages.clear_cache()
     original_extras = Application.get_env(:phoenix_kit, :extra_known_packages, [])
 
-    Application.put_env(:phoenix_kit, :_known_packages_req_opts,
-      plug: {Req.Test, @stub_name},
-      receive_timeout: 3000
-    )
-
     on_exit(fn ->
       KnownPackages.clear_cache()
       Application.put_env(:phoenix_kit, :extra_known_packages, original_extras)
-      Application.delete_env(:phoenix_kit, :_known_packages_req_opts)
     end)
 
     :ok
+  end
+
+  # Pass test stub via opts arg (no Application.put_env).
+  defp test_opts(extra \\ []) do
+    Keyword.merge(
+      [req_options: [plug: {Req.Test, @stub_name}, retry: false]],
+      extra
+    )
   end
 
   defp stub_hex(packages) do
@@ -53,11 +55,11 @@ defmodule PhoenixKit.KnownPackagesTest do
     end)
   end
 
-  describe "list/0 happy path" do
+  describe "list/1 happy path" do
     test "returns shaped entries from Hex" do
       stub_hex([@hex_newsletters, @hex_posts])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       assert length(packages) == 2
 
@@ -73,7 +75,7 @@ defmodule PhoenixKit.KnownPackagesTest do
     test "filters out phoenix_kit core package" do
       stub_hex([@hex_phoenix_kit, @hex_newsletters])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       package_names = Enum.map(packages, & &1.package)
       refute "phoenix_kit" in package_names
@@ -89,7 +91,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       stub_hex([pkg])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       crm = Enum.find(packages, &(&1.package == "phoenix_kit_crm"))
       assert crm.icon == "hero-puzzle-piece"
@@ -105,10 +107,72 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       stub_hex([pkg])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       support = Enum.find(packages, &(&1.package == "phoenix_kit_customer_support"))
       assert support.name == "Customer Support"
+    end
+  end
+
+  describe "entry shape (backward-compat fields)" do
+    setup do
+      stub_hex([@hex_newsletters])
+      :ok
+    end
+
+    test "module field uses heuristic" do
+      [pkg] = KnownPackages.list(test_opts())
+      assert pkg.module == :"Elixir.PhoenixKitNewsletters"
+    end
+
+    test "hex_package equals package" do
+      [pkg] = KnownPackages.list(test_opts())
+      assert pkg.hex_package == pkg.package
+    end
+
+    test "github_url falls back to BeamLabEU/{package} when Hex meta has no link" do
+      [pkg] = KnownPackages.list(test_opts())
+      assert pkg.github_url == "https://github.com/BeamLabEU/phoenix_kit_newsletters"
+    end
+
+    test "github_url respects Hex meta.links.GitHub when present" do
+      pkg_with_link = %{
+        "name" => "phoenix_kit_with_link",
+        "latest_version" => "0.1.0",
+        "meta" => %{
+          "description" => "Has explicit GitHub link.",
+          "links" => %{"GitHub" => "https://github.com/elsewhere/repo"}
+        }
+      }
+
+      stub_hex([pkg_with_link])
+      KnownPackages.clear_cache()
+
+      [pkg] = KnownPackages.list(test_opts())
+      assert pkg.github_url == "https://github.com/elsewhere/repo"
+    end
+
+    test "latest_version pulled from Hex meta" do
+      [pkg] = KnownPackages.list(test_opts())
+      assert pkg.latest_version == "0.3.1"
+    end
+
+    test "all 11 keys present" do
+      [pkg] = KnownPackages.list(test_opts())
+
+      assert Enum.sort(Map.keys(pkg)) == [
+               :description,
+               :github_url,
+               :hex_package,
+               :hex_url,
+               :icon,
+               :key,
+               :latest_version,
+               :module,
+               :name,
+               :package,
+               :source
+             ]
     end
   end
 
@@ -124,8 +188,8 @@ defmodule PhoenixKit.KnownPackagesTest do
         |> Plug.Conn.send_resp(200, Jason.encode!([@hex_newsletters]))
       end)
 
-      KnownPackages.list()
-      KnownPackages.list()
+      KnownPackages.list(test_opts())
+      KnownPackages.list(test_opts())
 
       assert :counters.get(call_count, 1) == 1
     end
@@ -141,9 +205,9 @@ defmodule PhoenixKit.KnownPackagesTest do
         |> Plug.Conn.send_resp(200, Jason.encode!([@hex_newsletters]))
       end)
 
-      KnownPackages.list()
+      KnownPackages.list(test_opts())
       KnownPackages.clear_cache()
-      KnownPackages.list()
+      KnownPackages.list(test_opts())
 
       assert :counters.get(call_count, 1) == 2
     end
@@ -157,7 +221,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       log =
         capture_log(fn ->
-          result = KnownPackages.list()
+          result = KnownPackages.list(test_opts())
           refute Enum.any?(result, &(&1.source == "hex"))
         end)
 
@@ -171,11 +235,73 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       log =
         capture_log(fn ->
-          result = KnownPackages.list()
+          result = KnownPackages.list(test_opts())
           assert is_list(result)
         end)
 
       assert log =~ "Hex fetch failed"
+    end
+
+    test "Hex 200 with non-list body returns no Hex-sourced entries" do
+      Req.Test.stub(@stub_name, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, Jason.encode!(%{"unexpected" => "shape"}))
+      end)
+
+      log =
+        capture_log(fn ->
+          result = KnownPackages.list(test_opts())
+          refute Enum.any?(result, &(&1.source == "hex"))
+        end)
+
+      assert log =~ "Hex fetch failed"
+    end
+  end
+
+  describe "stale cache (stale-while-revalidate with cap)" do
+    test "stale data is served on Hex failure when within max stale age" do
+      # First successful fetch populates cache.
+      stub_hex([@hex_newsletters])
+      assert [_pkg] = KnownPackages.list(test_opts(ttl_ms: 0))
+
+      # Now Hex starts failing.
+      Req.Test.stub(@stub_name, fn conn ->
+        Plug.Conn.send_resp(conn, 500, "Internal Server Error")
+      end)
+
+      log =
+        capture_log(fn ->
+          # ttl=0 forces refetch on every call; max_stale_age large so stale wins.
+          result =
+            KnownPackages.list(test_opts(ttl_ms: 0, max_stale_age_ms: :timer.hours(1)))
+
+          newsletters = Enum.find(result, &(&1.package == "phoenix_kit_newsletters"))
+          assert newsletters != nil
+          assert newsletters.source == "hex"
+        end)
+
+      assert log =~ "serving stale data"
+    end
+
+    test "stale data is dropped beyond max stale age" do
+      stub_hex([@hex_newsletters])
+      assert [_pkg] = KnownPackages.list(test_opts(ttl_ms: 0))
+
+      Req.Test.stub(@stub_name, fn conn ->
+        Plug.Conn.send_resp(conn, 500, "Internal Server Error")
+      end)
+
+      :timer.sleep(20)
+
+      log =
+        capture_log(fn ->
+          result = KnownPackages.list(test_opts(ttl_ms: 0, max_stale_age_ms: 10))
+
+          refute Enum.any?(result, &(&1.source == "hex"))
+        end)
+
+      assert log =~ "exceeds max stale age"
     end
   end
 
@@ -209,7 +335,7 @@ defmodule PhoenixKit.KnownPackagesTest do
         |> Plug.Conn.send_resp(200, Jason.encode!(packages))
       end)
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       package_names = Enum.map(packages, & &1.package)
       assert "phoenix_kit_newsletters" in package_names
@@ -232,12 +358,17 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       stub_hex([])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       billing = Enum.find(packages, &(&1.package == "my_app_billing"))
       assert billing != nil
       assert billing.source == "config"
       assert billing.name == "Private Billing"
+      # Back-compat fields filled with sane defaults for config entries.
+      assert billing.hex_package == "my_app_billing"
+      assert billing.module == nil
+      assert billing.github_url == nil
+      assert billing.latest_version == nil
     end
 
     test "config entry wins over Hex entry with same package" do
@@ -254,7 +385,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       stub_hex([@hex_newsletters])
 
-      packages = KnownPackages.list()
+      packages = KnownPackages.list(test_opts())
 
       newsletters_entries = Enum.filter(packages, &(&1.package == "phoenix_kit_newsletters"))
       assert length(newsletters_entries) == 1

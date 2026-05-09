@@ -133,24 +133,55 @@ defmodule PhoenixKit.RepoHelper do
   @doc """
   Returns the primary key column name for a given table.
 
-  Queries `pg_index` to find the actual PK column. Falls back to `"id"` if
-  the PK cannot be determined (e.g. table doesn't exist or has a composite PK).
+  Looks up the table's primary key by querying `pg_index`. Uses Postgres'
+  `to_regclass/1` so the table name can be passed as a bind parameter
+  (search-path aware, returns NULL when the table doesn't exist) — Postgrex
+  can't bind a text parameter to a `regclass` cast directly.
+
+  ## Returns
+
+    * `column_name :: String.t()` when the table has a single-column primary key.
+
+  ## Raises
+
+    * `ArgumentError` when the table doesn't exist, has no primary key, or
+      has a composite primary key (this helper only supports single-column
+      PKs; callers building `ON CONFLICT` clauses must handle composite PKs
+      explicitly).
+    * Any error raised by the underlying repo query (e.g. `Postgrex.Error`).
+
+  Previously this function silently returned `"id"` on any failure, which
+  masked the fact that every shipped PhoenixKit schema uses `uuid` as its
+  primary key — see issue #517.
   """
   def get_pk_column(table_name) when is_binary(table_name) do
     sql = """
     SELECT a.attname
     FROM pg_index i
     JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-    WHERE i.indrelid = $1::regclass
+    WHERE i.indrelid = to_regclass($1)
     AND i.indisprimary
     """
 
     case query(sql, [table_name]) do
-      {:ok, %{rows: [[col]]}} -> col
-      _ -> "id"
+      {:ok, %{rows: [[col]]}} ->
+        col
+
+      {:ok, %{rows: []}} ->
+        raise ArgumentError,
+              "no primary key found for table #{inspect(table_name)} " <>
+                "(table doesn't exist or has no primary key)"
+
+      {:ok, %{rows: rows}} ->
+        cols = Enum.map(rows, fn [c] -> c end)
+
+        raise ArgumentError,
+              "table #{inspect(table_name)} has a composite primary key " <>
+                "(#{Enum.join(cols, ", ")}); get_pk_column/1 only supports single-column PKs"
+
+      {:error, reason} ->
+        raise "failed to look up primary key for #{inspect(table_name)}: #{inspect(reason)}"
     end
-  rescue
-    _ -> "id"
   end
 
   @doc """
