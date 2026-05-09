@@ -488,8 +488,8 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     ~H"""
     <%= if @on_submit do %>
       <form
-        phx-change={@on_change}
         phx-submit={@on_submit}
+        phx-target={@target}
         class={["flex items-center gap-2", @class]}
       >
         <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />

@@ -175,5 +175,29 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
 
       assert result =~ ~s(placeholder="Search...")
     end
+
+    test "form variant binds phx-change only on input, not on form" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.search_toolbar value="" on_submit="do_search" />
+        """)
+
+      count = result |> String.split(~s(phx-change=)) |> length() |> Kernel.-(1)
+      assert count == 1, "phx-change should appear exactly once, got #{count}"
+    end
+
+    test "form variant propagates phx-target to both form and input" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.search_toolbar value="" on_submit="do_search" target="#my-component" />
+        """)
+
+      count = result |> String.split(~s(phx-target="#my-component")) |> length() |> Kernel.-(1)
+      assert count == 2, "phx-target should appear on both <form> and <input>, got #{count}"
+    end
   end
 end
