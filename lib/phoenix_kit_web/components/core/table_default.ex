@@ -413,6 +413,115 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     """
   end
 
+  @doc """
+  Renders a sortable table header cell.
+
+  When `sort` is nil, renders an inert `<th>` label. When `sort` is provided,
+  renders a clickable button emitting `toggle_sort` (or a custom event) with
+  `phx-value-by` set to the field key. The active column shows a chevron icon
+  reflecting the current sort direction.
+  """
+  attr :field, :atom, required: true
+
+  attr :sort, :map,
+    default: nil,
+    doc: "Current sort: %{by: atom, dir: :asc | :desc}. When nil, renders inert label."
+
+  attr :event, :string, default: "toggle_sort"
+  attr :target, :any, default: nil
+  attr :align, :atom, default: :left, values: [:left, :right, :center]
+  attr :class, :string, default: ""
+  attr :rest, :global, include: ~w(colspan rowspan)
+
+  slot :inner_block, required: true
+
+  def sort_header_cell(assigns) do
+    ~H"""
+    <th class={@class} {@rest}>
+      <%= if @sort do %>
+        <button
+          type="button"
+          phx-click={@event}
+          phx-value-by={@field}
+          phx-target={@target}
+          class={[
+            "flex items-center gap-1",
+            @align == :right && "justify-end w-full",
+            @align == :center && "justify-center w-full"
+          ]}
+        >
+          {render_slot(@inner_block)}
+          <%= if @sort.by == @field do %>
+            <%= if @sort.dir == :asc do %>
+              <.icon name="hero-chevron-up-mini" class="w-4 h-4" />
+            <% else %>
+              <.icon name="hero-chevron-down-mini" class="w-4 h-4" />
+            <% end %>
+          <% end %>
+        </button>
+      <% else %>
+        {render_slot(@inner_block)}
+      <% end %>
+    </th>
+    """
+  end
+
+  @doc """
+  Renders a search input with a magnifying glass icon and debounce.
+
+  By default emits `phx-change="search"` with a 300ms debounce. When
+  `on_submit` is provided the input is wrapped in a `<form>` element.
+  """
+  attr :value, :string, required: true
+  attr :on_change, :string, default: "search"
+  attr :on_submit, :string, default: nil
+  attr :placeholder, :string, default: nil
+  attr :debounce, :integer, default: 300
+  attr :name, :string, default: "search"
+  attr :target, :any, default: nil
+  attr :class, :string, default: ""
+
+  def search_toolbar(assigns) do
+    assigns =
+      assign(assigns, :placeholder, assigns.placeholder || dgettext("default", "Search..."))
+
+    ~H"""
+    <%= if @on_submit do %>
+      <form
+        phx-change={@on_change}
+        phx-submit={@on_submit}
+        class={["flex items-center gap-2", @class]}
+      >
+        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
+        <input
+          type="text"
+          name={@name}
+          value={@value}
+          placeholder={@placeholder}
+          phx-change={@on_change}
+          phx-debounce={@debounce}
+          phx-target={@target}
+          class="input input-sm flex-1 min-w-0"
+        />
+      </form>
+    <% else %>
+      <div class={["flex items-center gap-2", @class]}>
+        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
+        <input
+          type="text"
+          name={@name}
+          value={@value}
+          placeholder={@placeholder}
+          phx-change={@on_change}
+          phx-debounce={@debounce}
+          phx-target={@target}
+          class="input input-sm flex-1 min-w-0"
+        />
+      </div>
+    <% end %>
+    """
+  end
+
   # Private helper functions
 
   defp table_variant_class("default"), do: ""
