@@ -450,7 +450,7 @@ What contributors **do**:
 
 What contributors **do NOT**:
 
-- Edit `@version` in `mix.exs` (even by one patch).
+- Edit `@version` in `mix.exs` (even a single patch bump).
 - Add or modify entries in `CHANGELOG.md`.
 
 If you find yourself wanting to bump the version "for visibility", stop and improve the commit message instead. The maintainer reads commit bodies when assembling the release notes.

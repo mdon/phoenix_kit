@@ -186,8 +186,8 @@ Switch `mix.exs` to **clean form** (no `path:`) before committing. Then:
 grep -n 'path:.*pk-pr' mix.exs && echo "STILL HAS PATH OVERRIDE — fix"
 
 # Make sure you have NOT modified mix.exs @version or CHANGELOG.md
-git diff --staged mix.exs | grep -E '^\+.*@version' && echo "STILL TOUCHED @version — revert that line"
-git diff --staged CHANGELOG.md | head -1 && echo "CHANGELOG should be clean — revert it from HEAD"
+git diff --staged mix.exs | grep -E '^\+\s*@version\s+"' && echo "STILL TOUCHED @version — revert that line"
+git diff --staged --name-only | grep -qx 'CHANGELOG.md' && echo "STILL TOUCHED CHANGELOG.md — revert it from HEAD"
 
 git add \
   mix.exs mix.lock \
