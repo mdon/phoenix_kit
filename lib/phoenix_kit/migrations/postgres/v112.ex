@@ -75,6 +75,21 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
   honest type beats a churn pass; future cleanup can rename when a
   larger refactor is on the table.
 
+  ## 5. Add `position` to `phoenix_kit_project_tasks` and `phoenix_kit_projects`
+
+  Drives manual reorder of the task library, project list, and
+  template list views. NOT NULL with a default of `0`; existing rows
+  fold into the same `0` bucket and the schema's secondary
+  order-by-`inserted_at` kicks in until the user actually drags. New
+  rows should be inserted via `next_task_position/0` /
+  `next_project_position/1` so they land at the bottom of their
+  bucket.
+
+  `phoenix_kit_projects.position` is interpreted per `is_template`
+  scope — projects and templates share the same column but order
+  independently (the LV sorts within `is_template = false` for the
+  project list, `is_template = true` for the template list).
+
   Idempotent: re-running is a no-op once the columns + indexes are in
   the post-V112 shape.
   """
@@ -102,6 +117,8 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
     Enum.each(@drop_unique_indexes, &drop_index(p, &1))
 
     promote_scheduled_start_date_to_timestamp(p, schema)
+    add_task_position_column(p, schema)
+    add_project_position_column(p, schema)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '112'")
   end
@@ -110,6 +127,8 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
+    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS position")
+    execute("ALTER TABLE #{p}phoenix_kit_project_tasks DROP COLUMN IF EXISTS position")
     demote_scheduled_start_date_to_date(p, schema_for(prefix))
 
     Enum.each(@translation_tables, fn table ->
@@ -236,6 +255,50 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
           ALTER COLUMN scheduled_start_date
           TYPE TIMESTAMP(0)
           USING (scheduled_start_date::timestamp(0));
+      END IF;
+    END $$;
+    """)
+  end
+
+  # Adds the manual-reorder `position` column. NOT NULL DEFAULT 0 so
+  # existing rows pick up a value without a backfill — the LV's
+  # secondary order-by-`inserted_at` gives them a stable rendering
+  # until a user drags. Idempotent guard against the column already
+  # existing.
+  defp add_task_position_column(p, schema) do
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT FROM information_schema.columns
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_project_tasks'
+          AND column_name = 'position'
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_project_tasks
+          ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+      END IF;
+    END $$;
+    """)
+  end
+
+  # Same shape as `add_task_position_column/2` but for the
+  # `phoenix_kit_projects` table — drives manual reorder of the
+  # project list and template list views. The column lives on a
+  # single table; the LV scopes by `is_template` so projects and
+  # templates have independent orderings.
+  defp add_project_position_column(p, schema) do
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT FROM information_schema.columns
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_projects'
+          AND column_name = 'position'
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_projects
+          ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
       END IF;
     END $$;
     """)
