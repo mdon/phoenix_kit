@@ -1,3 +1,28 @@
+## 1.7.107 - 2026-05-10
+
+### Added
+- Two opt-in stateless helpers on `PhoenixKitWeb.Components.Core.TableDefault` (PR #528)
+  - `sort_header_cell/1` — clickable `<th>` with `hero-chevron-up-mini`/`-down-mini` icon when active, inert label-only `<th>` when `sort` attr is `nil`. Configurable `event` (default `"toggle_sort"`), `target`, `align` (`:left`/`:right`/`:center`). The `align` is applied to the `<th class>` (`text-right` / `text-center`) so non-sortable columns honour it consistently with the sortable ones
+  - `sort_header_cell/1` emits `aria-sort="ascending"|"descending"|"none"` on the `<th>` when sortable, omitted when inert. Pinned by 4 regression tests covering all three states + omitted
+  - `search_toolbar/1` — daisyUI `input-sm` with `hero-magnifying-glass` icon and `phx-debounce` (default 300ms). Optional `<form>` wrap when `on_submit` is set. Placeholder defaults to `dgettext("default", "Search...")`. `phx-target` propagates to both the `<form>` and `<input>` so submit-on-Enter retargets correctly when embedded in a `LiveComponent`
+  - `test/phoenix_kit_web/components/core/table_default_test.exs` — new directory + 18 component tests; closes part of the standing `core/` test-coverage TODO from `CLAUDE.md`
+- `change_page` event handler in `PhoenixKitWeb.Live.Users.LiveSessions` — pagination on `/admin/users/live-sessions` was bound to `phx-click="goto_page"` with no matching `handle_event/3` clause, so clicking any page number raised `FunctionClauseError` and crashed the LV (PR #528 follow-up). Renamed the binding to `change_page` and added the handler mirroring the sibling `users.ex:121` convention
+
+### Changed
+- `PhoenixKitWeb.Live.Users.LiveSessions` — collapsed `:sort_by` + `:sort_order` assigns into a single `:sort = %{by, dir}` map; renamed event `"sort_by"` → `"toggle_sort"` with `"by"` param. First click on a new column sorts ascending (was descending); subsequent clicks toggle. `flip_dir/1` tightened from `flip_dir(_)` catch-all to explicit `:desc` clause so unintended values surface as a crash rather than silent coercion (PR #528)
+- `lib/phoenix_kit_web/live/users/live_sessions.html.heex` and `lib/phoenix_kit_web/live/users/users.html.heex` — both call sites of `<.search_toolbar>` dropped the redundant `on_submit="search"`. The input's debounced `phx-change="search"` already covers the same event; keeping both made Enter fire `"search"` twice (immediate submit + 300ms-later debounced change) (PR #528 follow-up)
+
+### Fixed
+- `lib/phoenix_kit_web/live/users/users.html.heex` — replaced bare search form (every keystroke hit the server) with `<.search_toolbar>` carrying the 300ms `phx-debounce` (PR #528)
+- `<.search_toolbar>` form variant double-bound `phx-change` on both `<form>` and `<input>`, doubling work per keystroke. `phx-change` is now bound only on the `<input>`; the `<form>` carries `phx-submit` only. `phx-target` now propagates to both so LiveComponent embedding works end-to-end. Two regression tests pin both behaviours (PR #528, commit `dfc91238`)
+
+### i18n
+- `mix gettext.extract --merge` resync — adds `"Search..."` msgid + `et` / `ru` translations and surfaces accumulated drift from prior commits where extract wasn't run (PR #528, separate commit `a7c1d35b`)
+
+### Hygiene
+- `.gitignore` — adds `/priv/static/assets/vendor/` so `mix phoenix_kit.install` runs against `/app` itself don't leave an outdated copy of the source JS in tree (PR #528)
+- `mix.lock` — `db_connection` 2.10.0 → 2.10.1, `igniter` 0.7.9 → 0.8.0 (pulls in `ex_ast` 0.11.0 as new transitive). Routine patch bumps
+
 ## 1.7.106 - 2026-05-08
 
 ### Added
