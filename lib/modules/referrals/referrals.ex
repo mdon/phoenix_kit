@@ -654,7 +654,8 @@ defmodule PhoenixKit.Modules.Referrals do
         priority: 920,
         level: :admin,
         parent: :admin_settings,
-        permission: "referrals"
+        permission: "referrals",
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end

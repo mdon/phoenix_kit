@@ -123,7 +123,8 @@ defmodule PhoenixKit.Modules.SEO do
         priority: 930,
         level: :admin,
         parent: :admin_settings,
-        permission: "seo"
+        permission: "seo",
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end
