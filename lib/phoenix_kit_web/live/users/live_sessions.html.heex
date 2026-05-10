@@ -105,7 +105,6 @@
           <div class="flex-1 max-w-md">
             <.search_toolbar
               value={@search_query}
-              on_submit="search"
               placeholder="Search by IP, User-Agent, email..."
             />
           </div>
@@ -290,7 +289,7 @@
         <div class="btn-group">
           <%= for page_num <- 1..@total_pages do %>
             <button
-              phx-click="goto_page"
+              phx-click="change_page"
               phx-value-page={page_num}
               class={[
                 "btn btn-sm",

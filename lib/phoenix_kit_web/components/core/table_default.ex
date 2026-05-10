@@ -437,7 +437,15 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   def sort_header_cell(assigns) do
     ~H"""
-    <th class={@class} {@rest}>
+    <th
+      class={[
+        @align == :right && "text-right",
+        @align == :center && "text-center",
+        @class
+      ]}
+      aria-sort={sort_header_aria_sort(@sort, @field)}
+      {@rest}
+    >
       <%= if @sort do %>
         <button
           type="button"
@@ -465,6 +473,11 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     </th>
     """
   end
+
+  defp sort_header_aria_sort(nil, _field), do: nil
+  defp sort_header_aria_sort(%{by: field, dir: :asc}, field), do: "ascending"
+  defp sort_header_aria_sort(%{by: field, dir: :desc}, field), do: "descending"
+  defp sort_header_aria_sort(%{}, _field), do: "none"
 
   @doc """
   Renders a search input with a magnifying glass icon and debounce.

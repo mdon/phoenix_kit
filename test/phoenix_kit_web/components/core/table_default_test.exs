@@ -73,6 +73,61 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert result =~ "justify-end"
     end
 
+    test "align is applied to <th> in inert (sort=nil) branch" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.sort_header_cell field={:name} sort={nil} align={:right}>Name</.sort_header_cell>
+        """)
+
+      assert result =~ "text-right"
+    end
+
+    test "aria-sort is ascending when active column is asc" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.sort_header_cell field={:foo} sort={%{by: :foo, dir: :asc}}>Foo</.sort_header_cell>
+        """)
+
+      assert result =~ ~s(aria-sort="ascending")
+    end
+
+    test "aria-sort is descending when active column is desc" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.sort_header_cell field={:foo} sort={%{by: :foo, dir: :desc}}>Foo</.sort_header_cell>
+        """)
+
+      assert result =~ ~s(aria-sort="descending")
+    end
+
+    test "aria-sort is none for inactive sortable column" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.sort_header_cell field={:bar} sort={%{by: :foo, dir: :asc}}>Bar</.sort_header_cell>
+        """)
+
+      assert result =~ ~s(aria-sort="none")
+    end
+
+    test "aria-sort is omitted when sort is nil" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.sort_header_cell field={:name} sort={nil}>Name</.sort_header_cell>
+        """)
+
+      refute result =~ "aria-sort"
+    end
+
     test "custom event and target are passed through" do
       assigns = %{}
 

@@ -96,6 +96,15 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     {:noreply, socket}
   end
 
+  def handle_event("change_page", %{"page" => page}, socket) do
+    socket =
+      socket
+      |> assign(:page, String.to_integer(page))
+      |> load_sessions()
+
+    {:noreply, socket}
+  end
+
   def handle_event("toggle_auto_refresh", _params, socket) do
     auto_refresh = !socket.assigns.auto_refresh
 
@@ -269,7 +278,7 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
   defp toggle_sort(_, new_by), do: %{by: new_by, dir: :asc}
 
   defp flip_dir(:asc), do: :desc
-  defp flip_dir(_), do: :asc
+  defp flip_dir(:desc), do: :asc
 
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)
