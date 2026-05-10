@@ -102,6 +102,10 @@ yarn-error.log*
 /priv/static/sitemap.xml
 /priv/static/sitemaps/
 
+# Vendor copy created when mix phoenix_kit.install runs against /app
+# itself (install task targets parent apps, not PhoenixKit core)
+/priv/static/assets/vendor/
+
 # Ignore personal notes
 NOTES.md
 TODO.md

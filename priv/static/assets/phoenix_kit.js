@@ -159,6 +159,15 @@ if (typeof window.Chart === "undefined") {
         ".pk-sortable-wiggle:nth-child(even) { animation-delay: 0.1s; }",
         ".pk-sortable-wiggle:nth-child(3n) { animation-delay: 0.2s; }",
         "@media (prefers-reduced-motion: reduce) { .pk-sortable-wiggle { animation: none; } }",
+        // Selected-card indicator. The `<.table_default>` card view is
+        // opaque to consumers (no per-item selected attr), so we lean
+        // on :has() to paint any sortable card whose internal checkbox
+        // is checked. Stronger than a flat tint: bumped bg + 4px
+        // primary left border mirroring the table row treatment so
+        // selection is unambiguous at a glance. Specificity (0,3,0) +
+        // injection-after-Tailwind in source order means this wins
+        // over `bg-base-200` without `!important`.
+        ".sortable-item.card:has(input[type=\"checkbox\"]:checked) { background-color: oklch(var(--p) / 0.15); box-shadow: inset 4px 0 0 0 oklch(var(--p)); }",
         // Reorder result flash — green on success, red on failure.
         // The hook applies the class transiently after the LV emits a
         // sortable:flash push_event. We overlay a pseudo-element

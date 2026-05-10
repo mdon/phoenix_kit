@@ -103,20 +103,10 @@
         <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
           <%!-- Search --%>
           <div class="flex-1 max-w-md">
-            <form phx-submit="search" phx-change="search" class="form-control">
-              <div class="input-group">
-                <input
-                  type="text"
-                  name="search"
-                  value={@search_query}
-                  placeholder="Search by IP, User-Agent, email..."
-                  class="input input-bordered flex-1"
-                />
-                <button type="submit" class="btn btn-square">
-                  <.icon name="hero-magnifying-glass" class="w-5 h-5" />
-                </button>
-              </div>
-            </form>
+            <.search_toolbar
+              value={@search_query}
+              placeholder="Search by IP, User-Agent, email..."
+            />
           </div>
 
           <%!-- Filter Tabs --%>
@@ -203,41 +193,11 @@
       </:card_header>
       <.table_default_header>
         <.table_default_row>
-          <.table_default_header_cell>
-            <button
-              phx-click="sort_by"
-              phx-value-field="type"
-              class="flex items-center gap-1 cursor-pointer"
-            >
-              Type
-              <%= if @sort_by == :type do %>
-                <%= if @sort_order == :asc do %>
-                  <.icon name="hero-chevron-up" class="w-4 h-4" />
-                <% else %>
-                  <.icon name="hero-chevron-down" class="w-4 h-4" />
-                <% end %>
-              <% end %>
-            </button>
-          </.table_default_header_cell>
+          <.sort_header_cell field={:type} sort={@sort}>Type</.sort_header_cell>
           <.table_default_header_cell>User/Session</.table_default_header_cell>
           <.table_default_header_cell>IP Address</.table_default_header_cell>
           <.table_default_header_cell>Current Page</.table_default_header_cell>
-          <.table_default_header_cell>
-            <button
-              phx-click="sort_by"
-              phx-value-field="connected_at"
-              class="flex items-center gap-1 cursor-pointer"
-            >
-              Connected
-              <%= if @sort_by == :connected_at do %>
-                <%= if @sort_order == :asc do %>
-                  <.icon name="hero-chevron-up" class="w-4 h-4" />
-                <% else %>
-                  <.icon name="hero-chevron-down" class="w-4 h-4" />
-                <% end %>
-              <% end %>
-            </button>
-          </.table_default_header_cell>
+          <.sort_header_cell field={:connected_at} sort={@sort}>Connected</.sort_header_cell>
           <.table_default_header_cell>Status</.table_default_header_cell>
         </.table_default_row>
       </.table_default_header>
@@ -329,7 +289,7 @@
         <div class="btn-group">
           <%= for page_num <- 1..@total_pages do %>
             <button
-              phx-click="goto_page"
+              phx-click="change_page"
               phx-value-page={page_num}
               class={[
                 "btn btn-sm",

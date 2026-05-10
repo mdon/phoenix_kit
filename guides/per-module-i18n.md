@@ -98,7 +98,8 @@ This also matches the `dynamic_children/2` callback contract: arity-2 dynamic-ch
 | 8 | Fill translations for each target locale (`en` is 1:1) | `priv/gettext/<locale>/LC_MESSAGES/default.po` |
 | 9 | Add conditional skip in `test/test_helper.exs` so CI building against a pre-API `phoenix_kit` doesn't fail (see [§ Conditional CI skip](#conditional-ci-skip)) | `test/test_helper.exs` |
 | 10 | Add a smoke test (see [§ Test pattern](#test-pattern)) | `test/` |
-| 11 | Bump module `@version` and add a CHANGELOG entry | `mix.exs`, `CHANGELOG.md` |
+
+> **Do NOT bump `@version` or write a `CHANGELOG.md` entry.** Both are maintainer-owned across **core and every `phoenix_kit_<x>` child module** — the maintainer derives the version and the CHANGELOG entry from your commit messages at release time. Write descriptive commit messages; that's the contribution. See [§ Version and CHANGELOG ownership](#version-and-changelog-ownership).
 
 ---
 
@@ -370,7 +371,8 @@ For each existing `phoenix_kit_<x>` module being uplifted to the new API:
 - [ ] `test/test_helper.exs` has the conditional `:requires_phoenix_kit_i18n_api` skip (see [§ Conditional CI skip](#conditional-ci-skip))
 - [ ] Smoke test in `test/phoenix_kit/<x>/i18n_test.exs` carries `@moduletag :requires_phoenix_kit_i18n_api` and passes locally with `phoenix_kit` resolved to a release that ships the API
 - [ ] `mix test` clean (locally with API; on CI without API, i18n tests excluded automatically — also clean)
-- [ ] CHANGELOG entry, `@version` bump, commit on a feature branch, push, open PR. `mix hex.publish` is the maintainer's call after the PR merges
+- [ ] **Do NOT** bump `@version` or write a CHANGELOG entry — both are maintainer-owned (see [§ Version and CHANGELOG ownership](#version-and-changelog-ownership)). Write a descriptive commit message instead.
+- [ ] Commit on a feature branch, push, open PR.
 
 ---
 
@@ -436,21 +438,24 @@ end
 
 ---
 
-## Version bump and CHANGELOG (owned packages)
+## Version and CHANGELOG ownership
 
-Unlike `phoenix_kit` core (which is maintained by BeamLab — version and CHANGELOG are set by the maintainer at release time), every `phoenix_kit_<x>` package is maintained directly by the team that owns the fork. So for these packages:
+**The package version (`@version` in `mix.exs`) and the `CHANGELOG.md` are owned by the maintainer.** This applies uniformly to `phoenix_kit` core **and** every `phoenix_kit_<x>` child module — even the modules whose forks you maintain locally. The maintainer derives the version bump (patch / minor / major) and the CHANGELOG entry from the commit messages on the merged PR; agents and contributors do not touch either.
 
-- Bump `@version` in `mix.exs` (typically a patch level — `0.1.x → 0.1.(x+1)`).
-- Add a CHANGELOG entry under that version. Format:
+What contributors **do**:
 
-```markdown
-## 0.1.3 - 2026-05-08
+- Write descriptive commit messages that read like a CHANGELOG entry — what changed, why, links to related issues / PRs / dependencies. The first line is the title; the body explains the rest.
+- Leave `@version` exactly as it stands at HEAD.
+- Leave `CHANGELOG.md` exactly as it stands at HEAD.
 
-### Added
-- Per-module Gettext backend (`PhoenixKit.<X>.Gettext`) with `en`/`ru`/`et` catalogues for all admin sidebar tab labels. Requires `phoenix_kit` release that ships the `gettext_backend` Tab API (BeamLabEU/phoenix_kit#522); on older releases tabs render raw English (graceful degradation).
-```
+What contributors **do NOT**:
 
-Both go in the same commit as the i18n wiring.
+- Edit `@version` in `mix.exs` (even a single patch bump).
+- Add or modify entries in `CHANGELOG.md`.
+
+If you find yourself wanting to bump the version "for visibility", stop and improve the commit message instead. The maintainer reads commit bodies when assembling the release notes.
+
+This rule is intentional: it keeps version bumps centralized so the maintainer can squash a feature PR and a follow-up fix into a single release without coordinating two version-line edits, and it removes a frequent source of merge conflicts on `mix.exs` `@version` and `CHANGELOG.md` first-entry header.
 
 ---
 

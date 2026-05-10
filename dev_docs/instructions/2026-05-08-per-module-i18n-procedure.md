@@ -165,22 +165,17 @@ mix test test/phoenix_kit/<x>/i18n_test.exs
 
 Then re-add the path override for committing prep.
 
-### 8. Bump `@version` and write CHANGELOG
+### 8. Do NOT bump `@version`. Do NOT write a CHANGELOG entry.
 
-For every owned `phoenix_kit_<x>` package, the team is the maintainer — so unlike `phoenix_kit` core, **you do bump version and write the CHANGELOG entry**:
+**The package version (`@version` in `mix.exs`) and the `CHANGELOG.md` are maintainer-owned across `phoenix_kit` core AND every `phoenix_kit_<x>` child module.** Even on forks the team owns locally, the maintainer derives the version bump and the CHANGELOG entry from your commit messages at release time.
 
-```elixir
-# mix.exs
-@version "0.1.<n+1>"
-```
+What this means at this step:
 
-```markdown
-# CHANGELOG.md
-## 0.1.<n+1> - YYYY-MM-DD
+- Leave `@version` exactly as it stands at HEAD. Do not edit the line.
+- Leave `CHANGELOG.md` exactly as it stands at HEAD. Do not add an entry.
+- Make the commit message itself descriptive enough to feed straight into the maintainer's release notes — first line ≤ 70 chars summarising the change, body explaining the wiring, dependencies on other PRs, and any out-of-scope notes.
 
-### Added
-- Per-module Gettext backend (`PhoenixKit.<X>.Gettext`) with `en`/`ru`/`et` catalogues for all admin sidebar tab labels. Requires `phoenix_kit` release that ships the `gettext_backend` Tab API ([BeamLabEU/phoenix_kit#522](https://github.com/BeamLabEU/phoenix_kit/pull/522)); on older releases tabs render raw English (graceful degradation).
-```
+If you find yourself reaching for `@version` in `mix.exs`, stop. The earlier rollout of this playbook (Phase 2 across newsletters / customer_support / emails / billing / ecommerce / legal / crm) had every implementer agent bump `@version` and add a CHANGELOG entry — and the maintainer ended up overwriting both on every PR. The rule was tightened after that round: **don't.**
 
 ### 9. Stage and commit on `main`
 
@@ -190,14 +185,19 @@ Switch `mix.exs` to **clean form** (no `path:`) before committing. Then:
 # Make sure the path override is gone from the file you're about to commit
 grep -n 'path:.*pk-pr' mix.exs && echo "STILL HAS PATH OVERRIDE — fix"
 
+# Make sure you have NOT modified mix.exs @version or CHANGELOG.md
+git diff --staged mix.exs | grep -E '^\+\s*@version\s+"' && echo "STILL TOUCHED @version — revert that line"
+git diff --staged --name-only | grep -qx 'CHANGELOG.md' && echo "STILL TOUCHED CHANGELOG.md — revert it from HEAD"
+
 git add \
   mix.exs mix.lock \
   lib/phoenix_kit/<x>/gettext.ex \
   lib/phoenix_kit/<x>/<x>.ex \
   priv/gettext/ \
   test/test_helper.exs \
-  test/phoenix_kit/<x>/i18n_test.exs \
-  CHANGELOG.md
+  test/phoenix_kit/<x>/i18n_test.exs
+
+# DO NOT add: CHANGELOG.md (untouched), and revert any @version edit in mix.exs
 
 git commit -m '...' # see Newsletters PR #12 for tone — descriptive, links PR #522
 ```
