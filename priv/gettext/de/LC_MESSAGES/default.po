@@ -47,8 +47,8 @@ msgstr ""
 #: lib/phoenix_kit_web/live/dashboard.html.heex:44
 #: lib/phoenix_kit_web/live/users/roles.ex:47
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:135
-#: lib/phoenix_kit_web/live/users/users.html.heex:384
-#: lib/phoenix_kit_web/live/users/users.html.heex:478
+#: lib/phoenix_kit_web/live/users/users.html.heex:383
+#: lib/phoenix_kit_web/live/users/users.html.heex:477
 #, elixir-autogen
 msgid "Roles"
 msgstr ""
@@ -291,6 +291,7 @@ msgid "Authentication"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/dashboard.html.heex:364
+#: lib/phoenix_kit_web/live/modules.html.heex:69
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:110
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:251
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:579
@@ -306,6 +307,17 @@ msgstr ""
 #: lib/modules/storage/web/settings.html.heex:178
 #: lib/modules/storage/web/settings.html.heex:241
 #: lib/phoenix_kit_web/live/dashboard.html.heex:368
+#: lib/phoenix_kit_web/live/modules.html.heex:93
+#: lib/phoenix_kit_web/live/modules.html.heex:157
+#: lib/phoenix_kit_web/live/modules.html.heex:193
+#: lib/phoenix_kit_web/live/modules.html.heex:221
+#: lib/phoenix_kit_web/live/modules.html.heex:294
+#: lib/phoenix_kit_web/live/modules.html.heex:366
+#: lib/phoenix_kit_web/live/modules.html.heex:422
+#: lib/phoenix_kit_web/live/modules.html.heex:474
+#: lib/phoenix_kit_web/live/modules.html.heex:550
+#: lib/phoenix_kit_web/live/modules.html.heex:618
+#: lib/phoenix_kit_web/live/modules.html.heex:683
 #: lib/phoenix_kit_web/live/settings/seo.html.heex:41
 #: lib/phoenix_kit_web/live/settings/users.html.heex:139
 #: lib/phoenix_kit_web/live/settings/users.html.heex:144
@@ -622,6 +634,19 @@ msgstr ""
 msgid "Company name is required"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/modules.html.heex:58
+#: lib/phoenix_kit_web/live/modules.html.heex:108
+#: lib/phoenix_kit_web/live/modules.html.heex:121
+#: lib/phoenix_kit_web/live/modules.html.heex:174
+#: lib/phoenix_kit_web/live/modules.html.heex:181
+#: lib/phoenix_kit_web/live/modules.html.heex:251
+#: lib/phoenix_kit_web/live/modules.html.heex:323
+#: lib/phoenix_kit_web/live/modules.html.heex:436
+#: lib/phoenix_kit_web/live/modules.html.heex:494
+#: lib/phoenix_kit_web/live/modules.html.heex:571
+#: lib/phoenix_kit_web/live/modules.html.heex:586
+#: lib/phoenix_kit_web/live/modules.html.heex:714
+#: lib/phoenix_kit_web/live/modules.html.heex:738
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:657
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:134
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:179
@@ -631,8 +656,8 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/core/modal.ex:261
 #: lib/phoenix_kit_web/components/core/modal.ex:262
-#: lib/phoenix_kit_web/live/users/users.html.heex:412
-#: lib/phoenix_kit_web/live/users/users.html.heex:497
+#: lib/phoenix_kit_web/live/users/users.html.heex:411
+#: lib/phoenix_kit_web/live/users/users.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "Confirm"
 msgstr ""
@@ -642,6 +667,8 @@ msgstr ""
 msgid "Confirmed"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/modules.html.heex:352
+#: lib/phoenix_kit_web/live/modules.html.heex:394
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:52
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:387
 #, elixir-autogen, elixir-format
@@ -793,8 +820,8 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:25
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:511
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:514
-#: lib/phoenix_kit_web/live/users/users.html.heex:439
-#: lib/phoenix_kit_web/live/users/users.html.heex:515
+#: lib/phoenix_kit_web/live/users/users.html.heex:438
+#: lib/phoenix_kit_web/live/users/users.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
@@ -831,6 +858,16 @@ msgstr ""
 #: lib/modules/storage/web/dimensions.html.heex:404
 #: lib/modules/storage/web/settings.html.heex:178
 #: lib/modules/storage/web/settings.html.heex:245
+#: lib/phoenix_kit_web/live/modules.html.heex:93
+#: lib/phoenix_kit_web/live/modules.html.heex:157
+#: lib/phoenix_kit_web/live/modules.html.heex:221
+#: lib/phoenix_kit_web/live/modules.html.heex:294
+#: lib/phoenix_kit_web/live/modules.html.heex:366
+#: lib/phoenix_kit_web/live/modules.html.heex:422
+#: lib/phoenix_kit_web/live/modules.html.heex:474
+#: lib/phoenix_kit_web/live/modules.html.heex:550
+#: lib/phoenix_kit_web/live/modules.html.heex:618
+#: lib/phoenix_kit_web/live/modules.html.heex:683
 #: lib/phoenix_kit_web/live/settings/seo.html.heex:41
 #: lib/phoenix_kit_web/live/settings/users.html.heex:140
 #: lib/phoenix_kit_web/live/settings/users.html.heex:148
@@ -865,8 +902,8 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:18
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:500
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:503
-#: lib/phoenix_kit_web/live/users/users.html.heex:375
-#: lib/phoenix_kit_web/live/users/users.html.heex:470
+#: lib/phoenix_kit_web/live/users/users.html.heex:374
+#: lib/phoenix_kit_web/live/users/users.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr ""
@@ -1318,6 +1355,7 @@ msgstr ""
 msgid "Only the Owner can edit Admin permissions"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/modules.html.heex:97
 #: lib/phoenix_kit_web/users/user_form.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "Optional"
@@ -1385,6 +1423,7 @@ msgstr ""
 msgid "Password changed successfully."
 msgstr ""
 
+#: lib/phoenix_kit_web/live/modules.html.heex:268
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Pending"
@@ -1483,6 +1522,7 @@ msgid "Provider not found"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/language_switcher.ex:829
+#: lib/phoenix_kit_web/live/modules.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Published"
 msgstr ""
@@ -1533,6 +1573,7 @@ msgid "Remove"
 msgstr ""
 
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:87
+#: lib/phoenix_kit_web/live/modules.html.heex:97
 #: lib/phoenix_kit_web/live/settings/users.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Required"
@@ -1678,9 +1719,11 @@ msgstr ""
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
+#: lib/phoenix_kit_web/live/modules.html.heex:244
+#: lib/phoenix_kit_web/live/modules.html.heex:316
 #: lib/phoenix_kit_web/live/settings.html.heex:12
-#: lib/phoenix_kit_web/live/users/users.html.heex:393
-#: lib/phoenix_kit_web/live/users/users.html.heex:486
+#: lib/phoenix_kit_web/live/users/users.html.heex:392
+#: lib/phoenix_kit_web/live/users/users.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -1816,6 +1859,8 @@ msgstr ""
 msgid "Timezone"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/modules.html.heex:260
+#: lib/phoenix_kit_web/live/modules.html.heex:332
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Total"
@@ -1928,8 +1973,8 @@ msgid "Video"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:592
-#: lib/phoenix_kit_web/live/users/users.html.heex:367
-#: lib/phoenix_kit_web/live/users/users.html.heex:465
+#: lib/phoenix_kit_web/live/users/users.html.heex:366
+#: lib/phoenix_kit_web/live/users/users.html.heex:464
 #: lib/phoenix_kit_web/users/user_form.html.heex:780
 #, elixir-autogen, elixir-format
 msgid "View"
@@ -2015,13 +2060,13 @@ msgstr ""
 msgid "users"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:428
-#: lib/phoenix_kit_web/live/users/users.html.heex:505
+#: lib/phoenix_kit_web/live/users/users.html.heex:427
+#: lib/phoenix_kit_web/live/users/users.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "Activate"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:122
+#: lib/phoenix_kit_web/live/users/users.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "All Types"
 msgstr ""
@@ -2031,8 +2076,8 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:427
-#: lib/phoenix_kit_web/live/users/users.html.heex:505
+#: lib/phoenix_kit_web/live/users/users.html.heex:426
+#: lib/phoenix_kit_web/live/users/users.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "Deactivate"
 msgstr ""
@@ -2151,8 +2196,8 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:411
-#: lib/phoenix_kit_web/live/users/users.html.heex:497
+#: lib/phoenix_kit_web/live/users/users.html.heex:410
+#: lib/phoenix_kit_web/live/users/users.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "Unconfirm"
 msgstr ""
@@ -3417,6 +3462,7 @@ msgid "Token"
 msgstr ""
 
 #: lib/modules/storage/web/settings.html.heex:322
+#: lib/phoenix_kit_web/live/modules.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Total Buckets"
 msgstr ""
@@ -3457,8 +3503,8 @@ msgstr ""
 msgid "User Settings"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:359
-#: lib/phoenix_kit_web/live/users/users.html.heex:461
+#: lib/phoenix_kit_web/live/users/users.html.heex:358
+#: lib/phoenix_kit_web/live/users/users.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "User actions"
 msgstr ""
@@ -3911,7 +3957,7 @@ msgstr ""
 msgid "Account disconnected"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:113
+#: lib/phoenix_kit_web/live/users/users.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Account type"
 msgstr ""
@@ -4657,6 +4703,7 @@ msgid "Main heading shown on maintenance page"
 msgstr ""
 
 #: lib/modules/maintenance/settings.ex:394
+#: lib/phoenix_kit_web/live/modules.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Maintenance Mode"
 msgstr ""
@@ -4928,7 +4975,7 @@ msgstr ""
 msgid "OpenRouter"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:234
+#: lib/phoenix_kit_web/live/users/users.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Org"
 msgstr ""
@@ -4937,7 +4984,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:149
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:179
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:193
-#: lib/phoenix_kit_web/live/users/users.html.heex:128
+#: lib/phoenix_kit_web/live/users/users.html.heex:127
 #: lib/phoenix_kit_web/users/registration.html.heex:122
 #: lib/phoenix_kit_web/users/user_form.html.heex:197
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
@@ -4983,7 +5030,7 @@ msgid "Per-user inbox driven by the activity feed"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:126
-#: lib/phoenix_kit_web/live/users/users.html.heex:125
+#: lib/phoenix_kit_web/live/users/users.html.heex:124
 #: lib/phoenix_kit_web/users/registration.html.heex:116
 #: lib/phoenix_kit_web/users/user_form.html.heex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -5746,7 +5793,7 @@ msgstr ""
 msgid "Removes the integration permanently. Any module pinned to this connection will stop working until repointed."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:486
+#: lib/phoenix_kit_web/components/core/table_default.ex:499
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
@@ -5795,4 +5842,346 @@ msgstr ""
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:721
 #, elixir-autogen, elixir-format
 msgid "just now"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:298
+#, elixir-autogen, elixir-format
+msgid "%{count} open"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:225
+#, elixir-autogen, elixir-format
+msgid "%{count} pending"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:622
+#, elixir-autogen, elixir-format
+msgid "%{count} running"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:595
+#, elixir-autogen, elixir-format
+msgid "Activate maintenance mode in settings to block non-admin users"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:795
+#, elixir-autogen, elixir-format
+msgid "Add to mix.exs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "Always Enabled"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Auto-regenerate"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:647
+#, elixir-autogen, elixir-format
+msgid "Available"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:766
+#, elixir-autogen, elixir-format
+msgid "Available Packages"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:398
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Blocks"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:699
+#, elixir-autogen, elixir-format
+msgid "Body Saved"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "Comments"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:651
+#, elixir-autogen, elixir-format
+msgid "Completed"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:50
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Core System"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:280
+#, elixir-autogen, elixir-format
+msgid "Customer Support"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:282
+#, elixir-autogen, elixir-format
+msgid "Customer support ticketing system with internal notes and status tracking"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:659
+#, elixir-autogen, elixir-format
+msgid "Discarded"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Distributed file storage system with multi-location redundancy and automatic failover"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:813
+#, elixir-autogen, elixir-format
+msgid "Each module can be enabled or disabled using the toggle switches above. Click \"Configure\" to access detailed settings for each module on dedicated pages."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:596
+#, elixir-autogen, elixir-format
+msgid "Enable module to access maintenance mode settings"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:440
+#: lib/phoenix_kit_web/live/modules.html.heex:507
+#, elixir-autogen, elixir-format
+msgid "Enable module to access settings"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "Enable module to manage connections"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:638
+#, elixir-autogen, elixir-format
+msgid "Enable module to view background jobs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:686
+#, elixir-autogen, elixir-format
+msgid "External"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:390
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Follows"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Generate XML sitemaps for search engines with styled browser display"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:574
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Header"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:700
+#, elixir-autogen, elixir-format
+msgid "Headers Only"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:340
+#, elixir-autogen, elixir-format
+msgid "In Progress"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:606
+#, elixir-autogen, elixir-format
+msgid "Jobs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Languages"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:520
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last gen"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:558
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Maintenance Active"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:559
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Maintenance Off"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:114
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage Codes"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:238
+#, elixir-autogen, elixir-format
+msgid "Manage Comments"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Manage Tickets"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Manage language module and translations"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:13
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage modules"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Manage referral codes for user registration and monitoring"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:411
+#, elixir-autogen, elixir-format
+msgid "Manage search engine optimization controls for your application"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:129
+#, elixir-autogen, elixir-format
+msgid "Max per user"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "Max uses"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:578
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Message"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:811
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Management"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:12
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Modules"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "No Default"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:447
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Noindex"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:783
+#, elixir-autogen, elixir-format
+msgid "Not installed"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:449
+#, elixir-autogen, elixir-format
+msgid "Off"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:449
+#, elixir-autogen, elixir-format
+msgid "On"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:336
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "Referral Codes"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:690
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Requires %{module}"
+msgstr "Erforderlich"
+
+#: lib/phoenix_kit_web/live/modules.html.heex:655
+#, elixir-autogen, elixir-format
+msgid "Retryable"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "SEO"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:538
+#, elixir-autogen, elixir-format
+msgid "Show maintenance page to non-admin users while you work on the site"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:460
+#: lib/phoenix_kit_web/live/modules.html.heex:501
+#, elixir-autogen, elixir-format
+msgid "Sitemap"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:354
+#, elixir-autogen, elixir-format
+msgid "Social relationships with one-way follows and mutual connections"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Storage"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Threaded comments with likes, moderation, and reactions across all content types"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total languages"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:516
+#, elixir-autogen, elixir-format
+msgid "URLs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:634
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View Jobs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:607
+#, elixir-autogen, elixir-format
+msgid "View-only dashboard for background job status and history"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "module to be enabled. Some features may not work correctly."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "requires the"
 msgstr ""
