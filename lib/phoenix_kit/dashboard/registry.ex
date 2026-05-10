@@ -762,7 +762,8 @@ defmodule PhoenixKit.Dashboard.Registry do
           path: "",
           priority: 100,
           match: :exact,
-          group: :main
+          group: :main,
+          gettext_backend: PhoenixKitWeb.Gettext
         ),
         Tab.new!(
           id: :dashboard_settings,
@@ -771,7 +772,8 @@ defmodule PhoenixKit.Dashboard.Registry do
           path: "settings",
           priority: 900,
           match: :prefix,
-          group: :account
+          group: :account,
+          gettext_backend: PhoenixKitWeb.Gettext
         )
       ]
       |> Enum.map(&Tab.resolve_path(&1, :user_dashboard))

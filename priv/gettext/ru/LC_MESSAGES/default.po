@@ -1405,7 +1405,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/roles.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Permissions"
-msgstr ""
+msgstr "Разрешения"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:335
 #, elixir-autogen, elixir-format
@@ -1686,7 +1686,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/users.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Settings"
-msgstr ""
+msgstr "Настройки"
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:389
 #, elixir-autogen, elixir-format
@@ -4576,7 +4576,7 @@ msgstr ""
 #: lib/modules/storage/web/health.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Health"
-msgstr ""
+msgstr "Состояние"
 
 #: lib/modules/storage/web/health.html.heex:31
 #, elixir-autogen, elixir-format
@@ -4597,7 +4597,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Integrations"
-msgstr ""
+msgstr "Интеграции"
 
 #: lib/phoenix_kit/integrations/integrations.ex:938
 #, elixir-autogen, elixir-format
@@ -4952,7 +4952,7 @@ msgstr ""
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Organization"
-msgstr ""
+msgstr "Организация"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:541
 #: lib/phoenix_kit_web/users/user_form.html.heex:695
@@ -5805,3 +5805,59 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "just now"
 msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Modules"
+msgstr "Модули"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Manage Users"
+msgstr "Управление пользователями"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Live Sessions"
+msgstr "Активные сессии"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Referral Codes"
+msgstr "Реферальные коды"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Activity"
+msgstr "Активность"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Media"
+msgstr "Медиа"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "General"
+msgstr "Общие"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Authorization"
+msgstr "Авторизация"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Dimensions"
+msgstr "Размеры"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Jobs"
+msgstr "Задачи"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Languages"
+msgstr "Языки"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "SEO"
+msgstr "SEO"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Sitemap"
+msgstr "Карта сайта"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Home"
+msgstr "Главная"
