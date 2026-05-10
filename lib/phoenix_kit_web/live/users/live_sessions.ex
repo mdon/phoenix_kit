@@ -52,8 +52,7 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
       |> assign(:filter_type, "all")
       |> assign(:page_title, "Live Sessions")
       |> assign(:project_title, project_title)
-      |> assign(:sort_by, :connected_at)
-      |> assign(:sort_order, :desc)
+      |> assign(:sort, %{by: :connected_at, dir: :desc})
       |> assign(:auto_refresh, true)
       |> assign(:last_updated, UtilsDate.utc_now())
       |> load_sessions()
@@ -86,20 +85,12 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     {:noreply, socket}
   end
 
-  def handle_event("sort_by", %{"field" => field}, socket) do
-    field_atom = String.to_existing_atom(field)
-
-    {sort_by, sort_order} =
-      if socket.assigns.sort_by == field_atom do
-        {field_atom, toggle_sort_order(socket.assigns.sort_order)}
-      else
-        {field_atom, :desc}
-      end
+  def handle_event("toggle_sort", %{"by" => by}, socket) do
+    sort = toggle_sort(socket.assigns.sort, parse_sort_by(by))
 
     socket =
       socket
-      |> assign(:sort_by, sort_by)
-      |> assign(:sort_order, sort_order)
+      |> assign(:sort, sort)
       |> load_sessions()
 
     {:noreply, socket}
@@ -202,7 +193,7 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
       sessions
       |> filter_by_search(socket.assigns.search_query)
       |> filter_by_type(socket.assigns.filter_type)
-      |> sort_sessions(socket.assigns.sort_by, socket.assigns.sort_order)
+      |> sort_sessions(socket.assigns.sort.by, socket.assigns.sort.dir)
 
     # Calculate pagination
     total_count = length(filtered_sessions)
@@ -270,8 +261,15 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     |> Enum.sort_by(fn session -> Map.get(session, sort_by) end, sort_order)
   end
 
-  defp toggle_sort_order(:asc), do: :desc
-  defp toggle_sort_order(:desc), do: :asc
+  defp parse_sort_by("type"), do: :type
+  defp parse_sort_by("connected_at"), do: :connected_at
+  defp parse_sort_by(_), do: :connected_at
+
+  defp toggle_sort(%{by: by, dir: dir}, by), do: %{by: by, dir: flip_dir(dir)}
+  defp toggle_sort(_, new_by), do: %{by: new_by, dir: :asc}
+
+  defp flip_dir(:asc), do: :desc
+  defp flip_dir(_), do: :asc
 
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)

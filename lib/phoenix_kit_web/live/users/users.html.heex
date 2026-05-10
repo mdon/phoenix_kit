@@ -82,15 +82,11 @@
           <label class="label">
             <span class="label-text">Search by email, username, or name</span>
           </label>
-          <form phx-submit="search" phx-change="search">
-            <input
-              type="text"
-              name="search"
-              value={@search_query}
-              placeholder="Enter email, username, or name to search..."
-              class="input input-bordered w-full"
-            />
-          </form>
+          <.search_toolbar
+            value={@search_query}
+            on_submit="search"
+            placeholder="Enter email, username, or name to search..."
+          />
         </div>
 
         <%!-- Role Filter --%>
