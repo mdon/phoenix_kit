@@ -6184,3 +6184,48 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "requires the"
 msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:245
+#, elixir-autogen, elixir-format
+msgid "Authorization"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:294
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:235
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
+#, elixir-autogen, elixir-format
+msgid "Live Sessions"
+msgstr ""
+
+#: lib/modules/maintenance/maintenance.ex:528
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:93
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:160
+#, elixir-autogen, elixir-format
+msgid "Media"
+msgstr ""
+
+#: lib/modules/referrals/referrals.ex:658
+#, elixir-autogen, elixir-format
+msgid "Referrals"
+msgstr ""
