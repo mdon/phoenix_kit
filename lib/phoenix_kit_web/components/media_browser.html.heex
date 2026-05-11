@@ -1309,12 +1309,16 @@
             <% end %>
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
-                <img
+                <%!-- Initial render: the `medium` variant (a few hundred kb,     --%>
+                <%!-- already in storage, fills the viewport sharply). Once the   --%>
+                <%!-- user zooms in, Tessera swaps to `upgrade_src` — the DZI    --%>
+                <%!-- manifest for deep zoom, or the original full-resolution    --%>
+                <%!-- JPEG as a fallback.                                         --%>
+                <Tessera.Viewer.viewer
                   id={"media-zoom-" <> f.file_uuid}
-                  phx-hook="MediaImageZoom"
-                  src={f.urls["original"] || f.urls["medium"]}
-                  alt={f.filename}
-                  class="w-full h-auto max-h-full object-contain lg:rounded cursor-grab"
+                  src={f.urls["medium"] || f.urls["original"]}
+                  upgrade_src={f.urls["dzi"] || f.urls["original"]}
+                  class="w-full h-full lg:rounded"
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video

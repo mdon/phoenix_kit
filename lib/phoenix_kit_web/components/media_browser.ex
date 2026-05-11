@@ -1508,7 +1508,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     existing_files =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
+        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
 
         %{
           file_uuid: file.uuid,
@@ -1545,7 +1545,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     existing_files =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
+        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
 
         %{
           file_uuid: file.uuid,
@@ -1618,7 +1618,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
-      urls = generate_urls_from_instances(instances, file.uuid)
+      urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
 
       %{
         file_uuid: file.uuid,
@@ -1813,11 +1813,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Style / icon helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp generate_urls_from_instances(instances, file_uuid) do
-    Enum.reduce(instances, %{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name)
-      Map.put(acc, instance.variant_name, url)
-    end)
+  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+    base =
+      Enum.reduce(instances, %{}, fn instance, acc ->
+        url = URLSigner.signed_url(file_uuid, instance.variant_name)
+        Map.put(acc, instance.variant_name, url)
+      end)
+
+    # For images, always surface a DZI manifest URL. The manifest itself is
+    # generated lazily on first request; tiles are generated lazily as OSD
+    # asks for them. See FileController.serve_manifest/2 + serve_tile/2.
+    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") do
+      Map.put(base, "dzi", Routes.path("/tiles/#{file_uuid}.dzi"))
+    else
+      base
+    end
   end
 
   defp determine_file_type(mime_type) do

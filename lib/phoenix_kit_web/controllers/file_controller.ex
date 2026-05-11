@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.FileController do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Manager, ProcessFileJob, URLSigner}
+  alias PhoenixKit.Modules.Storage.{Manager, ProcessFileJob, TesseraAdapter, URLSigner}
   alias PhoenixKit.Utils.Routes
 
   @doc """
@@ -146,6 +146,207 @@ defmodule PhoenixKitWeb.FileController do
         |> put_status(:not_found)
         |> json(%{error: "FILE_NOT_FOUND", message: "File not found"})
     end
+  end
+
+  @doc """
+  Serve the DZI manifest for an image, generating it lazily if it doesn't
+  exist yet.
+
+  ## Request
+
+      GET /tiles/:dzi_filename
+
+  where `dzi_filename` is `"<file_uuid>.dzi"`. Returns the XML manifest
+  describing the image's dimensions and tile config — Tessera's
+  `generate_manifest/3` produces it on first request, subsequent requests
+  serve from storage.
+  """
+  def serve_manifest(conn, %{"dzi_filename" => filename}) do
+    case parse_manifest_filename(filename) do
+      {:ok, file_uuid} ->
+        with {:ok, file} <- get_file(file_uuid),
+             :ok <- ensure_image(file),
+             {:ok, w, h} <- ensure_dimensions(file),
+             :ok <- ensure_manifest_cached(file_uuid, w, h),
+             {:ok, body} <- read_tile_storage("#{file_uuid}/#{file_uuid}.dzi") do
+          conn
+          |> put_resp_header("cache-control", "public, max-age=300")
+          |> put_resp_content_type("application/xml")
+          |> send_resp(200, body)
+        else
+          {:error, reason} -> tile_error(conn, reason)
+        end
+
+      :error ->
+        send_resp(conn, 404, "Not found")
+    end
+  end
+
+  @doc """
+  Serve a single DZI tile, generating it lazily if it doesn't exist yet.
+
+  ## Request
+
+      GET /tiles/:files_segment/:level/:tile_filename
+
+  where `files_segment` is `"<file_uuid>_files"`, `level` is the integer
+  zoom level (as string), and `tile_filename` is `"<col>_<row>.<ext>"`.
+  This matches the layout Tessera writes to storage and the URL convention
+  OpenSeadragon derives from a DZI manifest filename.
+  """
+  def serve_tile(conn, %{
+        "files_segment" => files_segment,
+        "level" => level,
+        "tile_filename" => tile_filename
+      }) do
+    case parse_tile_path(files_segment, level, tile_filename) do
+      {:ok, file_uuid, level_int, col, row, ext} ->
+        with {:ok, file} <- get_file(file_uuid),
+             :ok <- ensure_image(file),
+             {:ok, w, h} <- ensure_dimensions(file),
+             key = "#{file_uuid}/#{file_uuid}_files/#{level_int}/#{col}_#{row}.#{ext}",
+             :ok <-
+               ensure_tile_cached(file_uuid, level_int, col, row, ext, w, h, key),
+             {:ok, body} <- read_tile_storage(key) do
+          conn
+          |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+          |> put_resp_content_type(content_type_for(ext))
+          |> send_resp(200, body)
+        else
+          {:error, reason} -> tile_error(conn, reason)
+        end
+
+      :error ->
+        send_resp(conn, 404, "Not found")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Tile / manifest helpers
+  # ---------------------------------------------------------------------------
+
+  defp parse_manifest_filename(filename) do
+    case Regex.run(~r/^([0-9a-f-]{36})\.dzi$/, filename) do
+      [_, uuid] -> {:ok, uuid}
+      _ -> :error
+    end
+  end
+
+  defp parse_tile_path(files_segment, level, tile_filename) do
+    with [_, uuid] <- Regex.run(~r/^([0-9a-f-]{36})_files$/, files_segment),
+         {level_int, ""} <- Integer.parse(level),
+         [_, col_str, row_str, ext] <-
+           Regex.run(~r/^(\d+)_(\d+)\.(jpg|png)$/, tile_filename),
+         {col, ""} <- Integer.parse(col_str),
+         {row, ""} <- Integer.parse(row_str) do
+      {:ok, uuid, level_int, col, row, ext}
+    else
+      _ -> :error
+    end
+  end
+
+  defp ensure_image(%{mime_type: "image/" <> _}), do: :ok
+  defp ensure_image(_), do: {:error, :not_an_image}
+
+  defp ensure_dimensions(%{width: w, height: h}) when is_integer(w) and is_integer(h),
+    do: {:ok, w, h}
+
+  defp ensure_dimensions(_), do: {:error, :missing_dimensions}
+
+  defp ensure_manifest_cached(file_uuid, w, h) do
+    key = "#{file_uuid}/#{file_uuid}.dzi"
+    destination = TesseraAdapter.destination_for(key)
+
+    if Manager.file_exists?(destination) do
+      :ok
+    else
+      Tessera.generate_manifest({w, h}, "#{file_uuid}/#{file_uuid}", storage: TesseraAdapter)
+    end
+  end
+
+  defp ensure_tile_cached(file_uuid, level, col, row, ext, w, h, key) do
+    destination = TesseraAdapter.destination_for(key)
+
+    if Manager.file_exists?(destination) do
+      :ok
+    else
+      generate_tile_from_original(file_uuid, level, col, row, ext, w, h)
+    end
+  end
+
+  defp generate_tile_from_original(file_uuid, level, col, row, ext, w, h) do
+    case Storage.get_file_instance_by_name(file_uuid, "original") do
+      nil ->
+        {:error, :original_missing}
+
+      instance ->
+        temp_path =
+          Path.join(System.tmp_dir!(), "tessera-src-#{System.unique_integer([:positive])}")
+
+        case Manager.retrieve_file(instance.file_name, destination_path: temp_path) do
+          {:ok, _} ->
+            result =
+              Tessera.generate_tile(
+                temp_path,
+                {level, col, row},
+                "#{file_uuid}/#{file_uuid}",
+                image_width: w,
+                image_height: h,
+                format: format_atom(ext),
+                storage: TesseraAdapter
+              )
+
+            File.rm(temp_path)
+            result
+
+          {:error, _} = err ->
+            File.rm(temp_path)
+            err
+        end
+    end
+  end
+
+  defp read_tile_storage(key) do
+    destination = TesseraAdapter.destination_for(key)
+    temp_path = Path.join(System.tmp_dir!(), "tessera-read-#{System.unique_integer([:positive])}")
+
+    case Manager.retrieve_file(destination, destination_path: temp_path) do
+      {:ok, _} ->
+        body = File.read!(temp_path)
+        File.rm(temp_path)
+        {:ok, body}
+
+      {:error, _} = err ->
+        File.rm(temp_path)
+        err
+    end
+  end
+
+  defp content_type_for("jpg"), do: "image/jpeg"
+  defp content_type_for("png"), do: "image/png"
+
+  defp format_atom("jpg"), do: :jpg
+  defp format_atom("png"), do: :png
+
+  defp tile_error(conn, :not_found) do
+    send_resp(conn, 404, "Not found")
+  end
+
+  defp tile_error(conn, :not_an_image) do
+    send_resp(conn, 415, "Unsupported media type")
+  end
+
+  defp tile_error(conn, :missing_dimensions) do
+    send_resp(conn, 422, "Image dimensions not available")
+  end
+
+  defp tile_error(conn, :invalid_coordinate) do
+    send_resp(conn, 404, "Tile out of range")
+  end
+
+  defp tile_error(conn, reason) do
+    Logger.warning("[Tessera tile] error: #{inspect(reason)}")
+    send_resp(conn, 500, "Tile generation failed")
   end
 
   defp get_file(file_uuid) do

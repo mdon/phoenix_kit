@@ -253,6 +253,8 @@ defmodule PhoenixKitWeb.Integration do
         post "/api/upload", UploadController, :create
         get "/file/:file_uuid/:variant/:token", FileController, :show
         get "/api/files/:file_uuid/info", FileController, :info
+        get "/tiles/:dzi_filename", FileController, :serve_manifest
+        get "/tiles/:files_segment/:level/:tile_filename", FileController, :serve_tile
 
         # Cookie consent widget config (public API for JS auto-injection)
         if Code.ensure_loaded?(PhoenixKit.Modules.Legal) do
