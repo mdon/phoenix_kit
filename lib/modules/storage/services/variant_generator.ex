@@ -252,8 +252,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   end
 
   defp should_generate_variants?(file) do
-    (file.file_type in ["image", "video"] or
-       (file.file_type == "document" and file.mime_type == "application/pdf")) and
+    # System-managed media (Tessera DZI tiles + manifests) never get
+    # quality variants — a tile is already 256×256, generating a smaller
+    # tile-of-a-tile would waste CPU and disk for no user-facing value.
+    not file.system_managed and
+      (file.file_type in ["image", "video"] or
+         (file.file_type == "document" and file.mime_type == "application/pdf")) and
       Storage.get_auto_generate_variants()
   end
 
