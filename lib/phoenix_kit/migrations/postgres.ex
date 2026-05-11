@@ -529,7 +529,37 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V111 - PDF library tables for catalogue ⚡ LATEST
+  ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime ⚡ LATEST
+  - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the
+    admin dashboard can soft-hide projects without flipping a status
+    enum. Visible-set partial index keeps the list query fast
+    (`WHERE archived_at IS NULL AND is_template = false`).
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_projects`, `phoenix_kit_project_tasks`, and
+    `phoenix_kit_project_assignments` for per-language overrides on
+    user-input content (name, description, title). Primary stays in
+    the dedicated columns; the JSONB only carries non-primary
+    overrides.
+  - Drops the three remaining unique-name indexes
+    (`phoenix_kit_projects_name_template_index`,
+    `phoenix_kit_projects_name_project_index`,
+    `phoenix_kit_project_tasks_title_index`). Name uniqueness is now
+    policy, not schema — editing or duplicating names no longer
+    trips a stale index.
+  - Retypes `phoenix_kit_projects.scheduled_start_date` from `DATE`
+    to `TIMESTAMP(0)` so scheduled-overdue detection honors time-of-
+    day (a project scheduled for today 09:00 flips to `:overdue` at
+    09:01, not at midnight).
+  - Adds `position INTEGER NOT NULL DEFAULT 0` to
+    `phoenix_kit_project_tasks` and `phoenix_kit_projects` so the
+    drag-and-drop reorder API can persist manual ordering. Per-row
+    `next_*_position/N` helpers in the projects context auto-assign
+    on insert.
+  - All steps guarded for idempotence (column existence + index
+    existence + USING coercion clauses). `down/1` reverses each
+    change so a rollback restores the V111 shape.
+
+  ### V111 - PDF library tables for catalogue
   - Creates `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid`
     FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue
     manages the file lifecycle; core prune can't delete files we
@@ -846,7 +876,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 111
+  @current_version 112
   @default_prefix "public"
 
   @doc false
