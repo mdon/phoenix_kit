@@ -1527,7 +1527,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     existing_files =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
+        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
+        variant_widths = generate_widths_from_instances(instances)
 
         %{
           file_uuid: file.uuid,
@@ -1538,7 +1539,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           status: file.status,
           inserted_at: file.inserted_at,
           trashed_at: file.trashed_at,
-          urls: urls
+          urls: urls,
+          variant_widths: variant_widths
         }
       end)
 
@@ -1564,7 +1566,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     existing_files =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
+        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
+        variant_widths = generate_widths_from_instances(instances)
 
         %{
           file_uuid: file.uuid,
@@ -1575,7 +1578,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           size: file.size || 0,
           status: file.status,
           inserted_at: file.inserted_at,
-          urls: urls
+          urls: urls,
+          variant_widths: variant_widths
         }
       end)
 
@@ -1637,7 +1641,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
-      urls = generate_urls_from_instances(instances, file.uuid)
+      urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
+      variant_widths = generate_widths_from_instances(instances)
 
       %{
         file_uuid: file.uuid,
@@ -1649,7 +1654,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         status: file.status,
         inserted_at: file.inserted_at,
         folder_path: Map.get(folder_paths, file.folder_uuid),
-        urls: urls
+        urls: urls,
+        variant_widths: variant_widths
       }
     end)
   end
@@ -1832,12 +1838,90 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Style / icon helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp generate_urls_from_instances(instances, file_uuid) do
+  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+    base =
+      Enum.reduce(instances, %{}, fn instance, acc ->
+        url = URLSigner.signed_url(file_uuid, instance.variant_name)
+        Map.put(acc, instance.variant_name, url)
+      end)
+
+    # For images, surface a DZI manifest URL only when tile generation is
+    # enabled in storage settings. The manifest itself is generated lazily
+    # on first request; tiles are generated lazily as OSD asks for them.
+    # When the setting is off, no `urls["dzi"]` → Tessera falls back to
+    # the medium / large layers and never asks for tiles, so the
+    # lazy-generation path is never triggered.
+    #
+    # The signed token lives in the URL path (not query string) so
+    # OpenSeadragon's tile-URL derivation preserves it across the
+    # manifest → tile fetch. The "dzi" variant name is distinct from
+    # the storage variants ("original" / "small" / "medium" / "large")
+    # so a leaked file-serving token can't grant tile access.
+    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
+         tile_generation_enabled?() do
+      token = URLSigner.generate_token(file_uuid, "dzi")
+      Map.put(base, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
+    else
+      base
+    end
+  end
+
+  defp tile_generation_enabled? do
+    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
+  end
+
+  # Builds a parallel map of `%{variant_name => width}` from the same
+  # FileInstance rows that produce the URLs. Used downstream by
+  # `tessera_sources/1` to decide which variants to surface as zoom
+  # layers and where to set the swap thresholds.
+  defp generate_widths_from_instances(instances) do
     Enum.reduce(instances, %{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name)
-      Map.put(acc, instance.variant_name, url)
+      case instance.width do
+        nil -> acc
+        w -> Map.put(acc, instance.variant_name, w)
+      end
     end)
   end
+
+  # Builds the ordered low → high quality layer list that
+  # `<Tessera.Viewer.viewer sources={...}>` consumes. Each entry is
+  # `%{url: <signed url>, width: <intrinsic pixel width>}`, except the
+  # top DZI layer which omits `width` (Tessera treats unknown width as
+  # the top of the pyramid with infinite zoom headroom).
+  #
+  # Layers are included only when they're meaningful:
+  #
+  #   * `medium` — always, as the initial render (cheapest preview)
+  #   * `large` — only when its width exceeds medium's (skipped for
+  #     small images where large == medium would just churn for nothing)
+  #   * `dzi`   — always available for images; takes over when zoom
+  #     exceeds what the static raster variants can serve sharply
+  defp tessera_sources(f) do
+    widths = f.variant_widths || %{}
+    medium_url = f.urls["medium"]
+    medium_w = widths["medium"]
+
+    large_url = f.urls["large"]
+    large_w = widths["large"]
+    large_useful? = is_integer(large_w) and large_w > (medium_w || 0)
+
+    dzi_url = f.urls["dzi"]
+
+    []
+    |> maybe_append_layer(medium_url, medium_w)
+    |> maybe_append_layer(large_url, large_w, large_useful?)
+    |> maybe_append_layer(dzi_url, nil)
+  end
+
+  defp maybe_append_layer(layers, url, width, gate \\ true)
+  defp maybe_append_layer(layers, nil, _width, _gate), do: layers
+  defp maybe_append_layer(layers, _url, _width, false), do: layers
+
+  defp maybe_append_layer(layers, url, nil, true),
+    do: layers ++ [%{url: url}]
+
+  defp maybe_append_layer(layers, url, width, true) when is_integer(width),
+    do: layers ++ [%{url: url, width: width}]
 
   defp determine_file_type(mime_type) do
     cond do

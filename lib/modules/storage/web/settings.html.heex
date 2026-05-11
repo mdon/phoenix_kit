@@ -430,6 +430,30 @@
             </label>
           </div>
 
+          <%!-- Deep Zoom Tile Generation --%>
+          <div class="form-control">
+            <label class="flex items-start gap-3 cursor-pointer py-2">
+              <input
+                type="checkbox"
+                name="form_tile_generation_enabled"
+                checked={@form_tile_generation_enabled}
+                phx-click="toggle_form_tile_generation"
+                value="true"
+                class="checkbox checkbox-primary mt-0.5 flex-shrink-0"
+              />
+              <span>
+                <span class="font-semibold text-sm">
+                  {gettext("Deep Zoom Tile Generation")}
+                </span>
+                <span class="block text-xs text-base-content/70 mt-0.5">
+                  {gettext(
+                    "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
+                  )}
+                </span>
+              </span>
+            </label>
+          </div>
+
           <%!-- Max Upload Size --%>
           <div class="form-control">
             <div class="mb-2">
@@ -459,6 +483,7 @@
             disabled={
               @form_redundancy == @redundancy_copies and
                 @form_auto_generate_variants == @auto_generate_variants and
+                @form_tile_generation_enabled == @tile_generation_enabled and
                 @form_max_upload_size_mb == @max_upload_size_mb
             }
             phx-disable-with={gettext("Applying...")}
@@ -467,7 +492,7 @@
             <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Apply Changes")}
           </button>
           <span class="label-text-alt text-xs ml-2">
-            <%= if @form_redundancy == @redundancy_copies and @form_auto_generate_variants == @auto_generate_variants and @form_max_upload_size_mb == @max_upload_size_mb do %>
+            <%= if @form_redundancy == @redundancy_copies and @form_auto_generate_variants == @auto_generate_variants and @form_tile_generation_enabled == @tile_generation_enabled and @form_max_upload_size_mb == @max_upload_size_mb do %>
               {gettext("No changes to apply")}
             <% else %>
               {gettext("Changes will be saved immediately")}
