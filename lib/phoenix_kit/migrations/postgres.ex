@@ -553,11 +553,19 @@ defmodule PhoenixKit.Migrations.Postgres do
     a comment removes its attachments), restrict on `file_uuid` (files
     can't hard-delete while attached). Unique `(comment_uuid, position)`
     slot index + secondary index on `file_uuid` for reverse lookup.
+  - Partial unique index `phoenix_kit_files_system_dedup_index` on
+    `(parent_file_uuid, file_name) WHERE system_managed = true` —
+    lets `Storage.store_system_file/3` use `ON CONFLICT DO NOTHING`
+    so concurrent lazy-generation requests for the same uncached
+    tile dedupe at the DB level instead of producing duplicate File
+    rows.
+  - DB-level CHECK constraint `phoenix_kit_files_user_or_parent_check`
+    enforcing `user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL`
+    — the schema's `validate_system_managed_invariants` is the
+    user-facing check, this is the safety net for raw inserts.
   - All column / FK / NOT-NULL changes use raw SQL with explicit
     `IF NOT EXISTS` / `DO $$ … END $$` guards so re-running on a
-    partially-applied schema is a no-op (the migration was previously
-    numbered V112 in dev branches; this lets those environments roll
-    forward without crashing on the existing FK constraint).
+    partially-applied schema is a no-op.
 
   ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime
   - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the

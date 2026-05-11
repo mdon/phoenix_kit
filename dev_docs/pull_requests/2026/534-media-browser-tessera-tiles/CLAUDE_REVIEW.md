@@ -11,6 +11,31 @@ Skills consulted: `elixir:using-elixir-skills`, `elixir:ecto-thinking`, `elixir:
 
 ---
 
+## Follow-up status (2026-05-11, post-review)
+
+Working-tree fixes landed on top of `dev` after review:
+
+| # | Item | Status | Where |
+|---|------|--------|-------|
+| BUG-1 | Unauthenticated tile endpoints | **Fixed** — signed `URLSigner` token in URL path; both routes verify before any work | `integration.ex`, `file_controller.ex`, `media_browser.ex` |
+| BUG-2 | Synchronous in-band tile generation = DoS | **Mitigated** — per-`file_uuid` `:global.set_lock` mutex + double-checked locking dedupes concurrent cold-path requests; auth gate from BUG-1 narrows the attack surface to authenticated callers. Full Oban-async generation is a larger refactor and remains future work | `file_controller.ex` `with_tile_lock/2` |
+| BUG-3 | No dedup → duplicate `File` rows | **Fixed** — V113 adds partial unique index `phoenix_kit_files_system_dedup_index`; `Storage.store_system_file/3` detects the conflict and re-fetches the winning row | `v113.ex`, `storage.ex`, `file.ex` |
+| BUG-4 | Tempfile leak on Tessera exceptions | **Fixed** — `try/after` wraps all `Manager.retrieve_file`/`Tessera.generate_tile` tempfile lifecycles | `file_controller.ex` |
+| BUG-5 | Misleading "previously V112 in dev" moduledoc claim | **Fixed** — line removed; moduledoc now describes only what V113 actually does | `v113.ex`, `postgres.ex` changelog |
+| IMP-6 | No DB-level CHECK invariant | **Fixed** — V113 adds `phoenix_kit_files_user_or_parent_check` CHECK constraint | `v113.ex` |
+| IMP-7 | No tests for V113 | **Fixed** — new `v113_test.exs` pins every V113 addition (5 columns/constraints + 3 indexes + comment_media + a SQL test that the CHECK rejects raw double-null inserts) | `test/phoenix_kit/migrations/v113_test.exs` |
+| IMP-8 | `phoenix_kit_comment_media` has no consumer | **Deferred** — table lands without consumer; agreed to revisit when comments-side code arrives | — |
+| IMP-9 | `tessera` pin `~> 0.1` too loose | **Outstanding** — flagged for author follow-up | — |
+| IMP-10 | Every tile streams through Phoenix instead of redirecting to signed bucket URL | **Outstanding** — depends on `Manager` exposing a public signed-URL helper; larger refactor | — |
+| NIT-11 | `parse_tile_path` only accepts `jpg`/`png` | **Outstanding** — depends on Tessera output format support | — |
+| NIT-12 | `content_type_for/1`/`format_atom/1` no fallback | **Acceptable** — upstream regex pre-filters; fall-through `FunctionClauseError` is unreachable | — |
+| NIT-13 | Dead `destination = key` rebind | **Fixed** as a side-effect of refactoring `store_system_file/3` into `do_store_system_file/6` | `storage.ex` |
+| NIT-14 | Empty PR description | **Closed** — out of scope (already merged); flagged for author |
+
+Verification: `mix precommit` clean — format, compile (warnings as errors), credo --strict (7351 mods/funs, no issues), dialyzer (no new entries).
+
+---
+
 ## Summary
 
 Adds Tessera (OpenSeadragon wrapper) as a Deep-Zoom Image viewer in the MediaBrowser, with **lazy** tile + manifest generation served from new public routes. Also introduces V113 — a `system_managed` flag + `parent_file_uuid` FK on `phoenix_kit_files` (so tile chunks live as cascading children of their source image), and a `phoenix_kit_comment_media` junction table that isn't yet consumed anywhere.

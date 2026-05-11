@@ -242,6 +242,14 @@ defmodule PhoenixKit.Modules.Storage.File do
     |> foreign_key_constraint(:user_uuid)
     |> foreign_key_constraint(:folder_uuid)
     |> foreign_key_constraint(:parent_file_uuid)
+    # V113's `phoenix_kit_files_system_dedup_index` keeps concurrent
+    # lazy-generators for the same Tessera tile from inserting duplicate
+    # rows. Naming the constraint here lets `Storage.store_system_file/3`
+    # detect the race via the changeset error and re-fetch the winning
+    # row instead of bubbling a Postgrex unique-violation.
+    |> unique_constraint([:parent_file_uuid, :file_name],
+      name: :phoenix_kit_files_system_dedup_index
+    )
   end
 
   # User-uploaded files require `user_uuid` (existing invariant). System-
