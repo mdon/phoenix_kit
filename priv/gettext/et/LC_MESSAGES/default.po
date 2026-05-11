@@ -6355,3 +6355,171 @@ msgstr "Vaikimisi"
 
 msgid "No languages enabled yet."
 msgstr "Ühtegi keelt pole veel lubatud."
+
+msgid "Sitemap Settings"
+msgstr "Saidikaardi seaded"
+
+msgid "Configure sitemap generation and scheduling"
+msgstr "Seadista saidikaardi genereerimist ja ajakava"
+
+msgid "Total URLs"
+msgstr "URL-e kokku"
+
+msgid "Sitemap Files"
+msgstr "Saidikaardi failid"
+
+msgid "Last Generated"
+msgstr "Viimati genereeritud"
+
+msgid "Regenerate All"
+msgstr "Genereeri kõik uuesti"
+
+msgid "Router Discovery"
+msgstr "Marsruutide tuvastamine"
+
+msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
+msgstr "Kui lubatud, skannib kõiki marsruute ja loob ühe tasase sitemap.xml faili kõigi sisuallikate URL-idega (pood, üksused, postitused, avaldamine). Kui keelatud, loob iga allikas oma saidikaardi faili."
+
+msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
+msgstr "Tasane režiim on aktiivne — /sitemap.xml sisaldab kõiki URL-e ühes <urlset>"
+
+msgid "Routes"
+msgstr "Marsruudid"
+
+msgid "Static"
+msgstr "Staatilised"
+
+msgid "Publishing"
+msgstr "Avaldamine"
+
+msgid "Entities"
+msgstr "Üksused"
+
+msgid "Posts"
+msgstr "Postitused"
+
+msgid "Shop"
+msgstr "Pood"
+
+msgid "Module Sitemaps"
+msgstr "Moodulite saidikaardid"
+
+msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
+msgstr "Iga allikas loob oma saidikaardi faili, millele viitab põhiindeks"
+
+msgid "Static Pages"
+msgstr "Staatilised lehed"
+
+msgid "Homepage and custom static URLs"
+msgstr "Avaleht ja kohandatud staatilised URL-id"
+
+msgid "View sitemap"
+msgstr "Vaata saidikaart"
+
+msgid "module off"
+msgstr "moodul väljas"
+
+msgid "Blog groups and published posts"
+msgstr "Blogigruppe ja avaldatud postitused"
+
+msgid "Split by blog group"
+msgstr "Jaga blogigruppide kaupa"
+
+msgid "Dynamic content types (per-type files)"
+msgstr "Dünaamilised sisutüübid (eraldi failid igale tüübile)"
+
+msgid "Public posts from Posts module"
+msgstr "Avalikud postitused Posts moodulist"
+
+msgid "Products, categories, catalog"
+msgstr "Tooted, kategooriad, kataloog"
+
+msgid "Auth Pages"
+msgstr "Autentimislehed"
+
+msgid "Login"
+msgstr "Sisselogimine"
+
+msgid "Always excluded from sitemap"
+msgstr "Alati saidikaardist välistatud"
+
+msgid "Excluded"
+msgstr "Välistatud"
+
+msgid "Logout"
+msgstr "Väljalogimine"
+
+msgid "Registration"
+msgstr "Registreerimine"
+
+msgid "Include in static sitemap"
+msgstr "Lisa staatilisse saidikaardi"
+
+msgid "Configuration"
+msgstr "Seadistus"
+
+msgid "Edit in Settings"
+msgstr "Muuda seadetes"
+
+msgid "Browser Display Styling"
+msgstr "Brauseri kuvamise stiil"
+
+msgid "Style XML with XSL for beautiful browser display"
+msgstr "Stiili XML XSL-iga brauseri kauniks kuvamiseks"
+
+msgid "Display Style"
+msgstr "Kuvamisstiil"
+
+msgid "Table (Clean table layout)"
+msgstr "Tabel (puhas tabelivaade)"
+
+msgid "Minimal (Simple list)"
+msgstr "Minimaalne (lihtne loend)"
+
+msgid "Scheduled Generation"
+msgstr "Ajastatud genereerimine"
+
+msgid "Regenerate every"
+msgstr "Genereeri uuesti iga"
+
+msgid "1 hour"
+msgstr "1 tund"
+
+msgid "6 hours"
+msgstr "6 tundi"
+
+msgid "12 hours"
+msgstr "12 tundi"
+
+msgid "24 hours"
+msgstr "24 tundi"
+
+msgid "48 hours"
+msgstr "48 tundi"
+
+msgid "Weekly"
+msgstr "Iga nädal"
+
+msgid "Preview Sitemap Source"
+msgstr "Eelvaade saidikaardi lähtekood"
+
+msgid "Clear All Sitemaps"
+msgstr "Kustuta kõik saidikaardid"
+
+msgid "Generated sitemap files:"
+msgstr "Genereeritud saidikaardi failid:"
+
+msgid "sitemap.xml (index)"
+msgstr "sitemap.xml (indeks)"
+
+msgid "/sitemap.xml contains all URLs in a single <urlset>"
+msgstr "/sitemap.xml sisaldab kõiki URL-e ühes <urlset>"
+
+msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
+msgstr "/sitemap.xml on saidikaardi indeks, mis viitab moodulite saidikaardi failidele"
+
+msgid "Sitemap Source"
+msgstr "Saidikaardi lähtekood"
+
+msgid "Open in Browser"
+msgstr "Ava brauseris"

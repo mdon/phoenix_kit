@@ -6333,3 +6333,171 @@ msgstr ""
 
 msgid "No languages enabled yet."
 msgstr ""
+
+msgid "Sitemap Settings"
+msgstr ""
+
+msgid "Configure sitemap generation and scheduling"
+msgstr ""
+
+msgid "Total URLs"
+msgstr ""
+
+msgid "Sitemap Files"
+msgstr ""
+
+msgid "Last Generated"
+msgstr ""
+
+msgid "Regenerate All"
+msgstr ""
+
+msgid "Router Discovery"
+msgstr ""
+
+msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
+msgstr ""
+
+msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
+msgstr ""
+
+msgid "Routes"
+msgstr ""
+
+msgid "Static"
+msgstr ""
+
+msgid "Publishing"
+msgstr ""
+
+msgid "Entities"
+msgstr ""
+
+msgid "Posts"
+msgstr ""
+
+msgid "Shop"
+msgstr ""
+
+msgid "Module Sitemaps"
+msgstr ""
+
+msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
+msgstr ""
+
+msgid "Static Pages"
+msgstr ""
+
+msgid "Homepage and custom static URLs"
+msgstr ""
+
+msgid "View sitemap"
+msgstr ""
+
+msgid "module off"
+msgstr ""
+
+msgid "Blog groups and published posts"
+msgstr ""
+
+msgid "Split by blog group"
+msgstr ""
+
+msgid "Dynamic content types (per-type files)"
+msgstr ""
+
+msgid "Public posts from Posts module"
+msgstr ""
+
+msgid "Products, categories, catalog"
+msgstr ""
+
+msgid "Auth Pages"
+msgstr ""
+
+msgid "Login"
+msgstr ""
+
+msgid "Always excluded from sitemap"
+msgstr ""
+
+msgid "Excluded"
+msgstr ""
+
+msgid "Logout"
+msgstr ""
+
+msgid "Registration"
+msgstr ""
+
+msgid "Include in static sitemap"
+msgstr ""
+
+msgid "Configuration"
+msgstr ""
+
+msgid "Edit in Settings"
+msgstr ""
+
+msgid "Browser Display Styling"
+msgstr ""
+
+msgid "Style XML with XSL for beautiful browser display"
+msgstr ""
+
+msgid "Display Style"
+msgstr ""
+
+msgid "Table (Clean table layout)"
+msgstr ""
+
+msgid "Minimal (Simple list)"
+msgstr ""
+
+msgid "Scheduled Generation"
+msgstr ""
+
+msgid "Regenerate every"
+msgstr ""
+
+msgid "1 hour"
+msgstr ""
+
+msgid "6 hours"
+msgstr ""
+
+msgid "12 hours"
+msgstr ""
+
+msgid "24 hours"
+msgstr ""
+
+msgid "48 hours"
+msgstr ""
+
+msgid "Weekly"
+msgstr ""
+
+msgid "Preview Sitemap Source"
+msgstr ""
+
+msgid "Clear All Sitemaps"
+msgstr ""
+
+msgid "Generated sitemap files:"
+msgstr ""
+
+msgid "sitemap.xml (index)"
+msgstr ""
+
+msgid "/sitemap.xml contains all URLs in a single <urlset>"
+msgstr ""
+
+msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
+msgstr ""
+
+msgid "Sitemap Source"
+msgstr ""
+
+msgid "Open in Browser"
+msgstr ""

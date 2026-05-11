@@ -6342,3 +6342,171 @@ msgstr "По умолчанию"
 
 msgid "No languages enabled yet."
 msgstr "Языки ещё не включены."
+
+msgid "Sitemap Settings"
+msgstr "Настройки карты сайта"
+
+msgid "Configure sitemap generation and scheduling"
+msgstr "Настройка генерации и расписания карты сайта"
+
+msgid "Total URLs"
+msgstr "Всего URL"
+
+msgid "Sitemap Files"
+msgstr "Файлы карты сайта"
+
+msgid "Last Generated"
+msgstr "Последняя генерация"
+
+msgid "Regenerate All"
+msgstr "Перегенерировать всё"
+
+msgid "Router Discovery"
+msgstr "Обнаружение маршрутов"
+
+msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
+msgstr "При включении сканирует все маршруты и создаёт единый плоский sitemap.xml со всеми URL из всех источников контента (магазин, сущности, публикации, записи). При отключении каждый источник генерирует свой файл карты сайта."
+
+msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
+msgstr "Плоский режим активен — /sitemap.xml содержит все URL в одном <urlset>"
+
+msgid "Routes"
+msgstr "Маршруты"
+
+msgid "Static"
+msgstr "Статические"
+
+msgid "Publishing"
+msgstr "Публикации"
+
+msgid "Entities"
+msgstr "Сущности"
+
+msgid "Posts"
+msgstr "Записи"
+
+msgid "Shop"
+msgstr "Магазин"
+
+msgid "Module Sitemaps"
+msgstr "Карты сайта модулей"
+
+msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
+msgstr "Каждый источник генерирует свой файл карты сайта, на который ссылается главный индекс"
+
+msgid "Static Pages"
+msgstr "Статические страницы"
+
+msgid "Homepage and custom static URLs"
+msgstr "Главная страница и пользовательские статические URL"
+
+msgid "View sitemap"
+msgstr "Просмотр карты сайта"
+
+msgid "module off"
+msgstr "модуль отключён"
+
+msgid "Blog groups and published posts"
+msgstr "Группы блогов и опубликованные записи"
+
+msgid "Split by blog group"
+msgstr "Разделить по группам блогов"
+
+msgid "Dynamic content types (per-type files)"
+msgstr "Динамические типы контента (отдельные файлы для каждого типа)"
+
+msgid "Public posts from Posts module"
+msgstr "Публичные записи из модуля Posts"
+
+msgid "Products, categories, catalog"
+msgstr "Товары, категории, каталог"
+
+msgid "Auth Pages"
+msgstr "Страницы авторизации"
+
+msgid "Login"
+msgstr "Вход"
+
+msgid "Always excluded from sitemap"
+msgstr "Всегда исключена из карты сайта"
+
+msgid "Excluded"
+msgstr "Исключено"
+
+msgid "Logout"
+msgstr "Выход"
+
+msgid "Registration"
+msgstr "Регистрация"
+
+msgid "Include in static sitemap"
+msgstr "Включить в статическую карту сайта"
+
+msgid "Configuration"
+msgstr "Конфигурация"
+
+msgid "Edit in Settings"
+msgstr "Изменить в настройках"
+
+msgid "Browser Display Styling"
+msgstr "Стилизация для браузера"
+
+msgid "Style XML with XSL for beautiful browser display"
+msgstr "Стилизовать XML с помощью XSL для красивого отображения в браузере"
+
+msgid "Display Style"
+msgstr "Стиль отображения"
+
+msgid "Table (Clean table layout)"
+msgstr "Таблица (чистый табличный вид)"
+
+msgid "Minimal (Simple list)"
+msgstr "Минимальный (простой список)"
+
+msgid "Scheduled Generation"
+msgstr "Запланированная генерация"
+
+msgid "Regenerate every"
+msgstr "Перегенерировать каждые"
+
+msgid "1 hour"
+msgstr "1 час"
+
+msgid "6 hours"
+msgstr "6 часов"
+
+msgid "12 hours"
+msgstr "12 часов"
+
+msgid "24 hours"
+msgstr "24 часа"
+
+msgid "48 hours"
+msgstr "48 часов"
+
+msgid "Weekly"
+msgstr "Еженедельно"
+
+msgid "Preview Sitemap Source"
+msgstr "Предпросмотр источника карты сайта"
+
+msgid "Clear All Sitemaps"
+msgstr "Очистить все карты сайта"
+
+msgid "Generated sitemap files:"
+msgstr "Сгенерированные файлы карты сайта:"
+
+msgid "sitemap.xml (index)"
+msgstr "sitemap.xml (индекс)"
+
+msgid "/sitemap.xml contains all URLs in a single <urlset>"
+msgstr "/sitemap.xml содержит все URL в одном <urlset>"
+
+msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
+msgstr "/sitemap.xml — это индекс карт сайта, ссылающийся на файлы отдельных модулей"
+
+msgid "Sitemap Source"
+msgstr "Исходный код карты сайта"
+
+msgid "Open in Browser"
+msgstr "Открыть в браузере"
