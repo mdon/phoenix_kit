@@ -6252,3 +6252,43 @@ msgstr "Meedia"
 #, elixir-autogen, elixir-format
 msgid "Referrals"
 msgstr "Soovitused"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:125
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr "Aegunud"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:162
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr "Tehinguline"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:206
+#, elixir-autogen, elixir-format
+msgid "No expiration"
+msgstr "Aegumiseta"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:212
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr "Täna"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:187
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr "%{count} s tagasi"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:188
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr "%{count} min tagasi"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr "%{count} t tagasi"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:190
+#, elixir-autogen, elixir-format
+msgid "%{count}d ago"
+msgstr "%{count} päeva tagasi"

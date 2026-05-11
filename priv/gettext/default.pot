@@ -6229,3 +6229,43 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Referrals"
 msgstr ""
+
+#: lib/phoenix_kit_web/components/core/badge.ex:125
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/badge.ex:162
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:206
+#, elixir-autogen, elixir-format
+msgid "No expiration"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:212
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:187
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:188
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:190
+#, elixir-autogen, elixir-format
+msgid "%{count}d ago"
+msgstr ""

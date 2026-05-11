@@ -277,7 +277,9 @@
                             <%= if user.is_active do %>
                               <span class="badge badge-outline badge-xs h-auto">Active</span>
                             <% else %>
-                              <span class="badge badge-error badge-xs h-auto">Inactive</span>
+                              <span class="badge badge-error badge-xs h-auto">
+                                {gettext("Inactive")}
+                              </span>
                             <% end %>
                           </div>
                         <% column_id == "registered" -> %>

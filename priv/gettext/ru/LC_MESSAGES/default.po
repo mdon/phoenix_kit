@@ -881,7 +881,7 @@ msgstr "Описание"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:400
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Disabled"
-msgstr "Отключенные аккаунты"
+msgstr "Отключено"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:265
 #, elixir-autogen, elixir-format
@@ -1138,7 +1138,7 @@ msgstr "Изображение"
 #: lib/phoenix_kit_web/users/user_form.html.heex:769
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Inactive"
-msgstr "Неактивные пользователи"
+msgstr "Неактивен"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:481
 #: lib/phoenix_kit_web/live/settings.html.heex:489
@@ -6239,3 +6239,43 @@ msgstr "Медиа"
 #, elixir-autogen, elixir-format
 msgid "Referrals"
 msgstr "Рефералы"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:125
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr "Истёк"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:162
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr "Транзакционный"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:206
+#, elixir-autogen, elixir-format
+msgid "No expiration"
+msgstr "Без срока действия"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:212
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr "Сегодня"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:187
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr "%{count} с назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:188
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr "%{count} мин назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr "%{count} ч назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:190
+#, elixir-autogen, elixir-format
+msgid "%{count}d ago"
+msgstr "%{count} дн назад"
