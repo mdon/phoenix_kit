@@ -14,7 +14,7 @@
     />
 
     <%!-- Settings Form --%>
-    <div class="max-w-2xl mx-auto space-y-6">
+    <div class="space-y-6">
       <%!-- User Configuration Settings Card --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -179,7 +179,7 @@
 
               <%!-- Privacy Notice for Geolocation --%>
               <%= if @settings["track_registration_geolocation"] == "true" do %>
-                <div class="alert alert-info text-sm mt-2">
+                <div class="alert alert-info text-sm mt-2 max-w-prose">
                   <.icon name="hero-information-circle" class="w-5 h-5" />
                   <div>
                     <div class="font-semibold">
@@ -198,130 +198,135 @@
               <% end %>
             </div>
 
-            <%!-- New User Default Role Setting --%>
-            <div class="form-control w-full">
-              <label class="label">
-                <span class="label-text text-base font-medium">
-                  {gettext("New User Default Role")}
-                </span>
-                <span class="label-text-alt text-sm text-base-content/60">
-                  {gettext("Role assigned to new user registrations")}
-                </span>
-              </label>
-              <label class="select w-full focus:select-primary">
-                <select name="settings[new_user_default_role]">
-                  <%= for {label, value} <- @setting_options["new_user_default_role"] do %>
-                    <option value={value} selected={value == @settings["new_user_default_role"]}>
-                      {label}
-                    </option>
-                  <% end %>
-                </select>
-              </label>
-              <div class="label">
-                <span class="label-text-alt text-xs text-base-content/50">
-                  <%= if @settings["new_user_default_role"] != @saved_settings["new_user_default_role"] do %>
-                    <span class="text-warning">
-                      {gettext("Selected:")} {get_option_label(
+            <%!-- New User Default Role + Status --%>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="form-control w-full">
+                <label class="label">
+                  <span class="label-text text-base font-medium">
+                    {gettext("New User Default Role")}
+                  </span>
+                  <span class="label-text-alt text-sm text-base-content/60">
+                    {gettext("Role assigned to new user registrations")}
+                  </span>
+                </label>
+                <label class="select w-full focus:select-primary">
+                  <select name="settings[new_user_default_role]">
+                    <%= for {label, value} <- @setting_options["new_user_default_role"] do %>
+                      <option value={value} selected={value == @settings["new_user_default_role"]}>
+                        {label}
+                      </option>
+                    <% end %>
+                  </select>
+                </label>
+                <div class="label">
+                  <span class="label-text-alt text-xs text-base-content/50">
+                    <%= if @settings["new_user_default_role"] != @saved_settings["new_user_default_role"] do %>
+                      <span class="text-warning">
+                        {gettext("Selected:")} {get_option_label(
+                          @settings["new_user_default_role"],
+                          @setting_options["new_user_default_role"]
+                        )}
+                      </span>
+                      <span class="text-base-content/40">
+                        | {gettext("Saved:")} {get_option_label(
+                          @saved_settings["new_user_default_role"],
+                          @setting_options["new_user_default_role"]
+                        )}
+                      </span>
+                    <% else %>
+                      {gettext("Saved:")} {get_option_label(
                         @settings["new_user_default_role"],
                         @setting_options["new_user_default_role"]
                       )}
-                    </span>
-                    <span class="text-base-content/40">
-                      | {gettext("Saved:")} {get_option_label(
-                        @saved_settings["new_user_default_role"],
-                        @setting_options["new_user_default_role"]
-                      )}
-                    </span>
-                  <% else %>
-                    {gettext("Saved:")} {get_option_label(
-                      @settings["new_user_default_role"],
-                      @setting_options["new_user_default_role"]
-                    )}
-                  <% end %>
-                </span>
-              </div>
+                    <% end %>
+                  </span>
+                </div>
 
-              <%!-- Security Warning for Admin Role --%>
-              <%= if @settings["new_user_default_role"] == "Admin" do %>
-                <div class="alert alert-warning text-sm mt-2">
-                  <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                  <div>
-                    <div class="font-semibold">
-                      {gettext("Security Notice: Medium Risk")}
-                    </div>
-                    <div class="text-xs">
-                      {gettext(
-                        "All new users will receive administrative privileges and access to the admin panel."
-                      )}
-                      {gettext("Consider \"User\" for most installations to maintain security.")}
+                <%!-- Security Warning for Admin Role --%>
+                <%= if @settings["new_user_default_role"] == "Admin" do %>
+                  <div class="alert alert-warning text-sm mt-2 max-w-prose">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        {gettext("Security Notice: Medium Risk")}
+                      </div>
+                      <div class="text-xs">
+                        {gettext(
+                          "All new users will receive administrative privileges and access to the admin panel."
+                        )}
+                        {gettext("Consider \"User\" for most installations to maintain security.")}
+                      </div>
                     </div>
                   </div>
-                </div>
-              <% end %>
-            </div>
+                <% end %>
+              </div>
 
-            <%!-- New User Default Status Setting --%>
-            <div class="form-control w-full">
-              <label class="label">
-                <span class="label-text text-base font-medium">
-                  {gettext("New User Default Status")}
-                </span>
-                <span class="label-text-alt text-sm text-base-content/60">
-                  {gettext("Active status for new user registrations")}
-                </span>
-              </label>
-              <label class="select w-full focus:select-primary">
-                <select name="settings[new_user_default_status]">
-                  <%= for {label, value} <- @setting_options["new_user_default_status"] do %>
-                    <option value={value} selected={value == @settings["new_user_default_status"]}>
-                      {label}
-                    </option>
-                  <% end %>
-                </select>
-              </label>
-              <div class="label">
-                <span class="label-text-alt text-xs text-base-content/50">
-                  <%= if @settings["new_user_default_status"] != @saved_settings["new_user_default_status"] do %>
-                    <span class="text-warning">
-                      {gettext("Selected:")} {get_option_label(
+              <%!-- New User Default Status --%>
+              <div class="form-control w-full">
+                <label class="label">
+                  <span class="label-text text-base font-medium">
+                    {gettext("New User Default Status")}
+                  </span>
+                  <span class="label-text-alt text-sm text-base-content/60">
+                    {gettext("Active status for new user registrations")}
+                  </span>
+                </label>
+                <label class="select w-full focus:select-primary">
+                  <select name="settings[new_user_default_status]">
+                    <%= for {label, value} <- @setting_options["new_user_default_status"] do %>
+                      <option
+                        value={value}
+                        selected={value == @settings["new_user_default_status"]}
+                      >
+                        {label}
+                      </option>
+                    <% end %>
+                  </select>
+                </label>
+                <div class="label">
+                  <span class="label-text-alt text-xs text-base-content/50">
+                    <%= if @settings["new_user_default_status"] != @saved_settings["new_user_default_status"] do %>
+                      <span class="text-warning">
+                        {gettext("Selected:")} {get_option_label(
+                          @settings["new_user_default_status"],
+                          @setting_options["new_user_default_status"]
+                        )}
+                      </span>
+                      <span class="text-base-content/40">
+                        | {gettext("Saved:")} {get_option_label(
+                          @saved_settings["new_user_default_status"],
+                          @setting_options["new_user_default_status"]
+                        )}
+                      </span>
+                    <% else %>
+                      {gettext("Saved:")} {get_option_label(
                         @settings["new_user_default_status"],
                         @setting_options["new_user_default_status"]
                       )}
-                    </span>
-                    <span class="text-base-content/40">
-                      | {gettext("Saved:")} {get_option_label(
-                        @saved_settings["new_user_default_status"],
-                        @setting_options["new_user_default_status"]
-                      )}
-                    </span>
-                  <% else %>
-                    {gettext("Saved:")} {get_option_label(
-                      @settings["new_user_default_status"],
-                      @setting_options["new_user_default_status"]
-                    )}
-                  <% end %>
-                </span>
-              </div>
+                    <% end %>
+                  </span>
+                </div>
 
-              <%!-- Security Warning for Inactive Status --%>
-              <%= if @settings["new_user_default_status"] == "false" do %>
-                <div class="alert alert-warning text-sm mt-2">
-                  <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                  <div>
-                    <div class="font-semibold">
-                      {gettext("Security Notice: Inactive Default")}
-                    </div>
-                    <div class="text-xs">
-                      {gettext(
-                        "New users will be created as inactive and will not be able to log in until an admin activates their account."
-                      )}
-                      {gettext(
-                        "The first user (Owner) will always be active regardless of this setting."
-                      )}
+                <%!-- Security Warning for Inactive Status --%>
+                <%= if @settings["new_user_default_status"] == "false" do %>
+                  <div class="alert alert-warning text-sm mt-2 max-w-prose">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        {gettext("Security Notice: Inactive Default")}
+                      </div>
+                      <div class="text-xs">
+                        {gettext(
+                          "New users will be created as inactive and will not be able to log in until an admin activates their account."
+                        )}
+                        {gettext(
+                          "The first user (Owner) will always be active regardless of this setting."
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              <% end %>
+                <% end %>
+              </div>
             </div>
 
             <%!-- Divider for Custom Fields --%>
@@ -414,7 +419,7 @@
                         {gettext("Required")}
                       </.table_default_header_cell>
                       <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-                      <.table_default_header_cell>
+                      <.table_default_header_cell class="whitespace-nowrap">
                         {gettext("User Access")}
                       </.table_default_header_cell>
                       <.table_default_header_cell>
@@ -453,11 +458,11 @@
                       </.table_default_cell>
                       <.table_default_cell>
                         <%= if Map.get(field, "user_accessible", true) do %>
-                          <span class="badge badge-sm badge-success">
+                          <span class="badge badge-sm badge-success whitespace-nowrap">
                             {gettext("User Editable")}
                           </span>
                         <% else %>
-                          <span class="badge badge-sm badge-warning">
+                          <span class="badge badge-sm badge-warning whitespace-nowrap">
                             {gettext("Admin Only")}
                           </span>
                         <% end %>
