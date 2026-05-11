@@ -18,7 +18,6 @@ defmodule PhoenixKit.ModuleRegistryTest do
       # Verify known modules are present rather than asserting a hardcoded count,
       # so this test doesn't break when modules are extracted or added.
       expected = [
-        PhoenixKit.Modules.DB,
         PhoenixKit.Modules.Languages,
         PhoenixKit.Modules.Maintenance,
         PhoenixKit.Modules.Referrals,
@@ -116,6 +115,42 @@ defmodule PhoenixKit.ModuleRegistryTest do
     end
   end
 
+  describe "get_module_key_for_namespace/1" do
+    # Module.create/3 with an explicit top-level name — `defmodule X` inside a
+    # test would get auto-nested under PhoenixKit.ModuleRegistryTest.
+    setup do
+      Module.create(
+        PhoenixKitNamespaceFixture,
+        quote do
+          def module_key, do: "namespace_fixture"
+        end,
+        Macro.Env.location(__ENV__)
+      )
+
+      :ok
+    end
+
+    test "resolves a registered module's top-level namespace to its key" do
+      ModuleRegistry.register(PhoenixKitNamespaceFixture)
+      on_exit(fn -> ModuleRegistry.unregister(PhoenixKitNamespaceFixture) end)
+
+      assert ModuleRegistry.get_module_key_for_namespace("PhoenixKitNamespaceFixture") ==
+               "namespace_fixture"
+    end
+
+    test "returns nil for an unknown namespace" do
+      assert ModuleRegistry.get_module_key_for_namespace("NotARegisteredModule") == nil
+    end
+
+    test "does not match modules whose path only starts with the namespace" do
+      # Internal modules like PhoenixKit.Modules.<X> have Module.split starting
+      # with "PhoenixKit", but a query for "PhoenixKit" must NOT resolve to one
+      # of them — only exact top-level segments (PhoenixKitEntities,
+      # PhoenixKitBilling, …) qualify.
+      assert ModuleRegistry.get_module_key_for_namespace("PhoenixKit") == nil
+    end
+  end
+
   describe "all_admin_tabs/0" do
     test "returns a list of Tab structs" do
       tabs = ModuleRegistry.all_admin_tabs()
@@ -152,7 +187,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a list of permission metadata maps" do
       metadata = ModuleRegistry.all_permission_metadata()
       assert is_list(metadata)
-      assert length(metadata) >= 8
+      assert length(metadata) >= 7
 
       for meta <- metadata do
         assert is_map(meta)
@@ -173,7 +208,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns sorted list of feature keys" do
       keys = ModuleRegistry.all_feature_keys()
       assert is_list(keys)
-      assert length(keys) >= 8
+      assert length(keys) >= 7
       assert keys == Enum.sort(keys)
     end
 
@@ -196,7 +231,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => {module, :enabled?}" do
       checks = ModuleRegistry.feature_enabled_checks()
       assert is_map(checks)
-      assert map_size(checks) >= 8
+      assert map_size(checks) >= 7
 
       for {key, {mod, fun}} <- checks do
         assert is_binary(key)
@@ -331,6 +366,43 @@ defmodule PhoenixKit.ModuleRegistryTest do
       # path directly via the public function on an empty list. The
       # public function never raises — that's the contract.
       assert is_map(ModuleRegistry.run_all_legacy_migrations())
+    end
+  end
+
+  describe "known_external_packages/0" do
+    test "delegates to KnownPackages.list/0 and returns a list" do
+      # This function now fetches live from Hex.pm (or cache).
+      # We test contract shape here; detailed behavior is in known_packages_test.exs.
+      packages = ModuleRegistry.known_external_packages()
+      assert is_list(packages)
+    end
+  end
+
+  describe "not_installed_packages/0" do
+    test "returns a list of maps" do
+      not_installed = ModuleRegistry.not_installed_packages()
+      assert is_list(not_installed)
+    end
+
+    test "every entry has required fields" do
+      for pkg <- ModuleRegistry.not_installed_packages() do
+        assert is_binary(pkg.package)
+        assert is_binary(pkg.name)
+        assert is_binary(pkg.key)
+      end
+    end
+
+    test "does not include packages whose OTP app is loaded" do
+      not_installed = ModuleRegistry.not_installed_packages()
+
+      loaded_otp_apps =
+        :application.loaded_applications()
+        |> MapSet.new(fn {name, _desc, _vsn} -> Atom.to_string(name) end)
+
+      for pkg <- not_installed do
+        refute MapSet.member?(loaded_otp_apps, pkg.package),
+               "#{pkg.package} is an active OTP app but appeared in not_installed_packages"
+      end
     end
   end
 end

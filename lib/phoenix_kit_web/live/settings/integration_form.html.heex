@@ -26,7 +26,7 @@
     </div>
 
     <%!-- Step 1: Provider picker (new mode, no provider selected yet) --%>
-    <div :if={@live_action == :new && @selected_provider == nil} class="max-w-2xl mx-auto">
+    <div :if={@live_action == :new && @selected_provider == nil} class="max-w-4xl mx-auto">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           :for={provider <- @providers}
@@ -48,7 +48,7 @@
     </div>
 
     <%!-- Step 2: Setup form (provider selected in new mode, or edit mode) --%>
-    <div :if={@provider != nil} class="space-y-6 max-w-2xl mx-auto">
+    <div :if={@provider != nil} class="space-y-6 max-w-4xl mx-auto">
       <%!-- Back to provider picker (new mode only) --%>
       <button
         :if={@live_action == :new && @name == nil}

@@ -111,6 +111,27 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     doc: "Internal: forces re-render when languages change"
   )
 
+  attr(:per_translation_urls, :list,
+    default: nil,
+    doc: """
+    Optional list of per-translation URLs that override the locale-rewrite
+    default. Each entry is `%{code: <display_code>, url: <full_url>}`.
+    Both atom-keyed (`%{code: ..., url: ...}`) and string-keyed
+    (`%{"code" => ..., "url" => ...}`) entries are accepted — useful
+    when the list comes from JSON/JSONB rather than Elixir code.
+
+    Useful when a feature module (e.g. `phoenix_kit_publishing`) has
+    computed canonical URLs for each available translation that the
+    simple locale-rewrite default can't reproduce — for example when
+    a post has per-language URL slugs. Pass
+    `assigns[:phoenix_kit_publishing_translations]` from the layout;
+    the switcher resolves each language's `base_code` against the list
+    (via `DialectMapper.extract_base/1`) and falls back to the
+    locale-rewrite URL when no entry matches or the matched entry
+    has a `nil` `url` (e.g. an unpublished draft).
+    """
+  )
+
   def language_switcher_dropdown(assigns) do
     assigns = prepare_dropdown_assigns(assigns)
 
@@ -206,16 +227,17 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                   </li>
                 <% end %>
                 <%= for language <- langs do %>
+                  <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                   <li
                     class="w-full language-item"
                     data-name={String.downcase(language["name"] || "")}
                     data-native={String.downcase(language["native"] || "")}
                   >
                     <a
-                      href={generate_base_code_url(language["base_code"], @current_path)}
+                      href={url}
                       phx-click="phoenix_kit_set_locale"
                       phx-value-locale={language["base_code"]}
-                      phx-value-url={generate_base_code_url(language["base_code"], @current_path)}
+                      phx-value-url={url}
                       class={[
                         "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                         if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
@@ -272,16 +294,17 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                 </li>
               <% end %>
               <%= for language <- @languages do %>
+                <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                 <li
                   class="w-full language-item"
                   data-name={String.downcase(language["name"] || "")}
                   data-native={String.downcase(language["native"] || "")}
                 >
                   <a
-                    href={generate_base_code_url(language["base_code"], @current_path)}
+                    href={url}
                     phx-click="phoenix_kit_set_locale"
                     phx-value-locale={language["base_code"]}
-                    phx-value-url={generate_base_code_url(language["base_code"], @current_path)}
+                    phx-value-url={url}
                     class={[
                       "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                       if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
@@ -354,6 +377,11 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     doc: "Current path to preserve when switching languages"
   )
 
+  attr(:per_translation_urls, :list,
+    default: nil,
+    doc: "Optional per-translation URL overrides. See `language_switcher_dropdown/1` for details."
+  )
+
   def language_switcher_buttons(assigns) do
     # Auto-detect current_locale if not explicitly provided
     # This might be a base code (en) or full dialect (en-US)
@@ -411,11 +439,12 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     ~H"""
     <div class={["flex gap-2", @class]}>
       <%= for language <- @languages do %>
+        <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
         <a
-          href={generate_base_code_url(language["base_code"], @current_path)}
+          href={url}
           phx-click="phoenix_kit_set_locale"
           phx-value-locale={language["base_code"]}
-          phx-value-url={generate_base_code_url(language["base_code"], @current_path)}
+          phx-value-url={url}
           class={[
             "btn btn-sm",
             if(language["base_code"] == @current_base,
@@ -466,6 +495,11 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   attr(:current_path, :string,
     default: nil,
     doc: "Current path to preserve when switching languages"
+  )
+
+  attr(:per_translation_urls, :list,
+    default: nil,
+    doc: "Optional per-translation URL overrides. See `language_switcher_dropdown/1` for details."
   )
 
   def language_switcher_inline(assigns) do
@@ -525,15 +559,16 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     ~H"""
     <div class={["flex gap-4 items-center", @class]}>
       <%= for {language, index} <- Enum.with_index(@languages) do %>
+        <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
         <div class="flex items-center gap-1">
           <%= if index > 0 do %>
             <span class="text-base-content/30">|</span>
           <% end %>
           <a
-            href={generate_base_code_url(language["base_code"], @current_path)}
+            href={url}
             phx-click="phoenix_kit_set_locale"
             phx-value-locale={language["base_code"]}
-            phx-value-url={generate_base_code_url(language["base_code"], @current_path)}
+            phx-value-url={url}
             class={[
               "text-sm transition hover:text-primary",
               if(language["base_code"] == @current_base,
@@ -717,6 +752,45 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       nil -> nil
     end
   end
+
+  # Resolve a per-language URL — when the caller supplied `per_translation_urls`
+  # (e.g. from `phoenix_kit_publishing`), prefer that explicit URL over the
+  # locale-rewrite default. Falls back to `generate_base_code_url/2` when no
+  # entry matches the requested base code.
+  #
+  # `per_translation_urls` arrives as a list of `%{code: <display_code>, url: ...}`
+  # maps. We normalize each `code` to its base via `DialectMapper.extract_base/1`
+  # so `"en-US"` and `"en"` both resolve cleanly when the consumer's switcher
+  # iterates languages keyed by base code.
+  defp resolve_url(base_code, current_path, nil),
+    do: generate_base_code_url(base_code, current_path)
+
+  defp resolve_url(base_code, current_path, []),
+    do: generate_base_code_url(base_code, current_path)
+
+  defp resolve_url(base_code, current_path, per_translation_urls)
+       when is_list(per_translation_urls) and is_binary(base_code) do
+    case Enum.find(per_translation_urls, fn entry ->
+           entry_base_code(entry) == base_code
+         end) do
+      nil -> generate_base_code_url(base_code, current_path)
+      entry -> entry_url(entry) || generate_base_code_url(base_code, current_path)
+    end
+  end
+
+  defp resolve_url(base_code, current_path, _),
+    do: generate_base_code_url(base_code, current_path)
+
+  defp entry_base_code(%{code: code}) when is_binary(code), do: DialectMapper.extract_base(code)
+
+  defp entry_base_code(%{"code" => code}) when is_binary(code),
+    do: DialectMapper.extract_base(code)
+
+  defp entry_base_code(_), do: nil
+
+  defp entry_url(%{url: url}) when is_binary(url), do: url
+  defp entry_url(%{"url" => url}) when is_binary(url), do: url
+  defp entry_url(_), do: nil
 
   # Generate URL with ONLY base code - no dialect, no query params
   # This is the clean URL used in href attributes

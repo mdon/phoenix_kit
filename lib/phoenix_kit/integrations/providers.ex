@@ -384,11 +384,14 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-cloud",
       auth_type: :oauth2,
       oauth_config: %{
-        # `common` lets both work-or-school AND personal accounts sign in.
-        # Use a specific tenant ID (e.g. "consumers" or a GUID) when the
-        # app should be locked to one audience.
-        auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-        token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        # `{tenant_id}` is templated at request time from
+        # `integration_data["tenant_id"]` (per-connection setup field) or
+        # the `:url_defaults` fallback below. `common` accepts both
+        # work-or-school AND personal accounts; single-tenant apps must
+        # set the GUID, `consumers`, or `organizations`.
+        auth_url: "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize",
+        token_url: "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+        url_defaults: %{"tenant_id" => "common"},
         userinfo_url: "https://graph.microsoft.com/v1.0/me",
         # `offline_access` is required for refresh tokens — without it
         # the access token expires after ~1h and there's no way back.
@@ -423,6 +426,18 @@ defmodule PhoenixKit.Integrations.Providers do
               "From your app → Certificates & secrets → New client secret. Copy the *Value*, not the Secret ID."
             ),
           options: nil
+        },
+        %{
+          key: "tenant_id",
+          label: gettext("Tenant ID"),
+          type: :text,
+          required: false,
+          placeholder: "common",
+          help:
+            gettext(
+              "Leave as `common` for multi-tenant + personal accounts. For single-tenant apps, paste your Directory (tenant) ID GUID. Use `consumers` for personal-only or `organizations` for any work-or-school account."
+            ),
+          options: nil
         }
       ],
       capabilities: [
@@ -447,7 +462,7 @@ defmodule PhoenixKit.Integrations.Providers do
           ],
           note:
             gettext(
-              "If you picked a single-tenant audience, replace `common` in the OAuth URLs with your tenant ID — the provider definition uses `common` by default which only works for multi-tenant + personal apps."
+              "If you picked a single-tenant audience, fill in **Tenant ID** above with your Directory (tenant) ID GUID — leaving it as `common` only works for multi-tenant + personal apps."
             )
         },
         %{

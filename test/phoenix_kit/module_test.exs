@@ -4,7 +4,6 @@ defmodule PhoenixKit.ModuleTest do
   alias PhoenixKit.ModuleRegistry
 
   @all_internal_modules [
-    PhoenixKit.Modules.DB,
     PhoenixKit.Modules.Languages,
     PhoenixKit.Modules.Maintenance,
     PhoenixKit.Modules.Referrals,

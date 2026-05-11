@@ -227,6 +227,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         data-sortable-items={if @on_reorder, do: ".sortable-item"}
         data-sortable-hide-source="false"
         data-sortable-group={@reorder_group}
+        data-sortable-handle={if @on_reorder, do: ".pk-drag-handle"}
         phx-hook={if @on_reorder, do: "SortableGrid"}
         {@reorder_scope_attrs}
       >
@@ -234,7 +235,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
           :for={item <- @items}
           class={[
             "card card-sm bg-base-200 shadow-sm",
-            @on_reorder && "sortable-item cursor-grab active:cursor-grabbing"
+            @on_reorder && "sortable-item"
           ]}
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
@@ -253,24 +254,23 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 <div>{field.value}</div>
               <% end %>
             </div>
-            <%!-- Footer row: drag handle (bottom-left, when sortable) +
-                 actions (bottom-right, when present). Always rendered
-                 if either is present so the alignment is consistent. --%>
+            <%!-- Footer row: drag handle (leftmost), action buttons
+                 (rightmost via ml-auto on the wrapper). Both sit in a
+                 flex-wrap so they share rows when buttons must wrap on
+                 narrow cards instead of leaving the handle alone above
+                 an empty space. --%>
             <div
               :if={@on_reorder || @card_actions != []}
-              class="card-actions flex items-center justify-between pt-1 border-t border-base-200 mt-auto"
+              class="flex flex-wrap items-center gap-2 pt-1 border-t border-base-200 mt-auto"
             >
               <div
                 :if={@on_reorder}
-                class="text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
+                class="pk-drag-handle text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
                 title={gettext("Drag to reorder")}
               >
                 <.icon name="hero-bars-3" class="w-4 h-4" />
               </div>
-              <%!-- Spacer when sortable but no actions, so the handle
-                   stays left and we don't collapse the row. --%>
-              <span :if={@on_reorder && @card_actions == []}></span>
-              <div :if={@card_actions != []} class="flex gap-2 ml-auto">
+              <div :if={@card_actions != []} class="flex flex-wrap items-center gap-1 ml-auto">
                 {render_slot(@card_actions, item)}
               </div>
             </div>
@@ -410,6 +410,128 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     <td class={@class} colspan={@colspan} rowspan={@rowspan} {@rest}>
       {render_slot(@inner_block)}
     </td>
+    """
+  end
+
+  @doc """
+  Renders a sortable table header cell.
+
+  When `sort` is nil, renders an inert `<th>` label. When `sort` is provided,
+  renders a clickable button emitting `toggle_sort` (or a custom event) with
+  `phx-value-by` set to the field key. The active column shows a chevron icon
+  reflecting the current sort direction.
+  """
+  attr :field, :atom, required: true
+
+  attr :sort, :map,
+    default: nil,
+    doc: "Current sort: %{by: atom, dir: :asc | :desc}. When nil, renders inert label."
+
+  attr :event, :string, default: "toggle_sort"
+  attr :target, :any, default: nil
+  attr :align, :atom, default: :left, values: [:left, :right, :center]
+  attr :class, :string, default: ""
+  attr :rest, :global, include: ~w(colspan rowspan)
+
+  slot :inner_block, required: true
+
+  def sort_header_cell(assigns) do
+    ~H"""
+    <th
+      class={[
+        @align == :right && "text-right",
+        @align == :center && "text-center",
+        @class
+      ]}
+      aria-sort={sort_header_aria_sort(@sort, @field)}
+      {@rest}
+    >
+      <%= if @sort do %>
+        <button
+          type="button"
+          phx-click={@event}
+          phx-value-by={@field}
+          phx-target={@target}
+          class={[
+            "flex items-center gap-1",
+            @align == :right && "justify-end w-full",
+            @align == :center && "justify-center w-full"
+          ]}
+        >
+          {render_slot(@inner_block)}
+          <%= if @sort.by == @field do %>
+            <%= if @sort.dir == :asc do %>
+              <.icon name="hero-chevron-up-mini" class="w-4 h-4" />
+            <% else %>
+              <.icon name="hero-chevron-down-mini" class="w-4 h-4" />
+            <% end %>
+          <% end %>
+        </button>
+      <% else %>
+        {render_slot(@inner_block)}
+      <% end %>
+    </th>
+    """
+  end
+
+  defp sort_header_aria_sort(nil, _field), do: nil
+  defp sort_header_aria_sort(%{by: field, dir: :asc}, field), do: "ascending"
+  defp sort_header_aria_sort(%{by: field, dir: :desc}, field), do: "descending"
+  defp sort_header_aria_sort(%{}, _field), do: "none"
+
+  @doc """
+  Renders a search input with a magnifying glass icon and debounce.
+
+  By default emits `phx-change="search"` with a 300ms debounce. When
+  `on_submit` is provided the input is wrapped in a `<form>` element.
+  """
+  attr :value, :string, required: true
+  attr :on_change, :string, default: "search"
+  attr :on_submit, :string, default: nil
+  attr :placeholder, :string, default: nil
+  attr :debounce, :integer, default: 300
+  attr :name, :string, default: "search"
+  attr :target, :any, default: nil
+  attr :class, :string, default: ""
+
+  def search_toolbar(assigns) do
+    assigns =
+      assign(assigns, :placeholder, assigns.placeholder || dgettext("default", "Search..."))
+
+    ~H"""
+    <%= if @on_submit do %>
+      <form
+        phx-submit={@on_submit}
+        phx-target={@target}
+        class={["flex items-center gap-2", @class]}
+      >
+        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
+        <input
+          type="text"
+          name={@name}
+          value={@value}
+          placeholder={@placeholder}
+          phx-change={@on_change}
+          phx-debounce={@debounce}
+          phx-target={@target}
+          class="input input-sm flex-1 min-w-0"
+        />
+      </form>
+    <% else %>
+      <div class={["flex items-center gap-2", @class]}>
+        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
+        <input
+          type="text"
+          name={@name}
+          value={@value}
+          placeholder={@placeholder}
+          phx-change={@on_change}
+          phx-debounce={@debounce}
+          phx-target={@target}
+          class="input input-sm flex-1 min-w-0"
+        />
+      </div>
+    <% end %>
     """
   end
 

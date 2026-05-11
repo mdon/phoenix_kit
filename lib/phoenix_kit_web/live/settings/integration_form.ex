@@ -636,8 +636,13 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         end
 
       _ ->
-        # No state was stored (legacy flow or state not required) — allow
-        :ok
+        # No state stored: either someone bypassed `connect_oauth` (which
+        # always calls `save_oauth_state/2` before the redirect, see
+        # `:227`) or the row was modified between authorize and callback.
+        # Both shapes are CSRF-relevant — refuse rather than silently
+        # accepting. Pre-2026-05 the lenient `:ok` here was justified by
+        # an older flow that didn't save state; that flow is gone.
+        {:error, :state_mismatch}
     end
   end
 

@@ -50,7 +50,7 @@ defmodule PhoenixKit.Migrations.Postgres.V109 do
       "auto_granted_perm:customer_support"
     )
 
-    rename_role_permission(perms_table, "customer_service", "customer_support", prefix)
+    rename_role_permission(perms_table, "customer_service", "customer_support")
 
     execute("COMMENT ON TABLE #{prefix_str(prefix)}phoenix_kit IS '109'")
   end
@@ -72,7 +72,7 @@ defmodule PhoenixKit.Migrations.Postgres.V109 do
 
   # Renames role permission module_key. If target already exists for the same role,
   # deletes the source row to avoid unique constraint violations.
-  defp rename_role_permission(table, from_key, to_key, _prefix) do
+  defp rename_role_permission(table, from_key, to_key) do
     execute("""
     DO $$
     BEGIN
@@ -94,7 +94,7 @@ defmodule PhoenixKit.Migrations.Postgres.V109 do
     table = "#{prefix_str(prefix)}phoenix_kit_settings"
     perms_table = "#{prefix_str(prefix)}phoenix_kit_role_permissions"
 
-    rename_role_permission(perms_table, "customer_support", "customer_service", prefix)
+    rename_role_permission(perms_table, "customer_support", "customer_service")
 
     rename_setting(
       table,

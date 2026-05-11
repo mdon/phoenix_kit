@@ -36,7 +36,7 @@ defmodule PhoenixKitWeb.Live.Users.Media do
 
     socket =
       socket
-      |> assign(:page_title, "Media")
+      |> assign(:page_title, gettext("Media"))
       |> assign(:project_title, settings["project_title"])
       |> assign(:current_locale, locale)
       |> assign(:url_path, Routes.path("/admin/media"))

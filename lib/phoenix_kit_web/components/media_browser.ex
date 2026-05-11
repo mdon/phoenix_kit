@@ -75,15 +75,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   - `scope_folder_id` — constrain the browser to a virtual root folder
   - `on_navigate` — when truthy, enables controlled mode (URL-sync via parent)
   - `admin` — when `true`, clicking a file opens the admin detail page at
-    `/admin/media/:uuid`. When `false` (default), clicks toggle selection
-    instead, so the component behaves as a picker when embedded outside the
-    admin UI.
-  - `viewer` — when `true`, clicks open a read-only modal showing the
-    clicked file (image / video / PDF / icon) with its metadata and a
-    Download button. Standard close behaviour (X button, Esc, click on
-    backdrop). `admin` and `select_mode` both win over `viewer` if also
-    set, so a caller can opt into modal viewing without losing the
-    selection picker for users who explicitly enable select mode.
+    `/admin/media/:uuid`. When `false` (default), clicks open a read-only
+    in-place modal viewer (image / video / PDF / icon + metadata + Download
+    + prev/next navigation). Bulk-select is still reachable via the
+    toolbar's Select button — once `select_mode` is on, clicks toggle
+    selection instead of opening the modal.
   """
   use PhoenixKitWeb, :live_component
 
@@ -109,7 +105,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
-      |> assign_new(:viewer, fn -> false end)
       |> assign_new(:viewer_file, fn -> nil end)
 
     cond do
@@ -222,7 +217,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:total_pages, ceil(total_count / per_page))
     |> then(
       &if(scoped_fallback?,
-        do: put_flash(&1, :info, "Folder not accessible — showing root"),
+        do: put_flash(&1, :info, gettext("Folder not accessible — showing root")),
         else: &1
       )
     )
@@ -580,7 +575,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             phx-value-folder-uuid={@node.folder.uuid}
             phx-value-source="sidebar"
             class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 opacity-0 group-hover:opacity-100"
-            title="Rename"
+            title={gettext("Rename")}
           >
             <.icon name="hero-pencil" class="w-3 h-3 text-base-content/40" />
           </button>
@@ -620,7 +615,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
                 <input
                   type="text"
                   name="name"
-                  placeholder="Folder name"
+                  placeholder={gettext("Folder name")}
                   class="input input-bordered input-xs flex-1 min-w-0"
                   phx-mounted={JS.focus()}
                   required
@@ -682,13 +677,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
          |> assign(:show_new_folder, false)
          |> assign(:folders, Storage.list_folders(folder_uuid, scope))
          |> assign(:folder_tree, Storage.list_folder_tree(scope))
-         |> put_flash(:info, "Folder created")}
+         |> put_flash(:info, gettext("Folder created"))}
 
       {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, "Cannot create folder outside the allowed scope")}
+        {:noreply, put_flash(socket, :error, gettext("Cannot create folder outside the allowed scope"))}
 
       {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to create folder")}
+        {:noreply, put_flash(socket, :error, gettext("Failed to create folder"))}
     end
   end
 
@@ -699,7 +694,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if folder do
       case Storage.delete_folder(folder, scope) do
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, "Cannot delete folder outside the allowed scope")}
+          {:noreply, put_flash(socket, :error, gettext("Cannot delete folder outside the allowed scope"))}
 
         _ ->
           parent_uuid = current_folder_uuid(socket)
@@ -708,10 +703,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            socket
            |> assign(:folders, Storage.list_folders(parent_uuid, scope))
            |> assign(:folder_tree, Storage.list_folder_tree(scope))
-           |> put_flash(:info, "Folder deleted")}
+           |> put_flash(:info, gettext("Folder deleted"))}
       end
     else
-      {:noreply, put_flash(socket, :error, "Folder not found")}
+      {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
     end
   end
 
@@ -725,13 +720,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     case Storage.move_file_to_folder(file_uuid, target, scope) do
       {:ok, _} ->
-        {:noreply, socket |> put_flash(:info, "File moved") |> reload_current_page()}
+        {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
 
       {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, "Cannot move file outside the allowed scope")}
+        {:noreply, put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to move file")}
+        {:noreply, put_flash(socket, :error, gettext("Failed to move file"))}
     end
   end
 
@@ -921,10 +916,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, "Cannot rename folder outside the allowed scope")}
+          {:noreply, put_flash(socket, :error, gettext("Cannot rename folder outside the allowed scope"))}
 
         {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to rename folder")}
+          {:noreply, put_flash(socket, :error, gettext("Failed to rename folder"))}
       end
     else
       {:noreply,
@@ -955,10 +950,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, "Cannot change folder outside the allowed scope")}
+          {:noreply, put_flash(socket, :error, gettext("Cannot change folder outside the allowed scope"))}
 
         {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to change color")}
+          {:noreply, put_flash(socket, :error, gettext("Failed to change color"))}
       end
     else
       {:noreply, socket}
@@ -992,6 +987,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("click_file", %{"file-uuid" => file_uuid}, socket) do
     cond do
       # Already in selection mode → toggle this file in/out, stay in selection mode.
+      # The toolbar's "Select" button is how callers reach bulk-select; once on,
+      # clicks add/remove rather than open the modal.
       socket.assigns.select_mode ->
         {:noreply, do_toggle_file(socket, file_uuid)}
 
@@ -999,14 +996,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       socket.assigns.admin ->
         {:noreply, push_navigate(socket, to: Routes.path("/admin/media/#{file_uuid}"))}
 
-      # Caller opted into the modal viewer → stash the clicked file in
-      # viewer_file so the modal at the bottom of the template renders.
-      socket.assigns.viewer ->
-        {:noreply, assign(socket, :viewer_file, find_uploaded_file(socket, file_uuid))}
-
-      # Default picker behaviour: enter selection mode and toggle this file in.
+      # Anywhere else (non-admin, not in select mode) → open the in-place
+      # modal viewer for that file. This is the default and is what every
+      # embedded MediaBrowser gets unless `admin={true}` is set.
       true ->
-        {:noreply, socket |> do_toggle_file(file_uuid) |> assign(:select_mode, true)}
+        {:noreply, assign(socket, :viewer_file, find_uploaded_file(socket, file_uuid))}
     end
   end
 
@@ -1110,7 +1104,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> assign(:show_move_modal, false)
-     |> put_flash(:info, "#{file_count + folder_count} item(s) moved")
+     |> put_flash(:info, ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count))
      |> reload_current_page()}
   end
 
@@ -1219,7 +1213,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:select_mode, false)
      |> assign(:selected_files, MapSet.new())
-     |> put_flash(:info, "#{restored} file(s) restored")
+     |> put_flash(:info, ngettext("%{count} file restored", "%{count} files restored", restored))
      |> reload_current_page()}
   end
 
@@ -1229,7 +1223,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply,
      socket
      |> assign(:filter_trash, false)
-     |> put_flash(:info, "#{count} file(s) permanently deleted")
+     |> put_flash(:info, ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count))
      |> reload_current_page()}
   end
 
@@ -1282,7 +1276,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     Storage.queue_file_cleanup(orphan_uuids)
 
     {:noreply,
-     put_flash(socket, :info, "#{length(orphan_uuids)} orphaned files queued for deletion")}
+     put_flash(socket, :info, ngettext("%{count} orphaned file queued for deletion", "%{count} orphaned files queued for deletion", length(orphan_uuids)))}
   end
 
   def handle_event("toggle_upload", _params, socket) do
@@ -1724,7 +1718,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         build_new_and_duplicates_message(new_count, duplicate_count)
 
       true ->
-        {:info, "Upload processed"}
+        {:info, gettext("Upload processed")}
     end
   end
 
@@ -1738,25 +1732,56 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp build_all_failed_message do
     {:error,
-     "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."}
+     gettext(
+       "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
+     )}
   end
 
   defp build_partial_success_message(new_count, error_count) do
+    uploaded = ngettext("%{count} file uploaded", "%{count} files uploaded", new_count)
+    failed = ngettext("%{count} failed", "%{count} failed", error_count)
+
     {:warning,
-     "Partially successful: #{new_count} file(s) uploaded, #{error_count} failed due to missing storage buckets."}
+     gettext(
+       "Partially successful: %{uploaded}, %{failed} due to missing storage buckets.",
+       uploaded: uploaded,
+       failed: failed
+     )}
   end
 
   defp build_only_duplicates_message(duplicate_count) do
-    {:info, "Already have #{duplicate_count} duplicate file(s). No new files were added."}
+    {:info,
+     ngettext(
+       "Already have %{count} duplicate file. No new files were added.",
+       "Already have %{count} duplicate files. No new files were added.",
+       duplicate_count
+     )}
   end
 
   defp build_new_files_only_message(new_count) do
-    {:info, "Upload successful! #{new_count} new file(s) processed"}
+    {:info,
+     ngettext(
+       "Upload successful! %{count} new file processed",
+       "Upload successful! %{count} new files processed",
+       new_count
+     )}
   end
 
   defp build_new_and_duplicates_message(new_count, duplicate_count) do
+    added = ngettext("%{count} new file added", "%{count} new files added", new_count)
+
+    duplicates =
+      ngettext(
+        "%{count} file was already uploaded",
+        "%{count} files were already uploaded",
+        duplicate_count
+      )
+
     {:info,
-     "Upload successful! #{new_count} new file(s) added. #{duplicate_count} file(s) were already uploaded."}
+     gettext("Upload successful! %{added}. %{duplicates}.",
+       added: added,
+       duplicates: duplicates
+     )}
   end
 
   defp maybe_set_folder(file, socket) do
@@ -1854,16 +1879,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     cond do
       filter_trash and file_count > 0 ->
-        "Permanently delete #{file_count} file(s)? This cannot be undone."
+        ngettext(
+          "Permanently delete %{count} file? This cannot be undone.",
+          "Permanently delete %{count} files? This cannot be undone.",
+          file_count
+        )
 
       folder_count > 0 and file_count > 0 ->
-        "Delete #{file_count} file(s) (to trash) and #{folder_count} folder(s)? Folder contents will be moved to parent."
+        files = ngettext("%{count} file", "%{count} files", file_count)
+        folders = ngettext("%{count} folder", "%{count} folders", folder_count)
+
+        gettext(
+          "Delete %{files} (to trash) and %{folders}? Folder contents will be moved to parent.",
+          files: files,
+          folders: folders
+        )
 
       folder_count > 0 ->
-        "Delete #{folder_count} folder(s)? Folder contents will be moved to parent."
+        ngettext(
+          "Delete %{count} folder? Folder contents will be moved to parent.",
+          "Delete %{count} folders? Folder contents will be moved to parent.",
+          folder_count
+        )
 
       true ->
-        "Move #{file_count} file(s) to trash?"
+        ngettext("Move %{count} file to trash?", "Move %{count} files to trash?", file_count)
     end
   end
 

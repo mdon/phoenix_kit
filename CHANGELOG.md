@@ -1,3 +1,173 @@
+## 1.7.107 - 2026-05-10
+
+### Added
+- Two opt-in stateless helpers on `PhoenixKitWeb.Components.Core.TableDefault` (PR #528)
+  - `sort_header_cell/1` — clickable `<th>` with `hero-chevron-up-mini`/`-down-mini` icon when active, inert label-only `<th>` when `sort` attr is `nil`. Configurable `event` (default `"toggle_sort"`), `target`, `align` (`:left`/`:right`/`:center`). The `align` is applied to the `<th class>` (`text-right` / `text-center`) so non-sortable columns honour it consistently with the sortable ones
+  - `sort_header_cell/1` emits `aria-sort="ascending"|"descending"|"none"` on the `<th>` when sortable, omitted when inert. Pinned by 4 regression tests covering all three states + omitted
+  - `search_toolbar/1` — daisyUI `input-sm` with `hero-magnifying-glass` icon and `phx-debounce` (default 300ms). Optional `<form>` wrap when `on_submit` is set. Placeholder defaults to `dgettext("default", "Search...")`. `phx-target` propagates to both the `<form>` and `<input>` so submit-on-Enter retargets correctly when embedded in a `LiveComponent`
+  - `test/phoenix_kit_web/components/core/table_default_test.exs` — new directory + 18 component tests; closes part of the standing `core/` test-coverage TODO from `CLAUDE.md`
+- `change_page` event handler in `PhoenixKitWeb.Live.Users.LiveSessions` — pagination on `/admin/users/live-sessions` was bound to `phx-click="goto_page"` with no matching `handle_event/3` clause, so clicking any page number raised `FunctionClauseError` and crashed the LV (PR #528 follow-up). Renamed the binding to `change_page` and added the handler mirroring the sibling `users.ex:121` convention
+
+### Changed
+- `PhoenixKitWeb.Live.Users.LiveSessions` — collapsed `:sort_by` + `:sort_order` assigns into a single `:sort = %{by, dir}` map; renamed event `"sort_by"` → `"toggle_sort"` with `"by"` param. First click on a new column sorts ascending (was descending); subsequent clicks toggle. `flip_dir/1` tightened from `flip_dir(_)` catch-all to explicit `:desc` clause so unintended values surface as a crash rather than silent coercion (PR #528)
+- `lib/phoenix_kit_web/live/users/live_sessions.html.heex` and `lib/phoenix_kit_web/live/users/users.html.heex` — both call sites of `<.search_toolbar>` dropped the redundant `on_submit="search"`. The input's debounced `phx-change="search"` already covers the same event; keeping both made Enter fire `"search"` twice (immediate submit + 300ms-later debounced change) (PR #528 follow-up)
+
+### Fixed
+- `lib/phoenix_kit_web/live/users/users.html.heex` — replaced bare search form (every keystroke hit the server) with `<.search_toolbar>` carrying the 300ms `phx-debounce` (PR #528)
+- `<.search_toolbar>` form variant double-bound `phx-change` on both `<form>` and `<input>`, doubling work per keystroke. `phx-change` is now bound only on the `<input>`; the `<form>` carries `phx-submit` only. `phx-target` now propagates to both so LiveComponent embedding works end-to-end. Two regression tests pin both behaviours (PR #528, commit `dfc91238`)
+
+### i18n
+- `mix gettext.extract --merge` resync — adds `"Search..."` msgid + `et` / `ru` translations and surfaces accumulated drift from prior commits where extract wasn't run (PR #528, separate commit `a7c1d35b`)
+
+### Hygiene
+- `.gitignore` — adds `/priv/static/assets/vendor/` so `mix phoenix_kit.install` runs against `/app` itself don't leave an outdated copy of the source JS in tree (PR #528)
+- `mix.lock` — `db_connection` 2.10.0 → 2.10.1, `igniter` 0.7.9 → 0.8.0 (pulls in `ex_ast` 0.11.0 as new transitive). Routine patch bumps
+
+## 1.7.106 - 2026-05-08
+
+### Added
+- V111 migration: PDF library tables for the upcoming catalogue PDF subtab (PR #516)
+  - `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid` FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue manages the file lifecycle; core prune can't remove files referenced by a live catalogue row). Soft-delete via `status` sentinel (`active` / `trashed`) + `trashed_at`. Two uploads of identical content (different filenames) → two rows sharing one `phoenix_kit_files` row + one extraction
+  - `phoenix_kit_cat_pdf_extractions` — keyed by `file_uuid` PK. Worker state machine (`pending → extracting → extracted | scanned_no_text | failed`) + `page_count` + `extracted_at` + `error_message`. Cascades on file hard delete
+  - `phoenix_kit_cat_pdf_page_contents` — content-addressed dedup cache. PK on `content_hash` (SHA-256 hex of normalized page text). Same page text across multiple PDFs is stored once. GIN trigram index lives here so the search index doesn't grow with cross-PDF duplication
+  - `phoenix_kit_cat_pdf_pages` — composite PK `(file_uuid, page_number)`; `content_hash` FK to the dedup cache (RESTRICT — orphaned content rows GC'd by a catalogue-side helper, not by FK cascade)
+  - Enables `pg_trgm` extension; `@current_version` 110 → 111
+- `PhoenixKit.KnownPackages` — live catalog of known external PhoenixKit packages, replacing the previously hardcoded list in `ModuleRegistry.known_external_packages/0` (PR #523)
+  - Fetched on demand from `https://hex.pm/api/packages?search=phoenix_kit_&sort=name` and cached for 10 minutes in an ETS named table (`:phoenix_kit_known_packages_cache`)
+  - Stale-while-revalidate with cap: on Hex failure, serves cached data up to `:max_stale_age_ms` (default 24h); beyond that, drops the cache and falls back to `:extra_known_packages` config entries only
+  - `:warning` log on stale-served and empty-cache-extras-only; `:error` log when cache exceeds max stale age — operationally distinct alert levels
+  - `Link`-header pagination with a 20-page cap (`@max_pages`) so a malformed `Link` header pointing back to the same page can't loop forever
+  - `extra_known_packages` config knob — parent apps with private/forked packages declare them inline and they take precedence over Hex entries on the `package` dedup key (`source: "config"` baked in)
+  - `hex_docs_icon_name: hero-<name>` convention — package authors append the marker to their Hex package description and the catalog UI picks it up; default is `hero-puzzle-piece`
+- Per-module gettext support on Dashboard sidebar labels and tooltips (PR #522)
+  - `PhoenixKit.Dashboard.Tab` gains `gettext_backend: module() | nil` (default `nil`) and `gettext_domain: String.t()` (default `"default"`) fields, plus `localized_label/1` and `localized_tooltip/1` resolvers that call `Gettext.dgettext/3` when a backend is set and fall back to the raw label otherwise
+  - `PhoenixKit.Dashboard.Group` gains the same two fields plus `localized_label/1`
+  - `Tab.divider/1` and `Tab.group_header/1` accept the new opts; `Tab.new/1` round-trips both via `get_attr/2`
+  - 14 render sites in `Sidebar`, `AdminSidebar`, `TabItem` swap `tab.label` → `Tab.localized_label(tab)` and equivalents — mechanically uniform, no shape changes
+  - Hot-reload safety via `Map.get/2` (not pattern matching) on the new fields — old-shape `%Tab{}` cached in ETS or `:persistent_term` from before the upgrade falls through as if `gettext_backend` were `nil` rather than raising `FunctionClauseError`. Pinned by an explicit `Map.delete(:gettext_backend)` regression test
+  - `guides/per-module-i18n.md` — public guide for module developers (setup checklist, `mix.exs` / backend / `.po` flow, `dynamic_children/2` locale handling, dividers and group headers, tooltips, greenfield template, retrofitting checklist, smoke test pattern, common pitfalls including the hot-reload safety contract)
+  - `dev_docs/instructions/2026-05-08-per-module-i18n-procedure.md` — internal operational procedure capturing every gotcha hit during the Newsletters pilot (skip-worktree on mix.exs, path-dep workflow during local dev, conditional CI skip pattern for graceful degradation)
+- `:per_translation_urls` attr on the three `LanguageSwitcher` variants — `language_switcher_dropdown/1`, `language_switcher_buttons/1`, `language_switcher_inline/1` (PR #525)
+  - Each entry is `%{code: <display_code>, url: <full_url>}`. Both atom-keyed and string-keyed entries accepted (useful when the list comes from JSON/JSONB rather than Elixir code)
+  - Resolves each language's `base_code` against the list via `DialectMapper.extract_base/1` so `"en-US"` and `"en"` both resolve cleanly. Falls back to the locale-rewrite default when no entry matches OR the matched entry has a `nil` URL (e.g. an unpublished draft)
+  - Useful when a feature module has computed canonical URLs that the simple locale-rewrite default can't reproduce — for example publishing's per-language URL slugs where `/en/blog/my-post` and `/fr/blog/mon-article` aren't related by segment swap. Pass `assigns[:phoenix_kit_publishing_translations]` from the layout
+  - 7 new tests in `test/phoenix_kit_web/components/core/language_switcher_test.exs` pin the contract (atom-keyed, string-keyed, full-dialect normalization, per-language fallback, nil/empty/missing-attr pass-through)
+- Drag-handle scoping + sortable feedback infrastructure (PR #525)
+  - `<.table_default>` emits `data-sortable-handle=".pk-drag-handle"` when `@on_reorder` is set; only the `.pk-drag-handle` element gets `cursor-grab` styling. Click-to-expand / button-press / text-selection on a card no longer fights with SortableJS drag detection
+  - `SortableGrid` JS hook: new `sortable:flash` LV→client event handler. The host LV pushes `{uuid: "...", status: "ok" | "error"}` after each `reorder_items` attempt; the hook applies `pk-sortable-flash-{ok,err}` class for ~1.2s, idempotent via reflow trigger. Queries every `[data-id]` element so table-view + card-view both animate. Defensive status-validation guard — unknown values bail rather than falling into the err-class branch
+  - `<tr>` cell-width preservation via `onChoose` / `onUnchoose` — SortableJS's `forceFallback: true` + `fallbackOnBody: true` clones the dragged `<tr>` to `document.body`, where it loses its `<table>` ancestor and `<td>`s collapse to content width. The hook now snapshots computed widths and pins them inline before the drag preview renders; `onUnchoose` restores them
+  - `data-sortable-handle` attr threads to SortableJS's `handle` option for any caller; `moved_id` always included in the `reorder_items` payload (was only on cross-container moves) so the LV can push back a `sortable:flash` keyed to the just-moved row
+- MediaBrowser modal viewer becomes the default click target for non-admin / non-select_mode browsers, with read-only image / video / PDF / icon preview, metadata sidebar, Download button, prev/next chevrons (and ←/→ keyboard shortcuts), and Esc / backdrop close (PR #519)
+  - Mobile-fullscreen layout via `position: fixed; inset: 0` — bypasses daisyUI's grid + iOS Safari's 100vh/100dvh quirks. Desktop reverts to `95vw × 90vh` centered modal with rounded corners. The `!`-prefix utility chain on `.modal-box` is required because daisyUI v5's defaults win the cascade over plain Tailwind utilities
+  - `MediaImageZoom` JS hook lazy-loads Panzoom 4.6.0 from jsDelivr when the modal opens; image supports wheel/pinch/double-tap zoom and drag-pan. Listener attaches to the parent so the cursor doesn't have to land on the image; `destroyed` cleanup removes the wheel listener and destroys the Panzoom instance
+  - Bulk-select still reachable — clicking the toolbar's Select button flips `select_mode` on, and from then on clicks toggle selection instead of opening the modal
+- LiveView login redirect now carries the original request path as `?return_to=` (PR #519)
+  - New `login_path_with_return_to/1` private helper in `PhoenixKitWeb.Users.Auth` reads `Phoenix.LiveView.get_connect_info(socket, :uri)`, encodes `path?query` via `URI.encode_www_form/1`, and threads it into the redirect target. Wired into the four `redirect_require_login` paths in `on_mount` hooks
+  - Trailing-slash self-loop guard: `String.trim_trailing(path, "/")` on both sides of the equality check, so `/users/log-in` and `/users/log-in/` are treated as the same path and no return-to round-trips back to itself
+  - Pairs with the existing `?return_to=` flow in `login.ex` (`sanitize_return_to/1` → `:user_return_to` session → `log_in_user/3`)
+- `PhoenixKit.ModuleRegistry.get_module_key_for_namespace/1` — symmetric with the existing `get_by_key/1`. Resolves a top-level Elixir namespace string (e.g. `"PhoenixKitEntities"`) to the registered plugin's `module_key/0` (PR #521)
+  - Iterates `all_modules/0`, matches on `Module.split(mod) == [top_namespace]` (exact, single segment), returns the key string or `nil` for unmatched
+  - Reads from `:persistent_term` so there's no GenServer roundtrip on the hot path
+- Microsoft 365 OAuth tenant override + generic `interpolate_url/3` helper in `PhoenixKit.Integrations.OAuth` — providers can now substitute `{key}` placeholders in `auth_url` / `token_url` from per-row `integration_data`, falling back to a provider-level `:url_defaults` map (PR #516)
+  - Closes the previously hardcoded `/common/` Microsoft tenant — single-tenant operators got AADSTS50194 errors. New `tenant_id` setup field with `common` default; multi-tenant remains the default behavior. Three pinning tests in `test/phoenix_kit/integrations/oauth_test.exs`
+  - Wired into `authorization_url/5`, `exchange_code/4`, `refresh_access_token/2`. URLs without `{` pass through unchanged (zero impact on Google / OpenRouter / Mistral / DeepSeek)
+- "Resolve a LiveView module to its permission key" block-comment on `PhoenixKitWeb.Users.Auth.permission_key_for_admin_view/1` documenting the four-step resolution order (static map → custom-tabs → `PhoenixKit.Modules.<X>.Web.*` namespace → registered-plugin namespace) and the fail-closed nil default
+
+### Changed
+- DB module extracted from core into the standalone `phoenix_kit_db` Hex package (PR #518)
+  - Removed `lib/modules/db/` (`db.ex`, `listener.ex`, `web/{activity,index,show}.{ex,html.heex}`) — ~2010 lines across 8 files
+  - `module_registry.ex` — dropped `PhoenixKit.Modules.DB` from `internal_modules/0`
+  - `integration.ex` — dropped the three hand-registered `live "/admin/db…"` declarations (auto-discovery via `admin_tabs/0` picks them up once the package is installed)
+  - `modules.html.heex` — dropped the hardcoded DB module card; auto-render via `<.module_card>` based on `admin_tabs/0` discovery
+  - `dev_docs/guides/2026-02-24-module-system-guide.md` — moved `lib/modules/db/db.ex` from the Internal examples section to External as `phoenix_kit_db/`, between hello_world and document_creator
+- `PhoenixKit.ModuleRegistry.not_installed_packages/0` switches from `Code.ensure_loaded?(pkg.module)` to OTP-app-name MapSet membership (PR #523) — the more correct semantics, since module-loading state and OTP-app-installed state aren't the same: an extracted-but-not-yet-installed module fragment could pass `Code.ensure_loaded?` but isn't actually a dep
+- `PhoenixKit.Integrations.OAuth.verify_oauth_state/2` missing-state branch tightened from lenient `:ok` to `{:error, :state_mismatch}` (PR #516, closes a CSRF-relevant gap from PR #511's review NIT #10) — every `connect_oauth` event saves state via `save_oauth_state/2` before redirect post-2026-05, so a missing state at callback time means either bypass or row-mutated-mid-flow; both are CSRF-relevant
+- `IntegrationPicker` drops the `conn.name == "default"` substitution that contradicted PR #511's own moduledoc ("Names are pure user-chosen labels with no system semantics") — always renders the user-chosen name + provider badge (PR #516, closes PR #511 NIT #6)
+- `<.file_upload>` `full_upload/1` variant entry-progress label reads `Uploading… {entry.progress}%` instead of the bare percentage — `entry.progress` is always client→server upload progress per Phoenix LV convention, so the wording is universally accurate (PR #516)
+- `LanguageSwitcher` resolves the per-language URL once per iteration via inline `<% url = ... %>` and reuses it for `href` and `phx-value-url` — halves the per-render `resolve_url/3` cost and pins both call sites to the same URL (post-merge triage)
+- `KnownPackages` moduledoc grew an "Operational signals" section enumerating the three log levels (`:warning` stale-served / no-cache / `:error` exceeded max stale age) and what each signals operationally (post-merge triage)
+
+### Fixed
+- Publishing routing-strategy collision: any host route shaped `/:locale/<literal>/...` declared after `phoenix_kit_routes()` was silently shadowed by publishing's `/:language/:group/*path` catch-all (PR #524)
+  - `phoenix_kit_routes/0` now emits a publishing-specific dispatch shim when `PhoenixKitPublishing.RouterDispatch` is loaded — internal-prefix scope at `/<url_prefix>/__phoenix_kit_publishing_dispatch` with `/localized` and `/root` discriminator sub-scopes, plus a `def call/2` override that calls `RouterDispatch.maybe_rewrite/1` on every request and only rewrites publishing-bound URLs onto the internal prefix. Host routes get a fair shot at every URL
+  - `restore_path/2` runs after route binding (via the new `:phoenix_kit_publishing_internal` pipeline) so canonical-URL generation reads the URL the client sent — without it, publishing's `default_language_no_prefix` redirect would spin on the internal prefix forever
+  - Compile-time gated on `Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch)`; installs without publishing in the dep tree get `quote do end` (no-op AST). The `__mix_recompile__?/0` mechanism injected by `phoenix_kit_routes/0` forces a host-router recompile when publishing is added or removed from deps — handles the dep-cache staleness case
+  - Browser-smoke verified across 8 URL classes: localized + canonical publishing posts, host's `/:locale/services/view/...` routes (was 404 pre-fix), admin redirects, plain home, genuine 404s. HTML body sweep confirmed zero leakage of the internal prefix in canonical / og / links / JS / headers
+- Custom-role users with explicit plugin permissions (`entities`, `billing`, `ai`, …) were silently locked out of plugin admin pages because `infer_permission_key_from_module/1` only resolved the core `PhoenixKit.Modules.*` namespace. External plugins (`PhoenixKitEntities.*`, `PhoenixKitBilling.*`, …) returned `nil` from all three resolution paths, collapsing onto the "no permission" branch in `enforce_admin_view_permission/2` (PR #521)
+  - New `[top | _rest] -> ModuleRegistry.get_module_key_for_namespace(top)` clause on `infer_permission_key_from_module/1`. Old `_ -> nil` fallback removed (unreachable post-`Module.split/1`). Owner / Admin behaviour and the fail-closed default for genuinely unknown views are preserved
+  - Initial implementation used `[^top_namespace | _]` which matched any registered module whose `Module.split` *starts with* the segment; live repro on a parent app showed `get_module_key_for_namespace("PhoenixKit") => "db"` because `PhoenixKit.Modules.DB` happened to be the first registered module beginning with `"PhoenixKit"`. Tightened to `[^top_namespace]` (exact, single segment) and pinned with a regression test
+  - `permission_key_for_admin_view/1` exposed as `@doc false def` (was `defp`) so 4 new unit tests in `test/phoenix_kit_web/users/auth_test.exs` can exercise the resolution layers without LiveView mounting machinery; 3 new tests in `test/phoenix_kit/module_registry_test.exs` pin `get_module_key_for_namespace/1` (uses `Module.create/3` with explicit top-level fixture names to avoid test-module auto-nesting)
+- `PhoenixKitWeb.PagesHTML` removed (PR #518) — the module had no controller, no routes, no callers. The `embed_templates "pages_html/*"` directive plus `pages_html/show.html.heex` plus the `integration.ex` docstring described a markdown-page-rendering feature that was never wired up. Publishing module covers actual CMS-page rendering. `ast-grep --lang elixir --pattern 'PhoenixKitWeb.PagesHTML'` confirms zero structural references remain
+- `MediaBrowser` chevron-button positioning: daisyUI's active-state CSS replaces `transform` with `scale(0.97)` on click, which would clobber a `-translate-y-1/2` on the button itself and make it jump down 50% of its height. Chevron positioning now sits on a wrapper `<div>`, not the button (PR #519)
+- `media_browser.html.heex` modal-viewer leading comment referenced the now-removed `viewer={true}` attr; rewritten to describe the new default click behaviour (post-merge triage)
+- Dead `defaults[String.to_atom(key)]` fallback in `OAuth.interpolate_url/3` — no provider in `Providers.providers/0` ships an atom-keyed `url_defaults`, so the path was unreachable. Removed; comment documents that provider authors must use string keys (post-merge triage)
+- `KnownPackages.fetch_hex_page/3` recursion grew an explicit `@max_pages 20` cap so a malformed `Link` header pointing back to the same page can no longer loop forever; `ensure_table/0` rescue now carries an explanatory comment about the `:ets.whereis/1` → `:ets.new/2` race window (post-merge triage)
+- `KnownPackages` test_helper.exs: the `System.cmd("psql", ...)` DB-existence check now `try/rescue ErlangError` so environments where `psql` isn't on PATH fall through to the connect-direct branch instead of crashing the test boot (PR #523)
+- Pre-existing credo `Refactor.Apply` opportunities on the three `apply/3` calls in `compile_publishing_routing/1` silenced with inline `# credo:disable-for-next-line` annotations and an empirically-verified comment explaining why the variable-indirection alternative (`mod = ModuleName; mod.fun()`) doesn't shield the compiler's static-resolution warning either. `mix credo --strict` now reports zero issues across the tree (post-merge triage)
+
+### Removed
+- `PhoenixKit.Modules.DB` and the entire `lib/modules/db/` directory — extracted to the standalone `phoenix_kit_db` Hex package; companion repo TBA (PR #518)
+- `PhoenixKitWeb.PagesHTML` and its `pages_html/show.html.heex` template — dead code, never wired up to a controller or route (PR #518)
+- `MediaBrowser`'s `:viewer` attr — the four-mode click handler collapsed to three modes (`select_mode` → `admin` → modal viewer); pickers reach `select_mode` via the toolbar's Select button. The default click action is now the modal viewer, so callers that previously passed `viewer={true}` see no behaviour change. Callers that depended on the old picker-by-default (no `admin`, no `viewer` → click toggles selection) need to instruct users to click the toolbar's Select button instead (PR #519)
+
+## 1.7.105 - 2026-05-05
+
+### Added
+- `PhoenixKit.Migration.ensure_current/2` — re-runnable analog of `mix ecto.migrate` for test helpers and any boot path running against a long-lived database (PR #515)
+  - Passes a fresh wall-clock version (`:os.system_time(:microsecond)`) to `Ecto.Migrator.up/4` on every call so Ecto sees a "new" migration each time and invokes the inner runner; PhoenixKit's own marker (the comment on the `phoenix_kit` table) short-circuits internally if there's nothing new to apply
+  - Forwards `:prefix` from the Ecto.Migration runner context inside the new private `PhoenixKit.Migration.Runner` wrapper so callers passing `prefix: "auth"` aren't silently routed to `"public"`
+  - Microsecond precision keeps the collision and clock-skew windows small enough that an NTP correction would have to rewind the clock by µs at exactly the wrong moment to hide a newly-shipped migration; bigint-safe (Postgres covers ~292 years)
+  - The `schema_migrations` table accumulates one row per call — cosmetic noise acceptable for the test-DB use case; production migrations via `mix ecto.migrate` / `mix phoenix_kit.update` remain unchanged
+- V110 migration: nullable `language VARCHAR(10)` column on `phoenix_kit_doc_templates` so each Document Creator template can be tagged with a single locale (PR #515)
+  - Full locale codes (`en-US`, `et-EE`, `ja`) — matches `PhoenixKit.Module.Languages.get_enabled_languages/0` output; lossless, consumers that want bare base codes can derive them via `DialectMapper.dialect_to_base/1`
+  - Existing rows survive without a backfill; the form (landing in `phoenix_kit_document_creator` separately) pre-selects the project's primary language when creating new templates
+  - Documents intentionally do not get a language column — they inherit from `template_uuid → templates.language`
+  - `@current_version` 109 → 110; ⚡ LATEST tag moved off V109 onto V110
+- `PhoenixKit.Migration.Runner.runner_opts/1` — pure transform of the runner-context prefix into opts threaded to `PhoenixKit.Migration.up/1` / `down/1` (PR #515 review follow-up)
+  - Split out of the previous closure-style `runner_opts/0` so the prefix-forwarding behaviour can be regression-tested without spinning up a real `Ecto.Migration.Runner` process (which conflicts with the Ecto sandbox)
+  - Three new unit assertions in `test/phoenix_kit/migration_test.exs` pin the contract: `nil → []` (drop, so `with_defaults/2`'s `"public"` default isn't clobbered), `"auth" → [prefix: "auth"]`, arbitrary tenant prefix forwarded verbatim. If someone "simplifies" `runner_opts` to always return `[]`, CI now fails
+- "Return contract" section in the `ensure_current/2` moduledoc clarifying that failures (advisory-lock contention, migration crashes, connection errors) raise from `Ecto.Migrator.up/4` rather than being wrapped in `{:error, _}` (PR #515 review follow-up)
+
+### Changed
+- `test/test_helper.exs` switched from path-form `Ecto.Migrator.run(repo, migrations_path, :up, all: true)` to `PhoenixKit.Migration.ensure_current/2` (PR #515)
+  - Deletes the now-redundant wrapper migration `test/support/postgres/migrations/20260316000000_add_phoenix_kit.exs`
+- `AGENTS.md` test-infra section updated: `test_helper.exs` is now the canonical migration application point, with a **Do not** warning against the stale tuple form `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` (PR #515)
+
+### Fixed
+- Documented test-helper migration patterns silently went stale after the first run (PR #515)
+  - Both the tuple form (`Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)`, documented in `dev_docs/migration_cleanup.md`) and the path form (used by core's own test_helper via the `20260316000000_add_phoenix_kit.exs` wrapper) hit the same trap: Ecto.Migrator records the version in `schema_migrations` after the first call and filters that entry out of pending on every subsequent boot. `PhoenixKit.Migration.up/1` was never re-invoked, so newly-shipped Vxxx migrations didn't apply on subsequent boots even though PhoenixKit's own marker was idempotent. Symptom: `column ... does not exist` after `mix deps.update phoenix_kit` brought in new migrations but the test DB stayed at the old marker
+  - Verified empirically — core's own `phoenix_kit_test` was at marker 107 even though Hex 1.7.103 shipped V108 + V109; first boot after switching to `ensure_current/2` advanced the marker through V108 / V109 / V110 correctly
+
+## 1.7.104 - 2026-05-04
+
+### Changed
+- Customer Service module extracted from core into the standalone `phoenix_kit_customer_support` Hex package — companion repo: [BeamLabEU/phoenix_kit_customer_support](https://github.com/BeamLabEU/phoenix_kit_customer_support) (PR #514)
+  - Removed `lib/modules/customer_service/` (~6 KLOC, 22 files) and `lib/phoenix_kit_web/routes/customer_service.ex`; the module is now an external optional dependency
+  - `module_registry.ex` — dropped `PhoenixKit.Modules.CustomerService` from `internal_modules/0`, added the corresponding `phoenix_kit_customer_support` entry to `known_external_packages/0`
+  - `integration.ex` — replaced inline `/dashboard/customer-service/tickets` route blocks with `Code.ensure_loaded?(PhoenixKitCustomerSupport.Web.UserList)` guards so absent-package = no routes
+  - DB tables (`phoenix_kit_tickets`, `phoenix_kit_ticket_*`) stay in core under their existing names — they're domain-shaped, not module-shaped, and the prior migrations (V35/V51/V53/V58/V72/V74/V75/V77) remain in core's migration history
+- Renamed "Customer Service" → "Customer Support" across the public surface (PR #514)
+  - Module: `PhoenixKitCustomerService` → `PhoenixKitCustomerSupport`
+  - OTP app: `:phoenix_kit_customer_service` → `:phoenix_kit_customer_support`
+  - Hex package: `phoenix_kit_customer_service` → `phoenix_kit_customer_support`
+  - Settings keys: `customer_service_*` → `customer_support_*` (7 keys)
+  - URL paths: `/customer-service/*` → `/customer-support/*` (admin + user-facing, both base and locale-prefixed routes)
+  - Permission key: `customer_service` → `customer_support`
+  - Dashboard module card and admin nav target updated to match
+
+### Added
+- V109 migration: rename Customer Service module identifiers in-place so existing installs migrate cleanly (PR #514)
+  - Renames 7 settings keys from `customer_service_*` → `customer_support_*` in `phoenix_kit_settings`
+  - Renames `auto_granted_perm:customer_service` → `auto_granted_perm:customer_support`
+  - Renames `phoenix_kit_role_permissions.module_key` from `customer_service` → `customer_support`
+  - Idempotent (`IF EXISTS` guards on every rename); reversible `down/1` for emergency rollback
+  - `@current_version` 108 → 109; ⚡ LATEST tag moved off V107 onto V109
+
+### Fixed
+- `PhoenixKit.Users.Auth.anonymize_user_tickets/1` was a no-op since the original Tickets → CustomerService rename — `Module.concat([PhoenixKit, Modules, Tickets, Ticket])` resolved to a never-loaded module so the `Code.ensure_loaded?` guard always failed and ticket anonymization silently skipped on user deletion. Now points at `PhoenixKitCustomerSupport.Ticket` (PR #514)
+- V108 (drag-and-drop position columns, shipped in 1.7.103) was missing from the `lib/phoenix_kit/migrations/postgres.ex` per-version docstring catalog. Backfilled in this release alongside the V109 entry (PR #514 review)
+- `lib/phoenix_kit/migrations/postgres/v109.ex` `rename_role_permission/4` carried an unused `_prefix` arg — the table name is already prefix-qualified at the call site. Trimmed to `/3` (PR #514 review)
+
 ## 1.7.103 - 2026-05-02
 
 ### Added

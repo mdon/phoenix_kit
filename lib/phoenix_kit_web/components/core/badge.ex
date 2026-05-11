@@ -7,6 +7,7 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @doc """
@@ -99,9 +100,9 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   defp status_class(true, _), do: "badge-success"
 
   # User status text
-  defp status_text(false, _), do: "Inactive"
-  defp status_text(true, nil), do: "Unconfirmed"
-  defp status_text(true, _), do: "Active"
+  defp status_text(false, _), do: gettext("Inactive")
+  defp status_text(true, nil), do: gettext("Unconfirmed")
+  defp status_text(true, _), do: gettext("Active")
 
   # Code status for referral codes
   defp code_status_class(code) do
@@ -121,13 +122,13 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   defp code_status_text(code) do
     cond do
       code.number_of_uses >= code.max_uses ->
-        "Expired"
+        gettext("Expired")
 
       code.expiration_date && DateTime.compare(UtilsDate.utc_now(), code.expiration_date) == :gt ->
-        "Expired"
+        gettext("Expired")
 
       true ->
-        "Active"
+        gettext("Active")
     end
   end
 
@@ -151,10 +152,15 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   def category_badge(assigns) do
     ~H"""
     <div class={["badge", category_class(@category), size_class(@size), @class]}>
-      {String.capitalize(@category)}
+      {category_text(@category)}
     </div>
     """
   end
+
+  defp category_text("system"), do: gettext("System")
+  defp category_text("marketing"), do: gettext("Marketing")
+  defp category_text("transactional"), do: gettext("Transactional")
+  defp category_text(other), do: String.capitalize(to_string(other))
 
   # Template category classes
   defp category_class("system"), do: "badge-info"
@@ -182,7 +188,7 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
   def enabled_badge(assigns) do
     ~H"""
     <span class={["badge", enabled_class(@enabled), size_class(@size), @class]}>
-      {if @enabled, do: "Active", else: "Disabled"}
+      {if @enabled, do: gettext("Active"), else: gettext("Disabled")}
     </span>
     """
   end

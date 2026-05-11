@@ -99,7 +99,7 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
                     {entry.progress}%
                   </progress>
                   <span class="text-xs text-base-content/60 min-w-max">
-                    {entry.progress}%
+                    Uploading… {entry.progress}%
                   </span>
                 </div>
               </div>

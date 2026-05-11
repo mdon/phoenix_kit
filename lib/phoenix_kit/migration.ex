@@ -185,6 +185,79 @@ defmodule PhoenixKit.Migration do
     migrator().migrated_version(opts)
   end
 
+  @doc """
+  Idempotently brings `repo` up to the latest PhoenixKit migration version.
+
+  Designed for test helpers and re-runnable boot paths where the
+  database is long-lived but the calling process restarts on every
+  invocation.
+
+  ## Why this exists
+
+  The natural-looking pattern
+
+      Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)
+
+  is broken for re-runnable contexts: `Ecto.Migrator` records "version
+  0 applied" in `schema_migrations` after the first call and filters
+  `{0, PhoenixKit.Migration}` out of pending on every subsequent call.
+  `PhoenixKit.Migration.up/1` is never re-invoked, so newly-shipped
+  Vxxx migrations don't get applied even though PhoenixKit's own marker
+  (the comment on the `phoenix_kit` table) is itself idempotent.
+
+  `ensure_current/2` works around that by passing a fresh wall-clock
+  version (`:os.system_time(:microsecond)`) to `Ecto.Migrator.up/4` on
+  every call. Ecto sees a "new" migration each time and invokes the
+  inner runner; PhoenixKit's marker then short-circuits if there's
+  nothing new to apply. The `schema_migrations` table accumulates one
+  row per call — cosmetic noise acceptable for the test-DB use case.
+  Microsecond precision keeps the collision and clock-skew windows
+  small enough that an NTP correction would have to rewind the clock
+  by µs at exactly the wrong moment to hide a newly-shipped migration.
+
+  For one-shot production migrations, prefer the documented
+  `mix ecto.migrate` path with a hand-rolled migration that calls
+  `PhoenixKit.Migration.up/1` directly.
+
+  ## Options
+
+  Forwarded verbatim to `Ecto.Migrator.up/4` and through to
+  `PhoenixKit.Migration.up/1`. Common values:
+
+    * `:log` — Ecto-level migration log (`:info` default; `false` to
+      silence)
+    * `:prefix` — runs PhoenixKit's tables under a non-default schema
+
+  ## Return contract
+
+  Returns `:ok` on success. Failures (advisory-lock contention,
+  migration crashes, connection errors) propagate as raises from
+  `Ecto.Migrator.up/4`; `ensure_current/2` does not wrap them in
+  `{:error, _}`.
+
+  ## Example
+
+      # In test/test_helper.exs
+      PhoenixKit.Migration.ensure_current(MyApp.Test.Repo, log: false)
+  """
+  @spec ensure_current(Ecto.Repo.t(), keyword()) :: :ok
+  def ensure_current(repo, opts \\ []) do
+    # Microsecond precision (rather than millisecond) shrinks the
+    # collision and clock-skew windows by 1000x. Two concurrent calls
+    # within the same microsecond would still collide, but in practice
+    # `ensure_current/2` runs once per `mix test` invocation. Bigint-
+    # safe (Postgres `bigint` covers ~9 quintillion microseconds, ~292
+    # years).
+    Ecto.Migrator.up(
+      repo,
+      :os.system_time(:microsecond),
+      PhoenixKit.Migration.Runner,
+      opts
+    )
+
+    :ok
+  end
+
   defp migrator do
     case repo().__adapter__() do
       Ecto.Adapters.Postgres -> PhoenixKit.Migrations.Postgres
@@ -193,4 +266,40 @@ defmodule PhoenixKit.Migration do
       _ -> Keyword.fetch!(repo().config(), :phoenix_kit_migrator)
     end
   end
+end
+
+defmodule PhoenixKit.Migration.Runner do
+  @moduledoc false
+  # Static `Ecto.Migration` wrapper consumed by
+  # `PhoenixKit.Migration.ensure_current/2`. Lives at module scope (not
+  # an anonymous one defined per call) so `Ecto.Migrator.up/4` can
+  # resolve `up/0` and `down/0` against a known module name.
+  #
+  # `prefix/0` is imported by `use Ecto.Migration` and reads the
+  # current migration's prefix from the runner's process state. When
+  # `ensure_current/2` is called with `prefix: "auth"`, Ecto.Migrator
+  # propagates that into the runner context; without forwarding it
+  # back into `PhoenixKit.Migration.up/1` here, the inner migrator
+  # would default to `"public"` and silently apply the migrations to
+  # the wrong schema.
+
+  use Ecto.Migration
+
+  def up, do: PhoenixKit.Migration.up(runner_opts(prefix()))
+  def down, do: PhoenixKit.Migration.down(runner_opts(prefix()))
+
+  # Pure transform of the runner-context prefix into opts threaded to
+  # `PhoenixKit.Migration.up/1` / `down/1`. Split out of `up/0` and
+  # `down/0` so it can be regression-tested without standing up a real
+  # `Ecto.Migration.Runner` process — see
+  # `test/phoenix_kit/migration_test.exs`.
+  #
+  # `prefix/0` returns nil when no `:prefix` opt was passed to
+  # `Ecto.Migrator.up/4`. Forwarding `prefix: nil` to PhoenixKit's
+  # migrator would override the `"public"` default in `with_defaults/2`
+  # and crash inside `String.replace/4`. Only thread `:prefix` when it's
+  # actually set.
+  @doc false
+  def runner_opts(nil), do: []
+  def runner_opts(prefix), do: [prefix: prefix]
 end
