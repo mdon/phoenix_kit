@@ -1845,14 +1845,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         Map.put(acc, instance.variant_name, url)
       end)
 
-    # For images, always surface a DZI manifest URL. The manifest itself is
-    # generated lazily on first request; tiles are generated lazily as OSD
-    # asks for them. See FileController.serve_manifest/2 + serve_tile/2.
-    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") do
+    # For images, surface a DZI manifest URL only when tile generation is
+    # enabled in storage settings. The manifest itself is generated lazily
+    # on first request; tiles are generated lazily as OSD asks for them.
+    # When the setting is off, no `urls["dzi"]` → Tessera falls back to
+    # the medium / large layers and never asks for tiles, so the
+    # lazy-generation path is never triggered.
+    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
+         tile_generation_enabled?() do
       Map.put(base, "dzi", Routes.path("/tiles/#{file_uuid}.dzi"))
     else
       base
     end
+  end
+
+  defp tile_generation_enabled? do
+    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
   end
 
   # Builds a parallel map of `%{variant_name => width}` from the same

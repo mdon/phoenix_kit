@@ -162,23 +162,27 @@ defmodule PhoenixKitWeb.FileController do
   serve from storage.
   """
   def serve_manifest(conn, %{"dzi_filename" => filename}) do
-    case parse_manifest_filename(filename) do
-      {:ok, file_uuid} ->
-        with {:ok, file} <- get_file(file_uuid),
-             :ok <- ensure_image(file),
-             {:ok, w, h} <- ensure_dimensions(file),
-             :ok <- ensure_manifest_cached(file_uuid, w, h),
-             {:ok, body} <- read_tile_storage("#{file_uuid}/#{file_uuid}.dzi") do
-          conn
-          |> put_resp_header("cache-control", "public, max-age=300")
-          |> put_resp_content_type("application/xml")
-          |> send_resp(200, body)
-        else
-          {:error, reason} -> tile_error(conn, reason)
-        end
+    if tile_generation_enabled?() do
+      case parse_manifest_filename(filename) do
+        {:ok, file_uuid} ->
+          with {:ok, file} <- get_file(file_uuid),
+               :ok <- ensure_image(file),
+               {:ok, w, h} <- ensure_dimensions(file),
+               :ok <- ensure_manifest_cached(file_uuid, w, h),
+               {:ok, body} <- read_tile_storage("#{file_uuid}/#{file_uuid}.dzi") do
+            conn
+            |> put_resp_header("cache-control", "public, max-age=300")
+            |> put_resp_content_type("application/xml")
+            |> send_resp(200, body)
+          else
+            {:error, reason} -> tile_error(conn, reason)
+          end
 
-      :error ->
-        send_resp(conn, 404, "Not found")
+        :error ->
+          send_resp(conn, 404, "Not found")
+      end
+    else
+      send_resp(conn, 404, "Tile generation disabled")
     end
   end
 
@@ -199,26 +203,34 @@ defmodule PhoenixKitWeb.FileController do
         "level" => level,
         "tile_filename" => tile_filename
       }) do
-    case parse_tile_path(files_segment, level, tile_filename) do
-      {:ok, file_uuid, level_int, col, row, ext} ->
-        with {:ok, file} <- get_file(file_uuid),
-             :ok <- ensure_image(file),
-             {:ok, w, h} <- ensure_dimensions(file),
-             key = "#{file_uuid}/#{file_uuid}_files/#{level_int}/#{col}_#{row}.#{ext}",
-             :ok <-
-               ensure_tile_cached(file_uuid, level_int, col, row, ext, w, h, key),
-             {:ok, body} <- read_tile_storage(key) do
-          conn
-          |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
-          |> put_resp_content_type(content_type_for(ext))
-          |> send_resp(200, body)
-        else
-          {:error, reason} -> tile_error(conn, reason)
-        end
+    if tile_generation_enabled?() do
+      case parse_tile_path(files_segment, level, tile_filename) do
+        {:ok, file_uuid, level_int, col, row, ext} ->
+          with {:ok, file} <- get_file(file_uuid),
+               :ok <- ensure_image(file),
+               {:ok, w, h} <- ensure_dimensions(file),
+               key = "#{file_uuid}/#{file_uuid}_files/#{level_int}/#{col}_#{row}.#{ext}",
+               :ok <-
+                 ensure_tile_cached(file_uuid, level_int, col, row, ext, w, h, key),
+               {:ok, body} <- read_tile_storage(key) do
+            conn
+            |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+            |> put_resp_content_type(content_type_for(ext))
+            |> send_resp(200, body)
+          else
+            {:error, reason} -> tile_error(conn, reason)
+          end
 
-      :error ->
-        send_resp(conn, 404, "Not found")
+        :error ->
+          send_resp(conn, 404, "Not found")
+      end
+    else
+      send_resp(conn, 404, "Tile generation disabled")
     end
+  end
+
+  defp tile_generation_enabled? do
+    PhoenixKit.Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
   end
 
   # ---------------------------------------------------------------------------
