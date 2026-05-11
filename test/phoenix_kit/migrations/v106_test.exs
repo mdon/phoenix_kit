@@ -1,25 +1,20 @@
 defmodule PhoenixKit.Migrations.Postgres.V106Test do
   @moduledoc """
-  Tests V106's schema split + the `down/1` cross-mode duplicate
-  pre-check.
+  Tests V106's `down/1` cross-mode duplicate pre-check.
 
   V106.up/down can't be invoked outside an `Ecto.Migrator` runner —
   they rely on `Ecto.Migration.execute/1` and `repo()` which both
   check for a runner process. Same constraint as V107Test. Instead,
-  this test:
+  this test replicates the duplicate-detection SQL the down step's
+  pre-check runs and exercises both branches (empty and
+  duplicate-found). This pins the query shape; if a future edit to
+  V106.down breaks the pre-check (e.g., wrong table name, wrong
+  column, missed `lower(...)` for case-insensitivity), the test
+  fails before operators discover it during a rollback.
 
-  1. Asserts the schema state V106.up produced is in place (the two
-     partial unique indexes exist; V101's global index does not).
-     The schema is implicitly verified at boot by `test_helper.exs`
-     which runs all migrations including V106 before any test —
-     these assertions just pin the post-V106 shape so a regression
-     that drops one of the partial indexes would be caught here.
-  2. Replicates the duplicate-detection SQL the down step's
-     pre-check runs and exercises both branches (empty and
-     duplicate-found). This pins the query shape; if a future edit
-     to V106.down breaks the pre-check (e.g., wrong table name,
-     wrong column, missed `lower(...)` for case-insensitivity), the
-     test fails before operators discover it during a rollback.
+  Post-V112 schema-state assertions (the V106 partial indexes were
+  dropped by V112, duplicate names now coexist freely) live in
+  `V112Test` — that's where the drop is owned.
   """
 
   use PhoenixKit.DataCase, async: false
@@ -50,89 +45,6 @@ defmodule PhoenixKit.Migrations.Postgres.V106Test do
       [],
       log: false
     )
-  end
-
-  describe "schema state (verified at boot)" do
-    # V112 reversed V106's structural uniqueness: name uniqueness is
-    # now policy, not schema. The two partial indexes V106 created
-    # are explicitly dropped in V112.up so editing a template's name
-    # never trips a stale index, and so future renamings (per
-    # phoenix_kit_projects' AGENTS.md "soft-delete + rename"
-    # convention) don't need migration coordination.
-    #
-    # These tests pin the post-V112 reality: V106's indexes are
-    # gone, V101's global index is also gone, duplicate names
-    # across all four (template/template, project/project,
-    # template/project, case variants) coexist freely.
-
-    test "V106's partial unique index for templates has been dropped by V112" do
-      %{rows: [[exists]]} =
-        Repo.query!("""
-        SELECT EXISTS (
-          SELECT 1 FROM pg_indexes
-          WHERE indexname = 'phoenix_kit_projects_name_template_index'
-        )
-        """)
-
-      assert exists == false
-    end
-
-    test "V106's partial unique index for real projects has been dropped by V112" do
-      %{rows: [[exists]]} =
-        Repo.query!("""
-        SELECT EXISTS (
-          SELECT 1 FROM pg_indexes
-          WHERE indexname = 'phoenix_kit_projects_name_project_index'
-        )
-        """)
-
-      assert exists == false
-    end
-
-    test "V101's global unique index also does not exist" do
-      # V106 dropped V101's global index. V112 dropped V106's
-      # partials. Neither index is in the current schema.
-      %{rows: [[exists]]} =
-        Repo.query!("""
-        SELECT EXISTS (
-          SELECT 1 FROM pg_indexes
-          WHERE indexname = 'phoenix_kit_projects_name_index'
-        )
-        """)
-
-      assert exists == false
-    end
-
-    test "templates and real projects can share a name (the V106 goal, still holds post-V112)" do
-      # The original V106 goal was per-mode uniqueness; V112 widened
-      # it to no-uniqueness. Either way templates + projects can
-      # share a name. Sandbox rolls these back at test end.
-      _template_uuid = insert_project!("Onboarding", true)
-      _project_uuid = insert_project!("Onboarding", false)
-
-      assert :ok = :ok
-    end
-
-    test "two templates with the same name now coexist (V112 dropped the partial index)" do
-      first = insert_project!("Quarterly Review", true)
-      second = insert_project!("Quarterly Review", true)
-
-      assert first != second
-    end
-
-    test "two real projects with the same name now coexist (V112 dropped the partial index)" do
-      first = insert_project!("Q4 Planning", false)
-      second = insert_project!("Q4 Planning", false)
-
-      assert first != second
-    end
-
-    test "case-only differences are also allowed now (no lower(name) index left)" do
-      first = insert_project!("Onboarding", true)
-      second = insert_project!("ONBOARDING", true)
-
-      assert first != second
-    end
   end
 
   describe "down/1 — cross-mode duplicate pre-check" do

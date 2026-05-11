@@ -532,8 +532,11 @@ defmodule PhoenixKit.Migrations.Postgres do
   ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime ⚡ LATEST
   - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the
     admin dashboard can soft-hide projects without flipping a status
-    enum. Visible-set partial index keeps the list query fast
-    (`WHERE archived_at IS NULL AND is_template = false`).
+    enum. Visible-set partial index (`phoenix_kit_projects_visible_idx`
+    on `inserted_at DESC WHERE archived_at IS NULL`) keeps both the
+    project list and template list queries fast — neither view shows
+    archived rows, so one partial covers both `is_template = false`
+    and `is_template = true` reads without two scoped indexes.
   - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
     `phoenix_kit_projects`, `phoenix_kit_project_tasks`, and
     `phoenix_kit_project_assignments` for per-language overrides on

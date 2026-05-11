@@ -107,7 +107,7 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
-    schema = if prefix == "public", do: "public", else: prefix
+    schema = schema_for(prefix)
 
     add_archived_at(p, schema)
     backfill_archived_at(p)
@@ -126,23 +126,20 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = schema_for(prefix)
 
-    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS position")
-    execute("ALTER TABLE #{p}phoenix_kit_project_tasks DROP COLUMN IF EXISTS position")
-    demote_scheduled_start_date_to_date(p, schema_for(prefix))
-
-    Enum.each(@translation_tables, fn table ->
-      execute("ALTER TABLE #{p}#{table} DROP COLUMN IF EXISTS translations")
-    end)
-
-    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_projects_visible_idx")
-    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS archived_at")
-
-    # Restoring the V105/V101 unique indexes on rollback so the down/up
-    # round-trip lands you back where V105 + V101 left things — without
-    # this, a `down(112) → up(112)` cycle would silently change the
-    # constraint set. `IF NOT EXISTS` because earlier-version DBs may
-    # already have these from V101/V105.
+    # Restore the V105/V101 unique indexes FIRST, before dropping any
+    # columns. V112's whole purpose was to let users create duplicate
+    # names — so on rollback, `CREATE UNIQUE INDEX` may fail with
+    # "could not create unique index … contains duplicate values" if
+    # post-V112 work introduced any. Doing index restoration first
+    # means a duplicate-name conflict aborts rollback cleanly with all
+    # V112 columns still intact, so the operator can dedupe and re-run
+    # rather than face a half-rolled schema (columns dropped, indexes
+    # not restored).
+    #
+    # `IF NOT EXISTS` because earlier-version DBs may already have
+    # these from V101/V105.
     execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_projects_name_template_index
       ON #{p}phoenix_kit_projects (lower(name))
@@ -159,6 +156,17 @@ defmodule PhoenixKit.Migrations.Postgres.V112 do
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_project_tasks_title_index
       ON #{p}phoenix_kit_project_tasks (lower(title))
     """)
+
+    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS position")
+    execute("ALTER TABLE #{p}phoenix_kit_project_tasks DROP COLUMN IF EXISTS position")
+    demote_scheduled_start_date_to_date(p, schema)
+
+    Enum.each(@translation_tables, fn table ->
+      execute("ALTER TABLE #{p}#{table} DROP COLUMN IF EXISTS translations")
+    end)
+
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_projects_visible_idx")
+    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS archived_at")
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '111'")
   end
