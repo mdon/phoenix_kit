@@ -275,7 +275,9 @@
                               <span class="badge badge-warning badge-sm h-auto">Pending</span>
                             <% end %>
                             <%= if user.is_active do %>
-                              <span class="badge badge-outline badge-xs h-auto">Active</span>
+                              <span class="badge badge-outline badge-xs h-auto">
+                                {gettext("Active")}
+                              </span>
                             <% else %>
                               <span class="badge badge-error badge-xs h-auto">
                                 {gettext("Inactive")}
