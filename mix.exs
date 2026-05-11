@@ -119,6 +119,9 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
+      # Deep zoom / pan-zoom image viewer (OpenSeadragon wrapper).
+      {:tessera, "~> 0.1"},
+
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
       {:backblaze_regions, "~> 0.1.0"},
