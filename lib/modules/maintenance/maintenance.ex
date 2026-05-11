@@ -524,7 +524,8 @@ defmodule PhoenixKit.Modules.Maintenance do
         priority: 932,
         level: :admin,
         parent: :admin_settings,
-        permission: "maintenance"
+        permission: "maintenance",
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end

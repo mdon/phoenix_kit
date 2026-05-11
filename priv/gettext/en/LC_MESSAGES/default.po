@@ -6185,3 +6185,319 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "requires the"
 msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:245
+#, elixir-autogen, elixir-format
+msgid "Authorization"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:294
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:235
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
+#, elixir-autogen, elixir-format
+msgid "Live Sessions"
+msgstr ""
+
+#: lib/modules/maintenance/maintenance.ex:528
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:93
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:160
+#, elixir-autogen, elixir-format
+msgid "Media"
+msgstr ""
+
+#: lib/modules/referrals/referrals.ex:658
+#, elixir-autogen, elixir-format
+msgid "Referrals"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/badge.ex:125
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/badge.ex:162
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:206
+#, elixir-autogen, elixir-format
+msgid "No expiration"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:212
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:187
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:188
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:190
+#, elixir-autogen, elixir-format
+msgid "%{count}d ago"
+msgstr ""
+
+msgid "Summary"
+msgstr ""
+
+msgid "Languages Enabled"
+msgstr ""
+
+msgid "Countries Covered"
+msgstr ""
+
+msgid "Enabled Languages"
+msgstr ""
+
+msgid "Default language"
+msgstr ""
+
+msgid "Available Languages"
+msgstr ""
+
+msgid "Language Configuration"
+msgstr ""
+
+msgid "Frontend Language Switcher"
+msgstr ""
+
+msgid "Switcher Settings"
+msgstr ""
+
+msgid "Show Flags"
+msgstr ""
+
+msgid "Show Names"
+msgstr ""
+
+msgid "Native Names"
+msgstr ""
+
+msgid "Go to Home"
+msgstr ""
+
+msgid "Hide Current"
+msgstr ""
+
+msgid "Generated Code"
+msgstr ""
+
+msgid "Implementation Notes"
+msgstr ""
+
+msgid "Enable and Configure Languages"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Reorder"
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
+msgid "No languages enabled yet."
+msgstr ""
+
+msgid "Sitemap Settings"
+msgstr ""
+
+msgid "Configure sitemap generation and scheduling"
+msgstr ""
+
+msgid "Total URLs"
+msgstr ""
+
+msgid "Sitemap Files"
+msgstr ""
+
+msgid "Last Generated"
+msgstr ""
+
+msgid "Regenerate All"
+msgstr ""
+
+msgid "Router Discovery"
+msgstr ""
+
+msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
+msgstr ""
+
+msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
+msgstr ""
+
+msgid "Routes"
+msgstr ""
+
+msgid "Static"
+msgstr ""
+
+msgid "Publishing"
+msgstr ""
+
+msgid "Entities"
+msgstr ""
+
+msgid "Posts"
+msgstr ""
+
+msgid "Shop"
+msgstr ""
+
+msgid "Module Sitemaps"
+msgstr ""
+
+msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
+msgstr ""
+
+msgid "Static Pages"
+msgstr ""
+
+msgid "Homepage and custom static URLs"
+msgstr ""
+
+msgid "View sitemap"
+msgstr ""
+
+msgid "module off"
+msgstr ""
+
+msgid "Blog groups and published posts"
+msgstr ""
+
+msgid "Split by blog group"
+msgstr ""
+
+msgid "Dynamic content types (per-type files)"
+msgstr ""
+
+msgid "Public posts from Posts module"
+msgstr ""
+
+msgid "Products, categories, catalog"
+msgstr ""
+
+msgid "Auth Pages"
+msgstr ""
+
+msgid "Login"
+msgstr ""
+
+msgid "Always excluded from sitemap"
+msgstr ""
+
+msgid "Excluded"
+msgstr ""
+
+msgid "Logout"
+msgstr ""
+
+msgid "Registration"
+msgstr ""
+
+msgid "Include in static sitemap"
+msgstr ""
+
+msgid "Configuration"
+msgstr ""
+
+msgid "Edit in Settings"
+msgstr ""
+
+msgid "Browser Display Styling"
+msgstr ""
+
+msgid "Style XML with XSL for beautiful browser display"
+msgstr ""
+
+msgid "Display Style"
+msgstr ""
+
+msgid "Table (Clean table layout)"
+msgstr ""
+
+msgid "Minimal (Simple list)"
+msgstr ""
+
+msgid "Scheduled Generation"
+msgstr ""
+
+msgid "Regenerate every"
+msgstr ""
+
+msgid "1 hour"
+msgstr ""
+
+msgid "6 hours"
+msgstr ""
+
+msgid "12 hours"
+msgstr ""
+
+msgid "24 hours"
+msgstr ""
+
+msgid "48 hours"
+msgstr ""
+
+msgid "Weekly"
+msgstr ""
+
+msgid "Preview Sitemap Source"
+msgstr ""
+
+msgid "Clear All Sitemaps"
+msgstr ""
+
+msgid "Generated sitemap files:"
+msgstr ""
+
+msgid "sitemap.xml (index)"
+msgstr ""
+
+msgid "/sitemap.xml contains all URLs in a single <urlset>"
+msgstr ""
+
+msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
+msgstr ""
+
+msgid "Sitemap Source"
+msgstr ""
+
+msgid "Open in Browser"
+msgstr ""

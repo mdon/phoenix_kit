@@ -25,7 +25,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       level: :admin,
       permission: permission,
       parent: parent,
-      match: Keyword.get(opts, :match, :prefix)
+      match: Keyword.get(opts, :match, :prefix),
+      gettext_backend: PhoenixKitWeb.Gettext
     }
   end
 
@@ -65,7 +66,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         level: :admin,
         permission: "dashboard",
         match: :exact,
-        group: :admin_main
+        group: :admin_main,
+        gettext_backend: PhoenixKitWeb.Gettext
       },
       # Users parent
       %Tab{
@@ -79,7 +81,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         match: :prefix,
         group: :admin_main,
         subtab_display: :when_active,
-        highlight_with_subtabs: false
+        highlight_with_subtabs: false,
+        gettext_backend: PhoenixKitWeb.Gettext
       },
       # Users subtabs
       admin_subtab(
@@ -147,7 +150,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         level: :admin,
         permission: "dashboard",
         match: :prefix,
-        group: :admin_main
+        group: :admin_main,
+        gettext_backend: PhoenixKitWeb.Gettext
       },
       # Media
       %Tab{
@@ -159,7 +163,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         level: :admin,
         permission: "media",
         match: :prefix,
-        group: :admin_main
+        group: :admin_main,
+        gettext_backend: PhoenixKitWeb.Gettext
       }
     ]
 
@@ -184,7 +189,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
             level: :admin,
             permission: "modules",
             match: :exact,
-            group: :admin_modules
+            group: :admin_modules,
+            gettext_backend: PhoenixKitWeb.Gettext
           },
           :admin
         )
@@ -217,7 +223,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
           group: :admin_system,
           subtab_display: :when_active,
           highlight_with_subtabs: false,
-          visible: &__MODULE__.settings_visible?/1
+          visible: &__MODULE__.settings_visible?/1,
+          gettext_backend: PhoenixKitWeb.Gettext
         },
         :admin
       )
@@ -281,7 +288,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         match: :prefix,
         parent: :admin_settings,
         subtab_display: :when_active,
-        highlight_with_subtabs: false
+        highlight_with_subtabs: false,
+        gettext_backend: PhoenixKitWeb.Gettext
       },
       admin_subtab(
         :admin_settings_media_dimensions,

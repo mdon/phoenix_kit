@@ -881,7 +881,7 @@ msgstr "Описание"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:400
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Disabled"
-msgstr "Отключенные аккаунты"
+msgstr "Отключено"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:265
 #, elixir-autogen, elixir-format
@@ -1138,7 +1138,7 @@ msgstr "Изображение"
 #: lib/phoenix_kit_web/users/user_form.html.heex:769
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Inactive"
-msgstr "Неактивные пользователи"
+msgstr "Неактивен"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:481
 #: lib/phoenix_kit_web/live/settings.html.heex:489
@@ -2103,7 +2103,7 @@ msgstr "Удалить бакет"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:430
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Disable"
-msgstr "Отключенные аккаунты"
+msgstr "Отключить"
 
 #: lib/modules/storage/web/settings.html.heex:261
 #, elixir-autogen, elixir-format
@@ -6194,3 +6194,319 @@ msgstr "должен быть включён. Некоторые функции 
 #, elixir-autogen, elixir-format
 msgid "requires the"
 msgstr "требует, чтобы модуль"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr "Активность"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:245
+#, elixir-autogen, elixir-format
+msgid "Authorization"
+msgstr "Авторизация"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:294
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr "Размеры"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:235
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr "Общие"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
+#, elixir-autogen, elixir-format
+msgid "Live Sessions"
+msgstr "Активные сессии"
+
+#: lib/modules/maintenance/maintenance.ex:528
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr "Обслуживание"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:93
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr "Управление пользователями"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:160
+#, elixir-autogen, elixir-format
+msgid "Media"
+msgstr "Медиа"
+
+#: lib/modules/referrals/referrals.ex:658
+#, elixir-autogen, elixir-format
+msgid "Referrals"
+msgstr "Рефералы"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:125
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr "Истёк"
+
+#: lib/phoenix_kit_web/components/core/badge.ex:162
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr "Транзакционный"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:206
+#, elixir-autogen, elixir-format
+msgid "No expiration"
+msgstr "Без срока действия"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:212
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr "Сегодня"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:187
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr "%{count} с назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:188
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr "%{count} мин назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr "%{count} ч назад"
+
+#: lib/phoenix_kit_web/components/core/time_display.ex:190
+#, elixir-autogen, elixir-format
+msgid "%{count}d ago"
+msgstr "%{count} дн назад"
+
+msgid "Summary"
+msgstr "Сводка"
+
+msgid "Languages Enabled"
+msgstr "Включенные языки"
+
+msgid "Countries Covered"
+msgstr "Охваченные страны"
+
+msgid "Enabled Languages"
+msgstr "Включенные языки"
+
+msgid "Default language"
+msgstr "Язык по умолчанию"
+
+msgid "Available Languages"
+msgstr "Доступные языки"
+
+msgid "Language Configuration"
+msgstr "Настройка языков"
+
+msgid "Frontend Language Switcher"
+msgstr "Переключатель языков на фронтенде"
+
+msgid "Switcher Settings"
+msgstr "Настройки переключателя"
+
+msgid "Show Flags"
+msgstr "Показывать флаги"
+
+msgid "Show Names"
+msgstr "Показывать названия"
+
+msgid "Native Names"
+msgstr "Названия на родном языке"
+
+msgid "Go to Home"
+msgstr "Перейти на главную"
+
+msgid "Hide Current"
+msgstr "Скрыть текущий"
+
+msgid "Generated Code"
+msgstr "Сгенерированный код"
+
+msgid "Implementation Notes"
+msgstr "Заметки по внедрению"
+
+msgid "Enable and Configure Languages"
+msgstr "Включить и настроить языки"
+
+msgid "Done"
+msgstr "Готово"
+
+msgid "Reorder"
+msgstr "Изменить порядок"
+
+msgid "Default"
+msgstr "По умолчанию"
+
+msgid "No languages enabled yet."
+msgstr "Языки ещё не включены."
+
+msgid "Sitemap Settings"
+msgstr "Настройки карты сайта"
+
+msgid "Configure sitemap generation and scheduling"
+msgstr "Настройка генерации и расписания карты сайта"
+
+msgid "Total URLs"
+msgstr "Всего URL"
+
+msgid "Sitemap Files"
+msgstr "Файлы карты сайта"
+
+msgid "Last Generated"
+msgstr "Последняя генерация"
+
+msgid "Regenerate All"
+msgstr "Перегенерировать всё"
+
+msgid "Router Discovery"
+msgstr "Обнаружение маршрутов"
+
+msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
+msgstr "При включении сканирует все маршруты и создаёт единый плоский sitemap.xml со всеми URL из всех источников контента (магазин, сущности, публикации, записи). При отключении каждый источник генерирует свой файл карты сайта."
+
+msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
+msgstr "Плоский режим активен — /sitemap.xml содержит все URL в одном <urlset>"
+
+msgid "Routes"
+msgstr "Маршруты"
+
+msgid "Static"
+msgstr "Статические"
+
+msgid "Publishing"
+msgstr "Публикации"
+
+msgid "Entities"
+msgstr "Сущности"
+
+msgid "Posts"
+msgstr "Записи"
+
+msgid "Shop"
+msgstr "Магазин"
+
+msgid "Module Sitemaps"
+msgstr "Карты сайта модулей"
+
+msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
+msgstr "Каждый источник генерирует свой файл карты сайта, на который ссылается главный индекс"
+
+msgid "Static Pages"
+msgstr "Статические страницы"
+
+msgid "Homepage and custom static URLs"
+msgstr "Главная страница и пользовательские статические URL"
+
+msgid "View sitemap"
+msgstr "Просмотр карты сайта"
+
+msgid "module off"
+msgstr "модуль отключён"
+
+msgid "Blog groups and published posts"
+msgstr "Группы блогов и опубликованные записи"
+
+msgid "Split by blog group"
+msgstr "Разделить по группам блогов"
+
+msgid "Dynamic content types (per-type files)"
+msgstr "Динамические типы контента (отдельные файлы для каждого типа)"
+
+msgid "Public posts from Posts module"
+msgstr "Публичные записи из модуля Posts"
+
+msgid "Products, categories, catalog"
+msgstr "Товары, категории, каталог"
+
+msgid "Auth Pages"
+msgstr "Страницы авторизации"
+
+msgid "Login"
+msgstr "Вход"
+
+msgid "Always excluded from sitemap"
+msgstr "Всегда исключена из карты сайта"
+
+msgid "Excluded"
+msgstr "Исключено"
+
+msgid "Logout"
+msgstr "Выход"
+
+msgid "Registration"
+msgstr "Регистрация"
+
+msgid "Include in static sitemap"
+msgstr "Включить в статическую карту сайта"
+
+msgid "Configuration"
+msgstr "Конфигурация"
+
+msgid "Edit in Settings"
+msgstr "Изменить в настройках"
+
+msgid "Browser Display Styling"
+msgstr "Стилизация для браузера"
+
+msgid "Style XML with XSL for beautiful browser display"
+msgstr "Стилизовать XML с помощью XSL для красивого отображения в браузере"
+
+msgid "Display Style"
+msgstr "Стиль отображения"
+
+msgid "Table (Clean table layout)"
+msgstr "Таблица (чистый табличный вид)"
+
+msgid "Minimal (Simple list)"
+msgstr "Минимальный (простой список)"
+
+msgid "Scheduled Generation"
+msgstr "Запланированная генерация"
+
+msgid "Regenerate every"
+msgstr "Перегенерировать каждые"
+
+msgid "1 hour"
+msgstr "1 час"
+
+msgid "6 hours"
+msgstr "6 часов"
+
+msgid "12 hours"
+msgstr "12 часов"
+
+msgid "24 hours"
+msgstr "24 часа"
+
+msgid "48 hours"
+msgstr "48 часов"
+
+msgid "Weekly"
+msgstr "Еженедельно"
+
+msgid "Preview Sitemap Source"
+msgstr "Предпросмотр источника карты сайта"
+
+msgid "Clear All Sitemaps"
+msgstr "Очистить все карты сайта"
+
+msgid "Generated sitemap files:"
+msgstr "Сгенерированные файлы карты сайта:"
+
+msgid "sitemap.xml (index)"
+msgstr "sitemap.xml (индекс)"
+
+msgid "/sitemap.xml contains all URLs in a single <urlset>"
+msgstr "/sitemap.xml содержит все URL в одном <urlset>"
+
+msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
+msgstr "/sitemap.xml — это индекс карт сайта, ссылающийся на файлы отдельных модулей"
+
+msgid "Sitemap Source"
+msgstr "Исходный код карты сайта"
+
+msgid "Open in Browser"
+msgstr "Открыть в браузере"
