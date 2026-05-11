@@ -1044,7 +1044,7 @@
                                     <li>
                                       <div class="px-3 py-1.5">
                                         <span class="text-xs font-semibold text-base-content/50 mb-1 block">
-                                          Color
+                                          {gettext("Color")}
                                         </span>
                                         <div class="flex flex-wrap gap-1">
                                           <%= for color <- PhoenixKit.Modules.Storage.Folder.colors() do %>
@@ -1075,10 +1075,10 @@
                                         phx-click="delete_folder"
                                         phx-target={@myself}
                                         phx-value-id={folder.uuid}
-                                        data-confirm={"Delete '#{folder.name}'? Files move to parent."}
+                                        data-confirm={gettext("Delete '%{name}'? Files move to parent.", name: folder.name)}
                                         class="text-error"
                                       >
-                                        <.icon name="hero-trash" class="w-4 h-4" /> Delete
+                                        <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
                                       </button>
                                     </li>
                                   </ul>
@@ -1336,7 +1336,7 @@
               <% true -> %>
                 <div class="flex flex-col items-center justify-center text-base-content/50 py-12">
                   <.icon name={file_icon(f.file_type)} class="w-32 h-32 mb-4" />
-                  <p class="text-2xl font-semibold">{String.upcase(f.file_type || "FILE")}</p>
+                  <p class="text-2xl font-semibold">{String.upcase(f.file_type || gettext("FILE"))}</p>
                   <p class="text-sm text-base-content/70 mt-2">{f.mime_type}</p>
                 </div>
             <% end %>
@@ -1364,7 +1364,7 @@
               <div>
                 <span class="text-base-content/60">{gettext("Type:")}</span>
                 <span class="ml-1 badge badge-ghost">
-                  {String.upcase(f.file_type || "FILE")}
+                  {String.upcase(f.file_type || gettext("FILE"))}
                 </span>
               </div>
               <div class="break-all">
