@@ -14,79 +14,79 @@
     />
 
     <%!-- Settings Form --%>
-    <div class="max-w-2xl mx-auto">
-      <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-          <h2 class="card-title text-xl mb-6">{gettext("Authorization Configuration")}</h2>
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-6">{gettext("Authorization Configuration")}</h2>
 
-          <.form
-            :let={_form}
-            for={@changeset}
-            id="authorization_settings_form"
-            phx-submit="save_settings"
-            phx-change="validate_settings"
-            class="space-y-6"
-          >
-            <%!-- Hidden fields for required settings from other pages --%>
-            <%!-- General Settings --%>
-            <input
-              type="hidden"
-              name="settings[project_title]"
-              value={@saved_settings["project_title"]}
-            />
-            <input
-              type="hidden"
-              name="settings[site_url]"
-              value={@saved_settings["site_url"]}
-            />
-            <input
-              type="hidden"
-              name="settings[week_start_day]"
-              value={@saved_settings["week_start_day"]}
-            />
-            <input
-              type="hidden"
-              name="settings[time_zone]"
-              value={@saved_settings["time_zone"]}
-            />
-            <input
-              type="hidden"
-              name="settings[date_format]"
-              value={@saved_settings["date_format"]}
-            />
-            <input
-              type="hidden"
-              name="settings[time_format]"
-              value={@saved_settings["time_format"]}
-            />
+        <.form
+          :let={_form}
+          for={@changeset}
+          id="authorization_settings_form"
+          phx-submit="save_settings"
+          phx-change="validate_settings"
+          class="space-y-6"
+        >
+          <%!-- Hidden fields for required settings from other pages --%>
+          <%!-- General Settings --%>
+          <input
+            type="hidden"
+            name="settings[project_title]"
+            value={@saved_settings["project_title"]}
+          />
+          <input
+            type="hidden"
+            name="settings[site_url]"
+            value={@saved_settings["site_url"]}
+          />
+          <input
+            type="hidden"
+            name="settings[week_start_day]"
+            value={@saved_settings["week_start_day"]}
+          />
+          <input
+            type="hidden"
+            name="settings[time_zone]"
+            value={@saved_settings["time_zone"]}
+          />
+          <input
+            type="hidden"
+            name="settings[date_format]"
+            value={@saved_settings["date_format"]}
+          />
+          <input
+            type="hidden"
+            name="settings[time_format]"
+            value={@saved_settings["time_format"]}
+          />
 
-            <%!-- Users Settings --%>
-            <input
-              type="hidden"
-              name="settings[allow_registration]"
-              value={@saved_settings["allow_registration"]}
-            />
-            <input
-              type="hidden"
-              name="settings[new_user_default_role]"
-              value={@saved_settings["new_user_default_role"]}
-            />
-            <input
-              type="hidden"
-              name="settings[new_user_default_status]"
-              value={@saved_settings["new_user_default_status"]}
-            />
-            <input
-              type="hidden"
-              name="settings[track_registration_geolocation]"
-              value={@saved_settings["track_registration_geolocation"]}
-            />
+          <%!-- Users Settings --%>
+          <input
+            type="hidden"
+            name="settings[allow_registration]"
+            value={@saved_settings["allow_registration"]}
+          />
+          <input
+            type="hidden"
+            name="settings[new_user_default_role]"
+            value={@saved_settings["new_user_default_role"]}
+          />
+          <input
+            type="hidden"
+            name="settings[new_user_default_status]"
+            value={@saved_settings["new_user_default_status"]}
+          />
+          <input
+            type="hidden"
+            name="settings[track_registration_geolocation]"
+            value={@saved_settings["track_registration_geolocation"]}
+          />
 
-            <%!-- Login Page Branding --%>
-            <div class="divider text-sm text-base-content/50">
-              {gettext("Login Page Branding")}
-            </div>
+          <%!-- Login Page Branding --%>
+          <div class="divider text-sm text-base-content/50">
+            {gettext("Login Page Branding")}
+          </div>
 
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text text-base font-medium">
@@ -185,209 +185,211 @@
                 </span>
               </div>
             </div>
+          </div>
 
-            <div class="form-control w-full">
-              <label class="label">
-                <span class="label-text text-base font-medium">
-                  {gettext("Background Color")}
-                </span>
-              </label>
-              <input
-                name="settings[auth_background_color]"
-                type="text"
-                value={@settings["auth_background_color"]}
-                class="input input-bordered w-full focus:input-primary"
-                placeholder={gettext("#1a1a2e or linear-gradient(135deg, #667eea, #764ba2)")}
-                phx-debounce="500"
-              />
-              <div class="label">
-                <span class="label-text-alt text-xs text-base-content/50">
-                  {gettext(
-                    "CSS color or gradient for auth page background. Ignored if a background image is set."
-                  )}
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text text-base font-medium">
+                {gettext("Background Color")}
+              </span>
+            </label>
+            <input
+              name="settings[auth_background_color]"
+              type="text"
+              value={@settings["auth_background_color"]}
+              class="input input-bordered w-full focus:input-primary"
+              placeholder={gettext("#1a1a2e or linear-gradient(135deg, #667eea, #764ba2)")}
+              phx-debounce="500"
+            />
+            <div class="label">
+              <span class="label-text-alt text-xs text-base-content/50">
+                {gettext(
+                  "CSS color or gradient for auth page background. Ignored if a background image is set."
+                )}
+              </span>
+            </div>
+          </div>
+
+          <%!-- Authentication Methods Setting --%>
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text text-base font-medium">
+                {gettext("Authentication Methods")}
+              </span>
+              <span class="label-text-alt text-sm text-base-content/60">
+                {gettext("Control available login/registration methods")}
+              </span>
+            </label>
+
+            <%!-- Magic Link Methods --%>
+            <div class="mb-3">
+              <div class="text-sm font-semibold text-base-content/70 mb-2">
+                {gettext("Magic Link")}
+              </div>
+              <div class="flex items-center gap-3 mb-2 ml-4">
+                <input
+                  name="settings[magic_link_login_enabled]"
+                  type="hidden"
+                  value="false"
+                />
+                <input
+                  name="settings[magic_link_login_enabled]"
+                  type="checkbox"
+                  value="true"
+                  checked={@settings["magic_link_login_enabled"] == "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">{gettext("Enable Magic Link for login")}</span>
+              </div>
+              <div class="flex items-center gap-3 ml-4">
+                <input
+                  name="settings[magic_link_registration_enabled]"
+                  type="hidden"
+                  value="false"
+                />
+                <input
+                  name="settings[magic_link_registration_enabled]"
+                  type="checkbox"
+                  value="true"
+                  checked={
+                    @settings["magic_link_registration_enabled"] == "true" and
+                      @settings["allow_registration"] == "true"
+                  }
+                  disabled={@settings["allow_registration"] != "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class={[
+                  "label-text",
+                  @settings["allow_registration"] != "true" && "text-base-content/40"
+                ]}>
+                  {gettext("Enable Magic Link for registration")}
+                  <%= if @settings["allow_registration"] != "true" do %>
+                    <span class="text-xs italic">{gettext("(registration disabled)")}</span>
+                  <% end %>
                 </span>
               </div>
             </div>
 
-            <%!-- Authentication Methods Setting --%>
-            <div class="form-control w-full">
-              <label class="label">
-                <span class="label-text text-base font-medium">
-                  {gettext("Authentication Methods")}
+            <%!-- OAuth Methods --%>
+            <div>
+              <div class="text-sm font-semibold text-base-content/70 mb-2">
+                {gettext("OAuth Providers")}
+              </div>
+              <div class="flex items-center gap-3 mb-2 ml-4">
+                <input name="settings[oauth_enabled]" type="hidden" value="false" />
+                <input
+                  name="settings[oauth_enabled]"
+                  type="checkbox"
+                  value="true"
+                  checked={@settings["oauth_enabled"] == "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text font-semibold">
+                  {gettext("Enable OAuth (Master Switch)")}
                 </span>
-                <span class="label-text-alt text-sm text-base-content/60">
-                  {gettext("Control available login/registration methods")}
-                </span>
-              </label>
+              </div>
 
-              <%!-- Magic Link Methods --%>
-              <div class="mb-3">
-                <div class="text-sm font-semibold text-base-content/70 mb-2">
-                  {gettext("Magic Link")}
-                </div>
-                <div class="flex items-center gap-3 mb-2 ml-4">
+              <%!-- Individual OAuth Providers (disabled if master is off) --%>
+              <div class={[
+                "ml-8 space-y-2",
+                if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
+              ]}>
+                <div class="flex items-center gap-3">
                   <input
-                    name="settings[magic_link_login_enabled]"
+                    name="settings[oauth_google_enabled]"
                     type="hidden"
                     value="false"
                   />
                   <input
-                    name="settings[magic_link_login_enabled]"
+                    name="settings[oauth_google_enabled]"
                     type="checkbox"
                     value="true"
-                    checked={@settings["magic_link_login_enabled"] == "true"}
-                    class="checkbox checkbox-primary"
+                    checked={@settings["oauth_google_enabled"] == "true"}
+                    class={[
+                      "checkbox checkbox-primary",
+                      if(@settings["oauth_enabled"] != "true",
+                        do: "pointer-events-none",
+                        else: ""
+                      )
+                    ]}
                   />
-                  <span class="label-text">{gettext("Enable Magic Link for login")}</span>
+                  <span class="label-text">{gettext("Google Sign-In")}</span>
                 </div>
-                <div class="flex items-center gap-3 ml-4">
+                <div class="flex items-center gap-3">
+                  <input name="settings[oauth_apple_enabled]" type="hidden" value="false" />
                   <input
-                    name="settings[magic_link_registration_enabled]"
+                    name="settings[oauth_apple_enabled]"
+                    type="checkbox"
+                    value="true"
+                    checked={@settings["oauth_apple_enabled"] == "true"}
+                    class={[
+                      "checkbox checkbox-primary",
+                      if(@settings["oauth_enabled"] != "true",
+                        do: "pointer-events-none",
+                        else: ""
+                      )
+                    ]}
+                  />
+                  <span class="label-text">{gettext("Apple Sign-In")}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input
+                    name="settings[oauth_github_enabled]"
                     type="hidden"
                     value="false"
                   />
                   <input
-                    name="settings[magic_link_registration_enabled]"
+                    name="settings[oauth_github_enabled]"
                     type="checkbox"
                     value="true"
-                    checked={
-                      @settings["magic_link_registration_enabled"] == "true" and
-                        @settings["allow_registration"] == "true"
-                    }
-                    disabled={@settings["allow_registration"] != "true"}
-                    class="checkbox checkbox-primary"
+                    checked={@settings["oauth_github_enabled"] == "true"}
+                    class={[
+                      "checkbox checkbox-primary",
+                      if(@settings["oauth_enabled"] != "true",
+                        do: "pointer-events-none",
+                        else: ""
+                      )
+                    ]}
                   />
-                  <span class={[
-                    "label-text",
-                    @settings["allow_registration"] != "true" && "text-base-content/40"
-                  ]}>
-                    {gettext("Enable Magic Link for registration")}
-                    <%= if @settings["allow_registration"] != "true" do %>
-                      <span class="text-xs italic">{gettext("(registration disabled)")}</span>
-                    <% end %>
-                  </span>
+                  <span class="label-text">{gettext("GitHub Sign-In")}</span>
                 </div>
-              </div>
-
-              <%!-- OAuth Methods --%>
-              <div>
-                <div class="text-sm font-semibold text-base-content/70 mb-2">
-                  {gettext("OAuth Providers")}
-                </div>
-                <div class="flex items-center gap-3 mb-2 ml-4">
-                  <input name="settings[oauth_enabled]" type="hidden" value="false" />
+                <div class="flex items-center gap-3">
                   <input
-                    name="settings[oauth_enabled]"
+                    name="settings[oauth_facebook_enabled]"
+                    type="hidden"
+                    value="false"
+                  />
+                  <input
+                    name="settings[oauth_facebook_enabled]"
                     type="checkbox"
                     value="true"
-                    checked={@settings["oauth_enabled"] == "true"}
-                    class="checkbox checkbox-primary"
+                    checked={@settings["oauth_facebook_enabled"] == "true"}
+                    class={[
+                      "checkbox checkbox-primary",
+                      if(@settings["oauth_enabled"] != "true",
+                        do: "pointer-events-none",
+                        else: ""
+                      )
+                    ]}
                   />
-                  <span class="label-text font-semibold">
-                    {gettext("Enable OAuth (Master Switch)")}
-                  </span>
-                </div>
-
-                <%!-- Individual OAuth Providers (disabled if master is off) --%>
-                <div class={[
-                  "ml-8 space-y-2",
-                  if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
-                ]}>
-                  <div class="flex items-center gap-3">
-                    <input
-                      name="settings[oauth_google_enabled]"
-                      type="hidden"
-                      value="false"
-                    />
-                    <input
-                      name="settings[oauth_google_enabled]"
-                      type="checkbox"
-                      value="true"
-                      checked={@settings["oauth_google_enabled"] == "true"}
-                      class={[
-                        "checkbox checkbox-primary",
-                        if(@settings["oauth_enabled"] != "true",
-                          do: "pointer-events-none",
-                          else: ""
-                        )
-                      ]}
-                    />
-                    <span class="label-text">{gettext("Google Sign-In")}</span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <input name="settings[oauth_apple_enabled]" type="hidden" value="false" />
-                    <input
-                      name="settings[oauth_apple_enabled]"
-                      type="checkbox"
-                      value="true"
-                      checked={@settings["oauth_apple_enabled"] == "true"}
-                      class={[
-                        "checkbox checkbox-primary",
-                        if(@settings["oauth_enabled"] != "true",
-                          do: "pointer-events-none",
-                          else: ""
-                        )
-                      ]}
-                    />
-                    <span class="label-text">{gettext("Apple Sign-In")}</span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <input
-                      name="settings[oauth_github_enabled]"
-                      type="hidden"
-                      value="false"
-                    />
-                    <input
-                      name="settings[oauth_github_enabled]"
-                      type="checkbox"
-                      value="true"
-                      checked={@settings["oauth_github_enabled"] == "true"}
-                      class={[
-                        "checkbox checkbox-primary",
-                        if(@settings["oauth_enabled"] != "true",
-                          do: "pointer-events-none",
-                          else: ""
-                        )
-                      ]}
-                    />
-                    <span class="label-text">{gettext("GitHub Sign-In")}</span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <input
-                      name="settings[oauth_facebook_enabled]"
-                      type="hidden"
-                      value="false"
-                    />
-                    <input
-                      name="settings[oauth_facebook_enabled]"
-                      type="checkbox"
-                      value="true"
-                      checked={@settings["oauth_facebook_enabled"] == "true"}
-                      class={[
-                        "checkbox checkbox-primary",
-                        if(@settings["oauth_enabled"] != "true",
-                          do: "pointer-events-none",
-                          else: ""
-                        )
-                      ]}
-                    />
-                    <span class="label-text">{gettext("Facebook Sign-In")}</span>
-                  </div>
+                  <span class="label-text">{gettext("Facebook Sign-In")}</span>
                 </div>
               </div>
+            </div>
 
-              <%!-- OAuth Provider Credential Forms --%>
-              <%= if @settings["oauth_enabled"] == "true" do %>
-                <%!-- Google OAuth Credentials --%>
-                <div class={[
-                  if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
-                ]}>
-                  <div class="card bg-base-200 p-4 mt-3">
-                    <h3 class="font-semibold mb-3 flex items-center gap-2">
-                      <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
-                      {gettext("Google OAuth Credentials")}
-                    </h3>
+            <%!-- OAuth Provider Credential Forms --%>
+            <%= if @settings["oauth_enabled"] == "true" do %>
+              <%!-- Google OAuth Credentials --%>
+              <div class={[
+                if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
+              ]}>
+                <div class="card bg-base-200 p-4 mt-3">
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
+                    {gettext("Google OAuth Credentials")}
+                  </h3>
 
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="form-control">
                       <label class="label">
                         <span class="label-text">{gettext("Client ID")}</span>
@@ -401,7 +403,7 @@
                       />
                     </div>
 
-                    <div class="form-control mt-2">
+                    <div class="form-control">
                       <label class="label">
                         <span class="label-text">{gettext("Client Secret")}</span>
                       </label>
@@ -413,126 +415,128 @@
                         class="input input-bordered"
                       />
                     </div>
+                  </div>
 
-                    <button
-                      type="button"
-                      phx-click="test_oauth"
-                      phx-value-provider="google"
-                      class="btn btn-sm btn-outline mt-3 w-fit"
-                    >
-                      {gettext("Test Credentials")}
-                    </button>
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="google"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    {gettext("Test Credentials")}
+                  </button>
 
-                    <%!-- Google OAuth Setup Instructions --%>
-                    <div class="collapse collapse-arrow bg-base-200 mt-4">
-                      <input type="checkbox" class="peer" />
-                      <div class="collapse-title text-sm font-medium">
-                        {gettext("Setup Instructions")}
-                      </div>
-                      <div class="collapse-content text-sm space-y-4">
-                        <%!-- Callback URL Section --%>
-                        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                          <div class="flex items-start gap-3">
-                            <.icon
-                              name="hero-information-circle"
-                              class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                            />
-                            <div class="flex-1 min-w-0">
-                              <div class="text-sm font-semibold text-base-content mb-2">
-                                {gettext("Callback URL")}
-                              </div>
-                              <div class="flex items-center gap-2">
-                                <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                  {get_oauth_callback_url(@settings, "google")}
-                                </code>
-                                <button
-                                  type="button"
-                                  class="btn btn-sm btn-square btn-outline"
-                                  onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "google")}')"}
-                                  title={gettext("Copy to clipboard")}
-                                >
-                                  <.icon name="hero-clipboard" class="h-4 w-4" />
-                                </button>
-                              </div>
-                              <div class="text-xs text-base-content/60 mt-2">
-                                {gettext("Copy this URL to Google Cloud Console")}
-                              </div>
+                  <%!-- Google OAuth Setup Instructions --%>
+                  <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title text-sm font-medium">
+                      {gettext("Setup Instructions")}
+                    </div>
+                    <div class="collapse-content text-sm space-y-4">
+                      <%!-- Callback URL Section --%>
+                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                          <.icon
+                            name="hero-information-circle"
+                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-base-content mb-2">
+                              {gettext("Callback URL")}
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                {get_oauth_callback_url(@settings, "google")}
+                              </code>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-square btn-outline"
+                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "google")}')"}
+                                title={gettext("Copy to clipboard")}
+                              >
+                                <.icon name="hero-clipboard" class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="text-xs text-base-content/60 mt-2">
+                              {gettext("Copy this URL to Google Cloud Console")}
                             </div>
                           </div>
                         </div>
+                      </div>
 
-                        <%!-- Step-by-step Instructions --%>
-                        <div class="space-y-3">
-                          <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                            <li>
-                              {gettext("Visit")}
-                              <a
-                                href="https://console.cloud.google.com/apis/credentials"
-                                target="_blank"
-                                class="link link-primary"
-                              >
-                                Google Cloud Console
-                              </a>
-                            </li>
-                            <li>{gettext("Create project or select existing one")}</li>
-                            <li>
-                              {gettext("Go to")} <strong>Credentials</strong>
-                              → <strong>Create Credentials</strong>
-                              → <strong>OAuth client ID</strong>
-                            </li>
-                            <li>
-                              {gettext("Select")}
-                              <strong>Web application</strong> {gettext("type")}
-                            </li>
-                            <li>
-                              {gettext("Add callback URL above to")}
-                              <strong>Authorized redirect URIs</strong>
-                            </li>
-                            <li>{gettext("Copy Client ID and Secret to fields above")}</li>
-                            <li>
-                              {gettext("Click")}
-                              <strong>Test Credentials</strong> {gettext("to verify setup")}
-                            </li>
-                          </ol>
-                        </div>
+                      <%!-- Step-by-step Instructions --%>
+                      <div class="space-y-3">
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            {gettext("Visit")}
+                            <a
+                              href="https://console.cloud.google.com/apis/credentials"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              Google Cloud Console
+                            </a>
+                          </li>
+                          <li>{gettext("Create project or select existing one")}</li>
+                          <li>
+                            {gettext("Go to")} <strong>Credentials</strong>
+                            → <strong>Create Credentials</strong>
+                            → <strong>OAuth client ID</strong>
+                          </li>
+                          <li>
+                            {gettext("Select")}
+                            <strong>Web application</strong> {gettext("type")}
+                          </li>
+                          <li>
+                            {gettext("Add callback URL above to")}
+                            <strong>Authorized redirect URIs</strong>
+                          </li>
+                          <li>{gettext("Copy Client ID and Secret to fields above")}</li>
+                          <li>
+                            {gettext("Click")}
+                            <strong>Test Credentials</strong> {gettext("to verify setup")}
+                          </li>
+                        </ol>
+                      </div>
 
-                        <%!-- Reverse Proxy Notice --%>
-                        <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                          <div class="flex items-start gap-2">
-                            <.icon
-                              name="hero-information-circle"
-                              class="h-4 w-4 text-info shrink-0 mt-0.5"
-                            />
-                            <div class="text-base-content/80">
-                              <strong class="text-base-content">
-                                {gettext("Reverse Proxy Users:")}
-                              </strong>
-                              {gettext("If behind nginx/apache, ensure")}
-                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                                X-Forwarded-Proto
-                              </code>
-                              {gettext("header is set to")}
-                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                                https
-                              </code>
-                            </div>
+                      <%!-- Reverse Proxy Notice --%>
+                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                        <div class="flex items-start gap-2">
+                          <.icon
+                            name="hero-information-circle"
+                            class="h-4 w-4 text-info shrink-0 mt-0.5"
+                          />
+                          <div class="text-base-content/80">
+                            <strong class="text-base-content">
+                              {gettext("Reverse Proxy Users:")}
+                            </strong>
+                            {gettext("If behind nginx/apache, ensure")}
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              X-Forwarded-Proto
+                            </code>
+                            {gettext("header is set to")}
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              https
+                            </code>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <%!-- Apple OAuth Credentials --%>
-                <div class={[
-                  if(@settings["oauth_apple_enabled"] != "true", do: "hidden", else: "")
-                ]}>
-                  <div class="card bg-base-200 p-4 mt-3">
-                    <h3 class="font-semibold mb-3 flex items-center gap-2">
-                      <PhoenixKitWeb.Components.Core.Icons.icon_apple class="h-5 w-5" />
-                      {gettext("Apple OAuth Credentials")}
-                    </h3>
+              <%!-- Apple OAuth Credentials --%>
+              <div class={[
+                if(@settings["oauth_apple_enabled"] != "true", do: "hidden", else: "")
+              ]}>
+                <div class="card bg-base-200 p-4 mt-3">
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_apple class="h-5 w-5" />
+                    {gettext("Apple OAuth Credentials")}
+                  </h3>
 
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="form-control">
                       <label class="label">
                         <span class="label-text">{gettext("Client ID")}</span>
@@ -546,7 +550,7 @@
                       />
                     </div>
 
-                    <div class="form-control mt-2">
+                    <div class="form-control">
                       <label class="label">
                         <span class="label-text">{gettext("Team ID")}</span>
                       </label>
@@ -558,163 +562,165 @@
                         class="input input-bordered"
                       />
                     </div>
+                  </div>
 
-                    <div class="form-control mt-2">
-                      <label class="label">
-                        <span class="label-text">{gettext("Key ID")}</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="settings[oauth_apple_key_id]"
-                        value={@settings["oauth_apple_key_id"] || ""}
-                        placeholder={gettext("Your Apple Key ID")}
-                        class="input input-bordered"
-                      />
+                  <div class="form-control mt-3">
+                    <label class="label">
+                      <span class="label-text">{gettext("Key ID")}</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="settings[oauth_apple_key_id]"
+                      value={@settings["oauth_apple_key_id"] || ""}
+                      placeholder={gettext("Your Apple Key ID")}
+                      class="input input-bordered"
+                    />
+                  </div>
+
+                  <div class="form-control mt-3">
+                    <label class="label">
+                      <span class="label-text">{gettext("Private Key")}</span>
+                    </label>
+                    <textarea
+                      name="settings[oauth_apple_private_key]"
+                      rows="5"
+                      placeholder="-----BEGIN PRIVATE KEY-----&#10;Your Apple private key content&#10;-----END PRIVATE KEY-----"
+                      class="textarea textarea-bordered font-mono text-xs"
+                    >{@settings["oauth_apple_private_key"] || ""}</textarea>
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="apple"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    {gettext("Test Credentials")}
+                  </button>
+
+                  <%!-- Apple OAuth Setup Instructions --%>
+                  <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title text-sm font-medium">
+                      {gettext("Setup Instructions")}
                     </div>
-
-                    <div class="form-control mt-2">
-                      <label class="label">
-                        <span class="label-text">{gettext("Private Key")}</span>
-                      </label>
-                      <textarea
-                        name="settings[oauth_apple_private_key]"
-                        rows="5"
-                        placeholder="-----BEGIN PRIVATE KEY-----&#10;Your Apple private key content&#10;-----END PRIVATE KEY-----"
-                        class="textarea textarea-bordered font-mono text-xs"
-                      >{@settings["oauth_apple_private_key"] || ""}</textarea>
-                    </div>
-
-                    <button
-                      type="button"
-                      phx-click="test_oauth"
-                      phx-value-provider="apple"
-                      class="btn btn-sm btn-outline mt-3 w-fit"
-                    >
-                      {gettext("Test Credentials")}
-                    </button>
-
-                    <%!-- Apple OAuth Setup Instructions --%>
-                    <div class="collapse collapse-arrow bg-base-200 mt-4">
-                      <input type="checkbox" class="peer" />
-                      <div class="collapse-title text-sm font-medium">
-                        {gettext("Setup Instructions")}
-                      </div>
-                      <div class="collapse-content text-sm space-y-4">
-                        <%!-- Callback URL Section --%>
-                        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                          <div class="flex items-start gap-3">
-                            <.icon
-                              name="hero-information-circle"
-                              class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                            />
-                            <div class="flex-1 min-w-0">
-                              <div class="text-sm font-semibold text-base-content mb-2">
-                                {gettext("Callback URL")}
-                              </div>
-                              <div class="flex items-center gap-2">
-                                <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                  {get_oauth_callback_url(@settings, "apple")}
-                                </code>
-                                <button
-                                  type="button"
-                                  class="btn btn-sm btn-square btn-outline"
-                                  onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "apple")}')"}
-                                  title={gettext("Copy to clipboard")}
-                                >
-                                  <.icon name="hero-clipboard" class="h-4 w-4" />
-                                </button>
-                              </div>
-                              <div class="text-xs text-base-content/60 mt-2">
-                                {gettext("Copy this URL to Apple Developer Console")}
-                              </div>
+                    <div class="collapse-content text-sm space-y-4">
+                      <%!-- Callback URL Section --%>
+                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                          <.icon
+                            name="hero-information-circle"
+                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-base-content mb-2">
+                              {gettext("Callback URL")}
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                                {get_oauth_callback_url(@settings, "apple")}
+                              </code>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-square btn-outline"
+                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "apple")}')"}
+                                title={gettext("Copy to clipboard")}
+                              >
+                                <.icon name="hero-clipboard" class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="text-xs text-base-content/60 mt-2">
+                              {gettext("Copy this URL to Apple Developer Console")}
                             </div>
                           </div>
                         </div>
+                      </div>
 
-                        <%!-- Step-by-step Instructions --%>
-                        <div class="space-y-3">
-                          <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                            <li>
-                              {gettext("Visit")}
-                              <a
-                                href="https://developer.apple.com/account/resources/identifiers/list"
-                                target="_blank"
-                                class="link link-primary"
-                              >
-                                Apple Developer Console
-                              </a>
-                            </li>
-                            <li>{gettext("Create an App ID or select existing one")}</li>
-                            <li>
-                              {gettext("Enable")}
-                              <strong>Sign in with Apple</strong> {gettext("capability")}
-                            </li>
-                            <li>
-                              {gettext("Create a")}
-                              <strong>Services ID</strong> {gettext("for web authentication")}
-                            </li>
-                            <li>
-                              {gettext("Configure")}
-                              <strong>Sign in with Apple</strong> {gettext("for the Services ID")}
-                            </li>
-                            <li>
-                              {gettext("Add callback URL above to")} <strong>Return URLs</strong>
-                            </li>
-                            <li>
-                              {gettext("Create a")} <strong>Private Key</strong>
-                              {gettext("with Sign in with Apple enabled")}
-                            </li>
-                            <li>
-                              {gettext("Copy")} <strong>Team ID</strong>, <strong>Key ID</strong>,
-                              <strong>Client ID</strong>
-                              ({gettext("Services ID")}), {gettext("and")}
-                              <strong>Private Key</strong>
-                              {gettext("to fields above")}
-                            </li>
-                            <li>
-                              {gettext("Click")}
-                              <strong>Test Credentials</strong> {gettext("to verify setup")}
-                            </li>
-                          </ol>
-                        </div>
+                      <%!-- Step-by-step Instructions --%>
+                      <div class="space-y-3">
+                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                          <li>
+                            {gettext("Visit")}
+                            <a
+                              href="https://developer.apple.com/account/resources/identifiers/list"
+                              target="_blank"
+                              class="link link-primary"
+                            >
+                              Apple Developer Console
+                            </a>
+                          </li>
+                          <li>{gettext("Create an App ID or select existing one")}</li>
+                          <li>
+                            {gettext("Enable")}
+                            <strong>Sign in with Apple</strong> {gettext("capability")}
+                          </li>
+                          <li>
+                            {gettext("Create a")}
+                            <strong>Services ID</strong> {gettext("for web authentication")}
+                          </li>
+                          <li>
+                            {gettext("Configure")}
+                            <strong>Sign in with Apple</strong> {gettext("for the Services ID")}
+                          </li>
+                          <li>
+                            {gettext("Add callback URL above to")} <strong>Return URLs</strong>
+                          </li>
+                          <li>
+                            {gettext("Create a")} <strong>Private Key</strong>
+                            {gettext("with Sign in with Apple enabled")}
+                          </li>
+                          <li>
+                            {gettext("Copy")} <strong>Team ID</strong>, <strong>Key ID</strong>,
+                            <strong>Client ID</strong>
+                            ({gettext("Services ID")}), {gettext("and")}
+                            <strong>Private Key</strong>
+                            {gettext("to fields above")}
+                          </li>
+                          <li>
+                            {gettext("Click")}
+                            <strong>Test Credentials</strong> {gettext("to verify setup")}
+                          </li>
+                        </ol>
+                      </div>
 
-                        <%!-- Reverse Proxy Notice --%>
-                        <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                          <div class="flex items-start gap-2">
-                            <.icon
-                              name="hero-information-circle"
-                              class="h-4 w-4 text-info shrink-0 mt-0.5"
-                            />
-                            <div class="text-base-content/80">
-                              <strong class="text-base-content">
-                                {gettext("Reverse Proxy Users:")}
-                              </strong>
-                              {gettext("If behind nginx/apache, ensure")}
-                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                                X-Forwarded-Proto
-                              </code>
-                              {gettext("header is set to")}
-                              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                                https
-                              </code>
-                            </div>
+                      <%!-- Reverse Proxy Notice --%>
+                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                        <div class="flex items-start gap-2">
+                          <.icon
+                            name="hero-information-circle"
+                            class="h-4 w-4 text-info shrink-0 mt-0.5"
+                          />
+                          <div class="text-base-content/80">
+                            <strong class="text-base-content">
+                              {gettext("Reverse Proxy Users:")}
+                            </strong>
+                            {gettext("If behind nginx/apache, ensure")}
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              X-Forwarded-Proto
+                            </code>
+                            {gettext("header is set to")}
+                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                              https
+                            </code>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <%!-- GitHub OAuth Credentials --%>
-                <div class={[
-                  "card bg-base-200 p-4 mt-3",
-                  if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
-                ]}>
-                  <h3 class="font-semibold mb-3 flex items-center gap-2">
-                    <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
-                    {gettext("GitHub OAuth Credentials")}
-                  </h3>
+              <%!-- GitHub OAuth Credentials --%>
+              <div class={[
+                "card bg-base-200 p-4 mt-3",
+                if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
+              ]}>
+                <h3 class="font-semibold mb-3 flex items-center gap-2">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
+                  {gettext("GitHub OAuth Credentials")}
+                </h3>
 
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div class="form-control">
                     <label class="label">
                       <span class="label-text">{gettext("Client ID")}</span>
@@ -728,7 +734,7 @@
                     />
                   </div>
 
-                  <div class="form-control mt-2">
+                  <div class="form-control">
                     <label class="label">
                       <span class="label-text">{gettext("Client Secret")}</span>
                     </label>
@@ -740,129 +746,131 @@
                       class="input input-bordered"
                     />
                   </div>
+                </div>
 
-                  <button
-                    type="button"
-                    phx-click="test_oauth"
-                    phx-value-provider="github"
-                    class="btn btn-sm btn-outline mt-3 w-fit"
-                  >
-                    {gettext("Test Credentials")}
-                  </button>
+                <button
+                  type="button"
+                  phx-click="test_oauth"
+                  phx-value-provider="github"
+                  class="btn btn-sm btn-outline mt-3 w-fit"
+                >
+                  {gettext("Test Credentials")}
+                </button>
 
-                  <%!-- GitHub OAuth Setup Instructions --%>
-                  <div class="collapse collapse-arrow bg-base-200 mt-4">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title text-sm font-medium">
-                      {gettext("Setup Instructions")}
-                    </div>
-                    <div class="collapse-content text-sm space-y-4">
-                      <%!-- Callback URL Section --%>
-                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                        <div class="flex items-start gap-3">
-                          <.icon
-                            name="hero-information-circle"
-                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                          />
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-base-content mb-2">
-                              {gettext("Callback URL")}
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                {get_oauth_callback_url(@settings, "github")}
-                              </code>
-                              <button
-                                type="button"
-                                class="btn btn-sm btn-square btn-outline"
-                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "github")}')"}
-                                title={gettext("Copy to clipboard")}
-                              >
-                                <.icon name="hero-clipboard" class="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div class="text-xs text-base-content/60 mt-2">
-                              {gettext("Copy this URL to GitHub OAuth Apps")}
-                            </div>
+                <%!-- GitHub OAuth Setup Instructions --%>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                  <input type="checkbox" class="peer" />
+                  <div class="collapse-title text-sm font-medium">
+                    {gettext("Setup Instructions")}
+                  </div>
+                  <div class="collapse-content text-sm space-y-4">
+                    <%!-- Callback URL Section --%>
+                    <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                      <div class="flex items-start gap-3">
+                        <.icon
+                          name="hero-information-circle"
+                          class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                        />
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm font-semibold text-base-content mb-2">
+                            {gettext("Callback URL")}
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                              {get_oauth_callback_url(@settings, "github")}
+                            </code>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-square btn-outline"
+                              onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "github")}')"}
+                              title={gettext("Copy to clipboard")}
+                            >
+                              <.icon name="hero-clipboard" class="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div class="text-xs text-base-content/60 mt-2">
+                            {gettext("Copy this URL to GitHub OAuth Apps")}
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      <%!-- Step-by-step Instructions --%>
-                      <div class="space-y-3">
-                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                          <li>
-                            {gettext("Visit")}
-                            <a
-                              href="https://github.com/settings/developers"
-                              target="_blank"
-                              class="link link-primary"
-                            >
-                              GitHub Developer Settings
-                            </a>
-                          </li>
-                          <li>
-                            {gettext("Go to")} <strong>OAuth Apps</strong>
-                            → <strong>New OAuth App</strong>
-                          </li>
-                          <li>
-                            {gettext("Enter")} <strong>Application name</strong>
-                            {gettext("and")} <strong>Homepage URL</strong>
-                          </li>
-                          <li>
-                            {gettext("Add callback URL above to")}
-                            <strong>Authorization callback URL</strong>
-                          </li>
-                          <li>
-                            {gettext("Click")} <strong>Register application</strong>
-                          </li>
-                          <li>
-                            {gettext("Copy")} <strong>Client ID</strong>
-                            {gettext("and generate/copy")} <strong>Client Secret</strong>
-                          </li>
-                          <li>
-                            {gettext("Click")}
-                            <strong>Test Credentials</strong> {gettext("to verify setup")}
-                          </li>
-                        </ol>
-                      </div>
+                    <%!-- Step-by-step Instructions --%>
+                    <div class="space-y-3">
+                      <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                        <li>
+                          {gettext("Visit")}
+                          <a
+                            href="https://github.com/settings/developers"
+                            target="_blank"
+                            class="link link-primary"
+                          >
+                            GitHub Developer Settings
+                          </a>
+                        </li>
+                        <li>
+                          {gettext("Go to")} <strong>OAuth Apps</strong>
+                          → <strong>New OAuth App</strong>
+                        </li>
+                        <li>
+                          {gettext("Enter")} <strong>Application name</strong>
+                          {gettext("and")} <strong>Homepage URL</strong>
+                        </li>
+                        <li>
+                          {gettext("Add callback URL above to")}
+                          <strong>Authorization callback URL</strong>
+                        </li>
+                        <li>
+                          {gettext("Click")} <strong>Register application</strong>
+                        </li>
+                        <li>
+                          {gettext("Copy")} <strong>Client ID</strong>
+                          {gettext("and generate/copy")} <strong>Client Secret</strong>
+                        </li>
+                        <li>
+                          {gettext("Click")}
+                          <strong>Test Credentials</strong> {gettext("to verify setup")}
+                        </li>
+                      </ol>
+                    </div>
 
-                      <%!-- Reverse Proxy Notice --%>
-                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                        <div class="flex items-start gap-2">
-                          <.icon
-                            name="hero-information-circle"
-                            class="h-4 w-4 text-info shrink-0 mt-0.5"
-                          />
-                          <div class="text-base-content/80">
-                            <strong class="text-base-content">
-                              {gettext("Reverse Proxy Users:")}
-                            </strong>
-                            {gettext("If behind nginx/apache, ensure")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              X-Forwarded-Proto
-                            </code>
-                            {gettext("header is set to")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              https
-                            </code>
-                          </div>
+                    <%!-- Reverse Proxy Notice --%>
+                    <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                      <div class="flex items-start gap-2">
+                        <.icon
+                          name="hero-information-circle"
+                          class="h-4 w-4 text-info shrink-0 mt-0.5"
+                        />
+                        <div class="text-base-content/80">
+                          <strong class="text-base-content">
+                            {gettext("Reverse Proxy Users:")}
+                          </strong>
+                          {gettext("If behind nginx/apache, ensure")}
+                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                            X-Forwarded-Proto
+                          </code>
+                          {gettext("header is set to")}
+                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                            https
+                          </code>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <%!-- Facebook OAuth Credentials --%>
-                <div class={[
-                  "card bg-base-200 p-4 mt-3",
-                  if(@settings["oauth_facebook_enabled"] != "true", do: "hidden", else: "")
-                ]}>
-                  <h3 class="font-semibold mb-3 flex items-center gap-2">
-                    <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="h-5 w-5" />
-                    {gettext("Facebook OAuth Credentials")}
-                  </h3>
+              <%!-- Facebook OAuth Credentials --%>
+              <div class={[
+                "card bg-base-200 p-4 mt-3",
+                if(@settings["oauth_facebook_enabled"] != "true", do: "hidden", else: "")
+              ]}>
+                <h3 class="font-semibold mb-3 flex items-center gap-2">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="h-5 w-5" />
+                  {gettext("Facebook OAuth Credentials")}
+                </h3>
 
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div class="form-control">
                     <label class="label">
                       <span class="label-text">{gettext("App ID")}</span>
@@ -876,7 +884,7 @@
                     />
                   </div>
 
-                  <div class="form-control mt-2">
+                  <div class="form-control">
                     <label class="label">
                       <span class="label-text">{gettext("App Secret")}</span>
                     </label>
@@ -888,177 +896,177 @@
                       class="input input-bordered"
                     />
                   </div>
-
-                  <button
-                    type="button"
-                    phx-click="test_oauth"
-                    phx-value-provider="facebook"
-                    class="btn btn-sm btn-outline mt-3 w-fit"
-                  >
-                    {gettext("Test Credentials")}
-                  </button>
-
-                  <%!-- Facebook OAuth Setup Instructions --%>
-                  <div class="collapse collapse-arrow bg-base-200 mt-4">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title text-sm font-medium">
-                      {gettext("Setup Instructions")}
-                    </div>
-                    <div class="collapse-content text-sm space-y-4">
-                      <%!-- Callback URL Section --%>
-                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                        <div class="flex items-start gap-3">
-                          <.icon
-                            name="hero-information-circle"
-                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                          />
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-base-content mb-2">
-                              {gettext("Callback URL")}
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                {get_oauth_callback_url(@settings, "facebook")}
-                              </code>
-                              <button
-                                type="button"
-                                class="btn btn-sm btn-square btn-outline"
-                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "facebook")}')"}
-                                title={gettext("Copy to clipboard")}
-                              >
-                                <.icon name="hero-clipboard" class="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div class="text-xs text-base-content/60 mt-2">
-                              {gettext("Copy this URL to Facebook App Settings")}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <%!-- Step-by-step Instructions --%>
-                      <div class="space-y-3">
-                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                          <li>
-                            {gettext("Visit")}
-                            <a
-                              href="https://developers.facebook.com/apps"
-                              target="_blank"
-                              class="link link-primary"
-                            >
-                              Facebook Developers Console
-                            </a>
-                          </li>
-                          <li>
-                            {gettext("Create a new app or select existing one")}
-                          </li>
-                          <li>
-                            {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
-                          </li>
-                          <li>
-                            {gettext("Go to")} <strong>Facebook Login</strong>
-                            → <strong>Settings</strong>
-                          </li>
-                          <li>
-                            {gettext("Add callback URL above to")}
-                            <strong>Valid OAuth Redirect URIs</strong>
-                          </li>
-                          <li>
-                            {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
-                          </li>
-                          <li>
-                            {gettext("Copy")} <strong>App ID</strong>
-                            {gettext("and")} <strong>App Secret</strong>
-                            {gettext("to fields above")}
-                          </li>
-                          <li>
-                            {gettext("Switch app from")} <strong>Development</strong>
-                            {gettext("to")} <strong>Live</strong>
-                            {gettext("mode")}
-                          </li>
-                          <li>
-                            {gettext("Click")}
-                            <strong>Test Credentials</strong> {gettext("to verify setup")}
-                          </li>
-                        </ol>
-                      </div>
-
-                      <%!-- Reverse Proxy Notice --%>
-                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                        <div class="flex items-start gap-2">
-                          <.icon
-                            name="hero-information-circle"
-                            class="h-4 w-4 text-info shrink-0 mt-0.5"
-                          />
-                          <div class="text-base-content/80">
-                            <strong class="text-base-content">
-                              {gettext("Reverse Proxy Users:")}
-                            </strong>
-                            {gettext("If behind nginx/apache, ensure")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              X-Forwarded-Proto
-                            </code>
-                            {gettext("header is set to")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              https
-                            </code>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
-                <%!-- OAuth Configuration Notice --%>
-                <div class="alert alert-info text-sm mt-3">
-                  <.icon name="hero-information-circle" class="stroke-current shrink-0 h-5 w-5" />
-                  <div>
-                    <div class="font-semibold">{gettext("OAuth Setup Instructions")}</div>
-                    <div class="text-xs">
-                      <p>{gettext("1. Enable the provider above and save settings")}</p>
-                      <p>{gettext("2. Enter your OAuth credentials in the form that appears")}</p>
-                      <p>{gettext("3. Save settings again to store credentials")}</p>
-                      <p>{gettext("4. Click \"Test Credentials\" to verify configuration")}</p>
-                      <p class="mt-1">
-                        {gettext(
-                          "Note: OAuth providers require ueberauth dependencies to be installed."
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <%!-- Reload OAuth Configuration Button --%>
                 <button
                   type="button"
-                  phx-click="reload_oauth_config"
-                  class="btn btn-sm btn-outline btn-secondary mt-3"
+                  phx-click="test_oauth"
+                  phx-value-provider="facebook"
+                  class="btn btn-sm btn-outline mt-3 w-fit"
                 >
-                  <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="h-4 w-4" />
-                  {gettext("Reload OAuth Configuration")}
+                  {gettext("Test Credentials")}
                 </button>
-              <% end %>
-            </div>
 
-            <%!-- Action Buttons --%>
-            <div class="flex gap-3 pt-4">
+                <%!-- Facebook OAuth Setup Instructions --%>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                  <input type="checkbox" class="peer" />
+                  <div class="collapse-title text-sm font-medium">
+                    {gettext("Setup Instructions")}
+                  </div>
+                  <div class="collapse-content text-sm space-y-4">
+                    <%!-- Callback URL Section --%>
+                    <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+                      <div class="flex items-start gap-3">
+                        <.icon
+                          name="hero-information-circle"
+                          class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+                        />
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm font-semibold text-base-content mb-2">
+                            {gettext("Callback URL")}
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                              {get_oauth_callback_url(@settings, "facebook")}
+                            </code>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-square btn-outline"
+                              onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "facebook")}')"}
+                              title={gettext("Copy to clipboard")}
+                            >
+                              <.icon name="hero-clipboard" class="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div class="text-xs text-base-content/60 mt-2">
+                            {gettext("Copy this URL to Facebook App Settings")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <%!-- Step-by-step Instructions --%>
+                    <div class="space-y-3">
+                      <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                        <li>
+                          {gettext("Visit")}
+                          <a
+                            href="https://developers.facebook.com/apps"
+                            target="_blank"
+                            class="link link-primary"
+                          >
+                            Facebook Developers Console
+                          </a>
+                        </li>
+                        <li>
+                          {gettext("Create a new app or select existing one")}
+                        </li>
+                        <li>
+                          {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
+                        </li>
+                        <li>
+                          {gettext("Go to")} <strong>Facebook Login</strong>
+                          → <strong>Settings</strong>
+                        </li>
+                        <li>
+                          {gettext("Add callback URL above to")}
+                          <strong>Valid OAuth Redirect URIs</strong>
+                        </li>
+                        <li>
+                          {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
+                        </li>
+                        <li>
+                          {gettext("Copy")} <strong>App ID</strong>
+                          {gettext("and")} <strong>App Secret</strong>
+                          {gettext("to fields above")}
+                        </li>
+                        <li>
+                          {gettext("Switch app from")} <strong>Development</strong>
+                          {gettext("to")} <strong>Live</strong>
+                          {gettext("mode")}
+                        </li>
+                        <li>
+                          {gettext("Click")}
+                          <strong>Test Credentials</strong> {gettext("to verify setup")}
+                        </li>
+                      </ol>
+                    </div>
+
+                    <%!-- Reverse Proxy Notice --%>
+                    <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+                      <div class="flex items-start gap-2">
+                        <.icon
+                          name="hero-information-circle"
+                          class="h-4 w-4 text-info shrink-0 mt-0.5"
+                        />
+                        <div class="text-base-content/80">
+                          <strong class="text-base-content">
+                            {gettext("Reverse Proxy Users:")}
+                          </strong>
+                          {gettext("If behind nginx/apache, ensure")}
+                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                            X-Forwarded-Proto
+                          </code>
+                          {gettext("header is set to")}
+                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                            https
+                          </code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <%!-- OAuth Configuration Notice --%>
+              <div class="alert alert-info text-sm mt-3 max-w-prose">
+                <.icon name="hero-information-circle" class="stroke-current shrink-0 h-5 w-5" />
+                <div>
+                  <div class="font-semibold">{gettext("OAuth Setup Instructions")}</div>
+                  <div class="text-xs">
+                    <p>{gettext("1. Enable the provider above and save settings")}</p>
+                    <p>{gettext("2. Enter your OAuth credentials in the form that appears")}</p>
+                    <p>{gettext("3. Save settings again to store credentials")}</p>
+                    <p>{gettext("4. Click \"Test Credentials\" to verify configuration")}</p>
+                    <p class="mt-1">
+                      {gettext(
+                        "Note: OAuth providers require ueberauth dependencies to be installed."
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <%!-- Reload OAuth Configuration Button --%>
               <button
-                type="submit"
-                class={[
-                  "btn btn-primary flex-1",
-                  if(@saving, do: "loading", else: "")
-                ]}
-                disabled={@saving}
+                type="button"
+                phx-click="reload_oauth_config"
+                class="btn btn-sm btn-outline btn-secondary mt-3"
               >
-                <%= if @saving do %>
-                  {gettext("Saving...")}
-                <% else %>
-                  {gettext("Save Authorization Settings")}
-                <% end %>
+                <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="h-4 w-4" />
+                {gettext("Reload OAuth Configuration")}
               </button>
-            </div>
-          </.form>
-        </div>
+            <% end %>
+          </div>
+
+          <%!-- Action Buttons --%>
+          <div class="flex gap-3 pt-4">
+            <button
+              type="submit"
+              class={[
+                "btn btn-primary flex-1",
+                if(@saving, do: "loading", else: "")
+              ]}
+              disabled={@saving}
+            >
+              <%= if @saving do %>
+                {gettext("Saving...")}
+              <% else %>
+                {gettext("Save Authorization Settings")}
+              <% end %>
+            </button>
+          </div>
+        </.form>
       </div>
     </div>
   </div>

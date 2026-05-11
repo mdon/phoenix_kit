@@ -191,7 +191,8 @@ defmodule PhoenixKit.Jobs do
         level: :admin,
         permission: "jobs",
         match: :prefix,
-        group: :admin_modules
+        group: :admin_modules,
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end

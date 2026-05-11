@@ -387,7 +387,8 @@ defmodule PhoenixKit.Modules.Languages do
         priority: 928,
         level: :admin,
         parent: :admin_settings,
-        permission: "languages"
+        permission: "languages",
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end
