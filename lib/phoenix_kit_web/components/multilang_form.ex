@@ -829,7 +829,10 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
          column direction here they sit on the same row. The `gap-1`
          puts a small breathing room between label and field that
          matches the `<.input>` core component's `mb-2`. --%>
-    <div class="form-control flex flex-col gap-1" phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}>
+    <div
+      class="form-control flex flex-col gap-1"
+      phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}
+    >
       <label for={@input_id} class="label">
         <span class="label-text font-semibold">
           {@label}
