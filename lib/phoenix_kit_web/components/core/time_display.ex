@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @doc """
@@ -179,14 +180,14 @@ defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
     format_seconds_ago(diff_seconds)
   end
 
-  defp format_time_ago(_), do: "Unknown"
+  defp format_time_ago(_), do: gettext("Unknown")
 
   defp format_seconds_ago(diff_seconds) do
     cond do
-      diff_seconds < 60 -> "#{diff_seconds}s ago"
-      diff_seconds < 3_600 -> "#{div(diff_seconds, 60)}m ago"
-      diff_seconds < 86_400 -> "#{div(diff_seconds, 3_600)}h ago"
-      true -> "#{div(diff_seconds, 86_400)}d ago"
+      diff_seconds < 60 -> gettext("%{count}s ago", count: diff_seconds)
+      diff_seconds < 3_600 -> gettext("%{count}m ago", count: div(diff_seconds, 60))
+      diff_seconds < 86_400 -> gettext("%{count}h ago", count: div(diff_seconds, 3_600))
+      true -> gettext("%{count}d ago", count: div(diff_seconds, 86_400))
     end
   end
 
@@ -202,13 +203,13 @@ defmodule PhoenixKitWeb.Components.Core.TimeDisplay do
 
   defp format_datetime_title(_), do: nil
 
-  defp format_expiration(nil), do: "No expiration"
+  defp format_expiration(nil), do: gettext("No expiration")
 
   defp format_expiration(date) do
     Calendar.strftime(date, "%B %d, %Y")
   end
 
-  defp format_age(days) when days < 1, do: {"badge-success", "Today"}
+  defp format_age(days) when days < 1, do: {"badge-success", gettext("Today")}
   defp format_age(days) when days < 7, do: {"badge-info", "#{days}d"}
   defp format_age(days) when days < 30, do: {"badge-warning", "#{days}d"}
   defp format_age(days), do: {"badge-error", "#{days}d"}

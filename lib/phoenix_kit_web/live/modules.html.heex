@@ -9,8 +9,8 @@
   <div class="container flex flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={PhoenixKit.Utils.Routes.path("/admin")}
-      title="Modules"
-      subtitle="Manage modules"
+      title={gettext("Modules")}
+      subtitle={gettext("Manage modules")}
     />
 
     <%!-- Dependency warnings --%>
@@ -22,9 +22,8 @@
         <.icon name="hero-exclamation-triangle" class="w-4 h-4 shrink-0" />
         <span>
           <strong>{w.module_name}</strong>
-          requires the <strong>{w.requires_key}</strong>
-          module to be enabled.
-          Some features may not work correctly.
+          {gettext("requires the")} <strong>{w.requires_key}</strong>
+          {gettext("module to be enabled. Some features may not work correctly.")}
         </span>
       </div>
     </div>
@@ -34,8 +33,12 @@
       <%= if "storage" in @accessible_modules do %>
         <% cfg = @module_configs["storage"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Storage"
-          description="Distributed file storage system with multi-location redundancy and automatic failover"
+          title={gettext("Storage")}
+          description={
+            gettext(
+              "Distributed file storage system with multi-location redundancy and automatic failover"
+            )
+          }
           icon="💾"
           enabled={cfg[:module_enabled]}
           toggle_event="toggle_module"
@@ -43,8 +46,8 @@
           show_toggle={false}
         >
           <:status_badges>
-            <span class="badge badge-success z-0">Always Enabled</span>
-            <span class="badge badge-info z-0">Core System</span>
+            <span class="badge badge-success z-0">{gettext("Always Enabled")}</span>
+            <span class="badge badge-info z-0">{gettext("Core System")}</span>
           </:status_badges>
 
           <:action_buttons>
@@ -52,18 +55,18 @@
               navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
               class="btn btn-primary btn-sm"
             >
-              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
             </.link>
           </:action_buttons>
 
           <:stats>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Total Buckets:</span>
+                <span class="text-base-content/70">{gettext("Total Buckets")}:</span>
                 <span class="font-medium">{cfg[:buckets_count]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Active:</span>
+                <span class="text-base-content/70">{gettext("Active")}:</span>
                 <span class="font-medium">{cfg[:active_buckets_count]}</span>
               </div>
             </div>
@@ -75,8 +78,8 @@
       <%= if "referrals" in @accessible_modules do %>
         <% cfg = @module_configs["referrals"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Referral Codes"
-          description="Manage referral codes for user registration and monitoring"
+          title={gettext("Referral Codes")}
+          description={gettext("Manage referral codes for user registration and monitoring")}
           icon="🎫"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -87,11 +90,11 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] do %>
               <span class="badge badge-outline ml-2 whitespace-nowrap">
-                {if cfg[:required], do: "Required", else: "Optional"}
+                {if cfg[:required], do: gettext("Required"), else: gettext("Optional")}
               </span>
             <% end %>
           </:status_badges>
@@ -102,20 +105,20 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/referral-codes")}
                 class="btn btn-primary btn-sm"
               >
-                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
               </.link>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin/users/referral-codes")}
                 class="btn btn-outline btn-sm"
               >
-                <.icon name="hero-users" class="w-4 h-4 mr-1" /> Manage Codes
+                <.icon name="hero-users" class="w-4 h-4 mr-1" /> {gettext("Manage Codes")}
               </.link>
             <% else %>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/referral-codes")}
                 class="btn btn-outline btn-sm"
               >
-                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
               </.link>
             <% end %>
           </:action_buttons>
@@ -123,11 +126,11 @@
           <:stats>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Max per user:</span>
+                <span class="text-base-content/70">{gettext("Max per user")}:</span>
                 <span class="font-medium">{cfg[:max_codes_per_user]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Max uses:</span>
+                <span class="text-base-content/70">{gettext("Max uses")}:</span>
                 <span class="font-medium">{cfg[:max_uses_per_code]}</span>
               </div>
             </div>
@@ -139,8 +142,8 @@
       <%= if "languages" in @accessible_modules do %>
         <% cfg = @module_configs["languages"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Languages"
-          description="Manage language module and translations"
+          title={gettext("Languages")}
+          description={gettext("Manage language module and translations")}
           icon="🌐"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -151,13 +154,13 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] do %>
               <span class="badge badge-outline ml-2 whitespace-nowrap">
                 {if cfg[:default_language],
                   do: cfg[:default_language].name,
-                  else: "No Default"}
+                  else: gettext("No Default")}
               </span>
             <% end %>
           </:status_badges>
@@ -168,14 +171,14 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
                 class="btn btn-primary btn-sm"
               >
-                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
               </.link>
             <% else %>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/languages")}
                 class="btn btn-outline btn-sm"
               >
-                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
               </.link>
             <% end %>
           </:action_buttons>
@@ -183,11 +186,11 @@
           <:stats>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Total languages:</span>
+                <span class="text-base-content/70">{gettext("Total languages")}:</span>
                 <span class="font-medium">{cfg[:language_count]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Enabled:</span>
+                <span class="text-base-content/70">{gettext("Enabled")}:</span>
                 <span class="font-medium">{cfg[:enabled_count]}</span>
               </div>
             </div>
@@ -199,8 +202,12 @@
       <%= if "comments" in @accessible_modules do %>
         <% cfg = @module_configs["comments"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Comments"
-          description="Threaded comments with likes, moderation, and reactions across all content types"
+          title={gettext("Comments")}
+          description={
+            gettext(
+              "Threaded comments with likes, moderation, and reactions across all content types"
+            )
+          }
           icon="💬"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -211,11 +218,11 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] && cfg[:pending_comments] > 0 do %>
               <span class="badge badge-warning ml-2 whitespace-nowrap">
-                {cfg[:pending_comments]} pending
+                {gettext("%{count} pending", count: cfg[:pending_comments])}
               </span>
             <% end %>
           </:status_badges>
@@ -228,20 +235,20 @@
                   class="btn btn-primary btn-sm"
                 >
                   <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" />
-                  Manage Comments
+                  {gettext("Manage Comments")}
                 </.link>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/comments")}
                   class="btn btn-outline btn-sm"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Settings
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Settings")}
                 </.link>
               <% else %>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/comments")}
                   class="btn btn-outline btn-sm"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                 </.link>
               <% end %>
             </div>
@@ -250,15 +257,15 @@
           <:stats>
             <div class="grid grid-cols-3 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Total:</span>
+                <span class="text-base-content/70">{gettext("Total")}:</span>
                 <span class="font-medium">{cfg[:total_comments]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Published:</span>
+                <span class="text-base-content/70">{gettext("Published")}:</span>
                 <span class="font-medium">{cfg[:published_comments]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Pending:</span>
+                <span class="text-base-content/70">{gettext("Pending")}:</span>
                 <span class="font-medium">{cfg[:pending_comments]}</span>
               </div>
             </div>
@@ -270,8 +277,10 @@
       <%= if "customer_support" in @accessible_modules do %>
         <% cfg = @module_configs["customer_support"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Customer Support"
-          description="Customer support ticketing system with internal notes and status tracking"
+          title={gettext("Customer Support")}
+          description={
+            gettext("Customer support ticketing system with internal notes and status tracking")
+          }
           icon="🎫"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -282,11 +291,11 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] && cfg[:open_tickets] > 0 do %>
               <span class="badge badge-warning ml-2 whitespace-nowrap">
-                {cfg[:open_tickets]} open
+                {gettext("%{count} open", count: cfg[:open_tickets])}
               </span>
             <% end %>
           </:status_badges>
@@ -298,20 +307,20 @@
                   navigate={PhoenixKit.Utils.Routes.path("/admin/customer-support/tickets")}
                   class="btn btn-primary btn-sm"
                 >
-                  <.icon name="hero-ticket" class="w-4 h-4 mr-1" /> Manage Tickets
+                  <.icon name="hero-ticket" class="w-4 h-4 mr-1" /> {gettext("Manage Tickets")}
                 </.link>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/customer-support")}
                   class="btn btn-outline btn-sm"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Settings
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Settings")}
                 </.link>
               <% else %>
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/customer-support")}
                   class="btn btn-outline btn-sm"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                 </.link>
               <% end %>
             </div>
@@ -320,15 +329,15 @@
           <:stats>
             <div class="grid grid-cols-3 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Total:</span>
+                <span class="text-base-content/70">{gettext("Total")}:</span>
                 <span class="font-medium">{cfg[:total_tickets]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Open:</span>
+                <span class="text-base-content/70">{gettext("Open")}:</span>
                 <span class="font-medium">{cfg[:open_tickets]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">In Progress:</span>
+                <span class="text-base-content/70">{gettext("In Progress")}:</span>
                 <span class="font-medium">{cfg[:in_progress_tickets]}</span>
               </div>
             </div>
@@ -340,8 +349,10 @@
       <%= if "connections" in @accessible_modules do %>
         <% cfg = @module_configs["connections"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Connections"
-          description="Social relationships with one-way follows and mutual connections"
+          title={gettext("Connections")}
+          description={
+            gettext("Social relationships with one-way follows and mutual connections")
+          }
           icon="🤝"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -352,7 +363,7 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
           </:status_badges>
 
@@ -363,11 +374,11 @@
                   navigate={PhoenixKit.Utils.Routes.path("/admin/connections")}
                   class="btn btn-primary btn-sm"
                 >
-                  <.icon name="hero-users" class="w-4 h-4 mr-1" /> Overview
+                  <.icon name="hero-users" class="w-4 h-4 mr-1" /> {gettext("Overview")}
                 </.link>
               <% else %>
                 <span class="text-xs text-base-content/50 text-center">
-                  Enable module to manage connections
+                  {gettext("Enable module to manage connections")}
                 </span>
               <% end %>
             </div>
@@ -376,15 +387,15 @@
           <:stats>
             <div class="grid grid-cols-3 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Follows:</span>
+                <span class="text-base-content/70">{gettext("Follows")}:</span>
                 <span class="font-medium">{cfg[:follows_count]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Connections:</span>
+                <span class="text-base-content/70">{gettext("Connections")}:</span>
                 <span class="font-medium">{cfg[:connections_count]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Blocks:</span>
+                <span class="text-base-content/70">{gettext("Blocks")}:</span>
                 <span class="font-medium">{cfg[:blocks_count]}</span>
               </div>
             </div>
@@ -396,8 +407,8 @@
       <%= if "seo" in @accessible_modules do %>
         <% cfg = @module_configs["seo"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="SEO"
-          description="Manage search engine optimization controls for your application"
+          title={gettext("SEO")}
+          description={gettext("Manage search engine optimization controls for your application")}
           icon="🔍"
           enabled={cfg[:module_enabled]}
           toggle_event="toggle_module"
@@ -408,7 +419,7 @@
               "badge",
               if(cfg[:module_enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:module_enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:module_enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
           </:status_badges>
 
@@ -422,20 +433,20 @@
                 }
                 class="btn btn-sm w-full btn-primary"
               >
-                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
               </.link>
             <% else %>
               <span class="text-xs text-base-content/50 text-center">
-                Enable module to access settings
+                {gettext("Enable module to access settings")}
               </span>
             <% end %>
           </:action_buttons>
 
           <:stats>
             <div class="text-sm">
-              <span class="text-base-content/70">Noindex:</span>
+              <span class="text-base-content/70">{gettext("Noindex")}:</span>
               <span class="ml-2 font-medium">
-                {if cfg[:no_index_enabled], do: "On", else: "Off"}
+                {if cfg[:no_index_enabled], do: gettext("On"), else: gettext("Off")}
               </span>
             </div>
           </:stats>
@@ -446,8 +457,10 @@
       <%= if "sitemap" in @accessible_modules do %>
         <% cfg = @module_configs["sitemap"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Sitemap"
-          description="Generate XML sitemaps for search engines with styled browser display"
+          title={gettext("Sitemap")}
+          description={
+            gettext("Generate XML sitemaps for search engines with styled browser display")
+          }
           icon="🗺️"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -458,11 +471,11 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] && cfg[:schedule_enabled] do %>
               <span class="badge badge-outline ml-2 whitespace-nowrap">
-                Auto-regenerate
+                {gettext("Auto-regenerate")}
               </span>
             <% end %>
           </:status_badges>
@@ -478,18 +491,20 @@
                   }
                   class="btn btn-sm btn-primary"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                 </.link>
                 <.link
                   href={PhoenixKit.Utils.Routes.path("/sitemap.xml", locale: :none)}
                   target="_blank"
                   class="btn btn-outline btn-sm"
                 >
-                  <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4 mr-1" /> Sitemap
+                  <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4 mr-1" /> {gettext(
+                    "Sitemap"
+                  )}
                 </.link>
               <% else %>
                 <span class="text-xs text-base-content/50 text-center">
-                  Enable module to access settings
+                  {gettext("Enable module to access settings")}
                 </span>
               <% end %>
             </div>
@@ -498,11 +513,11 @@
           <:stats>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">URLs:</span>
+                <span class="text-base-content/70">{gettext("URLs")}:</span>
                 <span class="font-medium">{cfg[:url_count]}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Last gen:</span>
+                <span class="text-base-content/70">{gettext("Last gen")}:</span>
                 <span class="font-medium">
                   {format_timestamp(cfg[:last_generated])}
                 </span>
@@ -518,8 +533,10 @@
       <%= if "maintenance" in @accessible_modules do %>
         <% cfg = @module_configs["maintenance"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Maintenance Mode"
-          description="Show maintenance page to non-admin users while you work on the site"
+          title={gettext("Maintenance Mode")}
+          description={
+            gettext("Show maintenance page to non-admin users while you work on the site")
+          }
           icon="🚧"
           enabled={cfg[:module_enabled]}
           toggle_event="toggle_module"
@@ -530,14 +547,16 @@
               "badge",
               if(cfg[:module_enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:module_enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:module_enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:module_enabled] do %>
               <span class={[
                 "badge badge-outline ml-2 whitespace-nowrap",
                 if(cfg[:enabled], do: "badge-warning", else: "badge-info")
               ]}>
-                {if cfg[:enabled], do: "Maintenance Active", else: "Maintenance Off"}
+                {if cfg[:enabled],
+                  do: gettext("Maintenance Active"),
+                  else: gettext("Maintenance Off")}
               </span>
             <% end %>
           </:status_badges>
@@ -549,14 +568,14 @@
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/maintenance")}
                   class="btn btn-sm btn-primary"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                 </.link>
                 <div class="text-xs text-base-content/70 mt-2">
-                  <strong>Header:</strong>
+                  <strong>{gettext("Header")}:</strong>
                   {cfg[:header]}
                 </div>
                 <div class="text-xs text-base-content/70">
-                  <strong>Message:</strong>
+                  <strong>{gettext("Message")}:</strong>
                   {cfg[:subtext]}
                 </div>
               <% else %>
@@ -564,7 +583,7 @@
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/maintenance")}
                   class="btn btn-sm btn-outline"
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                 </.link>
               <% end %>
             </div>
@@ -573,8 +592,8 @@
           <:stats>
             <div class="text-xs text-base-content/70">
               {if cfg[:module_enabled],
-                do: "Activate maintenance mode in settings to block non-admin users",
-                else: "Enable module to access maintenance mode settings"}
+                do: gettext("Activate maintenance mode in settings to block non-admin users"),
+                else: gettext("Enable module to access maintenance mode settings")}
             </div>
           </:stats>
         </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
@@ -584,8 +603,8 @@
       <%= if "jobs" in @accessible_modules do %>
         <% cfg = @module_configs["jobs"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title="Jobs"
-          description="View-only dashboard for background job status and history"
+          title={gettext("Jobs")}
+          description={gettext("View-only dashboard for background job status and history")}
           icon="⚙️"
           enabled={cfg[:enabled] || false}
           toggle_event="toggle_module"
@@ -596,11 +615,11 @@
               "badge",
               if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
             ]}>
-              {if cfg[:enabled], do: "Enabled", else: "Disabled"}
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <%= if cfg[:enabled] && cfg[:stats].executing > 0 do %>
               <span class="badge badge-outline badge-warning ml-2 whitespace-nowrap">
-                {cfg[:stats].executing} running
+                {gettext("%{count} running", count: cfg[:stats].executing)}
               </span>
             <% end %>
           </:status_badges>
@@ -612,11 +631,11 @@
                   navigate={PhoenixKit.Utils.Routes.path("/admin/jobs")}
                   class="btn btn-primary btn-sm"
                 >
-                  <.icon name="hero-queue-list" class="w-4 h-4 mr-1" /> View Jobs
+                  <.icon name="hero-queue-list" class="w-4 h-4 mr-1" /> {gettext("View Jobs")}
                 </.link>
               <% else %>
                 <span class="text-xs text-base-content/50 text-center">
-                  Enable module to view background jobs
+                  {gettext("Enable module to view background jobs")}
                 </span>
               <% end %>
             </div>
@@ -625,19 +644,19 @@
           <:stats>
             <div class="grid grid-cols-4 gap-2 text-xs">
               <div>
-                <span class="text-base-content/70">Available:</span>
+                <span class="text-base-content/70">{gettext("Available")}:</span>
                 <span class="font-medium">{cfg[:stats].available}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Completed:</span>
+                <span class="text-base-content/70">{gettext("Completed")}:</span>
                 <span class="font-medium">{cfg[:stats].completed}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Retryable:</span>
+                <span class="text-base-content/70">{gettext("Retryable")}:</span>
                 <span class="font-medium">{cfg[:stats].retryable}</span>
               </div>
               <div>
-                <span class="text-base-content/70">Discarded:</span>
+                <span class="text-base-content/70">{gettext("Discarded")}:</span>
                 <span class="font-medium">{cfg[:stats].discarded}</span>
               </div>
             </div>
@@ -661,14 +680,14 @@
               "badge",
               if(ext.enabled, do: "badge-success", else: "badge-neutral")
             ]}>
-              {if ext.enabled, do: "Enabled", else: "Disabled"}
+              {if ext.enabled, do: gettext("Enabled"), else: gettext("Disabled")}
             </span>
             <span class="badge badge-outline">v{ext.version}</span>
-            <span class="badge badge-info badge-outline">External</span>
+            <span class="badge badge-info badge-outline">{gettext("External")}</span>
             <%= for req_mod <- ext.required_modules do %>
               <%= unless mcfg(@module_configs, req_mod, :enabled, false) do %>
                 <span class="badge badge-warning">
-                  Requires {String.capitalize(req_mod)}
+                  {gettext("Requires %{module}", module: String.capitalize(req_mod))}
                 </span>
               <% end %>
             <% end %>
@@ -676,7 +695,9 @@
             <%= if ext.enabled do %>
               <%= if Map.has_key?(ext.config, :save_body) do %>
                 <span class="badge badge-outline whitespace-nowrap">
-                  {if ext.config[:save_body], do: "Body Saved", else: "Headers Only"}
+                  {if ext.config[:save_body],
+                    do: gettext("Body Saved"),
+                    else: gettext("Headers Only")}
                 </span>
               <% end %>
             <% end %>
@@ -690,7 +711,7 @@
                     navigate={PhoenixKit.Utils.Routes.path(ext.settings_path)}
                     class="btn btn-primary btn-sm"
                   >
-                    <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                    <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                   </.link>
                 <% end %>
                 <%= if ext.admin_links != [] do %>
@@ -714,7 +735,7 @@
                     navigate={PhoenixKit.Utils.Routes.path(ext.settings_path)}
                     class="btn btn-outline btn-sm"
                   >
-                    <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Configure
+                    <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
                   </.link>
                 <% end %>
               <% end %>
@@ -741,7 +762,9 @@
     <%!-- Available Packages (known but not installed) --%>
     <%= if @not_installed_packages != [] do %>
       <div class="mt-8">
-        <h2 class="text-lg font-semibold mb-3 text-base-content/70">Available Packages</h2>
+        <h2 class="text-lg font-semibold mb-3 text-base-content/70">
+          {gettext("Available Packages")}
+        </h2>
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <%= for pkg <- @not_installed_packages do %>
             <div class="card bg-base-100 shadow border-2 border-dashed border-base-300">
@@ -757,7 +780,7 @@
                 <div class="divider my-2"></div>
 
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                  <span class="badge badge-ghost badge-outline">Not installed</span>
+                  <span class="badge badge-ghost badge-outline">{gettext("Not installed")}</span>
                   <a
                     :if={pkg.hex_url}
                     href={pkg.hex_url}
@@ -769,7 +792,7 @@
                 </div>
 
                 <div class="mt-2">
-                  <p class="text-xs text-base-content/40 mb-1">Add to mix.exs:</p>
+                  <p class="text-xs text-base-content/40 mb-1">{gettext("Add to mix.exs")}:</p>
                   <code class="block text-xs bg-base-200 rounded p-2 font-mono">
                     {~s|{:#{pkg.package}, "~> 0.1"}|}
                   </code>
@@ -785,10 +808,11 @@
     <div class="alert alert-info mt-6">
       <.icon name="hero-information-circle" class="w-5 h-5" />
       <div>
-        <h3 class="font-bold">Module Management</h3>
+        <h3 class="font-bold">{gettext("Module Management")}</h3>
         <p class="text-sm">
-          Each module can be enabled or disabled using the toggle switches above.
-          Click "Configure" to access detailed settings for each module on dedicated pages.
+          {gettext(
+            "Each module can be enabled or disabled using the toggle switches above. Click \"Configure\" to access detailed settings for each module on dedicated pages."
+          )}
         </p>
       </div>
     </div>
