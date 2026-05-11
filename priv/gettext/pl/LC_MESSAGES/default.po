@@ -828,6 +828,7 @@ msgstr ""
 #: lib/modules/storage/web/settings.html.heex:315
 #: lib/phoenix_kit_web/components/media_browser.html.heex:404
 #: lib/phoenix_kit_web/components/media_browser.html.heex:769
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1081
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:493
 #: lib/phoenix_kit_web/live/settings/users.html.heex:501
 #: lib/phoenix_kit_web/live/settings/users.html.heex:541
@@ -6746,7 +6747,7 @@ msgstr ""
 msgid "All file types supported"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1751
+#: lib/phoenix_kit_web/components/media_browser.ex:1754
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
@@ -6790,6 +6791,7 @@ msgid "Collapse sidebar"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:735
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1047
 #, elixir-autogen, elixir-format
 msgid "Color"
 msgstr ""
@@ -6804,7 +6806,7 @@ msgstr ""
 msgid "Date"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1885
+#: lib/phoenix_kit_web/components/media_browser.ex:1899
 #, elixir-autogen, elixir-format
 msgid "Delete %{count} folder? Folder contents will be moved to parent."
 msgid_plural "Delete %{count} folders? Folder contents will be moved to parent."
@@ -6820,12 +6822,8 @@ msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1878
-#, elixir-autogen, elixir-format
-msgid "Delete %{files} file(s) (to trash) and %{folders} folder(s)? Folder contents will be moved to parent."
-msgstr ""
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:766
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1078
 #, elixir-autogen, elixir-format
 msgid "Delete '%{name}'? Files move to parent."
 msgstr ""
@@ -6967,7 +6965,7 @@ msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1892
+#: lib/phoenix_kit_web/components/media_browser.ex:1906
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -7015,17 +7013,12 @@ msgstr ""
 msgid "Orphaned Files"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1742
-#, elixir-autogen, elixir-format
-msgid "Partially successful: %{new} file(s) uploaded, %{err} failed due to missing storage buckets."
-msgstr ""
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "Path"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1871
+#: lib/phoenix_kit_web/components/media_browser.ex:1882
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -7139,18 +7132,13 @@ msgstr ""
 msgid "Upload processed"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1760
+#: lib/phoenix_kit_web/components/media_browser.ex:1763
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
 msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
-
-#: lib/phoenix_kit_web/components/media_browser.ex:1769
-#, elixir-autogen, elixir-format
-msgid "Upload successful! %{new} new file(s) added. %{dup} file(s) were already uploaded."
-msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1379
 #, elixir-autogen, elixir-format
@@ -7160,4 +7148,73 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1326
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the video tag."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1742
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{count} failed"
+msgid_plural "%{count} failed"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1889
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{count} file"
+msgid_plural "%{count} files"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1741
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{count} file uploaded"
+msgid_plural "%{count} files uploaded"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1774
+#, elixir-autogen, elixir-format
+msgid "%{count} file was already uploaded"
+msgid_plural "%{count} files were already uploaded"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1890
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{count} folder"
+msgid_plural "%{count} folders"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1771
+#, elixir-autogen, elixir-format
+msgid "%{count} new file added"
+msgid_plural "%{count} new files added"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1892
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete %{files} (to trash) and %{folders}? Folder contents will be moved to parent."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1339
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1367
+#, elixir-autogen, elixir-format
+msgid "FILE"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1745
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1781
+#, elixir-autogen, elixir-format
+msgid "Upload successful! %{added}. %{duplicates}."
 msgstr ""

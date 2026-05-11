@@ -1738,11 +1738,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp build_partial_success_message(new_count, error_count) do
+    uploaded = ngettext("%{count} file uploaded", "%{count} files uploaded", new_count)
+    failed = ngettext("%{count} failed", "%{count} failed", error_count)
+
     {:warning,
      gettext(
-       "Partially successful: %{new} file(s) uploaded, %{err} failed due to missing storage buckets.",
-       new: new_count,
-       err: error_count
+       "Partially successful: %{uploaded}, %{failed} due to missing storage buckets.",
+       uploaded: uploaded,
+       failed: failed
      )}
   end
 
@@ -1765,11 +1768,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp build_new_and_duplicates_message(new_count, duplicate_count) do
+    added = ngettext("%{count} new file added", "%{count} new files added", new_count)
+
+    duplicates =
+      ngettext(
+        "%{count} file was already uploaded",
+        "%{count} files were already uploaded",
+        duplicate_count
+      )
+
     {:info,
-     gettext(
-       "Upload successful! %{new} new file(s) added. %{dup} file(s) were already uploaded.",
-       new: new_count,
-       dup: duplicate_count
+     gettext("Upload successful! %{added}. %{duplicates}.",
+       added: added,
+       duplicates: duplicates
      )}
   end
 
@@ -1875,10 +1886,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         )
 
       folder_count > 0 and file_count > 0 ->
+        files = ngettext("%{count} file", "%{count} files", file_count)
+        folders = ngettext("%{count} folder", "%{count} folders", folder_count)
+
         gettext(
-          "Delete %{files} file(s) (to trash) and %{folders} folder(s)? Folder contents will be moved to parent.",
-          files: file_count,
-          folders: folder_count
+          "Delete %{files} (to trash) and %{folders}? Folder contents will be moved to parent.",
+          files: files,
+          folders: folders
         )
 
       folder_count > 0 ->
