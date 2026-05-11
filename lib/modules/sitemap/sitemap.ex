@@ -763,7 +763,8 @@ defmodule PhoenixKit.Modules.Sitemap do
         priority: 931,
         level: :admin,
         parent: :admin_settings,
-        permission: "sitemap"
+        permission: "sitemap",
+        gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
   end

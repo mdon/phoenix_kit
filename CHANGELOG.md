@@ -1,3 +1,44 @@
+## 1.7.108 - 2026-05-11
+
+### Added
+- V112 migration: `phoenix_kit_projects*` schema evolution (PR #533)
+  - `archived_at TIMESTAMP(0)` on `phoenix_kit_projects` so the admin dashboard can soft-hide projects without flipping a status enum. Mirrors the workspace convention used by `phoenix_kit_publishing`'s `posts.trashed_at` and `phoenix_kit_files.trashed_at` — null = visible, non-null = soft-hidden, with the timestamp doubling as audit metadata. Existing `status = 'archived'` rows backfilled into `archived_at` so the dashboard filters keep working transparently
+  - `phoenix_kit_projects_visible_idx` partial index on `(inserted_at DESC) WHERE archived_at IS NULL` — one partial covers both project-list and template-list dashboard reads (neither view shows archived rows)
+  - `translations JSONB NOT NULL DEFAULT '{}'` on `phoenix_kit_projects`, `phoenix_kit_project_tasks`, `phoenix_kit_project_assignments` for per-language overrides on user-input content (name / description / title). Primary stays in dedicated columns; JSONB only carries non-primary overrides
+  - `position INTEGER NOT NULL DEFAULT 0` on `phoenix_kit_projects` and `phoenix_kit_project_tasks` so the drag-and-drop reorder API can persist manual ordering. Existing rows fold into the `0` bucket and the schema's secondary order-by-`inserted_at` kicks in until a user actually drags
+  - `scheduled_start_date` retyped from `DATE` to `TIMESTAMP(0)` so scheduled-overdue detection honors time-of-day (a project scheduled for today 09:00 flips to `:overdue` at 09:01, not at midnight). Column name kept — lying name + honest type beats the churn of renaming every call site
+  - Drops the three remaining unique-name indexes — `phoenix_kit_projects_name_template_index`, `phoenix_kit_projects_name_project_index`, `phoenix_kit_project_tasks_title_index`. Name uniqueness is now policy, not schema — editing or duplicating names no longer trips a stale index, and future renames don't need migration coordination
+  - Bumps migrator `@current_version` 111 → 112 — without this V112 was dead code
+  - All steps idempotent (column-existence, index-existence, USING coercion clauses); `down/1` reverses each change so a rollback restores the V111 shape. `down/1` restores the V105/V101 unique indexes **first**, before dropping any V112 columns, so a duplicate-name conflict at rollback aborts cleanly rather than leaving a half-rolled schema
+- `test/phoenix_kit/migrations/v112_test.exs` — pins every V112 addition (archived_at column + type + nullability, visible-index existence AND predicate shape, translations JSONB on the three tables, scheduled_start_date retype, position columns) plus the four dropped indexes and the duplicate-name behavior. The predicate test refutes any `is_template` mention, closing the docs-drift loop
+- `dev_docs/pull_requests/2026/533-v112-projects-schema-evolution/CLAUDE_REVIEW.md` — post-merge review with finding dispositions
+
+### Changed
+- `<.translatable_field>` in `PhoenixKitWeb.Components.MultilangForm` — wrapper now `flex flex-col gap-1` and base input/textarea classes carry `w-full` (commits `52856738`, `0412beaf`). daisyUI 5's `.label` is `inline-flex` and `.input`/`.textarea` are `inline-block`, so without forcing column direction here label and field sat on the same row. Aligns the multilang form's layout with the regular `<.input>` core component
+- `test/phoenix_kit/migrations/v106_test.exs` — dropped the "schema state (verified at boot)" `describe` block (its assertions pinned V112's drops, not V106's adds — moved to `V112Test`). File now scoped to V106's `down/1` cross-mode duplicate pre-check, matching its filename
+
+### Fixed
+- V112 `down/1` rollback ordering (post-merge review fix, commit `0cde04a8`). Original `down/1` dropped columns before restoring unique indexes; if post-V112 work introduced any duplicate names (V112's whole purpose), the `CREATE UNIQUE INDEX` would raise mid-rollback after columns were already gone. Reordered so index restoration runs first
+- V112 visible-index predicate docs/code alignment — migrator moduledoc claimed `WHERE archived_at IS NULL AND is_template = false` but actual index only filtered on `archived_at IS NULL`. Docs updated to match the emitted SQL with rationale (one partial covers both visible projects and visible templates)
+- MediaBrowser i18n — list-view dropdown duplicates of the folder menu (Color heading, delete data-confirm, Delete button) were missed in the original sweep; wrapped so list view matches grid view. Three flash/confirm messages embedded two independent counts in a single `gettext` call which made correct pluralization impossible in Russian (3 forms) and Estonian (2 forms); each composed from two `ngettext` calls injected into the surrounding `gettext` template (PR #532)
+
+### i18n
+- MediaBrowser UI strings wrapped in gettext + Russian and Estonian translations (PRs #532, plus earlier commits `c717c9d0` / `d44bf95c`)
+- `/admin/modules` page strings wrapped in gettext + ru/et translations (PR #530)
+- Core sidebar tabs wired to `PhoenixKitWeb.Gettext` for ru/et (PR #529, commits `43e528ac` / `c5fd5bae`)
+- Sitemap settings UI strings wrapped in gettext (commit `afcc281a`)
+- General Settings widened + `/admin/modules/languages` strings wrapped (commit `24ceec90`)
+- Core `badge.ex` + `time_display.ex` status strings wrapped (commit `1fe0ad78`)
+- 9 new tab-label msgids + complete Estonian translation in `default.po` (commit `373478f5`)
+- Bare `Active` badge in `users.html.heex:278` wrapped (commit `8a341e90`)
+
+### Layout
+- Admin settings pages widened for wide screens (commit `3ea70ec1`)
+- Module settings pages — sitemap, storage, referrals — widened for wide screens (commit `d867cb57`)
+
+### Hygiene
+- `mix format` reflow of long-line `gettext` / `ngettext` / `put_flash` calls in `media_browser.ex` and `media_browser.html.heex` (commit `9841ac31`). Surfaced when `mix precommit` ran during V112 review-followup work; no semantic changes
+
 ## 1.7.107 - 2026-05-10
 
 ### Added
