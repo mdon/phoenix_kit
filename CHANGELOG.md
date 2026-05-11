@@ -12,6 +12,25 @@
   - All steps idempotent (column-existence, index-existence, USING coercion clauses); `down/1` reverses each change so a rollback restores the V111 shape. `down/1` restores the V105/V101 unique indexes **first**, before dropping any V112 columns, so a duplicate-name conflict at rollback aborts cleanly rather than leaving a half-rolled schema
 - `test/phoenix_kit/migrations/v112_test.exs` — pins every V112 addition (archived_at column + type + nullability, visible-index existence AND predicate shape, translations JSONB on the three tables, scheduled_start_date retype, position columns) plus the four dropped indexes and the duplicate-name behavior. The predicate test refutes any `is_template` mention, closing the docs-drift loop
 - `dev_docs/pull_requests/2026/533-v112-projects-schema-evolution/CLAUDE_REVIEW.md` — post-merge review with finding dispositions
+- V113 migration: system-managed media flag for Tessera deep-zoom tiles + comments↔files junction (PR #534)
+  - `system_managed BOOLEAN NOT NULL DEFAULT false` on `phoenix_kit_files` — marks internally-generated media (DZI tile pyramids + per-tile chunks) so the MediaBrowser excludes them from user listings and the variant generator skips them (tile chunks don't need small / medium / large — just an `"original"` FileInstance)
+  - `parent_file_uuid UUID` nullable FK to `phoenix_kit_files(uuid)` ON DELETE CASCADE — system-managed tile rows cascade away when their source image is hard-deleted
+  - `user_uuid` drops NOT NULL — system-managed rows belong to a parent File, not a user. The DB-level CHECK `phoenix_kit_files_user_or_parent_check` enforces "`user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL`" so raw inserts can't violate the invariant
+  - `phoenix_kit_files_system_dedup_index` partial unique index on `(parent_file_uuid, file_name) WHERE system_managed = true` — concurrent lazy-generation requests for the same uncached tile dedupe at the DB level via the changeset's `unique_constraint`; `Storage.store_system_file/3` recovers the winner's row on conflict
+  - Two more partial indexes — `phoenix_kit_files_parent_uuid_index` (per-source lookup + cascade-cleanup) and `phoenix_kit_files_system_managed_index` (keeps the MediaBrowser's "user files only" sort cheap as the tile catalog grows)
+  - `phoenix_kit_comment_media` junction table letting the comments module attach core File rows to comments with position + caption. Cascade on `comment_uuid`, RESTRICT on `file_uuid` (a file can't hard-delete while attached). Consumer code lands in a later PR
+  - Bumps migrator `@current_version` 112 → 113; all DDL idempotent via `IF NOT EXISTS` / DO-blocks
+- Deep Zoom Image viewer in MediaBrowser via Tessera (OpenSeadragon wrapper, PR #534)
+  - New `Tessera.Viewer.viewer` replaces the static `<img>` in the file modal; `tessera_sources/1` builds the progressive layer list (medium → optional large → DZI manifest)
+  - `<Tessera.Storage>` adapter (`PhoenixKit.Modules.Storage.TesseraAdapter`) lands tile writes in the storage pipeline (multi-bucket via `Manager.store_file/2` + a system-managed File row via `Storage.store_system_file/3`)
+  - Two new public endpoints — `/tiles/:token/:dzi_filename` and `/tiles/:token/:files_segment/:level/:tile_filename` — generate the DZI manifest and individual tiles **lazily** on first request, then serve from storage. Signed `URLSigner` token in the URL path (not query) so OpenSeadragon's tile-URL derivation preserves it across manifest → tile fetch. The "dzi" variant name is distinct from storage variants so a leaked file-serving token can't grant tile access. Unauthorized requests return 404 to prevent UUID enumeration
+  - Per-`file_uuid` `:global.set_lock` mutex + double-checked locking around the generators serializes concurrent cold-path requests for the same image; different images stay parallel. Lock timeout surfaces as 503 + `Retry-After` header
+  - Tempfile lifecycles wrapped in `try/after` so `Tessera.generate_tile/4` or `Manager.retrieve_file/2` exceptions don't leak files into `System.tmp_dir!()`
+  - New storage setting `storage_tile_generation_enabled` (default `"false"`) is the kill switch — when off, MediaBrowser emits no manifest URLs and the tile endpoints return 404
+- `Storage.store_system_file/3` — context helper for system-managed media (tiles, manifests). Idempotent: check-then-insert with unique-violation recovery via the new dedup index, so two concurrent writers for the same key both end up with the same row
+- `Storage` query helper `exclude_system_managed/1` — applied to every `list_*` / `count_*` / orphan / trash query so system-managed rows are invisible in the MediaBrowser regardless of how the query is composed
+- `test/phoenix_kit/migrations/v113_test.exs` — pins every V113 addition (system_managed column shape, parent_file_uuid FK with cascade verification, user_uuid nullability change, three indexes including the partial-unique dedup, CHECK constraint with a raw-SQL test that double-null inserts are rejected, comment_media table + its two indexes)
+- `dev_docs/pull_requests/2026/534-media-browser-tessera-tiles/CLAUDE_REVIEW.md` — review with finding dispositions; CRITICAL + HIGH items fixed in the same release
 
 ### Changed
 - `<.translatable_field>` in `PhoenixKitWeb.Components.MultilangForm` — wrapper now `flex flex-col gap-1` and base input/textarea classes carry `w-full` (commits `52856738`, `0412beaf`). daisyUI 5's `.label` is `inline-flex` and `.input`/`.textarea` are `inline-block`, so without forcing column direction here label and field sat on the same row. Aligns the multilang form's layout with the regular `<.input>` core component
@@ -38,6 +57,7 @@
 
 ### Hygiene
 - `mix format` reflow of long-line `gettext` / `ngettext` / `put_flash` calls in `media_browser.ex` and `media_browser.html.heex` (commit `9841ac31`). Surfaced when `mix precommit` ran during V112 review-followup work; no semantic changes
+- New Hex dep: `{:tessera, "~> 0.1"}` — OpenSeadragon wrapper used by the Deep Zoom viewer
 
 ## 1.7.107 - 2026-05-10
 
