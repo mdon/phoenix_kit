@@ -529,7 +529,37 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime ⚡ LATEST
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction ⚡ LATEST
+  - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
+    `phoenix_kit_files`. Marks internally-generated media (DZI tile
+    pyramids + per-tile chunks) so the MediaBrowser can exclude them
+    from user listings and the variant generator can skip them (tile
+    chunks don't need small / medium / large — just an `"original"`
+    FileInstance).
+  - Adds nullable `parent_file_uuid` FK to `phoenix_kit_files(uuid)`
+    `ON DELETE :delete_all`. When a source image is hard-deleted, its
+    system-managed tile rows cascade away with it.
+  - Drops `NOT NULL` on `user_uuid`: system-managed rows belong to a
+    parent File, not a user. The changeset's
+    `validate_system_managed_invariants` enforces "user_uuid OR
+    parent_file_uuid" at the app level.
+  - Two partial indexes: one on `parent_file_uuid` where not null (per-
+    source cleanup + listing), one on `inserted_at DESC` where
+    `system_managed = false` (keeps the MediaBrowser's "user files
+    only" sort cheap as the tile catalog grows).
+  - Creates `phoenix_kit_comment_media` — junction table letting the
+    comments module attach core File rows to individual comments with
+    a position + optional caption. Cascade on `comment_uuid` (deleting
+    a comment removes its attachments), restrict on `file_uuid` (files
+    can't hard-delete while attached). Unique `(comment_uuid, position)`
+    slot index + secondary index on `file_uuid` for reverse lookup.
+  - All column / FK / NOT-NULL changes use raw SQL with explicit
+    `IF NOT EXISTS` / `DO $$ … END $$` guards so re-running on a
+    partially-applied schema is a no-op (the migration was previously
+    numbered V112 in dev branches; this lets those environments roll
+    forward without crashing on the existing FK constraint).
+
+  ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime
   - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the
     admin dashboard can soft-hide projects without flipping a status
     enum. Visible-set partial index (`phoenix_kit_projects_visible_idx`
@@ -879,7 +909,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 112
+  @current_version 113
   @default_prefix "public"
 
   @doc false

@@ -260,7 +260,13 @@ defmodule PhoenixKitWeb.FileController do
     if Manager.file_exists?(destination) do
       :ok
     else
-      Tessera.generate_manifest({w, h}, "#{file_uuid}/#{file_uuid}", storage: TesseraAdapter)
+      Tessera.generate_manifest({w, h}, "#{file_uuid}/#{file_uuid}",
+        storage: TesseraAdapter,
+        storage_opts: [
+          parent_file_uuid: file_uuid,
+          mime_type: "application/xml"
+        ]
+      )
     end
   end
 
@@ -293,7 +299,12 @@ defmodule PhoenixKitWeb.FileController do
                 image_width: w,
                 image_height: h,
                 format: format_atom(ext),
-                storage: TesseraAdapter
+                storage: TesseraAdapter,
+                storage_opts: [
+                  parent_file_uuid: file_uuid,
+                  mime_type: content_type_for(ext),
+                  metadata: %{"level" => level, "col" => col, "row" => row}
+                ]
               )
 
             File.rm(temp_path)

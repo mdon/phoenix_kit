@@ -1158,6 +1158,7 @@ defmodule PhoenixKit.Modules.Storage do
       query =
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
+        |> exclude_system_managed()
 
       total = repo().aggregate(query, :count, :uuid)
 
@@ -1334,11 +1335,19 @@ defmodule PhoenixKit.Modules.Storage do
   def list_files(opts \\ []) do
     PhoenixKit.Modules.Storage.File
     |> where([f], f.status != "trashed")
+    |> exclude_system_managed()
     |> maybe_filter_by_bucket(opts[:bucket_uuid])
     |> maybe_order_by(opts[:order_by])
     |> maybe_limit(opts[:limit])
     |> maybe_offset(opts[:offset])
     |> repo().all()
+  end
+
+  # Filters out system-managed File rows (Tessera tile chunks + manifests)
+  # so they never appear in user-facing listings. Use this in every
+  # `list_*` / `count_*` query that powers the MediaBrowser.
+  defp exclude_system_managed(query) do
+    where(query, [f], f.system_managed == false)
   end
 
   @doc """
@@ -1395,6 +1404,97 @@ defmodule PhoenixKit.Modules.Storage do
     %PhoenixKit.Modules.Storage.File{}
     |> PhoenixKit.Modules.Storage.File.changeset(attrs)
     |> repo().insert()
+  end
+
+  @doc """
+  Persists a system-managed chunk (e.g. a Tessera DZI tile or manifest)
+  into every configured bucket *and* into the storage DB as a File row
+  with a single `"original"` FileInstance.
+
+  System-managed Files:
+
+    * have `system_managed: true`
+    * carry a `parent_file_uuid` pointing at the source File that this
+      chunk was derived from — used for cascade cleanup (the FK in V112
+      is `ON DELETE :delete_all`)
+    * have no `user_uuid` (the changeset's `validate_system_managed_invariants`
+      requires the parent instead)
+    * skip the variant pipeline (see `VariantGenerator.should_generate_variants?/1`)
+    * are excluded from MediaBrowser listings
+
+  ## Required opts
+
+    * `:parent_file_uuid` — the source image's UUID
+    * `:mime_type` — content type
+    * `:size` — content size in bytes (taken from disk if omitted)
+
+  ## Optional opts
+
+    * `:file_type` — defaults to `"tile"`
+    * `:width` / `:height` — dimensions, if known
+    * `:metadata` — JSONB payload (e.g. tile coords)
+
+  Returns `{:ok, %{file: file, instance: instance}}` or `{:error, reason}`.
+  """
+  def store_system_file(content_path, key, opts) do
+    parent_file_uuid = Keyword.fetch!(opts, :parent_file_uuid)
+    mime_type = Keyword.fetch!(opts, :mime_type)
+    file_type = Keyword.get(opts, :file_type, "tile")
+
+    destination = key
+
+    with {:ok, _info} <-
+           PhoenixKit.Modules.Storage.Manager.store_file(content_path,
+             path_prefix: destination
+           ),
+         {:ok, size} <- file_size(content_path, opts),
+         checksum <- calculate_file_hash(content_path),
+         file_attrs = %{
+           original_file_name: Path.basename(destination),
+           file_name: destination,
+           file_path: Path.dirname(destination),
+           mime_type: mime_type,
+           file_type: file_type,
+           ext: Path.extname(destination),
+           file_checksum: checksum,
+           user_file_checksum: checksum,
+           size: size,
+           width: Keyword.get(opts, :width),
+           height: Keyword.get(opts, :height),
+           status: "active",
+           metadata: Keyword.get(opts, :metadata),
+           system_managed: true,
+           parent_file_uuid: parent_file_uuid
+         },
+         {:ok, file} <- create_file(file_attrs),
+         instance_attrs = %{
+           variant_name: "original",
+           file_name: destination,
+           mime_type: mime_type,
+           ext: Path.extname(destination),
+           checksum: checksum,
+           size: size,
+           width: Keyword.get(opts, :width),
+           height: Keyword.get(opts, :height),
+           processing_status: "completed",
+           file_uuid: file.uuid
+         },
+         {:ok, instance} <- create_file_instance(instance_attrs) do
+      {:ok, %{file: file, instance: instance}}
+    end
+  end
+
+  defp file_size(path, opts) do
+    case Keyword.get(opts, :size) do
+      n when is_integer(n) and n > 0 ->
+        {:ok, n}
+
+      _ ->
+        case Elixir.File.stat(path) do
+          {:ok, %{size: size}} when size > 0 -> {:ok, size}
+          _ -> {:error, :invalid_size}
+        end
+    end
   end
 
   @doc """
@@ -1491,10 +1591,11 @@ defmodule PhoenixKit.Modules.Storage do
     protected_uuids = protected_file_uuids()
 
     # Core check — phoenix_kit_users always exists; exclude trashed files
+    # and system-managed media (tile chunks never count as orphans).
     base =
       from(f in PhoenixKit.Modules.Storage.File,
         where:
-          f.status != "trashed" and
+          f.status != "trashed" and f.system_managed == false and
             fragment(
               "NOT EXISTS (SELECT 1 FROM phoenix_kit_users u WHERE u.custom_fields->>'avatar_file_uuid' = ?::text)",
               f.uuid
@@ -2020,7 +2121,9 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp build_trashed_query(nil) do
-    from(f in PhoenixKit.Modules.Storage.File, where: f.status == "trashed")
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.status == "trashed" and f.system_managed == false
+    )
   end
 
   defp build_trashed_query(scope_folder_id) do
@@ -2042,7 +2145,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in PhoenixKit.Modules.Storage.File,
       join: d in "scope_descendants",
       on: f.folder_uuid == d.uuid,
-      where: f.status == "trashed"
+      where: f.status == "trashed" and f.system_managed == false
     )
     |> with_cte("scope_descendants", as: ^cte)
     |> recursive_ctes(true)
