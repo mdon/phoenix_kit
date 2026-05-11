@@ -1353,12 +1353,20 @@
             <% end %>
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
-                <img
+                <%!-- Progressive multi-layer zoom. The image starts on the      --%>
+                <%!-- cheapest layer (medium) and swaps up as the user zooms in: --%>
+                <%!--                                                            --%>
+                <%!--   small image  → [medium, dzi]                             --%>
+                <%!--   4K+ image    → [medium, large, dzi]                      --%>
+                <%!--                                                            --%>
+                <%!-- Each non-DZI layer carries its intrinsic pixel width; the  --%>
+                <%!-- viewer computes thresholds dynamically so each layer is    --%>
+                <%!-- used only in the zoom range where its native resolution    --%>
+                <%!-- is sharper than the rendered viewport pixels.              --%>
+                <Tessera.Viewer.viewer
                   id={"media-zoom-" <> f.file_uuid}
-                  phx-hook="MediaImageZoom"
-                  src={f.urls["original"] || f.urls["medium"]}
-                  alt={f.filename}
-                  class="w-full h-auto max-h-full object-contain lg:rounded cursor-grab"
+                  sources={tessera_sources(f)}
+                  class="w-full h-full lg:rounded"
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video

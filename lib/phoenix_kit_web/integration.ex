@@ -253,6 +253,13 @@ defmodule PhoenixKitWeb.Integration do
         post "/api/upload", UploadController, :create
         get "/file/:file_uuid/:variant/:token", FileController, :show
         get "/api/files/:file_uuid/info", FileController, :info
+        # Token in the path (not query string) so OpenSeadragon's tile-URL
+        # derivation preserves it — OSD strips `.dzi?query=...` to build
+        # `<base>_files/<level>/<col>_<row>.<ext>`, but a path-token
+        # `/tiles/<token>/<uuid>.dzi` becomes a clean base of
+        # `/tiles/<token>/<uuid>` and tile URLs inherit the token.
+        get "/tiles/:token/:dzi_filename", FileController, :serve_manifest
+        get "/tiles/:token/:files_segment/:level/:tile_filename", FileController, :serve_tile
 
         # Cookie consent widget config (public API for JS auto-injection)
         if Code.ensure_loaded?(PhoenixKit.Modules.Legal) do
