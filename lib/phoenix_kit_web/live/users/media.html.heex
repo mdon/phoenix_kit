@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Media"
+  page_title={gettext("Media")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -9,8 +9,8 @@
   <div class="container flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={PhoenixKit.Utils.Routes.path("/admin")}
-      title="Media"
-      subtitle="Manage user media and uploads"
+      title={gettext("Media")}
+      subtitle={gettext("Manage user media and uploads")}
     />
 
     <.live_component
