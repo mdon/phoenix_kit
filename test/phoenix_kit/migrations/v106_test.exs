@@ -53,7 +53,19 @@ defmodule PhoenixKit.Migrations.Postgres.V106Test do
   end
 
   describe "schema state (verified at boot)" do
-    test "V106 partial unique index for templates exists" do
+    # V112 reversed V106's structural uniqueness: name uniqueness is
+    # now policy, not schema. The two partial indexes V106 created
+    # are explicitly dropped in V112.up so editing a template's name
+    # never trips a stale index, and so future renamings (per
+    # phoenix_kit_projects' AGENTS.md "soft-delete + rename"
+    # convention) don't need migration coordination.
+    #
+    # These tests pin the post-V112 reality: V106's indexes are
+    # gone, V101's global index is also gone, duplicate names
+    # across all four (template/template, project/project,
+    # template/project, case variants) coexist freely.
+
+    test "V106's partial unique index for templates has been dropped by V112" do
       %{rows: [[exists]]} =
         Repo.query!("""
         SELECT EXISTS (
@@ -62,10 +74,10 @@ defmodule PhoenixKit.Migrations.Postgres.V106Test do
         )
         """)
 
-      assert exists == true
+      assert exists == false
     end
 
-    test "V106 partial unique index for real projects exists" do
+    test "V106's partial unique index for real projects has been dropped by V112" do
       %{rows: [[exists]]} =
         Repo.query!("""
         SELECT EXISTS (
@@ -74,16 +86,12 @@ defmodule PhoenixKit.Migrations.Postgres.V106Test do
         )
         """)
 
-      assert exists == true
+      assert exists == false
     end
 
-    test "V101's global unique index has been replaced (does not exist)" do
-      # V106.up dropped V101's global index. If a regression re-
-      # introduces it (e.g. a future migration that recreates the
-      # global index without dropping the partials first), the
-      # uniqueness semantics change silently — operators wouldn't
-      # notice until they tried to seed a project with the same
-      # name as an existing template.
+    test "V101's global unique index also does not exist" do
+      # V106 dropped V101's global index. V112 dropped V106's
+      # partials. Neither index is in the current schema.
       %{rows: [[exists]]} =
         Repo.query!("""
         SELECT EXISTS (
@@ -95,41 +103,35 @@ defmodule PhoenixKit.Migrations.Postgres.V106Test do
       assert exists == false
     end
 
-    test "templates and real projects can share a name (the V106 goal)" do
-      # The whole point of V106. If both inserts succeed, the
-      # uniqueness scope is correctly per-mode. Sandbox rolls these
-      # back at test end.
+    test "templates and real projects can share a name (the V106 goal, still holds post-V112)" do
+      # The original V106 goal was per-mode uniqueness; V112 widened
+      # it to no-uniqueness. Either way templates + projects can
+      # share a name. Sandbox rolls these back at test end.
       _template_uuid = insert_project!("Onboarding", true)
       _project_uuid = insert_project!("Onboarding", false)
 
       assert :ok = :ok
     end
 
-    test "two templates with the same name are still rejected" do
-      _first = insert_project!("Quarterly Review", true)
+    test "two templates with the same name now coexist (V112 dropped the partial index)" do
+      first = insert_project!("Quarterly Review", true)
+      second = insert_project!("Quarterly Review", true)
 
-      # Postgres raises Postgrex.Error on the partial-index conflict.
-      assert_raise Postgrex.Error, ~r/duplicate key value violates/, fn ->
-        insert_project!("Quarterly Review", true)
-      end
+      assert first != second
     end
 
-    test "two real projects with the same name are still rejected" do
-      _first = insert_project!("Q4 Planning", false)
+    test "two real projects with the same name now coexist (V112 dropped the partial index)" do
+      first = insert_project!("Q4 Planning", false)
+      second = insert_project!("Q4 Planning", false)
 
-      assert_raise Postgrex.Error, ~r/duplicate key value violates/, fn ->
-        insert_project!("Q4 Planning", false)
-      end
+      assert first != second
     end
 
-    test "name uniqueness is case-insensitive within each mode" do
-      _first = insert_project!("Onboarding", true)
+    test "case-only differences are also allowed now (no lower(name) index left)" do
+      first = insert_project!("Onboarding", true)
+      second = insert_project!("ONBOARDING", true)
 
-      # Same name with different case should still collide because
-      # both partial indexes are on `lower(name)`.
-      assert_raise Postgrex.Error, ~r/duplicate key value violates/, fn ->
-        insert_project!("ONBOARDING", true)
-      end
+      assert first != second
     end
   end
 
