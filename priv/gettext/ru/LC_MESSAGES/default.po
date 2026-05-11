@@ -7227,3 +7227,18 @@ msgstr "Частично успешно: %{uploaded}, %{failed} из-за отс
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Загрузка успешна! %{added}. %{duplicates}."
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Activity"
+msgstr "Активность"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "General"
+msgstr "Общие"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Authorization"
+msgstr "Авторизация"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Dimensions"
+msgstr "Размеры"

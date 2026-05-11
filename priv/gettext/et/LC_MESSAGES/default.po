@@ -7221,3 +7221,18 @@ msgstr "Osaliselt edukas: %{uploaded}, %{failed} puuduvate salvestushoidlate tõ
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Üleslaadimine edukas! %{added}. %{duplicates}."
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Activity"
+msgstr "Tegevus"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "General"
+msgstr "Üldine"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Authorization"
+msgstr "Volitamine"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex
+msgid "Dimensions"
+msgstr "Mõõtmed"
