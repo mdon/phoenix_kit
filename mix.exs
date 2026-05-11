@@ -120,9 +120,7 @@ defmodule PhoenixKit.MixProject do
       {:leaf, "~> 0.2.11"},
 
       # Deep zoom / pan-zoom image viewer (OpenSeadragon wrapper).
-      # Path dep for now while the package is unpublished; switch to a hex
-      # version (`{:tessera, "~> 0.1"}`) once tessera 0.1.0 is on hex.pm.
-      {:tessera, path: "../tessera"},
+      {:tessera, "~> 0.1"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
