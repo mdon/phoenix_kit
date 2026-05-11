@@ -6270,3 +6270,66 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "%{count}d ago"
 msgstr ""
+
+msgid "Summary"
+msgstr ""
+
+msgid "Languages Enabled"
+msgstr ""
+
+msgid "Countries Covered"
+msgstr ""
+
+msgid "Enabled Languages"
+msgstr ""
+
+msgid "Default language"
+msgstr ""
+
+msgid "Available Languages"
+msgstr ""
+
+msgid "Language Configuration"
+msgstr ""
+
+msgid "Frontend Language Switcher"
+msgstr ""
+
+msgid "Switcher Settings"
+msgstr ""
+
+msgid "Show Flags"
+msgstr ""
+
+msgid "Show Names"
+msgstr ""
+
+msgid "Native Names"
+msgstr ""
+
+msgid "Go to Home"
+msgstr ""
+
+msgid "Hide Current"
+msgstr ""
+
+msgid "Generated Code"
+msgstr ""
+
+msgid "Implementation Notes"
+msgstr ""
+
+msgid "Enable and Configure Languages"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Reorder"
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
+msgid "No languages enabled yet."
+msgstr ""

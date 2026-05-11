@@ -2103,7 +2103,7 @@ msgstr "Удалить бакет"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:430
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Disable"
-msgstr "Отключенные аккаунты"
+msgstr "Отключить"
 
 #: lib/modules/storage/web/settings.html.heex:261
 #, elixir-autogen, elixir-format
@@ -6279,3 +6279,66 @@ msgstr "%{count} ч назад"
 #, elixir-autogen, elixir-format
 msgid "%{count}d ago"
 msgstr "%{count} дн назад"
+
+msgid "Summary"
+msgstr "Сводка"
+
+msgid "Languages Enabled"
+msgstr "Включенные языки"
+
+msgid "Countries Covered"
+msgstr "Охваченные страны"
+
+msgid "Enabled Languages"
+msgstr "Включенные языки"
+
+msgid "Default language"
+msgstr "Язык по умолчанию"
+
+msgid "Available Languages"
+msgstr "Доступные языки"
+
+msgid "Language Configuration"
+msgstr "Настройка языков"
+
+msgid "Frontend Language Switcher"
+msgstr "Переключатель языков на фронтенде"
+
+msgid "Switcher Settings"
+msgstr "Настройки переключателя"
+
+msgid "Show Flags"
+msgstr "Показывать флаги"
+
+msgid "Show Names"
+msgstr "Показывать названия"
+
+msgid "Native Names"
+msgstr "Названия на родном языке"
+
+msgid "Go to Home"
+msgstr "Перейти на главную"
+
+msgid "Hide Current"
+msgstr "Скрыть текущий"
+
+msgid "Generated Code"
+msgstr "Сгенерированный код"
+
+msgid "Implementation Notes"
+msgstr "Заметки по внедрению"
+
+msgid "Enable and Configure Languages"
+msgstr "Включить и настроить языки"
+
+msgid "Done"
+msgstr "Готово"
+
+msgid "Reorder"
+msgstr "Изменить порядок"
+
+msgid "Default"
+msgstr "По умолчанию"
+
+msgid "No languages enabled yet."
+msgstr "Языки ещё не включены."

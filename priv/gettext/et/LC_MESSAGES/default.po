@@ -6292,3 +6292,66 @@ msgstr "%{count} t tagasi"
 #, elixir-autogen, elixir-format
 msgid "%{count}d ago"
 msgstr "%{count} päeva tagasi"
+
+msgid "Summary"
+msgstr "Kokkuvõte"
+
+msgid "Languages Enabled"
+msgstr "Lubatud keeled"
+
+msgid "Countries Covered"
+msgstr "Kaetud riigid"
+
+msgid "Enabled Languages"
+msgstr "Lubatud keeled"
+
+msgid "Default language"
+msgstr "Vaikekeel"
+
+msgid "Available Languages"
+msgstr "Saadaolevad keeled"
+
+msgid "Language Configuration"
+msgstr "Keele seadistus"
+
+msgid "Frontend Language Switcher"
+msgstr "Esikülje keelevahetaja"
+
+msgid "Switcher Settings"
+msgstr "Vahetaja seaded"
+
+msgid "Show Flags"
+msgstr "Näita lippe"
+
+msgid "Show Names"
+msgstr "Näita nimesid"
+
+msgid "Native Names"
+msgstr "Emakeelsed nimed"
+
+msgid "Go to Home"
+msgstr "Mine avalehele"
+
+msgid "Hide Current"
+msgstr "Peida praegune"
+
+msgid "Generated Code"
+msgstr "Genereeritud kood"
+
+msgid "Implementation Notes"
+msgstr "Rakenduse märkused"
+
+msgid "Enable and Configure Languages"
+msgstr "Luba ja seadista keeled"
+
+msgid "Done"
+msgstr "Valmis"
+
+msgid "Reorder"
+msgstr "Muuda järjekorda"
+
+msgid "Default"
+msgstr "Vaikimisi"
+
+msgid "No languages enabled yet."
+msgstr "Ühtegi keelt pole veel lubatud."
