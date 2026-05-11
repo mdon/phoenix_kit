@@ -680,7 +680,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
          |> put_flash(:info, gettext("Folder created"))}
 
       {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot create folder outside the allowed scope"))}
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot create folder outside the allowed scope"))}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to create folder"))}
@@ -694,7 +695,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if folder do
       case Storage.delete_folder(folder, scope) do
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot delete folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot delete folder outside the allowed scope"))}
 
         _ ->
           parent_uuid = current_folder_uuid(socket)
@@ -723,7 +725,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
 
       {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to move file"))}
@@ -916,7 +919,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot rename folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot rename folder outside the allowed scope"))}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to rename folder"))}
@@ -950,7 +954,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot change folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot change folder outside the allowed scope"))}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to change color"))}
@@ -1104,7 +1109,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> assign(:show_move_modal, false)
-     |> put_flash(:info, ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count))
+     |> put_flash(
+       :info,
+       ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count)
+     )
      |> reload_current_page()}
   end
 
@@ -1223,7 +1231,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply,
      socket
      |> assign(:filter_trash, false)
-     |> put_flash(:info, ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count))
+     |> put_flash(
+       :info,
+       ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count)
+     )
      |> reload_current_page()}
   end
 
@@ -1276,7 +1287,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     Storage.queue_file_cleanup(orphan_uuids)
 
     {:noreply,
-     put_flash(socket, :info, ngettext("%{count} orphaned file queued for deletion", "%{count} orphaned files queued for deletion", length(orphan_uuids)))}
+     put_flash(
+       socket,
+       :info,
+       ngettext(
+         "%{count} orphaned file queued for deletion",
+         "%{count} orphaned files queued for deletion",
+         length(orphan_uuids)
+       )
+     )}
   end
 
   def handle_event("toggle_upload", _params, socket) do
