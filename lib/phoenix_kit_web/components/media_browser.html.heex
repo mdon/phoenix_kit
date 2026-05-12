@@ -1359,15 +1359,29 @@
                 <%!--   small image  → [medium, dzi]                             --%>
                 <%!--   4K+ image    → [medium, large, dzi]                      --%>
                 <%!--                                                            --%>
-                <%!-- Each non-DZI layer carries its intrinsic pixel width; the  --%>
-                <%!-- viewer computes thresholds dynamically so each layer is    --%>
-                <%!-- used only in the zoom range where its native resolution    --%>
-                <%!-- is sharper than the rendered viewport pixels.              --%>
-                <Tessera.Viewer.viewer
-                  id={"media-zoom-" <> f.file_uuid}
-                  sources={tessera_sources(f)}
-                  class="w-full h-full lg:rounded"
-                />
+                <%!-- Tessera 0.2 split the viewer into a Fresco OpenSeadragon   --%>
+                <%!-- viewer + a Tessera layer that swaps between source         --%>
+                <%!-- qualities. Fresco renders the initial cheap source; the    --%>
+                <%!-- Tessera layer attaches via fresco_id and takes over the    --%>
+                <%!-- per-zoom layer-swap logic, preserving viewport bounds.     --%>
+                <%= case tessera_sources(f) do %>
+                  <% [first | _] = sources -> %>
+                    <Fresco.viewer
+                      id={"media-zoom-" <> f.file_uuid}
+                      src={first.url}
+                      class="w-full h-full lg:rounded"
+                    />
+                    <Tessera.layer
+                      fresco_id={"media-zoom-" <> f.file_uuid}
+                      sources={sources}
+                    />
+                  <% [] -> %>
+                    <img
+                      src={f.urls["original"]}
+                      class="max-w-full max-h-full lg:rounded"
+                      alt=""
+                    />
+                <% end %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
                   src={f.urls["original"]}

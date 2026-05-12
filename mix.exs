@@ -119,12 +119,12 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
-      # Deep zoom / pan-zoom image viewer (OpenSeadragon wrapper).
-      # Pinned to 0.1.x — Tessera 0.2 split the viewer into a Fresco viewer
-      # + Tessera layer composition (`<Fresco.viewer>` + `<Tessera.layer>`),
-      # which would also require wiring FrescoHooks into the parent app's
-      # LiveSocket. Migrate to 0.2 as a separate, intentional bump.
-      {:tessera, "~> 0.1.0"},
+      # Deep zoom / pan-zoom image viewer (Tessera DZI layer atop the
+      # Fresco OpenSeadragon viewer). Tessera 0.2 split the standalone
+      # viewer into <Fresco.viewer> + <Tessera.layer> composition; both
+      # JS hooks are bundled into priv/static/assets/phoenix_kit.js so
+      # parent apps don't need to wire them separately.
+      {:tessera, "~> 0.2"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

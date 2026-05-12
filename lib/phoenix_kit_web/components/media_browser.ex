@@ -1884,7 +1884,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Builds the ordered low → high quality layer list that
-  # `<Tessera.Viewer.viewer sources={...}>` consumes. Each entry is
+  # `<Tessera.layer sources={...}>` consumes (paired with a `<Fresco.viewer>`
+  # rendering the first entry's URL as the initial source). Each entry is
   # `%{url: <signed url>, width: <intrinsic pixel width>}`, except the
   # top DZI layer which omits `width` (Tessera treats unknown width as
   # the top of the pyramid with infinite zoom headroom).
