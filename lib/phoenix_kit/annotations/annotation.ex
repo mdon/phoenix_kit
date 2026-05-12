@@ -9,9 +9,11 @@ defmodule PhoenixKit.Annotations.Annotation do
 
   ## Comment thread linkage
 
-  An annotation's discussion thread lives in `phoenix_kit_comments` via
-  the established convention (`resource_type = "annotation"`,
-  `resource_uuid = annotation.uuid`). There is no `comment_uuid` column
+  An annotation's discussion lives in `phoenix_kit_comments` anchored to
+  the **file** (`resource_type = "file"`, `resource_uuid = file_uuid`)
+  with `metadata.annotation_uuid` carrying the back-reference. This lets
+  annotation-rooted comments appear in the file's main comments thread
+  alongside non-annotated discussion. There is no `comment_uuid` column
   on annotations — the relationship is one-directional from the comment
   side, and a thread is created lazily when the first comment is posted.
   """

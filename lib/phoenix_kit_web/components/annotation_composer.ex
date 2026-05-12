@@ -2,11 +2,10 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   # PhoenixKitComments is an optional sibling package — silence undefined
   # warnings for parent apps that don't install it. The MediaBrowser
   # template only mounts this composer when comments are installed.
-  @compile {:no_warn_undefined,
-            [
-              PhoenixKitComments,
-              PhoenixKit.Modules.Storage
-            ]}
+  # `PhoenixKit.Modules.Storage` is core, not optional, so it's not on
+  # the suppression list — a rename or arity change there should surface
+  # as a compile error here, not be silently shadowed.
+  @compile {:no_warn_undefined, [PhoenixKitComments]}
 
   @moduledoc """
   Focused composer LiveComponent for attaching the *first* comment to a
@@ -59,6 +58,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
 
   import PhoenixKitWeb.Components.Core.Icon
 
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKitWeb.Components.MediaBrowser
 
   @impl true
@@ -77,8 +77,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
      |> assign(:max_attachments, max_entries)
      |> assign(:max_attachment_size_mb, max_size_mb)
      |> allow_upload(:attachment,
-       accept:
-         ~w(image/* video/* audio/* .pdf .doc .docx .txt .md .zip .rar .7z),
+       accept: ~w(image/* video/* audio/* .pdf .doc .docx .txt .md .zip .rar .7z),
        max_entries: max_entries,
        max_file_size: max_size_mb * 1024 * 1024
      )}
@@ -131,23 +130,28 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
       {:noreply, socket}
     else
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, put_flash(socket, :error, first_error(cs) || "Could not post comment")}
+        {:noreply,
+         put_flash(socket, :error, first_error(cs) || gettext("Could not post comment"))}
 
       {:error, :empty_comment} ->
-        {:noreply, put_flash(socket, :error, "Add some text, a GIF, or an attachment")}
+        {:noreply, put_flash(socket, :error, gettext("Add some text, a GIF, or an attachment"))}
 
       {:error, :attachments_disabled} ->
-        {:noreply, put_flash(socket, :error, "Attachments are disabled")}
+        {:noreply, put_flash(socket, :error, gettext("Attachments are disabled"))}
 
       {:error, :too_many_attachments} ->
         {:noreply,
-         put_flash(socket, :error, "Up to #{socket.assigns.max_attachments} attachments")}
+         put_flash(
+           socket,
+           :error,
+           gettext("Up to %{max} attachments", max: socket.assigns.max_attachments)
+         )}
 
       {:error, message} when is_binary(message) ->
         {:noreply, put_flash(socket, :error, message)}
 
       {:error, _other} ->
-        {:noreply, put_flash(socket, :error, "Could not post comment")}
+        {:noreply, put_flash(socket, :error, gettext("Could not post comment"))}
     end
   end
 
@@ -209,7 +213,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
          socket
          |> assign(:giphy_query, query)
          |> assign(:giphy_results, [])
-         |> put_flash(:error, "Giphy search failed")}
+         |> put_flash(:error, gettext("Giphy search failed"))}
     end
   end
 
@@ -253,15 +257,18 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
             user_uuid: user_uuid
           ]
 
-          case PhoenixKit.Modules.Storage.store_file(meta.path, opts) do
+          case Storage.store_file(meta.path, opts) do
             {:ok, %{uuid: uuid}} -> {:ok, {:ok, uuid}}
             {:error, reason} -> {:ok, {:error, reason}}
           end
         end)
 
       case Enum.split_with(results, &match?({:ok, _}, &1)) do
-        {oks, []} -> {:ok, Enum.map(oks, fn {:ok, uuid} -> uuid end)}
-        {_, [{:error, reason} | _]} -> {:error, "Upload failed: #{inspect(reason)}"}
+        {oks, []} ->
+          {:ok, Enum.map(oks, fn {:ok, uuid} -> uuid end)}
+
+        {_, [{:error, reason} | _]} ->
+          {:error, gettext("Upload failed: %{reason}", reason: inspect(reason))}
       end
     end
   end
@@ -281,10 +288,10 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   defp attachment_icon("audio/" <> _), do: "hero-musical-note"
   defp attachment_icon(_), do: "hero-document"
 
-  defp upload_error_label(:too_large), do: "File too large"
-  defp upload_error_label(:too_many_files), do: "Too many files"
-  defp upload_error_label(:not_accepted), do: "File type not allowed"
-  defp upload_error_label(other), do: "Upload error: #{inspect(other)}"
+  defp upload_error_label(:too_large), do: gettext("File too large")
+  defp upload_error_label(:too_many_files), do: gettext("Too many files")
+  defp upload_error_label(:not_accepted), do: gettext("File type not allowed")
+  defp upload_error_label(other), do: gettext("Upload error: %{reason}", reason: inspect(other))
 
   # ──────────────────────────────────────────────────────────────
   # Render
@@ -303,7 +310,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
       >
         <textarea
           name="comment"
-          placeholder="Write a note about this annotation..."
+          placeholder={gettext("Write a note about this annotation...")}
           rows="3"
           class="textarea textarea-bordered w-full text-sm"
           phx-mounted={Phoenix.LiveView.JS.focus()}
@@ -336,13 +343,13 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                   class="w-10 h-10 object-cover rounded shrink-0"
                   alt=""
                 />
-                <div class="flex-1 min-w-0 text-sm font-medium truncate">GIF</div>
+                <div class="flex-1 min-w-0 text-sm font-medium truncate">{gettext("GIF")}</div>
                 <button
                   type="button"
                   phx-click="remove_giphy"
                   phx-target={@myself}
                   class="btn btn-ghost btn-xs"
-                  aria-label="Remove GIF"
+                  aria-label={gettext("Remove GIF")}
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
                 </button>
@@ -362,7 +369,8 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                       class="progress progress-primary w-full h-1"
                       value={entry.progress}
                       max="100"
-                    ></progress>
+                    >
+                    </progress>
                   <% end %>
                 </div>
                 <button
@@ -370,7 +378,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                   phx-click="cancel_upload"
                   phx-value-ref={entry.ref}
                   phx-target={@myself}
-                  aria-label={"Remove #{entry.client_name}"}
+                  aria-label={gettext("Remove %{name}", name: entry.client_name)}
                   class="btn btn-ghost btn-xs"
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
@@ -403,7 +411,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                   ]}
                   aria-haspopup="menu"
                   aria-expanded={to_string(@attach_menu_open?)}
-                  aria-label="Attach media"
+                  aria-label={gettext("Attach media")}
                 >
                   <.icon name="hero-paper-clip" class="w-4 h-4" />
                 </button>
@@ -426,7 +434,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                           phx-target={@myself}
                           class="flex items-center gap-2"
                         >
-                          <.icon name="hero-film" class="w-4 h-4" /> GIF
+                          <.icon name="hero-film" class="w-4 h-4" /> {gettext("GIF")}
                         </button>
                       </li>
                     <% end %>
@@ -438,9 +446,14 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                           phx-click="close_attach_menu"
                           phx-target={@myself}
                           class="flex items-center gap-2 cursor-pointer"
-                          title={"Up to #{@max_attachments} files, max #{@max_attachment_size_mb}MB each"}
+                          title={
+                            gettext("Up to %{max} files, max %{size}MB each",
+                              max: @max_attachments,
+                              size: @max_attachment_size_mb
+                            )
+                          }
                         >
-                          <.icon name="hero-photo" class="w-4 h-4" /> File / Image
+                          <.icon name="hero-photo" class="w-4 h-4" /> {gettext("File / Image")}
                         </label>
                       </li>
                     <% end %>
@@ -459,7 +472,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                       type="text"
                       name="q"
                       value={@giphy_query}
-                      placeholder="Search GIFs..."
+                      placeholder={gettext("Search GIFs...")}
                       class="input input-bordered input-sm w-full"
                       phx-keyup="giphy_search"
                       phx-target={@myself}
@@ -494,11 +507,11 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                           </div>
                         <% String.trim(@giphy_query) == "" -> %>
                           <p class="text-xs text-base-content/60 text-center py-4">
-                            Type to search GIFs.
+                            {gettext("Type to search GIFs.")}
                           </p>
                         <% true -> %>
                           <p class="text-xs text-base-content/60 text-center py-4">
-                            No results.
+                            {gettext("No results.")}
                           </p>
                       <% end %>
                     </div>
@@ -515,10 +528,10 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
               phx-target={@myself}
               class="btn btn-ghost btn-sm"
             >
-              Cancel
+              {gettext("Cancel")}
             </button>
             <button type="submit" class="btn btn-primary btn-sm">
-              <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Post
+              <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> {gettext("Post")}
             </button>
           </div>
         </div>

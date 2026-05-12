@@ -19,6 +19,8 @@ defmodule PhoenixKit.Annotations do
   import Ecto.Query, only: [from: 2]
 
   alias PhoenixKit.Annotations.Annotation
+  alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.RepoHelper
 
   @type attrs :: map()
@@ -35,7 +37,7 @@ defmodule PhoenixKit.Annotations do
   @spec create(attrs()) :: {:ok, Annotation.t()} | {:error, Ecto.Changeset.t()}
   def create(attrs) do
     %Annotation{}
-    |> Annotation.changeset(normalize(attrs))
+    |> Annotation.changeset(attrs)
     |> RepoHelper.insert()
   end
 
@@ -165,25 +167,23 @@ defmodule PhoenixKit.Annotations do
     # preload didn't fire, an empty list for a no-attachment comment,
     # or a list of `CommentMedia` rows (the smallest position first per
     # the schema's `preload_order`).
-    with [%{file: file} | _] when is_struct(file, PhoenixKit.Modules.Storage.File) <-
-           comment.media do
-      # Walk the available variants smallest-first. `get_public_url_by_variant`
-      # already falls back to the original when the requested variant
-      # doesn't exist, but we still want to land on "thumbnail" when it's
-      # there. Non-image files (PDF, zip, audio) have no thumbnail; for
-      # those the JS picks up `has_attachment` and renders a paperclip
-      # icon instead.
-      if image?(file) do
-        PhoenixKit.Modules.Storage.get_public_url_by_variant(file, "thumbnail")
-      else
+    #
+    # Walk the available variants smallest-first.
+    # `get_public_url_by_variant` already falls back to the original
+    # when the requested variant doesn't exist, but we still want to
+    # land on "thumbnail" when it's there. Non-image files (PDF, zip,
+    # audio) have no thumbnail; for those the JS picks up
+    # `has_attachment` and renders a paperclip icon instead.
+    case comment.media do
+      [%{file: %StorageFile{} = file} | _] ->
+        if image?(file), do: Storage.get_public_url_by_variant(file, "thumbnail"), else: nil
+
+      _ ->
         nil
-      end
-    else
-      _ -> nil
     end
   end
 
-  defp image?(%PhoenixKit.Modules.Storage.File{mime_type: "image/" <> _}), do: true
+  defp image?(%StorageFile{mime_type: "image/" <> _}), do: true
   defp image?(_), do: false
 
   defp giphy_preview(%{metadata: %{"giphy" => %{"preview_url" => url}}}) when is_binary(url),
@@ -205,7 +205,7 @@ defmodule PhoenixKit.Annotations do
 
       annotation ->
         annotation
-        |> Annotation.changeset(normalize(attrs))
+        |> Annotation.changeset(attrs)
         |> RepoHelper.update()
     end
   end
@@ -222,16 +222,33 @@ defmodule PhoenixKit.Annotations do
   @spec delete(uuid()) :: :ok | {:error, :not_found | Ecto.Changeset.t()}
   def delete(uuid) do
     case RepoHelper.get(Annotation, uuid) do
-      nil ->
-        {:error, :not_found}
+      nil -> {:error, :not_found}
+      annotation -> delete_in_transaction(annotation)
+    end
+  end
 
-      annotation ->
-        delete_linked_comments(annotation)
+  # Atomicity: delete linked comments and the annotation row in a single
+  # transaction so a failure between the two doesn't leave the annotation
+  # alive with its discussion thread destroyed (or vice-versa). The
+  # comment-side cleanup is best-effort via its own rescue (see
+  # `delete_linked_comments/1`); the annotation delete is the load-bearing
+  # write that must succeed or roll back.
+  defp delete_in_transaction(annotation) do
+    repo = RepoHelper.repo()
 
-        case RepoHelper.delete(annotation) do
-          {:ok, _} -> :ok
-          {:error, _} = err -> err
-        end
+    fun = fn ->
+      delete_linked_comments(annotation)
+
+      case RepoHelper.delete(annotation) do
+        {:ok, _} -> :ok
+        {:error, cs} -> repo.rollback(cs)
+      end
+    end
+
+    case repo.transaction(fun) do
+      {:ok, :ok} -> :ok
+      {:error, %Ecto.Changeset{} = cs} -> {:error, cs}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -245,21 +262,17 @@ defmodule PhoenixKit.Annotations do
       |> Enum.each(&PhoenixKitComments.delete_comment/1)
     end
   rescue
-    # Swallow comment-side errors so an annotation can still be deleted
-    # even if the comments package has issues. Orphan comments are
-    # benign (they just show in the file thread without their pin).
-    _ -> :ok
-  end
-
-  # Accept both string- and atom-keyed maps. Falls back to passing the
-  # map through untouched if any key can't be converted (the changeset
-  # will then reject the unknown fields).
-  defp normalize(attrs) when is_map(attrs) do
-    Enum.into(attrs, %{}, fn
-      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
-      {k, v} -> {k, v}
-    end)
-  rescue
-    ArgumentError -> attrs
+    # Narrow rescue — swallow only the comment-side classes we expect so
+    # logic bugs (KeyError, MatchError, etc.) surface to the supervisor
+    # instead of leaving the annotation undeletable. Orphan comments
+    # are benign (they show in the file thread without their pin) so a
+    # comment-side `Postgrex.Error` shouldn't block annotation deletion;
+    # `ArgumentError` covers `PhoenixKitComments` API churn (a renamed
+    # function, a list_comments arity bump). The encompassing
+    # transaction owns annotation-side atomicity (see `delete/1`).
+    e in [DBConnection.OwnershipError, Postgrex.Error, ArgumentError] ->
+      require Logger
+      Logger.warning("[Annotations] delete_linked_comments: #{Exception.message(e)}")
+      :ok
   end
 end

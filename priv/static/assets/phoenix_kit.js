@@ -1369,9 +1369,7 @@ if (typeof window.Chart === "undefined") {
     },
 
     destroyed() {
-      if (this._reposition) {
-        window.removeEventListener("resize", this._reposition);
-      }
+      window.removeEventListener("resize", this._reposition);
     },
 
     reposition() {
@@ -2662,10 +2660,14 @@ if (typeof window.Chart === "undefined") {
   // (author header, date · count subheader, thumbnail + quoted text body)
   // that's been the PhoenixKit out-of-the-box look.
   //
-  // Registered unconditionally so the load order between this script and
-  // etcher.js doesn't matter — Etcher's bootstrap uses `||` to preserve
-  // pre-existing slots, and if Etcher never loads the only cost is a few
-  // dormant fields on `window.Etcher`.
+  // PhoenixKit owns the tooltip layout — this assignment overwrites
+  // whatever was on `window.Etcher.tooltipSlots`. Load order: when
+  // phoenix_kit.js runs before etcher.js, Etcher's bootstrap honors the
+  // pre-set slots (it uses `||` against defaults); when phoenix_kit.js
+  // runs after, this assignment takes effect immediately. If a downstream
+  // consumer wants to override these, their script must load AFTER
+  // phoenix_kit.js. If Etcher never loads the only cost is a few dormant
+  // fields on `window.Etcher`.
   //
   // The `comment_*` key naming is PhoenixKit's internal contract with
   // itself — Etcher knows nothing about them.

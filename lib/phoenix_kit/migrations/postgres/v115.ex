@@ -5,10 +5,12 @@ defmodule PhoenixKit.Migrations.Postgres.V115 do
 
   Stores user-drawn shapes (rectangle, circle, polygon, freehand) tied to
   a `phoenix_kit_files` row, in image-pixel coordinates. The discussion
-  thread for an annotation lives in `phoenix_kit_comments` via the
-  established `resource_type = "annotation"` + `resource_uuid` pattern —
-  no `comment_uuid` column on annotations is needed; the linkage is
-  one-directional from the comment side.
+  thread for an annotation lives in `phoenix_kit_comments` anchored to
+  the **file** (`resource_type = "file"`, `resource_uuid = file_uuid`)
+  with `metadata.annotation_uuid` carrying the back-reference — no
+  `comment_uuid` column on annotations is needed; the linkage is
+  one-directional from the comment side, and annotation-rooted comments
+  show up in the file's main thread alongside non-annotated ones.
 
   Cascade-on-delete on `file_uuid`: deleting a file removes its
   annotations (and the comments module's own cascade handles their

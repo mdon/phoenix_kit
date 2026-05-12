@@ -12,9 +12,10 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   An annotation's discussion thread is **not** created at draw time —
   it's instantiated lazily when the user posts the first comment on the
-  annotation. The linkage is one-directional from the comments table
-  via the existing `resource_type` / `resource_uuid` convention
-  (`resource_type = "annotation"`, `resource_uuid = annotation.uuid`).
+  annotation. The comments are anchored to the **file**
+  (`resource_type = "file"`, `resource_uuid = file_uuid`) with
+  `metadata.annotation_uuid` carrying the back-reference, so they
+  appear in the file's main thread alongside non-annotated discussion.
   No `comment_uuid` column on annotations is needed.
   """
 

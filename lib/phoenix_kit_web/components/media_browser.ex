@@ -88,7 +88,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   import Ecto.Query
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.EtcherAdapter
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
@@ -1052,7 +1054,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
 
   def handle_event("etcher:created", %{"tmp_id" => tmp_id} = attrs, socket) do
-    case PhoenixKit.Modules.Storage.EtcherAdapter.create(creator_attrs(attrs, socket)) do
+    case EtcherAdapter.create(creator_attrs(attrs, socket)) do
       {:ok, annotation} ->
         new = %{uuid: annotation.uuid, kind: annotation.kind, geometry: annotation.geometry}
 
@@ -1085,7 +1087,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("etcher:updated", %{"uuid" => uuid, "geometry" => geometry}, socket) do
-    case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, %{"geometry" => geometry}) do
+    case EtcherAdapter.update(uuid, %{"geometry" => geometry}) do
       {:ok, _annotation} ->
         updated =
           Enum.map(socket.assigns.viewer_annotations, fn a ->
@@ -1100,7 +1102,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("etcher:deleted", %{"uuid" => uuid}, socket) do
-    _ = PhoenixKit.Modules.Storage.EtcherAdapter.delete(uuid)
+    _ = EtcherAdapter.delete(uuid)
     # The adapter's delete cascades to any linked comments; poke the
     # file's CommentsComponent so the sidebar thread drops them too.
     refresh_file_comments(socket)
@@ -1521,7 +1523,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         socket
 
       uuid ->
-        _ = PhoenixKit.Modules.Storage.EtcherAdapter.delete(uuid)
+        _ = EtcherAdapter.delete(uuid)
 
         remaining =
           Enum.reject(socket.assigns.viewer_annotations, fn a -> a.uuid == uuid end)
@@ -1598,43 +1600,38 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp load_annotations_for(file_uuid) do
-    if Code.ensure_loaded?(PhoenixKit.Annotations) and
-         function_exported?(PhoenixKit.Annotations, :list_for_file_with_previews, 1) do
-      file_uuid
-      |> PhoenixKit.Annotations.list_for_file_with_previews()
-      |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
-        # `metadata` flows through to Etcher's tooltip. The JS reads
-        # `metadata.label` (consumer-set) plus the comment_* fields we
-        # populate here for the auto-rendered preview.
-        base_meta = a.metadata || %{}
+    file_uuid
+    |> Annotations.list_for_file_with_previews()
+    |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
+      # `metadata` flows through to Etcher's tooltip. The JS reads
+      # `metadata.label` (consumer-set) plus the comment_* fields we
+      # populate here for the auto-rendered preview.
+      base_meta = a.metadata || %{}
 
-        comment_meta =
-          case fc do
-            nil ->
-              %{"comment_created_at" => format_date(a.inserted_at), "comment_count" => 0}
+      comment_meta =
+        case fc do
+          nil ->
+            %{"comment_created_at" => format_date(a.inserted_at), "comment_count" => 0}
 
-            %{} = c ->
-              %{
-                "comment_text" => truncate(c.content, 80),
-                "comment_author" => c.author,
-                "comment_thumbnail_url" => c.thumbnail_url,
-                "comment_has_attachment" => Map.get(c, :has_attachment, false),
-                "comment_count" => count,
-                "comment_created_at" => format_date(a.inserted_at)
-              }
-          end
+          %{} = c ->
+            %{
+              "comment_text" => truncate(c.content, 80),
+              "comment_author" => c.author,
+              "comment_thumbnail_url" => c.thumbnail_url,
+              "comment_has_attachment" => Map.get(c, :has_attachment, false),
+              "comment_count" => count,
+              "comment_created_at" => format_date(a.inserted_at)
+            }
+        end
 
-        %{
-          uuid: a.uuid,
-          kind: a.kind,
-          geometry: a.geometry,
-          style: a.style,
-          metadata: Map.merge(base_meta, comment_meta)
-        }
-      end)
-    else
-      []
-    end
+      %{
+        uuid: a.uuid,
+        kind: a.kind,
+        geometry: a.geometry,
+        style: a.style,
+        metadata: Map.merge(base_meta, comment_meta)
+      }
+    end)
   end
 
   defp truncate(nil, _), do: nil
