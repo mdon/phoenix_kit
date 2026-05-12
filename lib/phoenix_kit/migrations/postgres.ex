@@ -529,7 +529,26 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes ⚡ LATEST
+  ### V116 - Parent reference on entity_data ⚡ LATEST
+  - Adds nullable self-referential `parent_uuid` column to
+    `phoenix_kit_entity_data` so each data row can point at another row
+    of the same entity as its parent. The feature is a system field on
+    every entity_data row — always present, optional to fill, never
+    removable by the user (does not appear in
+    `entities.fields_definition`).
+  - No `ON DELETE` cascade: parent/child linkage and same-entity scope
+    are managed by the `PhoenixKitEntities.EntityData` context inside a
+    transaction. A DB-level cascade would bypass the soft-delete
+    machinery and the activity log.
+  - Same-entity enforcement (a row's parent must share its
+    `entity_uuid`) is a context-layer responsibility — the self-FK has
+    no view of `entity_uuid`.
+  - B-tree index on `(parent_uuid)` covers the "list children" query
+    used when rendering the WordPress-style indented tree.
+  - Existing rows stay `parent_uuid = NULL` and become roots — no
+    backfill needed.
+
+  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes
   - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
     circle / polygon / freehand shapes anchored to `phoenix_kit_files`
     rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
@@ -952,7 +971,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 115
+  @current_version 116
   @default_prefix "public"
 
   @doc false
