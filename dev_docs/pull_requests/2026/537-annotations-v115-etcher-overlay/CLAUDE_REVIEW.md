@@ -9,7 +9,7 @@ Overall a well-architected feature — clean separation between the storage adap
 
 ## Disposition (post-review action)
 
-Trivial / mechanical items below were addressed in follow-up commit `b45a7a93`. Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Alex** and left as TODOs for the original PR author.
+Trivial / mechanical items below were addressed in follow-up commits `b45a7a93` and `<next-sha>`. Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Alex** and left as TODOs for the original PR author.
 
 **Addressed by Claude:**
 
@@ -24,6 +24,10 @@ Trivial / mechanical items below were addressed in follow-up commit `b45a7a93`. 
 | #19 | NITPICK | Drop `Storage` from `@compile no_warn_undefined` | `b45a7a93` |
 | #20 | NITPICK | Simplify `AnnotationComposerPosition.destroyed` guard | `b45a7a93` |
 | #21 | NITPICK | Fix misleading Etcher slot-preservation JS comment | `b45a7a93` |
+| #7 | IMPROVEMENT-MEDIUM | `Annotation.adapter_writable_fields/0` — schema as source-of-truth for adapter whitelist | `<next-sha>` |
+| #13 | IMPROVEMENT-LOW | gettext-wrap `format_date` strftime pattern for locale | `<next-sha>` |
+| #14 | IMPROVEMENT-LOW | `first_error/1` via `Input.translate_error/1` | `<next-sha>` |
+| #23 | NITPICK | `truncate/2` docstring clarifying `limit` is output length | `<next-sha>` |
 
 Plus precommit-clean adjacent fixes: aliased `Annotations`, `Storage`, `EtcherAdapter`, `Storage.File` to clear credo "nested module" findings; converted `first_attachment_thumbnail` `with` → `case` (credo readability); added PhoenixKitComments dialyzer ignores.
 
@@ -32,14 +36,14 @@ Plus precommit-clean adjacent fixes: aliased `Annotations`, `Storage`, `EtcherAd
 | # | Severity | Why deferred |
 |---|----------|--------------|
 | #3 | BUG-LOW | Race between `composer_posted` and viewer-navigate. Needs design call: optimistic-local-state vs uuid-tagged rollback. Author knows the lifecycle intent. |
-| #4 | BUG-LOW | Partial upload state on attachment failure. Storage cleanup policy is a product call (delete vs trash); the inspect/1 in user-facing flash needs user-friendly mapping. |
+| #4 | BUG-LOW | Partial upload state on attachment failure. Storage cleanup policy is a product call (delete vs trash). |
 | #6 | IMPROVEMENT-MEDIUM | Authz check on `etcher:updated`/`etcher:deleted`. Needs auth-model decision (creator-only vs admin override). Currently safe under admin-only `/admin/media` scope. |
-| #7 | IMPROVEMENT-MEDIUM | `@schema_keys` source-of-truth on `Annotation`. Small refactor that changes the adapter↔schema contract. Author's call on the shape. |
 | #9 | IMPROVEMENT-MEDIUM | Per-kind geometry shape validation. Needs design call on what to validate (numeric bounds, polygon point counts, etc.). |
 | #10 | IMPROVEMENT-MEDIUM | Configurable CommentsComponent id. Needs PubSub vs attr decision. |
-| #13 | IMPROVEMENT-LOW | Locale-aware `format_date` — needs check whether `PhoenixKitWeb.Components.Core.TimeDisplay` covers this case. |
-| #14 | IMPROVEMENT-LOW | `first_error/1` via `traverse_errors`/ErrorHelpers — needs project's gettext-aware traverser. |
-| #15–18, #22, #23 | NITPICK | Cosmetics on V115 down constraint drop, prefix consistency, `disconnect` external_account_id retention, `Enum.find` micro, `inspect` in flash, shared `attachment_icon` helper, `truncate` docstring. |
+| #15 / #16 | NITPICK | V115 down constraint drop + `prefix_str` consistency — V115 is already deployed; touching the migration in-place is moot. |
+| #17 | NITPICK | `disconnect/2` external_account_id retention — UX policy on re-connect hint. |
+| #18 | NITPICK | `inspect/1` in upload-failure flash — partially addressed via #8 gettext wrap; remaining mapping is paired with #4 rollback shape. |
+| #22 | NITPICK | Shared `attachment_icon` helper — would add API surface (new shared module). Author's call on the home. |
 
 ---
 
@@ -439,21 +443,19 @@ If `limit = 80`, the output is `slice(text, 0, 79) <> "…"` = 80 characters tot
 
 ## Suggested follow-up scope (remaining work for Alex)
 
-After Claude's mechanical pass (commit `b45a7a93`), the standing TODO list is:
+After Claude's two-pass mechanical sweep (`b45a7a93`, `<next-sha>`), the standing TODO list is:
 
 Tier 1 (worth fixing before next release):
 - **#6** Authorization checks on update/delete (load-bearing if MediaBrowser ever embeds non-admin)
-- **#7** `@schema_keys` source-of-truth on the schema
 - **#9** `validate_geometry/1` per-kind shape check
 
 Tier 2 (worth folding into the next sweep):
 - **#3** Race-condition handling in finalize-vs-rollback
 - **#4** Upload rollback on partial failure + non-inspect error messages
 - **#10** Configurable CommentsComponent id
-- **#13 / #14** Locale-aware `format_date` + gettext-aware `traverse_errors`
 
 Tier 3 (nice-to-have, low ROI):
-- **#15–18, #22, #23** cosmetics
+- **#15–17, #22** cosmetics
 
 ---
 

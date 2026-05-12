@@ -1634,6 +1634,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end)
   end
 
+  # Truncates `text` so the output (including the ellipsis suffix when
+  # truncated) is at most `limit` graphemes long — i.e. `limit` is the
+  # maximum **output** length, not the maximum **source** length. When
+  # `text` is shorter than `limit`, returns it as-is; when longer, slices
+  # to `limit - 1` and appends `"…"` for a clean `limit`-grapheme total.
   defp truncate(nil, _), do: nil
   defp truncate("", _), do: nil
 
@@ -1647,8 +1652,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
-  defp format_date(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  # Tooltip date format. The format string itself is gettext-wrapped so
+  # locales can reorder components ("%d %b %Y" in en-GB / fr / de etc.)
+  # without code changes. The `strftime` month + day-name expansion
+  # already resolves through `Calendar` translations.
+  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, gettext("%b %d, %Y"))
+  defp format_date(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, gettext("%b %d, %Y"))
   defp format_date(_), do: nil
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do

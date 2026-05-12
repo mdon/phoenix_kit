@@ -22,13 +22,17 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
   @behaviour Etcher.Storage
 
   alias PhoenixKit.Annotations
+  alias PhoenixKit.Annotations.Annotation
 
   # Whitelist of annotation schema fields the adapter accepts from event
-  # payloads. Anything else (Etcher routing keys, JS-side anchor coords,
-  # client-side metadata) is silently dropped — `String.to_existing_atom`
-  # on unknown payload keys used to crash the LV when Etcher's payload
-  # shape grew new client-side keys like `anchor_x` / `anchor_y`.
-  @schema_keys ~w(kind geometry style metadata position creator_uuid)
+  # payloads, sourced from `Annotation.adapter_writable_fields/0` so the
+  # set stays in sync with the schema's `@cast_fields`. Anything else
+  # (Etcher routing keys, JS-side anchor coords, client-side metadata)
+  # is silently dropped — `String.to_existing_atom` on unknown payload
+  # keys used to crash the LV when Etcher's payload shape grew new
+  # client-side keys like `anchor_x` / `anchor_y`. Stored as strings
+  # here since the filter compares against `to_string(payload_key)`.
+  @schema_keys Enum.map(Annotation.adapter_writable_fields(), &Atom.to_string/1)
 
   @impl Etcher.Storage
   def create(attrs) do

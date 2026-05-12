@@ -57,6 +57,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   use PhoenixKitWeb, :live_component
 
   import PhoenixKitWeb.Components.Core.Icon
+  import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKitWeb.Components.MediaBrowser
@@ -276,9 +277,12 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   defp maybe_put_giphy(metadata, nil), do: metadata
   defp maybe_put_giphy(metadata, gif), do: Map.put(metadata, "giphy", gif)
 
+  # Translates the first changeset error using the project's gettext-aware
+  # helper, so the flash respects the user's locale and interpolates count
+  # / opts properly (e.g. "must be at most 500 characters" with %{count}).
   defp first_error(%Ecto.Changeset{errors: errors}) do
     case errors do
-      [{_field, {msg, _}} | _] -> msg
+      [{_field, {_msg, _opts} = error} | _] -> translate_error(error)
       _ -> nil
     end
   end

@@ -53,6 +53,12 @@ defmodule PhoenixKit.Annotations.Annotation do
   @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position)a
   @required_fields ~w(file_uuid kind geometry)a
 
+  # Fields the storage adapter is allowed to accept from event payloads.
+  # `file_uuid` is set server-side from `target_uuid`, not by the client,
+  # so it's excluded here — the adapter's `create/1` puts it on the
+  # changeset after the whitelist filter.
+  @adapter_writable_fields @cast_fields -- [:file_uuid]
+
   @doc false
   def changeset(annotation, attrs) do
     annotation
@@ -66,4 +72,13 @@ defmodule PhoenixKit.Annotations.Annotation do
 
   @doc "List of allowed kind strings."
   def kinds, do: @kinds
+
+  @doc """
+  Fields the Etcher storage adapter is allowed to take from event
+  payloads. Single source of truth so the adapter's whitelist doesn't
+  drift from the schema's `@cast_fields`. `file_uuid` is excluded —
+  the adapter sets it server-side from the Etcher `target_uuid`.
+  """
+  @spec adapter_writable_fields() :: [atom()]
+  def adapter_writable_fields, do: @adapter_writable_fields
 end
