@@ -1628,6 +1628,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           uuid: a.uuid,
           kind: a.kind,
           geometry: a.geometry,
+          style: a.style,
           metadata: Map.merge(base_meta, comment_meta)
         }
       end)
