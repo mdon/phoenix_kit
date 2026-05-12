@@ -18,7 +18,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
   decisions. Operators wanted "My Company Drive" and a second OpenRouter
   account also called "personal" without the system pushing back.
 
-  V113 lifts both by collapsing the storage key to just the row's UUID.
+  V114 lifts both by collapsing the storage key to just the row's UUID.
   The `module` column (already set to `"integrations"` for every
   integration row via `@settings_module`) becomes the sole row-class
   discriminator, and `provider` + `name` live purely in `value_json`.
@@ -38,7 +38,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
         pre-`@settings_module` may have it NULL).
      d. Rewrite the `key` column to the row's `uuid`.
 
-  2. Stamp the table comment with `'113'`.
+  2. Stamp the table comment with `'114'`.
 
   All work happens in a single transaction (handled by the outer
   migrator). Per-row updates use only the row's `uuid` for routing —

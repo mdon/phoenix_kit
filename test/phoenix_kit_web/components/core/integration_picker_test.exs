@@ -6,7 +6,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
   import PhoenixKitWeb.Components.Core.IntegrationPicker
 
   # Connection fixture shaped like what `Integrations.list_connections/1`
-  # returns post-V113: `%{uuid, name, data, date_added}` with provider
+  # returns post-V114: `%{uuid, name, data, date_added}` with provider
   # in JSONB.
   defp conn_fixture(attrs) do
     attrs = Map.new(attrs)
@@ -371,8 +371,16 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
   describe "filter by provider" do
     test "renders only connections whose JSONB provider matches" do
       conns = [
-        conn_fixture(uuid: "01900000-0000-7000-8000-aaaaaaaaaaaa", name: "OR-1", provider: "openrouter"),
-        conn_fixture(uuid: "01900000-0000-7000-8000-bbbbbbbbbbbb", name: "G-1", provider: "google")
+        conn_fixture(
+          uuid: "01900000-0000-7000-8000-aaaaaaaaaaaa",
+          name: "OR-1",
+          provider: "openrouter"
+        ),
+        conn_fixture(
+          uuid: "01900000-0000-7000-8000-bbbbbbbbbbbb",
+          name: "G-1",
+          provider: "google"
+        )
       ]
 
       assigns = %{conns: conns}
@@ -393,8 +401,16 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
 
     test "with no provider attr, renders all connections" do
       conns = [
-        conn_fixture(uuid: "01900000-0000-7000-8000-aaaaaaaaaaaa", name: "OR-1", provider: "openrouter"),
-        conn_fixture(uuid: "01900000-0000-7000-8000-bbbbbbbbbbbb", name: "G-1", provider: "google")
+        conn_fixture(
+          uuid: "01900000-0000-7000-8000-aaaaaaaaaaaa",
+          name: "OR-1",
+          provider: "openrouter"
+        ),
+        conn_fixture(
+          uuid: "01900000-0000-7000-8000-bbbbbbbbbbbb",
+          name: "G-1",
+          provider: "google"
+        )
       ]
 
       assigns = %{conns: conns}

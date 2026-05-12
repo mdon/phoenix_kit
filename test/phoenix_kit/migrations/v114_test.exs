@@ -287,5 +287,40 @@ defmodule PhoenixKit.Migrations.Postgres.V114Test do
       plain_keys = Enum.count([key1, key2], &(&1 == "integration:openrouter:work"))
       assert plain_keys == 1
     end
+
+    test "N >= 3 collision: exactly one plain key, N-1 distinct suffixed keys" do
+      # `ROW_NUMBER() OVER (PARTITION BY provider, name ORDER BY
+      # date_added NULLS LAST, uuid)` should keep rn=1 plain and
+      # suffix the rest with their own uuid prefixes — so three
+      # rows sharing `(openrouter, work)` produce one plain key and
+      # two distinct suffixed keys, never two plain ones or two
+      # rows colliding on the same suffix.
+      uuids =
+        for i <- 1..3 do
+          insert_setting!(
+            "integration:openrouter:placeholder-#{i}",
+            %{"provider" => "openrouter", "name" => "work"},
+            "integrations"
+          )
+        end
+
+      run_up!()
+      run_down!()
+
+      keys = Enum.map(uuids, &read_row(&1).key)
+
+      # Exactly one plain key, exactly two suffixed keys.
+      plain_count = Enum.count(keys, &(&1 == "integration:openrouter:work"))
+      assert plain_count == 1
+
+      suffixed = Enum.reject(keys, &(&1 == "integration:openrouter:work"))
+      assert length(suffixed) == 2
+
+      # All keys distinct (no suffix collision).
+      assert length(Enum.uniq(keys)) == 3
+
+      # Every suffixed key still shares the `integration:openrouter:work-` prefix.
+      assert Enum.all?(suffixed, &String.starts_with?(&1, "integration:openrouter:work-"))
+    end
   end
 end

@@ -363,6 +363,7 @@
                 type="button"
                 phx-click="connect_oauth"
                 class="btn btn-accent btn-sm mt-3"
+                phx-disable-with={gettext("Redirecting…")}
               >
                 <.icon name="hero-link" class="w-4 h-4" />
                 {gettext("Connect %{provider} Account", provider: @provider.name)}

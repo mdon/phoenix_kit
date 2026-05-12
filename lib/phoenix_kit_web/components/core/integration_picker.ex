@@ -221,21 +221,23 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
       phx-value-uuid={@conn.uuid}
       phx-value-action={@action}
       data-search-text={search_text(@conn, @provider_def)}
-      class={[
-        "card bg-base-100 border text-left transition-all cursor-pointer",
-        "hover:shadow-md hover:border-primary/50",
-        # Instant click feedback: `.phx-click-loading` is applied
-        # automatically by LiveView to elements with `phx-click`
-        # while the event is in flight. Dimming + disabling pointer
-        # events bridges the perception gap between "click registered"
-        # and "server-side state caught up" (which can take 100-500ms
-        # while connected? + select_provider_connection round-trip).
-        "phx-click-loading:opacity-60 phx-click-loading:pointer-events-none",
-        if(@selected,
-          do: "border-primary ring-2 ring-primary/20",
-          else: "border-base-300"
-        )
-      ]}
+      class={
+        [
+          "card bg-base-100 border text-left transition-all cursor-pointer",
+          "hover:shadow-md hover:border-primary/50",
+          # Instant click feedback: `.phx-click-loading` is applied
+          # automatically by LiveView to elements with `phx-click`
+          # while the event is in flight. Dimming + disabling pointer
+          # events bridges the perception gap between "click registered"
+          # and "server-side state caught up" (which can take 100-500ms
+          # while connected? + select_provider_connection round-trip).
+          "phx-click-loading:opacity-60 phx-click-loading:pointer-events-none",
+          if(@selected,
+            do: "border-primary ring-2 ring-primary/20",
+            else: "border-base-300"
+          )
+        ]
+      }
     >
       <div class={["card-body", if(@compact, do: "p-3", else: "p-4")]}>
         <div class="flex items-center gap-3">
@@ -249,7 +251,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
 
           <div class="flex-1 min-w-0">
             <%!-- Connection name. Names are pure user-chosen labels
-                 (post-V113): duplicates allowed, no privileged values,
+                 (post-V114): duplicates allowed, no privileged values,
                  the masked-credential subtitle below disambiguates
                  when two cards share a name. --%>
             <div class="flex items-center gap-2">
@@ -420,7 +422,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
 
       provider_display =
         case provider_def(conn) do
-          %{name: name} when is_binary(name) -> String.downcase(name)
+          %{name: provider_name} when is_binary(provider_name) -> String.downcase(provider_name)
           _ -> ""
         end
 

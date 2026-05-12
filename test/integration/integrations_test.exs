@@ -78,10 +78,10 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
       assert {:error, :not_configured} = Integrations.save_setup(ghost_uuid, %{"x" => "y"})
     end
 
-    test "preserves the JSONB name across save_setup (post-V113 regression)" do
-      # Regression: pre-V113 the row's storage key was
+    test "preserves the JSONB name across save_setup (post-V114 regression)" do
+      # Regression: pre-V114 the row's storage key was
       # `integration:<provider>:<name>`, and save_setup parsed `name`
-      # back out of the key to re-stamp `data["name"]`. Post-V113 the
+      # back out of the key to re-stamp `data["name"]`. Post-V114 the
       # key is just the uuid, so parsing it would put the uuid string
       # into `data["name"]`. save_setup must source `name` from the
       # existing JSONB body (set at row birth in add_connection/3),
@@ -250,7 +250,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
     end
 
     test "sources provider+name from JSONB (key is now uuid-only)" do
-      # Post-V113 storage shape: the row's `key` column is just the
+      # Post-V114 storage shape: the row's `key` column is just the
       # row's uuid; provider and name live in JSONB. This test pins
       # the new invariant — write specific JSONB values and read
       # them back verbatim via the uuid lookup.
@@ -363,7 +363,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
       assert {:ok, %{uuid: ^uuid, name: "personal"}} = Integrations.get_integration_by_uuid(uuid)
     end
 
-    test "the row's storage key equals its uuid (post-V113 invariant)" do
+    test "the row's storage key equals its uuid (post-V114 invariant)" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("google", "anything")
       setting = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid)
       assert setting.key == uuid
@@ -998,7 +998,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   end
 
   # ===========================================================================
-  # Storage-shape invariants (post-V113: key = uuid, module = "integrations")
+  # Storage-shape invariants (post-V114: key = uuid, module = "integrations")
   # ===========================================================================
 
   describe "storage-shape invariant" do

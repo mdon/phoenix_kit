@@ -870,10 +870,9 @@ defmodule PhoenixKit.Integrations do
     #
     #   * `DBConnection.OwnershipError` — sandbox checkout race in
     #     tests that hit this path from an async-shared connection.
-    #   * `Postgrex.Error` — DB outage / table-missing mid-flight
-    #     during the `record_validation` write that `validate_connection`
-    #     itself doesn't perform but called helpers (log_activity,
-    #     `Providers.get` if backed by DB later) might.
+    #   * `Postgrex.Error` — DB outage / table-missing on the
+    #     `log_activity` write (Activity.log hits `phoenix_kit_activity`
+    #     and can raise when the table is unreachable or absent).
     #   * `Req.TransportError` / generic transport — should already
     #     be returned as `{:error, _}` by `check_http/2`; this is the
     #     belt-and-braces case.
@@ -909,9 +908,13 @@ defmodule PhoenixKit.Integrations do
       provider -> do_validate(provider, attrs)
     end
   rescue
-    e ->
+    # Mirror the narrow rescue on `validate_connection/2` — same
+    # `do_validate/2` codepath, same expected exception surface. Logic
+    # bugs (`KeyError`, `ArgumentError`, etc.) must bubble up instead
+    # of being masked under a generic "validation failed".
+    e in [DBConnection.OwnershipError, Postgrex.Error, Req.TransportError] ->
       Logger.error(
-        "[Integrations] validate_credentials crashed for #{provider_key}: #{Exception.message(e)}"
+        "[Integrations] validate_credentials error for #{provider_key}: #{Exception.message(e)}"
       )
 
       {:error, gettext("Validation failed unexpectedly")}
