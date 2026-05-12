@@ -63,7 +63,7 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
   mix run --eval "IO.puts Mix.Project.config[:version]"
   ls lib/phoenix_kit/migrations/postgres/v*.ex | sed 's/.*\/v\([0-9]*\)\.ex/\1/' | sort -rn | head -1
   ```
-- **CHANGELOG ownership:** entries written by the maintainer, not agents. If `@version` bump precedes the CHANGELOG entry, that's intentional — flag the gap and stop.
+- **CHANGELOG entries:** agents write the entry against the bumped `@version` heading. Match the existing style (Added / Changed / Fixed / i18n sections, bullets sourced from PR scopes + post-merge review fixes).
 - **PR reviews:** files go in `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md` (always `CLAUDE_REVIEW.md` for me). Severity levels: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
 - **Publish:** `mix hex.build`, `mix hex.publish`, `mix docs`.
 
