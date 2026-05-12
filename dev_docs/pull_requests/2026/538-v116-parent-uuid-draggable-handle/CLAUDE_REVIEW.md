@@ -149,22 +149,39 @@ Option 1 (boolean attr + hardcoded selector) is cleaner but locks the component 
 
 ---
 
-## Suggested follow-up scope
+## Disposition (post-review action)
 
-Tier 0 (Claude's fix — V114 follow-up from PR #536):
-- **#1** Fix V114 down SQL suffix collision (`substring … from 1 for 8` → random-tail variant), update `run_down!` in the V114 test to match.
+**Addressed by Claude** (commit `c09db219`):
 
-Tier 1 (worth fixing in V117 / next migrations sweep):
-- **#4** DB-level CHECK against `parent_uuid = uuid` self-loop
+| # | Severity | Summary |
+|---|----------|---------|
+| #1 | BUG-LOW | V114 down SQL suffix source: `from 1 for 8` (timestamp) → `from 25 for 8` (random tail); mirrored in `run_down!` test helper; moduledoc updated. |
+| #6 | IMPROVEMENT-LOW | AGENTS.md `<.draggable_list>` coverage TODO widened to three axes (`:draggable=false`, `:draggable=true+handle=nil`, `:draggable=true+handle=".pk-drag-handle"`). |
 
-Tier 2 (worth folding into the next sweep):
-- **#2** Drop the no-op `schema = if ...` conditional in V116
-- **#5** Migration cleanup — drop `table_exists?/2` in favor of relying on `IF NOT EXISTS` clauses alone
-- **#6** Widen `<.draggable_list>` test-coverage TODO in AGENTS.md to include the `:sortable_handle` axis
+**DEFERRED — Maintainer:**
 
-Tier 3 (nice-to-have, low ROI):
-- **#3** `prefix_str` consistency across V114 / V115 / V116 — pick a shape, follow it going forward
-- **#7** `:sortable_handle` typo-safety (boolean shape OR JS-side null-selector warning)
+| # | Severity | Why deferred |
+|---|----------|--------------|
+| #2 | IMPROVEMENT-LOW | No-op `schema = if ...` conditional in V116. Pure cosmetic on a deployed migration — modifying it in-place is moot for systems that already ran V116. |
+| #3 | IMPROVEMENT-LOW | `prefix_str` consistency drift across V114 / V115 / V116. Cosmetic on deployed migrations — pick a shape going forward via project convention, not in-place edits. |
+| #4 | IMPROVEMENT-LOW | DB-level CHECK against `parent_uuid = uuid` self-loop. Needs its own V117 migration (modifying V116 in-place would not run on systems already past it). Maintainer's call on whether the belt-and-braces is worth a V117. |
+| #5 | IMPROVEMENT-LOW | `table_exists?/2` defensive guard cleanup. Pure cleanup on a deployed migration; same reasoning as #2. |
+| #7 | IMPROVEMENT-LOW | `:sortable_handle` typo safety — boolean shape (changes API) or JS-side null-selector warning (changes JS log behavior). Maintainer's design call. |
+
+---
+
+## Suggested follow-up scope (remaining work for maintainer)
+
+After Claude's mechanical pass (`c09db219`):
+
+Tier 1 (worth folding into V117 if other migration work lands):
+- **#4** DB-level self-loop CHECK on `parent_uuid`
+
+Tier 2 (worth doing in the next component sweep):
+- **#7** `:sortable_handle` typo safety
+
+Tier 3 (low ROI):
+- **#2, #3, #5** Migration cosmetics — pick a `prefix_str` convention for the project going forward; future migrations follow it
 
 ---
 
@@ -174,4 +191,4 @@ Tier 3 (nice-to-have, low ROI):
 - Cross-checked V116's column-add SQL against V103's shape (catalogue's nested categories) — pattern matches.
 - Verified the JS hook (`phoenix_kit.js:301, 434-436`) already reads `data-sortable-handle` — no JS update needed.
 - Did NOT run `mix test` (per project policy: `mix precommit` is the bar; the user already ran tests per PR description).
-- Did NOT run `mix precommit` against this branch — recommended as a separate step if I take #1 (V114 fix) as a follow-up.
+- Ran `mix precommit` post-fix (commit `c09db219`): compile → format → credo --strict (0 findings) → dialyzer (160 errors all skipped) clean.
