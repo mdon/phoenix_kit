@@ -162,17 +162,19 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       {:ok, %{uuid: uuid}} ->
         save_and_redirect(uuid, provider_key, name, params, socket)
 
-      {:error, :already_exists} ->
-        case lookup_connection_uuid(provider_key, name) do
-          {:ok, uuid} -> save_and_redirect(uuid, provider_key, name, params, socket)
-          :error -> {:noreply, assign(socket, :error, gettext("Failed to load connection"))}
-        end
-
       {:error, :empty_name} ->
-        {:noreply, assign(socket, :error, gettext("Please enter a connection name."))}
+        {:noreply,
+         socket
+         |> assign(:new_name, name)
+         |> assign(:form_values, extract_setup_attrs(provider_key, params))
+         |> assign(:error, gettext("Please enter a connection name."))}
 
       {:error, reason} ->
-        {:noreply, assign(socket, :error, "Failed: #{inspect(reason)}")}
+        {:noreply,
+         socket
+         |> assign(:new_name, name)
+         |> assign(:form_values, extract_setup_attrs(provider_key, params))
+         |> assign(:error, "Failed: #{inspect(reason)}")}
     end
   end
 
@@ -313,24 +315,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
         {:noreply, socket}
 
-      {:error, :already_exists} ->
-        {:noreply,
-         assign(
-           socket,
-           :error,
-           gettext("A connection with that name already exists.")
-         )}
-
       {:error, :empty_name} ->
         {:noreply, assign(socket, :error, gettext("Connection name can't be blank."))}
-
-      {:error, :invalid_name} ->
-        {:noreply,
-         assign(
-           socket,
-           :error,
-           gettext("Use letters, digits, hyphens, and underscores only.")
-         )}
 
       {:error, _other} ->
         {:noreply, assign(socket, :error, gettext("Failed to rename connection."))}
@@ -466,6 +452,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
   defp save_form_with_rename(params, socket) do
     uuid = socket.assigns.uuid
+    provider_key = socket.assigns.selected_provider
     new_name = String.trim(params["name"])
 
     case Integrations.rename_connection(uuid, new_name, actor_uuid(socket)) do
@@ -478,22 +465,17 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         # Now save credentials under the new name.
         handle_event("save_setup", params, socket)
 
-      {:error, :already_exists} ->
-        {:noreply, assign(socket, :error, gettext("A connection with that name already exists."))}
-
       {:error, :empty_name} ->
-        {:noreply, assign(socket, :error, gettext("Connection name can't be blank."))}
-
-      {:error, :invalid_name} ->
         {:noreply,
-         assign(
-           socket,
-           :error,
-           gettext("Use letters, digits, hyphens, and underscores only.")
-         )}
+         socket
+         |> assign(:form_values, extract_setup_attrs(provider_key, params))
+         |> assign(:error, gettext("Connection name can't be blank."))}
 
       {:error, _other} ->
-        {:noreply, assign(socket, :error, gettext("Failed to rename connection."))}
+        {:noreply,
+         socket
+         |> assign(:form_values, extract_setup_attrs(provider_key, params))
+         |> assign(:error, gettext("Failed to rename connection."))}
     end
   end
 
@@ -517,15 +499,6 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
       {:error, _} ->
         {:noreply, assign(socket, :error, gettext("Failed to save"))}
-    end
-  end
-
-  defp lookup_connection_uuid(provider_key, name) do
-    Integrations.list_connections(provider_key)
-    |> Enum.find(fn %{name: n} -> n == name end)
-    |> case do
-      %{uuid: uuid} when is_binary(uuid) -> {:ok, uuid}
-      _ -> :error
     end
   end
 
@@ -680,7 +653,17 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
   defp replace_vars(text, vars) do
     Enum.reduce(vars, text, fn {key, value}, acc ->
-      escaped = Phoenix.HTML.html_escape(value || "") |> Phoenix.HTML.safe_to_string()
+      # `to_string/1` guards against non-binary `value` reaching
+      # `safe_to_string/1`, which would crash. Current callers pass
+      # strings only (`%{"redirect_uri" => ...}`), but a future
+      # caller stuffing an integer port or atom in shouldn't 500
+      # the instructions panel.
+      escaped =
+        (value || "")
+        |> to_string()
+        |> Phoenix.HTML.html_escape()
+        |> Phoenix.HTML.safe_to_string()
+
       String.replace(acc, "{#{key}}", escaped)
     end)
   end

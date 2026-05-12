@@ -155,7 +155,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   def handle_event("regenerate_variants", _params, socket) do
     file = socket.assigns.file
 
-    case VariantGenerator.generate_variants(file, async: false) do
+    case VariantGenerator.generate_variants(file) do
       {:ok, instances} ->
         # instances is a list of successfully created FileInstance structs
         count = length(instances)

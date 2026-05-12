@@ -101,6 +101,12 @@
   {"lib/modules/sitemap/sources/shop.ex", :unknown_function},
   {"lib/phoenix_kit/users/auth.ex", :unknown_function},
 
+  # PhoenixKitComments — optional sibling package; runtime-guarded via
+  # `Code.ensure_loaded?/1` (preview loader + linked-comment cleanup) or
+  # only mounted when the package is installed (composer).
+  {"lib/phoenix_kit/annotations/annotations.ex", :unknown_function},
+  {"lib/phoenix_kit_web/components/annotation_composer.ex", :unknown_function},
+
   # ExUnit internal functions — false positives when test/support is compiled in MIX_ENV=test
   # Dialyzer cannot resolve ExUnit private macros expanded at compile time
   {"test/support/conn_case.ex", :unknown_function},
