@@ -30,10 +30,39 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
         user_file_checksum: "user-sha256:test-#{n}",
         size: 1024,
         status: "active",
-        folder_uuid: folder_uuid
+        folder_uuid: folder_uuid,
+        # V113 added the `phoenix_kit_files_user_or_parent_check`
+        # CHECK constraint requiring `user_uuid IS NOT NULL OR
+        # parent_file_uuid IS NOT NULL`. Stamp the per-test owner so
+        # the fixture rows pass.
+        user_uuid: ensure_user!()
       })
 
     file
+  end
+
+  # Memoised user owner for the file fixtures in this test process.
+  # Auth.register_user/1 requires unique emails, so we register once
+  # per test process and reuse the uuid on subsequent calls. The user
+  # itself doesn't matter to the assertions in this file — it exists
+  # only to satisfy the V113 CHECK constraint on `phoenix_kit_files`.
+  defp ensure_user! do
+    case Process.get(:test_owner_user_uuid) do
+      nil ->
+        n = System.unique_integer([:positive])
+
+        {:ok, user} =
+          PhoenixKit.Users.Auth.register_user(%{
+            email: "scope-test-#{n}@example.com",
+            password: "ValidPassword123!"
+          })
+
+        Process.put(:test_owner_user_uuid, user.uuid)
+        user.uuid
+
+      uuid ->
+        uuid
+    end
   end
 
   # Builds: scope → child_a → grandchild
