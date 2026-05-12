@@ -7,6 +7,41 @@ Overall this is a high-quality refactor — the storage shift is well-motivated 
 
 ---
 
+## Disposition (post-review action)
+
+Trivial / mechanical items below were addressed in follow-up commits (`e99ceaa5`, `<next-sha>`). Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Max** and left as TODOs for the original PR author.
+
+**Addressed by Claude:**
+
+| # | Severity | Summary | Commit |
+|---|----------|---------|--------|
+| #2 | BUG-LOW | V114 doc + test + picker comment rename `V113→V114` | `e99ceaa5` |
+| #3 | BUG-LOW | Narrow `validate_credentials/2` rescue | `e99ceaa5` |
+| #7 | IMPROVEMENT-MEDIUM | 3-row down-collision test | `e99ceaa5` |
+| #8 | IMPROVEMENT-MEDIUM | Tighten `validate_connection/2` rescue comment | `e99ceaa5` |
+| #10 | IMPROVEMENT-LOW | Memoize `provider_def` in IntegrationPicker | follow-up |
+| #11 | IMPROVEMENT-LOW | Rename shadowing `name` in `filter_by_search/3` | `e99ceaa5` |
+| #12 | IMPROVEMENT-LOW | `html_escape` coercion hardening (`to_string/1` guard) | follow-up |
+| #13 | IMPROVEMENT-LOW | `String.slice` `//1` step annotation | follow-up |
+| #14 | IMPROVEMENT-LOW | `phx-disable-with` on OAuth Connect button | `e99ceaa5` |
+| #18 | NITPICK | `list_integrations/0` order docstring | follow-up |
+| #19 | NITPICK | `searchable` attr docstring (`nil` = auto-detect) | follow-up |
+| #20 | NITPICK | `@external_resource` drift annotation on V114 test | follow-up |
+
+**DEFERRED — Max:**
+
+| # | Severity | Why deferred |
+|---|----------|--------------|
+| #1 | BUG-MEDIUM | OAuth state phantom activity. Needs a design call: session-scoped state vs new internal write API on `Integrations`. Author knows the OAuth-redirect flow constraints (whether the LV survives the external redirect with session intact). |
+| #4 | IMPROVEMENT-MEDIUM | Permissions `"db"` precedence. Author made the call to ship the core-map override knowing the trade-off; flipping the order is a decision about how extracted modules contribute metadata going forward. |
+| #5 | IMPROVEMENT-MEDIUM | `find_uuid_by_provider_name/1` ambiguity. Affects the legacy-migration contract consumed by external modules (doc_creator, AI, etc.); whoever owns those migrations should decide whether `:ambiguous` would break in-flight callers. |
+| #6 | IMPROVEMENT-MEDIUM | V114 `up` SQL empty-key guard. V114 is already deployed; the in-place fix is moot for migrated systems, so a real fix needs a V115 — author's call whether the corruption risk profile warrants it. |
+| #9 | IMPROVEMENT-MEDIUM | `<form>` CSRF token / use of `<.form>`. Mechanical but touches the just-heavily-edited file; defer to author. |
+| #15 | IMPROVEMENT-MEDIUM | Migrate `integration_form` to `<.input>` core components. Larger refactor, AGENTS.md-prescribed pattern, but the form was just touched — let author do the cohesive sweep. |
+| #17 | NITPICK | `disconnect/2` dropping `external_account_id`. Pinned as intentional by a test assertion; changing it is a UX-policy decision (re-connect hint vs strict-disconnect semantics). |
+
+---
+
 ## BUG — MEDIUM
 
 ### #1 OAuth state save/cleanup goes through `save_setup/3`, emitting phantom activity + broadcast
@@ -252,23 +287,21 @@ A few things this PR got really right and shouldn't be lost in the issue list:
 
 ---
 
-## Suggested follow-up scope
+## Suggested follow-up scope (remaining work for Max)
+
+After Claude's mechanical pass, the standing TODO list is:
 
 Tier 1 (worth fixing before next release):
 - **#1** OAuth state save phantom activity log + broadcast
-- **#3** `validate_credentials/2` rescue narrowing (parity with #2 of PR)
 
 Tier 2 (worth folding into the next sweep):
-- **#2** V114 docstring `V113`→`V114` rename across moduledoc + tests + picker comment
-- **#6** V114 up empty-`integration:` key guard
+- **#6** V114 up empty-`integration:` key guard (would need a V115)
 - **#4** Permissions `"db"` precedence inversion
-- **#9 / #15** Form `<.input>` migration + CSRF
-- **#14** OAuth Connect button `phx-disable-with`
+- **#9 / #15** Form `<.input>` migration + CSRF on `integration_form`
 
 Tier 3 (nice-to-have, low ROI):
 - **#5** `find_uuid_by_provider_name` ambiguity docstring or `:ambiguous` return
-- **#7** 3+ row down-collision test
-- **#10**, **#11**, **#12**, **#13**, **#17–20** — cosmetics
+- **#17** `disconnect/2` external_account_id retention policy
 
 ---
 
@@ -278,4 +311,10 @@ Tier 3 (nice-to-have, low ROI):
 - Checked `git log --follow` history for V114 numbering provenance — confirmed the rebase rename trail.
 - Spot-checked `Providers.get/1`, `Settings.get_json_setting_by_uuid/1`, `Settings.Queries.get_setting_by_uuid/1` signatures referenced by the refactor (existing API, contract unchanged).
 - Did NOT run `mix test` (per project policy: `mix precommit` is the bar; integration suite needs Postgres). PR description claims 1229 tests / 0 failures.
-- Did NOT run `mix credo --strict` (would surface #11 variable shadowing locally).
+- Did NOT run `mix credo --strict` initially (would surface #11 variable shadowing locally).
+
+### Follow-up commits
+
+- **`mix compile --warnings-as-errors`** clean on touched files post-edits.
+- **`mix format`** auto-applied; `mix format --check-formatted` reports no drift.
+- **`mix credo --strict`** on touched files surfaces only one pre-existing finding (`cond` in `get_integration/1:101`, unrelated to this PR).

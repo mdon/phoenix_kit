@@ -653,7 +653,17 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
   defp replace_vars(text, vars) do
     Enum.reduce(vars, text, fn {key, value}, acc ->
-      escaped = Phoenix.HTML.html_escape(value || "") |> Phoenix.HTML.safe_to_string()
+      # `to_string/1` guards against non-binary `value` reaching
+      # `safe_to_string/1`, which would crash. Current callers pass
+      # strings only (`%{"redirect_uri" => ...}`), but a future
+      # caller stuffing an integer port or atom in shouldn't 500
+      # the instructions panel.
+      escaped =
+        (value || "")
+        |> to_string()
+        |> Phoenix.HTML.html_escape()
+        |> Phoenix.HTML.safe_to_string()
+
       String.replace(acc, "{#{key}}", escaped)
     end)
   end

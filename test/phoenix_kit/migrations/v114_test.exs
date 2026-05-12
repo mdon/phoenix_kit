@@ -20,6 +20,15 @@ defmodule PhoenixKit.Migrations.Postgres.V114Test do
 
   use PhoenixKit.DataCase, async: false
 
+  # Drift-detection: this test's `run_up!` / `run_down!` helpers copy
+  # the SQL from `v114.ex`. The annotation forces this test to
+  # recompile whenever the migration changes, so a maintainer who
+  # tweaks the SQL without updating the test helpers gets a fresh
+  # compile here and a chance to re-eyeball the duplicated SQL. It
+  # does NOT auto-sync the strings — that would need a shared `.sql`
+  # fixture; this is the cheap version.
+  @external_resource Path.expand("../../../lib/phoenix_kit/migrations/postgres/v114.ex", __DIR__)
+
   alias PhoenixKit.Test.Repo
 
   # ---------------------------------------------------------------------------

@@ -548,6 +548,13 @@ defmodule PhoenixKit.Integrations do
 
   @doc """
   List all configured integrations (those that have saved data).
+
+  Order is determined by `load_all_connections/1`'s map iteration,
+  which is alphabetical by provider key (Erlang `Map` order over
+  string keys) — NOT the registration order from `Providers.all/0`.
+  Within a provider, connections are sorted alphabetically by name
+  (case-insensitive). Callers that need a specific provider order
+  should walk `Providers.all/0` themselves.
   """
   @spec list_integrations() :: [map()]
   def list_integrations do

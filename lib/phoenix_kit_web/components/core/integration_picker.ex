@@ -74,7 +74,12 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
   * `selected` - List of currently selected UUIDs (default: [])
   * `provider` - Filter to only show connections for this provider key (optional)
   * `multiple` - Allow multiple selection (default: false)
-  * `searchable` - Show search input (default: false, auto-enabled when > 6 connections)
+  * `searchable` - Show search input. Accepts `true` / `false` /
+    `nil`. `nil` (the default) means auto-detect — the search input
+    shows when there are more than 6 connections. Explicit `false`
+    suppresses it even past the threshold; explicit `true` forces
+    it even at small N. Typed `:any` in the attr definition because
+    Phoenix's `:boolean` doesn't admit `nil`.
   * `compact` - Use compact card layout (default: false)
   * `on_select` - Event name sent to parent on selection (required)
   * `empty_url` - URL for "Add Integration" link shown when no connections exist (optional)
@@ -93,10 +98,19 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
   attr :search, :string, default: ""
 
   def integration_picker(assigns) do
+    # Memoize provider_def per connection — search + render both need
+    # it, so without the memo `Providers.get/1` runs twice per row on
+    # every render (once in filter_by_search, once on the per-card
+    # `provider_def={provider_def(conn)}` attr). The lookup is a Map.get
+    # over `Providers.all/0` so the unit cost is small, but at the
+    # picker's auto-search threshold (>6 connections) we're already
+    # paying 14+ avoidable hits per keystroke.
+    provider_defs = Map.new(assigns.connections, &{&1.uuid, provider_def(&1)})
+
     connections =
       assigns.connections
       |> filter_by_provider(assigns.provider)
-      |> filter_by_search(assigns.search)
+      |> filter_by_search(assigns.search, provider_defs)
 
     show_search =
       case assigns.searchable do
@@ -119,6 +133,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
       |> assign(:deleted_selections, deleted_selections)
       |> assign(:show_search, show_search)
       |> assign(:selected_set, selected_set)
+      |> assign(:provider_defs, provider_defs)
 
     ~H"""
     <div id={@id} class={["integration-picker", @class]}>
@@ -146,7 +161,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
         <.connection_card
           :for={conn <- @filtered_connections}
           conn={conn}
-          provider_def={provider_def(conn)}
+          provider_def={Map.get(@provider_defs, conn.uuid)}
           selected={MapSet.member?(@selected_set, conn.uuid)}
           compact={@compact}
           on_select={@on_select}
@@ -405,14 +420,17 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
     if String.length(value) < 14 do
       "•••"
     else
-      String.slice(value, 0, 8) <> "…" <> String.slice(value, -4..-1)
+      # `-4..-1//1` pins the step explicitly — Elixir 1.16+ warns on
+      # negative-bound ranges without a step, and the warning becomes
+      # an error in a future minor.
+      String.slice(value, 0, 8) <> "…" <> String.slice(value, -4..-1//1)
     end
   end
 
-  defp filter_by_search(connections, ""), do: connections
-  defp filter_by_search(connections, nil), do: connections
+  defp filter_by_search(connections, "", _provider_defs), do: connections
+  defp filter_by_search(connections, nil, _provider_defs), do: connections
 
-  defp filter_by_search(connections, search) do
+  defp filter_by_search(connections, search, provider_defs) do
     q = String.downcase(search)
 
     Enum.filter(connections, fn conn ->
@@ -421,7 +439,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPicker do
       provider = String.downcase(conn.data["provider"] || "")
 
       provider_display =
-        case provider_def(conn) do
+        case Map.get(provider_defs, conn.uuid) do
           %{name: provider_name} when is_binary(provider_name) -> String.downcase(provider_name)
           _ -> ""
         end
