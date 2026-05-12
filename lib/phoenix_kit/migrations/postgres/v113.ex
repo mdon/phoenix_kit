@@ -37,6 +37,28 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
   Unique index on `(comment_uuid, position)` so each slot in a comment is
   occupied at most once. Per-file index on `file_uuid` for reverse lookup
   ("which comments reference this file?").
+
+  ## Concurrent-generation safety
+
+  Two additional safeguards keep concurrent lazy-generation requests from
+  producing duplicate `phoenix_kit_files` rows or violating the
+  "user_uuid OR parent_file_uuid" invariant:
+
+    * `phoenix_kit_files_system_dedup_index` — partial unique index on
+      `(parent_file_uuid, file_name)` where `system_managed = true`. Lets
+      `Storage.store_system_file/3` use `ON CONFLICT DO NOTHING` so a
+      racing second writer for the same tile silently returns the
+      existing row.
+
+    * `phoenix_kit_files_user_or_parent_check` — DB-level CHECK
+      constraint enforcing `user_uuid IS NOT NULL OR parent_file_uuid
+      IS NOT NULL`. The schema's `validate_system_managed_invariants`
+      is the user-facing check; this constraint is the safety net for
+      raw inserts, `Repo.insert_all`, or external tools.
+
+  All column / FK / NOT-NULL changes use raw SQL with explicit
+  `IF NOT EXISTS` / `DO $$ … END $$` guards so re-running on a
+  partially-applied schema is a no-op.
   """
 
   use Ecto.Migration
@@ -93,6 +115,43 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
     CREATE INDEX IF NOT EXISTS phoenix_kit_files_system_managed_index
     ON #{p}phoenix_kit_files (inserted_at DESC)
     WHERE system_managed = false
+    """)
+
+    # Idempotent dedup on (parent_file_uuid, file_name) for system-managed
+    # rows. Tiles + manifests are keyed by parent_file_uuid + on-bucket
+    # path; concurrent lazy-generation requests for the same uncached tile
+    # used to be able to produce duplicate File rows (the Manager.file_exists?
+    # check raced with the bucket write). This partial unique index turns
+    # that into a DB-level no-op via `ON CONFLICT DO NOTHING` in
+    # Storage.store_system_file/3.
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_files_system_dedup_index
+    ON #{p}phoenix_kit_files (parent_file_uuid, file_name)
+    WHERE system_managed = true
+    """)
+
+    # DB-level enforcement of the application invariant that every File row
+    # has either a human owner (`user_uuid`) or a system parent
+    # (`parent_file_uuid`). The schema's `validate_system_managed_invariants`
+    # is the user-facing check; this CHECK constraint keeps raw inserts,
+    # `Repo.insert_all`, or external tools from silently breaking the
+    # invariant. NOT VALID on the ADD so existing rows don't have to be
+    # re-scanned (we follow with `VALIDATE CONSTRAINT` which only checks
+    # incoming writes after).
+    execute("""
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'phoenix_kit_files_user_or_parent_check'
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_files
+          ADD CONSTRAINT phoenix_kit_files_user_or_parent_check
+          CHECK (user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL)
+          NOT VALID;
+        ALTER TABLE #{p}phoenix_kit_files
+          VALIDATE CONSTRAINT phoenix_kit_files_user_or_parent_check;
+      END IF;
+    END $$
     """)
 
     # Comments ↔ files attachment junction. Lives in core (not the comments
@@ -155,6 +214,14 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
 
     drop_if_exists(table(:phoenix_kit_comment_media, prefix: prefix))
 
+    # Drop the CHECK + dedup index BEFORE dropping the columns they
+    # reference — order matters; PG won't let you drop a column with a
+    # live CHECK that references it.
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_files DROP CONSTRAINT IF EXISTS phoenix_kit_files_user_or_parent_check"
+    )
+
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_files_system_dedup_index")
     execute("DROP INDEX IF EXISTS #{p}phoenix_kit_files_system_managed_index")
     execute("DROP INDEX IF EXISTS #{p}phoenix_kit_files_parent_uuid_index")
 

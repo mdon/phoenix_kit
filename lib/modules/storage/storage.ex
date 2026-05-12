@@ -1441,21 +1441,31 @@ defmodule PhoenixKit.Modules.Storage do
     mime_type = Keyword.fetch!(opts, :mime_type)
     file_type = Keyword.get(opts, :file_type, "tile")
 
-    destination = key
+    # Short-circuit when a prior concurrent generation already produced
+    # the row. V113's `phoenix_kit_files_system_dedup_index` makes
+    # `(parent_file_uuid, file_name)` unique-where-system_managed, so this
+    # SELECT is the cheap path of the double-checked-locking pattern that
+    # `FileController.serve_tile/2` uses (mutex + re-check + insert).
+    case existing_system_file(parent_file_uuid, key) do
+      {:ok, file, instance} ->
+        {:ok, %{file: file, instance: instance}}
 
-    with {:ok, _info} <-
-           PhoenixKit.Modules.Storage.Manager.store_file(content_path,
-             path_prefix: destination
-           ),
+      :not_found ->
+        do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts)
+    end
+  end
+
+  defp do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts) do
+    with {:ok, _info} <- Manager.store_file(content_path, path_prefix: key),
          {:ok, size} <- file_size(content_path, opts),
          checksum <- calculate_file_hash(content_path),
          file_attrs = %{
-           original_file_name: Path.basename(destination),
-           file_name: destination,
-           file_path: Path.dirname(destination),
+           original_file_name: Path.basename(key),
+           file_name: key,
+           file_path: Path.dirname(key),
            mime_type: mime_type,
            file_type: file_type,
-           ext: Path.extname(destination),
+           ext: Path.extname(key),
            file_checksum: checksum,
            user_file_checksum: checksum,
            size: size,
@@ -1466,12 +1476,12 @@ defmodule PhoenixKit.Modules.Storage do
            system_managed: true,
            parent_file_uuid: parent_file_uuid
          },
-         {:ok, file} <- create_file(file_attrs),
+         {:ok, file} <- insert_or_fetch_system_file(file_attrs, parent_file_uuid, key),
          instance_attrs = %{
            variant_name: "original",
-           file_name: destination,
+           file_name: key,
            mime_type: mime_type,
-           ext: Path.extname(destination),
+           ext: Path.extname(key),
            checksum: checksum,
            size: size,
            width: Keyword.get(opts, :width),
@@ -1479,9 +1489,85 @@ defmodule PhoenixKit.Modules.Storage do
            processing_status: "completed",
            file_uuid: file.uuid
          },
-         {:ok, instance} <- create_file_instance(instance_attrs) do
+         {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
       {:ok, %{file: file, instance: instance}}
     end
+  end
+
+  defp existing_system_file(parent_file_uuid, file_name) do
+    query =
+      from(f in PhoenixKit.Modules.Storage.File,
+        where:
+          f.system_managed == true and
+            f.parent_file_uuid == ^parent_file_uuid and
+            f.file_name == ^file_name,
+        limit: 1
+      )
+
+    case repo().one(query) do
+      nil ->
+        :not_found
+
+      file ->
+        instance =
+          repo().one(
+            from(i in PhoenixKit.Modules.Storage.FileInstance,
+              where: i.file_uuid == ^file.uuid and i.variant_name == "original",
+              limit: 1
+            )
+          )
+
+        {:ok, file, instance}
+    end
+  end
+
+  defp insert_or_fetch_system_file(attrs, parent_file_uuid, file_name) do
+    case create_file(attrs) do
+      {:ok, file} ->
+        {:ok, file}
+
+      {:error, %Ecto.Changeset{errors: errors}} = err ->
+        # Lost the race against a concurrent writer — the dedup index
+        # surfaces as a unique-constraint violation on the changeset.
+        # Re-fetch the row the other writer just inserted.
+        if has_unique_violation?(errors) do
+          case existing_system_file(parent_file_uuid, file_name) do
+            {:ok, file, _instance} -> {:ok, file}
+            :not_found -> err
+          end
+        else
+          err
+        end
+    end
+  end
+
+  defp insert_or_fetch_system_instance(attrs, file_uuid) do
+    case create_file_instance(attrs) do
+      {:ok, instance} ->
+        {:ok, instance}
+
+      {:error, %Ecto.Changeset{errors: errors}} = err ->
+        if has_unique_violation?(errors) do
+          instance =
+            repo().one(
+              from(i in PhoenixKit.Modules.Storage.FileInstance,
+                where: i.file_uuid == ^file_uuid and i.variant_name == "original",
+                limit: 1
+              )
+            )
+
+          if instance, do: {:ok, instance}, else: err
+        else
+          err
+        end
+    end
+  end
+
+  defp has_unique_violation?(errors) do
+    Enum.any?(errors, fn
+      {_field, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
+    end)
   end
 
   defp file_size(path, opts) do

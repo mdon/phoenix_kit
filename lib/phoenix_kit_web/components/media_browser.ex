@@ -1851,9 +1851,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # When the setting is off, no `urls["dzi"]` → Tessera falls back to
     # the medium / large layers and never asks for tiles, so the
     # lazy-generation path is never triggered.
+    #
+    # The signed token lives in the URL path (not query string) so
+    # OpenSeadragon's tile-URL derivation preserves it across the
+    # manifest → tile fetch. The "dzi" variant name is distinct from
+    # the storage variants ("original" / "small" / "medium" / "large")
+    # so a leaked file-serving token can't grant tile access.
     if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
          tile_generation_enabled?() do
-      Map.put(base, "dzi", Routes.path("/tiles/#{file_uuid}.dzi"))
+      token = URLSigner.generate_token(file_uuid, "dzi")
+      Map.put(base, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
     else
       base
     end

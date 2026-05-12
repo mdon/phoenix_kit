@@ -154,35 +154,36 @@ defmodule PhoenixKitWeb.FileController do
 
   ## Request
 
-      GET /tiles/:dzi_filename
+      GET /tiles/:token/:dzi_filename
 
-  where `dzi_filename` is `"<file_uuid>.dzi"`. Returns the XML manifest
-  describing the image's dimensions and tile config — Tessera's
-  `generate_manifest/3` produces it on first request, subsequent requests
-  serve from storage.
+  where `dzi_filename` is `"<file_uuid>.dzi"` and `token` is the signed
+  per-file token from `URLSigner.generate_token(file_uuid, "dzi")`.
+  Returns the XML manifest describing the image's dimensions and tile
+  config — Tessera's `generate_manifest/3` produces it on first request,
+  subsequent requests serve from storage.
+
+  The token gates BOTH manifest and tile generation: without it, the
+  endpoint is a 404. The MediaBrowser emits manifest URLs only when
+  `storage_tile_generation_enabled` is on, so unauthenticated callers
+  can't trigger lazy ImageMagick work by guessing UUIDs.
   """
-  def serve_manifest(conn, %{"dzi_filename" => filename}) do
-    if tile_generation_enabled?() do
-      case parse_manifest_filename(filename) do
-        {:ok, file_uuid} ->
-          with {:ok, file} <- get_file(file_uuid),
-               :ok <- ensure_image(file),
-               {:ok, w, h} <- ensure_dimensions(file),
-               :ok <- ensure_manifest_cached(file_uuid, w, h),
-               {:ok, body} <- read_tile_storage("#{file_uuid}/#{file_uuid}.dzi") do
-            conn
-            |> put_resp_header("cache-control", "public, max-age=300")
-            |> put_resp_content_type("application/xml")
-            |> send_resp(200, body)
-          else
-            {:error, reason} -> tile_error(conn, reason)
-          end
-
-        :error ->
-          send_resp(conn, 404, "Not found")
-      end
+  def serve_manifest(conn, %{"token" => token, "dzi_filename" => filename}) do
+    with true <- tile_generation_enabled?(),
+         {:ok, file_uuid} <- parse_manifest_filename(filename),
+         :ok <- verify_tile_token(file_uuid, token),
+         {:ok, file} <- get_file(file_uuid),
+         :ok <- ensure_image(file),
+         {:ok, w, h} <- ensure_dimensions(file),
+         :ok <- ensure_manifest_cached(file_uuid, w, h),
+         {:ok, body} <- read_tile_storage("#{file_uuid}/#{file_uuid}.dzi") do
+      conn
+      |> put_resp_header("cache-control", "public, max-age=300")
+      |> put_resp_content_type("application/xml")
+      |> send_resp(200, body)
     else
-      send_resp(conn, 404, "Tile generation disabled")
+      false -> send_resp(conn, 404, "Tile generation disabled")
+      :error -> send_resp(conn, 404, "Not found")
+      {:error, reason} -> tile_error(conn, reason)
     end
   end
 
@@ -191,41 +192,54 @@ defmodule PhoenixKitWeb.FileController do
 
   ## Request
 
-      GET /tiles/:files_segment/:level/:tile_filename
+      GET /tiles/:token/:files_segment/:level/:tile_filename
 
-  where `files_segment` is `"<file_uuid>_files"`, `level` is the integer
-  zoom level (as string), and `tile_filename` is `"<col>_<row>.<ext>"`.
-  This matches the layout Tessera writes to storage and the URL convention
-  OpenSeadragon derives from a DZI manifest filename.
+  where `token` is the signed per-file token (same one used by
+  `serve_manifest/2`), `files_segment` is `"<file_uuid>_files"`,
+  `level` is the integer zoom level, and `tile_filename` is
+  `"<col>_<row>.<ext>"`. This matches the layout Tessera writes to
+  storage and the URL convention OpenSeadragon derives from a DZI
+  manifest's base URL (token in the path survives that derivation;
+  query-string tokens don't).
   """
   def serve_tile(conn, %{
+        "token" => token,
         "files_segment" => files_segment,
         "level" => level,
         "tile_filename" => tile_filename
       }) do
-    if tile_generation_enabled?() do
-      case parse_tile_path(files_segment, level, tile_filename) do
-        {:ok, file_uuid, level_int, col, row, ext} ->
-          with {:ok, file} <- get_file(file_uuid),
-               :ok <- ensure_image(file),
-               {:ok, w, h} <- ensure_dimensions(file),
-               key = "#{file_uuid}/#{file_uuid}_files/#{level_int}/#{col}_#{row}.#{ext}",
-               :ok <-
-                 ensure_tile_cached(file_uuid, level_int, col, row, ext, w, h, key),
-               {:ok, body} <- read_tile_storage(key) do
-            conn
-            |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
-            |> put_resp_content_type(content_type_for(ext))
-            |> send_resp(200, body)
-          else
-            {:error, reason} -> tile_error(conn, reason)
-          end
-
-        :error ->
-          send_resp(conn, 404, "Not found")
-      end
+    with true <- tile_generation_enabled?(),
+         {:ok, file_uuid, level_int, col, row, ext} <-
+           parse_tile_path(files_segment, level, tile_filename),
+         :ok <- verify_tile_token(file_uuid, token),
+         {:ok, file} <- get_file(file_uuid),
+         :ok <- ensure_image(file),
+         {:ok, w, h} <- ensure_dimensions(file),
+         key = "#{file_uuid}/#{file_uuid}_files/#{level_int}/#{col}_#{row}.#{ext}",
+         :ok <- ensure_tile_cached(file_uuid, level_int, col, row, ext, w, h, key),
+         {:ok, body} <- read_tile_storage(key) do
+      conn
+      |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+      |> put_resp_content_type(content_type_for(ext))
+      |> send_resp(200, body)
     else
-      send_resp(conn, 404, "Tile generation disabled")
+      false -> send_resp(conn, 404, "Tile generation disabled")
+      :error -> send_resp(conn, 404, "Not found")
+      {:error, reason} -> tile_error(conn, reason)
+    end
+  end
+
+  # Single per-file token authorizes both the manifest and every tile
+  # derived from it. Uses the same URLSigner pattern as the standard
+  # `/file/:file_uuid/:variant/:token` route (`signed_url/3` →
+  # `verify_token/3`); the "dzi" variant name is distinct from the
+  # storage variants ("original" / "small" / "medium" / "large") so a
+  # leaked file-serving token doesn't grant tile access and vice versa.
+  defp verify_tile_token(file_uuid, token) do
+    if URLSigner.verify_token(file_uuid, "dzi", token) do
+      :ok
+    else
+      {:error, :unauthorized}
     end
   end
 
@@ -265,19 +279,32 @@ defmodule PhoenixKitWeb.FileController do
 
   defp ensure_dimensions(_), do: {:error, :missing_dimensions}
 
-  defp ensure_manifest_cached(file_uuid, w, h) do
-    key = "#{file_uuid}/#{file_uuid}.dzi"
-    destination = TesseraAdapter.destination_for(key)
+  # Serialize concurrent first-request generators for the same manifest /
+  # tile. Without `with_tile_lock`, two browser tabs racing the cold path
+  # both spawn ImageMagick. The lock is keyed per source file so different
+  # images stay parallel. Double-checked locking: re-test `file_exists?`
+  # inside the lock so the loser of the race short-circuits to the cached
+  # file the winner just wrote.
 
+  defp ensure_manifest_cached(file_uuid, w, h) do
+    destination = TesseraAdapter.destination_for("#{file_uuid}/#{file_uuid}.dzi")
+
+    if Manager.file_exists?(destination) do
+      :ok
+    else
+      with_tile_lock(file_uuid, fn ->
+        generate_manifest_if_missing(file_uuid, w, h, destination)
+      end)
+    end
+  end
+
+  defp generate_manifest_if_missing(file_uuid, w, h, destination) do
     if Manager.file_exists?(destination) do
       :ok
     else
       Tessera.generate_manifest({w, h}, "#{file_uuid}/#{file_uuid}",
         storage: TesseraAdapter,
-        storage_opts: [
-          parent_file_uuid: file_uuid,
-          mime_type: "application/xml"
-        ]
+        storage_opts: [parent_file_uuid: file_uuid, mime_type: "application/xml"]
       )
     end
   end
@@ -288,7 +315,36 @@ defmodule PhoenixKitWeb.FileController do
     if Manager.file_exists?(destination) do
       :ok
     else
+      with_tile_lock(file_uuid, fn ->
+        generate_tile_if_missing(file_uuid, level, col, row, ext, w, h, destination)
+      end)
+    end
+  end
+
+  defp generate_tile_if_missing(file_uuid, level, col, row, ext, w, h, destination) do
+    if Manager.file_exists?(destination) do
+      :ok
+    else
       generate_tile_from_original(file_uuid, level, col, row, ext, w, h)
+    end
+  end
+
+  # `:global.set_lock/3` is cluster-aware and lighter-weight than a
+  # named GenServer for this access pattern (briefly-held cold-path
+  # serialization). Lock retries every 50ms up to 50× = ~2.5s before
+  # giving up — past that the request returns `:lock_timeout` and the
+  # client retries naturally on the next viewer interaction.
+  defp with_tile_lock(file_uuid, fun) do
+    lock_id = {{__MODULE__, :tessera_lock, file_uuid}, self()}
+
+    if :global.set_lock(lock_id, [node()], 50) do
+      try do
+        fun.()
+      after
+        :global.del_lock(lock_id, [node()])
+      end
+    else
+      {:error, :lock_timeout}
     end
   end
 
@@ -301,9 +357,9 @@ defmodule PhoenixKitWeb.FileController do
         temp_path =
           Path.join(System.tmp_dir!(), "tessera-src-#{System.unique_integer([:positive])}")
 
-        case Manager.retrieve_file(instance.file_name, destination_path: temp_path) do
-          {:ok, _} ->
-            result =
+        try do
+          case Manager.retrieve_file(instance.file_name, destination_path: temp_path) do
+            {:ok, _} ->
               Tessera.generate_tile(
                 temp_path,
                 {level, col, row},
@@ -319,12 +375,14 @@ defmodule PhoenixKitWeb.FileController do
                 ]
               )
 
-            File.rm(temp_path)
-            result
-
-          {:error, _} = err ->
-            File.rm(temp_path)
-            err
+            {:error, _} = err ->
+              err
+          end
+        after
+          # Cleanup runs even if Tessera.generate_tile/4 or Manager.retrieve_file/2
+          # raises mid-flight. Without this, repeated failures leak files into
+          # `System.tmp_dir!()` until inode exhaustion.
+          File.rm(temp_path)
         end
     end
   end
@@ -333,15 +391,16 @@ defmodule PhoenixKitWeb.FileController do
     destination = TesseraAdapter.destination_for(key)
     temp_path = Path.join(System.tmp_dir!(), "tessera-read-#{System.unique_integer([:positive])}")
 
-    case Manager.retrieve_file(destination, destination_path: temp_path) do
-      {:ok, _} ->
-        body = File.read!(temp_path)
-        File.rm(temp_path)
-        {:ok, body}
+    try do
+      case Manager.retrieve_file(destination, destination_path: temp_path) do
+        {:ok, _} ->
+          {:ok, File.read!(temp_path)}
 
-      {:error, _} = err ->
-        File.rm(temp_path)
-        err
+        {:error, _} = err ->
+          err
+      end
+    after
+      File.rm(temp_path)
     end
   end
 
@@ -355,6 +414,13 @@ defmodule PhoenixKitWeb.FileController do
     send_resp(conn, 404, "Not found")
   end
 
+  # The token check fails *closed* with 404 (not 401/403) so an attacker
+  # probing UUIDs can't distinguish "file exists but token is wrong"
+  # from "no such file" — both look identical from outside.
+  defp tile_error(conn, :unauthorized) do
+    send_resp(conn, 404, "Not found")
+  end
+
   defp tile_error(conn, :not_an_image) do
     send_resp(conn, 415, "Unsupported media type")
   end
@@ -365,6 +431,22 @@ defmodule PhoenixKitWeb.FileController do
 
   defp tile_error(conn, :invalid_coordinate) do
     send_resp(conn, 404, "Tile out of range")
+  end
+
+  # Source `original` instance is missing — the tile pipeline can't
+  # generate anything. Surface as 404 (the user-visible state matches
+  # "this tile doesn't exist") rather than 500.
+  defp tile_error(conn, :original_missing) do
+    send_resp(conn, 404, "Source image missing")
+  end
+
+  # Cold-path lock contention — the cluster-wide lock held by another
+  # writer didn't release within ~2.5s. Tell the client to back off; the
+  # next viewer interaction will retry naturally.
+  defp tile_error(conn, :lock_timeout) do
+    conn
+    |> put_resp_header("retry-after", "2")
+    |> send_resp(503, "Tile generation in progress, retry")
   end
 
   defp tile_error(conn, reason) do
