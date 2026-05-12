@@ -1064,8 +1064,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("etcher:updated", %{"uuid" => uuid, "geometry" => geometry}, socket) do
-    _ = PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, %{"geometry" => geometry})
-    {:noreply, socket}
+    case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, %{"geometry" => geometry}) do
+      {:ok, _annotation} ->
+        updated =
+          Enum.map(socket.assigns.viewer_annotations, fn a ->
+            if a.uuid == uuid, do: Map.put(a, :geometry, geometry), else: a
+          end)
+
+        {:noreply, assign(socket, :viewer_annotations, updated)}
+
+      _error ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("etcher:deleted", %{"uuid" => uuid}, socket) do
@@ -1480,7 +1490,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       file_uuid
       |> PhoenixKit.Annotations.list_for_file()
       |> Enum.map(fn a ->
-        %{uuid: a.uuid, kind: a.kind, geometry: a.geometry}
+        # `metadata` flows through to Etcher's tooltip — consumers can
+        # stash `"label"` or other display keys there to show on hover.
+        %{
+          uuid: a.uuid,
+          kind: a.kind,
+          geometry: a.geometry,
+          metadata: a.metadata
+        }
       end)
     else
       []
