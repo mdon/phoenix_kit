@@ -1101,6 +1101,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("etcher:deleted", %{"uuid" => uuid}, socket) do
     _ = PhoenixKit.Modules.Storage.EtcherAdapter.delete(uuid)
+    # The adapter's delete cascades to any linked comments; poke the
+    # file's CommentsComponent so the sidebar thread drops them too.
+    refresh_file_comments(socket)
 
     remaining = Enum.reject(socket.assigns.viewer_annotations, fn a -> a.uuid == uuid end)
     {:noreply, assign(socket, :viewer_annotations, remaining)}
@@ -1532,19 +1535,61 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Post path: comment was created, annotation is solidified. Reload
-  # the viewer's annotations so the tooltip's comment_* fields refresh.
-  defp finalize_annotation_compose(socket, _annotation_uuid) do
+  # the viewer's annotations so the tooltip's comment_* fields refresh,
+  # AND poke the file's CommentsComponent so the freshly-posted comment
+  # appears in the sidebar thread without a page reload. The component
+  # reloads when `loaded?` flips to false in its update/2 — so we send
+  # exactly that, no upstream change required.
+  defp finalize_annotation_compose(socket, annotation_uuid) do
     file_uuid =
       case socket.assigns[:viewer_file] do
         %{file_uuid: uuid} -> uuid
         _ -> nil
       end
 
-    socket
-    |> assign(:composing_annotation_uuid, nil)
-    |> assign(:composer_anchor, nil)
-    |> assign(:viewer_annotations, if(file_uuid, do: load_annotations_for(file_uuid), else: []))
-    |> put_flash(:info, gettext("Annotation saved"))
+    refresh_file_comments(socket)
+    fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
+
+    socket =
+      socket
+      |> assign(:composing_annotation_uuid, nil)
+      |> assign(:composer_anchor, nil)
+      |> assign(:viewer_annotations, fresh)
+      |> put_flash(:info, gettext("Annotation saved"))
+      # After a successful Post, drop out of the active drawing tool
+      # back to cursor mode (annotation mode stays on). Otherwise users
+      # would keep drawing accidentally after solidifying one shape.
+      |> Phoenix.LiveView.push_event("etcher:exit-drawing", %{})
+
+    # The host div's `data-initial-annotations` re-renders but the JS
+    # hook doesn't re-parse it — push a targeted update so the in-DOM
+    # shape's tooltip metadata reflects the new comment immediately.
+    case Enum.find(fresh, fn a -> a.uuid == annotation_uuid end) do
+      nil ->
+        socket
+
+      %{} = ann ->
+        Phoenix.LiveView.push_event(socket, "etcher:annotation-updated", %{
+          uuid: ann.uuid,
+          metadata: ann.metadata
+        })
+    end
+  end
+
+  # Poke the file's CommentsComponent to reload after server-side
+  # changes the component didn't drive itself (new annotation comment,
+  # cascade-deleted annotation comments, etc.). Flipping `loaded?` to
+  # false makes its `update/2` rerun `load_comments/1`.
+  defp refresh_file_comments(socket) do
+    with %{file_uuid: file_uuid} when is_binary(file_uuid) <- socket.assigns[:viewer_file],
+         true <- Code.ensure_loaded?(PhoenixKitComments.Web.CommentsComponent) do
+      Phoenix.LiveView.send_update(PhoenixKitComments.Web.CommentsComponent,
+        id: "media-comments-" <> file_uuid,
+        loaded?: false
+      )
+    end
+
+    :ok
   end
 
   # Cancel path: composer requested rollback explicitly.

@@ -198,7 +198,15 @@ defmodule PhoenixKit.Annotations do
     end
   end
 
-  @doc "Delete an annotation by UUID."
+  @doc """
+  Delete an annotation by UUID.
+
+  Cascades to any linked comments — i.e. comments on the annotation's
+  file that carry `metadata.annotation_uuid` pointing at this row. The
+  cascade is a soft delete (status: "deleted") so reply chains stay
+  attached as `[removed]` placeholders rather than disappearing
+  silently. No-ops cleanly when PhoenixKitComments isn't installed.
+  """
   @spec delete(uuid()) :: :ok | {:error, :not_found | Ecto.Changeset.t()}
   def delete(uuid) do
     case RepoHelper.get(Annotation, uuid) do
@@ -206,11 +214,29 @@ defmodule PhoenixKit.Annotations do
         {:error, :not_found}
 
       annotation ->
+        delete_linked_comments(annotation)
+
         case RepoHelper.delete(annotation) do
           {:ok, _} -> :ok
           {:error, _} = err -> err
         end
     end
+  end
+
+  defp delete_linked_comments(annotation) do
+    if Code.ensure_loaded?(PhoenixKitComments) do
+      "file"
+      |> PhoenixKitComments.list_comments(annotation.file_uuid)
+      |> Enum.filter(fn c ->
+        get_in(c.metadata || %{}, ["annotation_uuid"]) == annotation.uuid
+      end)
+      |> Enum.each(&PhoenixKitComments.delete_comment/1)
+    end
+  rescue
+    # Swallow comment-side errors so an annotation can still be deleted
+    # even if the comments package has issues. Orphan comments are
+    # benign (they just show in the file thread without their pin).
+    _ -> :ok
   end
 
   # Accept both string- and atom-keyed maps. Falls back to passing the
