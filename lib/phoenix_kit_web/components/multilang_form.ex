@@ -810,17 +810,29 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
         end
       end)
       |> assign_new(:input_class, fn ->
+        # `w-full` for parity with the regular `<.input>` core component
+        # — daisyUI 5's `.input` / `.textarea` classes don't include
+        # full-width by default, so without this the field shrinks to
+        # the input's intrinsic content width.
         base =
           if assigns.type == "textarea",
-            do: "textarea textarea-bordered",
-            else: "input input-bordered"
+            do: "textarea textarea-bordered w-full",
+            else: "input input-bordered w-full"
 
         base = if assigns.class, do: "#{base} #{assigns.class}", else: base
         if errors != [], do: "#{base} input-error", else: base
       end)
 
     ~H"""
-    <div class="form-control" phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}>
+    <%!-- `flex flex-col` because daisyUI 5's `.label` is `inline-flex`
+         and `.input`/`.textarea` are `inline-block` — without forcing
+         column direction here they sit on the same row. The `gap-1`
+         puts a small breathing room between label and field that
+         matches the `<.input>` core component's `mb-2`. --%>
+    <div
+      class="form-control flex flex-col gap-1"
+      phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}
+    >
       <label for={@input_id} class="label">
         <span class="label-text font-semibold">
           {@label}

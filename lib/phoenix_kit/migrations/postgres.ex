@@ -529,7 +529,78 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V111 - PDF library tables for catalogue ⚡ LATEST
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction ⚡ LATEST
+  - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
+    `phoenix_kit_files`. Marks internally-generated media (DZI tile
+    pyramids + per-tile chunks) so the MediaBrowser can exclude them
+    from user listings and the variant generator can skip them (tile
+    chunks don't need small / medium / large — just an `"original"`
+    FileInstance).
+  - Adds nullable `parent_file_uuid` FK to `phoenix_kit_files(uuid)`
+    `ON DELETE :delete_all`. When a source image is hard-deleted, its
+    system-managed tile rows cascade away with it.
+  - Drops `NOT NULL` on `user_uuid`: system-managed rows belong to a
+    parent File, not a user. The changeset's
+    `validate_system_managed_invariants` enforces "user_uuid OR
+    parent_file_uuid" at the app level.
+  - Two partial indexes: one on `parent_file_uuid` where not null (per-
+    source cleanup + listing), one on `inserted_at DESC` where
+    `system_managed = false` (keeps the MediaBrowser's "user files
+    only" sort cheap as the tile catalog grows).
+  - Creates `phoenix_kit_comment_media` — junction table letting the
+    comments module attach core File rows to individual comments with
+    a position + optional caption. Cascade on `comment_uuid` (deleting
+    a comment removes its attachments), restrict on `file_uuid` (files
+    can't hard-delete while attached). Unique `(comment_uuid, position)`
+    slot index + secondary index on `file_uuid` for reverse lookup.
+  - Partial unique index `phoenix_kit_files_system_dedup_index` on
+    `(parent_file_uuid, file_name) WHERE system_managed = true` —
+    lets `Storage.store_system_file/3` use `ON CONFLICT DO NOTHING`
+    so concurrent lazy-generation requests for the same uncached
+    tile dedupe at the DB level instead of producing duplicate File
+    rows.
+  - DB-level CHECK constraint `phoenix_kit_files_user_or_parent_check`
+    enforcing `user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL`
+    — the schema's `validate_system_managed_invariants` is the
+    user-facing check, this is the safety net for raw inserts.
+  - All column / FK / NOT-NULL changes use raw SQL with explicit
+    `IF NOT EXISTS` / `DO $$ … END $$` guards so re-running on a
+    partially-applied schema is a no-op.
+
+  ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime
+  - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the
+    admin dashboard can soft-hide projects without flipping a status
+    enum. Visible-set partial index (`phoenix_kit_projects_visible_idx`
+    on `inserted_at DESC WHERE archived_at IS NULL`) keeps both the
+    project list and template list queries fast — neither view shows
+    archived rows, so one partial covers both `is_template = false`
+    and `is_template = true` reads without two scoped indexes.
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_projects`, `phoenix_kit_project_tasks`, and
+    `phoenix_kit_project_assignments` for per-language overrides on
+    user-input content (name, description, title). Primary stays in
+    the dedicated columns; the JSONB only carries non-primary
+    overrides.
+  - Drops the three remaining unique-name indexes
+    (`phoenix_kit_projects_name_template_index`,
+    `phoenix_kit_projects_name_project_index`,
+    `phoenix_kit_project_tasks_title_index`). Name uniqueness is now
+    policy, not schema — editing or duplicating names no longer
+    trips a stale index.
+  - Retypes `phoenix_kit_projects.scheduled_start_date` from `DATE`
+    to `TIMESTAMP(0)` so scheduled-overdue detection honors time-of-
+    day (a project scheduled for today 09:00 flips to `:overdue` at
+    09:01, not at midnight).
+  - Adds `position INTEGER NOT NULL DEFAULT 0` to
+    `phoenix_kit_project_tasks` and `phoenix_kit_projects` so the
+    drag-and-drop reorder API can persist manual ordering. Per-row
+    `next_*_position/N` helpers in the projects context auto-assign
+    on insert.
+  - All steps guarded for idempotence (column existence + index
+    existence + USING coercion clauses). `down/1` reverses each
+    change so a rollback restores the V111 shape.
+
+  ### V111 - PDF library tables for catalogue
   - Creates `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid`
     FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue
     manages the file lifecycle; core prune can't delete files we
@@ -846,7 +917,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 111
+  @current_version 113
   @default_prefix "public"
 
   @doc false
