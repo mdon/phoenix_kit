@@ -202,16 +202,9 @@
                 name="name"
                 value={@name || @new_name}
                 class="input input-bordered w-full"
-                placeholder={gettext("e.g. main, personal, work")}
+                placeholder={gettext("e.g. Main, Personal, My Company Drive")}
                 required
               />
-              <label class="label">
-                <span class="label-text-alt text-base-content/50">
-                  {gettext(
-                    "Letters, digits, hyphens, and underscores. Must be unique per provider."
-                  )}
-                </span>
-              </label>
             </div>
 
             <%!-- Provider-specific fields. Even credential-shaped
