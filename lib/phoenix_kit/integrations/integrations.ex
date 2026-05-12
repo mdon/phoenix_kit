@@ -507,6 +507,23 @@ defmodule PhoenixKit.Integrations do
   For bot token providers: returns credentials for the caller to use directly.
 
   `opts` are passed through to `Req.request/1`.
+
+  ## Security — `url` must come from a trusted source
+
+  The integration's Bearer token is attached to every request this
+  function dispatches. If a caller passes a URL that came from
+  unvalidated user input, the token leaks to whatever host that URL
+  points at. Callers MUST validate the URL before invoking — pin to
+  a domain allowlist (the provider's own host, typically), enforce
+  `https`, and reject RFC1918 / loopback / link-local ranges.
+
+  Internal usage (`OpenRouterClient.fetch_models/2`, OAuth refresh,
+  userinfo lookups) builds URLs from the Providers registry, which is
+  hardcoded and therefore safe. The schema-level `validate_base_url/1`
+  guard in `PhoenixKitAI.Endpoint` covers the AI module's
+  operator-supplied `base_url` case. New callsites that take URLs
+  from anywhere else need their own guard before reaching this
+  function — there's no allowlist enforcement here.
   """
   @spec authenticated_request(String.t(), atom(), String.t(), keyword()) ::
           {:ok, Req.Response.t()} | {:error, term()}
@@ -845,9 +862,24 @@ defmodule PhoenixKit.Integrations do
 
     result
   rescue
-    e ->
+    # Narrow rescue — only catch exceptions we expect from the
+    # validate path so genuine logic bugs (KeyError, ArgumentError,
+    # MatchError, etc.) bubble up to the supervisor instead of getting
+    # swallowed under a generic "validation failed" message. The three
+    # caught classes cover the realistic failure modes:
+    #
+    #   * `DBConnection.OwnershipError` — sandbox checkout race in
+    #     tests that hit this path from an async-shared connection.
+    #   * `Postgrex.Error` — DB outage / table-missing mid-flight
+    #     during the `record_validation` write that `validate_connection`
+    #     itself doesn't perform but called helpers (log_activity,
+    #     `Providers.get` if backed by DB later) might.
+    #   * `Req.TransportError` / generic transport — should already
+    #     be returned as `{:error, _}` by `check_http/2`; this is the
+    #     belt-and-braces case.
+    e in [DBConnection.OwnershipError, Postgrex.Error, Req.TransportError] ->
       Logger.error(
-        "[Integrations] validate_connection crashed for #{uuid}: #{Exception.message(e)}"
+        "[Integrations] validate_connection error for #{uuid}: #{Exception.message(e)}"
       )
 
       {:error, gettext("Validation failed unexpectedly")}
