@@ -500,10 +500,19 @@ defmodule PhoenixKit.Dashboard.ContextSelector do
 
   defp ids_match?(id1, id2), do: id1 == id2
 
-  # Parse key - convert string to atom, keep atoms as-is
+  # Parse key - convert string to atom, keep atoms as-is.
+  # Uses to_existing_atom so a misconfigured selector key from runtime/JSON config
+  # can't grow the atom table unboundedly. Valid keys are always defined as atoms
+  # in code (e.g. config :phoenix_kit, :dashboard_context_selectors, [%{key: :org, ...}]).
   defp parse_key(nil), do: nil
   defp parse_key(key) when is_atom(key), do: key
-  defp parse_key(key) when is_binary(key), do: String.to_atom(key)
+
+  defp parse_key(key) when is_binary(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
+
   defp parse_key(_), do: nil
 
   # Parse on_parent_change option

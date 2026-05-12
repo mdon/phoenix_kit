@@ -7218,3 +7218,33 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:90
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:100
+#, elixir-autogen, elixir-format
+msgid "Live Sessions"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:235
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:245
+#, elixir-autogen, elixir-format
+msgid "Authorization"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:294
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr ""

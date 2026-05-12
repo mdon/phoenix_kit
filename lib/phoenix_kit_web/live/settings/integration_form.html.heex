@@ -202,16 +202,9 @@
                 name="name"
                 value={@name || @new_name}
                 class="input input-bordered w-full"
-                placeholder={gettext("e.g. main, personal, work")}
+                placeholder={gettext("e.g. Main, Personal, My Company Drive")}
                 required
               />
-              <label class="label">
-                <span class="label-text-alt text-base-content/50">
-                  {gettext(
-                    "Letters, digits, hyphens, and underscores. Must be unique per provider."
-                  )}
-                </span>
-              </label>
             </div>
 
             <%!-- Provider-specific fields. Even credential-shaped
@@ -270,7 +263,11 @@
                  preserved across the no-op save, and the auto-test
                  re-verifies it. --%>
             <div class="flex flex-wrap gap-2 items-center pt-2">
-              <button type="submit" class="btn btn-primary">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                phx-disable-with={gettext("Saving…")}
+              >
                 {if @name, do: gettext("Save Changes"), else: gettext("Create Connection")}
               </button>
 
@@ -302,6 +299,7 @@
                 formnovalidate
                 class={"btn btn-outline #{if @testing, do: "loading"}"}
                 disabled={@testing}
+                phx-disable-with={gettext("Testing…")}
               >
                 <.icon :if={!@testing} name="hero-signal" class="w-4 h-4" />
                 {if @testing, do: gettext("Testing..."), else: gettext("Test Connection")}
@@ -365,6 +363,7 @@
                 type="button"
                 phx-click="connect_oauth"
                 class="btn btn-accent btn-sm mt-3"
+                phx-disable-with={gettext("Redirecting…")}
               >
                 <.icon name="hero-link" class="w-4 h-4" />
                 {gettext("Connect %{provider} Account", provider: @provider.name)}
@@ -464,6 +463,7 @@
               phx-click="disconnect_account"
               class="btn btn-outline btn-warning btn-sm shrink-0"
               data-confirm={gettext("Are you sure you want to disconnect this account?")}
+              phx-disable-with={gettext("Disconnecting…")}
             >
               <.icon name="hero-link-slash" class="w-4 h-4" />
               {gettext("Disconnect")}
@@ -488,6 +488,7 @@
               phx-click="delete_connection"
               class="btn btn-outline btn-error btn-sm shrink-0"
               data-confirm={gettext("Permanently delete this connection? This cannot be undone.")}
+              phx-disable-with={gettext("Deleting…")}
             >
               <.icon name="hero-trash" class="w-4 h-4" />
               {gettext("Delete")}

@@ -119,7 +119,12 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
-      # Image viewer foundation + DZI deep-zoom layer + annotation overlay.
+      # Deep zoom / pan-zoom image viewer (Tessera DZI layer atop the
+      # Fresco OpenSeadragon viewer). Tessera 0.2 split the standalone
+      # viewer into <Fresco.viewer> + <Tessera.layer> composition; both
+      # JS hooks are bundled into priv/static/assets/phoenix_kit.js so
+      # parent apps don't need to wire them separately. Etcher 0.1 adds
+      # the annotation overlay on top of the same viewer.
       {:fresco, "~> 0.1"},
       {:tessera, "~> 0.2"},
       {:etcher, "~> 0.1"},

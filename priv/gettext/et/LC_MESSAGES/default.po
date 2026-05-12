@@ -7221,3 +7221,33 @@ msgstr "Osaliselt edukas: %{uploaded}, %{failed} puuduvate salvestushoidlate tõ
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Üleslaadimine edukas! %{added}. %{duplicates}."
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:90
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr "Halda kasutajaid"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:100
+#, elixir-autogen, elixir-format
+msgid "Live Sessions"
+msgstr "Aktiivsed sessioonid"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr "Tegevus"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:235
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr "Üldine"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:245
+#, elixir-autogen, elixir-format
+msgid "Authorization"
+msgstr "Volitamine"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:294
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr "Mõõtmed"

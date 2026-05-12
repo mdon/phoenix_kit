@@ -545,6 +545,25 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Indexes: `(file_uuid)` for per-file listing, partial
     `(creator_uuid) WHERE creator_uuid IS NOT NULL` for author lookups.
 
+  ### V114 - Integrations storage: uuid-only keys
+  - Rewrites every `phoenix_kit_settings` row keyed
+    `integration:<provider>:<name>` so that `key = uuid` (the row's
+    primary key). Provider and name move into JSONB
+    (`value_json->>'provider'`, `value_json->>'name'`); the `module`
+    column (`'integrations'`) becomes the row-class discriminator.
+  - Backfills any missing `provider`/`name` JSONB fields from the old
+    composite key. Legacy V0-shape keys without a `:name` segment fold
+    to `name = 'default'`.
+  - Lifts both name restrictions on `add_connection/3` /
+    `rename_connection/3`: any non-empty string (after trim) is
+    allowed, including spaces, punctuation, and duplicates within a
+    provider. The `key` column's unique constraint is satisfied by
+    the UUIDv7, not by the human-chosen label.
+  - `down/1` rewrites keys back to the composite shape. Duplicate
+    `(provider, name)` pairs cannot be represented in the old shape,
+    so on collision the name is suffixed with `-<8-char uuid>` to
+    keep the rewrite well-defined.
+
   ### V113 - System-managed media flag for Tessera tiles + comments↔files junction
   - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
     `phoenix_kit_files`. Marks internally-generated media (DZI tile

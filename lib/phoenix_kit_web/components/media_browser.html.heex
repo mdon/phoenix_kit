@@ -1361,29 +1361,37 @@
                 <%!--   small image  → [medium, dzi]                             --%>
                 <%!--   4K+ image    → [medium, large, dzi]                      --%>
                 <%!--                                                            --%>
-                <%!-- Each non-DZI source carries its intrinsic pixel width;     --%>
-                <%!-- Tessera computes thresholds dynamically so each layer is   --%>
-                <%!-- used only in the zoom range where its native resolution    --%>
-                <%!-- is sharper than the rendered viewport pixels.              --%>
-                <Fresco.Viewer.viewer
-                  id={"media-zoom-" <> f.file_uuid}
-                  src={initial_tessera_src(f)}
-                  class="w-full h-full lg:rounded"
-                />
-                <Tessera.Layer.layer
-                  fresco_id={"media-zoom-" <> f.file_uuid}
-                  sources={tessera_sources(f)}
-                />
-                <%!-- Etcher overlay — pencil button in the nav column   --%>
-                <%!-- opens the drawing toolbar; events route to the     --%>
-                <%!-- MediaBrowser LC's `handle_event/3` clauses, which   --%>
-                <%!-- delegate to PhoenixKit.Modules.Storage.EtcherAdapter. --%>
-                <Etcher.Layer.layer
-                  fresco_id={"media-zoom-" <> f.file_uuid}
-                  target_type="file"
-                  target_uuid={f.file_uuid}
-                  initial_annotations={@viewer_annotations}
-                />
+                <%!-- Tessera 0.2 split the viewer into a Fresco OpenSeadragon   --%>
+                <%!-- viewer + a Tessera layer that swaps between source         --%>
+                <%!-- qualities. Fresco renders the initial cheap source; the    --%>
+                <%!-- Tessera layer attaches via fresco_id and takes over the    --%>
+                <%!-- per-zoom layer-swap logic, preserving viewport bounds.     --%>
+                <%!-- Etcher's annotation overlay attaches to the same Fresco    --%>
+                <%!-- viewer and adds the pencil button to its nav column.       --%>
+                <%= case tessera_sources(f) do %>
+                  <% [first | _] = sources -> %>
+                    <Fresco.viewer
+                      id={"media-zoom-" <> f.file_uuid}
+                      src={first.url}
+                      class="w-full h-full lg:rounded"
+                    />
+                    <Tessera.layer
+                      fresco_id={"media-zoom-" <> f.file_uuid}
+                      sources={sources}
+                    />
+                    <Etcher.layer
+                      fresco_id={"media-zoom-" <> f.file_uuid}
+                      target_type="file"
+                      target_uuid={f.file_uuid}
+                      initial_annotations={@viewer_annotations}
+                    />
+                  <% [] -> %>
+                    <img
+                      src={f.urls["original"]}
+                      class="max-w-full max-h-full lg:rounded"
+                      alt=""
+                    />
+                <% end %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
                   src={f.urls["original"]}

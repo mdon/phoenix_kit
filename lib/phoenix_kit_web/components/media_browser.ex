@@ -2136,7 +2136,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Builds the ordered low → high quality layer list that
-  # `<Tessera.Viewer.viewer sources={...}>` consumes. Each entry is
+  # `<Tessera.layer sources={...}>` consumes (paired with a `<Fresco.viewer>`
+  # rendering the first entry's URL as the initial source). Each entry is
   # `%{url: <signed url>, width: <intrinsic pixel width>}`, except the
   # top DZI layer which omits `width` (Tessera treats unknown width as
   # the top of the pyramid with infinite zoom headroom).
@@ -2148,16 +2149,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   #     small images where large == medium would just churn for nothing)
   #   * `dzi`   — always available for images; takes over when zoom
   #     exceeds what the static raster variants can serve sharply
-  # First source URL from the tessera_sources list — what Fresco opens with.
-  # Falls back to `original` for the rare case where neither medium nor a
-  # cheaper variant exists.
-  defp initial_tessera_src(f) do
-    case tessera_sources(f) do
-      [%{url: url} | _] -> url
-      _ -> f.urls["original"] || f.urls["medium"]
-    end
-  end
-
   defp tessera_sources(f) do
     widths = f.variant_widths || %{}
     medium_url = f.urls["medium"]
