@@ -87,14 +87,26 @@ defmodule PhoenixKit.Annotations do
   end
 
   defp group_file_comments_by_annotation(file_uuid) do
-    "file"
-    |> PhoenixKitComments.list_comments(file_uuid, preload: [:user, media: :file])
-    |> Enum.reduce(%{}, fn c, acc ->
-      case get_in(c.metadata || %{}, ["annotation_uuid"]) do
-        uuid when is_binary(uuid) -> Map.update(acc, uuid, [c], &(&1 ++ [c]))
-        _ -> acc
-      end
+    all = PhoenixKitComments.list_comments("file", file_uuid, preload: [:user, media: :file])
+
+    # Build a parent_uuid → [children] map so we can walk the tree from
+    # each annotation-rooted comment and pick up every reply. The
+    # tooltip's count should reflect total activity on the annotation,
+    # not just the root post.
+    children_by_parent = Enum.group_by(all, & &1.parent_uuid)
+
+    all
+    |> Enum.filter(fn c -> is_binary(get_in(c.metadata || %{}, ["annotation_uuid"])) end)
+    |> Enum.reduce(%{}, fn root, acc ->
+      annotation_uuid = get_in(root.metadata, ["annotation_uuid"])
+      cluster = collect_subtree(root, children_by_parent)
+      Map.update(acc, annotation_uuid, cluster, &(&1 ++ cluster))
     end)
+  end
+
+  defp collect_subtree(root, children_by_parent) do
+    children = Map.get(children_by_parent, root.uuid, [])
+    [root | Enum.flat_map(children, &collect_subtree(&1, children_by_parent))]
   end
 
   # Comments arrive ordered by inserted_at asc from list_comments/3, so

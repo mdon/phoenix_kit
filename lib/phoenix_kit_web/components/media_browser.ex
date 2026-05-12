@@ -1611,7 +1611,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         comment_meta =
           case fc do
             nil ->
-              %{}
+              %{"comment_created_at" => format_date(a.inserted_at), "comment_count" => 0}
 
             %{} = c ->
               %{
@@ -1619,7 +1619,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
                 "comment_author" => c.author,
                 "comment_thumbnail_url" => c.thumbnail_url,
                 "comment_has_attachment" => Map.get(c, :has_attachment, false),
-                "comment_count" => count
+                "comment_count" => count,
+                "comment_created_at" => format_date(a.inserted_at)
               }
           end
 
@@ -1647,6 +1648,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       text
     end
   end
+
+  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  defp format_date(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  defp format_date(_), do: nil
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do
     if controlled_mode?(socket) do
