@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.108"
+  @version "1.7.109"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -119,9 +119,10 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
-      # Image viewer foundation + DZI deep-zoom layer.
-      {:fresco, "~> 0.1"},
+      # Image viewer foundation + DZI deep-zoom layer + annotation overlay.
+      {:fresco, "~> 0.2"},
       {:tessera, "~> 0.2"},
+      {:etcher, "~> 0.1"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

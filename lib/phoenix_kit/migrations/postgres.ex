@@ -529,7 +529,23 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction ⚡ LATEST
+  ### V114 - phoenix_kit_annotations table for Etcher-drawn shapes ⚡ LATEST
+  - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
+    circle / polygon / freehand shapes anchored to `phoenix_kit_files`
+    rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
+    enforced via a DB-level CHECK constraint matching Etcher's v0.1
+    tool set.
+  - `file_uuid` FK `ON DELETE :delete_all` — annotations vanish with
+    their host image. `creator_uuid` is nullable + `ON DELETE :nilify_all`
+    so deleting a user preserves their annotations as anonymous.
+  - Discussion threads attach via the existing comments convention
+    (`resource_type = "annotation"`, `resource_uuid = annotation.uuid`)
+    — no `comment_uuid` column on annotations; the relationship is
+    one-directional from the comment side.
+  - Indexes: `(file_uuid)` for per-file listing, partial
+    `(creator_uuid) WHERE creator_uuid IS NOT NULL` for author lookups.
+
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction
   - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
     `phoenix_kit_files`. Marks internally-generated media (DZI tile
     pyramids + per-tile chunks) so the MediaBrowser can exclude them
@@ -917,7 +933,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 113
+  @current_version 114
   @default_prefix "public"
 
   @doc false

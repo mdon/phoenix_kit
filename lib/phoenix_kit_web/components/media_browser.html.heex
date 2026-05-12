@@ -1374,6 +1374,16 @@
                   fresco_id={"media-zoom-" <> f.file_uuid}
                   sources={tessera_sources(f)}
                 />
+                <%!-- Etcher overlay — pencil button in the nav column   --%>
+                <%!-- opens the drawing toolbar; events route to the     --%>
+                <%!-- MediaBrowser LC's `handle_event/3` clauses, which   --%>
+                <%!-- delegate to PhoenixKit.Modules.Storage.EtcherAdapter. --%>
+                <Etcher.Layer.layer
+                  fresco_id={"media-zoom-" <> f.file_uuid}
+                  target_type="file"
+                  target_uuid={f.file_uuid}
+                  initial_annotations={@viewer_annotations}
+                />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
                   src={f.urls["original"]}
