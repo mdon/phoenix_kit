@@ -1343,6 +1343,74 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // AnnotationComposerPosition
+  //
+  // Keeps the MediaBrowser's floating annotation-composer popover fully
+  // inside its viewer container. The server seeds the popover with the
+  // shape's bottom-left anchor coords (set by etcher.js when emitting
+  // `etcher:created`), which is fine when the shape is in the middle of
+  // the image but can land the popover past the right edge or below the
+  // bottom when the user draws near a boundary.
+  //
+  // The hook re-clamps `left` / `top` after mount, after server-driven
+  // re-renders, and on window resize. An 8px margin keeps the popover
+  // from touching the container edge.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.AnnotationComposerPosition = {
+    mounted() {
+      this._reposition = () => this.reposition();
+      this.reposition();
+      window.addEventListener("resize", this._reposition);
+    },
+
+    updated() {
+      this.reposition();
+    },
+
+    destroyed() {
+      if (this._reposition) {
+        window.removeEventListener("resize", this._reposition);
+      }
+    },
+
+    reposition() {
+      const el = this.el;
+      const container = el.parentElement;
+      if (!container) return;
+
+      // Read the requested position from inline style (server-set).
+      let left = parseFloat(el.style.left) || 0;
+      let top = parseFloat(el.style.top) || 0;
+
+      const margin = 8;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+
+      // Clamp horizontally: keep right edge inside the container, then
+      // keep left edge inside. Order matters when the popover is wider
+      // than the container — `Math.max(margin, …)` wins, leaving the
+      // popover flush-left with a margin.
+      const maxLeft = cw - w - margin;
+      if (left > maxLeft) left = maxLeft;
+      if (left < margin) left = margin;
+
+      // Same for vertical. If the popover doesn't fit below the shape
+      // (top + h > container height), it slides up. If it still doesn't
+      // fit (popover is taller than the container), it pins to the top
+      // with a margin.
+      const maxTop = ch - h - margin;
+      if (top > maxTop) top = maxTop;
+      if (top < margin) top = margin;
+
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // CopyToClipboard Hook
   // ---------------------------------------------------------------------------
   //
