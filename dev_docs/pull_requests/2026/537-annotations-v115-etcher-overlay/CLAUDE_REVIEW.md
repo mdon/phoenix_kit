@@ -9,7 +9,7 @@ Overall a well-architected feature — clean separation between the storage adap
 
 ## Disposition (post-review action)
 
-Trivial / mechanical items below were addressed in follow-up commits `b45a7a93` and `<next-sha>`. Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Alex** and left as TODOs for the original PR author.
+Trivial / mechanical items below were addressed in follow-up commits `b45a7a93` and `3e559fc3`. Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Alex** and left as TODOs for the original PR author.
 
 **Addressed by Claude:**
 
@@ -24,10 +24,10 @@ Trivial / mechanical items below were addressed in follow-up commits `b45a7a93` 
 | #19 | NITPICK | Drop `Storage` from `@compile no_warn_undefined` | `b45a7a93` |
 | #20 | NITPICK | Simplify `AnnotationComposerPosition.destroyed` guard | `b45a7a93` |
 | #21 | NITPICK | Fix misleading Etcher slot-preservation JS comment | `b45a7a93` |
-| #7 | IMPROVEMENT-MEDIUM | `Annotation.adapter_writable_fields/0` — schema as source-of-truth for adapter whitelist | `<next-sha>` |
-| #13 | IMPROVEMENT-LOW | gettext-wrap `format_date` strftime pattern for locale | `<next-sha>` |
-| #14 | IMPROVEMENT-LOW | `first_error/1` via `Input.translate_error/1` | `<next-sha>` |
-| #23 | NITPICK | `truncate/2` docstring clarifying `limit` is output length | `<next-sha>` |
+| #7 | IMPROVEMENT-MEDIUM | `Annotation.adapter_writable_fields/0` — schema as source-of-truth for adapter whitelist | `3e559fc3` |
+| #13 | IMPROVEMENT-LOW | gettext-wrap `format_date` strftime pattern for locale | `3e559fc3` |
+| #14 | IMPROVEMENT-LOW | `first_error/1` via `Input.translate_error/1` | `3e559fc3` |
+| #23 | NITPICK | `truncate/2` docstring clarifying `limit` is output length | `3e559fc3` |
 
 Plus precommit-clean adjacent fixes: aliased `Annotations`, `Storage`, `EtcherAdapter`, `Storage.File` to clear credo "nested module" findings; converted `first_attachment_thumbnail` `with` → `case` (credo readability); added PhoenixKitComments dialyzer ignores.
 
@@ -443,7 +443,7 @@ If `limit = 80`, the output is `slice(text, 0, 79) <> "…"` = 80 characters tot
 
 ## Suggested follow-up scope (remaining work for Alex)
 
-After Claude's two-pass mechanical sweep (`b45a7a93`, `<next-sha>`), the standing TODO list is:
+After Claude's two-pass mechanical sweep (`b45a7a93`, `3e559fc3`), the standing TODO list is:
 
 Tier 1 (worth fixing before next release):
 - **#6** Authorization checks on update/delete (load-bearing if MediaBrowser ever embeds non-admin)
