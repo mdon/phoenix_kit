@@ -150,6 +150,30 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       assert html =~ "Please enter a connection name."
     end
 
+    test "blank-name create error preserves typed credential values in the form",
+         %{conn: conn} do
+      # Regression: the create_connection error branches used to only
+      # assign `:error` and forget the typed values. The api_key input
+      # would re-render with value="" — operator sees the error AND a
+      # cleared form, has to retype the key. The fix mirrors the
+      # dry-run path's `:form_values` preservation.
+      {:ok, view, _html} = live(conn, @new_path)
+
+      view
+      |> element("button[phx-value-provider=\"openrouter\"]")
+      |> render_click()
+
+      html =
+        view
+        |> element("form[phx-submit=\"save_form\"]")
+        |> render_submit(%{"name" => "", "api_key" => "sk-typed-but-rejected"})
+
+      # Error surfaced.
+      assert html =~ "Please enter a connection name."
+      # AND the typed api_key survives the round-trip.
+      assert html =~ ~s(value="sk-typed-but-rejected")
+    end
+
     test "Test Connection on /new probes credentials without persisting",
          %{conn: conn} do
       # Pre-condition: no openrouter integration rows exist.
@@ -338,19 +362,22 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       assert name == "primary"
     end
 
-    test "rename to an existing name surfaces an error", %{conn: conn} do
+    test "rename to a name another connection already has succeeds (duplicates allowed)",
+         %{conn: conn} do
       %{uuid: uuid} = seed_openrouter("personal")
       seed_openrouter("work")
 
       {:ok, view, _html} =
         live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
 
-      html =
-        view
-        |> element("form[phx-submit=\"save_form\"]")
-        |> render_submit(%{"name" => "work", "api_key" => "sk-test-personal"})
+      view
+      |> element("form[phx-submit=\"save_form\"]")
+      |> render_submit(%{"name" => "work", "api_key" => "sk-test-personal"})
 
-      assert html =~ "already exists"
+      # Both rows now named "work" — disambiguated by uuid.
+      conns = Integrations.list_connections("openrouter")
+      assert length(conns) == 2
+      assert Enum.all?(conns, &(&1.name == "work"))
     end
 
     test "Test Connection uses the inputted api_key, not the stale saved value",

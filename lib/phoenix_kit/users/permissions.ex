@@ -337,7 +337,17 @@ defmodule PhoenixKit.Users.Permissions do
     "users" => "Users",
     "media" => "Media",
     "settings" => "Settings",
-    "modules" => "Modules"
+    "modules" => "Modules",
+    # `db` was extracted into `phoenix_kit_db` but core still
+    # references the key (e.g. `auth.ex` `/admin/db` route).
+    # `phoenix_kit_db` registers `"db" => "DB"` via its
+    # `permission_metadata/0`, but only when the module is loaded
+    # in the parent app. Core's own test environment doesn't load
+    # external modules, so without this fallback `module_label("db")`
+    # produces `String.capitalize("db")` = `"Db"`. Pin the canonical
+    # label here so the display is correct regardless of whether
+    # the external module is installed.
+    "db" => "DB"
   }
 
   @core_icons %{
@@ -345,7 +355,10 @@ defmodule PhoenixKit.Users.Permissions do
     "users" => "hero-users",
     "media" => "hero-photo",
     "settings" => "hero-cog-6-tooth",
-    "modules" => "hero-squares-2x2"
+    "modules" => "hero-squares-2x2",
+    # Mirrors `phoenix_kit_db`'s registered icon. See `@core_labels`
+    # above for the rationale.
+    "db" => "hero-server-stack"
   }
 
   @core_descriptions %{
@@ -353,7 +366,10 @@ defmodule PhoenixKit.Users.Permissions do
     "users" => "User accounts, roles, and access management",
     "media" => "File uploads, image processing, and storage buckets",
     "settings" => "General, organization, and user preference settings",
-    "modules" => "Enable, disable, and configure feature modules"
+    "modules" => "Enable, disable, and configure feature modules",
+    # Mirrors `phoenix_kit_db`'s registered description. See
+    # `@core_labels` above for the rationale.
+    "db" => "Database explorer and schema inspection"
   }
 
   @doc "Returns a human-readable label for a module key."
