@@ -529,7 +529,26 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction ⚡ LATEST
+  ### V114 - Integrations storage: uuid-only keys ⚡ LATEST
+  - Rewrites every `phoenix_kit_settings` row keyed
+    `integration:<provider>:<name>` so that `key = uuid` (the row's
+    primary key). Provider and name move into JSONB
+    (`value_json->>'provider'`, `value_json->>'name'`); the `module`
+    column (`'integrations'`) becomes the row-class discriminator.
+  - Backfills any missing `provider`/`name` JSONB fields from the old
+    composite key. Legacy V0-shape keys without a `:name` segment fold
+    to `name = 'default'`.
+  - Lifts both name restrictions on `add_connection/3` /
+    `rename_connection/3`: any non-empty string (after trim) is
+    allowed, including spaces, punctuation, and duplicates within a
+    provider. The `key` column's unique constraint is satisfied by
+    the UUIDv7, not by the human-chosen label.
+  - `down/1` rewrites keys back to the composite shape. Duplicate
+    `(provider, name)` pairs cannot be represented in the old shape,
+    so on collision the name is suffixed with `-<8-char uuid>` to
+    keep the rewrite well-defined.
+
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction
   - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
     `phoenix_kit_files`. Marks internally-generated media (DZI tile
     pyramids + per-tile chunks) so the MediaBrowser can exclude them
@@ -917,7 +936,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 113
+  @current_version 114
   @default_prefix "public"
 
   @doc false

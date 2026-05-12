@@ -4,12 +4,15 @@ defmodule PhoenixKit.Integrations do
 
   Stores credentials (OAuth tokens, API keys, bot tokens, etc.) using the
   existing `PhoenixKit.Settings` system with `value_json` JSONB storage.
-  Each integration is a JSON blob under a key like
-  `"integration:google:default"` (`integration:{provider}:{name}`).
+  Each integration row's `key` column is just its UUID; the `module`
+  column is stamped `"integrations"` and the JSONB body holds
+  `{"provider", "name", "auth_type", "status", ...}`. There is no
+  composite key shape — provider and name are pure JSONB.
 
   Connections are referenced by the storage row's UUID. Names are pure
-  user-chosen labels with no system semantics — they can be renamed or
-  removed freely; consumer modules pin to UUIDs that survive renames.
+  user-chosen labels with no system semantics — any string is allowed
+  (including spaces and duplicates within a provider); consumer modules
+  pin to UUIDs that survive renames.
 
   ## Auth types supported
 
@@ -53,16 +56,17 @@ defmodule PhoenixKit.Integrations do
 
   - `add_connection/3` — row birth, no uuid exists yet
   - `get_integration/1`, `find_uuid_by_provider_name/1` — read shims for
-    legacy `migrate_legacy/0` callbacks that walk pre-uuid data shapes
+    legacy `migrate_legacy/0` callbacks that walk pre-uuid data shapes.
+    Since names are no longer unique, these now return first-match.
 
-  The structural rule: `"integration:{provider}:{name}"` storage-key
-  construction happens only inside `add_connection/3` (creation) and
-  module-side `migrate_legacy/0` migrators (translation). Every other
-  caller routes by uuid, so a corrupted JSONB `provider`/`name` field
-  cannot leak into a new storage key.
+  The `key` column is the row's UUIDv7 — collisions are structurally
+  impossible. JSONB `provider`/`name` are pure data; corruption there
+  affects only this row's content, never routing.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
+
+  import Ecto.Query, only: [from: 2]
 
   require Logger
 
@@ -94,23 +98,28 @@ defmodule PhoenixKit.Integrations do
   @spec get_integration(String.t()) ::
           {:ok, map()} | {:error, :not_configured | :invalid_provider_key}
   def get_integration(provider_key) when is_binary(provider_key) and provider_key != "" do
-    # Check if this looks like a UUID (used when endpoints store the settings UUID)
-    data =
-      if uuid?(provider_key) do
-        Settings.get_json_setting_by_uuid(provider_key)
-      else
-        Settings.get_json_setting(settings_key(provider_key), nil)
-      end
+    cond do
+      uuid?(provider_key) ->
+        case Settings.get_json_setting_by_uuid(provider_key) do
+          %{} = data -> {:ok, Encryption.decrypt_fields(data)}
+          _ -> {:error, :not_configured}
+        end
 
-    case data do
-      nil ->
-        # No on-read legacy fallback in core anymore — module-side
-        # `migrate_legacy/0` callbacks handle data-shape migrations.
-        # Boot-time orchestration via `ModuleRegistry.run_all_legacy_migrations/0`.
-        {:error, :not_configured}
+      true ->
+        # `"provider:name"` string lookup — first-match by name. Names
+        # are no longer unique, so this returns the first row whose JSONB
+        # name matches. Used by legacy `migrate_legacy/0` callbacks; new
+        # callers should use uuid-based lookups.
+        case find_uuid_by_provider_name(provider_key) do
+          {:ok, uuid} ->
+            case Settings.get_json_setting_by_uuid(uuid) do
+              %{} = data -> {:ok, Encryption.decrypt_fields(data)}
+              _ -> {:error, :not_configured}
+            end
 
-      %{} = data ->
-        {:ok, Encryption.decrypt_fields(data)}
+          _ ->
+            {:error, :not_configured}
+        end
     end
   end
 
@@ -128,19 +137,17 @@ defmodule PhoenixKit.Integrations do
           {:ok, %{uuid: String.t(), provider: String.t(), name: String.t(), data: map()}}
           | {:error, :not_configured | :invalid_uuid}
   def get_integration_by_uuid(uuid) when is_binary(uuid) and uuid != "" do
-    # Read the row's `key` column directly — it's the canonical
-    # `integration:{provider}:{name}` shape and can't drift from the
-    # row's actual location. The JSONB `provider` / `name` fields are
-    # internal duplicates that have historically gotten out of sync
-    # (a buggy save round can write `name` = "foo:default" because of
-    # a bad full_key concat upstream); always source provider+name
-    # from the storage key, never from the JSONB body.
+    # The storage row is identified solely by its uuid. Provider and name
+    # both live in JSONB (`data["provider"]` / `data["name"]`). The row's
+    # `module` column is the discriminator that distinguishes integration
+    # rows from other settings.
     case Queries.get_setting_by_uuid(uuid) do
-      %{key: "integration:" <> rest, value_json: data} when is_map(data) ->
-        {provider, name} = parse_provider_name(rest)
+      %{module: "integrations", value_json: data} when is_map(data) ->
+        decrypted = Encryption.decrypt_fields(data)
+        provider = Map.get(decrypted, "provider", "")
+        name = Map.get(decrypted, "name", "")
 
-        {:ok,
-         %{uuid: uuid, provider: provider, name: name, data: Encryption.decrypt_fields(data)}}
+        {:ok, %{uuid: uuid, provider: provider, name: name, data: decrypted}}
 
       _ ->
         {:error, :not_configured}
@@ -178,8 +185,22 @@ defmodule PhoenixKit.Integrations do
   end
 
   def find_uuid_by_provider_name(string) when is_binary(string) and string != "" do
-    {provider, name} = parse_provider_name(string)
-    find_uuid_by_provider_name({provider, name})
+    case String.split(string, ":", parts: 2) do
+      [provider, name] when provider != "" and name != "" ->
+        find_uuid_by_provider_name({provider, name})
+
+      [provider] when provider != "" ->
+        # Bare provider — first connection of that provider (sorted by
+        # name, lowercase). Used as the "any connection of this kind"
+        # fallback by legacy paths.
+        case list_connections(provider) do
+          [%{uuid: uuid} | _] -> {:ok, uuid}
+          _ -> {:error, :not_found}
+        end
+
+      _ ->
+        {:error, :invalid}
+    end
   end
 
   def find_uuid_by_provider_name(_), do: {:error, :invalid}
@@ -246,7 +267,10 @@ defmodule PhoenixKit.Integrations do
       if is_uuid do
         Settings.get_json_setting_by_uuid(provider_key)
       else
-        Settings.get_json_setting(settings_key(provider_key), nil)
+        case find_uuid_by_provider_name(provider_key) do
+          {:ok, uuid} -> Settings.get_json_setting_by_uuid(uuid)
+          _ -> nil
+        end
       end
 
     case data do
@@ -297,8 +321,8 @@ defmodule PhoenixKit.Integrations do
   @spec save_setup(String.t(), map(), String.t() | nil) ::
           {:ok, map()} | {:error, :not_configured | :invalid_uuid | term()}
   def save_setup(uuid, attrs, actor_uuid \\ nil) when is_binary(uuid) and is_map(attrs) do
-    with {:ok, %{provider_key: provider_key, data: existing}} <- resolve_uuid(uuid) do
-      {base_provider, name} = parse_provider_name(provider_key)
+    with {:ok, %{provider: base_provider, name: name, setting: setting, data: existing}} <-
+           resolve_uuid(uuid) do
       provider = Providers.get(base_provider)
 
       data =
@@ -310,13 +334,14 @@ defmodule PhoenixKit.Integrations do
         |> maybe_set_status(provider)
         |> maybe_set_connected_at()
 
-      case save_integration(provider_key, data) do
+      case save_integration(setting, data) do
         {:ok, saved} = result ->
-          Events.broadcast_setup_saved(provider_key, saved)
+          Events.broadcast_setup_saved(base_provider, saved)
 
           log_activity(
             "integration.setup_saved",
-            provider_key,
+            base_provider,
+            name,
             %{"status" => saved["status"]},
             "manual",
             actor_uuid
@@ -346,8 +371,7 @@ defmodule PhoenixKit.Integrations do
           {:ok, String.t()} | {:error, term()}
   def authorization_url(uuid, redirect_uri, extra_scopes \\ nil, state \\ nil)
       when is_binary(uuid) do
-    with {:ok, %{provider_key: provider_key, data: data}} <- resolve_uuid(uuid),
-         {base_provider, _name} = parse_provider_name(provider_key),
+    with {:ok, %{provider: base_provider, data: data}} <- resolve_uuid(uuid),
          {:ok, provider} <- fetch_provider(base_provider) do
       OAuth.authorization_url(provider.oauth_config, data, redirect_uri, extra_scopes, state)
     end
@@ -360,8 +384,8 @@ defmodule PhoenixKit.Integrations do
   @spec exchange_code(String.t(), String.t(), String.t(), String.t() | nil) ::
           {:ok, map()} | {:error, term()}
   def exchange_code(uuid, code, redirect_uri, actor_uuid \\ nil) when is_binary(uuid) do
-    with {:ok, %{provider_key: provider_key, data: data}} <- resolve_uuid(uuid),
-         {base_provider, _name} = parse_provider_name(provider_key),
+    with {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} <-
+           resolve_uuid(uuid),
          {:ok, provider} <- fetch_provider(base_provider),
          {:ok, token_data} <- OAuth.exchange_code(provider.oauth_config, data, code, redirect_uri) do
       userinfo = fetch_userinfo_safe(provider, token_data["access_token"])
@@ -377,16 +401,15 @@ defmodule PhoenixKit.Integrations do
         )
         |> maybe_set_userinfo(userinfo)
 
-      case save_integration(provider_key, updated) do
+      case save_integration(setting, updated) do
         {:ok, saved} = result ->
-          Events.broadcast_connected(provider_key, saved)
+          Events.broadcast_connected(base_provider, saved)
 
           log_activity(
             "integration.connected",
-            provider_key,
-            %{
-              "account" => saved["external_account_id"]
-            },
+            base_provider,
+            name,
+            %{"account" => saved["external_account_id"]},
             "manual",
             actor_uuid
           )
@@ -411,15 +434,15 @@ defmodule PhoenixKit.Integrations do
   @spec refresh_access_token(String.t()) :: {:ok, String.t()} | {:error, term()}
   def refresh_access_token(uuid) when is_binary(uuid) do
     result =
-      with {:ok, %{provider_key: provider_key, data: data}} <- resolve_uuid(uuid),
-           {base_provider, _name} = parse_provider_name(provider_key),
+      with {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} <-
+             resolve_uuid(uuid),
            {:ok, provider} <- fetch_provider(base_provider),
            {:ok, new_token, updated_fields} <-
              OAuth.refresh_access_token(provider.oauth_config, data) do
         updated = Map.merge(data, updated_fields)
-        save_integration(provider_key, updated)
+        save_integration(setting, updated)
 
-        log_activity("integration.token_refreshed", provider_key, %{}, "auto", nil)
+        log_activity("integration.token_refreshed", base_provider, name, %{}, "auto", nil)
 
         {:ok, new_token}
       end
@@ -446,7 +469,7 @@ defmodule PhoenixKit.Integrations do
   @spec disconnect(String.t(), String.t() | nil) :: :ok
   def disconnect(uuid, actor_uuid \\ nil) when is_binary(uuid) do
     case resolve_uuid(uuid) do
-      {:ok, %{provider_key: provider_key, data: data}} ->
+      {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} ->
         auth_type = data["auth_type"]
 
         cleaned =
@@ -462,9 +485,9 @@ defmodule PhoenixKit.Integrations do
               |> Map.put("status", "disconnected")
           end
 
-        save_integration(provider_key, cleaned)
-        Events.broadcast_disconnected(provider_key)
-        log_activity("integration.disconnected", provider_key, %{}, "manual", actor_uuid)
+        save_integration(setting, cleaned)
+        Events.broadcast_disconnected(base_provider)
+        log_activity("integration.disconnected", base_provider, name, %{}, "manual", actor_uuid)
         :ok
 
       {:error, _} ->
@@ -528,98 +551,85 @@ defmodule PhoenixKit.Integrations do
   end
 
   @doc """
-  Returns the settings key for a provider connection.
-
-  Accepts `"google"` (returns default connection key) or
-  `"google:personal"` (returns named connection key).
-
-  ## Examples
-
-      iex> PhoenixKit.Integrations.settings_key("google")
-      "integration:google:default"
-
-      iex> PhoenixKit.Integrations.settings_key("google:personal")
-      "integration:google:personal"
-  """
-  @spec settings_key(String.t()) :: String.t()
-  def settings_key(provider_key) do
-    {provider, name} = parse_provider_name(provider_key)
-    "integration:#{provider}:#{name}"
-  end
-
-  @doc """
   Lists all connections for a provider.
 
-  Returns a list of `%{uuid: uuid, name: name, data: data}` maps, with "default" first.
-  The `uuid` is the stable identifier for the settings row.
+  Returns a list of `%{uuid, name, data, date_added}` maps, sorted by
+  name (case-insensitive). Filters by `module = "integrations"` and
+  JSONB `provider` — provider and name both live in JSONB; the row's
+  `uuid` is the stable identifier. `date_added` is the row's creation
+  timestamp (UTC, second precision), useful for "Created N days ago"
+  display in UI pickers.
   """
-  @spec list_connections(String.t()) :: [%{uuid: String.t(), name: String.t(), data: map()}]
-  def list_connections(provider_key) do
-    prefix = "integration:#{provider_key}:"
+  @spec list_connections(String.t()) :: [
+          %{
+            uuid: String.t(),
+            name: String.t(),
+            data: map(),
+            date_added: DateTime.t() | nil
+          }
+        ]
+  def list_connections(provider_key) when is_binary(provider_key) do
+    PhoenixKit.RepoHelper.repo().all(
+      from s in Setting,
+        where: s.module == ^@settings_module,
+        where: fragment("?->>'provider' = ?", s.value_json, ^provider_key)
+    )
+    |> Enum.map(&to_connection_map/1)
+    |> Enum.sort_by(fn %{name: name} -> String.downcase(name) end)
+  end
 
-    connections =
-      Settings.get_json_settings_by_prefix_with_uuid(prefix)
-      |> Enum.map(fn {uuid, key, data} ->
-        name = key |> String.replace_prefix(prefix, "")
-        %{uuid: uuid, name: name, data: Encryption.decrypt_fields(data)}
-      end)
+  defp to_connection_map(%Setting{uuid: uuid, value_json: data, date_added: date_added}) do
+    decrypted = Encryption.decrypt_fields(data || %{})
 
-    # Also check for old non-named key (e.g., "integration:google" without ":default")
-    # and include it as "default" if no default connection exists yet
-    has_default = Enum.any?(connections, fn %{name: name} -> name == "default" end)
-
-    connections =
-      if has_default do
-        connections
-      else
-        old_key = "integration:#{provider_key}"
-
-        case Queries.get_setting_by_key(old_key) do
-          %{uuid: uuid, value_json: data} when is_map(data) and map_size(data) > 0 ->
-            [%{uuid: uuid, name: "default", data: Encryption.decrypt_fields(data)} | connections]
-
-          _ ->
-            connections
-        end
-      end
-
-    Enum.sort_by(connections, fn %{name: name} -> if name == "default", do: "0", else: name end)
+    %{
+      uuid: uuid,
+      name: Map.get(decrypted, "name", ""),
+      data: decrypted,
+      date_added: date_added
+    }
   end
 
   @doc """
   Loads all connections for multiple providers in a single database query.
 
-  More efficient than calling `list_connections/1` in a loop.
-  Returns a map of `provider_key => [%{uuid, name, data}]`.
+  More efficient than calling `list_connections/1` in a loop. Returns a
+  map of `provider_key => [%{uuid, name, data, date_added}]`, with every
+  requested provider key present (empty list when no connections exist).
   """
   @spec load_all_connections([String.t()]) :: %{
-          String.t() => [%{uuid: String.t(), name: String.t(), data: map()}]
+          String.t() => [
+            %{
+              uuid: String.t(),
+              name: String.t(),
+              data: map(),
+              date_added: DateTime.t() | nil
+            }
+          ]
         }
   def load_all_connections(provider_keys) when is_list(provider_keys) do
-    prefixes = Enum.map(provider_keys, &"integration:#{&1}:")
+    all_settings =
+      PhoenixKit.RepoHelper.repo().all(
+        from s in Setting,
+          where: s.module == ^@settings_module,
+          where: fragment("?->>'provider' = ANY(?)", s.value_json, ^provider_keys)
+      )
 
-    # Single query for all providers
-    all_settings = Settings.get_json_settings_by_prefixes_with_uuid(prefixes)
-
-    # Group by provider
     grouped =
-      Enum.reduce(all_settings, %{}, fn {uuid, key, data}, acc ->
-        # key is like "integration:google:default" — extract provider and name
-        case String.split(key, ":", parts: 3) do
-          ["integration", provider, name] ->
-            conn = %{uuid: uuid, name: name, data: Encryption.decrypt_fields(data)}
-            Map.update(acc, provider, [conn], &[conn | &1])
+      Enum.reduce(all_settings, %{}, fn %Setting{} = setting, acc ->
+        conn = to_connection_map(setting)
+        provider = conn.data["provider"]
 
-          _ ->
-            acc
+        if is_binary(provider) do
+          Map.update(acc, provider, [conn], &[conn | &1])
+        else
+          acc
         end
       end)
 
-    # Sort each provider's connections (default first) and fill missing providers
     Map.new(provider_keys, fn pk ->
       connections =
         Map.get(grouped, pk, [])
-        |> Enum.sort_by(fn %{name: name} -> if name == "default", do: "0", else: name end)
+        |> Enum.sort_by(fn %{name: name} -> String.downcase(name) end)
 
       {pk, connections}
     end)
@@ -628,59 +638,64 @@ defmodule PhoenixKit.Integrations do
   @doc """
   Adds a new named connection for a provider.
 
-  This is the row-birth path — the only place a new
-  `integration:{provider}:{name}` storage key is constructed. Every
-  other public API takes the row's uuid; callers can find it via the
-  returned `:uuid` or by listing the provider's connections.
-
-  The name can be any string alphanumeric with hyphens / underscores
-  (e.g., "company-drive"), starting with an alphanumeric character.
+  This is the row-birth path. The row's UUIDv7 is generated up front and
+  used as both the `uuid` and the `key` column; provider and name live
+  in JSONB. Names are pure user-chosen labels with no character or
+  uniqueness restrictions — any non-empty string (after trim) is valid,
+  duplicates within a provider are allowed.
 
   Returns `{:ok, %{uuid: uuid, data: data}}` on success.
   """
   @spec add_connection(String.t(), String.t(), String.t() | nil) ::
           {:ok, %{uuid: String.t(), data: map()}}
-          | {:error, :empty_name | :invalid_name | :already_exists | term()}
-  @name_pattern ~r/^[a-zA-Z0-9][a-zA-Z0-9\-_]*$/
-
+          | {:error, :empty_name | term()}
   def add_connection(provider_key, name, actor_uuid \\ nil)
       when is_binary(provider_key) and is_binary(name) do
-    name = String.trim(name)
-    storage_key = "#{provider_key}:#{name}"
+    trimmed = String.trim(name)
 
-    cond do
-      name == "" ->
-        {:error, :empty_name}
+    if trimmed == "" do
+      {:error, :empty_name}
+    else
+      data = %{
+        "provider" => provider_key,
+        "name" => trimmed,
+        "auth_type" => provider_auth_type(provider_key),
+        "status" => "disconnected"
+      }
 
-      not Regex.match?(@name_pattern, name) ->
-        {:error, :invalid_name}
-
-      Settings.get_json_setting(settings_key(storage_key), nil) != nil ->
-        {:error, :already_exists}
-
-      true ->
-        data = %{
-          "provider" => provider_key,
-          "name" => name,
-          "auth_type" => provider_auth_type(provider_key),
-          "status" => "disconnected"
-        }
-
-        with {:ok, saved} <- save_integration(storage_key, data),
-             %{uuid: uuid} <- Queries.get_setting_by_key(settings_key(storage_key)) do
-          Events.broadcast_connection_added(provider_key, name)
+      case insert_integration_row(data) do
+        {:ok, %Setting{uuid: uuid}} ->
+          Events.broadcast_connection_added(provider_key, trimmed)
 
           log_activity(
             "integration.connection_added",
             provider_key,
-            %{"name" => name},
+            trimmed,
+            %{},
             "manual",
             actor_uuid
           )
 
-          {:ok, %{uuid: uuid, data: saved}}
-        end
+          {:ok, %{uuid: uuid, data: data}}
+
+        {:error, _} = error ->
+          error
+      end
     end
+  end
+
+  # Row-birth path: generate a UUIDv7, use it as both the primary key
+  # and the `key` column, and insert with `module = "integrations"`. The
+  # `put_change(:uuid, ...)` forces the changeset to use our generated
+  # uuid instead of letting Ecto autogenerate a different one.
+  defp insert_integration_row(data) do
+    uuid = UUIDv7.generate()
+    encrypted = Encryption.encrypt_fields(data)
+
+    %Setting{}
+    |> Setting.changeset(%{key: uuid, value_json: encrypted, module: @settings_module})
+    |> Ecto.Changeset.put_change(:uuid, uuid)
+    |> Queries.insert_setting()
   end
 
   @doc """
@@ -694,17 +709,16 @@ defmodule PhoenixKit.Integrations do
   @spec remove_connection(String.t(), String.t() | nil) :: :ok | {:error, term()}
   def remove_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
     case resolve_uuid(uuid) do
-      {:ok, %{provider_key: provider_key, setting: setting}} ->
-        {provider, name} = parse_provider_name(provider_key)
-
+      {:ok, %{provider: provider, name: name, setting: setting}} ->
         case Settings.delete_setting(setting.key) do
           {:ok, _} ->
             Events.broadcast_connection_removed(provider, name)
 
             log_activity(
               "integration.connection_removed",
-              provider_key,
-              %{"name" => name},
+              provider,
+              name,
+              %{},
               "manual",
               actor_uuid
             )
@@ -726,84 +740,54 @@ defmodule PhoenixKit.Integrations do
   @doc """
   Renames a connection identified by uuid.
 
-  Updates the row's `key` column in place (preserving the uuid) and
-  rewrites the JSONB `name` field. Consumers that pinned to the uuid
-  keep working across the rename — that's the whole point of uuid-based
-  references. Names are pure user-chosen labels; any name (including
-  the literal string `"default"`) is valid.
+  Updates only the JSONB `name` field; the storage key (= row uuid) is
+  untouched, so consumers that pinned to the uuid keep working across
+  the rename. Names are pure user-chosen labels; any non-empty string
+  is valid, duplicates within a provider are allowed.
 
-  No-ops when `new_name` matches the current name. Refuses if the new
-  name already exists for this provider, or if it doesn't match the
-  connection-name pattern.
+  No-ops when `new_name` (after trim) matches the current name.
 
-  Returns `{:ok, new_data}` on success, with the same JSONB body as
-  before but `"name"` rewritten.
+  Returns `{:ok, new_data}` on success.
   """
   @spec rename_connection(String.t(), String.t(), String.t() | nil) ::
           {:ok, map()}
-          | {:error, :empty_name | :invalid_name | :already_exists | :not_configured | term()}
+          | {:error, :empty_name | :not_configured | term()}
   def rename_connection(uuid, new_name, actor_uuid \\ nil)
       when is_binary(uuid) and is_binary(new_name) do
-    new_name = String.trim(new_name)
+    trimmed = String.trim(new_name)
 
-    with {:ok, %{provider_key: provider_key, setting: setting, data: data}} <- resolve_uuid(uuid) do
-      {provider, old_name} = parse_provider_name(provider_key)
-
+    with {:ok, %{provider: provider, name: old_name, setting: setting, data: data}} <-
+           resolve_uuid(uuid) do
       cond do
-        new_name == old_name ->
+        trimmed == old_name ->
           {:ok, data}
 
-        new_name == "" ->
+        trimmed == "" ->
           {:error, :empty_name}
 
-        not Regex.match?(@name_pattern, new_name) ->
-          {:error, :invalid_name}
-
-        Settings.get_json_setting(settings_key("#{provider}:#{new_name}"), nil) != nil ->
-          {:error, :already_exists}
-
         true ->
-          do_rename_connection(setting, provider, old_name, new_name, actor_uuid)
+          updated = Map.put(data, "name", trimmed)
+
+          case save_integration(setting, updated) do
+            {:ok, saved} ->
+              Events.broadcast_connection_renamed(provider, old_name, trimmed)
+
+              log_activity(
+                "integration.connection_renamed",
+                provider,
+                trimmed,
+                %{"old_name" => old_name, "new_name" => trimmed},
+                "manual",
+                actor_uuid
+              )
+
+              {:ok, saved}
+
+            error ->
+              error
+          end
       end
     end
-  end
-
-  defp do_rename_connection(setting, provider, old_name, new_name, actor_uuid) do
-    new_key = "integration:#{provider}:#{new_name}"
-    new_data = Map.put(setting.value_json || %{}, "name", new_name)
-
-    case rename_setting_row(setting, new_key, new_data) do
-      {:ok, _updated} ->
-        Events.broadcast_connection_renamed(provider, old_name, new_name)
-
-        log_activity(
-          "integration.connection_renamed",
-          "#{provider}:#{new_name}",
-          %{"old_name" => old_name, "new_name" => new_name},
-          "manual",
-          actor_uuid
-        )
-
-        {:ok, Encryption.decrypt_fields(new_data)}
-
-      error ->
-        error
-    end
-  end
-
-  # In-place key + value rewrite via Ecto changeset; preserves the row
-  # uuid (which is the stable reference consumers store on their own
-  # records). Goes through `Repo.update` so the same encryption /
-  # cache-invalidation hooks fire as for `update_setting`.
-  defp rename_setting_row(setting, new_key, new_data) do
-    encrypted_data = Encryption.encrypt_fields(new_data)
-
-    setting
-    |> Setting.changeset(%{
-      key: new_key,
-      value_json: encrypted_data
-    })
-    |> PhoenixKit.RepoHelper.repo().update()
   end
 
   # ---------------------------------------------------------------------------
@@ -819,10 +803,9 @@ defmodule PhoenixKit.Integrations do
   """
   @spec validate_connection(String.t(), String.t() | nil) :: :ok | {:error, String.t()}
   def validate_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
-    {result, log_provider_key} =
+    {result, log_provider, log_name} =
       case resolve_uuid(uuid) do
-        {:ok, %{provider_key: provider_key, data: data}} ->
-          {base_provider, _name} = parse_provider_name(provider_key)
+        {:ok, %{provider: base_provider, name: name, data: data}} ->
           provider = Providers.get(base_provider)
 
           inner =
@@ -832,17 +815,18 @@ defmodule PhoenixKit.Integrations do
               true -> do_validate(provider, data)
             end
 
-          {inner, provider_key}
+          {inner, base_provider, name}
 
         {:error, _} ->
-          {{:error, gettext("Not configured")}, uuid}
+          {{:error, gettext("Not configured")}, "unknown", ""}
       end
 
     case result do
       :ok ->
         log_activity(
           "integration.validated",
-          log_provider_key,
+          log_provider,
+          log_name,
           %{"result" => "ok"},
           "manual",
           actor_uuid
@@ -851,7 +835,8 @@ defmodule PhoenixKit.Integrations do
       {:error, reason} ->
         log_activity(
           "integration.validated",
-          log_provider_key,
+          log_provider,
+          log_name,
           %{"result" => "error", "reason" => reason},
           "manual",
           actor_uuid
@@ -961,7 +946,7 @@ defmodule PhoenixKit.Integrations do
     {new_status, validation_text} = validation_fields(result)
 
     case resolve_uuid(uuid) do
-      {:ok, %{provider_key: provider_key, data: data}} ->
+      {:ok, %{provider: base_provider, setting: setting, data: data}} ->
         status_changed =
           data["status"] != new_status or data["validation_status"] != validation_text
 
@@ -990,9 +975,9 @@ defmodule PhoenixKit.Integrations do
 
         updated = Map.merge(data, update)
 
-        case save_integration(provider_key, updated) do
+        case save_integration(setting, updated) do
           {:ok, _} ->
-            if status_changed, do: Events.broadcast_validated(provider_key, result)
+            if status_changed, do: Events.broadcast_validated(base_provider, result)
             :ok
 
           _ ->
@@ -1024,10 +1009,11 @@ defmodule PhoenixKit.Integrations do
     record_validation(uuid, {:error, reason_text})
 
     case resolve_uuid(uuid) do
-      {:ok, %{provider_key: provider_key}} ->
+      {:ok, %{provider: provider, name: name}} ->
         log_activity(
           "integration.token_refresh_failed",
-          provider_key,
+          provider,
+          name,
           %{"reason" => reason_text},
           "auto",
           nil
@@ -1040,9 +1026,9 @@ defmodule PhoenixKit.Integrations do
 
   defp maybe_record_recovery(uuid) do
     case resolve_uuid(uuid) do
-      {:ok, %{provider_key: provider_key, data: %{"status" => "error"}}} ->
+      {:ok, %{provider: provider, name: name, data: %{"status" => "error"}}} ->
         record_validation(uuid, :ok)
-        log_activity("integration.auto_recovered", provider_key, %{}, "auto", nil)
+        log_activity("integration.auto_recovered", provider, name, %{}, "auto", nil)
 
       _ ->
         :ok
@@ -1058,20 +1044,19 @@ defmodule PhoenixKit.Integrations do
   defp uuid?(str), do: is_binary(str) and Regex.match?(@uuid_pattern, str)
 
   # Resolve a settings-row uuid to its storage info — single source of
-  # truth for the uuid-strict public API. Sources `provider_key`
-  # (`"provider:name"`) directly from the row's `key` column so a
-  # corrupted JSONB `provider`/`name` field cannot leak into downstream
-  # writes. Returns the live `Setting` struct too so callers like
-  # `rename_connection/3` can update in place via changeset.
+  # truth for the uuid-strict public API. Provider and name are sourced
+  # from JSONB; the live `Setting` struct is returned so callers can
+  # update in place via changeset.
   defp resolve_uuid(uuid) when is_binary(uuid) and uuid != "" do
     case Queries.get_setting_by_uuid(uuid) do
-      %Setting{key: "integration:" <> provider_key} = setting ->
+      %Setting{module: "integrations"} = setting ->
         decrypted = Encryption.decrypt_fields(setting.value_json || %{})
 
         {:ok,
          %{
            uuid: uuid,
-           provider_key: provider_key,
+           provider: Map.get(decrypted, "provider", ""),
+           name: Map.get(decrypted, "name", ""),
            setting: setting,
            data: decrypted
          }}
@@ -1083,13 +1068,6 @@ defmodule PhoenixKit.Integrations do
 
   defp resolve_uuid(_), do: {:error, :invalid_uuid}
 
-  defp parse_provider_name(key) do
-    case String.split(key, ":", parts: 2) do
-      [provider, name] when name != "" -> {provider, name}
-      [provider] -> {provider, "default"}
-    end
-  end
-
   defp provider_auth_type(provider_key) do
     case Providers.get(provider_key) do
       %{auth_type: auth_type} -> Atom.to_string(auth_type)
@@ -1097,20 +1075,19 @@ defmodule PhoenixKit.Integrations do
     end
   end
 
-  defp save_integration(provider_key, data) do
+  defp save_integration(%Setting{} = setting, data) do
     encrypted_data = Encryption.encrypt_fields(data)
 
-    case Settings.update_json_setting_with_module(
-           settings_key(provider_key),
-           encrypted_data,
-           @settings_module
-         ) do
+    setting
+    |> Setting.update_changeset(%{value_json: encrypted_data, module: @settings_module})
+    |> Queries.update_setting()
+    |> case do
       {:ok, _setting} ->
         {:ok, data}
 
       {:error, changeset} = error ->
         Logger.error(
-          "[Integrations] Failed to save integration for #{provider_key}: #{inspect(changeset)}"
+          "[Integrations] Failed to save integration #{setting.uuid}: #{inspect(changeset)}"
         )
 
         error
@@ -1250,9 +1227,8 @@ defmodule PhoenixKit.Integrations do
   # Activity logging
   # ---------------------------------------------------------------------------
 
-  defp log_activity(action, provider_key, metadata, mode, actor_uuid) do
-    {provider, name} = parse_provider_name(provider_key)
-
+  defp log_activity(action, provider, name, metadata, mode, actor_uuid)
+       when is_binary(provider) and is_binary(name) do
     if Code.ensure_loaded?(PhoenixKit.Activity) do
       PhoenixKit.Activity.log(%{
         action: action,
