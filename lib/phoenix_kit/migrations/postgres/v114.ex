@@ -48,9 +48,14 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
 
   The down path is best-effort: duplicate `(provider, name)` pairs
   cannot be represented in the old shape, so on a name collision we
-  suffix `-<short_uuid>` to keep the rewrite well-defined. Round-trip
-  `down → up` therefore changes those names by a suffix. Acceptable
-  for a one-shot data migration that operators rarely roll back.
+  suffix `-<8-char-tail>` to keep the rewrite well-defined. The tail
+  is taken from UUIDv7's random segment (`substring(uuid::text from
+  25 for 8)`), **not** the leading timestamp prefix — multiple rows
+  inserted in the same millisecond would otherwise produce identical
+  prefixes and collide on the supposedly-unique suffixed key.
+  Round-trip `down → up` therefore changes those names by a suffix.
+  Acceptable for a one-shot data migration that operators rarely
+  roll back.
   """
 
   use Ecto.Migration
@@ -107,8 +112,16 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
     """)
   end
 
-  # `down` — rewrite back to the composite shape, with `-<short_uuid>`
+  # `down` — rewrite back to the composite shape, with `-<8-char-tail>`
   # suffix on name collisions. Single CTE-driven update.
+  #
+  # The suffix is sourced from `substring(uuid::text from 25 for 8)` —
+  # 8 hex chars from the random tail of UUIDv7 (positions 25-32 of the
+  # dashed text representation correspond to the post-variant random
+  # segment, 32 bits of entropy). The original `from 1 for 8` extracted
+  # the **timestamp prefix**, which collides on rows inserted in the
+  # same millisecond — and the down path's claim of a "well-defined
+  # rewrite" relies on each row landing on a distinct key.
   defp rewrite_keys_to_composite(p) do
     execute("""
     WITH ordered AS (
@@ -128,7 +141,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
        SET key = 'integration:' || o.provider || ':' ||
                  CASE
                    WHEN o.rn = 1 THEN o.name
-                   ELSE o.name || '-' || substring(s.uuid::text from 1 for 8)
+                   ELSE o.name || '-' || substring(s.uuid::text from 25 for 8)
                  END
       FROM ordered o
      WHERE s.uuid = o.uuid;

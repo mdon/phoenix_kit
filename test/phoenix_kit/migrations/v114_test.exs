@@ -94,7 +94,10 @@ defmodule PhoenixKit.Migrations.Postgres.V114Test do
   end
 
   # Runs V114.down's UPDATE statement verbatim. Reverses the up rewrite,
-  # collision-suffixing on duplicate (provider, name) pairs.
+  # collision-suffixing on duplicate (provider, name) pairs. Suffix
+  # source is `substring(uuid::text from 25 for 8)` — the random tail of
+  # UUIDv7, not the timestamp prefix; see the moduledoc in `v114.ex` for
+  # why.
   defp run_down! do
     Repo.query!("""
     WITH ordered AS (
@@ -114,7 +117,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114Test do
        SET key = 'integration:' || o.provider || ':' ||
                  CASE
                    WHEN o.rn = 1 THEN o.name
-                   ELSE o.name || '-' || substring(s.uuid::text from 1 for 8)
+                   ELSE o.name || '-' || substring(s.uuid::text from 25 for 8)
                  END
       FROM ordered o
      WHERE s.uuid = o.uuid;

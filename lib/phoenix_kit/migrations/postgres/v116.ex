@@ -76,9 +76,7 @@ defmodule PhoenixKit.Migrations.Postgres.V116 do
     if table_exists?(:phoenix_kit_entity_data, prefix) do
       execute("DROP INDEX IF EXISTS #{p}phoenix_kit_entity_data_parent_index")
 
-      execute(
-        "ALTER TABLE #{p}phoenix_kit_entity_data DROP COLUMN IF EXISTS parent_uuid"
-      )
+      execute("ALTER TABLE #{p}phoenix_kit_entity_data DROP COLUMN IF EXISTS parent_uuid")
     end
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '115'")

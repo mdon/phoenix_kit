@@ -394,7 +394,7 @@ Workspace-tracked items not ready for inline `# TODO` in `lib/`.
 
 `test/phoenix_kit_web/components/core/` doesn't exist yet. Components needing `Phoenix.LiveViewTest`-style coverage:
 
-- `<.draggable_list>` — `:draggable` attr conditionally hides SortableJS hook + `cursor-grab`. Both branches need rendered-HTML asserts.
+- `<.draggable_list>` — three-axis coverage: (a) `:draggable=false` → no SortableJS hook, no `cursor-grab`; (b) `:draggable=true, :sortable_handle=nil` → SortableJS hook + full-item `cursor-grab`; (c) `:draggable=true, :sortable_handle=".pk-drag-handle"` → SortableJS hook + `data-sortable-handle` attribute set, **no** `cursor-grab` on the item wrapper (caller's responsibility). All three branches need rendered-HTML asserts.
 - `<.table_default>` — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Both branches need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
 - `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch.
 - `<.flash>`, `<.modal>` if complexity has grown.
