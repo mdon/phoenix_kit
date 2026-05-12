@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.108"
+  @version "1.7.109"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -123,8 +123,11 @@ defmodule PhoenixKit.MixProject do
       # Fresco OpenSeadragon viewer). Tessera 0.2 split the standalone
       # viewer into <Fresco.viewer> + <Tessera.layer> composition; both
       # JS hooks are bundled into priv/static/assets/phoenix_kit.js so
-      # parent apps don't need to wire them separately.
+      # parent apps don't need to wire them separately. Etcher 0.1 adds
+      # the annotation overlay on top of the same viewer.
+      {:fresco, "~> 0.1"},
       {:tessera, "~> 0.2"},
+      {:etcher, "~> 0.1"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

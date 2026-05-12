@@ -1343,6 +1343,74 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // AnnotationComposerPosition
+  //
+  // Keeps the MediaBrowser's floating annotation-composer popover fully
+  // inside its viewer container. The server seeds the popover with the
+  // shape's bottom-left anchor coords (set by etcher.js when emitting
+  // `etcher:created`), which is fine when the shape is in the middle of
+  // the image but can land the popover past the right edge or below the
+  // bottom when the user draws near a boundary.
+  //
+  // The hook re-clamps `left` / `top` after mount, after server-driven
+  // re-renders, and on window resize. An 8px margin keeps the popover
+  // from touching the container edge.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.AnnotationComposerPosition = {
+    mounted() {
+      this._reposition = () => this.reposition();
+      this.reposition();
+      window.addEventListener("resize", this._reposition);
+    },
+
+    updated() {
+      this.reposition();
+    },
+
+    destroyed() {
+      if (this._reposition) {
+        window.removeEventListener("resize", this._reposition);
+      }
+    },
+
+    reposition() {
+      const el = this.el;
+      const container = el.parentElement;
+      if (!container) return;
+
+      // Read the requested position from inline style (server-set).
+      let left = parseFloat(el.style.left) || 0;
+      let top = parseFloat(el.style.top) || 0;
+
+      const margin = 8;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+
+      // Clamp horizontally: keep right edge inside the container, then
+      // keep left edge inside. Order matters when the popover is wider
+      // than the container — `Math.max(margin, …)` wins, leaving the
+      // popover flush-left with a margin.
+      const maxLeft = cw - w - margin;
+      if (left > maxLeft) left = maxLeft;
+      if (left < margin) left = margin;
+
+      // Same for vertical. If the popover doesn't fit below the shape
+      // (top + h > container height), it slides up. If it still doesn't
+      // fit (popover is taller than the container), it pins to the top
+      // with a margin.
+      const maxTop = ch - h - margin;
+      if (top > maxTop) top = maxTop;
+      if (top < margin) top = margin;
+
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // CopyToClipboard Hook
   // ---------------------------------------------------------------------------
   //
@@ -2580,6 +2648,102 @@ if (typeof window.Chart === "undefined") {
       }
 
       tryInject();
+    }
+  };
+
+  // ============================================================================
+  // Etcher tooltip — comment-flavored slot overrides
+  // ============================================================================
+  //
+  // Etcher exposes `window.Etcher.tooltipSlots` (header / body / footer)
+  // for downstream consumers to customize its hover tooltip. PhoenixKit's
+  // MediaBrowser flows comment-thread metadata through `metadata.comment_*`
+  // keys; the three slots below translate those into the rich tooltip
+  // (author header, date · count subheader, thumbnail + quoted text body)
+  // that's been the PhoenixKit out-of-the-box look.
+  //
+  // Registered unconditionally so the load order between this script and
+  // etcher.js doesn't matter — Etcher's bootstrap uses `||` to preserve
+  // pre-existing slots, and if Etcher never loads the only cost is a few
+  // dormant fields on `window.Etcher`.
+  //
+  // The `comment_*` key naming is PhoenixKit's internal contract with
+  // itself — Etcher knows nothing about them.
+
+  window.Etcher = window.Etcher || {};
+
+  var pkEscape = function(v) {
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  };
+
+  // Paperclip icon used as the body-slot's attachment fallback when a
+  // comment has media but no preview-able image (PDFs, audio, zips,
+  // broken-image URLs).
+  var pkPaperclip =
+    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"' +
+    ' stroke-width="1.5" stroke="currentColor" aria-hidden="true">' +
+    '<path stroke-linecap="round" stroke-linejoin="round"' +
+    ' d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>' +
+    "</svg>";
+
+  function pkCapitalize(s) {
+    if (!s) return "";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  window.Etcher.tooltipSlots = {
+    // Header → comment author (else the shape kind).
+    header: function(shape) {
+      var m = shape.metadata || {};
+      return pkEscape(m.comment_author || pkCapitalize(shape.kind));
+    },
+
+    // Footer → "May 12, 2026 · 3 comments". Date and count are both
+    // optional; if neither is set the row is omitted entirely.
+    footer: function(shape) {
+      var m = shape.metadata || {};
+      var parts = [];
+      if (m.comment_created_at) parts.push(pkEscape(m.comment_created_at));
+      var count = m.comment_count || 0;
+      if (count > 0) {
+        parts.push(count + " " + (count === 1 ? "comment" : "comments"));
+      }
+      return parts.length ? parts.join(" · ") : null;
+    },
+
+    // Body → optional thumbnail (image or paperclip) + truncated
+    // quoted text. Uses Etcher's opt-in styling primitives
+    // (`.etcher-tooltip-body`, `.etcher-tooltip-thumb`,
+    // `.etcher-tooltip-text`, `.etcher-tooltip-quote`).
+    body: function(shape) {
+      var m = shape.metadata || {};
+      var text = m.comment_text || null;
+      var thumb = m.comment_thumbnail_url || null;
+      var hasAttachment = m.comment_has_attachment === true;
+
+      if (!text && !thumb && !hasAttachment) return null;
+
+      var html = '<div class="etcher-tooltip-body">';
+      if (thumb) {
+        html +=
+          '<img class="etcher-tooltip-thumb" src="' + pkEscape(thumb) + '" alt="">';
+      } else if (hasAttachment) {
+        html +=
+          '<span class="etcher-tooltip-thumb etcher-tooltip-thumb-icon">' +
+          pkPaperclip +
+          "</span>";
+      }
+      html += '<div class="etcher-tooltip-text">';
+      if (text) {
+        html += '<div class="etcher-tooltip-quote">' + pkEscape(text) + "</div>";
+      }
+      html += "</div></div>";
+      return html;
     }
   };
 
