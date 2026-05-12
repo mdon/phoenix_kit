@@ -7,6 +7,42 @@ Overall a well-architected feature — clean separation between the storage adap
 
 ---
 
+## Disposition (post-review action)
+
+Trivial / mechanical items below were addressed in follow-up commit `b45a7a93`. Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Alex** and left as TODOs for the original PR author.
+
+**Addressed by Claude:**
+
+| # | Severity | Summary | Commit |
+|---|----------|---------|--------|
+| #1 | BUG-MEDIUM | Transaction-wrap `Annotations.delete/1` for atomicity | `b45a7a93` |
+| #2 | BUG-MEDIUM | Sweep stale `resource_type = "annotation"` docs (3 files) | `b45a7a93` |
+| #5 | BUG-LOW | Narrow `delete_linked_comments` rescue to expected classes | `b45a7a93` |
+| #8 | IMPROVEMENT-MEDIUM | gettext-wrap ~17 strings in AnnotationComposer | `b45a7a93` |
+| #11 | IMPROVEMENT-LOW | Drop `normalize/1` — `cast/3` handles both key shapes | `b45a7a93` |
+| #12 | IMPROVEMENT-LOW | Drop in-repo `Code.ensure_loaded?(Annotations)` guard | `b45a7a93` |
+| #19 | NITPICK | Drop `Storage` from `@compile no_warn_undefined` | `b45a7a93` |
+| #20 | NITPICK | Simplify `AnnotationComposerPosition.destroyed` guard | `b45a7a93` |
+| #21 | NITPICK | Fix misleading Etcher slot-preservation JS comment | `b45a7a93` |
+
+Plus precommit-clean adjacent fixes: aliased `Annotations`, `Storage`, `EtcherAdapter`, `Storage.File` to clear credo "nested module" findings; converted `first_attachment_thumbnail` `with` → `case` (credo readability); added PhoenixKitComments dialyzer ignores.
+
+**DEFERRED — Alex:**
+
+| # | Severity | Why deferred |
+|---|----------|--------------|
+| #3 | BUG-LOW | Race between `composer_posted` and viewer-navigate. Needs design call: optimistic-local-state vs uuid-tagged rollback. Author knows the lifecycle intent. |
+| #4 | BUG-LOW | Partial upload state on attachment failure. Storage cleanup policy is a product call (delete vs trash); the inspect/1 in user-facing flash needs user-friendly mapping. |
+| #6 | IMPROVEMENT-MEDIUM | Authz check on `etcher:updated`/`etcher:deleted`. Needs auth-model decision (creator-only vs admin override). Currently safe under admin-only `/admin/media` scope. |
+| #7 | IMPROVEMENT-MEDIUM | `@schema_keys` source-of-truth on `Annotation`. Small refactor that changes the adapter↔schema contract. Author's call on the shape. |
+| #9 | IMPROVEMENT-MEDIUM | Per-kind geometry shape validation. Needs design call on what to validate (numeric bounds, polygon point counts, etc.). |
+| #10 | IMPROVEMENT-MEDIUM | Configurable CommentsComponent id. Needs PubSub vs attr decision. |
+| #13 | IMPROVEMENT-LOW | Locale-aware `format_date` — needs check whether `PhoenixKitWeb.Components.Core.TimeDisplay` covers this case. |
+| #14 | IMPROVEMENT-LOW | `first_error/1` via `traverse_errors`/ErrorHelpers — needs project's gettext-aware traverser. |
+| #15–18, #22, #23 | NITPICK | Cosmetics on V115 down constraint drop, prefix consistency, `disconnect` external_account_id retention, `Enum.find` micro, `inspect` in flash, shared `attachment_icon` helper, `truncate` docstring. |
+
+---
+
 ## BUG — MEDIUM
 
 ### #1 `Annotations.delete/1` deletes linked comments outside a transaction
@@ -401,24 +437,23 @@ If `limit = 80`, the output is `slice(text, 0, 79) <> "…"` = 80 characters tot
 
 ---
 
-## Suggested follow-up scope
+## Suggested follow-up scope (remaining work for Alex)
+
+After Claude's mechanical pass (commit `b45a7a93`), the standing TODO list is:
 
 Tier 1 (worth fixing before next release):
-- **#1** Transaction-wrap `Annotations.delete/1` (real atomicity hole)
-- **#2** Sweep stale `resource_type = "annotation"` docstring claims (load-bearing accuracy)
-
-Tier 2 (worth folding into the next sweep):
-- **#5** Narrow the `rescue _` in `delete_linked_comments`
-- **#6** Authorization checks on update/delete (when MediaBrowser embeds non-admin)
+- **#6** Authorization checks on update/delete (load-bearing if MediaBrowser ever embeds non-admin)
 - **#7** `@schema_keys` source-of-truth on the schema
 - **#9** `validate_geometry/1` per-kind shape check
-- **#8 / #13 / #14** gettext sweep in AnnotationComposer + format_date
+
+Tier 2 (worth folding into the next sweep):
+- **#3** Race-condition handling in finalize-vs-rollback
+- **#4** Upload rollback on partial failure + non-inspect error messages
+- **#10** Configurable CommentsComponent id
+- **#13 / #14** Locale-aware `format_date` + gettext-aware `traverse_errors`
 
 Tier 3 (nice-to-have, low ROI):
-- **#3** Race-condition handling in finalize-vs-rollback
-- **#4 / #18** Upload rollback on partial failure + non-inspect error messages
-- **#10** Configurable CommentsComponent id
-- **#11**, **#12**, **#15–17**, **#19–23** — cosmetics
+- **#15–18, #22, #23** cosmetics
 
 ---
 
@@ -428,4 +463,4 @@ Tier 3 (nice-to-have, low ROI):
 - Cross-checked the `resource_type` claim against three independent docstrings and the actual `create_comment` call.
 - Spot-checked `Code.ensure_loaded?` / `function_exported?` patterns against MediaBrowser's existing `PhoenixKitComments` optional-package guards.
 - Did NOT run `mix test` (per project policy: `mix precommit` is the bar; integration suite needs Postgres). PR didn't include automated tests for the annotations context, adapter, or composer — worth a TODO entry for component coverage similar to AGENTS.md's existing core-component TODO.
-- Did NOT run `mix precommit` against this branch — recommended as a separate step before next sweep.
+- Ran `mix precommit` post-fixes: compile → format → credo --strict → dialyzer all clean. Credo surfaced 8 pre-PR-#537 nested-module / readability / nesting-depth findings that were fixed in the same follow-up (aliases + extracted helper + with→case).
