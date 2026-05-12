@@ -4,6 +4,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Queries, as: SettingsQueries
 
   # Helper: create a connection and (optionally) save credentials in
   # one shot, returning the row's uuid. Mirrors the
@@ -365,7 +366,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
 
     test "the row's storage key equals its uuid (post-V114 invariant)" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("google", "anything")
-      setting = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid)
+      setting = SettingsQueries.get_setting_by_uuid(uuid)
       assert setting.key == uuid
       assert setting.module == "integrations"
     end
@@ -433,7 +434,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
       # uuid is stable across rename.
       assert {:ok, %{name: "work"}} = Integrations.get_integration_by_uuid(uuid)
       # Storage key is the row uuid; it doesn't change on rename.
-      setting = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid)
+      setting = SettingsQueries.get_setting_by_uuid(uuid)
       assert setting.key == uuid
     end
 
@@ -1004,7 +1005,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   describe "storage-shape invariant" do
     test "add_connection produces key == uuid, module == 'integrations'" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("openrouter", "anything")
-      setting = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid)
+      setting = SettingsQueries.get_setting_by_uuid(uuid)
       assert setting.key == uuid
       assert setting.module == "integrations"
     end
@@ -1012,23 +1013,23 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
     test "rename never touches the storage key" do
       uuid = setup_conn("openrouter", "primary", %{"api_key" => "k1"})
 
-      starting_key = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid).key
+      starting_key = SettingsQueries.get_setting_by_uuid(uuid).key
       assert starting_key == uuid
 
       {:ok, _} = Integrations.rename_connection(uuid, "work")
-      after_rename = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid).key
+      after_rename = SettingsQueries.get_setting_by_uuid(uuid).key
       assert after_rename == uuid
     end
 
     test "save_setup writes through the row's uuid; name and provider stay in JSONB" do
       uuid = setup_conn("openrouter", "primary")
 
-      starting_key = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid).key
+      starting_key = SettingsQueries.get_setting_by_uuid(uuid).key
       assert starting_key == uuid
 
       {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "new"})
 
-      setting = PhoenixKit.Settings.Queries.get_setting_by_uuid(uuid)
+      setting = SettingsQueries.get_setting_by_uuid(uuid)
       assert setting.key == uuid
 
       {:ok, %{provider: "openrouter", name: "primary", data: data}} =

@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
   @media_path Routes.path("/admin/media")
@@ -63,7 +64,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
         n = System.unique_integer([:positive])
 
         {:ok, user} =
-          PhoenixKit.Users.Auth.register_user(%{
+          Auth.register_user(%{
             email: "media-browser-test-#{n}@example.com",
             password: "ValidPassword123!"
           })

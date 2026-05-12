@@ -3,6 +3,7 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Users.Auth
 
   # ---------------------------------------------------------------------------
   # Helpers
@@ -52,7 +53,7 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
         n = System.unique_integer([:positive])
 
         {:ok, user} =
-          PhoenixKit.Users.Auth.register_user(%{
+          Auth.register_user(%{
             email: "scope-test-#{n}@example.com",
             password: "ValidPassword123!"
           })

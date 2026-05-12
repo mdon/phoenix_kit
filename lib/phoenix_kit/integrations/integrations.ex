@@ -98,28 +98,26 @@ defmodule PhoenixKit.Integrations do
   @spec get_integration(String.t()) ::
           {:ok, map()} | {:error, :not_configured | :invalid_provider_key}
   def get_integration(provider_key) when is_binary(provider_key) and provider_key != "" do
-    cond do
-      uuid?(provider_key) ->
-        case Settings.get_json_setting_by_uuid(provider_key) do
-          %{} = data -> {:ok, Encryption.decrypt_fields(data)}
-          _ -> {:error, :not_configured}
-        end
+    if uuid?(provider_key) do
+      case Settings.get_json_setting_by_uuid(provider_key) do
+        %{} = data -> {:ok, Encryption.decrypt_fields(data)}
+        _ -> {:error, :not_configured}
+      end
+    else
+      # `"provider:name"` string lookup — first-match by name. Names
+      # are no longer unique, so this returns the first row whose JSONB
+      # name matches. Used by legacy `migrate_legacy/0` callbacks; new
+      # callers should use uuid-based lookups.
+      case find_uuid_by_provider_name(provider_key) do
+        {:ok, uuid} ->
+          case Settings.get_json_setting_by_uuid(uuid) do
+            %{} = data -> {:ok, Encryption.decrypt_fields(data)}
+            _ -> {:error, :not_configured}
+          end
 
-      true ->
-        # `"provider:name"` string lookup — first-match by name. Names
-        # are no longer unique, so this returns the first row whose JSONB
-        # name matches. Used by legacy `migrate_legacy/0` callbacks; new
-        # callers should use uuid-based lookups.
-        case find_uuid_by_provider_name(provider_key) do
-          {:ok, uuid} ->
-            case Settings.get_json_setting_by_uuid(uuid) do
-              %{} = data -> {:ok, Encryption.decrypt_fields(data)}
-              _ -> {:error, :not_configured}
-            end
-
-          _ ->
-            {:error, :not_configured}
-        end
+        _ ->
+          {:error, :not_configured}
+      end
     end
   end
 
