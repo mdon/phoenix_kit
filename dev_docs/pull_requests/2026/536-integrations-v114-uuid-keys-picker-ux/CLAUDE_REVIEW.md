@@ -9,7 +9,7 @@ Overall this is a high-quality refactor — the storage shift is well-motivated 
 
 ## Disposition (post-review action)
 
-Trivial / mechanical items below were addressed in follow-up commits (`e99ceaa5`, `<next-sha>`). Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Max** and left as TODOs for the original PR author.
+Trivial / mechanical items below were addressed in follow-up commits (`e99ceaa5`, `a99fd681`). Items requiring design judgment, larger refactors, or product calls on existing behavior are flagged **DEFERRED — Max** and left as TODOs for the original PR author.
 
 **Addressed by Claude:**
 
@@ -19,14 +19,14 @@ Trivial / mechanical items below were addressed in follow-up commits (`e99ceaa5`
 | #3 | BUG-LOW | Narrow `validate_credentials/2` rescue | `e99ceaa5` |
 | #7 | IMPROVEMENT-MEDIUM | 3-row down-collision test | `e99ceaa5` |
 | #8 | IMPROVEMENT-MEDIUM | Tighten `validate_connection/2` rescue comment | `e99ceaa5` |
-| #10 | IMPROVEMENT-LOW | Memoize `provider_def` in IntegrationPicker | follow-up |
+| #10 | IMPROVEMENT-LOW | Memoize `provider_def` in IntegrationPicker | `a99fd681` |
 | #11 | IMPROVEMENT-LOW | Rename shadowing `name` in `filter_by_search/3` | `e99ceaa5` |
-| #12 | IMPROVEMENT-LOW | `html_escape` coercion hardening (`to_string/1` guard) | follow-up |
-| #13 | IMPROVEMENT-LOW | `String.slice` `//1` step annotation | follow-up |
+| #12 | IMPROVEMENT-LOW | `html_escape` coercion hardening (`to_string/1` guard) | `a99fd681` |
+| #13 | IMPROVEMENT-LOW | `String.slice` `//1` step annotation | `a99fd681` |
 | #14 | IMPROVEMENT-LOW | `phx-disable-with` on OAuth Connect button | `e99ceaa5` |
-| #18 | NITPICK | `list_integrations/0` order docstring | follow-up |
-| #19 | NITPICK | `searchable` attr docstring (`nil` = auto-detect) | follow-up |
-| #20 | NITPICK | `@external_resource` drift annotation on V114 test | follow-up |
+| #18 | NITPICK | `list_integrations/0` order docstring | `a99fd681` |
+| #19 | NITPICK | `searchable` attr docstring (`nil` = auto-detect) | `a99fd681` |
+| #20 | NITPICK | `@external_resource` drift annotation on V114 test | `a99fd681` |
 
 **DEFERRED — Max:**
 
