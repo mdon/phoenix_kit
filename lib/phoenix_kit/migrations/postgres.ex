@@ -529,7 +529,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V114 - phoenix_kit_annotations table for Etcher-drawn shapes ⚡ LATEST
+  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes ⚡ LATEST
   - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
     circle / polygon / freehand shapes anchored to `phoenix_kit_files`
     rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
@@ -933,7 +933,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 114
+  @current_version 115
   @default_prefix "public"
 
   @doc false

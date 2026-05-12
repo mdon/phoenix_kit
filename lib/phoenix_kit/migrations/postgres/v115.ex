@@ -1,6 +1,6 @@
-defmodule PhoenixKit.Migrations.Postgres.V114 do
+defmodule PhoenixKit.Migrations.Postgres.V115 do
   @moduledoc """
-  V114: `phoenix_kit_annotations` — drawn-on-image annotations created via
+  V115: `phoenix_kit_annotations` — drawn-on-image annotations created via
   the Etcher overlay layer.
 
   Stores user-drawn shapes (rectangle, circle, polygon, freehand) tied to
@@ -103,7 +103,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
     END $$
     """)
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '114'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '115'")
   end
 
   def down(opts) do
@@ -113,7 +113,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114 do
     execute("DROP INDEX IF EXISTS #{p}phoenix_kit_annotations_creator_uuid_index")
     drop_if_exists(table(:phoenix_kit_annotations, prefix: prefix))
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '113'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '114'")
   end
 
   defp prefix_str("public"), do: "public."
