@@ -263,7 +263,11 @@
                  preserved across the no-op save, and the auto-test
                  re-verifies it. --%>
             <div class="flex flex-wrap gap-2 items-center pt-2">
-              <button type="submit" class="btn btn-primary">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                phx-disable-with={gettext("Saving…")}
+              >
                 {if @name, do: gettext("Save Changes"), else: gettext("Create Connection")}
               </button>
 
@@ -295,6 +299,7 @@
                 formnovalidate
                 class={"btn btn-outline #{if @testing, do: "loading"}"}
                 disabled={@testing}
+                phx-disable-with={gettext("Testing…")}
               >
                 <.icon :if={!@testing} name="hero-signal" class="w-4 h-4" />
                 {if @testing, do: gettext("Testing..."), else: gettext("Test Connection")}
@@ -457,6 +462,7 @@
               phx-click="disconnect_account"
               class="btn btn-outline btn-warning btn-sm shrink-0"
               data-confirm={gettext("Are you sure you want to disconnect this account?")}
+              phx-disable-with={gettext("Disconnecting…")}
             >
               <.icon name="hero-link-slash" class="w-4 h-4" />
               {gettext("Disconnect")}
@@ -481,6 +487,7 @@
               phx-click="delete_connection"
               class="btn btn-outline btn-error btn-sm shrink-0"
               data-confirm={gettext("Permanently delete this connection? This cannot be undone.")}
+              phx-disable-with={gettext("Deleting…")}
             >
               <.icon name="hero-trash" class="w-4 h-4" />
               {gettext("Delete")}
