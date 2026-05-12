@@ -1353,20 +1353,26 @@
             <% end %>
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
-                <%!-- Progressive multi-layer zoom. The image starts on the      --%>
-                <%!-- cheapest layer (medium) and swaps up as the user zooms in: --%>
+                <%!-- Fresco hosts the viewer (pan + zoom + nav + viewport       --%>
+                <%!-- clamping + smooth animations). Tessera attaches as a layer --%>
+                <%!-- that adds a DZI source provider + multi-layer progressive  --%>
+                <%!-- zoom — starts on `medium` and swaps up as the user zooms:  --%>
                 <%!--                                                            --%>
                 <%!--   small image  → [medium, dzi]                             --%>
                 <%!--   4K+ image    → [medium, large, dzi]                      --%>
                 <%!--                                                            --%>
-                <%!-- Each non-DZI layer carries its intrinsic pixel width; the  --%>
-                <%!-- viewer computes thresholds dynamically so each layer is    --%>
+                <%!-- Each non-DZI source carries its intrinsic pixel width;     --%>
+                <%!-- Tessera computes thresholds dynamically so each layer is   --%>
                 <%!-- used only in the zoom range where its native resolution    --%>
                 <%!-- is sharper than the rendered viewport pixels.              --%>
-                <Tessera.Viewer.viewer
+                <Fresco.Viewer.viewer
                   id={"media-zoom-" <> f.file_uuid}
-                  sources={tessera_sources(f)}
+                  src={initial_tessera_src(f)}
                   class="w-full h-full lg:rounded"
+                />
+                <Tessera.Layer.layer
+                  fresco_id={"media-zoom-" <> f.file_uuid}
+                  sources={tessera_sources(f)}
                 />
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video

@@ -1896,6 +1896,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   #     small images where large == medium would just churn for nothing)
   #   * `dzi`   — always available for images; takes over when zoom
   #     exceeds what the static raster variants can serve sharply
+  # First source URL from the tessera_sources list — what Fresco opens with.
+  # Falls back to `original` for the rare case where neither medium nor a
+  # cheaper variant exists.
+  defp initial_tessera_src(f) do
+    case tessera_sources(f) do
+      [%{url: url} | _] -> url
+      _ -> f.urls["original"] || f.urls["medium"]
+    end
+  end
+
   defp tessera_sources(f) do
     widths = f.variant_widths || %{}
     medium_url = f.urls["medium"]
