@@ -44,10 +44,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
         user_file_checksum: "user-sha256:test-#{n}",
         size: 1024,
         status: "active",
-        folder_uuid: folder_uuid
+        folder_uuid: folder_uuid,
+        # V113 added the `phoenix_kit_files_user_or_parent_check`
+        # CHECK constraint requiring `user_uuid IS NOT NULL OR
+        # parent_file_uuid IS NOT NULL`. Stamp the per-test owner.
+        user_uuid: ensure_user!()
       })
 
     file
+  end
+
+  # Memoised user owner for the file fixtures in this test process.
+  # See `test/integration/storage/scope_test.exs` for the rationale —
+  # same V113 CHECK constraint workaround.
+  defp ensure_user! do
+    case Process.get(:test_owner_user_uuid) do
+      nil ->
+        n = System.unique_integer([:positive])
+
+        {:ok, user} =
+          PhoenixKit.Users.Auth.register_user(%{
+            email: "media-browser-test-#{n}@example.com",
+            password: "ValidPassword123!"
+          })
+
+        Process.put(:test_owner_user_uuid, user.uuid)
+        user.uuid
+
+      uuid ->
+        uuid
+    end
   end
 
   defp fake_uuid do
