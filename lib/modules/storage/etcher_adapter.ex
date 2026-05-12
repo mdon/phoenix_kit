@@ -22,13 +22,19 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   alias PhoenixKit.Annotations
 
+  # Whitelist of annotation schema fields the adapter accepts from event
+  # payloads. Anything else (Etcher routing keys, JS-side anchor coords,
+  # client-side metadata) is silently dropped — `String.to_existing_atom`
+  # on unknown payload keys used to crash the LV when Etcher's payload
+  # shape grew new client-side keys like `anchor_x` / `anchor_y`.
+  @schema_keys ~w(kind geometry style metadata position creator_uuid)
+
   @impl Etcher.Storage
   def create(attrs) do
     with {:ok, file_uuid} <- target_uuid(attrs) do
       attrs
-      |> Map.new(fn {k, v} -> {to_atom(k), v} end)
+      |> filter_to_schema()
       |> Map.put(:file_uuid, file_uuid)
-      |> Map.drop([:target_type, :target_uuid, :tmp_id])
       |> Annotations.create()
     end
   end
@@ -44,12 +50,9 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   @impl Etcher.Storage
   def update(uuid, attrs) do
-    attrs =
-      attrs
-      |> Map.new(fn {k, v} -> {to_atom(k), v} end)
-      |> Map.drop([:target_type, :target_uuid, :tmp_id])
-
-    Annotations.update(uuid, attrs)
+    attrs
+    |> filter_to_schema()
+    |> then(&Annotations.update(uuid, &1))
   end
 
   @impl Etcher.Storage
@@ -65,6 +68,10 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   defp target_uuid(_attrs), do: {:error, :unsupported_target}
 
-  defp to_atom(k) when is_atom(k), do: k
-  defp to_atom(k) when is_binary(k), do: String.to_existing_atom(k)
+  defp filter_to_schema(attrs) do
+    Enum.reduce(attrs, %{}, fn {k, v}, acc ->
+      key = to_string(k)
+      if key in @schema_keys, do: Map.put(acc, String.to_existing_atom(key), v), else: acc
+    end)
+  end
 end

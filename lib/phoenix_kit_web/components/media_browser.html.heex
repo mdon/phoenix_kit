@@ -1410,6 +1410,33 @@
                   <p class="text-sm text-base-content/70 mt-2">{f.mime_type}</p>
                 </div>
             <% end %>
+
+            <%!-- Floating annotation composer — anchored to the shape's    --%>
+            <%!-- bottom-left in container px (supplied by etcher.js in    --%>
+            <%!-- the etcher:created event). Sidebar comments stay visible --%>
+            <%!-- alongside; this popover is for the new shape only.       --%>
+            <%= if @composing_annotation_uuid && assigns[:phoenix_kit_current_user] do %>
+              <div
+                class="absolute z-30 w-80 max-w-[calc(100%-1rem)] bg-base-100 rounded-lg shadow-xl border border-base-300 p-3"
+                style={"left: #{(@composer_anchor && @composer_anchor.x) || 16}px; top: #{(@composer_anchor && @composer_anchor.y) || 16}px;"}
+              >
+                <div class="flex items-center gap-2 text-sm font-medium mb-2">
+                  <.icon name="hero-pencil-square" class="w-4 h-4 text-warning" />
+                  <span>{gettext("Add a note to your annotation")}</span>
+                </div>
+                <p class="text-xs text-base-content/60 mb-3">
+                  {gettext("Post to keep it. Cancel to discard the shape.")}
+                </p>
+                <.live_component
+                  module={PhoenixKitWeb.Components.AnnotationComposer}
+                  id={"annotation-composer-" <> @composing_annotation_uuid}
+                  annotation_uuid={@composing_annotation_uuid}
+                  file_uuid={f.file_uuid}
+                  current_user={@phoenix_kit_current_user}
+                  parent_id={@id}
+                />
+              </div>
+            <% end %>
           </div>
 
           <%!-- Sidebar --%>
