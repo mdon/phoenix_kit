@@ -120,7 +120,7 @@ defmodule PhoenixKit.MixProject do
       {:leaf, "~> 0.2.11"},
 
       # Image viewer foundation + DZI deep-zoom layer + annotation overlay.
-      {:fresco, "~> 0.2"},
+      {:fresco, "~> 0.1"},
       {:tessera, "~> 0.2"},
       {:etcher, "~> 0.1"},
 
