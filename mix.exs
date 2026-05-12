@@ -120,7 +120,11 @@ defmodule PhoenixKit.MixProject do
       {:leaf, "~> 0.2.11"},
 
       # Deep zoom / pan-zoom image viewer (OpenSeadragon wrapper).
-      {:tessera, "~> 0.1"},
+      # Pinned to 0.1.x — Tessera 0.2 split the viewer into a Fresco viewer
+      # + Tessera layer composition (`<Fresco.viewer>` + `<Tessera.layer>`),
+      # which would also require wiring FrescoHooks into the parent app's
+      # LiveSocket. Migrate to 0.2 as a separate, intentional bump.
+      {:tessera, "~> 0.1.0"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
