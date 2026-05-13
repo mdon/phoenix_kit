@@ -529,7 +529,22 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes ⚡ LATEST
+  ### V117 - text shape kind on annotations ⚡ LATEST
+  - Widens `phoenix_kit_annotations_kind_check` to include `"text"`
+    alongside `rectangle / circle / polygon / freehand / callout`.
+    Etcher 0.3's `text` tool draws a freestanding label as a click-
+    drag bbox; the text content reuses the V116 `title` column so no
+    new storage is required.
+
+  ### V116 - callout kind + optional title column on annotations
+  - Drops + re-adds the kind CHECK constraint with `"callout"` included
+    alongside `rectangle / circle / polygon / freehand`. Etcher 0.2's
+    callout (leader-line) tool needs this to pass the V115 check.
+  - Adds `title varchar(200)` (nullable) to `phoenix_kit_annotations`.
+    Renders inline on the shape when non-blank — above the bounding
+    box for rect/circle/polygon, at the leader endpoint for callout.
+
+  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes
   - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
     circle / polygon / freehand shapes anchored to `phoenix_kit_files`
     rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
@@ -952,7 +967,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 115
+  @current_version 117
   @default_prefix "public"
 
   @doc false

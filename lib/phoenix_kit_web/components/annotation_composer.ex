@@ -69,6 +69,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
     {:ok,
      socket
      |> assign(:new_comment, "")
+     |> assign(:new_title, "")
      |> assign(:giphy_open?, false)
      |> assign(:giphy_query, "")
      |> assign(:giphy_results, [])
@@ -77,8 +78,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
      |> assign(:max_attachments, max_entries)
      |> assign(:max_attachment_size_mb, max_size_mb)
      |> allow_upload(:attachment,
-       accept:
-         ~w(image/* video/* audio/* .pdf .doc .docx .txt .md .zip .rar .7z),
+       accept: ~w(image/* video/* audio/* .pdf .doc .docx .txt .md .zip .rar .7z),
        max_entries: max_entries,
        max_file_size: max_size_mb * 1024 * 1024
      )}
@@ -101,6 +101,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   @impl true
   def handle_event("post", params, socket) do
     comment_text = Map.get(params, "comment", "")
+    title = params |> Map.get("title", "") |> String.trim()
 
     # Anchor the comment to the file (not the annotation) so it joins
     # the file's main comments thread. The annotation linkage is carried
@@ -125,6 +126,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
         id: socket.assigns.parent_id,
         action: :annotation_composer_posted,
         annotation_uuid: socket.assigns.annotation_uuid,
+        title: if(title == "", do: nil, else: title),
         comment: comment
       )
 
@@ -167,11 +169,14 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   # the user's expectations elsewhere in the app.
   # ──────────────────────────────────────────────────────────────
 
-  def handle_event("update_draft", %{"comment" => text}, socket) do
-    {:noreply, assign(socket, :new_comment, text)}
-  end
+  def handle_event("update_draft", params, socket) do
+    socket =
+      socket
+      |> assign_if(params, "comment", :new_comment)
+      |> assign_if(params, "title", :new_title)
 
-  def handle_event("update_draft", _params, socket), do: {:noreply, socket}
+    {:noreply, socket}
+  end
 
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :attachment, ref)}
@@ -238,6 +243,13 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   # Helpers
   # ──────────────────────────────────────────────────────────────
 
+  defp assign_if(socket, params, key, assign_key) do
+    case Map.fetch(params, key) do
+      {:ok, value} -> assign(socket, assign_key, value)
+      :error -> socket
+    end
+  end
+
   defp consume_attachments(socket) do
     if Enum.empty?(socket.assigns.uploads.attachment.entries) do
       {:ok, []}
@@ -301,6 +313,20 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
         phx-target={@myself}
         class="space-y-2"
       >
+        <%!-- Optional title — when non-empty, renders inline on the     --%>
+        <%!-- annotation. Above the bounding box for rect/circle/poly,   --%>
+        <%!-- at the leader endpoint for callout. Position is draggable  --%>
+        <%!-- in edit mode (saved as metadata.title_offset).             --%>
+        <input
+          type="text"
+          name="title"
+          value={@new_title}
+          placeholder="Optional title (shows on the shape)"
+          maxlength="200"
+          class="input input-bordered input-sm w-full text-sm"
+          phx-debounce="150"
+        />
+
         <textarea
           name="comment"
           placeholder="Write a note about this annotation..."
@@ -362,7 +388,8 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                       class="progress progress-primary w-full h-1"
                       value={entry.progress}
                       max="100"
-                    ></progress>
+                    >
+                    </progress>
                   <% end %>
                 </div>
                 <button

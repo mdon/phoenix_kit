@@ -132,7 +132,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {:ok, commit_upload_batch(socket)}
 
       Map.get(assigns, :action) == :annotation_composer_posted ->
-        {:ok, finalize_annotation_compose(socket, assigns[:annotation_uuid])}
+        {:ok, finalize_annotation_compose(socket, assigns[:annotation_uuid], assigns[:title])}
 
       Map.get(assigns, :action) == :annotation_composer_cancelled ->
         {:ok, rollback_annotation_compose(socket, assigns[:annotation_uuid])}
@@ -1065,13 +1065,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             _ -> nil
           end
 
+        # Text shapes don't trigger the composer — their content is
+        # entered inline via etcher.js's foreignObject editor and
+        # arrives via etcher:updated `title`. Every other kind still
+        # spawns the comment composer.
+        composer_uuid =
+          if annotation.kind == "text", do: nil, else: annotation.uuid
+
+        composer_anchor =
+          if annotation.kind == "text", do: nil, else: anchor
+
         socket =
           socket
           |> assign(:viewer_annotations, [new | socket.assigns.viewer_annotations])
-          # Set the pending state — the composer popover appears next to
-          # the shape until the user Posts (solidify) or Cancels (rollback).
-          |> assign(:composing_annotation_uuid, annotation.uuid)
-          |> assign(:composer_anchor, anchor)
+          |> assign(:composing_annotation_uuid, composer_uuid)
+          |> assign(:composer_anchor, composer_anchor)
           |> Phoenix.LiveView.push_event("etcher:annotation-saved", %{
             tmp_id: tmp_id,
             uuid: annotation.uuid
@@ -1084,18 +1092,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  def handle_event("etcher:updated", %{"uuid" => uuid, "geometry" => geometry}, socket) do
-    case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, %{"geometry" => geometry}) do
-      {:ok, _annotation} ->
-        updated =
-          Enum.map(socket.assigns.viewer_annotations, fn a ->
-            if a.uuid == uuid, do: Map.put(a, :geometry, geometry), else: a
-          end)
+  def handle_event("etcher:updated", %{"uuid" => uuid} = params, socket) do
+    # Etcher emits this event for any persisted change to a shape:
+    # vertex drags (geometry), color picks (style), inline-edits to
+    # text shapes (title), and other metadata writes. Each field is
+    # independently optional in the payload, so only forward the ones
+    # present.
+    update_attrs =
+      %{}
+      |> maybe_put_payload("geometry", params)
+      |> maybe_put_payload("style", params)
+      |> maybe_put_payload("metadata", params)
+      |> maybe_put_payload("title", params)
 
-        {:noreply, assign(socket, :viewer_annotations, updated)}
-
-      _error ->
-        {:noreply, socket}
+    if update_attrs == %{} do
+      {:noreply, socket}
+    else
+      apply_annotation_update(socket, uuid, update_attrs, params)
     end
   end
 
@@ -1113,19 +1126,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # v0.1: selection is informational only; consumer UI can wire a
     # selected-annotation panel here later (e.g. show the comment thread).
     {:noreply, socket}
-  end
-
-  # Pull the current user's uuid off the scope so saved annotations carry
-  # authorship. Falls through to nil when no user is bound — the schema
-  # tolerates that.
-  defp creator_attrs(attrs, socket) do
-    creator_uuid =
-      case socket.assigns[:phoenix_kit_current_scope] do
-        %{user: %{uuid: uuid}} when is_binary(uuid) -> uuid
-        _ -> nil
-      end
-
-    Map.put(attrs, "creator_uuid", creator_uuid)
   end
 
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
@@ -1456,6 +1456,107 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Navigation helpers
   # ──────────────────────────────────────────────────────────────
 
+  defp apply_annotation_update(socket, uuid, update_attrs, params) do
+    case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, update_attrs) do
+      {:ok, _annotation} ->
+        new_title = Map.get(params, "title")
+        updated = update_annotation_in_list(socket.assigns.viewer_annotations, uuid, params)
+
+        socket =
+          socket
+          |> assign(:viewer_annotations, updated)
+          |> maybe_push_title_tooltip_refresh(uuid, updated, new_title)
+
+        {:noreply, socket}
+
+      _error ->
+        {:noreply, socket}
+    end
+  end
+
+  defp update_annotation_in_list(annotations, uuid, params) do
+    Enum.map(annotations, fn a ->
+      if a.uuid == uuid, do: apply_annotation_diff(a, params), else: a
+    end)
+  end
+
+  defp apply_annotation_diff(annotation, params) do
+    annotation
+    |> maybe_assign_field(:geometry, Map.get(params, "geometry"))
+    |> maybe_assign_field(:style, Map.get(params, "style"))
+    |> maybe_merge_metadata(Map.get(params, "metadata"))
+    |> maybe_set_title_in_metadata(Map.get(params, "title"))
+  end
+
+  defp maybe_put_payload(attrs, key, params) do
+    case Map.fetch(params, key) do
+      {:ok, value} when not is_nil(value) -> Map.put(attrs, key, value)
+      _ -> attrs
+    end
+  end
+
+  defp maybe_assign_field(map, _key, nil), do: map
+  defp maybe_assign_field(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_merge_metadata(map, nil), do: map
+
+  defp maybe_merge_metadata(map, new_meta) when is_map(new_meta) do
+    existing = Map.get(map, :metadata) || %{}
+    Map.put(map, :metadata, Map.merge(existing, new_meta))
+  end
+
+  defp maybe_merge_metadata(map, _), do: map
+
+  defp maybe_set_title_in_metadata(map, nil), do: map
+
+  defp maybe_set_title_in_metadata(map, title) when is_binary(title) do
+    # `metadata.title` is the client-facing surface (etcher.js reads
+    # from it); the server stores the canonical value in the `title`
+    # column. Keep both in sync in the in-memory list so the next
+    # render doesn't lag behind the DB.
+    existing = Map.get(map, :metadata) || %{}
+
+    new_meta =
+      if title == "",
+        do: Map.delete(existing, "title"),
+        else: Map.put(existing, "title", title)
+
+    Map.put(map, :metadata, new_meta)
+  end
+
+  defp maybe_set_title_in_metadata(map, _), do: map
+
+  # Push the in-memory shape's metadata down to the in-DOM Etcher hook
+  # after a title-only update, so the tooltip reflects the new title
+  # without waiting for a full re-render of `initial_annotations`.
+  defp maybe_push_title_tooltip_refresh(socket, _uuid, _annotations, nil), do: socket
+
+  defp maybe_push_title_tooltip_refresh(socket, uuid, annotations, _title) do
+    shape_meta =
+      case Enum.find(annotations, &(&1.uuid == uuid)) do
+        %{metadata: m} when is_map(m) -> m
+        _ -> %{}
+      end
+
+    Phoenix.LiveView.push_event(socket, "etcher:annotation-updated", %{
+      uuid: uuid,
+      metadata: shape_meta
+    })
+  end
+
+  # Pull the current user's uuid off the scope so saved annotations carry
+  # authorship. Falls through to nil when no user is bound — the schema
+  # tolerates that.
+  defp creator_attrs(attrs, socket) do
+    creator_uuid =
+      case socket.assigns[:phoenix_kit_current_scope] do
+        %{user: %{uuid: uuid}} when is_binary(uuid) -> uuid
+        _ -> nil
+      end
+
+    Map.put(attrs, "creator_uuid", creator_uuid)
+  end
+
   defp do_toggle_file(socket, file_uuid) do
     selected = socket.assigns.selected_files
 
@@ -1540,12 +1641,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # appears in the sidebar thread without a page reload. The component
   # reloads when `loaded?` flips to false in its update/2 — so we send
   # exactly that, no upstream change required.
-  defp finalize_annotation_compose(socket, annotation_uuid) do
+  defp finalize_annotation_compose(socket, annotation_uuid, title) do
     file_uuid =
       case socket.assigns[:viewer_file] do
         %{file_uuid: uuid} -> uuid
         _ -> nil
       end
+
+    # Persist the optional inline title alongside the comment. Trimmed
+    # blank string is treated as "no title" so the row keeps `title = NULL`
+    # rather than carrying an empty placeholder.
+    if annotation_uuid do
+      title_val =
+        case title do
+          nil -> nil
+          str when is_binary(str) -> if String.trim(str) == "", do: nil, else: str
+          _ -> nil
+        end
+
+      _ = PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val})
+    end
 
     refresh_file_comments(socket)
     fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
@@ -1624,12 +1739,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
               }
           end
 
+        # Surface the dedicated title column as `metadata.title` so
+        # the JS overlay can render it inline. The column is the
+        # source of truth; the metadata key is the JS-facing contract.
+        title_meta = if a.title, do: %{"title" => a.title}, else: %{}
+
         %{
           uuid: a.uuid,
           kind: a.kind,
           geometry: a.geometry,
           style: a.style,
-          metadata: Map.merge(base_meta, comment_meta)
+          metadata: base_meta |> Map.merge(comment_meta) |> Map.merge(title_meta)
         }
       end)
     else

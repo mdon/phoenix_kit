@@ -27,7 +27,7 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
   # client-side metadata) is silently dropped — `String.to_existing_atom`
   # on unknown payload keys used to crash the LV when Etcher's payload
   # shape grew new client-side keys like `anchor_x` / `anchor_y`.
-  @schema_keys ~w(kind geometry style metadata position creator_uuid)
+  @schema_keys ~w(kind geometry style metadata position creator_uuid title)
 
   @impl Etcher.Storage
   def create(attrs) do
