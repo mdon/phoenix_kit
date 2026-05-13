@@ -9,6 +9,9 @@
 
 ### Fixed
 - Fixed ungrouped `handle_event/3` clauses in `MediaBrowser` by relocating `creator_attrs/2` helper to private-helpers block
+- Restored sitemap dynamic `<lastmod>` for homepage and group listing pages (`Sources.Static`, `Sources.Publishing`)
+  - PR #539's merge silently re-removed `static_lastmod/1` and `latest_post_date/2` (a zombie revert that came back via merge conflict and got cut again from a behind-the-base fork). Result: every static URL was reporting `lastmod: <today>` on every crawl (a known false-freshness signal Google de-prioritizes), and every group listing was shipping without `<lastmod>` at all
+  - Homepage `<lastmod>` now uses a new lightweight `Publishing.latest_post_date_global/0` helper — single pass over each group's posts to take max `published_at`. Replaces the prior shape that called `Publishing.collect/1` and threw away everything except the `:lastmod` field (which triggered ~3× redundant `list_posts/2` calls per group inside `collect/1`)
 
 ### Hygiene
 - Routine lockfile updates (`mix.lock`)
