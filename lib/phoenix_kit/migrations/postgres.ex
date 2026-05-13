@@ -529,7 +529,61 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction ⚡ LATEST
+  ### V116 - Parent reference on entity_data ⚡ LATEST
+  - Adds nullable self-referential `parent_uuid` column to
+    `phoenix_kit_entity_data` so each data row can point at another row
+    of the same entity as its parent. The feature is a system field on
+    every entity_data row — always present, optional to fill, never
+    removable by the user (does not appear in
+    `entities.fields_definition`).
+  - No `ON DELETE` cascade: parent/child linkage and same-entity scope
+    are managed by the `PhoenixKitEntities.EntityData` context inside a
+    transaction. A DB-level cascade would bypass the soft-delete
+    machinery and the activity log.
+  - Same-entity enforcement (a row's parent must share its
+    `entity_uuid`) is a context-layer responsibility — the self-FK has
+    no view of `entity_uuid`.
+  - B-tree index on `(parent_uuid)` covers the "list children" query
+    used when rendering the WordPress-style indented tree.
+  - Existing rows stay `parent_uuid = NULL` and become roots — no
+    backfill needed.
+
+  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes
+  - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
+    circle / polygon / freehand shapes anchored to `phoenix_kit_files`
+    rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
+    enforced via a DB-level CHECK constraint matching Etcher's v0.1
+    tool set.
+  - `file_uuid` FK `ON DELETE :delete_all` — annotations vanish with
+    their host image. `creator_uuid` is nullable + `ON DELETE :nilify_all`
+    so deleting a user preserves their annotations as anonymous.
+  - Discussion threads attach via the existing comments convention
+    (`resource_type = "annotation"`, `resource_uuid = annotation.uuid`)
+    — no `comment_uuid` column on annotations; the relationship is
+    one-directional from the comment side.
+  - Indexes: `(file_uuid)` for per-file listing, partial
+    `(creator_uuid) WHERE creator_uuid IS NOT NULL` for author lookups.
+
+  ### V114 - Integrations storage: uuid-only keys
+  - Rewrites every `phoenix_kit_settings` row keyed
+    `integration:<provider>:<name>` so that `key = uuid` (the row's
+    primary key). Provider and name move into JSONB
+    (`value_json->>'provider'`, `value_json->>'name'`); the `module`
+    column (`'integrations'`) becomes the row-class discriminator.
+  - Backfills any missing `provider`/`name` JSONB fields from the old
+    composite key. Legacy V0-shape keys without a `:name` segment fold
+    to `name = 'default'`.
+  - Lifts both name restrictions on `add_connection/3` /
+    `rename_connection/3`: any non-empty string (after trim) is
+    allowed, including spaces, punctuation, and duplicates within a
+    provider. The `key` column's unique constraint is satisfied by
+    the UUIDv7, not by the human-chosen label.
+  - `down/1` rewrites keys back to the composite shape. Duplicate
+    `(provider, name)` pairs cannot be represented in the old shape,
+    so on collision the name is suffixed with `-<8-char uuid>` to
+    keep the rewrite well-defined.
+
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction
   - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
     `phoenix_kit_files`. Marks internally-generated media (DZI tile
     pyramids + per-tile chunks) so the MediaBrowser can exclude them
@@ -917,7 +971,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 113
+  @current_version 116
   @default_prefix "public"
 
   @doc false

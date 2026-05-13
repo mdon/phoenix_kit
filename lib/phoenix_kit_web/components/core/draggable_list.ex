@@ -76,6 +76,11 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
   attr :item_class, :string, default: "", doc: "Additional CSS classes for each item wrapper"
   attr :hide_source, :boolean, default: false, doc: "Hide source element on drag start"
 
+  attr :sortable_handle, :string,
+    default: nil,
+    doc:
+      "Optional CSS selector (e.g. `\".pk-drag-handle\"`) that restricts drag initiation to elements matching the selector inside each item. When set, the item wrapper no longer carries the `cursor-grab` styling — the caller is responsible for rendering the handle. Mirrors the workspace's `<.table_default>` `:on_reorder` + `.pk-drag-handle` convention."
+
   attr :draggable, :boolean,
     default: true,
     doc:
@@ -108,13 +113,15 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
       data-sortable-event={if @draggable, do: @on_reorder}
       data-sortable-items={if @draggable, do: ".sortable-item"}
       data-sortable-hide-source={if @draggable, do: to_string(@hide_source)}
+      data-sortable-handle={if @draggable, do: @sortable_handle}
       phx-hook={if @draggable, do: "SortableGrid"}
       class={@container_class}
     >
       <%= for item <- @items do %>
         <div
           class={[
-            @draggable && "sortable-item cursor-grab active:cursor-grabbing",
+            @draggable && "sortable-item",
+            @draggable && is_nil(@sortable_handle) && "cursor-grab active:cursor-grabbing",
             @item_class
           ]}
           data-id={@item_id_fn.(item)}
