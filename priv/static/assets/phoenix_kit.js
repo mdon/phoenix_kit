@@ -4057,6 +4057,32 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4864,6 +4890,7 @@ if (typeof window.Chart === "undefined") {
       wrapper.addEventListener("pointerdown", function(e) { self._onPointerDown(e); });
       wrapper.addEventListener("pointermove", function(e) { self._onPointerMove(e); });
       wrapper.addEventListener("pointerup",   function(e) { self._onPointerUp(e); });
+      wrapper.addEventListener("pointerleave", function() { self._onPointerLeave(); });
       wrapper.addEventListener("dblclick",    function(e) { self._onDoubleClick(e); });
 
       // Re-render shapes in lockstep with the viewer. `animation` fires on
@@ -5079,6 +5106,12 @@ if (typeof window.Chart === "undefined") {
     _selectTool: function(toolKey) {
       var self = this;
       if (self.activeTool !== toolKey) self._cancelDraft();
+      // Leaving the eraser tool clears any in-flight hover preview
+      // so a grayed shape doesn't get stuck looking "about to delete"
+      // after the user picks a different tool.
+      if (self.activeTool === "eraser" && toolKey !== "eraser") {
+        self._clearEraserHover();
+      }
       self.activeTool = toolKey;
       // Drawing and editing are mutually exclusive — picking a tool
       // means we're done admiring the current edit.
@@ -6099,6 +6132,9 @@ if (typeof window.Chart === "undefined") {
           this._calloutHover(this._toImage(e));
         } else if (this.activeTool === "eraser" && this._erasingActive) {
           this._eraserMove(this._toImage(e));
+        } else if (this.activeTool === "eraser") {
+          // Idle hover — preview the single shape under the cursor.
+          this._eraserHover(this._toImage(e));
         }
         return;
       }
@@ -6866,9 +6902,48 @@ if (typeof window.Chart === "undefined") {
       this._erasingActive = true;
       this._erasingHits = [];
       this._erasingHitSet = new Set();
+      // Adopt the hover-preview shape into the active sweep so the
+      // user doesn't have to "re-hit" it on press.
+      if (this._eraserHovered) {
+        this._erasingHitSet.add(this._eraserHovered);
+        this._erasingHits.push(this._eraserHovered);
+        this._eraserHovered = null;
+      }
       try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
       this._hideTooltip();
       this._eraserMove(pt);
+    },
+
+    // Mouseover preview while the eraser is idle (no button held).
+    // Grays out the single shape under the cursor so the user sees
+    // what would be erased on click. Limited to one shape at a time;
+    // sweep mode (press-and-drag) accumulates multiple.
+    _eraserHover: function(pt) {
+      var hit = null;
+      for (var i = 0; i < this.shapes.length; i++) {
+        var s = this.shapes[i];
+        if (!s.uuid) continue;
+        if (this._eraserHit(s, pt)) { hit = s; break; }
+      }
+      if (this._eraserHovered === hit) return;
+      this._clearEraserHover();
+      if (hit) {
+        if (hit.el) hit.el.classList.add("is-erasing");
+        if (hit.titleGroup) hit.titleGroup.classList.add("is-erasing");
+        this._eraserHovered = hit;
+      }
+    },
+
+    _clearEraserHover: function() {
+      var prev = this._eraserHovered;
+      if (!prev) return;
+      if (prev.el) prev.el.classList.remove("is-erasing");
+      if (prev.titleGroup) prev.titleGroup.classList.remove("is-erasing");
+      this._eraserHovered = null;
+    },
+
+    _onPointerLeave: function() {
+      this._clearEraserHover();
     },
 
     _eraserMove: function(pt) {
