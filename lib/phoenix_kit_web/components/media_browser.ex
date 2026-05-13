@@ -1078,6 +1078,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         composer_uuid = if suppress_composer, do: nil, else: annotation.uuid
         composer_anchor = if suppress_composer, do: nil, else: anchor
 
+        # On undo-of-delete, walk the soft-deleted comments that were
+        # cascade-removed when the original row went away and re-link
+        # them to the new uuid. Refresh the sidebar so they reappear
+        # without a page reload.
+        restored_comments =
+          maybe_restore_comments(
+            annotation,
+            Map.get(attrs, "restore_from_uuid"),
+            Map.get(attrs, "restore")
+          )
+
         socket =
           socket
           |> assign(:viewer_annotations, [new | socket.assigns.viewer_annotations])
@@ -1087,6 +1098,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             tmp_id: tmp_id,
             uuid: annotation.uuid
           })
+          |> maybe_refresh_after_restore(restored_comments)
 
         {:noreply, socket}
 
@@ -1458,6 +1470,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
   # Navigation helpers
   # ──────────────────────────────────────────────────────────────
+
+  defp maybe_restore_comments(annotation, restore_from_uuid, restore_flag)
+       when restore_flag == true and is_binary(restore_from_uuid) do
+    PhoenixKit.Annotations.restore_linked_comments(
+      annotation.file_uuid,
+      restore_from_uuid,
+      annotation.uuid
+    )
+  end
+
+  defp maybe_restore_comments(_annotation, _restore_from_uuid, _restore_flag), do: 0
+
+  defp maybe_refresh_after_restore(socket, count) when is_integer(count) and count > 0 do
+    refresh_file_comments(socket)
+    socket
+  end
+
+  defp maybe_refresh_after_restore(socket, _count), do: socket
 
   defp apply_annotation_update(socket, uuid, update_attrs, params) do
     case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, update_attrs) do

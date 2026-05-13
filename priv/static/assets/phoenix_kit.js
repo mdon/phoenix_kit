@@ -3979,6 +3979,32 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -7709,7 +7735,11 @@ if (typeof window.Chart === "undefined") {
           kind: shape.kind,
           geometry: clone(shape.geometry),
           style: clone(shape.style),
-          metadata: clone(shape.metadata)
+          metadata: clone(shape.metadata),
+          // Pre-deletion uuid travels with the snapshot so the
+          // restore handler can find soft-deleted comments tied to
+          // the old row and re-link them to the recreated row.
+          originalUuid: shape.uuid
         }
       });
       if (this._undoStack.length > this._undoStackLimit) this._undoStack.shift();
@@ -7783,6 +7813,10 @@ if (typeof window.Chart === "undefined") {
       if (snap.metadata && typeof snap.metadata.title === "string") {
         payload.title = snap.metadata.title;
       }
+      // Tells the consumer which old uuid this row is restoring from
+      // so it can rehydrate any related state (e.g. soft-deleted
+      // comment threads) onto the new uuid.
+      if (snap.originalUuid) payload.restore_from_uuid = snap.originalUuid;
       this.pushEventTo(this.el, "etcher:created", payload);
     },
 

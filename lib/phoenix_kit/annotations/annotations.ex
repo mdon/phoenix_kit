@@ -251,6 +251,47 @@ defmodule PhoenixKit.Annotations do
     _ -> :ok
   end
 
+  @doc """
+  Restore comments soft-deleted by `delete/1` and re-link them to a
+  newly-created annotation row. Used by the etcher restore (undo of
+  delete) flow: the original annotation uuid is gone, but the
+  soft-deleted comments are still in the DB carrying
+  `metadata.annotation_uuid = original_uuid`. We flip them back to
+  `status: "published"` and rewrite `metadata.annotation_uuid` to
+  point at the recreated row's uuid.
+
+  Returns the number of comments restored. No-ops cleanly when
+  PhoenixKitComments isn't installed or when no soft-deleted matches
+  are found.
+  """
+  @spec restore_linked_comments(uuid(), uuid(), uuid()) :: non_neg_integer()
+  def restore_linked_comments(file_uuid, original_uuid, new_uuid)
+      when is_binary(file_uuid) and is_binary(original_uuid) and is_binary(new_uuid) do
+    if Code.ensure_loaded?(PhoenixKitComments) do
+      "file"
+      |> PhoenixKitComments.list_comments(file_uuid, include_deleted: true)
+      |> Enum.filter(fn c ->
+        c.status == "deleted" and
+          get_in(c.metadata || %{}, ["annotation_uuid"]) == original_uuid
+      end)
+      |> Enum.reduce(0, fn comment, acc ->
+        new_meta = Map.put(comment.metadata || %{}, "annotation_uuid", new_uuid)
+
+        case PhoenixKitComments.update_comment(comment, %{
+               status: "published",
+               metadata: new_meta
+             }) do
+          {:ok, _} -> acc + 1
+          _ -> acc
+        end
+      end)
+    else
+      0
+    end
+  rescue
+    _ -> 0
+  end
+
   # Accept both string- and atom-keyed maps. Falls back to passing the
   # map through untouched if any key can't be converted (the changeset
   # will then reject the unknown fields).
