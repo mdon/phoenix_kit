@@ -1397,7 +1397,7 @@
                     target_type="file"
                     target_uuid={f.file_uuid}
                     initial_annotations={@viewer_annotations}
-                    tools={[:rectangle, :circle, :polygon, :freehand, :callout, :text]}
+                    tools={[:rectangle, :circle, :polygon, :freehand, :callout, :text, :eraser]}
                   />
                 <% end %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
