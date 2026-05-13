@@ -529,7 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V116 - Parent reference on entity_data ⚡ LATEST
+  ### V117 - Document composition ⚡ LATEST
+  - Adds nullable `category :: varchar` column to `phoenix_kit_doc_templates`
+    with index on `(category)` for category-filtered queries.
+  - Creates `phoenix_kit_doc_document_sections` — join table linking documents
+    to templates at ordered positions, with per-section `variable_values` and
+    `image_params` JSONB. Unique index on `(document_uuid, position)`. FK to
+    documents cascades on delete; FK to templates nullifies on delete.
+  - Creates `phoenix_kit_doc_template_presets` — named reusable section
+    compositions, optionally scoped via `scope_type`/`scope_id` and
+    categorized. `sections` is a JSONB array. Index on
+    `(scope_type, scope_id, category)`.
+
+  ### V116 - Parent reference on entity_data
   - Adds nullable self-referential `parent_uuid` column to
     `phoenix_kit_entity_data` so each data row can point at another row
     of the same entity as its parent. The feature is a system field on
@@ -971,7 +983,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 116
+  @current_version 117
   @default_prefix "public"
 
   @doc false
