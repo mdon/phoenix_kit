@@ -2862,6 +2862,32 @@ if (typeof window.Chart === "undefined") {
 //   import "../../deps/fresco/priv/static/fresco.js"
 //   hooks: { ...window.FrescoHooks, ...colocatedHooks }
 
+// Fresco — polished pan-zoom image viewer for Phoenix apps.
+//
+// Wraps OpenSeadragon (lazy-loaded from jsDelivr) with a Phoenix LiveView
+// hook, a Heroicons nav overlay, viewport clamping, and a small but
+// deliberate extension surface so layered libraries (Tessera for deep zoom,
+// future annotation packages, etc.) can plug in without forking.
+//
+// Public surface:
+//
+//   window.Fresco.viewerFor(domId)             // → viewer handle, or null
+//   window.Fresco.onViewerReady(domId, cb)     // fires once when ready
+//   window.Fresco.registerSourceProvider(predicate, factory)
+//
+// Viewer handle (returned by viewerFor):
+//
+//   { viewer, container,
+//     imageToScreen(pt), screenToImage(pt),
+//     getViewportBounds(),
+//     fitBounds(rect, immediately),
+//     setSource(url, opts), swapSourcePreservingBounds(url, opts),
+//     on(eventName, handler) → unsubscribe }
+//
+// Parent app wiring:
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   hooks: { ...window.FrescoHooks, ...colocatedHooks }
+
 (function() {
   if (window.FrescoLoaded) return;
   window.FrescoLoaded = true;
@@ -3205,7 +3231,9 @@ if (typeof window.Chart === "undefined") {
           gestureSettingsMouse: {
             scrollToZoom: true,
             dragToPan: true,
-            clickToZoom: true,
+            // Single-click should select / annotate, not zoom. Zooming
+            // by mouse is double-click (here) or scroll wheel.
+            clickToZoom: false,
             dblClickToZoom: true
           }
         });
