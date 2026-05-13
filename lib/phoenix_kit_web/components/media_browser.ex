@@ -88,7 +88,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   import Ecto.Query
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.EtcherAdapter
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
@@ -1052,7 +1054,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
 
   def handle_event("etcher:created", %{"tmp_id" => tmp_id} = attrs, socket) do
-    case PhoenixKit.Modules.Storage.EtcherAdapter.create(creator_attrs(attrs, socket)) do
+    case EtcherAdapter.create(creator_attrs(attrs, socket)) do
       {:ok, annotation} ->
         new = %{uuid: annotation.uuid, kind: annotation.kind, geometry: annotation.geometry}
 
@@ -1128,7 +1130,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("etcher:deleted", %{"uuid" => uuid}, socket) do
-    _ = PhoenixKit.Modules.Storage.EtcherAdapter.delete(uuid)
+    _ = EtcherAdapter.delete(uuid)
     # The adapter's delete cascades to any linked comments; poke the
     # file's CommentsComponent so the sidebar thread drops them too.
     refresh_file_comments(socket)
@@ -1490,7 +1492,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp maybe_refresh_after_restore(socket, _count), do: socket
 
   defp apply_annotation_update(socket, uuid, update_attrs, params) do
-    case PhoenixKit.Modules.Storage.EtcherAdapter.update(uuid, update_attrs) do
+    case EtcherAdapter.update(uuid, update_attrs) do
       {:ok, _annotation} ->
         new_title = Map.get(params, "title")
         updated = update_annotation_in_list(socket.assigns.viewer_annotations, uuid, params)
@@ -1655,7 +1657,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         socket
 
       uuid ->
-        _ = PhoenixKit.Modules.Storage.EtcherAdapter.delete(uuid)
+        _ = EtcherAdapter.delete(uuid)
 
         remaining =
           Enum.reject(socket.assigns.viewer_annotations, fn a -> a.uuid == uuid end)
@@ -1746,50 +1748,50 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp load_annotations_for(file_uuid) do
-    if Code.ensure_loaded?(PhoenixKit.Annotations) and
-         function_exported?(PhoenixKit.Annotations, :list_for_file_with_previews, 1) do
-      file_uuid
-      |> PhoenixKit.Annotations.list_for_file_with_previews()
-      |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
-        # `metadata` flows through to Etcher's tooltip. The JS reads
-        # `metadata.label` (consumer-set) plus the comment_* fields we
-        # populate here for the auto-rendered preview.
-        base_meta = a.metadata || %{}
+    file_uuid
+    |> Annotations.list_for_file_with_previews()
+    |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
+      # `metadata` flows through to Etcher's tooltip. The JS reads
+      # `metadata.label` (consumer-set) plus the comment_* fields we
+      # populate here for the auto-rendered preview.
+      base_meta = a.metadata || %{}
 
-        comment_meta =
-          case fc do
-            nil ->
-              %{"comment_created_at" => format_date(a.inserted_at), "comment_count" => 0}
+      comment_meta =
+        case fc do
+          nil ->
+            %{"comment_created_at" => format_date(a.inserted_at), "comment_count" => 0}
 
-            %{} = c ->
-              %{
-                "comment_text" => truncate(c.content, 80),
-                "comment_author" => c.author,
-                "comment_thumbnail_url" => c.thumbnail_url,
-                "comment_has_attachment" => Map.get(c, :has_attachment, false),
-                "comment_count" => count,
-                "comment_created_at" => format_date(a.inserted_at)
-              }
-          end
+          %{} = c ->
+            %{
+              "comment_text" => truncate(c.content, 80),
+              "comment_author" => c.author,
+              "comment_thumbnail_url" => c.thumbnail_url,
+              "comment_has_attachment" => Map.get(c, :has_attachment, false),
+              "comment_count" => count,
+              "comment_created_at" => format_date(a.inserted_at)
+            }
+        end
 
-        # Surface the dedicated title column as `metadata.title` so
-        # the JS overlay can render it inline. The column is the
-        # source of truth; the metadata key is the JS-facing contract.
-        title_meta = if a.title, do: %{"title" => a.title}, else: %{}
+      # Surface the dedicated title column as `metadata.title` so
+      # the JS overlay can render it inline. The column is the
+      # source of truth; the metadata key is the JS-facing contract.
+      title_meta = if a.title, do: %{"title" => a.title}, else: %{}
 
-        %{
-          uuid: a.uuid,
-          kind: a.kind,
-          geometry: a.geometry,
-          style: a.style,
-          metadata: base_meta |> Map.merge(comment_meta) |> Map.merge(title_meta)
-        }
-      end)
-    else
-      []
-    end
+      %{
+        uuid: a.uuid,
+        kind: a.kind,
+        geometry: a.geometry,
+        style: a.style,
+        metadata: base_meta |> Map.merge(comment_meta) |> Map.merge(title_meta)
+      }
+    end)
   end
 
+  # Truncates `text` so the output (including the ellipsis suffix when
+  # truncated) is at most `limit` graphemes long — i.e. `limit` is the
+  # maximum **output** length, not the maximum **source** length. When
+  # `text` is shorter than `limit`, returns it as-is; when longer, slices
+  # to `limit - 1` and appends `"…"` for a clean `limit`-grapheme total.
   defp truncate(nil, _), do: nil
   defp truncate("", _), do: nil
 
@@ -1803,8 +1805,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
-  defp format_date(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  # Tooltip date format. The format string itself is gettext-wrapped so
+  # locales can reorder components ("%d %b %Y" in en-GB / fr / de etc.)
+  # without code changes. The `strftime` month + day-name expansion
+  # already resolves through `Calendar` translations.
+  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, gettext("%b %d, %Y"))
+  defp format_date(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, gettext("%b %d, %Y"))
   defp format_date(_), do: nil
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do

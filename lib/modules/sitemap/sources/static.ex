@@ -237,16 +237,16 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
     end
   end
 
-  # For homepage, use the latest published content date across all publishing groups.
-  # For other static pages, use today's date as a reasonable approximation.
+  # For the homepage, use the newest published-content date across all
+  # publishing groups so crawlers see an honest "site was updated when its
+  # newest post landed" signal. Other static pages have no associated
+  # content date, so today's date is the best approximation.
   defp static_lastmod("/") do
     alias PhoenixKit.Modules.Sitemap.Sources.Publishing
 
-    if Code.ensure_loaded?(Publishing) and function_exported?(Publishing, :collect, 1) do
-      Publishing.collect([])
-      |> Enum.map(& &1.lastmod)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.max(Date, fn -> Date.utc_today() end)
+    if Code.ensure_loaded?(Publishing) and
+         function_exported?(Publishing, :latest_post_date_global, 0) do
+      Publishing.latest_post_date_global() || Date.utc_today()
     else
       Date.utc_today()
     end

@@ -12,22 +12,27 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   An annotation's discussion thread is **not** created at draw time —
   it's instantiated lazily when the user posts the first comment on the
-  annotation. The linkage is one-directional from the comments table
-  via the existing `resource_type` / `resource_uuid` convention
-  (`resource_type = "annotation"`, `resource_uuid = annotation.uuid`).
+  annotation. The comments are anchored to the **file**
+  (`resource_type = "file"`, `resource_uuid = file_uuid`) with
+  `metadata.annotation_uuid` carrying the back-reference, so they
+  appear in the file's main thread alongside non-annotated discussion.
   No `comment_uuid` column on annotations is needed.
   """
 
   @behaviour Etcher.Storage
 
   alias PhoenixKit.Annotations
+  alias PhoenixKit.Annotations.Annotation
 
   # Whitelist of annotation schema fields the adapter accepts from event
-  # payloads. Anything else (Etcher routing keys, JS-side anchor coords,
-  # client-side metadata) is silently dropped — `String.to_existing_atom`
-  # on unknown payload keys used to crash the LV when Etcher's payload
-  # shape grew new client-side keys like `anchor_x` / `anchor_y`.
-  @schema_keys ~w(kind geometry style metadata position creator_uuid title)
+  # payloads, sourced from `Annotation.adapter_writable_fields/0` so the
+  # set stays in sync with the schema's `@cast_fields`. Anything else
+  # (Etcher routing keys, JS-side anchor coords, client-side metadata)
+  # is silently dropped — `String.to_existing_atom` on unknown payload
+  # keys used to crash the LV when Etcher's payload shape grew new
+  # client-side keys like `anchor_x` / `anchor_y`. Stored as strings
+  # here since the filter compares against `to_string(payload_key)`.
+  @schema_keys Enum.map(Annotation.adapter_writable_fields(), &Atom.to_string/1)
 
   @impl Etcher.Storage
   def create(attrs) do

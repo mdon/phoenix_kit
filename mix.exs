@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.109"
+  @version "1.7.110"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -233,7 +233,11 @@ defmodule PhoenixKit.MixProject do
       # Code quality
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
-      precommit: ["compile", "quality"]
+      precommit: [
+        "compile --warnings-as-errors --all-warnings",
+        "deps.unlock --check-unused",
+        "quality.ci"
+      ]
     ]
   end
 end

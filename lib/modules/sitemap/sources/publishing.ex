@@ -392,7 +392,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     end
   end
 
-  # Latest lastmod among published posts in a group (for group listing pages)
+  # Latest lastmod among published posts in a group (drives group listing <lastmod>).
   defp latest_post_date(group_slug, language) do
     post_language = language || get_default_language()
 
@@ -402,6 +402,39 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     |> Enum.map(&get_post_lastmod/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.max(Date, fn -> nil end)
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  Max post lastmod across all included groups, using the default language.
+
+  Drives the homepage `<lastmod>` from `Sources.Static`. Equivalent to taking
+  `max(:lastmod)` across `collect/1`'s URL entries, but skips the URL-entry
+  construction work. One `list_posts/2` call per included group instead of
+  three (as in `collect/1`).
+  """
+  @spec latest_post_date_global() :: Date.t() | nil
+  def latest_post_date_global do
+    if enabled?() do
+      language = get_default_language()
+
+      dates =
+        @publishing_mod.list_groups()
+        |> Enum.reject(&group_excluded?/1)
+        |> Enum.flat_map(fn group ->
+          @publishing_mod.list_posts(group["slug"], language)
+          |> Enum.filter(&published?/1)
+          |> Enum.reject(&excluded?/1)
+          |> Enum.map(&get_post_lastmod/1)
+          |> Enum.reject(&is_nil/1)
+        end)
+
+      case dates do
+        [] -> nil
+        _ -> Enum.max(dates, Date)
+      end
+    end
   rescue
     _ -> nil
   end

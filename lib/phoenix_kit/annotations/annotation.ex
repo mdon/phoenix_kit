@@ -9,9 +9,11 @@ defmodule PhoenixKit.Annotations.Annotation do
 
   ## Comment thread linkage
 
-  An annotation's discussion thread lives in `phoenix_kit_comments` via
-  the established convention (`resource_type = "annotation"`,
-  `resource_uuid = annotation.uuid`). There is no `comment_uuid` column
+  An annotation's discussion lives in `phoenix_kit_comments` anchored to
+  the **file** (`resource_type = "file"`, `resource_uuid = file_uuid`)
+  with `metadata.annotation_uuid` carrying the back-reference. This lets
+  annotation-rooted comments appear in the file's main comments thread
+  alongside non-annotated discussion. There is no `comment_uuid` column
   on annotations — the relationship is one-directional from the comment
   side, and a thread is created lazily when the first comment is posted.
   """
@@ -53,6 +55,12 @@ defmodule PhoenixKit.Annotations.Annotation do
   @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position title)a
   @required_fields ~w(file_uuid kind geometry)a
 
+  # Fields the storage adapter is allowed to accept from event payloads.
+  # `file_uuid` is set server-side from `target_uuid`, not by the client,
+  # so it's excluded here — the adapter's `create/1` puts it on the
+  # changeset after the whitelist filter.
+  @adapter_writable_fields @cast_fields -- [:file_uuid]
+
   @doc false
   def changeset(annotation, attrs) do
     annotation
@@ -67,4 +75,13 @@ defmodule PhoenixKit.Annotations.Annotation do
 
   @doc "List of allowed kind strings."
   def kinds, do: @kinds
+
+  @doc """
+  Fields the Etcher storage adapter is allowed to take from event
+  payloads. Single source of truth so the adapter's whitelist doesn't
+  drift from the schema's `@cast_fields`. `file_uuid` is excluded —
+  the adapter sets it server-side from the Etcher `target_uuid`.
+  """
+  @spec adapter_writable_fields() :: [atom()]
+  def adapter_writable_fields, do: @adapter_writable_fields
 end

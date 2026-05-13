@@ -1,31 +1,30 @@
 defmodule PhoenixKit.Migrations.Postgres.V116 do
   @moduledoc """
-  V116: Widen `phoenix_kit_annotations_kind_check` for the new
-  `"callout"` and `"text"` kinds + add a `title` column to
-  `phoenix_kit_annotations`.
+  V116: Parent reference on entity_data.
 
-  Etcher 0.2 ships three related additions on the annotations table;
-  they're folded into one migration because they all hang off the
-  same row schema (kind CHECK + a single new column) — splitting
-  would have meant two trips over the same constraint.
+  Adds a nullable self-referential `parent_uuid` column on
+  `phoenix_kit_entity_data`, letting each data row point at another row
+  of the same entity as its parent. The feature is a system field on
+  every entity_data row — it is always present, optional to fill, and
+  never removable by the user (it does not appear in
+  `entities.fields_definition`). Existing rows stay `parent_uuid = NULL`
+  and become roots; no backfill needed.
 
-    1. **Callout** — leader-line annotation: a small anchor point
-       with a line connecting to a labeled text bbox that displays
-       inline on the image. Needs `kind = "callout"` to pass the
-       V115 CHECK.
+  The column is nullable (roots have no parent) with **no `ON DELETE`**
+  cascade: parent/child linkage and same-entity scope are managed by
+  the `PhoenixKitEntities.EntityData` context, which runs subtree
+  checks inside a transaction. A DB-level cascade would bypass the
+  soft-delete machinery and the activity log.
 
-    2. **Text** — freestanding text label drawn as a click-drag bbox
-       whose content lives in the V116 `title` column. Needs
-       `kind = "text"` to pass the CHECK.
+  Same-entity enforcement (a row's parent must share its `entity_uuid`)
+  is a context-layer responsibility — the self-FK has no view of
+  `entity_uuid`, so the changeset + context perform the lookup before
+  saving.
 
-    3. **`title varchar(200)`** — optional short label that every
-       kind can carry. Renders inline on the shape (above the
-       bounding box for rect/circle/polygon, at the leader endpoint
-       for callout, inside the bbox for text). Its own column so
-       it stays queryable outside the JSONB blob.
-
-  Both operations are idempotent (`IF NOT EXISTS` / `DO $$` guards)
-  so re-running on a partially-applied schema is a no-op.
+  A plain b-tree index on `(parent_uuid)` covers the "list children"
+  query used when rendering the WordPress-style indented tree. Existing
+  indexes on `(entity_uuid)` and `(entity_uuid, position)` still cover
+  per-entity listing and manual ordering.
   """
 
   use Ecto.Migration
@@ -33,55 +32,67 @@ defmodule PhoenixKit.Migrations.Postgres.V116 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = if prefix == "public", do: "public", else: prefix
 
-    # Widen the kind CHECK constraint to include callout + text.
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_annotations DROP CONSTRAINT IF EXISTS phoenix_kit_annotations_kind_check"
-    )
+    if table_exists?(:phoenix_kit_entity_data, prefix) do
+      # Raw SQL — the Ecto.Migration `references/2` macro targets the
+      # `:id` column by default, but `phoenix_kit_entity_data`'s PK is
+      # `uuid`. Match V103's column-add shape exactly.
+      execute("""
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = '#{schema}'
+            AND table_name = 'phoenix_kit_entity_data'
+            AND column_name = 'parent_uuid'
+        ) THEN
+          ALTER TABLE #{p}phoenix_kit_entity_data
+            ADD COLUMN parent_uuid UUID
+            REFERENCES #{p}phoenix_kit_entity_data(uuid);
+        END IF;
+      END $$;
+      """)
 
-    execute("""
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'phoenix_kit_annotations_kind_check'
-      ) THEN
-        ALTER TABLE #{p}phoenix_kit_annotations
-          ADD CONSTRAINT phoenix_kit_annotations_kind_check
-          CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand', 'callout', 'text'));
-      END IF;
-    END $$
-    """)
-
-    # Optional inline title.
-    execute("ALTER TABLE #{p}phoenix_kit_annotations ADD COLUMN IF NOT EXISTS title VARCHAR(200)")
+      execute("""
+      CREATE INDEX IF NOT EXISTS phoenix_kit_entity_data_parent_index
+      ON #{p}phoenix_kit_entity_data (parent_uuid)
+      """)
+    end
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '116'")
   end
 
+  @doc """
+  Rolls V116 back by dropping the parent index and column.
+
+  **Lossy rollback:** the tree collapses — every row becomes a root and
+  all parent linkage is lost. Back up before rolling back in production.
+  """
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute("ALTER TABLE #{p}phoenix_kit_annotations DROP COLUMN IF EXISTS title")
+    if table_exists?(:phoenix_kit_entity_data, prefix) do
+      execute("DROP INDEX IF EXISTS #{p}phoenix_kit_entity_data_parent_index")
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_annotations DROP CONSTRAINT IF EXISTS phoenix_kit_annotations_kind_check"
-    )
-
-    execute("""
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'phoenix_kit_annotations_kind_check'
-      ) THEN
-        ALTER TABLE #{p}phoenix_kit_annotations
-          ADD CONSTRAINT phoenix_kit_annotations_kind_check
-          CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand'));
-      END IF;
-    END $$
-    """)
+      execute("ALTER TABLE #{p}phoenix_kit_entity_data DROP COLUMN IF EXISTS parent_uuid")
+    end
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '115'")
+  end
+
+  defp table_exists?(table_name, prefix) do
+    query = """
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_schema = '#{prefix}'
+      AND table_name = '#{table_name}'
+    )
+    """
+
+    %{rows: [[exists]]} = PhoenixKit.RepoHelper.repo().query!(query)
+    exists
   end
 
   defp prefix_str("public"), do: "public."
