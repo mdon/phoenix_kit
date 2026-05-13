@@ -4120,6 +4120,136 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4400,6 +4530,32 @@ if (typeof window.Chart === "undefined") {
       ".etcher-handle.is-close-target {",
       "  transform: scale(1.6); stroke-width: 3;",
       "  fill: currentColor; fill-opacity: 0.4;",
+      "}",
+      // Midpoint "ghost" dot for polygon edges — faintly visible
+      // whenever the polygon is in edit mode, so the user can see at
+      // a glance where a new vertex would land. Fades to full
+      // opacity on direct hover. Cursor: copy hints "click to add".
+      ".etcher-handle-midpoint {",
+      "  fill: currentColor; fill-opacity: 0;",
+      "  stroke: currentColor; stroke-width: 2; stroke-opacity: 0;",
+      "  pointer-events: all; cursor: copy;",
+      "  transition: stroke-opacity 80ms ease, fill-opacity 80ms ease, transform 80ms ease;",
+      "}",
+      // `.is-active` is set on the closest midpoint to the cursor by
+      // `_updateClosestMidpoint`. Only one shows at a time so the
+      // polygon's edges don't get crowded with dots.
+      ".etcher-handle-midpoint.is-active {",
+      "  fill-opacity: 0.2; stroke-opacity: 0.85;",
+      "}",
+      ".etcher-handle-midpoint:hover {",
+      "  stroke-opacity: 1;",
+      "  fill: currentColor; fill-opacity: 0.35;",
+      "  transform: scale(1.4); stroke-width: 2;",
+      "}",
+      ".etcher-handle-midpoint.is-dragging {",
+      "  stroke-opacity: 1;",
+      "  fill: currentColor; fill-opacity: 0.55;",
+      "  transform: scale(1.6); stroke-width: 2;",
       "}",
       // While a drawing tool is active, vector dots on the in-progress
       // draft are markers, not grab targets — let pointer events fall
@@ -6173,6 +6329,13 @@ if (typeof window.Chart === "undefined") {
           // Idle hover — preview the single shape under the cursor.
           this._eraserHover(this._toImage(e));
         }
+        // While editing a polygon, only the midpoint closest to the
+        // cursor is shown — keeps the edges from looking cluttered
+        // and points the user at a single "add vertex here" target.
+        if (this.editingShape && this.editingShape.kind === "polygon" &&
+            this.midpointHandles && this.midpointHandles.length) {
+          this._updateClosestMidpoint(this._toImage(e));
+        }
         return;
       }
       var pt = this._toImage(e);
@@ -6981,6 +7144,7 @@ if (typeof window.Chart === "undefined") {
 
     _onPointerLeave: function() {
       this._clearEraserHover();
+      this._clearClosestMidpoint();
     },
 
     _eraserMove: function(pt) {
@@ -7541,6 +7705,13 @@ if (typeof window.Chart === "undefined") {
       this._hideTooltip();
       this._renderHandles(shape);
 
+      // Polygons need cursor tracking even outside their body so the
+      // closest-midpoint highlight lights up when the user
+      // approaches an edge from outside the shape. The wrapper has
+      // pointer-events: none in cursor mode, so pointermove there
+      // doesn't fire — listen on document instead.
+      if (shape.kind === "polygon") this._wireMidpointTracker();
+
       // Dismiss on any click outside the shape, its handles, the
       // tooltip, or the toolbar. Capture phase so we run before stop-
       // propagation handlers on inner elements.
@@ -7558,11 +7729,31 @@ if (typeof window.Chart === "undefined") {
       if (!this.editingShape) return;
       this.editingShape.el.classList.remove("is-editing");
       this._removeHandles();
+      this._unwireMidpointTracker();
       this.editingShape = null;
       if (this._outsideClickHandler) {
         document.removeEventListener("click", this._outsideClickHandler, true);
         this._outsideClickHandler = null;
       }
+    },
+
+    _wireMidpointTracker: function() {
+      var self = this;
+      if (self._midpointTracker) return;
+      self._midpointTracker = function(e) {
+        if (!self.editingShape || self.editingShape.kind !== "polygon") return;
+        if (!self.midpointHandles || !self.midpointHandles.length) return;
+        try { self._updateClosestMidpoint(self._toImage(e)); } catch (_) {}
+      };
+      document.addEventListener("pointermove", self._midpointTracker);
+    },
+
+    _unwireMidpointTracker: function() {
+      if (this._midpointTracker) {
+        document.removeEventListener("pointermove", this._midpointTracker);
+        this._midpointTracker = null;
+      }
+      this._clearClosestMidpoint();
     },
 
     _renderHandles: function(shape, opts) {
@@ -7586,6 +7777,183 @@ if (typeof window.Chart === "undefined") {
         }
         return h;
       });
+
+      // Polygons grow vertex-by-vertex: render an invisible "ghost"
+      // dot on the midpoint of each edge so the user can grab it to
+      // insert a new vertex there. Drafts skip this — they're being
+      // built one click at a time and don't need a side-channel for
+      // edits.
+      if (opts.interactive && shape.kind === "polygon") {
+        self._renderMidpointHandles(shape);
+      }
+    },
+
+    // Render a ghost handle on each edge midpoint of a polygon. The
+    // dots are invisible until hovered (the user sees their shape's
+    // color "appear" along the edge), and pointer-events: all keeps
+    // them hit-targetable even while invisible. Drag one → it becomes
+    // a real vertex via `_startMidpointDrag`.
+    _renderMidpointHandles: function(shape) {
+      this._removeMidpointHandles();
+      if (!shape || shape.kind !== "polygon") return;
+      var pts = (shape.geometry && shape.geometry.points) || [];
+      if (pts.length < 2) return;
+      var self = this;
+      var handleColor = self._handleColor(shape);
+      this.midpointHandles = [];
+      for (var i = 0; i < pts.length; i++) {
+        var next = pts[(i + 1) % pts.length];
+        var midImage = {
+          x: (pts[i][0] + next[0]) / 2,
+          y: (pts[i][1] + next[1]) / 2
+        };
+        var h = svgEl("circle", { r: 6 });
+        h.classList.add("etcher-handle", "etcher-handle-midpoint");
+        h.style.color = handleColor;
+        h.dataset.edgeIndex = i;
+        self.svg.appendChild(h);
+        self._positionHandle(h, midImage);
+        (function(edgeIdx, handleEl) {
+          handleEl.addEventListener("pointerdown", function(e) {
+            self._startMidpointDrag(shape, edgeIdx, handleEl, e);
+          });
+        })(i, h);
+        this.midpointHandles.push(h);
+      }
+    },
+
+    _removeMidpointHandles: function() {
+      (this.midpointHandles || []).forEach(function(h) {
+        if (h.parentNode) h.parentNode.removeChild(h);
+      });
+      this.midpointHandles = [];
+    },
+
+    // Mark the midpoint closest to the cursor as `.is-active` so its
+    // CSS rule reveals it. Threshold gates the highlight: if the
+    // cursor is far away from every midpoint the polygon's edges
+    // stay clean. Hidden during a drag — the dragging handle already
+    // has `.is-dragging` and tracks the pointer directly.
+    _updateClosestMidpoint: function(pt) {
+      if (!this.midpointHandles || !this.midpointHandles.length) return;
+      var shape = this.editingShape;
+      if (!shape || shape.kind !== "polygon") return;
+      var pts = (shape.geometry && shape.geometry.points) || [];
+      var closestIdx = -1;
+      var closestDist = Infinity;
+      for (var i = 0; i < pts.length; i++) {
+        var next = pts[(i + 1) % pts.length];
+        var mx = (pts[i][0] + next[0]) / 2;
+        var my = (pts[i][1] + next[1]) / 2;
+        var dx = pt.x - mx;
+        var dy = pt.y - my;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < closestDist) { closestDist = d2; closestIdx = i; }
+      }
+      var threshold = this._midpointActivationRadiusImagePx();
+      if (closestDist > threshold * threshold) closestIdx = -1;
+
+      this.midpointHandles.forEach(function(h, i) {
+        h.classList.toggle("is-active", i === closestIdx);
+      });
+    },
+
+    // Convert a generous container-px radius (~80px on screen) into
+    // image px so the activation zone feels the same regardless of
+    // zoom. Generous because the user only needs to be "near" an
+    // edge, not directly on it.
+    _midpointActivationRadiusImagePx: function() {
+      try {
+        var a = this._imageToContainer({ x: 0, y: 0 });
+        var b = this._imageToContainer({ x: 0, y: 1 });
+        var perImagePx = Math.abs(b.y - a.y) || 1;
+        return 80 / perImagePx;
+      } catch (e) {
+        return 80;
+      }
+    },
+
+    _clearClosestMidpoint: function() {
+      (this.midpointHandles || []).forEach(function(h) {
+        h.classList.remove("is-active");
+      });
+    },
+
+    _positionAllMidpointHandles: function(shape) {
+      if (!this.midpointHandles || !this.midpointHandles.length) return;
+      if (!shape || shape.kind !== "polygon") return;
+      var pts = (shape.geometry && shape.geometry.points) || [];
+      var self = this;
+      this.midpointHandles.forEach(function(h, i) {
+        if (i >= pts.length) return;
+        var next = pts[(i + 1) % pts.length];
+        var midImage = {
+          x: (pts[i][0] + next[0]) / 2,
+          y: (pts[i][1] + next[1]) / 2
+        };
+        self._positionHandle(h, midImage);
+      });
+    },
+
+    // Insert a new vertex at the midpoint of the polygon edge under
+    // the ghost handle, then run a vertex-style drag so the user can
+    // immediately place it. Pre-insert state goes onto the undo
+    // stack so ⌘Z removes the inserted vertex entirely.
+    _startMidpointDrag: function(shape, edgeIdx, handleEl, e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
+      handleEl.classList.add("is-dragging");
+      this._hideTooltip();
+
+      var self = this;
+      var historyBefore = self._snapshotShape(shape);
+
+      var pts = shape.geometry.points.slice();
+      var a = pts[edgeIdx];
+      var b = pts[(edgeIdx + 1) % pts.length];
+      var newIdx = edgeIdx + 1;
+      pts.splice(newIdx, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+      shape.geometry = { points: pts };
+      self._renderShape(shape);
+      // Reposition existing vertex handles to account for the new
+      // index shift; midpoint handles stay where they are until the
+      // gesture ends, when we re-render the full set.
+      self._positionAllHandles(shape);
+
+      function onMove(ev) {
+        var pt = self._toImage(ev);
+        var newPts = shape.geometry.points.slice();
+        newPts[newIdx] = [pt.x, pt.y];
+        shape.geometry = { points: newPts };
+        self._renderShape(shape);
+        self._positionAllHandles(shape);
+        // Position the dragging dot itself (it's the same DOM element
+        // the user grabbed, just tracking the new vertex now).
+        self._positionHandle(handleEl, { x: pt.x, y: pt.y });
+      }
+      function onUp(ev) {
+        handleEl.classList.remove("is-dragging");
+        handleEl.removeEventListener("pointermove", onMove);
+        handleEl.removeEventListener("pointerup", onUp);
+        handleEl.removeEventListener("pointercancel", onUp);
+        try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+        if (shape.uuid) {
+          self.pushEventTo(self.el, "etcher:updated", {
+            uuid: shape.uuid,
+            geometry: shape.geometry
+          });
+          self._pushUndo(shape.uuid, historyBefore, self._snapshotShape(shape));
+        }
+        // Refresh the full handle set so the new vertex picks up a
+        // real vertex dot and the two new edges get their own
+        // midpoint ghosts.
+        if (self.editingShape === shape) self._renderHandles(shape);
+        self._showTooltipFor(shape);
+      }
+      handleEl.addEventListener("pointermove", onMove);
+      handleEl.addEventListener("pointerup", onUp);
+      handleEl.addEventListener("pointercancel", onUp);
     },
 
     // Resolve the color that vector handles should paint themselves
@@ -7631,12 +7999,17 @@ if (typeof window.Chart === "undefined") {
     },
 
     _positionAllHandles: function(shape) {
-      if (!this.handles || !this.handles.length) return;
-      var positions = this._handlePositions(shape);
-      var self = this;
-      this.handles.forEach(function(h, idx) {
-        if (positions[idx]) self._positionHandle(h, positions[idx]);
-      });
+      if (this.handles && this.handles.length) {
+        var positions = this._handlePositions(shape);
+        var self = this;
+        this.handles.forEach(function(h, idx) {
+          if (positions[idx]) self._positionHandle(h, positions[idx]);
+        });
+      }
+      // Midpoints aren't part of `_handlePositions` (they aren't
+      // editable vertices), so keep them in sync on pan/zoom via
+      // a dedicated path.
+      this._positionAllMidpointHandles(shape);
     },
 
     _positionHandle: function(h, imagePt) {
@@ -7650,6 +8023,7 @@ if (typeof window.Chart === "undefined") {
         if (h.parentNode) h.parentNode.removeChild(h);
       });
       this.handles = [];
+      this._removeMidpointHandles();
     },
 
     // Returns image-px positions for each handle, in an order each kind's
