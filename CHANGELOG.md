@@ -1,3 +1,14 @@
+## 1.7.110 - 2026-05-13
+
+### Fixed
+- Fixed ungrouped `handle_event/3` clauses in `MediaBrowser` by relocating `creator_attrs/2` helper to private-helpers block
+
+### Hygiene
+- Routine lockfile updates (`mix.lock`)
+- Precommit: `compile --force` replaced with `compile --warnings-as-errors --all-warnings`, added `deps.unlock --check-unused`, switched from `quality` to `quality.ci` (format-check)
+- Dialyzer: removed 5 unused ignore filters (css_integration, process_scheduled_jobs_worker, duplicate conn_case/data_case, integrations guard_fail)
+- Removed stale `:phoenix_kit` self-entry from `mix.lock`
+
 ## 1.7.109 - 2026-05-12
 
 ### Added
