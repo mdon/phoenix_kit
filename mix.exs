@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.109"
+  @version "1.7.111"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -122,12 +122,16 @@ defmodule PhoenixKit.MixProject do
       # Deep zoom / pan-zoom image viewer (Tessera DZI layer atop the
       # Fresco OpenSeadragon viewer). Tessera 0.2 split the standalone
       # viewer into <Fresco.viewer> + <Tessera.layer> composition; both
-      # JS hooks are bundled into priv/static/assets/phoenix_kit.js so
-      # parent apps don't need to wire them separately. Etcher 0.1 adds
-      # the annotation overlay on top of the same viewer.
+      # JS hooks ship in each lib's `priv/static/`; parent apps import
+      # the bundles in `app.js` ahead of phoenix_kit.js, which adopts
+      # `window.{Fresco|Tessera|Etcher}Hooks` into `window.PhoenixKitHooks`.
+      # Etcher 0.2 adds the callout / text / eraser tools, undo/redo,
+      # satellite titles, and a complete `window.Etcher.layerFor(id)`
+      # programmatic control surface — all driven through the same
+      # MediaBrowser overlay.
       {:fresco, "~> 0.1"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.1"},
+      {:etcher, "~> 0.2"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
@@ -233,7 +237,11 @@ defmodule PhoenixKit.MixProject do
       # Code quality
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
-      precommit: ["compile", "quality"]
+      precommit: [
+        "compile --warnings-as-errors --all-warnings",
+        "deps.unlock --check-unused",
+        "quality.ci"
+      ]
     ]
   end
 end

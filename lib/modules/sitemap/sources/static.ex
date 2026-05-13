@@ -199,7 +199,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
 
       UrlEntry.new(%{
         loc: url,
-        lastmod: Date.utc_today(),
+        lastmod: static_lastmod(path),
         changefreq: Map.get(config, "changefreq", "weekly"),
         priority: Map.get(config, "priority", 0.5),
         title: Map.get(config, "title", path),
@@ -224,7 +224,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
 
       UrlEntry.new(%{
         loc: url,
-        lastmod: Date.utc_today(),
+        lastmod: static_lastmod(path),
         changefreq: Map.get(config, "changefreq", "weekly"),
         priority: Map.get(config, "priority", 0.5),
         title: Map.get(config, "title", path),
@@ -236,6 +236,25 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
       nil
     end
   end
+
+  # For the homepage, use the newest published-content date across all
+  # publishing groups so crawlers see an honest "site was updated when its
+  # newest post landed" signal. Other static pages have no associated
+  # content date, so today's date is the best approximation.
+  defp static_lastmod("/") do
+    alias PhoenixKit.Modules.Sitemap.Sources.Publishing
+
+    if Code.ensure_loaded?(Publishing) and
+         function_exported?(Publishing, :latest_post_date_global, 0) do
+      Publishing.latest_post_date_global() || Date.utc_today()
+    else
+      Date.utc_today()
+    end
+  rescue
+    _ -> Date.utc_today()
+  end
+
+  defp static_lastmod(_path), do: Date.utc_today()
 
   # Resolve path from config: explicit path OR via RouteResolver
   defp resolve_path(%{"path" => path}) when is_binary(path) and path != "" do

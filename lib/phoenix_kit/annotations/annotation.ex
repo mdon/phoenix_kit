@@ -23,7 +23,7 @@ defmodule PhoenixKit.Annotations.Annotation do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
-  @kinds ~w(rectangle circle polygon freehand)
+  @kinds ~w(rectangle circle polygon freehand callout text)
 
   @type t :: %__MODULE__{
           uuid: UUIDv7.t() | nil,
@@ -34,6 +34,7 @@ defmodule PhoenixKit.Annotations.Annotation do
           style: map() | nil,
           metadata: map() | nil,
           position: integer(),
+          title: String.t() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -46,11 +47,12 @@ defmodule PhoenixKit.Annotations.Annotation do
     field :style, :map
     field :metadata, :map
     field :position, :integer, default: 0
+    field :title, :string
 
     timestamps(type: :utc_datetime)
   end
 
-  @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position)a
+  @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position title)a
   @required_fields ~w(file_uuid kind geometry)a
 
   # Fields the storage adapter is allowed to accept from event payloads.
@@ -65,6 +67,7 @@ defmodule PhoenixKit.Annotations.Annotation do
     |> cast(attrs, @cast_fields)
     |> validate_required(@required_fields)
     |> validate_inclusion(:kind, @kinds)
+    |> validate_length(:title, max: 200)
     |> foreign_key_constraint(:file_uuid)
     |> foreign_key_constraint(:creator_uuid)
     |> check_constraint(:kind, name: :phoenix_kit_annotations_kind_check)
