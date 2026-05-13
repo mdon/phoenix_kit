@@ -1117,19 +1117,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, socket}
   end
 
-  # Pull the current user's uuid off the scope so saved annotations carry
-  # authorship. Falls through to nil when no user is bound — the schema
-  # tolerates that.
-  defp creator_attrs(attrs, socket) do
-    creator_uuid =
-      case socket.assigns[:phoenix_kit_current_scope] do
-        %{user: %{uuid: uuid}} when is_binary(uuid) -> uuid
-        _ -> nil
-      end
-
-    Map.put(attrs, "creator_uuid", creator_uuid)
-  end
-
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
     selected = socket.assigns.selected_folders
 
@@ -1452,6 +1439,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:total_count, total_count)
        |> assign(:total_pages, ceil(total_count / per_page))}
     end
+  end
+
+  # Pull the current user's uuid off the scope so saved annotations carry
+  # authorship. Falls through to nil when no user is bound — the schema
+  # tolerates that.
+  defp creator_attrs(attrs, socket) do
+    creator_uuid =
+      case socket.assigns[:phoenix_kit_current_scope] do
+        %{user: %{uuid: uuid}} when is_binary(uuid) -> uuid
+        _ -> nil
+      end
+
+    Map.put(attrs, "creator_uuid", creator_uuid)
   end
 
   # ──────────────────────────────────────────────────────────────
