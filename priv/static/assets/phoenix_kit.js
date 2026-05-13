@@ -3927,6 +3927,58 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -3987,6 +4039,8 @@ if (typeof window.Chart === "undefined") {
     trash:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>',
     paperclip:'<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/></svg>',
     cursor:   '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4 11.07 21l2.51-7.39L20.97 11.1 4 4Z"/></svg>',
+    undo:     '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15 4 10l5-5"/><path d="M4 10h11a5 5 0 0 1 0 10h-4"/></svg>',
+    redo:     '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 15l5-5-5-5"/><path d="M20 10H9a5 5 0 0 0 0 10h4"/></svg>',
     rectangle:'<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg>',
     circle:   '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/></svg>',
     polygon:  '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.5 21 9.5 18 20H6L3 9.5 12 3.5Z"/></svg>',
@@ -4034,6 +4088,10 @@ if (typeof window.Chart === "undefined") {
       "}",
       ".etcher-toolbar button:hover { background: rgba(255, 255, 255, 0.12); }",
       ".etcher-toolbar button.is-selected { background: rgba(255, 255, 255, 0.24); }",
+      ".etcher-toolbar button:disabled {",
+      "  opacity: 0.35; cursor: not-allowed;",
+      "}",
+      ".etcher-toolbar button:disabled:hover { background: transparent; }",
       ".etcher-toolbar button:focus-visible {",
       "  outline: 2px solid rgba(255, 255, 255, 0.7); outline-offset: 1px;",
       "}",
@@ -4558,6 +4616,10 @@ if (typeof window.Chart === "undefined") {
       this._exitEditMode();
       this._removeTooltipOutsideClickHandler();
       this._clearCommentHighlights();
+      if (this._undoKeyHandler) {
+        document.removeEventListener("keydown", this._undoKeyHandler);
+        this._undoKeyHandler = null;
+      }
       if (this.removeNavBtn) { try { this.removeNavBtn(); } catch (_) {} }
       if (this.toolbar && this.toolbar.parentNode) {
         this.toolbar.parentNode.removeChild(this.toolbar);
@@ -4597,7 +4659,35 @@ if (typeof window.Chart === "undefined") {
       self._buildOverlay();
       self._buildToolbar();
       self._buildNavButton();
+      self._wireUndoKeyboard();
       self._renderInitial();
+    },
+
+    // ⌘Z / Ctrl+Z to undo, +Shift to redo. Only handled while
+    // annotation mode is on — keeps the layer from hijacking shortcuts
+    // when the user is just browsing the image. Skips when focus is
+    // inside a text input (the inline editor, a form on the page).
+    _wireUndoKeyboard: function() {
+      var self = this;
+      self._undoKeyHandler = function(e) {
+        if (!self.annotationMode) return;
+        var t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  (t.isContentEditable === true))) return;
+        var meta = e.metaKey || e.ctrlKey;
+        if (!meta) return;
+        if (e.key === "z" || e.key === "Z") {
+          e.preventDefault();
+          if (e.shiftKey) self._redo();
+          else self._undo();
+        } else if (e.key === "y" || e.key === "Y") {
+          // Windows-style redo (Ctrl+Y) for users who don't reach
+          // for Shift.
+          e.preventDefault();
+          self._redo();
+        }
+      };
+      document.addEventListener("keydown", self._undoKeyHandler);
     },
 
     // -------------------------------------------------------------------------
@@ -4716,6 +4806,37 @@ if (typeof window.Chart === "undefined") {
       var divider2 = document.createElement("div");
       divider2.className = "etcher-divider";
       bar.appendChild(divider2);
+
+      // Undo / redo — operates on the local history stack of in-session
+      // mutations. Disabled when there's nothing to undo/redo. Keyboard
+      // shortcuts (Cmd/Ctrl+Z, +Shift) are wired in `_wireKeyboard`.
+      self.undoBtn = document.createElement("button");
+      self.undoBtn.type = "button";
+      self.undoBtn.title = "Undo (⌘Z)";
+      self.undoBtn.setAttribute("aria-label", "Undo");
+      self.undoBtn.innerHTML = ICONS.undo;
+      self.undoBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        self._undo();
+      });
+      bar.appendChild(self.undoBtn);
+
+      self.redoBtn = document.createElement("button");
+      self.redoBtn.type = "button";
+      self.redoBtn.title = "Redo (⌘⇧Z)";
+      self.redoBtn.setAttribute("aria-label", "Redo");
+      self.redoBtn.innerHTML = ICONS.redo;
+      self.redoBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        self._redo();
+      });
+      bar.appendChild(self.redoBtn);
+
+      var dividerUndo = document.createElement("div");
+      dividerUndo.className = "etcher-divider";
+      bar.appendChild(dividerUndo);
+
+      self._refreshUndoButtons();
 
       // Color swatches. Affects: (a) the active draft if drawing,
       // (b) the editing shape if one is being edited, (c) the default
@@ -4908,6 +5029,7 @@ if (typeof window.Chart === "undefined") {
       // server's `style` field reflects the change.
       var shape = this.editingShape;
       if (shape && shape.uuid) {
+        var historyBefore = this._snapshotShape(shape);
         shape.style = Object.assign({}, shape.style || {}, { color: color });
         this._applyShapeColor(shape.el, color);
         // Keep the inline title sibling in sync with the shape color.
@@ -4917,6 +5039,7 @@ if (typeof window.Chart === "undefined") {
           geometry: shape.geometry,
           style: shape.style
         });
+        this._pushUndo(shape.uuid, historyBefore, this._snapshotShape(shape));
       }
 
       // Repaint any active handles so the vertex dots match the new
@@ -5602,6 +5725,8 @@ if (typeof window.Chart === "undefined") {
       this._hideTooltip();
 
       var self = this;
+      // Pre-resize snapshot for the undo stack.
+      var historyBefore = self._snapshotShape(shape);
       // Snapshot the rendered (shrink-wrapped) bbox so the drag math
       // starts from what the user actually sees, not the (possibly
       // larger) stored title_box that hasn't yet had a chance to
@@ -5654,6 +5779,7 @@ if (typeof window.Chart === "undefined") {
             uuid: shape.uuid,
             metadata: shape.metadata
           });
+          self._pushUndo(shape.uuid, historyBefore, self._snapshotShape(shape));
         }
       }
       handleEl.addEventListener("pointermove", onMove);
@@ -5675,6 +5801,8 @@ if (typeof window.Chart === "undefined") {
       tg.classList.add("is-dragging");
 
       var startPt = this._toImage(e);
+      // Pre-drag snapshot for the undo stack.
+      var historyBefore = self._snapshotShape(shape);
       // Snapshot the starting bbox; prefer the rendered shrink-fit
       // box so the drag matches the visible rect.
       var bboxTopImage = this._lastBboxTopImageFor(shape);
@@ -5734,6 +5862,7 @@ if (typeof window.Chart === "undefined") {
               uuid: shape.uuid,
               metadata: shape.metadata
             });
+            self._pushUndo(shape.uuid, historyBefore, self._snapshotShape(shape));
           }
         }
       }
@@ -6183,6 +6312,9 @@ if (typeof window.Chart === "undefined") {
 
     _deleteShape: function(shape) {
       if (!shape) return;
+      // Capture for undo BEFORE we tear the shape down — the snapshot
+      // is what `_recreateFromSnapshot` will use to rebuild the row.
+      if (shape.uuid) this._pushUndoDelete(shape);
       var uuid = shape.uuid;
       if (this.editingShape === shape) this._exitEditMode();
       // Optimistic local removal so the UI feels instant. Server still
@@ -6190,6 +6322,9 @@ if (typeof window.Chart === "undefined") {
       var idx = this.shapes.indexOf(shape);
       if (idx !== -1) {
         if (shape.el && shape.el.parentNode) shape.el.parentNode.removeChild(shape.el);
+        if (shape.titleGroup && shape.titleGroup.parentNode) {
+          shape.titleGroup.parentNode.removeChild(shape.titleGroup);
+        }
         this.shapes.splice(idx, 1);
       }
       this._hideTooltip();
@@ -6754,6 +6889,11 @@ if (typeof window.Chart === "undefined") {
       var ed = this._textEditor;
       if (!ed) return;
       var shape = ed.shape;
+      // Snapshot the *pre-edit* state for undo before we overwrite
+      // metadata.title locally. Captured here (not inside the
+      // metadata-mutation block below) so the snapshot still reflects
+      // the previous title even on no-op commits we early-return on.
+      var historyBefore = this._snapshotShape(shape);
       var newTitle = ed.input.value.trim();
       var prevTitle = (shape.metadata && shape.metadata.title) || "";
 
@@ -6778,6 +6918,7 @@ if (typeof window.Chart === "undefined") {
           uuid: shape.uuid,
           title: newTitle
         });
+        this._pushUndo(shape.uuid, historyBefore, this._snapshotShape(shape));
       } else {
         // Server hasn't ack'd yet — stash the pending title; the
         // annotation-saved handler picks it up and flushes.
@@ -7236,6 +7377,10 @@ if (typeof window.Chart === "undefined") {
       this._hideTooltip();
 
       var self = this;
+      // Full snapshot of the shape's pre-drag state for the undo stack
+      // — captured before any mutation so the inverse op can restore
+      // exactly what was on screen.
+      var historyBefore = self._snapshotShape(shape);
       // Snapshot the starting geometry so corner drags derive from the
       // *original* opposite corner, not the live one that's moving.
       // Text shapes + callouts snap their handles to the shrunk-to-
@@ -7292,6 +7437,7 @@ if (typeof window.Chart === "undefined") {
             uuid: shape.uuid,
             geometry: shape.geometry
           });
+          self._pushUndo(shape.uuid, historyBefore, self._snapshotShape(shape));
         }
         self._showTooltipFor(shape);
       }
@@ -7309,6 +7455,8 @@ if (typeof window.Chart === "undefined") {
       var el = shape.el;
       var startPt = self._toImage(e);
       var startGeom = JSON.parse(JSON.stringify(shape.geometry));
+      // Full pre-move snapshot for the undo stack.
+      var historyBefore = self._snapshotShape(shape);
       // If the shape carries a title bbox, snapshot it too so we can
       // translate the title alongside the shape on body-grab.
       var startTitleBox =
@@ -7381,6 +7529,7 @@ if (typeof window.Chart === "undefined") {
             var payload = { uuid: shape.uuid, geometry: shape.geometry };
             if (startTitleBox) payload.metadata = shape.metadata;
             self.pushEventTo(self.el, "etcher:updated", payload);
+            self._pushUndo(shape.uuid, historyBefore, self._snapshotShape(shape));
           }
           // Cursor is still over the shape (we just released it there),
           // so the user expects the tooltip to come back.
@@ -7499,6 +7648,176 @@ if (typeof window.Chart === "undefined") {
       // Removed shape's element can no longer fire mouseleave, so close
       // any tooltip that was anchored to it.
       this._hideTooltip();
+    },
+
+    // -------------------------------------------------------------------------
+    // Undo / Redo — client-side history stack for in-session mutations
+    // (geometry, style, metadata incl. title text + bbox). Creates and
+    // deletes are intentionally NOT tracked: rolling them back would
+    // require either preserving the server-assigned uuid through a
+    // delete+recreate dance or a true server-side restore, both out of
+    // scope for v1. The user can still cmd-z their corner drags, color
+    // picks, title edits, and label repositions — the 90% case.
+    //
+    // Stack cap is intentionally short (50) so memory stays bounded
+    // even on long editing sessions; older ops drop off the bottom.
+    // -------------------------------------------------------------------------
+
+    _undoStackLimit: 50,
+
+    _snapshotShape: function(shape) {
+      function clone(v) {
+        if (v == null) return v;
+        try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+      }
+      return {
+        geometry: clone(shape.geometry),
+        style: clone(shape.style),
+        metadata: clone(shape.metadata)
+      };
+    },
+
+    // Push a state-snapshot pair onto the undo stack. Called by each
+    // mutation site after the change is applied. Clearing the redo
+    // stack on every push is standard "linear history" semantics —
+    // doing anything new after an undo invalidates the redo chain.
+    _pushUndo: function(uuid, before, after) {
+      if (!uuid || !before || !after) return;
+      this._undoStack = this._undoStack || [];
+      this._redoStack = this._redoStack || [];
+      this._undoStack.push({ type: "update", uuid: uuid, before: before, after: after });
+      if (this._undoStack.length > this._undoStackLimit) this._undoStack.shift();
+      this._redoStack = [];
+      this._refreshUndoButtons();
+    },
+
+    // A deletion isn't a before/after diff — we need the full shape
+    // data to rebuild the row on undo. Server assigns a fresh uuid
+    // when the row is recreated, so no redo support: once you undo a
+    // delete, the op leaves the history (re-deleting is a manual
+    // gesture).
+    _pushUndoDelete: function(shape) {
+      this._undoStack = this._undoStack || [];
+      this._redoStack = this._redoStack || [];
+      function clone(v) {
+        if (v == null) return v;
+        try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+      }
+      this._undoStack.push({
+        type: "delete",
+        snapshot: {
+          kind: shape.kind,
+          geometry: clone(shape.geometry),
+          style: clone(shape.style),
+          metadata: clone(shape.metadata)
+        }
+      });
+      if (this._undoStack.length > this._undoStackLimit) this._undoStack.shift();
+      this._redoStack = [];
+      this._refreshUndoButtons();
+    },
+
+    _undo: function() {
+      this._undoStack = this._undoStack || [];
+      this._redoStack = this._redoStack || [];
+      var op = this._undoStack.pop();
+      if (!op) return;
+      if (op.type === "delete") {
+        // Recreate the row. Redo doesn't apply — see `_pushUndoDelete`
+        // comment.
+        this._recreateFromSnapshot(op.snapshot);
+      } else {
+        this._redoStack.push(op);
+        this._applyHistorySnapshot(op.uuid, op.before);
+      }
+      this._refreshUndoButtons();
+    },
+
+    _redo: function() {
+      this._undoStack = this._undoStack || [];
+      this._redoStack = this._redoStack || [];
+      var op = this._redoStack.pop();
+      if (!op) return;
+      this._undoStack.push(op);
+      this._applyHistorySnapshot(op.uuid, op.after);
+      this._refreshUndoButtons();
+    },
+
+    // Rebuild a freshly-deleted shape from its pre-deletion snapshot
+    // and ask the server to create a new row. Mirrors `_finalizeShape`
+    // but works from arbitrary data instead of an in-flight draft.
+    // The `restore: true` flag tells consumers (e.g. MediaBrowser) to
+    // skip the post-create composer popup so an undo doesn't ambush
+    // the user with a comment composer.
+    _recreateFromSnapshot: function(snap) {
+      if (!snap || !snap.kind || !snap.geometry) return;
+      // Use the same builder the initial-render path uses so the SVG
+      // structure and interaction wiring match a normal load.
+      var ann = {
+        kind: snap.kind,
+        geometry: snap.geometry,
+        style: snap.style,
+        metadata: snap.metadata
+      };
+      this._renderAnnotation(ann);
+      var shape = this.shapes[this.shapes.length - 1];
+      if (!shape) return;
+
+      var tmpId = genTmpId();
+      shape.tmpId = tmpId;
+      if (shape.el) shape.el.setAttribute("data-tmp-id", tmpId);
+
+      var anchor = this._shapeAnchorBottomLeft(shape);
+      var payload = {
+        target_type: this.targetType,
+        target_uuid: this.targetUuid,
+        kind: snap.kind,
+        geometry: snap.geometry,
+        tmp_id: tmpId,
+        anchor_x: anchor.x,
+        anchor_y: anchor.y,
+        restore: true
+      };
+      if (snap.style) payload.style = snap.style;
+      if (snap.metadata) payload.metadata = snap.metadata;
+      if (snap.metadata && typeof snap.metadata.title === "string") {
+        payload.title = snap.metadata.title;
+      }
+      this.pushEventTo(this.el, "etcher:created", payload);
+    },
+
+    // Apply a snapshot to a shape: restore local state and push the
+    // matching `etcher:updated` so the server's row reflects the
+    // reverted/redone value. Tolerates a missing local shape — happens
+    // if the row was deleted by another session.
+    _applyHistorySnapshot: function(uuid, snap) {
+      var shape = this.shapes.find(function(s) { return s.uuid === uuid; });
+      if (!shape) return;
+      if (snap.geometry != null) shape.geometry = JSON.parse(JSON.stringify(snap.geometry));
+      shape.style = snap.style == null ? null : JSON.parse(JSON.stringify(snap.style));
+      shape.metadata = snap.metadata == null ? null : JSON.parse(JSON.stringify(snap.metadata));
+      this._renderShape(shape);
+      if (shape.style && shape.style.color) this._applyShapeColor(shape.el, shape.style.color);
+      if (this.editingShape === shape) this._positionAllHandles(shape);
+      if (this.editingTitleShape === shape) this._positionAllTitleHandles(shape);
+
+      var payload = {
+        uuid: uuid,
+        geometry: shape.geometry,
+        style: shape.style,
+        metadata: shape.metadata
+      };
+      if (shape.metadata && typeof shape.metadata.title === "string") {
+        payload.title = shape.metadata.title;
+      }
+      this.pushEventTo(this.el, "etcher:updated", payload);
+    },
+
+    _refreshUndoButtons: function() {
+      var u = (this._undoStack || []).length;
+      var r = (this._redoStack || []).length;
+      if (this.undoBtn) this.undoBtn.disabled = u === 0;
+      if (this.redoBtn) this.redoBtn.disabled = r === 0;
     }
   };
 })();

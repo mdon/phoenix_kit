@@ -1065,15 +1065,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             _ -> nil
           end
 
-        # Text shapes don't trigger the composer — their content is
-        # entered inline via etcher.js's foreignObject editor and
-        # arrives via etcher:updated `title`. Every other kind still
-        # spawns the comment composer.
-        composer_uuid =
-          if annotation.kind == "text", do: nil, else: annotation.uuid
+        # Two cases that skip the composer popup:
+        #   1. Text shapes — content arrives inline via etcher.js's
+        #      foreignObject editor, never through the composer.
+        #   2. Restores (undo-of-delete) — etcher.js sent
+        #      `restore: true` so the recreated row already has its
+        #      title/metadata; the user wasn't trying to create a new
+        #      annotation and shouldn't be ambushed by a composer.
+        suppress_composer =
+          annotation.kind == "text" or Map.get(attrs, "restore") == true
 
-        composer_anchor =
-          if annotation.kind == "text", do: nil, else: anchor
+        composer_uuid = if suppress_composer, do: nil, else: annotation.uuid
+        composer_anchor = if suppress_composer, do: nil, else: anchor
 
         socket =
           socket
