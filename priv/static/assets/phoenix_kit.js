@@ -3875,6 +3875,32 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -3943,10 +3969,15 @@ if (typeof window.Chart === "undefined") {
     // diagonal line, and a sample "T" at the text endpoint. Mimics
     // the blueprint-callout shape so the toolbar icon advertises what
     // the tool draws.
-    callout:  '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none"/><line x1="5.7" y1="18.3" x2="14" y2="10" stroke-linecap="round"/><text x="14" y="10" font-size="6.5" font-weight="600" fill="currentColor" stroke="none">Aa</text></svg>',
-    // Text tool — a stylized "T" glyph above an underline-bar so the
-    // toolbar button reads as "drop a text label" regardless of locale.
-    text:     '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5h14M12 5v14M9 19h6"/></svg>',
+    // Callout — anchor dot at the bottom-left, leader line up to the
+    // bottom-left of an underlined "Aa" label. Mirrors the shape the
+    // tool now draws (leader + underline + text bbox) so the toolbar
+    // button matches the on-canvas output.
+    callout:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="3.5" cy="20" r="1.5" fill="currentColor" stroke="none"/><path d="M4 19.5 L8.5 14 L21 14"/><text x="9" y="13" font-size="9.5" font-weight="700" fill="currentColor" stroke="none">Aa</text></svg>',
+    // Text tool — bold, serif-less "T" so the button reads cleanly at
+    // toolbar sizes (the previous version had pinched serifs that
+    // muddied the silhouette).
+    text:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6 L19 6 M12 6 L12 18"/></svg>',
     close:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>'
   };
 
