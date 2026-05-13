@@ -4395,6 +4395,32 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4422,16 +4448,30 @@ if (typeof window.Chart === "undefined") {
   //
   //   window.Etcher.layerFor(frescoId) → { ... } | null
   //     Programmatic control surface for a mounted layer. Returns null
-  //     for unknown ids. Methods: exitDrawing(), setMode(bool),
-  //     selectShape(uuid), getShapes(). See README "Programmatic control".
+  //     for unknown ids. Every built-in button / nav button delegates
+  //     to a method on this object so consumers can drive the layer
+  //     headlessly (e.g. render their own toolbar):
+  //
+  //       mode:        getMode(), setMode(on), toggleMode()
+  //       visibility:  isVisible(), setVisible(on), toggleVisible()
+  //       tool:        getTool(), selectTool(toolKey), tools(),
+  //                    exitDrawing()  // alias for selectTool(null)
+  //       color:       getColor(), setColor(c), swatches()
+  //       history:     undo(), redo(), canUndo(), canRedo()
+  //       shapes:      getShapes(), getShape(uuid),
+  //                    selectShape(uuid), unselectShape(),
+  //                    enterEditMode(uuid), exitEditMode(),
+  //                    deleteShape(uuid)
   //
   // Lifecycle CustomEvents are dispatched on the layer's host element
   // (the `<div phx-hook="EtcherLayer">`), bubbling up so consumers can
   // listen at any ancestor:
   //   etcher:tooltip-show / -hide / -pin / -unpin
-  //   etcher:mode-changed   { detail: { annotationMode } }
-  //   etcher:tool-changed   { detail: { tool } }
-  //   etcher:color-changed  { detail: { color } }
+  //   etcher:mode-changed       { detail: { annotationMode } }
+  //   etcher:tool-changed       { detail: { tool } }
+  //   etcher:color-changed      { detail: { color } }
+  //   etcher:visibility-changed { detail: { visible } }
+  //   etcher:history-changed    { detail: { canUndo, canRedo } }
   // ===========================================================================
 
   window.Etcher = window.Etcher || {};
@@ -5084,14 +5124,49 @@ if (typeof window.Chart === "undefined") {
 
       // Register this layer in the public `window.Etcher.layerFor`
       // registry so external code can drive it programmatically.
+      // Every toolbar / nav button delegates to the same primitives
+      // these methods call, so a consumer can run the whole layer
+      // without rendering the built-in UI if they want.
       layerRegistry[self.frescoId] = {
         api: {
-          exitDrawing: function() { self._selectTool(null); },
+          // Mode + visibility ----------------------------------------
+          getMode: function() { return self.annotationMode; },
           setMode: function(on) { self._setAnnotationMode(!!on); },
-          selectShape: function(uuid) {
-            var shape = self.shapes.find(function(s) { return s.uuid === uuid; });
-            if (shape) self._pinTooltipFor(shape);
+          toggleMode: function() { self._setAnnotationMode(!self.annotationMode); },
+          isVisible: function() { return self.annotationsVisible !== false; },
+          setVisible: function(on) {
+            var want = !!on;
+            if ((self.annotationsVisible !== false) !== want) {
+              self._toggleAnnotationsVisible();
+            }
           },
+          toggleVisible: function() { self._toggleAnnotationsVisible(); },
+
+          // Tool select -----------------------------------------------
+          // `null` selects the cursor (no drawing tool active).
+          getTool: function() { return self.activeTool; },
+          selectTool: function(toolKey) {
+            self._selectTool(toolKey == null ? null : toolKey);
+          },
+          tools: function() { return (self.tools || []).slice(); },
+          exitDrawing: function() { self._selectTool(null); },
+
+          // Color -----------------------------------------------------
+          getColor: function() { return self.activeColor; },
+          setColor: function(color) { self._selectColor(color); },
+          swatches: function() {
+            return resolveColorSwatches().map(function(s) {
+              return { color: s.color, title: s.title };
+            });
+          },
+
+          // History ---------------------------------------------------
+          undo: function() { self._undo(); },
+          redo: function() { self._redo(); },
+          canUndo: function() { return (self._undoStack || []).length > 0; },
+          canRedo: function() { return (self._redoStack || []).length > 0; },
+
+          // Shape selection + edit ------------------------------------
           getShapes: function() {
             return self.shapes.map(function(s) {
               return {
@@ -5102,6 +5177,31 @@ if (typeof window.Chart === "undefined") {
                 metadata: s.metadata || null
               };
             });
+          },
+          getShape: function(uuid) {
+            var s = self.shapes.find(function(x) { return x.uuid === uuid; });
+            if (!s) return null;
+            return {
+              uuid: s.uuid,
+              kind: s.kind,
+              geometry: s.geometry,
+              style: s.style || null,
+              metadata: s.metadata || null
+            };
+          },
+          selectShape: function(uuid) {
+            var shape = self.shapes.find(function(s) { return s.uuid === uuid; });
+            if (shape) self._pinTooltipFor(shape);
+          },
+          unselectShape: function() { self._unpinTooltip(); },
+          enterEditMode: function(uuid) {
+            var shape = self.shapes.find(function(s) { return s.uuid === uuid; });
+            if (shape) self._enterEditMode(shape);
+          },
+          exitEditMode: function() { self._exitEditMode(); },
+          deleteShape: function(uuid) {
+            var shape = self.shapes.find(function(s) { return s.uuid === uuid; });
+            if (shape) self._deleteShape(shape);
           }
         }
       };
@@ -8920,6 +9020,10 @@ if (typeof window.Chart === "undefined") {
       var r = (this._redoStack || []).length;
       if (this.undoBtn) this.undoBtn.disabled = u === 0;
       if (this.redoBtn) this.redoBtn.disabled = r === 0;
+      // Fire a state-change event so consumers driving their own UI
+      // off the public API can keep external undo/redo buttons in
+      // sync without polling.
+      this._dispatch("etcher:history-changed", { canUndo: u > 0, canRedo: r > 0 });
     }
   };
 })();
