@@ -233,7 +233,11 @@ defmodule PhoenixKit.MixProject do
       # Code quality
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
-      precommit: ["compile --force --warnings-as-errors", "quality"]
+      precommit: [
+        "compile --warnings-as-errors --all-warnings",
+        "deps.unlock --check-unused",
+        "quality.ci"
+      ]
     ]
   end
 end
