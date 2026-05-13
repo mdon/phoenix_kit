@@ -1357,6 +1357,43 @@ if (typeof window.Chart === "undefined") {
   // from touching the container edge.
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // ViewerKeydown — global keydown shortcut handler for the media viewer
+  // modal, with two filters that the stock `phx-window-keydown` can't
+  // express:
+  //
+  //   1. Only Escape / ArrowLeft / ArrowRight reach the server. Letter
+  //      keys typed into the annotation composer no longer fire the
+  //      modal's nav handler and spam the LV logs.
+  //   2. Even the navigation keys are suppressed when focus is inside an
+  //      <input> / <textarea> / contenteditable so the arrow keys can
+  //      move the text caret without flipping the modal to the next
+  //      image while the user is typing.
+  //
+  // Pushes to the hook element's component so the existing
+  // `handle_event "viewer_keydown"` clauses keep working unchanged.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewerKeydown = {
+    mounted() {
+      const self = this;
+      self._handler = function(e) {
+        if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  t.isContentEditable === true)) return;
+        self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
+      };
+      document.addEventListener("keydown", self._handler);
+    },
+    destroyed() {
+      if (this._handler) {
+        document.removeEventListener("keydown", this._handler);
+        this._handler = null;
+      }
+    }
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();

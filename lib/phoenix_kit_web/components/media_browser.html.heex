@@ -1283,8 +1283,9 @@
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
     <% has_next = is_integer(viewer_idx) and viewer_idx < length(@uploaded_files) - 1 %>
     <div
+      id={"#{@id}-viewer-modal"}
       class="modal modal-open"
-      phx-window-keydown="viewer_keydown"
+      phx-hook="ViewerKeydown"
       phx-target={@myself}
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
