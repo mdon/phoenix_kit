@@ -3641,6 +3641,84 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -3817,6 +3895,17 @@ if (typeof window.Chart === "undefined") {
       // <input> handles its own focus/blur, but a fallback z-index keeps
       // it clear of any overlapping shape.
       ".etcher-text-editor { z-index: 10; }",
+      // Title group: a satellite text bbox attached to a parent shape.
+      // Cursor changes to "grab" so users know they can drag it; the
+      // leader line stays subtle so the parent shape remains the
+      // primary visual.
+      ".etcher-title-group { cursor: grab; }",
+      ".etcher-title-group.is-dragging { cursor: grabbing; }",
+      ".etcher-title-leader {",
+      "  stroke-dasharray: 3 3;",
+      "  opacity: 0.6;",
+      "  pointer-events: none;",
+      "}",
       // Inline title text for non-callout shapes. Rendered as a sibling
       // `<text>` of the shape (not a child) so it doesn't inherit the
       // shape's fill/stroke. Uses currentColor so `_applyShapeColor` can
@@ -4605,7 +4694,7 @@ if (typeof window.Chart === "undefined") {
         shape.style = Object.assign({}, shape.style || {}, { color: color });
         this._applyShapeColor(shape.el, color);
         // Keep the inline title sibling in sync with the shape color.
-        if (shape.titleEl) shape.titleEl.style.color = color || "";
+        if (shape.titleGroup) shape.titleGroup.style.color = color || "";
         this.pushEventTo(this.el, "etcher:updated", {
           uuid: shape.uuid,
           geometry: shape.geometry,
@@ -4856,14 +4945,19 @@ if (typeof window.Chart === "undefined") {
       // is the proper way to drop free-floating labels on the image —
       // the inline title here is just a small context affordance.
       if (shape.kind !== "callout" && shape.kind !== "text") {
+        // Cache so title-drag handlers can resolve the default
+        // anchor without recomputing the parent's bbox.
+        shape.bboxTopImage = bboxTopImage;
         self._renderTitleSibling(shape, bboxTopImage);
       }
     },
 
-    // Ensure a `<text class="etcher-title">` sibling exists for shapes
-    // that carry a non-blank `metadata.title`. Positioned a small fixed
-    // image-px nudge above the shape's bbox top-center; pan/zoom comes
-    // for free because the anchor is in image space.
+    // Render a movable "title group" for shapes that carry a non-blank
+    // `metadata.title`. The group is a callout-style satellite:
+    // bbox + scaled+wrapped text + a thin leader line back to the
+    // parent shape's nearest perimeter point. Drag the title to move
+    // it (persisted as `metadata.title_box`); double-click to open
+    // the inline editor; the leader auto-updates.
     _renderTitleSibling: function(shape, bboxTopImage) {
       var title =
         (shape && shape.metadata && shape.metadata.title) ||
@@ -4871,40 +4965,414 @@ if (typeof window.Chart === "undefined") {
       var trimmed = title && String(title).trim();
 
       if (!trimmed || !bboxTopImage) {
-        if (shape.titleEl && shape.titleEl.parentNode) {
-          shape.titleEl.parentNode.removeChild(shape.titleEl);
+        if (shape.titleGroup && shape.titleGroup.parentNode) {
+          shape.titleGroup.parentNode.removeChild(shape.titleGroup);
         }
-        shape.titleEl = null;
+        shape.titleGroup = null;
         return;
       }
 
-      if (!shape.titleEl) {
-        shape.titleEl = svgEl("text", {
-          "text-anchor": "middle",
-          "dominant-baseline": "auto"
+      if (!shape.titleGroup) {
+        var tg = svgEl("g");
+        tg.classList.add("etcher-shape", "etcher-text", "etcher-title-group");
+        // Leader first so it draws under the bbox + text overlay.
+        var tLine = svgEl("line", {
+          "stroke-width": "1.5",
+          stroke: "currentColor",
+          fill: "none"
         });
-        shape.titleEl.classList.add("etcher-title");
-        if (shape.uuid) shape.titleEl.setAttribute("data-title-for", shape.uuid);
-        // Inherit any color the shape was painted with so the title
-        // matches. _applyShapeColor handles ongoing changes.
-        if (shape.style && shape.style.color) {
-          shape.titleEl.style.color = shape.style.color;
+        tLine.classList.add("etcher-title-leader");
+        var tRect = svgEl("rect", {
+          fill: "transparent",
+          stroke: "currentColor",
+          "stroke-width": "2"
+        });
+        tRect.classList.add("etcher-text-rect");
+        var tText = svgEl("text", {
+          "text-anchor": "start",
+          "dominant-baseline": "hanging",
+          fill: "currentColor",
+          stroke: "none"
+        });
+        tText.classList.add("etcher-text-content");
+        tg.appendChild(tLine);
+        tg.appendChild(tRect);
+        tg.appendChild(tText);
+        if (shape.uuid) tg.setAttribute("data-title-for", shape.uuid);
+        if (shape.style && shape.style.color) tg.style.color = shape.style.color;
+        this.svg.appendChild(tg);
+        shape.titleGroup = tg;
+        this._attachTitleInteractions(shape);
+      }
+
+      var titleBox = this._shapeTitleBoxImage(shape, bboxTopImage);
+      var tl = this._imageToContainer({ x: titleBox.x,                 y: titleBox.y                 });
+      var br = this._imageToContainer({ x: titleBox.x + titleBox.w,    y: titleBox.y + titleBox.h    });
+      var tx = Math.min(tl.x, br.x);
+      var ty = Math.min(tl.y, br.y);
+      var tw = Math.abs(br.x - tl.x);
+      var th = Math.abs(br.y - tl.y);
+
+      var rectEl = shape.titleGroup.querySelector(".etcher-text-rect");
+      var textEl = shape.titleGroup.querySelector(".etcher-text-content");
+      var lineEl = shape.titleGroup.querySelector(".etcher-title-leader");
+
+      if (rectEl) {
+        rectEl.setAttribute("x", tx);
+        rectEl.setAttribute("y", ty);
+        rectEl.setAttribute("width",  tw);
+        rectEl.setAttribute("height", th);
+      }
+      if (textEl) {
+        var pad = 4;
+        var fontSize = Math.max(10, th * 0.65);
+        textEl.setAttribute("x", tx + pad);
+        textEl.setAttribute("y", ty + pad);
+        textEl.setAttribute("font-size", fontSize);
+        textEl.setAttribute(
+          "font-family",
+          "ui-sans-serif, system-ui, -apple-system, sans-serif"
+        );
+        textEl.setAttribute("font-weight", "500");
+        this._fillTextWithWrappedTspans(textEl, trimmed, tw - pad * 2, fontSize);
+      }
+      if (lineEl) {
+        // Leader goes from the title-bbox bottom-center to the
+        // closest point on the parent shape's perimeter — gives a
+        // clear visual link without needing extra user input.
+        var titleAnchor = { x: tx + tw / 2, y: ty + th };
+        var parentAnchor = this._shapeNearestPoint(shape, titleAnchor);
+        lineEl.setAttribute("x1", titleAnchor.x);
+        lineEl.setAttribute("y1", titleAnchor.y);
+        lineEl.setAttribute("x2", parentAnchor.x);
+        lineEl.setAttribute("y2", parentAnchor.y);
+      }
+    },
+
+    // Resolve the title's image-px bbox. Persisted user position lives
+    // in `metadata.title_box`; otherwise default above the parent
+    // bbox's top-center with a comfortable single-line size.
+    _shapeTitleBoxImage: function(shape, bboxTopImage) {
+      if (shape && shape.metadata && shape.metadata.title_box) {
+        return shape.metadata.title_box;
+      }
+      if (!bboxTopImage) return null;
+      var basePx = this._textDefaultBoxImagePx();
+      var w = basePx * 6;
+      var h = basePx * 1.4;
+      return {
+        x: bboxTopImage.x - w / 2,
+        y: bboxTopImage.y - h - basePx,
+        w: w,
+        h: h
+      };
+    },
+
+    // Return the closest point on a parent shape's perimeter (in
+    // container px) to a given container-px point. Used to terminate
+    // the title's leader line. Cheap approximations per kind — good
+    // enough to read as "the line points at the shape".
+    _shapeNearestPoint: function(shape, pt) {
+      var self = this;
+      var g = shape.geometry;
+      switch (shape.kind) {
+        case "rectangle": {
+          var tl = self._imageToContainer({ x: g.x,         y: g.y });
+          var br = self._imageToContainer({ x: g.x + g.w,   y: g.y + g.h });
+          var rx1 = Math.min(tl.x, br.x), ry1 = Math.min(tl.y, br.y);
+          var rx2 = Math.max(tl.x, br.x), ry2 = Math.max(tl.y, br.y);
+          var cx = Math.max(rx1, Math.min(pt.x, rx2));
+          var cy = Math.max(ry1, Math.min(pt.y, ry2));
+          // Snap onto the nearest edge so the leader doesn't end
+          // inside the bbox when the title overlaps the parent.
+          var dLeft = Math.abs(cx - rx1), dRight = Math.abs(cx - rx2);
+          var dTop = Math.abs(cy - ry1), dBot = Math.abs(cy - ry2);
+          var minD = Math.min(dLeft, dRight, dTop, dBot);
+          if (minD === dLeft)  cx = rx1;
+          else if (minD === dRight) cx = rx2;
+          else if (minD === dTop)   cy = ry1;
+          else                       cy = ry2;
+          return { x: cx, y: cy };
         }
-        this.svg.appendChild(shape.titleEl);
+        case "circle": {
+          var c  = self._imageToContainer({ x: g.cx, y: g.cy });
+          var rp = self._imageToContainer({ x: g.cx + g.r, y: g.cy });
+          var r  = Math.abs(rp.x - c.x);
+          var dx = pt.x - c.x, dy = pt.y - c.y;
+          var d  = Math.sqrt(dx * dx + dy * dy) || 1;
+          return { x: c.x + (dx / d) * r, y: c.y + (dy / d) * r };
+        }
+        case "polygon":
+        case "freehand": {
+          var pts = (g.points || []).map(function(p) {
+            return self._imageToContainer({ x: p[0], y: p[1] });
+          });
+          var best = null;
+          var bestDist = Infinity;
+          for (var i = 0; i < pts.length; i++) {
+            var d2 = (pts[i].x - pt.x) * (pts[i].x - pt.x) +
+                     (pts[i].y - pt.y) * (pts[i].y - pt.y);
+            if (d2 < bestDist) { bestDist = d2; best = pts[i]; }
+          }
+          return best || pt;
+        }
+        default:
+          return pt;
       }
+    },
 
-      // Small image-px nudge upward — keeps the title clear of the
-      // shape's stroke without depending on the current zoom level.
-      var anchorImage = { x: bboxTopImage.x, y: bboxTopImage.y };
-      var c = this._imageToContainer(anchorImage);
-      shape.titleEl.setAttribute("x", c.x);
-      shape.titleEl.setAttribute("y", c.y - 6);
+    // Hover + double-click + drag handlers for a shape's title group.
+    // Once wired, the title behaves like a satellite text shape that
+    // moves independently of the parent but follows it on translate.
+    _attachTitleInteractions: function(shape) {
+      var self = this;
+      var tg = shape.titleGroup;
+      if (!tg || tg._etcherWired) return;
+      tg._etcherWired = true;
 
-      var content = trimmed;
-      if (content.length > 40) content = content.slice(0, 39) + "…";
-      if (shape.titleEl.textContent !== content) {
-        shape.titleEl.textContent = content;
+      tg.addEventListener("mouseenter", function() {
+        if (self.annotationMode && self.activeTool != null) return;
+        tg.classList.add("is-hovered");
+      });
+      tg.addEventListener("mouseleave", function() {
+        tg.classList.remove("is-hovered");
+      });
+      tg.addEventListener("dblclick", function(e) {
+        if (self.annotationMode && self.activeTool != null) return;
+        if (!self.annotationMode) return;
+        e.stopPropagation();
+        e.preventDefault();
+        self._startTextEdit(shape);
+      });
+      tg.addEventListener("click", function(e) {
+        // Click the title in annotation mode + cursor tool → enter
+        // title-edit-mode, which shows 4 corner handles for resizing
+        // the title bbox. Drag the title body (separate pointerdown
+        // listener below) still moves the whole bbox.
+        if (self.annotationMode && self.activeTool != null) return;
+        if (!self.annotationMode) return;
+        e.stopPropagation();
+        e.preventDefault();
+        self._enterTitleEditMode(shape);
+      });
+      tg.addEventListener("pointerdown", function(e) {
+        if (e.button !== 0) return;
+        if (self.annotationMode && self.activeTool != null) return;
+        if (!self.annotationMode) return;
+        self._startTitleDrag(shape, e);
+      });
+    },
+
+    // -------------------------------------------------------------------------
+    // Title edit mode — parallel to `editingShape` but operates on the
+    // title bbox (`metadata.title_box`). Shows 4 corner handles that
+    // resize the bbox; the font scales automatically with the new
+    // height since `_renderTitleSibling` derives font-size from the
+    // bbox dimensions.
+    // -------------------------------------------------------------------------
+
+    _enterTitleEditMode: function(shape) {
+      if (!shape || !shape.titleGroup) return;
+      if (this.editingTitleShape === shape) return;
+      this._exitEditMode();
+      this._exitTitleEditMode();
+
+      this.editingTitleShape = shape;
+      shape.titleGroup.classList.add("is-editing");
+      this._hideTooltip();
+      this._renderTitleHandles(shape);
+
+      var self = this;
+      this._titleOutsideClickHandler = function(e) {
+        var inside = e.target.closest(
+          ".etcher-shape, .etcher-handle, .etcher-title-group, .etcher-text-editor, .etcher-tooltip, .etcher-toolbar"
+        );
+        if (!inside) self._exitTitleEditMode();
+      };
+      document.addEventListener("click", this._titleOutsideClickHandler, true);
+    },
+
+    _exitTitleEditMode: function() {
+      if (!this.editingTitleShape) return;
+      if (this.editingTitleShape.titleGroup) {
+        this.editingTitleShape.titleGroup.classList.remove("is-editing");
       }
+      this._removeTitleHandles();
+      this.editingTitleShape = null;
+      if (this._titleOutsideClickHandler) {
+        document.removeEventListener("click", this._titleOutsideClickHandler, true);
+        this._titleOutsideClickHandler = null;
+      }
+    },
+
+    _renderTitleHandles: function(shape) {
+      this._removeTitleHandles();
+      var box = this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
+      if (!box) return;
+      var self = this;
+      var positions = [
+        { x: box.x,           y: box.y           },  // 0: TL
+        { x: box.x + box.w,   y: box.y           },  // 1: TR
+        { x: box.x + box.w,   y: box.y + box.h   },  // 2: BR
+        { x: box.x,           y: box.y + box.h   }   // 3: BL
+      ];
+      this.titleHandles = positions.map(function(pt, idx) {
+        var h = svgEl("circle", { r: 5 });
+        h.classList.add("etcher-handle", "etcher-title-handle");
+        h.dataset.index = idx;
+        self.svg.appendChild(h);
+        self._positionHandle(h, pt);
+        h.addEventListener("pointerdown", function(e) {
+          self._startTitleHandleDrag(shape, idx, h, e);
+        });
+        return h;
+      });
+    },
+
+    _removeTitleHandles: function() {
+      (this.titleHandles || []).forEach(function(h) {
+        if (h.parentNode) h.parentNode.removeChild(h);
+      });
+      this.titleHandles = [];
+    },
+
+    _positionAllTitleHandles: function(shape) {
+      if (!this.titleHandles || !this.titleHandles.length) return;
+      var box = this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
+      if (!box) return;
+      var positions = [
+        { x: box.x,           y: box.y           },
+        { x: box.x + box.w,   y: box.y           },
+        { x: box.x + box.w,   y: box.y + box.h   },
+        { x: box.x,           y: box.y + box.h   }
+      ];
+      var self = this;
+      this.titleHandles.forEach(function(h, idx) {
+        if (positions[idx]) self._positionHandle(h, positions[idx]);
+      });
+    },
+
+    _startTitleHandleDrag: function(shape, idx, handleEl, e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
+      handleEl.classList.add("is-dragging");
+      this._hideTooltip();
+
+      var self = this;
+      var startBox = JSON.parse(JSON.stringify(
+        this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape))
+      ));
+
+      function onMove(ev) {
+        var pt = self._toImage(ev);
+        var right = startBox.x + startBox.w;
+        var bottom = startBox.y + startBox.h;
+        var nx, ny, nw, nh;
+        switch (idx) {
+          case 0: nx = pt.x;        ny = pt.y;        nw = right - pt.x;        nh = bottom - pt.y;        break;
+          case 1: nx = startBox.x;  ny = pt.y;        nw = pt.x - startBox.x;   nh = bottom - pt.y;        break;
+          case 2: nx = startBox.x;  ny = startBox.y;  nw = pt.x - startBox.x;   nh = pt.y - startBox.y;    break;
+          case 3: nx = pt.x;        ny = startBox.y;  nw = right - pt.x;        nh = pt.y - startBox.y;    break;
+          default: return;
+        }
+        if (nw < 0) { nx += nw; nw = -nw; }
+        if (nh < 0) { ny += nh; nh = -nh; }
+        shape.metadata = Object.assign({}, shape.metadata || {}, {
+          title_box: { x: nx, y: ny, w: nw, h: nh }
+        });
+        self._renderShape(shape);
+        self._positionAllTitleHandles(shape);
+      }
+      function onUp(ev) {
+        handleEl.classList.remove("is-dragging");
+        handleEl.removeEventListener("pointermove", onMove);
+        handleEl.removeEventListener("pointerup", onUp);
+        handleEl.removeEventListener("pointercancel", onUp);
+        try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+        if (shape.uuid) {
+          self.pushEventTo(self.el, "etcher:updated", {
+            uuid: shape.uuid,
+            metadata: shape.metadata
+          });
+        }
+      }
+      handleEl.addEventListener("pointermove", onMove);
+      handleEl.addEventListener("pointerup", onUp);
+      handleEl.addEventListener("pointercancel", onUp);
+    },
+
+    // Drag the title group to a new position. Translates the
+    // image-px `metadata.title_box` by the pointer delta and persists
+    // on release via `etcher:updated { metadata }`.
+    _startTitleDrag: function(shape, e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var self = this;
+      var tg = shape.titleGroup;
+      if (!tg) return;
+
+      try { tg.setPointerCapture(e.pointerId); } catch (_) {}
+      tg.classList.add("is-dragging");
+
+      var startPt = this._toImage(e);
+      // Snapshot the starting bbox; if the user hadn't moved the
+      // title yet, default-derive it and lock that as the start.
+      var bboxTopImage = this._lastBboxTopImageFor(shape);
+      var startBox = this._shapeTitleBoxImage(shape, bboxTopImage);
+      if (!startBox) return;
+      var dragged = false;
+
+      function onMove(ev) {
+        var pt = self._toImage(ev);
+        var dxI = pt.x - startPt.x;
+        var dyI = pt.y - startPt.y;
+        if (!dragged) {
+          // Pixel-space dead-zone so a stationary click doesn't
+          // commit a no-op title_box update.
+          var aC = self._imageToContainer(startPt);
+          var bC = self._imageToContainer(pt);
+          if ((bC.x - aC.x) * (bC.x - aC.x) + (bC.y - aC.y) * (bC.y - aC.y) < 9) return;
+          dragged = true;
+        }
+        var newBox = {
+          x: startBox.x + dxI,
+          y: startBox.y + dyI,
+          w: startBox.w,
+          h: startBox.h
+        };
+        shape.metadata = Object.assign({}, shape.metadata || {}, { title_box: newBox });
+        self._renderShape(shape);
+        // Title handles (if in title-edit-mode) sit on the bbox
+        // corners, so they need to track the moving bbox in lockstep.
+        if (self.editingTitleShape === shape) {
+          self._positionAllTitleHandles(shape);
+        }
+      }
+      function onUp(ev) {
+        tg.classList.remove("is-dragging");
+        try { tg.releasePointerCapture(ev.pointerId); } catch (_) {}
+        tg.removeEventListener("pointermove", onMove);
+        tg.removeEventListener("pointerup", onUp);
+        tg.removeEventListener("pointercancel", onUp);
+        if (dragged && shape.uuid) {
+          self.pushEventTo(self.el, "etcher:updated", {
+            uuid: shape.uuid,
+            metadata: shape.metadata
+          });
+        }
+      }
+      tg.addEventListener("pointermove", onMove);
+      tg.addEventListener("pointerup", onUp);
+      tg.addEventListener("pointercancel", onUp);
+    },
+
+    // The title's default bbox needs the parent's bbox-top-center in
+    // IMAGE coords. _renderShape computes this every render; cache
+    // the last value on the shape so drag handlers can grab it
+    // without re-running the geometry math.
+    _lastBboxTopImageFor: function(shape) {
+      return shape && shape.bboxTopImage ? shape.bboxTopImage : null;
     },
 
     // Fill a <text> node with word-wrapped <tspan> lines that fit a
@@ -4972,6 +5440,12 @@ if (typeof window.Chart === "undefined") {
       } else {
         var d = this._draftActive();
         if (d) this._positionAllHandles(d);
+      }
+      // Title-edit handles track the title bbox separately from shape
+      // edit handles — both can technically be active in parallel only
+      // for distinct shapes; we coexist with them rather than gating.
+      if (this.editingTitleShape) {
+        this._positionAllTitleHandles(this.editingTitleShape);
       }
     },
 
@@ -5805,17 +6279,25 @@ if (typeof window.Chart === "undefined") {
 
     _startTextEdit: function(shape) {
       if (!shape) return;
-      if (shape.kind !== "text" && shape.kind !== "callout") return;
+      // text + callout edit their own bbox; rect/circle/poly/freehand
+      // edit a title that lives in `metadata.title_box` on the parent.
+      var hasTitle =
+        shape.kind !== "text" &&
+        shape.kind !== "callout" &&
+        shape.metadata && shape.metadata.title != null;
+      if (shape.kind !== "text" && shape.kind !== "callout" && !hasTitle) return;
       this._endTextEdit();
 
       var self = this;
-      // Text shape stores its bbox directly on `geometry`; callout's
-      // text bbox lives at `geometry.text_box` (with the leader-line
-      // anchor next to it on the same geometry).
-      var g =
-        shape.kind === "callout"
-          ? this._calloutTextBoxImage(shape.geometry)
-          : shape.geometry;
+      var g;
+      if (shape.kind === "text") {
+        g = shape.geometry;
+      } else if (shape.kind === "callout") {
+        g = this._calloutTextBoxImage(shape.geometry);
+      } else {
+        g = this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
+      }
+      if (!g) return;
       var tl = this._imageToContainer({ x: g.x, y: g.y });
       var br = this._imageToContainer({ x: g.x + g.w, y: g.y + g.h });
       var w = Math.max(20, Math.abs(br.x - tl.x));
@@ -5848,7 +6330,10 @@ if (typeof window.Chart === "undefined") {
       this._textEditor = { fo: fo, input: input, shape: shape };
       // Hide the visible <text> while editing — the input shows the
       // current content live, and overlapping them blurs the readout.
-      var existing = shape.el.querySelector(".etcher-text-content");
+      // For title edits, the visible text lives on the title group
+      // (not the parent shape's element).
+      var hostEl = this._textEditHost(shape);
+      var existing = hostEl && hostEl.querySelector(".etcher-text-content");
       if (existing) existing.setAttribute("visibility", "hidden");
 
       input.addEventListener("keydown", function(e) {
@@ -5929,9 +6414,19 @@ if (typeof window.Chart === "undefined") {
       var ed = this._textEditor;
       if (!ed) return;
       if (ed.fo && ed.fo.parentNode) ed.fo.parentNode.removeChild(ed.fo);
-      var existing = ed.shape && ed.shape.el && ed.shape.el.querySelector(".etcher-text-content");
+      var hostEl = ed.shape && this._textEditHost(ed.shape);
+      var existing = hostEl && hostEl.querySelector(".etcher-text-content");
       if (existing) existing.removeAttribute("visibility");
       this._textEditor = null;
+    },
+
+    // Which DOM element hosts the visible <text class="etcher-text-content">?
+    // text + callout: the shape's own `<g>`.
+    // rect/circle/poly/freehand with a title: the title group.
+    _textEditHost: function(shape) {
+      if (!shape) return null;
+      if (shape.kind === "text" || shape.kind === "callout") return shape.el;
+      return shape.titleGroup || null;
     },
 
     // Strip a text shape that was abandoned mid-creation (no title ever
@@ -6176,6 +6671,7 @@ if (typeof window.Chart === "undefined") {
       if (!shape || !shape.uuid) return;
       if (this.editingShape === shape) return;
       this._exitEditMode();
+      this._exitTitleEditMode();
 
       this.editingShape = shape;
       shape.el.classList.add("is-editing");
@@ -6362,6 +6858,12 @@ if (typeof window.Chart === "undefined") {
       var el = shape.el;
       var startPt = self._toImage(e);
       var startGeom = JSON.parse(JSON.stringify(shape.geometry));
+      // If the shape carries a title bbox, snapshot it too so we can
+      // translate the title alongside the shape on body-grab.
+      var startTitleBox =
+        shape.metadata && shape.metadata.title_box
+          ? Object.assign({}, shape.metadata.title_box)
+          : null;
       var dragged = false;
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
 
@@ -6382,11 +6884,27 @@ if (typeof window.Chart === "undefined") {
           // Hide it for the duration; reshow on release.
           self._hideTooltip();
         }
-        shape.geometry = self._translateGeometry(
-          shape.kind, startGeom, pt.x - startPt.x, pt.y - startPt.y
-        );
+        var dxI = pt.x - startPt.x;
+        var dyI = pt.y - startPt.y;
+        shape.geometry = self._translateGeometry(shape.kind, startGeom, dxI, dyI);
+        if (startTitleBox) {
+          shape.metadata = Object.assign({}, shape.metadata || {}, {
+            title_box: {
+              x: startTitleBox.x + dxI,
+              y: startTitleBox.y + dyI,
+              w: startTitleBox.w,
+              h: startTitleBox.h
+            }
+          });
+        }
         self._renderShape(shape);
         self._positionAllHandles(shape);
+        // If the title moved along with the parent, the title-edit
+        // handles (when title-edit-mode is active for this shape)
+        // need to follow too.
+        if (startTitleBox && self.editingTitleShape === shape) {
+          self._positionAllTitleHandles(shape);
+        }
       }
       function onUp(ev) {
         el.classList.remove("is-moving");
@@ -6396,10 +6914,9 @@ if (typeof window.Chart === "undefined") {
         try { el.releasePointerCapture(ev.pointerId); } catch (_) {}
         if (dragged) {
           if (shape.uuid) {
-            self.pushEventTo(self.el, "etcher:updated", {
-              uuid: shape.uuid,
-              geometry: shape.geometry
-            });
+            var payload = { uuid: shape.uuid, geometry: shape.geometry };
+            if (startTitleBox) payload.metadata = shape.metadata;
+            self.pushEventTo(self.el, "etcher:updated", payload);
           }
           // Cursor is still over the shape (we just released it there),
           // so the user expects the tooltip to come back.
@@ -6511,8 +7028,8 @@ if (typeof window.Chart === "undefined") {
       var shape = this.shapes[idx];
       if (this.editingShape === shape) this._exitEditMode();
       if (shape.el && shape.el.parentNode) shape.el.parentNode.removeChild(shape.el);
-      if (shape.titleEl && shape.titleEl.parentNode) {
-        shape.titleEl.parentNode.removeChild(shape.titleEl);
+      if (shape.titleGroup && shape.titleGroup.parentNode) {
+        shape.titleGroup.parentNode.removeChild(shape.titleGroup);
       }
       this.shapes.splice(idx, 1);
       // Removed shape's element can no longer fire mouseleave, so close
