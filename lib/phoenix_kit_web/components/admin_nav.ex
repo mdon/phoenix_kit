@@ -216,7 +216,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
         <%!-- Dropdown Menu --%>
         <ul
           tabindex="0"
-          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto flex-nowrap"
         >
           <%!-- User Info Header --%>
           <li class="menu-title px-4 py-2">
@@ -261,26 +261,43 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               <span class="text-xs">Language</span>
             </li>
 
-            <%= for language <- @admin_languages do %>
-              <li>
-                <button
-                  type="button"
-                  phx-click="phoenix_kit_set_locale"
-                  phx-value-locale={language.code}
-                  phx-value-url={generate_language_switch_url(@current_path, language.code)}
-                  class={[
-                    "flex items-center gap-3",
-                    if(language.code == @current_locale, do: "active", else: "")
-                  ]}
-                >
-                  <span class="text-lg">{get_language_flag(language.code)}</span>
-                  <span>{language.name}</span>
-                  <%= if language.code == @current_locale do %>
-                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
-                  <% end %>
-                </button>
-              </li>
-            <% end %>
+            <%!--
+              Independently scrollable language list — caps at ~5 visible rows.
+              Buttons are styled directly (no nested daisyUI <ul class="menu">) so
+              the parent menu doesn't apply submenu indent (16px margin) or
+              li-child padding (12px) that would otherwise force horizontal scroll
+              and leave a weird left indent. `!p-0` resets the menu-child padding
+              the parent <ul> applies to the wrapper <li>'s children.
+            --%>
+            <li class="p-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+              <div class="!p-0 block w-full max-h-60 overflow-y-auto overflow-x-hidden !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+                <%= for language <- @admin_languages do %>
+                  <button
+                    type="button"
+                    phx-click="phoenix_kit_set_locale"
+                    phx-value-locale={language.code}
+                    phx-value-url={generate_language_switch_url(@current_path, language.code)}
+                    class={[
+                      "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
+                      "focus:outline-none focus-visible:outline-none",
+                      "phx-click-loading:opacity-60 phx-click-loading:pointer-events-none",
+                      if(language.code == @current_locale,
+                        do:
+                          "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
+                        else:
+                          "!text-base-content hover:bg-base-200 hover:!text-base-content focus:!text-base-content active:!text-base-content active:!bg-base-300"
+                      )
+                    ]}
+                  >
+                    <span class="text-lg">{get_language_flag(language.code)}</span>
+                    <span>{language.name}</span>
+                    <%= if language.code == @current_locale do %>
+                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                    <% end %>
+                  </button>
+                <% end %>
+              </div>
+            </li>
           <% end %>
 
           <div class="divider my-0"></div>
