@@ -3511,6 +3511,136 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4601,49 +4731,78 @@ if (typeof window.Chart === "undefined") {
           break;
         }
         case "callout": {
-          // shape.el is a <g> containing <line>, <circle> (anchor dot),
-          // <text>. Each child gets repositioned per the current
-          // anchor / text_at projection.
-          var line = el.querySelector("line");
-          var dot  = el.querySelector("circle");
-          var txt  = el.querySelector("text");
-          var anchor = self._imageToContainer({ x: g.anchor[0],  y: g.anchor[1]  });
-          var tail   = self._imageToContainer({ x: g.text_at[0], y: g.text_at[1] });
+          // shape.el is a <g> containing <line>, <rect> (text bbox),
+          // <text>, and <circle> (anchor dot). The text endpoint is a
+          // resizable bbox (`geometry.text_box`) that behaves like a
+          // text shape — leader line connects the anchor to the bbox's
+          // nearest edge midpoint.
+          // First <line> child is the leader; the .etcher-callout-
+          // underline class identifies the horizontal underline.
+          var lineEls = el.querySelectorAll("line");
+          var coLine = lineEls[0];
+          var coUnderline = el.querySelector(".etcher-callout-underline");
+          var coDot  = el.querySelector("circle");
+          var coRect = el.querySelector(".etcher-text-rect");
+          var coText = el.querySelector(".etcher-text-content");
 
-          if (line) {
-            line.setAttribute("x1", anchor.x);
-            line.setAttribute("y1", anchor.y);
-            line.setAttribute("x2", tail.x);
-            line.setAttribute("y2", tail.y);
-          }
-          if (dot) {
-            dot.setAttribute("cx", anchor.x);
-            dot.setAttribute("cy", anchor.y);
-          }
-          if (txt) {
-            // Text reads outward from the anchor. If the label is to the
-            // RIGHT of the anchor, text starts at tail and extends right
-            // (text-anchor: start). If it's to the LEFT, text ends at
-            // tail and extends left (text-anchor: end). Mirror the line
-            // direction so labels read naturally.
-            var rightOfAnchor = tail.x >= anchor.x;
-            var gap = 4; // px gap between line end and text
-            txt.setAttribute("x", rightOfAnchor ? tail.x + gap : tail.x - gap);
-            // Baseline slightly above the line endpoint so text sits
-            // above the implicit cap-line, not buried under it.
-            txt.setAttribute("y", tail.y - 2);
-            txt.setAttribute("text-anchor", rightOfAnchor ? "start" : "end");
+          var anchor = self._imageToContainer({ x: g.anchor[0], y: g.anchor[1] });
 
-            // Callouts read from `metadata.title` (the user's inline
-            // label) — never from the comment text. Comments are
-            // expandable details surfaced via the tooltip/thread; the
-            // title is the one-line caption that lives on the shape.
-            var content =
-              (shape.metadata && shape.metadata.title) ||
-              shape.label ||
-              "";
-            if (content.length > 40) content = content.slice(0, 39) + "…";
-            txt.textContent = content;
+          // Tolerate the legacy `text_at` point shape — derive a
+          // default bbox at the legacy point so existing rows render.
+          var box = self._calloutTextBoxImage(g);
+          var bTL = self._imageToContainer({ x: box.x,           y: box.y           });
+          var bBR = self._imageToContainer({ x: box.x + box.w,   y: box.y + box.h   });
+          var bx = Math.min(bTL.x, bBR.x);
+          var by = Math.min(bTL.y, bBR.y);
+          var bw = Math.abs(bBR.x - bTL.x);
+          var bh = Math.abs(bBR.y - bTL.y);
+
+          if (coRect) {
+            coRect.setAttribute("x", bx);
+            coRect.setAttribute("y", by);
+            coRect.setAttribute("width",  bw);
+            coRect.setAttribute("height", bh);
+          }
+          if (coText) {
+            var calloutText = (shape.metadata && shape.metadata.title) || "";
+            var coPad = 4;
+            var coFontSize = Math.max(10, bh * 0.65);
+            coText.setAttribute("x", bx + coPad);
+            coText.setAttribute("y", by + coPad);
+            coText.setAttribute("font-size", coFontSize);
+            coText.setAttribute(
+              "font-family",
+              "ui-sans-serif, system-ui, -apple-system, sans-serif"
+            );
+            coText.setAttribute("font-weight", "500");
+            self._fillTextWithWrappedTspans(coText, calloutText, bw - coPad * 2, coFontSize);
+          }
+
+          // Underline spans the full bottom edge of the bbox.
+          var bxRight = bx + bw;
+          var byBottom = by + bh;
+          if (coUnderline) {
+            coUnderline.setAttribute("x1", bx);
+            coUnderline.setAttribute("y1", byBottom);
+            coUnderline.setAttribute("x2", bxRight);
+            coUnderline.setAttribute("y2", byBottom);
+          }
+
+          if (coLine) {
+            // Leader attaches to whichever bottom corner sits closer
+            // to the anchor. Blueprint-style: anchor on the left →
+            // line meets the bottom-left vertex; on the right → meets
+            // the bottom-right.
+            var bottomMidX = bx + bw / 2;
+            var attachX = anchor.x < bottomMidX ? bx : bxRight;
+            coLine.setAttribute("x1", anchor.x);
+            coLine.setAttribute("y1", anchor.y);
+            coLine.setAttribute("x2", attachX);
+            coLine.setAttribute("y2", byBottom);
+          }
+          if (coDot) {
+            coDot.setAttribute("cx", anchor.x);
+            coDot.setAttribute("cy", anchor.y);
           }
           break;
         }
@@ -4884,16 +5043,25 @@ if (typeof window.Chart === "undefined") {
 
       el.addEventListener("mouseenter", function() {
         if (self.annotationMode && self.activeTool != null) return;
-        // While a different tooltip is pinned, hover is suppressed so
-        // the pin stays in control. Click switches the pin.
-        if (self.tooltipPinned) return;
+        // Visual hover state (dashed outline, .is-hovered class) is
+        // always applied so users can see which shape the cursor is
+        // over — even when a different shape's tooltip is pinned.
         el.classList.add("is-hovered");
+        // The tooltip, however, defers to the pin: a pinned tooltip
+        // stays put until the user clicks elsewhere (or clicks the
+        // same shape to unpin). Hovering another shape doesn't yank
+        // the pin away.
+        if (self.tooltipPinned) return;
         self._showTooltipFor(shape);
       });
       el.addEventListener("mouseleave", function() {
-        // Pinned tooltips ignore mouseleave entirely.
-        if (self.tooltipPinned) return;
+        // Always drop the hover styling so a pinned shape doesn't keep
+        // a sticky dashed/selected outline after the cursor leaves.
+        // The pin is for tooltip lifecycle, not visual hover state.
         el.classList.remove("is-hovered");
+        // Pinned tooltips ignore mouseleave for hide scheduling — the
+        // user explicitly pinned them and they should dwell.
+        if (self.tooltipPinned) return;
         // Don't snap closed — give the cursor time to travel from shape
         // to tooltip so the delete button stays reachable.
         self._scheduleHideTooltip();
@@ -4925,10 +5093,12 @@ if (typeof window.Chart === "undefined") {
         self.pushEventTo(self.el, "etcher:selected", { uuid: id });
       });
 
-      // Double-click on a text shape (in annotation mode, cursor tool)
-      // jumps into inline-edit mode. Matches Figma/Miro muscle memory.
+      // Double-click on a text or callout (in annotation mode, cursor
+      // tool) jumps into inline-edit mode. Matches Figma/Miro muscle
+      // memory and lets users tweak the callout's label without
+      // re-opening the composer.
       el.addEventListener("dblclick", function(e) {
-        if (shape.kind !== "text") return;
+        if (shape.kind !== "text" && shape.kind !== "callout") return;
         if (self.annotationMode && self.activeTool != null) return;
         if (!self.annotationMode) return;
         e.stopPropagation();
@@ -5066,8 +5236,19 @@ if (typeof window.Chart === "undefined") {
     // (b) clicking another shape (which switches the pin), or
     // (c) clicking anywhere else on the page.
     _pinTooltipFor: function(shape) {
+      // Switching the pin from one shape to another — drop the
+      // previous shape's selected styling so only one shape ever
+      // reads as "currently pinned".
+      var prev = this._tooltipShape;
+      if (prev && prev !== shape && prev.el) {
+        prev.el.classList.remove("is-selected");
+      }
       this._showTooltipFor(shape);
       this.tooltipPinned = true;
+      // Mark the pinned shape visually so its dashed outline persists
+      // when the cursor leaves it — without this the shape would
+      // appear deselected even though its tooltip is dwelling.
+      if (shape && shape.el) shape.el.classList.add("is-selected");
       this._installTooltipOutsideClickHandler();
       this._highlightCommentsFor(shape.uuid);
       this._dispatch("etcher:tooltip-pin", { uuid: shape.uuid || null });
@@ -5078,6 +5259,14 @@ if (typeof window.Chart === "undefined") {
       this.tooltipPinned = false;
       this._removeTooltipOutsideClickHandler();
       this._clearCommentHighlights();
+      // Clear hover + selected styling — the pinned-state mouseenter
+      // guard skipped re-adding `is-hovered`, but the click that
+      // originally pinned added it before the pin was set; and
+      // `is-selected` is our pin-visual marker that should drop now.
+      if (pinned && pinned.el) {
+        pinned.el.classList.remove("is-hovered");
+        pinned.el.classList.remove("is-selected");
+      }
       this._hideTooltip();
       this._dispatch("etcher:tooltip-unpin", {
         uuid: (pinned && pinned.uuid) || null
@@ -5333,53 +5522,72 @@ if (typeof window.Chart === "undefined") {
     },
 
     // -------------------------------------------------------------------------
-    // Callout — leader line + text label. Two-click input: anchor first
-    // (the thing being labeled), text endpoint second (where the label
-    // sits). Between clicks, the line rubber-bands to the cursor. The
-    // label text comes from `metadata.title` — the consumer's composer
-    // captures it and writes it back via the `etcher:annotation-updated`
-    // event after Post.
+    // Callout — leader line + resizable text bbox. Two-click input:
+    // anchor first (what's being pointed at), text-bbox top-left second
+    // (where the label sits). Between clicks, the line rubber-bands to
+    // the cursor with a default-sized bbox preview. Once committed, the
+    // text bbox behaves like a text shape: scale via 4 corner handles,
+    // inline-edit on double-click. `metadata.title` holds the content.
     // -------------------------------------------------------------------------
 
     _calloutClick: function(pt) {
       if (!this.draftCallout) {
         var g = svgEl("g");
-        g.classList.add("etcher-shape", "etcher-callout", "is-draft");
+        g.classList.add("etcher-shape", "etcher-callout", "etcher-text", "is-draft");
 
-        // Children bind to `currentColor` so _applyShapeColor can drive
-        // them by setting `style.color` on the group. Each child opts
-        // out of the things that don't suit it (line: no fill; dot/text:
-        // no stroke).
         var line = svgEl("line", {
           "stroke-width": "2",
           stroke: "currentColor",
           fill: "none"
         });
+        var underline = svgEl("line", {
+          "stroke-width": "2",
+          stroke: "currentColor",
+          fill: "none"
+        });
+        underline.classList.add("etcher-callout-underline");
+        var rect = svgEl("rect", {
+          fill: "transparent",
+          stroke: "currentColor",
+          "stroke-width": "2"
+        });
+        rect.classList.add("etcher-text-rect");
+        var text = svgEl("text", {
+          "text-anchor": "start",
+          "dominant-baseline": "hanging",
+          fill: "currentColor",
+          stroke: "none"
+        });
+        text.classList.add("etcher-text-content");
         var dot = svgEl("circle", {
           r: "3",
           fill: "currentColor",
           stroke: "none"
         });
-        var text = svgEl("text", {
-          "font-size": "12",
-          "font-family": "ui-sans-serif, system-ui, -apple-system, sans-serif",
-          "font-weight": "500",
-          fill: "currentColor",
-          stroke: "none"
-        });
 
         g.appendChild(line);
-        g.appendChild(dot);
+        g.appendChild(underline);
+        g.appendChild(rect);
         g.appendChild(text);
+        g.appendChild(dot);
 
         this._applyShapeColor(g, this.activeColor);
         this.svg.appendChild(g);
 
+        // Default-sized text bbox a short hop from the anchor — the
+        // user will refine size + position via the second click and
+        // post-commit handle drags.
+        var basePx = this._textDefaultBoxImagePx();
+        var defaultBox = {
+          x: pt.x + basePx * 2,
+          y: pt.y - basePx * 1.5,
+          w: basePx * 6,
+          h: basePx * 1.4
+        };
+
         this.draftCallout = {
           kind: "callout",
-          geometry: { anchor: [pt.x, pt.y], text_at: [pt.x + 60, pt.y - 30] },
-          // Show a placeholder during draft so the user sees where the
-          // label will land before they fill in the title.
+          geometry: { anchor: [pt.x, pt.y], text_box: defaultBox },
           metadata: { title: "Add a title…" },
           el: g
         };
@@ -5388,20 +5596,32 @@ if (typeof window.Chart === "undefined") {
         return;
       }
 
-      // Second click — commit at the new text endpoint.
+      // Second click — commit at the new text-bbox top-left.
       var anchor = this.draftCallout.geometry.anchor;
-      var geom = { anchor: anchor, text_at: [pt.x, pt.y] };
+      var box = this.draftCallout.geometry.text_box;
+      var geom = {
+        anchor: anchor,
+        text_box: { x: pt.x, y: pt.y - box.h / 2, w: box.w, h: box.h }
+      };
       var el = this.draftCallout.el;
       el.classList.remove("is-draft");
       this.draftCallout = null;
-      this._finalizeShape("callout", geom, el);
+      var self = this;
+      this._finalizeShape("callout", geom, el, function(shape) {
+        // Drop straight into inline-edit mode so the user can type
+        // the label immediately, matching the text shape's flow.
+        self._startTextEdit(shape);
+      });
     },
 
     _calloutHover: function(pt) {
       if (!this.draftCallout) return;
+      var box = this.draftCallout.geometry.text_box;
+      // Rubber-band the text bbox so its center tracks the cursor —
+      // gives the user a live preview of where the label will land.
       this.draftCallout.geometry = {
         anchor: this.draftCallout.geometry.anchor,
-        text_at: [pt.x, pt.y]
+        text_box: { x: pt.x, y: pt.y - box.h / 2, w: box.w, h: box.h }
       };
       this._renderShape(this.draftCallout);
       this._positionAllHandles(this.draftCallout);
@@ -5534,6 +5754,47 @@ if (typeof window.Chart === "undefined") {
       }
     },
 
+    // Resolve a callout's text bbox in IMAGE coords. New callouts ship
+    // `geometry.text_box = {x, y, w, h}`; legacy rows (pre-v118) carry
+    // `geometry.text_at = [x, y]` instead — derive a sensible default
+    // bbox at that point so they render without a migration.
+    _calloutTextBoxImage: function(geometry) {
+      if (geometry && geometry.text_box) return geometry.text_box;
+      var basePx = this._textDefaultBoxImagePx();
+      var w = basePx * 6;
+      var h = basePx * 1.4;
+      var p = (geometry && geometry.text_at) || [0, 0];
+      // Center the bbox slightly above the legacy text-baseline point
+      // so it looks roughly where the old single-line label sat.
+      return { x: p[0], y: p[1] - h * 0.85, w: w, h: h };
+    },
+
+    // Pick the midpoint of the rect edge closest to a point (all in
+    // container coords). Used to anchor a callout's leader line on
+    // the side of the text bbox facing the anchor.
+    _nearestRectEdgeMidpoint: function(rect, point) {
+      var cx = rect.x + rect.w / 2;
+      var cy = rect.y + rect.h / 2;
+      var dx = point.x - cx;
+      var dy = point.y - cy;
+      // Compare absolute deltas scaled by the rect's aspect ratio so
+      // wide bboxes prefer top/bottom edges and tall ones prefer
+      // left/right — keeps the line short and natural-looking.
+      var ax = Math.abs(dx) / (rect.w || 1);
+      var ay = Math.abs(dy) / (rect.h || 1);
+      if (ax > ay) {
+        // left or right edge
+        return dx >= 0
+          ? { x: rect.x + rect.w, y: cy }
+          : { x: rect.x,          y: cy };
+      } else {
+        // top or bottom edge
+        return dy >= 0
+          ? { x: cx, y: rect.y + rect.h }
+          : { x: cx, y: rect.y          };
+      }
+    },
+
     // -------------------------------------------------------------------------
     // Inline text editor — a <foreignObject> overlay with an <input>
     // positioned exactly over the text shape's bbox. Pressing Enter (or
@@ -5543,11 +5804,18 @@ if (typeof window.Chart === "undefined") {
     // -------------------------------------------------------------------------
 
     _startTextEdit: function(shape) {
-      if (!shape || shape.kind !== "text") return;
+      if (!shape) return;
+      if (shape.kind !== "text" && shape.kind !== "callout") return;
       this._endTextEdit();
 
       var self = this;
-      var g = shape.geometry;
+      // Text shape stores its bbox directly on `geometry`; callout's
+      // text bbox lives at `geometry.text_box` (with the leader-line
+      // anchor next to it on the same geometry).
+      var g =
+        shape.kind === "callout"
+          ? this._calloutTextBoxImage(shape.geometry)
+          : shape.geometry;
       var tl = this._imageToContainer({ x: g.x, y: g.y });
       var br = this._imageToContainer({ x: g.x + g.w, y: g.y + g.h });
       var w = Math.max(20, Math.abs(br.x - tl.x));
@@ -5810,27 +6078,45 @@ if (typeof window.Chart === "undefined") {
           break;
         }
         case "callout": {
-          // <g> wrapping the line, anchor dot, and text. _renderShape's
-          // callout branch finds each child via querySelector to update
-          // their coordinates. Children bind to `currentColor` so
-          // _applyShapeColor can recolor the whole group via
-          // `style.color` on the group.
+          // Blueprint-style callout: a horizontal underline spanning
+          // the full bottom of the text bbox + a leader line from the
+          // anchor up to the bottom corner of the bbox that sits
+          // closer to the anchor. Both lines, the bbox rect, the
+          // content text, and the anchor dot live inside the same <g>
+          // so _applyShapeColor recolors the whole composition via
+          // `style.color`. Lines render first so the rect/text/dot
+          // overlay them.
           el = svgEl("g");
-          el.classList.add("etcher-callout");
+          el.classList.add("etcher-callout", "etcher-text");
           el.appendChild(svgEl("line", {
             "stroke-width": "2",
             stroke: "currentColor",
             fill: "none"
           }));
-          el.appendChild(svgEl("circle", {
-            r: "3",
+          var coUnderline = svgEl("line", {
+            "stroke-width": "2",
+            stroke: "currentColor",
+            fill: "none"
+          });
+          coUnderline.classList.add("etcher-callout-underline");
+          el.appendChild(coUnderline);
+          var coRect = svgEl("rect", {
+            fill: "transparent",
+            stroke: "currentColor",
+            "stroke-width": "2"
+          });
+          coRect.classList.add("etcher-text-rect");
+          el.appendChild(coRect);
+          var coText = svgEl("text", {
+            "text-anchor": "start",
+            "dominant-baseline": "hanging",
             fill: "currentColor",
             stroke: "none"
-          }));
-          el.appendChild(svgEl("text", {
-            "font-size": "12",
-            "font-family": "ui-sans-serif, system-ui, -apple-system, sans-serif",
-            "font-weight": "500",
+          });
+          coText.classList.add("etcher-text-content");
+          el.appendChild(coText);
+          el.appendChild(svgEl("circle", {
+            r: "3",
             fill: "currentColor",
             stroke: "none"
           }));
@@ -6010,11 +6296,16 @@ if (typeof window.Chart === "undefined") {
           return [{ x: g.cx + g.r, y: g.cy }];   // 0: east, controls radius
         case "polygon":
           return (g.points || []).map(function(p) { return { x: p[0], y: p[1] }; });
-        case "callout":
+        case "callout": {
+          var cbox = this._calloutTextBoxImage(g);
           return [
-            { x: g.anchor[0],  y: g.anchor[1]  },  // 0: anchor (what's pointed at)
-            { x: g.text_at[0], y: g.text_at[1] }   // 1: text endpoint
+            { x: g.anchor[0],            y: g.anchor[1]            },  // 0: anchor
+            { x: cbox.x,                 y: cbox.y                 },  // 1: text TL
+            { x: cbox.x + cbox.w,        y: cbox.y                 },  // 2: text TR
+            { x: cbox.x + cbox.w,        y: cbox.y + cbox.h        },  // 3: text BR
+            { x: cbox.x,                 y: cbox.y + cbox.h        }   // 4: text BL
           ];
+        }
         // Freehand has too many points to edit individually for v1 —
         // delete and redraw.
         default:
@@ -6134,11 +6425,13 @@ if (typeof window.Chart === "undefined") {
               return [p[0] + dx, p[1] + dy];
             })
           };
-        case "callout":
+        case "callout": {
+          var cbox = this._calloutTextBoxImage(geom);
           return {
-            anchor:  [geom.anchor[0]  + dx, geom.anchor[1]  + dy],
-            text_at: [geom.text_at[0] + dx, geom.text_at[1] + dy]
+            anchor:   [geom.anchor[0] + dx, geom.anchor[1] + dy],
+            text_box: { x: cbox.x + dx, y: cbox.y + dy, w: cbox.w, h: cbox.h }
           };
+        }
         default:
           return geom;
       }
@@ -6180,16 +6473,31 @@ if (typeof window.Chart === "undefined") {
           break;
         }
         case "callout": {
-          // 0 = anchor (what's pointed at), 1 = text endpoint.
+          // idx 0 = anchor (what's pointed at); idx 1-4 = text-bbox
+          // corners (TL, TR, BR, BL), mirroring rectangle's resize
+          // handlers but writing back into `geometry.text_box`.
+          var startBox = this._calloutTextBoxImage(startGeom);
           if (idx === 0) {
             shape.geometry = {
               anchor: [pt.x, pt.y],
-              text_at: startGeom.text_at
+              text_box: { x: startBox.x, y: startBox.y, w: startBox.w, h: startBox.h }
             };
-          } else if (idx === 1) {
+          } else {
+            var right = startBox.x + startBox.w;
+            var bottom = startBox.y + startBox.h;
+            var nx, ny, nw, nh;
+            switch (idx) {
+              case 1: nx = pt.x;     ny = pt.y;     nw = right - pt.x;     nh = bottom - pt.y;    break;
+              case 2: nx = startBox.x; ny = pt.y;   nw = pt.x - startBox.x; nh = bottom - pt.y;    break;
+              case 3: nx = startBox.x; ny = startBox.y; nw = pt.x - startBox.x; nh = pt.y - startBox.y; break;
+              case 4: nx = pt.x;     ny = startBox.y; nw = right - pt.x;   nh = pt.y - startBox.y; break;
+              default: return;
+            }
+            if (nw < 0) { nx += nw; nw = -nw; }
+            if (nh < 0) { ny += nh; nh = -nh; }
             shape.geometry = {
               anchor: startGeom.anchor,
-              text_at: [pt.x, pt.y]
+              text_box: { x: nx, y: ny, w: nw, h: nh }
             };
           }
           break;
