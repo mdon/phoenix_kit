@@ -3745,6 +3745,110 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4922,10 +5026,12 @@ if (typeof window.Chart === "undefined") {
           break;
         }
         case "text": {
-          // <g> wrapping a hit-zone <rect> and a content <text>. The
-          // rect sizes to the user's bbox in container px; the text
-          // word-wraps inside it via <tspan> lines computed on the fly
-          // from the title at the current zoom-aware font size.
+          // <g> wrapping a hit-zone <rect> and a content <text>. After
+          // initial rect+text positioning, the rect shrinks to hug
+          // the actual rendered text — width and height = text + pad.
+          // The cached `shape._renderedBox` (image px) is what
+          // handles + drag math read from so the user interacts with
+          // the visible rect, not the storage envelope.
           var trect = el.querySelector(".etcher-text-rect");
           var ttext = el.querySelector(".etcher-text-content");
           var ttl = self._imageToContainer({ x: g.x,         y: g.y });
@@ -4943,11 +5049,6 @@ if (typeof window.Chart === "undefined") {
           }
           if (ttext) {
             var titleText = (shape.metadata && shape.metadata.title) || "";
-            // Font size scales from the bbox height — about 65% gives
-            // a single line comfortable padding. Floor at 10px so a
-            // tiny box stays legible; no ceiling so a big box renders
-            // proportionally large text (matches the user's "draw the
-            // box the size you want the text" expectation).
             var pad = 4;
             var fontSize = Math.max(10, th * 0.65);
             ttext.setAttribute("x", tx + pad);
@@ -4958,7 +5059,25 @@ if (typeof window.Chart === "undefined") {
               "ui-sans-serif, system-ui, -apple-system, sans-serif"
             );
             ttext.setAttribute("font-weight", "500");
-            self._fillTextWithWrappedTspans(ttext, titleText, tw - pad * 2, fontSize);
+            var measured =
+              self._fillTextWithWrappedTspans(ttext, titleText, tw - pad * 2, fontSize);
+
+            var actualW = Math.max(measured.width + pad * 2, fontSize);
+            var actualH = Math.max(measured.height + pad * 2, fontSize * 1.2);
+            if (trect) {
+              trect.setAttribute("width",  actualW);
+              trect.setAttribute("height", actualH);
+            }
+            var sx = tw > 0 ? tw / g.w : 1;
+            var sy = th > 0 ? th / g.h : sx;
+            shape._renderedBox = {
+              x: g.x,
+              y: g.y,
+              w: sx > 0 ? actualW / sx : g.w,
+              h: sy > 0 ? actualH / sy : g.h
+            };
+          } else {
+            shape._renderedBox = null;
           }
           break;
         }
@@ -5060,7 +5179,33 @@ if (typeof window.Chart === "undefined") {
           "ui-sans-serif, system-ui, -apple-system, sans-serif"
         );
         textEl.setAttribute("font-weight", "500");
-        this._fillTextWithWrappedTspans(textEl, trimmed, tw - pad * 2, fontSize);
+        var measured =
+          this._fillTextWithWrappedTspans(textEl, trimmed, tw - pad * 2, fontSize);
+
+        // Shrink-wrap the rect to the rendered text dimensions so the
+        // bbox hugs the text exactly — corner handles + the underline
+        // sit right at the text edge instead of leaving empty space.
+        var actualW = Math.max(measured.width + pad * 2, fontSize);
+        var actualH = Math.max(measured.height + pad * 2, fontSize * 1.2);
+        if (rectEl) {
+          rectEl.setAttribute("width",  actualW);
+          rectEl.setAttribute("height", actualH);
+        }
+        // Convert container-px shrink back to image px so the cache
+        // matches the units used by handles + drag math. Falls back
+        // to the requested bbox dimensions if the scale degenerates.
+        var sx = tw > 0 ? tw / titleBox.w : 1;
+        var sy = th > 0 ? th / titleBox.h : sx;
+        shape._renderedTitleImage = {
+          x: titleBox.x,
+          y: titleBox.y,
+          w: sx > 0 ? actualW / sx : titleBox.w,
+          h: sy > 0 ? actualH / sy : titleBox.h
+        };
+        tw = actualW;
+        th = actualH;
+      } else {
+        shape._renderedTitleImage = null;
       }
       if (lineEl) {
         // If the title sits inside the parent shape, the leader is
@@ -5280,7 +5425,9 @@ if (typeof window.Chart === "undefined") {
 
     _renderTitleHandles: function(shape) {
       this._removeTitleHandles();
-      var box = this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
+      var box =
+        shape._renderedTitleImage ||
+        this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
       if (!box) return;
       var self = this;
       var positions = [
@@ -5311,7 +5458,9 @@ if (typeof window.Chart === "undefined") {
 
     _positionAllTitleHandles: function(shape) {
       if (!this.titleHandles || !this.titleHandles.length) return;
-      var box = this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
+      var box =
+        shape._renderedTitleImage ||
+        this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape));
       if (!box) return;
       var positions = [
         { x: box.x,           y: box.y           },
@@ -5333,7 +5482,12 @@ if (typeof window.Chart === "undefined") {
       this._hideTooltip();
 
       var self = this;
+      // Snapshot the rendered (shrink-wrapped) bbox so the drag math
+      // starts from what the user actually sees, not the (possibly
+      // larger) stored title_box that hasn't yet had a chance to
+      // re-fit to the text.
       var startBox = JSON.parse(JSON.stringify(
+        shape._renderedTitleImage ||
         this._shapeTitleBoxImage(shape, this._lastBboxTopImageFor(shape))
       ));
 
@@ -5389,10 +5543,12 @@ if (typeof window.Chart === "undefined") {
       tg.classList.add("is-dragging");
 
       var startPt = this._toImage(e);
-      // Snapshot the starting bbox; if the user hadn't moved the
-      // title yet, default-derive it and lock that as the start.
+      // Snapshot the starting bbox; prefer the rendered shrink-fit
+      // box so the drag matches the visible rect.
       var bboxTopImage = this._lastBboxTopImageFor(shape);
-      var startBox = this._shapeTitleBoxImage(shape, bboxTopImage);
+      var startBox =
+        shape._renderedTitleImage ||
+        this._shapeTitleBoxImage(shape, bboxTopImage);
       if (!startBox) return;
       var dragged = false;
 
@@ -5449,28 +5605,36 @@ if (typeof window.Chart === "undefined") {
     },
 
     // Fill a <text> node with word-wrapped <tspan> lines that fit a
-    // pixel-width budget. SVG <text> doesn't auto-wrap, so we measure
-    // each candidate line using a hidden <text> sibling and `getComputedTextLength()`.
-    // Empty input clears the node.
+    // pixel-width budget. Returns `{width, height}` of the rendered
+    // text in container px so callers can shrink-wrap their bbox to
+    // it. Uses a canvas 2D context for measurement instead of SVG's
+    // `getComputedTextLength` — canvas runs synchronously and doesn't
+    // depend on the SVG element having been laid out yet, so the
+    // shrink path is reliable on first render.
     _fillTextWithWrappedTspans: function(textEl, content, maxWidth, fontSize) {
       while (textEl.firstChild) textEl.removeChild(textEl.firstChild);
-      if (!content) return;
+      if (!content) return { width: 0, height: 0 };
 
       var words = String(content).split(/\s+/).filter(Boolean);
-      if (words.length === 0) return;
+      if (words.length === 0) return { width: 0, height: 0 };
 
-      var probe = svgEl("text", { visibility: "hidden", "font-size": fontSize });
-      probe.setAttribute("font-family", textEl.getAttribute("font-family") || "");
-      probe.setAttribute("font-weight", textEl.getAttribute("font-weight") || "");
-      this.svg.appendChild(probe);
+      var fontFamily = textEl.getAttribute("font-family") ||
+        "ui-sans-serif, system-ui, -apple-system, sans-serif";
+      var fontWeight = textEl.getAttribute("font-weight") || "500";
+
+      if (!this._measureCanvas) {
+        this._measureCanvas = document.createElement("canvas");
+      }
+      var ctx = this._measureCanvas.getContext("2d");
+      ctx.font = fontWeight + " " + fontSize + "px " + fontFamily;
 
       function measure(s) {
-        probe.textContent = s;
-        try { return probe.getComputedTextLength(); } catch (_) { return s.length * fontSize * 0.6; }
+        try { return ctx.measureText(s).width; } catch (_) { return s.length * fontSize * 0.55; }
       }
 
       var lines = [];
       var current = "";
+      var maxLine = 0;
       for (var i = 0; i < words.length; i++) {
         var attempt = current ? current + " " + words[i] : words[i];
         if (measure(attempt) <= maxWidth || !current) {
@@ -5482,7 +5646,10 @@ if (typeof window.Chart === "undefined") {
       }
       if (current) lines.push(current);
 
-      if (probe.parentNode) probe.parentNode.removeChild(probe);
+      for (var k = 0; k < lines.length; k++) {
+        var w = measure(lines[k]);
+        if (w > maxLine) maxLine = w;
+      }
 
       var x = textEl.getAttribute("x");
       // Each line is a <tspan> with dy=1.1em after the first. Fill is
@@ -5495,6 +5662,9 @@ if (typeof window.Chart === "undefined") {
         tspan.textContent = line;
         textEl.appendChild(tspan);
       });
+
+      var height = fontSize + Math.max(0, lines.length - 1) * fontSize * 1.1;
+      return { width: maxLine, height: height };
     },
 
     _renderAll: function() {
@@ -6854,13 +7024,23 @@ if (typeof window.Chart === "undefined") {
       var g = shape.geometry;
       switch (shape.kind) {
         case "rectangle":
-        case "text":
           return [
             { x: g.x,         y: g.y },          // 0: top-left
             { x: g.x + g.w,   y: g.y },          // 1: top-right
             { x: g.x + g.w,   y: g.y + g.h },    // 2: bottom-right
             { x: g.x,         y: g.y + g.h }     // 3: bottom-left
           ];
+        case "text": {
+          // Handles ride the shrunk-to-text bbox so users grab where
+          // they see the box, not the (often wider) storage envelope.
+          var tBox = shape._renderedBox || g;
+          return [
+            { x: tBox.x,           y: tBox.y           },
+            { x: tBox.x + tBox.w,  y: tBox.y           },
+            { x: tBox.x + tBox.w,  y: tBox.y + tBox.h  },
+            { x: tBox.x,           y: tBox.y + tBox.h  }
+          ];
+        }
         case "circle":
           return [{ x: g.cx + g.r, y: g.cy }];   // 0: east, controls radius
         case "polygon":
@@ -6895,7 +7075,15 @@ if (typeof window.Chart === "undefined") {
       var self = this;
       // Snapshot the starting geometry so corner drags derive from the
       // *original* opposite corner, not the live one that's moving.
-      var startGeom = JSON.parse(JSON.stringify(shape.geometry));
+      // Text shapes snap their handles to the shrunk-to-text bbox
+      // (`_renderedBox`), so the drag math has to start from there too
+      // — otherwise the cursor and the bbox edge would diverge.
+      var startGeom;
+      if (shape.kind === "text" && shape._renderedBox) {
+        startGeom = JSON.parse(JSON.stringify(shape._renderedBox));
+      } else {
+        startGeom = JSON.parse(JSON.stringify(shape.geometry));
+      }
 
       function onMove(ev) {
         var pt = self._toImage(ev);
@@ -6909,6 +7097,17 @@ if (typeof window.Chart === "undefined") {
         handleEl.removeEventListener("pointerup", onUp);
         handleEl.removeEventListener("pointercancel", onUp);
         try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+        // For text shapes, persist the shrunk-to-text bbox rather
+        // than the larger "drag envelope" the user swept through —
+        // keeps the stored geometry consistent with what's visible.
+        if (shape.kind === "text" && shape._renderedBox) {
+          shape.geometry = {
+            x: shape._renderedBox.x,
+            y: shape._renderedBox.y,
+            w: shape._renderedBox.w,
+            h: shape._renderedBox.h
+          };
+        }
         if (shape.uuid) {
           self.pushEventTo(self.el, "etcher:updated", {
             uuid: shape.uuid,
