@@ -7257,3 +7257,198 @@ msgstr "Авторизация"
 #, elixir-autogen, elixir-format
 msgid "Dimensions"
 msgstr "Размеры"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:35
+#, elixir-autogen, elixir-format
+msgid "Jan"
+msgstr "Янв"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:36
+#, elixir-autogen, elixir-format
+msgid "Feb"
+msgstr "Февр"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:37
+#, elixir-autogen, elixir-format
+msgid "Mar"
+msgstr "Март"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:38
+#, elixir-autogen, elixir-format
+msgid "Apr"
+msgstr "Апр"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:39
+#, elixir-autogen, elixir-format
+msgid "May"
+msgstr "Май"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:40
+#, elixir-autogen, elixir-format
+msgid "Jun"
+msgstr "Июнь"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:41
+#, elixir-autogen, elixir-format
+msgid "Jul"
+msgstr "Июль"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:42
+#, elixir-autogen, elixir-format
+msgid "Aug"
+msgstr "Авг"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:43
+#, elixir-autogen, elixir-format
+msgid "Sep"
+msgstr "Сент"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:44
+#, elixir-autogen, elixir-format
+msgid "Oct"
+msgstr "Окт"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:45
+#, elixir-autogen, elixir-format
+msgid "Nov"
+msgstr "Нояб"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:46
+#, elixir-autogen, elixir-format
+msgid "Dec"
+msgstr "Дек"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:48
+#, elixir-autogen, elixir-format
+msgid "%{month} %{day}, %{year}"
+msgstr "%{day} %{month} %{year}"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:49
+#, elixir-autogen, elixir-format
+msgid "%{month} %{day}, %{year} at %{time}"
+msgstr "%{day} %{month} %{year} в %{time}"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:50
+#, elixir-autogen, elixir-format
+msgid "%{month} %{day} %{time}"
+msgstr "%{day} %{month} %{time}"
+
+#: lib/phoenix_kit_web/projects_gettext_manifest.ex:53
+#, elixir-autogen, elixir-format
+msgid "Title"
+msgstr "Название"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:43
+#, elixir-autogen, elixir-format
+msgid "Replying to comment"
+msgstr "Ответ на комментарий"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:45
+#, elixir-autogen, elixir-format
+msgid "Write a comment..."
+msgstr "Напишите комментарий…"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:46
+#, elixir-autogen, elixir-format
+msgid "GIF"
+msgstr "GIF"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:47
+#, elixir-autogen, elixir-format
+msgid "Remove GIF"
+msgstr "Удалить GIF"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:48
+#, elixir-autogen, elixir-format
+msgid "Remove %{name}"
+msgstr "Удалить %{name}"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:49
+#, elixir-autogen, elixir-format
+msgid "Stop recording"
+msgstr "Остановить запись"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:50
+#, elixir-autogen, elixir-format
+msgid "Attach media"
+msgstr "Прикрепить медиа"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:51
+#, elixir-autogen, elixir-format
+msgid "Attach media options"
+msgstr "Параметры прикрепления"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:53
+#, elixir-autogen, elixir-format
+msgid "Record"
+msgstr "Записать"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:54
+#, elixir-autogen, elixir-format
+msgid "Up to %{count} files, max %{size}MB each"
+msgstr "До %{count} файлов, каждый до %{size} МБ"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:55
+#, elixir-autogen, elixir-format
+msgid "Giphy picker"
+msgstr "Выбор Giphy"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:56
+#, elixir-autogen, elixir-format
+msgid "Search GIFs"
+msgstr "Поиск GIF"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:57
+#, elixir-autogen, elixir-format
+msgid "Search GIFs..."
+msgstr "Поиск GIF…"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:58
+#, elixir-autogen, elixir-format
+msgid "GIF results"
+msgstr "Результаты GIF"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:59
+#, elixir-autogen, elixir-format
+msgid "Select GIF %{id}"
+msgstr "Выбрать GIF %{id}"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:60
+#, elixir-autogen, elixir-format
+msgid "Type a search term to find GIFs."
+msgstr "Введите запрос для поиска GIF."
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:61
+#, elixir-autogen, elixir-format
+msgid "No results."
+msgstr "Результатов нет."
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:62
+#, elixir-autogen, elixir-format
+msgid "Post Comment"
+msgstr "Опубликовать"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:63
+#, elixir-autogen, elixir-format
+msgid "Sign in to post a comment."
+msgstr "Войдите, чтобы оставить комментарий."
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:64
+#, elixir-autogen, elixir-format
+msgid "No comments yet. Be the first to comment!"
+msgstr "Комментариев пока нет. Будьте первым!"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:66
+#, elixir-autogen, elixir-format
+msgid "[removed]"
+msgstr "[удалено]"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:68
+#, elixir-autogen, elixir-format
+msgid "Reply"
+msgstr "Ответить"
+
+#: lib/phoenix_kit_web/comments_gettext_manifest.ex:69
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to delete this comment?"
+msgstr "Точно удалить этот комментарий?"
