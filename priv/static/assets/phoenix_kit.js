@@ -3901,6 +3901,32 @@ if (typeof window.Chart === "undefined") {
 //     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
 //   });
 
+// Etcher — annotation layer for Fresco-powered viewers.
+//
+// Drop a `<div phx-hook="EtcherLayer" data-fresco-id="...">` into your
+// template (or, more typically, use the `<Etcher.layer>` Phoenix
+// component) and this hook will:
+//
+//   1. Look up the named Fresco viewer via `window.Fresco.onViewerReady`.
+//   2. Append a pencil button to the viewer's nav column via the
+//      `handle.appendNavButton(...)` extension point (Fresco 0.2+).
+//   3. Toggle a bottom toolbar with drawing tools when the pencil is
+//      clicked.
+//   4. Render shapes as an SVG overlay anchored to image pixel
+//      coordinates — pan/zoom of the viewer rescales them for free.
+//   5. Emit LiveView events (`etcher:created`, `:updated`, `:deleted`,
+//      `:selected`) at each lifecycle moment so the consumer's LiveView
+//      decides what to persist.
+//
+// Wire it once in your `app.js`:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.FrescoHooks, ...window.EtcherHooks, ...colocatedHooks }
+//   });
+
 (function() {
   if (window.EtcherLoaded) return;
   window.EtcherLoaded = true;
@@ -4137,7 +4163,11 @@ if (typeof window.Chart === "undefined") {
       "}",
       ".etcher-shape.is-editing.is-moving { cursor: grabbing; }",
       ".etcher-handle {",
-      "  fill: #fff; stroke: #f59e0b; stroke-width: 2;",
+      // Stroke + interactive fills bind to `currentColor` so a handle
+      // inherits the shape's painted color (set via `style.color`
+      // when the handle is created). Defaults to the inherited
+      // element color (blue) when no custom color is picked.
+      "  fill: #fff; stroke: currentColor; stroke-width: 2;",
       "  pointer-events: auto; cursor: grab;",
       // `transform-box: fill-box` anchors `transform-origin` to the
       // element's own box rather than the SVG viewport, so `scale()`
@@ -4146,15 +4176,15 @@ if (typeof window.Chart === "undefined") {
       // CSS-set `r` doesn't always win over the attribute-set `r="5"`
       // across all browsers.
       "  transform-box: fill-box; transform-origin: center;",
-      "  transition: transform 80ms ease, stroke-width 80ms ease, fill 80ms ease;",
+      "  transition: transform 80ms ease, stroke-width 80ms ease, fill 80ms ease, fill-opacity 80ms ease;",
       "}",
       ".etcher-handle:hover {",
       "  transform: scale(1.6); stroke-width: 3;",
-      "  fill: rgba(245, 158, 11, 0.35);",
+      "  fill: currentColor; fill-opacity: 0.35;",
       "}",
       ".etcher-handle.is-dragging {",
       "  cursor: grabbing; transform: scale(1.8); stroke-width: 3;",
-      "  fill: rgba(245, 158, 11, 0.55);",
+      "  fill: currentColor; fill-opacity: 0.55;",
       "}",
       // While drafting a polygon the first vertex doubles as the close
       // button — highlight it when the cursor is near so the user knows
@@ -4162,7 +4192,7 @@ if (typeof window.Chart === "undefined") {
       // consistency.
       ".etcher-handle.is-close-target {",
       "  transform: scale(1.6); stroke-width: 3;",
-      "  fill: rgba(245, 158, 11, 0.4);",
+      "  fill: currentColor; fill-opacity: 0.4;",
       "}",
       // While a drawing tool is active, vector dots on the in-progress
       // draft are markers, not grab targets — let pointer events fall
@@ -4888,6 +4918,13 @@ if (typeof window.Chart === "undefined") {
           style: shape.style
         });
       }
+
+      // Repaint any active handles so the vertex dots match the new
+      // shape color immediately instead of waiting for the next handle
+      // refresh.
+      var handleColor = color || "#3b82f6";
+      (this.handles || []).forEach(function(h) { h.style.color = handleColor; });
+      (this.titleHandles || []).forEach(function(h) { h.style.color = handleColor; });
     },
 
     _applyShapeColor: function(el, color) {
@@ -5517,9 +5554,11 @@ if (typeof window.Chart === "undefined") {
         { x: box.x + box.w,   y: box.y + box.h   },  // 2: BR
         { x: box.x,           y: box.y + box.h   }   // 3: BL
       ];
+      var handleColor = self._handleColor(shape);
       this.titleHandles = positions.map(function(pt, idx) {
         var h = svgEl("circle", { r: 5 });
         h.classList.add("etcher-handle", "etcher-title-handle");
+        h.style.color = handleColor;
         h.dataset.index = idx;
         self.svg.appendChild(h);
         self._positionHandle(h, pt);
@@ -7057,10 +7096,12 @@ if (typeof window.Chart === "undefined") {
       this._removeHandles();
       var self = this;
       var positions = this._handlePositions(shape);
+      var handleColor = self._handleColor(shape);
 
       this.handles = positions.map(function(pt, idx) {
         var h = svgEl("circle", { r: 5 });
         h.classList.add("etcher-handle");
+        h.style.color = handleColor;
         h.dataset.index = idx;
         self.svg.appendChild(h);
         self._positionHandle(h, pt);
@@ -7071,6 +7112,18 @@ if (typeof window.Chart === "undefined") {
         }
         return h;
       });
+    },
+
+    // Resolve the color that vector handles should paint themselves
+    // with for `shape`. Picks the explicitly-styled color first,
+    // falls back to the in-progress active swatch (for drafts) and
+    // finally to the same default blue the shape stroke uses, so a
+    // shape that's never had a custom color picked still has matching
+    // handles instead of an unrelated orange.
+    _handleColor: function(shape) {
+      if (shape && shape.style && shape.style.color) return shape.style.color;
+      if (this.activeColor) return this.activeColor;
+      return "#3b82f6";
     },
 
     // Returns the currently-in-progress draft shape as a shape-like
