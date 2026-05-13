@@ -1,23 +1,28 @@
 defmodule PhoenixKit.Migrations.Postgres.V116 do
   @moduledoc """
-  V116: Widen `phoenix_kit_annotations_kind_check` for callouts +
-  add a `title` column to `phoenix_kit_annotations`.
+  V116: Widen `phoenix_kit_annotations_kind_check` for the new
+  `"callout"` and `"text"` kinds + add a `title` column to
+  `phoenix_kit_annotations`.
 
-  Etcher 0.2 ships two related additions:
+  Etcher 0.2 ships three related additions on the annotations table;
+  they're folded into one migration because they all hang off the
+  same row schema (kind CHECK + a single new column) — splitting
+  would have meant two trips over the same constraint.
 
-    1. A callout / leader-line drawing tool — a small anchor point
-       with a line connecting to a text label that displays inline on
-       the image. Needs `kind = "callout"` to pass the V115 CHECK
-       constraint, so this migration drops + re-adds the constraint
-       with the wider value set.
+    1. **Callout** — leader-line annotation: a small anchor point
+       with a line connecting to a labeled text bbox that displays
+       inline on the image. Needs `kind = "callout"` to pass the
+       V115 CHECK.
 
-    2. An optional `title` field on every annotation. When non-blank,
-       the title renders inline on the shape (above the bounding box
-       for rect/circle/polygon, at the leader endpoint for callout).
-       Position-wise it can be relocated by the user via a drag
-       handle in edit mode; the offset lives in `metadata.title_offset`.
-       Title text itself is its own column so it stays queryable
-       outside the JSONB blob.
+    2. **Text** — freestanding text label drawn as a click-drag bbox
+       whose content lives in the V116 `title` column. Needs
+       `kind = "text"` to pass the CHECK.
+
+    3. **`title varchar(200)`** — optional short label that every
+       kind can carry. Renders inline on the shape (above the
+       bounding box for rect/circle/polygon, at the leader endpoint
+       for callout, inside the bbox for text). Its own column so
+       it stays queryable outside the JSONB blob.
 
   Both operations are idempotent (`IF NOT EXISTS` / `DO $$` guards)
   so re-running on a partially-applied schema is a no-op.
@@ -29,7 +34,7 @@ defmodule PhoenixKit.Migrations.Postgres.V116 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    # Widen the kind CHECK constraint.
+    # Widen the kind CHECK constraint to include callout + text.
     execute(
       "ALTER TABLE #{p}phoenix_kit_annotations DROP CONSTRAINT IF EXISTS phoenix_kit_annotations_kind_check"
     )
@@ -42,7 +47,7 @@ defmodule PhoenixKit.Migrations.Postgres.V116 do
       ) THEN
         ALTER TABLE #{p}phoenix_kit_annotations
           ADD CONSTRAINT phoenix_kit_annotations_kind_check
-          CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand', 'callout'));
+          CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand', 'callout', 'text'));
       END IF;
     END $$
     """)
