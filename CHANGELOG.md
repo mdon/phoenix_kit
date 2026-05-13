@@ -1,5 +1,12 @@
 ## 1.7.110 - 2026-05-13
 
+### Added
+- V117 migration: document composition tables for `phoenix_kit_document_creator` (PR #539)
+  - Adds nullable `category :: varchar` column + index to `phoenix_kit_doc_templates` so templates self-classify (financial / technical / etc.) and the template grid can filter by scope
+  - Creates `phoenix_kit_doc_document_sections` — join table snapshotting `(document_uuid, template_uuid, position, variable_values, image_params)` for every section of every composed document. `document_uuid → :delete_all` cascades sections with their parent; `template_uuid → :nilify_all` lets sections outlive the template (regenerate-required state). Unique `(document_uuid, position)` + lookup index on `(document_uuid)`
+  - Creates `phoenix_kit_doc_template_presets` — named reusable section recipes scoped via `(scope_type, scope_id)` and optionally categorized. `sections` is a JSONB array of `[%{template_uuid, position, variable_values, image_params}]`. Index on `(scope_type, scope_id, category)`
+  - Legacy `Document.template_uuid` column retained: composed docs leave it `NULL`, legacy single-template docs continue to use it
+
 ### Fixed
 - Fixed ungrouped `handle_event/3` clauses in `MediaBrowser` by relocating `creator_attrs/2` helper to private-helpers block
 
