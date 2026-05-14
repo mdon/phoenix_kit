@@ -74,6 +74,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
   attr :label, :string, default: "Actions"
   attr :mode, :string, default: "dropdown", values: ["dropdown", "inline", "auto"]
   attr :class, :string, default: nil
+  attr :trigger_class, :string, default: nil
 
   slot :inner_block, required: true
 
@@ -117,7 +118,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
         aria-label={@label}
         aria-expanded="false"
         aria-haspopup="menu"
-        class="btn btn-xs btn-ghost btn-circle"
+        class={["btn btn-xs btn-ghost btn-circle", @trigger_class]}
       >
         <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
       </button>

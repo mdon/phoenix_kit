@@ -781,82 +781,67 @@
                                 <% end %>
                               </p>
                             </button>
-                            <div class="dropdown dropdown-end absolute top-1 right-1 opacity-0 group-hover:opacity-100">
-                              <label tabindex="0" class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5">
-                                <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                              </label>
-                              <ul
-                                tabindex="0"
-                                class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-36 p-1"
-                              >
-                                <li>
-                                  <button
-                                    phx-click="start_rename_folder"
-                                    phx-target={@myself}
-                                    phx-value-folder-uuid={folder.uuid}
-                                  >
-                                    <.icon name="hero-pencil" class="w-4 h-4" /> {gettext(
-                                      "Rename"
-                                    )}
-                                  </button>
-                                </li>
-                                <li>
-                                  <div class="px-3 py-1.5">
-                                    <span class="text-xs font-semibold text-base-content/50 mb-1 block">
-                                      {gettext("Color")}
-                                    </span>
-                                    <div class="flex flex-wrap gap-1">
-                                      <%= for color <- PhoenixKit.Modules.Storage.Folder.colors() do %>
-                                        <button
-                                          phx-click="change_folder_color"
-                                          phx-target={@myself}
-                                          phx-value-folder-uuid={folder.uuid}
-                                          phx-value-color={color}
-                                          class={[
-                                            "w-4 h-4 rounded-full border-2 transition-transform hover:scale-125",
-                                            if(
-                                              folder.color == color ||
-                                                (folder.color == nil && color == "default"),
-                                              do: "border-base-content scale-110",
-                                              else: "border-transparent"
-                                            )
-                                          ]}
-                                          style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
-                                          title={color}
-                                        >
-                                        </button>
-                                      <% end %>
-                                    </div>
+                            <.table_row_menu
+                              id={"folder-kebab-grid-#{folder.uuid}"}
+                              class="!absolute top-1 right-1 opacity-0 group-hover:opacity-100"
+                            >
+                              <.table_row_menu_button
+                                phx-click="start_rename_folder"
+                                phx-target={@myself}
+                                phx-value-folder-uuid={folder.uuid}
+                                icon="hero-pencil"
+                                label={gettext("Rename")}
+                              />
+                              <li role="none">
+                                <div class="px-3 py-1.5">
+                                  <span class="text-xs font-semibold text-base-content/50 mb-1 block">
+                                    {gettext("Color")}
+                                  </span>
+                                  <div class="flex flex-wrap gap-1">
+                                    <%= for color <- PhoenixKit.Modules.Storage.Folder.colors() do %>
+                                      <button
+                                        phx-click="change_folder_color"
+                                        phx-target={@myself}
+                                        phx-value-folder-uuid={folder.uuid}
+                                        phx-value-color={color}
+                                        class={[
+                                          "w-4 h-4 rounded-full border-2 transition-transform hover:scale-125",
+                                          if(
+                                            folder.color == color ||
+                                              (folder.color == nil && color == "default"),
+                                            do: "border-base-content scale-110",
+                                            else: "border-transparent"
+                                          )
+                                        ]}
+                                        style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
+                                        title={color}
+                                      >
+                                      </button>
+                                    <% end %>
                                   </div>
-                                </li>
-                                <li>
-                                  <button
-                                    phx-click="prepare_move_folder"
-                                    phx-target={@myself}
-                                    phx-value-folder-uuid={folder.uuid}
-                                    onclick="this.blur()"
-                                  >
-                                    <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
-                                    {gettext("Move")}
-                                  </button>
-                                </li>
-                                <li>
-                                  <button
-                                    phx-click="delete_folder"
-                                    phx-target={@myself}
-                                    phx-value-id={folder.uuid}
-                                    data-confirm={
-                                      gettext("Delete '%{name}'? Files move to parent.",
-                                        name: folder.name
-                                      )
-                                    }
-                                    class="text-error"
-                                  >
-                                    <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
-                                  </button>
-                                </li>
-                              </ul>
-                            </div>
+                                </div>
+                              </li>
+                              <.table_row_menu_button
+                                phx-click="prepare_move_folder"
+                                phx-target={@myself}
+                                phx-value-folder-uuid={folder.uuid}
+                                icon="hero-folder-arrow-down"
+                                label={gettext("Move")}
+                              />
+                              <.table_row_menu_button
+                                phx-click="delete_folder"
+                                phx-target={@myself}
+                                phx-value-id={folder.uuid}
+                                data-confirm={
+                                  gettext("Delete '%{name}'? Files move to parent.",
+                                    name: folder.name
+                                  )
+                                }
+                                icon="hero-trash"
+                                label={gettext("Delete")}
+                                variant="error"
+                              />
+                            </.table_row_menu>
                           <% end %>
                         </div>
                       <% end %>
@@ -948,74 +933,50 @@
                           when an "original" URL is present.
                         --%>
                           <%= unless @select_mode do %>
-                            <div class="dropdown dropdown-end absolute top-1 right-1 opacity-0 group-hover:opacity-100">
-                              <label
-                                tabindex="0"
-                                class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 bg-black/40 hover:bg-black/60 text-white border-0"
-                              >
-                                <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                              </label>
-                              <ul
-                                tabindex="0"
-                                class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-40 p-1"
-                              >
-                                <%!--
-                                `onclick="this.blur()"` on each menu item closes
-                                the dropdown after a click. daisyUI keeps the
-                                menu open via `:focus-within` on the wrapper, so
-                                blurring the clicked button releases focus and
-                                the CSS collapses it. Runs alongside phx-click —
-                                they don't conflict.
-                              --%>
-                                <%= if Map.get(file.urls || %{}, "original") ||
-                                     Map.get(file.urls || %{}, :original) do %>
-                                  <li>
-                                    <button
-                                      phx-click="download_file"
-                                      phx-target={@myself}
-                                      phx-value-file-uuid={file.file_uuid}
-                                      onclick="this.blur()"
-                                    >
-                                      <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
-                                      {gettext("Download")}
-                                    </button>
-                                  </li>
-                                <% end %>
-                                <li>
-                                  <button
-                                    phx-click="prepare_move_file"
-                                    phx-target={@myself}
-                                    phx-value-file-uuid={file.file_uuid}
-                                    onclick="this.blur()"
-                                  >
-                                    <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
-                                    {gettext("Move")}
-                                  </button>
-                                </li>
-                                <li>
-                                  <button
-                                    phx-click="delete_file"
-                                    phx-target={@myself}
-                                    phx-value-file-uuid={file.file_uuid}
-                                    onclick="this.blur()"
-                                    data-confirm={
-                                      if @filter_trash,
-                                        do:
-                                          gettext(
-                                            "Permanently delete '%{name}'? This cannot be undone.",
-                                            name: file.filename
-                                          )
-                                    }
-                                    class="text-error"
-                                  >
-                                    <.icon name="hero-trash" class="w-4 h-4" />
-                                    {if @filter_trash,
-                                      do: gettext("Delete Permanently"),
-                                      else: gettext("Move to Trash")}
-                                  </button>
-                                </li>
-                              </ul>
-                            </div>
+                            <.table_row_menu
+                              id={"file-kebab-grid-#{file.file_uuid}"}
+                              class="!absolute top-1 right-1 opacity-0 group-hover:opacity-100"
+                              trigger_class="!bg-black/40 hover:!bg-black/60 !text-white !border-0"
+                            >
+                              <.table_row_menu_button
+                                :if={
+                                  Map.get(file.urls || %{}, "original") ||
+                                    Map.get(file.urls || %{}, :original)
+                                }
+                                phx-click="download_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                icon="hero-arrow-down-tray"
+                                label={gettext("Download")}
+                              />
+                              <.table_row_menu_button
+                                phx-click="prepare_move_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                icon="hero-folder-arrow-down"
+                                label={gettext("Move")}
+                              />
+                              <.table_row_menu_button
+                                phx-click="delete_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                data-confirm={
+                                  if @filter_trash,
+                                    do:
+                                      gettext(
+                                        "Permanently delete '%{name}'? This cannot be undone.",
+                                        name: file.filename
+                                      )
+                                }
+                                icon="hero-trash"
+                                label={
+                                  if @filter_trash,
+                                    do: gettext("Delete Permanently"),
+                                    else: gettext("Move to Trash")
+                                }
+                                variant="error"
+                              />
+                            </.table_row_menu>
                           <% end %>
                         </div>
                       <% end %>
@@ -1223,88 +1184,64 @@
                                   {Calendar.strftime(folder.inserted_at, "%b %d, %Y")}
                                 </td>
                                 <td>
-                                  <div
-                                    class="dropdown dropdown-end"
-                                    phx-click="noop"
-                                    phx-target={@myself}
-                                  >
-                                    <label tabindex="0" class="btn btn-ghost btn-xs">
-                                      <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                                    </label>
-                                    <ul
-                                      tabindex="0"
-                                      class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-36 p-1"
-                                    >
-                                      <li>
-                                        <button
-                                          phx-click="start_rename_folder"
-                                          phx-target={@myself}
-                                          phx-value-folder-uuid={folder.uuid}
-                                        >
-                                          <.icon name="hero-pencil" class="w-4 h-4" /> {gettext(
-                                            "Rename"
-                                          )}
-                                        </button>
-                                      </li>
-                                      <li>
-                                        <div class="px-3 py-1.5">
-                                          <span class="text-xs font-semibold text-base-content/50 mb-1 block">
-                                            {gettext("Color")}
-                                          </span>
-                                          <div class="flex flex-wrap gap-1">
-                                            <%= for color <- PhoenixKit.Modules.Storage.Folder.colors() do %>
-                                              <button
-                                                phx-click="change_folder_color"
-                                                phx-target={@myself}
-                                                phx-value-folder-uuid={folder.uuid}
-                                                phx-value-color={color}
-                                                class={[
-                                                  "w-4 h-4 rounded-full border-2 transition-transform hover:scale-125",
-                                                  if(
-                                                    folder.color == color ||
-                                                      (folder.color == nil && color == "default"),
-                                                    do: "border-base-content scale-110",
-                                                    else: "border-transparent"
-                                                  )
-                                                ]}
-                                                style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
-                                                title={color}
-                                              >
-                                              </button>
-                                            <% end %>
-                                          </div>
+                                  <.table_row_menu id={"folder-kebab-list-#{folder.uuid}"}>
+                                    <.table_row_menu_button
+                                      phx-click="start_rename_folder"
+                                      phx-target={@myself}
+                                      phx-value-folder-uuid={folder.uuid}
+                                      icon="hero-pencil"
+                                      label={gettext("Rename")}
+                                    />
+                                    <li role="none">
+                                      <div class="px-3 py-1.5">
+                                        <span class="text-xs font-semibold text-base-content/50 mb-1 block">
+                                          {gettext("Color")}
+                                        </span>
+                                        <div class="flex flex-wrap gap-1">
+                                          <%= for color <- PhoenixKit.Modules.Storage.Folder.colors() do %>
+                                            <button
+                                              phx-click="change_folder_color"
+                                              phx-target={@myself}
+                                              phx-value-folder-uuid={folder.uuid}
+                                              phx-value-color={color}
+                                              class={[
+                                                "w-4 h-4 rounded-full border-2 transition-transform hover:scale-125",
+                                                if(
+                                                  folder.color == color ||
+                                                    (folder.color == nil && color == "default"),
+                                                  do: "border-base-content scale-110",
+                                                  else: "border-transparent"
+                                                )
+                                              ]}
+                                              style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
+                                              title={color}
+                                            >
+                                            </button>
+                                          <% end %>
                                         </div>
-                                      </li>
-                                      <li>
-                                        <button
-                                          phx-click="prepare_move_folder"
-                                          phx-target={@myself}
-                                          phx-value-folder-uuid={folder.uuid}
-                                          onclick="this.blur()"
-                                        >
-                                          <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
-                                          {gettext("Move")}
-                                        </button>
-                                      </li>
-                                      <li>
-                                        <button
-                                          phx-click="delete_folder"
-                                          phx-target={@myself}
-                                          phx-value-id={folder.uuid}
-                                          data-confirm={
-                                            gettext("Delete '%{name}'? Files move to parent.",
-                                              name: folder.name
-                                            )
-                                          }
-                                          class="text-error"
-                                        >
-                                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
-                                            "Delete"
-                                          )}
-                                        </button>
-                                      </li>
-                                    </ul>
-                                  </div>
+                                      </div>
+                                    </li>
+                                    <.table_row_menu_button
+                                      phx-click="prepare_move_folder"
+                                      phx-target={@myself}
+                                      phx-value-folder-uuid={folder.uuid}
+                                      icon="hero-folder-arrow-down"
+                                      label={gettext("Move")}
+                                    />
+                                    <.table_row_menu_button
+                                      phx-click="delete_folder"
+                                      phx-target={@myself}
+                                      phx-value-id={folder.uuid}
+                                      data-confirm={
+                                        gettext("Delete '%{name}'? Files move to parent.",
+                                          name: folder.name
+                                        )
+                                      }
+                                      icon="hero-trash"
+                                      label={gettext("Delete")}
+                                      variant="error"
+                                    />
+                                  </.table_row_menu>
                                 </td>
                               </tr>
                             <% end %>
@@ -1389,67 +1326,46 @@
                                 folder list-view kebab uses above.
                               --%>
                                 <%= unless @select_mode do %>
-                                  <div
-                                    class="dropdown dropdown-end"
-                                    phx-click="noop"
-                                    phx-target={@myself}
-                                  >
-                                    <label tabindex="0" class="btn btn-ghost btn-xs">
-                                      <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                                    </label>
-                                    <ul
-                                      tabindex="0"
-                                      class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-40 p-1"
-                                    >
-                                      <%= if Map.get(file.urls || %{}, "original") ||
-                                           Map.get(file.urls || %{}, :original) do %>
-                                        <li>
-                                          <button
-                                            phx-click="download_file"
-                                            phx-target={@myself}
-                                            phx-value-file-uuid={file.file_uuid}
-                                            onclick="this.blur()"
-                                          >
-                                            <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
-                                            {gettext("Download")}
-                                          </button>
-                                        </li>
-                                      <% end %>
-                                      <li>
-                                        <button
-                                          phx-click="prepare_move_file"
-                                          phx-target={@myself}
-                                          phx-value-file-uuid={file.file_uuid}
-                                          onclick="this.blur()"
-                                        >
-                                          <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
-                                          {gettext("Move")}
-                                        </button>
-                                      </li>
-                                      <li>
-                                        <button
-                                          phx-click="delete_file"
-                                          phx-target={@myself}
-                                          phx-value-file-uuid={file.file_uuid}
-                                          onclick="this.blur()"
-                                          data-confirm={
-                                            if @filter_trash,
-                                              do:
-                                                gettext(
-                                                  "Permanently delete '%{name}'? This cannot be undone.",
-                                                  name: file.filename
-                                                )
-                                          }
-                                          class="text-error"
-                                        >
-                                          <.icon name="hero-trash" class="w-4 h-4" />
-                                          {if @filter_trash,
-                                            do: gettext("Delete Permanently"),
-                                            else: gettext("Move to Trash")}
-                                        </button>
-                                      </li>
-                                    </ul>
-                                  </div>
+                                  <.table_row_menu id={"file-kebab-list-#{file.file_uuid}"}>
+                                    <.table_row_menu_button
+                                      :if={
+                                        Map.get(file.urls || %{}, "original") ||
+                                          Map.get(file.urls || %{}, :original)
+                                      }
+                                      phx-click="download_file"
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      icon="hero-arrow-down-tray"
+                                      label={gettext("Download")}
+                                    />
+                                    <.table_row_menu_button
+                                      phx-click="prepare_move_file"
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      icon="hero-folder-arrow-down"
+                                      label={gettext("Move")}
+                                    />
+                                    <.table_row_menu_button
+                                      phx-click="delete_file"
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      data-confirm={
+                                        if @filter_trash,
+                                          do:
+                                            gettext(
+                                              "Permanently delete '%{name}'? This cannot be undone.",
+                                              name: file.filename
+                                            )
+                                      }
+                                      icon="hero-trash"
+                                      label={
+                                        if @filter_trash,
+                                          do: gettext("Delete Permanently"),
+                                          else: gettext("Move to Trash")
+                                      }
+                                      variant="error"
+                                    />
+                                  </.table_row_menu>
                                 <% end %>
                               </td>
                             </tr>
