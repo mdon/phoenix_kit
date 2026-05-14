@@ -2950,14 +2950,10 @@ if (typeof window.Chart === "undefined") {
       trashTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._trashDragover);
         target._trashDragover = function(e) {
-          // Refuse folder drags AND batch (multi-item) drags. The batch
-          // may include folders (no soft-trash) and even if it doesn't,
-          // bulk trash-via-drag changes the semantics of the gesture
-          // from move to destroy. Users wanting bulk trash use the
-          // toolbar delete button instead.
-          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
-          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
-          if (isFolder || isBatch) return;
+          // Folders + batches are now valid drop targets — V119 added
+          // recursive folder trash, and batches route to
+          // `delete_selected` which handles trash vs permanent per
+          // `@filter_trash`.
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           target.classList.add("ring-2", "ring-error", "bg-error/10");
@@ -2972,15 +2968,25 @@ if (typeof window.Chart === "undefined") {
 
         target.removeEventListener("drop", target._trashDrop);
         target._trashDrop = function(e) {
-          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
-          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
-          if (isFolder || isBatch) return;
           e.preventDefault();
           e.stopPropagation();
           target.classList.remove("ring-2", "ring-error", "bg-error/10");
-          var fileUuid = e.dataTransfer.getData("text/plain");
-          if (fileUuid) {
-            self.pushEventTo(self.el, "trash_file", { file_uuid: fileUuid });
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          if (!draggedUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+
+          if (isBatch) {
+            // Reuses the bulk delete handler — it reads
+            // `@selected_files` + `@selected_folders` on the server
+            // and trashes (or permanent-deletes in trash view)
+            // according to `@filter_trash`.
+            self.pushEventTo(self.el, "delete_selected", {});
+          } else if (isFolder) {
+            self.pushEventTo(self.el, "trash_folder", { folder_uuid: draggedUuid });
+          } else {
+            self.pushEventTo(self.el, "trash_file", { file_uuid: draggedUuid });
           }
         };
         target.addEventListener("drop", target._trashDrop);
