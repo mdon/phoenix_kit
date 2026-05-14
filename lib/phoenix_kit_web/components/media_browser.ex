@@ -468,15 +468,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   attr :renaming_text, :string, default: ""
   attr :show_new_folder, :boolean, default: false
   attr :renaming_source, :any, required: true
+  attr :filter_trash, :boolean, default: false
   attr :depth, :integer, default: 0
   attr :myself, :any, required: true
 
   def folder_tree_node(assigns) do
+    # In trash view no folder is "active" in the file sense — the user is
+    # looking at trashed files, not a folder's contents. We keep
+    # `@current_folder` populated in the socket so toggling trash off
+    # restores the previous folder, but the tree highlight is suppressed
+    # while filter_trash is on (the sidebar Trash button carries the
+    # active highlight instead).
     assigns =
       assign(
         assigns,
         :is_active,
-        assigns.current_folder && assigns.current_folder.uuid == assigns.node.folder.uuid
+        (not assigns.filter_trash and assigns.current_folder) &&
+          assigns.current_folder.uuid == assigns.node.folder.uuid
       )
 
     assigns =
@@ -608,6 +616,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
               renaming_source={@renaming_source}
               renaming_text={@renaming_text}
               show_new_folder={@show_new_folder}
+              filter_trash={@filter_trash}
               depth={@depth + 1}
               myself={@myself}
             />

@@ -149,7 +149,7 @@
                   phx-target={@myself}
                   class={[
                     "flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-colors mb-1 text-left",
-                    if(@file_view == "all",
+                    if(@file_view == "all" and not @filter_trash,
                       do: "bg-primary/10 font-semibold text-primary",
                       else: "hover:bg-base-200"
                     )
@@ -168,7 +168,7 @@
                 data-drop-folder="root"
                 class={[
                   "flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-colors mb-1 text-left",
-                  if(@current_folder == nil and @file_view != "all",
+                  if(@current_folder == nil and @file_view != "all" and not @filter_trash,
                     do: "bg-primary/10 font-semibold text-primary",
                     else: "hover:bg-base-200"
                   )
@@ -190,6 +190,7 @@
                     renaming_source={@renaming_source}
                     renaming_text={@renaming_text}
                     show_new_folder={@show_new_folder}
+                    filter_trash={@filter_trash}
                     depth={0}
                     myself={@myself}
                   />
