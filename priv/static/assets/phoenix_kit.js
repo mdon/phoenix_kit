@@ -2744,6 +2744,39 @@ if (typeof window.Chart === "undefined") {
         };
         target.addEventListener("drop", target._drop);
       });
+
+      // Trash drop target — sidebar Trash button. Mirrors the folder
+      // drop wiring above but pushes `trash_file` and uses error-colored
+      // hover feedback so the destructive action reads as different from
+      // a folder move at a glance.
+      var trashTargets = document.querySelectorAll("[data-drop-trash]");
+      trashTargets.forEach(function(target) {
+        target.removeEventListener("dragover", target._trashDragover);
+        target._trashDragover = function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          target.classList.add("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragover", target._trashDragover);
+
+        target.removeEventListener("dragleave", target._trashDragleave);
+        target._trashDragleave = function() {
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragleave", target._trashDragleave);
+
+        target.removeEventListener("drop", target._trashDrop);
+        target._trashDrop = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+          var fileUuid = e.dataTransfer.getData("text/plain");
+          if (fileUuid) {
+            self.pushEventTo(self.el, "trash_file", { file_uuid: fileUuid });
+          }
+        };
+        target.addEventListener("drop", target._trashDrop);
+      });
     }
   };
 

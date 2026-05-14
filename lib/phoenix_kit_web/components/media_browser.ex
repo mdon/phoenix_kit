@@ -747,6 +747,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # Drag-to-trash: file dragged onto the sidebar Trash button. Always
+  # soft-deletes via `Storage.trash_file/1` — the "drop on trash" gesture
+  # means "put this in the trash", not "permanently destroy". Permanent
+  # deletion stays explicit (kebab Delete Permanently when already in
+  # trash view, or the Empty Trash button).
+  def handle_event("trash_file", %{"file_uuid" => file_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    repo = PhoenixKit.Config.get_repo()
+    file = repo.get(Storage.File, file_uuid)
+
+    cond do
+      is_nil(file) ->
+        {:noreply, put_flash(socket, :error, gettext("File not found"))}
+
+      not Storage.within_scope?(file.folder_uuid, scope) ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
+
+      true ->
+        Storage.trash_file(file)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("File moved to trash"))
+         |> reload_current_page()}
+    end
+  end
+
   def handle_event("search", %{"q" => query}, socket) do
     if controlled_mode?(socket) do
       folder_uuid = current_folder_uuid(socket)
@@ -2010,82 +2038,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Data loading
   # ──────────────────────────────────────────────────────────────
 
+  # Both trash and orphan views render through the same list / grid
+  # markup, so delegate to `enrich_files/1` for the per-file display
+  # shape (urls, folder_path, etc.). Previously these hand-rolled the
+  # map and omitted `folder_path`, which the list-view Path column
+  # reads unconditionally — opening the trash or orphan view in list
+  # mode crashed with `KeyError`.
   defp load_trashed_files(scope, page, per_page) do
-    repo = PhoenixKit.Config.get_repo()
     offset = (page - 1) * per_page
     total_count = Storage.count_trashed_files(scope)
     files = Storage.list_trashed_files(scope, limit: per_page, offset: offset)
-    file_uuids = Enum.map(files, & &1.uuid)
-
-    instances_by_file =
-      if file_uuids != [] do
-        from(fi in FileInstance, where: fi.file_uuid in ^file_uuids)
-        |> repo.all()
-        |> Enum.group_by(& &1.file_uuid)
-      else
-        %{}
-      end
-
-    existing_files =
-      Enum.map(files, fn file ->
-        instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
-        variant_widths = generate_widths_from_instances(instances)
-
-        %{
-          file_uuid: file.uuid,
-          filename: file.original_file_name || file.file_name || "Unknown",
-          file_type: file.file_type,
-          mime_type: file.mime_type,
-          size: file.size || 0,
-          status: file.status,
-          inserted_at: file.inserted_at,
-          trashed_at: file.trashed_at,
-          urls: urls,
-          variant_widths: variant_widths
-        }
-      end)
-
-    {existing_files, total_count}
+    {enrich_files(files), total_count}
   end
 
   defp load_orphaned_files(page, per_page) do
-    repo = PhoenixKit.Config.get_repo()
     offset = (page - 1) * per_page
     total_count = Storage.count_orphaned_files()
     files = Storage.find_orphaned_files(limit: per_page, offset: offset)
-    file_uuids = Enum.map(files, & &1.uuid)
-
-    instances_by_file =
-      if file_uuids != [] do
-        from(fi in FileInstance, where: fi.file_uuid in ^file_uuids)
-        |> repo.all()
-        |> Enum.group_by(& &1.file_uuid)
-      else
-        %{}
-      end
-
-    existing_files =
-      Enum.map(files, fn file ->
-        instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
-        variant_widths = generate_widths_from_instances(instances)
-
-        %{
-          file_uuid: file.uuid,
-          filename: file.original_file_name || file.file_name || "Unknown",
-          original_filename: file.original_file_name,
-          file_type: file.file_type,
-          mime_type: file.mime_type,
-          size: file.size || 0,
-          status: file.status,
-          inserted_at: file.inserted_at,
-          urls: urls,
-          variant_widths: variant_widths
-        }
-      end)
-
-    {existing_files, total_count}
+    {enrich_files(files), total_count}
   end
 
   # Loads files within scope with optional folder/search filters.
