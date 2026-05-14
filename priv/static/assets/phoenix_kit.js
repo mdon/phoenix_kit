@@ -2711,20 +2711,93 @@ if (typeof window.Chart === "undefined") {
         el.addEventListener("dragend", el._dragend);
       });
 
-      // Make folder targets droppable (grid, list rows, and sidebar)
+      // Make folder rows draggable. Same payload shape as files
+      // (`text/plain` carries the uuid) but with an extra marker type so
+      // drop targets can branch on folder vs file at hover time —
+      // dataTransfer values aren't readable on dragover, only types
+      // are, so the marker is the only way to make hover-time decisions
+      // like "this drop target is the dragged folder itself, suppress
+      // the drop indicator." Tracked in `self._draggedFolderUuid` for
+      // the dragover self-check below.
+      var folders = container.querySelectorAll("[data-draggable-folder]");
+      folders.forEach(function(el) {
+        el.setAttribute("draggable", "true");
+
+        el.removeEventListener("dragstart", el._folderDragstart);
+        el._folderDragstart = function(e) {
+          e.dataTransfer.setData("text/plain", el.dataset.draggableFolder);
+          e.dataTransfer.setData("application/x-pk-folder", "1");
+          e.dataTransfer.effectAllowed = "move";
+          self._draggedFolderUuid = el.dataset.draggableFolder;
+          el.classList.add("opacity-50");
+          e.stopPropagation();
+        };
+        el.addEventListener("dragstart", el._folderDragstart);
+
+        el.removeEventListener("dragend", el._folderDragend);
+        el._folderDragend = function() {
+          self._draggedFolderUuid = null;
+          el.classList.remove("opacity-50");
+        };
+        el.addEventListener("dragend", el._folderDragend);
+      });
+
+      // Make folder targets droppable (grid, list rows, and sidebar).
+      // Accepts both file and folder drags — the `application/x-pk-folder`
+      // marker type distinguishes them. Folder-on-self drops are
+      // suppressed at hover time so the user doesn't get a "yes you can
+      // drop here" indicator on the very folder they're dragging.
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
       dropTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._dragover);
         target._dragover = function(e) {
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          if (isFolder && target.dataset.dropFolder === self._draggedFolderUuid) {
+            // Drop-on-self for a folder — skip preventDefault so the
+            // browser shows the "no-drop" cursor and we don't paint the
+            // accept indicator. Drop-on-descendant still slips through
+            // (we can't detect descendancy in JS without the tree); the
+            // server rejects it with `{:error, :cycle}`.
+            return;
+          }
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
-          target.classList.add("ring-2", "ring-primary", "bg-primary/10");
+          // Grid/list folder cards carry an inline
+          // `style="background-color: ..."` from `folder_bg_style`, which
+          // beats any class-based bg (inline > class). Stash and clear
+          // the inline bg so `bg-primary/10` can take effect, then add
+          // the highlight outline inline.
+          //
+          // CSS `outline` instead of Tailwind's `ring-*`: ring uses
+          // `box-shadow`, which `<tr>` elements (list view rows) don't
+          // render reliably — outline works on every element type and
+          // follows border-radius in modern browsers.
+          if (target._origBg === undefined) {
+            target._origBg = target.style.backgroundColor;
+          }
+          target.style.backgroundColor = "";
+          // daisyUI 5 exposes the primary as a complete oklch() value
+          // in `--color-primary` (not the legacy `--p` raw components),
+          // so we use it directly without wrapping it in oklch().
+          // `outlineOffset: -2px` insets the outline so the table's
+          // `overflow-x-auto` wrapper can't clip the left/right edges
+          // of list-view rows. Visually it looks like a "highlighted
+          // row" instead of an outline that sticks out — same effect.
+          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outlineOffset = "-2px";
+          target.classList.add("bg-primary/10");
         };
         target.addEventListener("dragover", target._dragover);
 
         target.removeEventListener("dragleave", target._dragleave);
         target._dragleave = function() {
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
+          target.classList.remove("bg-primary/10");
+          target.style.outline = "";
+          target.style.outlineOffset = "";
+          if (target._origBg !== undefined) {
+            target.style.backgroundColor = target._origBg;
+            target._origBg = undefined;
+          }
         };
         target.addEventListener("dragleave", target._dragleave);
 
@@ -2732,13 +2805,30 @@ if (typeof window.Chart === "undefined") {
         target._drop = function(e) {
           e.preventDefault();
           e.stopPropagation();
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
-          var fileUuid = e.dataTransfer.getData("text/plain");
-          var folderUuid = target.dataset.dropFolder;
-          if (fileUuid && folderUuid) {
+          target.classList.remove("bg-primary/10");
+          target.style.outline = "";
+          target.style.outlineOffset = "";
+          if (target._origBg !== undefined) {
+            target.style.backgroundColor = target._origBg;
+            target._origBg = undefined;
+          }
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          var dropFolderUuid = target.dataset.dropFolder;
+          if (!draggedUuid || !dropFolderUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var resolvedTarget = dropFolderUuid === "root" ? "" : dropFolderUuid;
+
+          if (isFolder) {
+            if (draggedUuid === dropFolderUuid) return;
+            self.pushEventTo(self.el, "move_folder_to_folder", {
+              folder_uuid: draggedUuid,
+              target_uuid: resolvedTarget
+            });
+          } else {
             self.pushEventTo(self.el, "move_file_to_folder", {
-              file_uuid: fileUuid,
-              folder_uuid: folderUuid === "root" ? "" : folderUuid
+              file_uuid: draggedUuid,
+              folder_uuid: resolvedTarget
             });
           }
         };
@@ -2748,11 +2838,16 @@ if (typeof window.Chart === "undefined") {
       // Trash drop target — sidebar Trash button. Mirrors the folder
       // drop wiring above but pushes `trash_file` and uses error-colored
       // hover feedback so the destructive action reads as different from
-      // a folder move at a glance.
+      // a folder move at a glance. Folder drags are refused at hover
+      // time: folders don't go through the trash flow (no soft-delete
+      // for folders), so the user gets a "no-drop" cursor instead of
+      // a misleading red ring.
       var trashTargets = document.querySelectorAll("[data-drop-trash]");
       trashTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._trashDragover);
         target._trashDragover = function(e) {
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          if (isFolder) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           target.classList.add("ring-2", "ring-error", "bg-error/10");
@@ -2767,6 +2862,8 @@ if (typeof window.Chart === "undefined") {
 
         target.removeEventListener("drop", target._trashDrop);
         target._trashDrop = function(e) {
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          if (isFolder) return;
           e.preventDefault();
           e.stopPropagation();
           target.classList.remove("ring-2", "ring-error", "bg-error/10");

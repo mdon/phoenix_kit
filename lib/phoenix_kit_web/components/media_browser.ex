@@ -565,6 +565,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
             data-drop-folder={@node.folder.uuid}
+            data-draggable-folder={@node.folder.uuid}
             class="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-sm text-left"
           >
             <span style={folder_icon_style(@node.folder.color, @is_active)}>
@@ -753,6 +754,46 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to move file"))}
+    end
+  end
+
+  # Drag a folder onto another folder (or the root drop target) to
+  # reparent it. Mirrors `move_file_to_folder` but uses
+  # `Storage.update_folder/3`, which enforces the cycle check (can't
+  # move a folder into its own descendant). JS pre-empts the
+  # drop-on-self case so we don't see it here.
+  def handle_event(
+        "move_folder_to_folder",
+        %{"folder_uuid" => folder_uuid, "target_uuid" => target_uuid},
+        socket
+      ) do
+    scope = scope_folder_id(socket)
+    target = if target_uuid == "", do: scope, else: target_uuid
+
+    case Storage.get_folder(folder_uuid) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
+
+      folder ->
+        case Storage.update_folder(folder, %{parent_uuid: target}, scope) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, gettext("Folder moved"))
+             |> reload_folder_lists()
+             |> reload_current_page()}
+
+          {:error, :out_of_scope} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
+
+          {:error, :cycle} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot move a folder into its own descendant"))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, gettext("Failed to move folder"))}
+        end
     end
   end
 
@@ -1303,6 +1344,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        :info,
        ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count)
      )
+     |> reload_folder_lists()
      |> reload_current_page()}
   end
 
@@ -1350,6 +1392,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> put_flash(:info, flash)
+     |> reload_folder_lists()
      |> reload_current_page()}
   end
 
@@ -2010,6 +2053,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:total_pages, ceil(total_count / per_page))
        |> auto_expand_breadcrumbs(breadcrumbs)}
     end
+  end
+
+  # Refresh `@folders` (the children of the current navigation folder)
+  # and `@folder_tree` (the sidebar tree). Called from handlers that
+  # mutate folder rows — move, bulk move/delete — so the UI shows the
+  # new structure without a manual refresh. File-only mutations skip
+  # this since they don't change the folder set.
+  defp reload_folder_lists(socket) do
+    scope = scope_folder_id(socket)
+    parent_uuid = current_folder_uuid(socket)
+    filter_trash = socket.assigns[:filter_trash]
+    file_view = socket.assigns[:file_view]
+
+    folders =
+      cond do
+        filter_trash -> []
+        file_view == "all" -> []
+        true -> Storage.list_folders(parent_uuid, scope)
+      end
+
+    socket
+    |> assign(:folders, folders)
+    |> assign(:folder_tree, Storage.list_folder_tree(scope))
   end
 
   defp reload_current_page(socket) do
