@@ -797,6 +797,17 @@
                               </li>
                               <li>
                                 <button
+                                  phx-click="prepare_move_folder"
+                                  phx-target={@myself}
+                                  phx-value-folder-uuid={folder.uuid}
+                                  onclick="this.blur()"
+                                >
+                                  <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                                  {gettext("Move")}
+                                </button>
+                              </li>
+                              <li>
+                                <button
                                   phx-click="delete_folder"
                                   phx-target={@myself}
                                   phx-value-id={folder.uuid}
@@ -930,6 +941,17 @@
                                   </button>
                                 </li>
                               <% end %>
+                              <li>
+                                <button
+                                  phx-click="prepare_move_file"
+                                  phx-target={@myself}
+                                  phx-value-file-uuid={file.file_uuid}
+                                  onclick="this.blur()"
+                                >
+                                  <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                                  {gettext("Move")}
+                                </button>
+                              </li>
                               <li>
                                 <button
                                   phx-click="delete_file"
@@ -1112,7 +1134,7 @@
                                   </span>
                                 </div>
                               </td>
-                              <td colspan="5">
+                              <td>
                                 <span class={[
                                   "font-medium text-sm",
                                   @renaming_folder == folder.uuid && @renaming_source != "content" &&
@@ -1125,7 +1147,22 @@
                                   <% end %>
                                 </span>
                               </td>
+                              <td>
+                                <%= if path = folder_parent_path(folder) do %>
+                                  <span class="text-xs text-base-content/50">{path}</span>
+                                <% else %>
+                                  <span class="text-xs text-base-content/30">/</span>
+                                <% end %>
+                              </td>
+                              <td>
+                                <span class="badge badge-ghost badge-sm h-auto">
+                                  {gettext("Folder")}
+                                </span>
+                              </td>
                               <td></td>
+                              <td class="text-sm text-base-content/70">
+                                {Calendar.strftime(folder.inserted_at, "%b %d, %Y")}
+                              </td>
                               <td>
                                 <div
                                   class="dropdown dropdown-end"
@@ -1178,6 +1215,17 @@
                                           <% end %>
                                         </div>
                                       </div>
+                                    </li>
+                                    <li>
+                                      <button
+                                        phx-click="prepare_move_folder"
+                                        phx-target={@myself}
+                                        phx-value-folder-uuid={folder.uuid}
+                                        onclick="this.blur()"
+                                      >
+                                        <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                                        {gettext("Move")}
+                                      </button>
                                     </li>
                                     <li>
                                       <button
@@ -1304,6 +1352,17 @@
                                     <% end %>
                                     <li>
                                       <button
+                                        phx-click="prepare_move_file"
+                                        phx-target={@myself}
+                                        phx-value-file-uuid={file.file_uuid}
+                                        onclick="this.blur()"
+                                      >
+                                        <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                                        {gettext("Move")}
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
                                         phx-click="delete_file"
                                         phx-target={@myself}
                                         phx-value-file-uuid={file.file_uuid}
@@ -1375,10 +1434,16 @@
       <div class="modal modal-open">
         <div class="modal-box">
           <h3 class="font-bold text-lg mb-4">
+            <%!--
+              "item" covers both files and folders so the kebab single-item
+              and bulk-mixed selections all read sensibly. Bulk-file-only
+              flows used to say "file(s)" — generalising loses that nuance
+              but gains correctness when folders are in the mix.
+            --%>
             {ngettext(
-              "Move %{count} file to folder",
-              "Move %{count} files to folder",
-              MapSet.size(@selected_files)
+              "Move %{count} item to folder",
+              "Move %{count} items to folder",
+              MapSet.size(@selected_files) + MapSet.size(@selected_folders)
             )}
           </h3>
           <ul class="menu bg-base-200 rounded-lg max-h-64 overflow-y-auto">

@@ -1190,7 +1190,43 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("close_move_modal", _params, socket) do
-    {:noreply, assign(socket, :show_move_modal, false)}
+    # Clear the transient single-item selection when the cancel came from
+    # a kebab-triggered move. Bulk-mode users may want their selection to
+    # persist across a cancel (so they can retry without reselecting), so
+    # only clear when select_mode is off — which is also when the kebabs
+    # are visible, since we hide them in select_mode.
+    socket = assign(socket, :show_move_modal, false)
+
+    socket =
+      if socket.assigns.select_mode do
+        socket
+      else
+        socket
+        |> assign(:selected_files, MapSet.new())
+        |> assign(:selected_folders, MapSet.new())
+      end
+
+    {:noreply, socket}
+  end
+
+  # Single-file move from kebab — pre-populates the selection with just
+  # this file and opens the move modal. Reuses the bulk
+  # `move_selected_to_folder` flow without entering select_mode.
+  def handle_event("prepare_move_file", %{"file-uuid" => file_uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_files, MapSet.new([file_uuid]))
+     |> assign(:selected_folders, MapSet.new())
+     |> assign(:show_move_modal, true)}
+  end
+
+  # Single-folder move from kebab — symmetric to `prepare_move_file`.
+  def handle_event("prepare_move_folder", %{"folder-uuid" => folder_uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_files, MapSet.new())
+     |> assign(:selected_folders, MapSet.new([folder_uuid]))
+     |> assign(:show_move_modal, true)}
   end
 
   def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
@@ -2390,6 +2426,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # "pdf" here made every PDF upload fail the changeset validation silently.
       mime_type == "application/pdf" -> "document"
       true -> "document"
+    end
+  end
+
+  # Path-to-parent string for a folder row, mirroring `enrich_files`'
+  # `folder_path` computation. Returns nil at root so the heex can render
+  # the same `/` placeholder file rows use for root-level files. Cost is
+  # one folder_breadcrumbs lookup per folder (a recursive ancestor walk);
+  # acceptable for typical folder counts per directory.
+  defp folder_parent_path(folder) do
+    case Storage.folder_breadcrumbs(folder.parent_uuid) do
+      [] -> nil
+      chain -> Enum.map_join(chain, " / ", & &1.name)
     end
   end
 
