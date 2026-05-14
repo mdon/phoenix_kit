@@ -2380,7 +2380,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.11/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.13/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -2421,6 +2421,178 @@ if (typeof window.Chart === "undefined") {
               }
             });
             // Call the real mounted
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // FRESCO VIEWER (loaded from CDN)
+  //
+  // Lazy-fetches Fresco's pan-zoom image viewer JS from jsDelivr when the
+  // `FrescoViewer` hook mounts. The Elixir component comes from the
+  // {:fresco, "~> 0.1.4"} hex dependency. Parent apps that pre-import
+  // fresco in their own app.js short-circuit the CDN load — the wrapper
+  // detects `window.FrescoHooks.FrescoViewer` and uses it directly.
+  //
+  // Keep the version constant in sync with the hex dep + the GitHub release
+  // tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
+  // ============================================================================
+
+  (function() {
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.4/priv/static/fresco.js";
+    var frescoLoading = false;
+    var frescoCallbacks = [];
+
+    function loadFrescoJS(callback) {
+      if (window.FrescoHooks && window.FrescoHooks.FrescoViewer) {
+        callback();
+        return;
+      }
+
+      frescoCallbacks.push(callback);
+
+      if (frescoLoading) return;
+      frescoLoading = true;
+
+      var script = document.createElement("script");
+      script.src = FRESCO_CDN;
+      script.onload = function() {
+        frescoCallbacks.forEach(function(cb) { cb(); });
+        frescoCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Fresco] Failed to load Fresco viewer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.FrescoViewer = {
+      mounted: function() {
+        var self = this;
+        loadFrescoJS(function() {
+          var realHook = window.FrescoHooks && window.FrescoHooks.FrescoViewer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // TESSERA LAYER (loaded from CDN)
+  //
+  // Lazy-fetches Tessera's deep-zoom (DZI) tile-source layer JS. Pairs with
+  // Fresco — the host viewer must mount first, then the Tessera layer
+  // attaches via `fresco_id`. Comes from the {:tessera, "~> 0.2.1"} hex
+  // dependency. Same parent-pre-import short-circuit as Fresco.
+  // ============================================================================
+
+  (function() {
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.2.1/priv/static/tessera.js";
+    var tesseraLoading = false;
+    var tesseraCallbacks = [];
+
+    function loadTesseraJS(callback) {
+      if (window.TesseraHooks && window.TesseraHooks.TesseraLayer) {
+        callback();
+        return;
+      }
+
+      tesseraCallbacks.push(callback);
+
+      if (tesseraLoading) return;
+      tesseraLoading = true;
+
+      var script = document.createElement("script");
+      script.src = TESSERA_CDN;
+      script.onload = function() {
+        tesseraCallbacks.forEach(function(cb) { cb(); });
+        tesseraCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Tessera] Failed to load Tessera layer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.TesseraLayer = {
+      mounted: function() {
+        var self = this;
+        loadTesseraJS(function() {
+          var realHook = window.TesseraHooks && window.TesseraHooks.TesseraLayer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // ETCHER LAYER (loaded from CDN)
+  //
+  // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
+  // to a host viewer via `fresco_id` and adds the pencil toolbar, draw
+  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.3"} hex
+  // dependency. Same parent-pre-import short-circuit as Fresco.
+  // ============================================================================
+
+  (function() {
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.3/priv/static/etcher.js";
+    var etcherLoading = false;
+    var etcherCallbacks = [];
+
+    function loadEtcherJS(callback) {
+      if (window.EtcherHooks && window.EtcherHooks.EtcherLayer) {
+        callback();
+        return;
+      }
+
+      etcherCallbacks.push(callback);
+
+      if (etcherLoading) return;
+      etcherLoading = true;
+
+      var script = document.createElement("script");
+      script.src = ETCHER_CDN;
+      script.onload = function() {
+        etcherCallbacks.forEach(function(cb) { cb(); });
+        etcherCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Etcher] Failed to load Etcher layer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.EtcherLayer = {
+      mounted: function() {
+        var self = this;
+        loadEtcherJS(function() {
+          var realHook = window.EtcherHooks && window.EtcherHooks.EtcherLayer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
             realHook.mounted.call(self);
           }
         });
@@ -2804,25 +2976,31 @@ if (typeof window.Chart === "undefined") {
 })();
 
 // ===========================================================================
-// PhoenixKitHooks bridge — adopts hooks from sibling libraries (fresco,
-// tessera, etcher) into the single `window.PhoenixKitHooks` namespace the
-// parent app spreads into LiveSocket.
+// PhoenixKitHooks bridge — adopts any hooks exposed by sibling libraries
+// (fresco, tessera, etcher) into the single `window.PhoenixKitHooks`
+// namespace the parent app spreads into LiveSocket.
 //
-// IMPORTANT load order in your parent app's `app.js`:
-//
-//   import "../../deps/fresco/priv/static/fresco.js"
-//   import "../../deps/tessera/priv/static/tessera.js"   // if you use it
-//   import "../../deps/etcher/priv/static/etcher.js"     // if you use it
-//   import "../../priv/static/assets/vendor/phoenix_kit.js"   // last
+// Default setup (zero-config): the FrescoViewer / TesseraLayer /
+// EtcherLayer wrapper hooks above lazy-load the sibling libs from
+// jsDelivr on first mount, so the parent app only needs to spread
+// `...window.PhoenixKitHooks` into LiveSocket:
 //
 //   let liveSocket = new LiveSocket("/live", Socket, {
 //     hooks: { ...window.PhoenixKitHooks, ...colocatedHooks }
 //   });
 //
-// phoenix_kit.js must load AFTER the sibling libs so the bridge below
-// picks up their `window.{Fresco|Tessera|Etcher}Hooks` globals. Each
-// `adopt` call is a no-op when the corresponding global is missing, so
-// you only have to import the libs you actually use.
+// Optional pre-import (for offline / CSP-strict / pre-bundled apps):
+// import the libs in your own `app.js` before phoenix_kit.js and the
+// wrappers will detect `window.{Fresco|Tessera|Etcher}Hooks` and skip
+// the CDN load:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/tessera/priv/static/tessera.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+// The `adopt` calls below are a defensive backstop for any sibling hook
+// the wrappers above don't explicitly cover (e.g. a future hook added by
+// one of the libs). No-ops when the global is missing.
 // ===========================================================================
 
 (function() {
