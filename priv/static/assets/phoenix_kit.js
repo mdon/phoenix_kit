@@ -2707,6 +2707,12 @@ if (typeof window.Chart === "undefined") {
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
           el.classList.remove("opacity-50");
+          // Clear any lingering highlight if the drag was cancelled
+          // (Esc, dropped outside) while still hovering a target.
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
         };
         el.addEventListener("dragend", el._dragend);
       });
@@ -2738,6 +2744,10 @@ if (typeof window.Chart === "undefined") {
         el._folderDragend = function() {
           self._draggedFolderUuid = null;
           el.classList.remove("opacity-50");
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
         };
         el.addEventListener("dragend", el._folderDragend);
       });
@@ -2747,6 +2757,27 @@ if (typeof window.Chart === "undefined") {
       // marker type distinguishes them. Folder-on-self drops are
       // suppressed at hover time so the user doesn't get a "yes you can
       // drop here" indicator on the very folder they're dragging.
+
+      // Single-active-target tracking: nested drop targets (folder card
+      // inside the main-area wrapper) need exclusivity — only the
+      // innermost should highlight. When a new target lights up, we
+      // clear the previous one. stopPropagation alone doesn't suffice
+      // because the wrapper can already be highlighted before the
+      // cursor enters a child and dragleave timing on the wrapper
+      // varies across browsers.
+      function clearHighlight(t) {
+        if (!t) return;
+        if (!t.dataset.dropNoBg) {
+          t.classList.remove("bg-primary/10");
+          if (t._origBg !== undefined) {
+            t.style.backgroundColor = t._origBg;
+            t._origBg = undefined;
+          }
+        }
+        t.style.outline = "";
+        t.style.outlineOffset = "";
+      }
+
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
       dropTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._dragover);
@@ -2761,7 +2792,17 @@ if (typeof window.Chart === "undefined") {
             return;
           }
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
+
+          // Exclusivity: if a different target was lit, clear it before
+          // we paint the new one. Then mark this target as active so
+          // dragleave / drop know whether to release the tracker.
+          if (self._activeDropTarget && self._activeDropTarget !== target) {
+            clearHighlight(self._activeDropTarget);
+          }
+          self._activeDropTarget = target;
+
           // Grid/list folder cards carry an inline
           // `style="background-color: ..."` from `folder_bg_style`, which
           // beats any class-based bg (inline > class). Stash and clear
@@ -2772,10 +2813,17 @@ if (typeof window.Chart === "undefined") {
           // `box-shadow`, which `<tr>` elements (list view rows) don't
           // render reliably — outline works on every element type and
           // follows border-radius in modern browsers.
-          if (target._origBg === undefined) {
-            target._origBg = target.style.backgroundColor;
+          //
+          // `data-drop-no-bg`: opt-out for large drop surfaces (the
+          // main content-area target) where a 10% primary tint over a
+          // huge area is overwhelming. Outline-only there.
+          if (!target.dataset.dropNoBg) {
+            if (target._origBg === undefined) {
+              target._origBg = target.style.backgroundColor;
+            }
+            target.style.backgroundColor = "";
+            target.classList.add("bg-primary/10");
           }
-          target.style.backgroundColor = "";
           // daisyUI 5 exposes the primary as a complete oklch() value
           // in `--color-primary` (not the legacy `--p` raw components),
           // so we use it directly without wrapping it in oklch().
@@ -2785,18 +2833,14 @@ if (typeof window.Chart === "undefined") {
           // row" instead of an outline that sticks out — same effect.
           target.style.outline = "2px solid var(--color-primary)";
           target.style.outlineOffset = "-2px";
-          target.classList.add("bg-primary/10");
         };
         target.addEventListener("dragover", target._dragover);
 
         target.removeEventListener("dragleave", target._dragleave);
         target._dragleave = function() {
-          target.classList.remove("bg-primary/10");
-          target.style.outline = "";
-          target.style.outlineOffset = "";
-          if (target._origBg !== undefined) {
-            target.style.backgroundColor = target._origBg;
-            target._origBg = undefined;
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
           }
         };
         target.addEventListener("dragleave", target._dragleave);
@@ -2805,12 +2849,9 @@ if (typeof window.Chart === "undefined") {
         target._drop = function(e) {
           e.preventDefault();
           e.stopPropagation();
-          target.classList.remove("bg-primary/10");
-          target.style.outline = "";
-          target.style.outlineOffset = "";
-          if (target._origBg !== undefined) {
-            target.style.backgroundColor = target._origBg;
-            target._origBg = undefined;
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
           }
           var draggedUuid = e.dataTransfer.getData("text/plain");
           var dropFolderUuid = target.dataset.dropFolder;
