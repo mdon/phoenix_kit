@@ -443,6 +443,23 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       assert {:error, :cycle} =
                Storage.update_folder(child_a, %{parent_uuid: grandchild.uuid}, scope.uuid)
     end
+
+    test "rejects move-to-true-root under scope (parent_uuid: nil)" do
+      # Regression: previously `new_parent &&` short-circuited the scope
+      # check when `parent_uuid` was explicitly nil, letting a caller
+      # reparent a scoped folder out of its scope subtree to the system
+      # root. The MediaBrowser move modal's "root" button used to pass
+      # the empty string, which became nil here. Now any explicit
+      # `parent_uuid` in attrs runs the scope check, including nil.
+      %{scope: scope, child_a: child_a} = build_tree()
+
+      assert {:error, :out_of_scope} =
+               Storage.update_folder(child_a, %{parent_uuid: nil}, scope.uuid)
+
+      # Also via string key, for the controller / form path.
+      assert {:error, :out_of_scope} =
+               Storage.update_folder(child_a, %{"parent_uuid" => nil}, scope.uuid)
+    end
   end
 
   # ---------------------------------------------------------------------------

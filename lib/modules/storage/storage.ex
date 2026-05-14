@@ -979,10 +979,19 @@ defmodule PhoenixKit.Modules.Storage do
 
   def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
     if within_scope?(folder.uuid, scope_folder_id) do
+      # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
+      # no move attempted) from "attrs has parent_uuid: nil" (an explicit
+      # move to the system root). The previous `new_parent &&` short-circuit
+      # treated both the same, letting a caller silently reparent a folder
+      # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
+      # explicit parent_uuid in attrs runs the scope check, and
+      # `within_scope?(nil, scope)` is false when scope is set, so a
+      # move-to-true-root attempt fails with `:out_of_scope`.
+      moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
       new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
       cond do
-        new_parent && not within_scope?(new_parent, scope_folder_id) ->
+        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
           {:error, :out_of_scope}
 
         new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
