@@ -1283,6 +1283,52 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, push_event(socket, "download_files", %{files: files})}
   end
 
+  # Single-file delete via the per-row kebab menu. Mirrors `delete_selected`
+  # for one file — soft-delete to trash when outside the trash view, permanent
+  # delete when already inside it. Scope-guarded the same way.
+  def handle_event("delete_file", %{"file-uuid" => file_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    repo = PhoenixKit.Config.get_repo()
+    file = repo.get(Storage.File, file_uuid)
+
+    if file && Storage.within_scope?(file.folder_uuid, scope) do
+      if socket.assigns.filter_trash do
+        Storage.delete_file_completely(file)
+      else
+        Storage.trash_file(file)
+      end
+
+      flash =
+        if socket.assigns.filter_trash,
+          do: gettext("File permanently deleted"),
+          else: gettext("File moved to trash")
+
+      {:noreply,
+       socket
+       |> put_flash(:info, flash)
+       |> reload_current_page()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Single-file download via the per-row kebab menu. Pushes the same
+  # `download_files` event the JS hook listens for, with one entry. The heex
+  # only renders the menu item when an "original" URL is present, so a
+  # missing URL here is a stale assigns / race condition — silent no-op is
+  # the right call.
+  def handle_event("download_file", %{"file-uuid" => file_uuid}, socket) do
+    file = Enum.find(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
+    url = file && (Map.get(file.urls || %{}, "original") || Map.get(file.urls || %{}, :original))
+
+    if url do
+      {:noreply,
+       push_event(socket, "download_files", %{files: [%{url: url, name: file.filename}]})}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("toggle_trash_filter", _params, socket) do
     filter_trash = !socket.assigns.filter_trash
 

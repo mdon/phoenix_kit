@@ -889,6 +889,72 @@
                             {format_file_size(file.size)}
                           </div>
                         </div>
+                        <%!--
+                          Per-file kebab menu. Sibling of the click target so
+                          its buttons don't fire `click_file`. Mirrors the
+                          folder kebab pattern: hidden by default, fades in
+                          on hover. Always shows Delete; shows Download only
+                          when an "original" URL is present.
+                        --%>
+                        <%= unless @select_mode do %>
+                          <div class="dropdown dropdown-end absolute top-1 right-1 opacity-0 group-hover:opacity-100">
+                            <label
+                              tabindex="0"
+                              class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 bg-black/40 hover:bg-black/60 text-white border-0"
+                            >
+                              <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
+                            </label>
+                            <ul
+                              tabindex="0"
+                              class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-40 p-1"
+                            >
+                              <%!--
+                                `onclick="this.blur()"` on each menu item closes
+                                the dropdown after a click. daisyUI keeps the
+                                menu open via `:focus-within` on the wrapper, so
+                                blurring the clicked button releases focus and
+                                the CSS collapses it. Runs alongside phx-click —
+                                they don't conflict.
+                              --%>
+                              <%= if Map.get(file.urls || %{}, "original") ||
+                                     Map.get(file.urls || %{}, :original) do %>
+                                <li>
+                                  <button
+                                    phx-click="download_file"
+                                    phx-target={@myself}
+                                    phx-value-file-uuid={file.file_uuid}
+                                    onclick="this.blur()"
+                                  >
+                                    <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                                    {gettext("Download")}
+                                  </button>
+                                </li>
+                              <% end %>
+                              <li>
+                                <button
+                                  phx-click="delete_file"
+                                  phx-target={@myself}
+                                  phx-value-file-uuid={file.file_uuid}
+                                  onclick="this.blur()"
+                                  data-confirm={
+                                    if @filter_trash,
+                                      do:
+                                        gettext(
+                                          "Permanently delete '%{name}'? This cannot be undone.",
+                                          name: file.filename
+                                        )
+                                  }
+                                  class="text-error"
+                                >
+                                  <.icon name="hero-trash" class="w-4 h-4" />
+                                  {if @filter_trash,
+                                    do: gettext("Delete Permanently"),
+                                    else: gettext("Move to Trash")}
+                                </button>
+                              </li>
+                            </ul>
+                          </div>
+                        <% end %>
                       </div>
                     <% end %>
                   </div>
@@ -1200,6 +1266,67 @@
                             </td>
                             <td class="text-sm text-base-content/70">
                               {Calendar.strftime(file.inserted_at, "%b %d, %Y")}
+                            </td>
+                            <td>
+                              <%!--
+                                Per-file kebab. `phx-click="noop"` on the
+                                wrapper intercepts the bubble so clicks
+                                on the dropdown trigger don't also fire
+                                the row's `click_file`. Same pattern the
+                                folder list-view kebab uses above.
+                              --%>
+                              <%= unless @select_mode do %>
+                                <div
+                                  class="dropdown dropdown-end"
+                                  phx-click="noop"
+                                  phx-target={@myself}
+                                >
+                                  <label tabindex="0" class="btn btn-ghost btn-xs">
+                                    <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
+                                  </label>
+                                  <ul
+                                    tabindex="0"
+                                    class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-40 p-1"
+                                  >
+                                    <%= if Map.get(file.urls || %{}, "original") ||
+                                           Map.get(file.urls || %{}, :original) do %>
+                                      <li>
+                                        <button
+                                          phx-click="download_file"
+                                          phx-target={@myself}
+                                          phx-value-file-uuid={file.file_uuid}
+                                          onclick="this.blur()"
+                                        >
+                                          <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                                          {gettext("Download")}
+                                        </button>
+                                      </li>
+                                    <% end %>
+                                    <li>
+                                      <button
+                                        phx-click="delete_file"
+                                        phx-target={@myself}
+                                        phx-value-file-uuid={file.file_uuid}
+                                        onclick="this.blur()"
+                                        data-confirm={
+                                          if @filter_trash,
+                                            do:
+                                              gettext(
+                                                "Permanently delete '%{name}'? This cannot be undone.",
+                                                name: file.filename
+                                              )
+                                        }
+                                        class="text-error"
+                                      >
+                                        <.icon name="hero-trash" class="w-4 h-4" />
+                                        {if @filter_trash,
+                                          do: gettext("Delete Permanently"),
+                                          else: gettext("Move to Trash")}
+                                      </button>
+                                    </li>
+                                  </ul>
+                                </div>
+                              <% end %>
                             </td>
                           </tr>
                         <% end %>
