@@ -962,6 +962,12 @@ defmodule PhoenixKit.Modules.Storage do
 
   Returns `{:error, :cycle}` if the move would create a circular reference.
   Returns `{:error, :out_of_scope}` if the folder or new parent is outside scope.
+
+  **`parent_uuid` semantics under scope:** omit `:parent_uuid` from `attrs`
+  for rename/recolor (no move is attempted). Pass an explicit value to
+  move — including `nil`, which means "move to the system's true root."
+  Under a non-nil scope, an explicit `parent_uuid: nil` fails with
+  `:out_of_scope` because the system root is outside the scope subtree.
   """
   def update_folder(folder, attrs, scope_folder_id \\ nil)
 

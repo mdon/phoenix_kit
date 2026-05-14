@@ -1046,6 +1046,16 @@
                             <td></td>
                           </tr>
                         <% end %>
+                        <%!--
+                          All folders rendered below share the same parent
+                          (children of @current_folder, or of @scope when
+                          we're at the scoped root), so the Path column
+                          shows the same string for every row. Pre-compute
+                          once per render — previously each row called the
+                          breadcrumbs walk independently, an N+1 over
+                          identical work.
+                        --%>
+                        <% folders_path = folder_list_path(@current_folder, @scope_folder_id) %>
                         <%!-- Folders --%>
                         <%= for folder <- if(@file_view == "all", do: [], else: @folders) do %>
                           <%= if @renaming_folder == folder.uuid && @renaming_source == "content" do %>
@@ -1148,8 +1158,8 @@
                                 </span>
                               </td>
                               <td>
-                                <%= if path = folder_parent_path(folder) do %>
-                                  <span class="text-xs text-base-content/50">{path}</span>
+                                <%= if folders_path do %>
+                                  <span class="text-xs text-base-content/50">{folders_path}</span>
                                 <% else %>
                                   <span class="text-xs text-base-content/30">/</span>
                                 <% end %>

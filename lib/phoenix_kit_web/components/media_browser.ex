@@ -2135,11 +2135,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     folder_uuids =
       files |> Enum.map(& &1.folder_uuid) |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
-    folder_paths =
-      Map.new(folder_uuids, fn fuuid ->
-        path = Storage.folder_breadcrumbs(fuuid) |> Enum.map_join(" / ", & &1.name)
-        {fuuid, path}
-      end)
+    folder_paths = Map.new(folder_uuids, fn fuuid -> {fuuid, breadcrumb_path(fuuid)} end)
 
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
@@ -2438,17 +2434,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  # Path-to-parent string for a folder row, mirroring `enrich_files`'
-  # `folder_path` computation. Returns nil at root so the heex can render
-  # the same `/` placeholder file rows use for root-level files. Cost is
-  # one folder_breadcrumbs lookup per folder (a recursive ancestor walk);
-  # acceptable for typical folder counts per directory.
-  defp folder_parent_path(folder) do
-    case Storage.folder_breadcrumbs(folder.parent_uuid) do
+  # Build a "Folder1 / Folder2 / ..." path string from a folder uuid.
+  # Returns nil at root so callers can render a `/` placeholder. Shared
+  # by `enrich_files` (per-file folder_path) and `folder_list_path`
+  # (single per-render path for the folder list view).
+  defp breadcrumb_path(nil), do: nil
+
+  defp breadcrumb_path(uuid) do
+    case Storage.folder_breadcrumbs(uuid) do
       [] -> nil
       chain -> Enum.map_join(chain, " / ", & &1.name)
     end
   end
+
+  # Path shown in the list-view folder rows' Path column. All folders
+  # displayed share the same parent (children of @current_folder, or of
+  # the scope when at the scoped root), so we compute it once per render
+  # instead of recomputing per row — the previous `folder_parent_path/1`
+  # did one breadcrumbs walk per folder, an N+1 over identical work.
+  defp folder_list_path(nil, scope_id), do: breadcrumb_path(scope_id)
+  defp folder_list_path(%{uuid: uuid}, _scope_id), do: breadcrumb_path(uuid)
 
   defp format_file_size(bytes) when is_integer(bytes) do
     cond do
