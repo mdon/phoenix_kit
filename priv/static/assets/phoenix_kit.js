@@ -2700,13 +2700,31 @@ if (typeof window.Chart === "undefined") {
         el._dragstart = function(e) {
           e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
           e.dataTransfer.effectAllowed = "move";
-          el.classList.add("opacity-50");
+          // Batch mode: if the dragged item is part of the current
+          // selection, the drag moves the WHOLE selection. Marker type
+          // `application/x-pk-batch` tells the drop handler to fire the
+          // existing `move_selected_to_folder` event (which iterates
+          // `@selected_files` + `@selected_folders` server-side) rather
+          // than the single-item move. All selected items get
+          // opacity-50 for visual feedback.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
         };
         el.addEventListener("dragstart", el._dragstart);
 
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
-          el.classList.remove("opacity-50");
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
           // Clear any lingering highlight if the drag was cancelled
           // (Esc, dropped outside) while still hovering a target.
           if (self._activeDropTarget) {
@@ -2735,7 +2753,19 @@ if (typeof window.Chart === "undefined") {
           e.dataTransfer.setData("application/x-pk-folder", "1");
           e.dataTransfer.effectAllowed = "move";
           self._draggedFolderUuid = el.dataset.draggableFolder;
-          el.classList.add("opacity-50");
+          // Batch mode (same logic as the file dragstart above): if
+          // the folder is part of the current selection, the drag
+          // represents the whole selection. The folder-marker stays
+          // set so self-drop suppression in dragover still works for
+          // the source folder; the batch marker takes precedence in
+          // the drop handler.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
           e.stopPropagation();
         };
         el.addEventListener("dragstart", el._folderDragstart);
@@ -2743,7 +2773,12 @@ if (typeof window.Chart === "undefined") {
         el.removeEventListener("dragend", el._folderDragend);
         el._folderDragend = function() {
           self._draggedFolderUuid = null;
-          el.classList.remove("opacity-50");
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
           if (self._activeDropTarget) {
             clearHighlight(self._activeDropTarget);
             self._activeDropTarget = null;
@@ -2776,6 +2811,22 @@ if (typeof window.Chart === "undefined") {
         }
         t.style.outline = "";
         t.style.outlineOffset = "";
+      }
+
+      // When the user picks up a selected item (during select_mode),
+      // the drag represents the whole selection — gray out every
+      // selected element so it's visually clear what's coming along.
+      // Each selected file/folder element carries `data-selected="true"`
+      // from heex, so a single querySelectorAll handles all four
+      // rendering paths (grid/list × file/folder).
+      function setBatchVisuals(active) {
+        document.querySelectorAll('[data-selected="true"]').forEach(function(el) {
+          if (active) {
+            el.classList.add("opacity-50");
+          } else {
+            el.classList.remove("opacity-50");
+          }
+        });
       }
 
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
@@ -2858,9 +2909,21 @@ if (typeof window.Chart === "undefined") {
           if (!draggedUuid || !dropFolderUuid) return;
 
           var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
           var resolvedTarget = dropFolderUuid === "root" ? "" : dropFolderUuid;
 
-          if (isFolder) {
+          if (isBatch) {
+            // Drag started on a selected item — move the whole
+            // selection. `move_selected_to_folder` is the existing bulk
+            // handler used by the move modal; it reads
+            // `@selected_files` + `@selected_folders` from socket state
+            // and clears them + resets select_mode after. Drag-on-self
+            // for a folder in the batch is handled server-side (the
+            // bulk handler skips moving a folder onto itself).
+            self.pushEventTo(self.el, "move_selected_to_folder", {
+              folder_uuid: resolvedTarget
+            });
+          } else if (isFolder) {
             if (draggedUuid === dropFolderUuid) return;
             self.pushEventTo(self.el, "move_folder_to_folder", {
               folder_uuid: draggedUuid,
@@ -2887,8 +2950,14 @@ if (typeof window.Chart === "undefined") {
       trashTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._trashDragover);
         target._trashDragover = function(e) {
+          // Refuse folder drags AND batch (multi-item) drags. The batch
+          // may include folders (no soft-trash) and even if it doesn't,
+          // bulk trash-via-drag changes the semantics of the gesture
+          // from move to destroy. Users wanting bulk trash use the
+          // toolbar delete button instead.
           var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
-          if (isFolder) return;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+          if (isFolder || isBatch) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           target.classList.add("ring-2", "ring-error", "bg-error/10");
@@ -2904,7 +2973,8 @@ if (typeof window.Chart === "undefined") {
         target.removeEventListener("drop", target._trashDrop);
         target._trashDrop = function(e) {
           var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
-          if (isFolder) return;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+          if (isFolder || isBatch) return;
           e.preventDefault();
           e.stopPropagation();
           target.classList.remove("ring-2", "ring-error", "bg-error/10");
