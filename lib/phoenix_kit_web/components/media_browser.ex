@@ -543,16 +543,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             <span style={folder_icon_style(@node.folder.color)}>
               <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
             </span>
+            <%!--
+              Minimal bordered input — pairs with the row's
+              `ring-2 ring-primary` above. Sits flush with the row's
+              natural height (no daisyUI `input input-bordered input-xs`
+              chunkiness) and uses a thin primary border + white bg so
+              it reads as "edit field" without overwhelming the row.
+            --%>
             <input
               type="text"
               name="name"
               value={@renaming_text}
-              class="bg-transparent border-none outline-none text-sm flex-1 min-w-0 p-0 h-auto focus:outline-none focus:ring-0"
+              class="bg-base-100 text-sm rounded px-1.5 py-0 flex-1 min-w-0 border border-primary/60 focus:outline-none focus:border-primary"
               phx-mounted={JS.focus()}
               required
               phx-keydown="cancel_rename_folder"
-              phx-target={@myself}
               phx-key="Escape"
+              phx-blur="cancel_rename_folder"
+              phx-target={@myself}
               phx-debounce="50"
             />
           </form>
