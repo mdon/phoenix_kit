@@ -373,7 +373,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       <%!-- Children (expanded) --%>
       <%= if @has_children && @is_expanded do %>
         <ul
-          class="ml-3 border-l-2 pl-1 overflow-hidden"
+          class="ml-3 border-l-2 pl-1.5 overflow-hidden"
           style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
         >
           <%= for child <- @node.children do %>
