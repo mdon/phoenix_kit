@@ -288,7 +288,14 @@
                 </div>
               <% end %>
 
-              <%!-- Breadcrumbs --%>
+              <%!--
+                Breadcrumbs. `@breadcrumbs` is the full ancestor chain INCLUDING
+                the current folder (with the scope folder dropped when scoped),
+                so we iterate `Enum.drop(@breadcrumbs, -1)` for the clickable
+                middle and render the current folder once at the end. When
+                scoped, the leading "root" button shows the scope folder's
+                name (e.g. "banana") instead of "All Media".
+              --%>
               <%= if @current_folder do %>
                 <nav class="breadcrumbs text-sm mb-2">
                   <ul>
@@ -298,10 +305,12 @@
                         phx-target={@myself}
                         class="hover:underline text-primary"
                       >
-                        {gettext("All Media")}
+                        {if @scope_folder_id,
+                          do: @scope_folder_name,
+                          else: gettext("All Media")}
                       </button>
                     </li>
-                    <%= for folder <- @breadcrumbs do %>
+                    <%= for folder <- Enum.drop(@breadcrumbs, -1) do %>
                       <li>
                         <button
                           phx-click="navigate_folder"
@@ -314,7 +323,7 @@
                       </li>
                     <% end %>
                     <li>
-                      {if @current_folder, do: @current_folder.name}
+                      {@current_folder.name}
                     </li>
                   </ul>
                 </nav>
