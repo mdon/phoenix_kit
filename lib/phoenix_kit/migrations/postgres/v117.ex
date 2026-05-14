@@ -21,8 +21,13 @@ defmodule PhoenixKit.Migrations.Postgres.V117 do
      JSONB column stores an ordered array of section descriptors
      (`[%{template_uuid, position, variable_values, image_params}]`).
 
-  All changes use `IF NOT EXISTS` / `DO $$ ... END $$` guards so re-running
-  on a partially-applied schema is a no-op.
+  All operations use `IF NOT EXISTS` guards so re-running `up/1` on a
+  partially-applied schema is a no-op.
+
+  `down/1` is destructive for the `category` column: dropping it deletes any
+  values users have assigned. The two new tables drop cleanly (re-running
+  `up/1` recreates them empty), but column data is lost on rollback by
+  design — `Ecto.Migration`'s rollback contract has no way to preserve it.
   """
 
   use Ecto.Migration

@@ -70,6 +70,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
     {:ok,
      socket
      |> assign(:new_comment, "")
+     |> assign(:new_title, "")
      |> assign(:giphy_open?, false)
      |> assign(:giphy_query, "")
      |> assign(:giphy_results, [])
@@ -100,59 +101,36 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
 
   @impl true
   def handle_event("post", params, socket) do
-    comment_text = Map.get(params, "comment", "")
+    comment_text = params |> Map.get("comment", "") |> String.trim()
+    title = params |> Map.get("title", "") |> String.trim()
 
-    # Anchor the comment to the file (not the annotation) so it joins
-    # the file's main comments thread. The annotation linkage is carried
-    # in `metadata.annotation_uuid`; the tooltip preview filters on that.
-    metadata =
-      %{"annotation_uuid" => socket.assigns.annotation_uuid}
-      |> maybe_put_giphy(socket.assigns.giphy_selected)
+    has_comment_payload =
+      comment_text != "" or
+        socket.assigns.giphy_selected != nil or
+        not Enum.empty?(socket.assigns.uploads.attachment.entries)
 
-    with {:ok, file_uuids} <- consume_attachments(socket),
-         {:ok, comment} <-
-           PhoenixKitComments.create_comment(
-             "file",
-             socket.assigns.file_uuid,
-             socket.assigns.current_user.uuid,
-             %{
-               content: comment_text,
-               metadata: metadata,
-               attachment_file_uuids: file_uuids
-             }
-           ) do
-      Phoenix.LiveView.send_update(MediaBrowser,
-        id: socket.assigns.parent_id,
-        action: :annotation_composer_posted,
-        annotation_uuid: socket.assigns.annotation_uuid,
-        comment: comment
-      )
-
-      {:noreply, socket}
-    else
-      {:error, %Ecto.Changeset{} = cs} ->
+    cond do
+      title == "" and not has_comment_payload ->
         {:noreply,
-         put_flash(socket, :error, first_error(cs) || gettext("Could not post comment"))}
+         put_flash(socket, :error, gettext("Add a title, a note, a GIF, or an attachment"))}
 
-      {:error, :empty_comment} ->
-        {:noreply, put_flash(socket, :error, gettext("Add some text, a GIF, or an attachment"))}
+      not has_comment_payload ->
+        # Title-only annotation — skip the comment-thread create
+        # entirely. The annotation row gets its `title` field set by
+        # MediaBrowser's `finalize_annotation_compose/3` on the
+        # `:annotation_composer_posted` action.
+        Phoenix.LiveView.send_update(MediaBrowser,
+          id: socket.assigns.parent_id,
+          action: :annotation_composer_posted,
+          annotation_uuid: socket.assigns.annotation_uuid,
+          title: title,
+          comment: nil
+        )
 
-      {:error, :attachments_disabled} ->
-        {:noreply, put_flash(socket, :error, gettext("Attachments are disabled"))}
+        {:noreply, socket}
 
-      {:error, :too_many_attachments} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           gettext("Up to %{max} attachments", max: socket.assigns.max_attachments)
-         )}
-
-      {:error, message} when is_binary(message) ->
-        {:noreply, put_flash(socket, :error, message)}
-
-      {:error, _other} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not post comment"))}
+      true ->
+        post_with_comment(socket, comment_text, title)
     end
   end
 
@@ -172,11 +150,14 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   # the user's expectations elsewhere in the app.
   # ──────────────────────────────────────────────────────────────
 
-  def handle_event("update_draft", %{"comment" => text}, socket) do
-    {:noreply, assign(socket, :new_comment, text)}
-  end
+  def handle_event("update_draft", params, socket) do
+    socket =
+      socket
+      |> assign_if(params, "comment", :new_comment)
+      |> assign_if(params, "title", :new_title)
 
-  def handle_event("update_draft", _params, socket), do: {:noreply, socket}
+    {:noreply, socket}
+  end
 
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :attachment, ref)}
@@ -242,6 +223,69 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   # ──────────────────────────────────────────────────────────────
   # Helpers
   # ──────────────────────────────────────────────────────────────
+
+  defp assign_if(socket, params, key, assign_key) do
+    case Map.fetch(params, key) do
+      {:ok, value} -> assign(socket, assign_key, value)
+      :error -> socket
+    end
+  end
+
+  defp post_with_comment(socket, comment_text, title) do
+    # Anchor the comment to the file (not the annotation) so it joins
+    # the file's main comments thread. The annotation linkage is carried
+    # in `metadata.annotation_uuid`; the tooltip preview filters on that.
+    metadata =
+      %{"annotation_uuid" => socket.assigns.annotation_uuid}
+      |> maybe_put_giphy(socket.assigns.giphy_selected)
+
+    with {:ok, file_uuids} <- consume_attachments(socket),
+         {:ok, comment} <-
+           PhoenixKitComments.create_comment(
+             "file",
+             socket.assigns.file_uuid,
+             socket.assigns.current_user.uuid,
+             %{
+               content: comment_text,
+               metadata: metadata,
+               attachment_file_uuids: file_uuids
+             }
+           ) do
+      Phoenix.LiveView.send_update(MediaBrowser,
+        id: socket.assigns.parent_id,
+        action: :annotation_composer_posted,
+        annotation_uuid: socket.assigns.annotation_uuid,
+        title: if(title == "", do: nil, else: title),
+        comment: comment
+      )
+
+      {:noreply, socket}
+    else
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply,
+         put_flash(socket, :error, first_error(cs) || gettext("Could not post comment"))}
+
+      {:error, :empty_comment} ->
+        {:noreply, put_flash(socket, :error, gettext("Add some text, a GIF, or an attachment"))}
+
+      {:error, :attachments_disabled} ->
+        {:noreply, put_flash(socket, :error, gettext("Attachments are disabled"))}
+
+      {:error, :too_many_attachments} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("Up to %{max} attachments", max: socket.assigns.max_attachments)
+         )}
+
+      {:error, message} when is_binary(message) ->
+        {:noreply, put_flash(socket, :error, message)}
+
+      {:error, _other} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not post comment"))}
+    end
+  end
 
   defp consume_attachments(socket) do
     if Enum.empty?(socket.assigns.uploads.attachment.entries) do
@@ -312,13 +356,27 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
         phx-target={@myself}
         class="space-y-2"
       >
+        <%!-- Optional title — when non-empty, renders inline on the     --%>
+        <%!-- annotation. Above the bounding box for rect/circle/poly,   --%>
+        <%!-- at the leader endpoint for callout. Position is draggable  --%>
+        <%!-- in edit mode (saved as metadata.title_offset).             --%>
+        <input
+          type="text"
+          name="title"
+          value={@new_title}
+          placeholder="Optional title (shows on the shape)"
+          maxlength="200"
+          class="input input-bordered input-sm w-full text-sm"
+          phx-debounce="500"
+        />
+
         <textarea
           name="comment"
           placeholder={gettext("Write a note about this annotation...")}
           rows="3"
           class="textarea textarea-bordered w-full text-sm"
           phx-mounted={Phoenix.LiveView.JS.focus()}
-          phx-debounce="150"
+          phx-debounce="500"
         ><%= @new_comment %></textarea>
 
         <div class={[

@@ -1,3 +1,53 @@
+## 1.7.111 - 2026-05-14
+
+### Added
+- V118 migration: callout + text annotation kinds + optional `title` column on `phoenix_kit_annotations` (PR #541)
+  - Widens `phoenix_kit_annotations_kind_check` to include `"callout"` (leader-line annotation: anchor point + line to a labeled bbox) and `"text"` (freestanding click-drag text label). Both new tools shipped in Etcher 0.2; the CHECK update is folded into a single `DROP + ADD` so we don't take two trips over the same constraint
+  - Adds nullable `title varchar(200)` column. Every kind can carry a short label — renders inline on the shape (above the bbox for rect/circle/polygon, at the leader endpoint for callout, inside the bbox for text). Length matches the schema-side `validate_length(:title, max: 200)`. Lives in its own column so it stays queryable outside the JSONB blob
+  - `Annotation` schema gains `:title` field + the two new kinds in `@kinds`; `@cast_fields` allows it through the changeset
+- `PhoenixKit.Annotations.restore_linked_comments/3` (PR #541)
+  - Undo-of-delete support: when an annotation deletion is reversed via Etcher's undo stack, the original uuid is gone but the soft-deleted comments still reference it through `metadata.annotation_uuid`. The function flips matching `status: "deleted"` comments back to `"published"` and rewrites their `metadata.annotation_uuid` to point at the recreated row. Returns count restored. No-ops cleanly when PhoenixKitComments isn't installed
+- `AnnotationComposer` title input (PR #541)
+  - Optional title field above the comment textarea. Title-only annotations are now allowed (skips the comment-thread create entirely; the row gets only its `title` column set). `update_draft` accepts both `comment` and `title` keys, debounced 500ms each. Title persistence threaded through `:annotation_composer_posted` → `MediaBrowser.finalize_annotation_compose/3`
+- `MediaBrowser` etcher 0.2 wiring (PR #541)
+  - `etcher:updated` now accepts any combination of `geometry / style / metadata / title` in one payload (previously geometry-only). In-memory annotation list mirrors writes so the tooltip reflects the new title without waiting for a `load_annotations_for/1` round-trip
+  - Composer popover suppressed for `kind == "text"` (content arrives inline via etcher's foreignObject editor) and `restore: true` (recreated row already has its title/metadata; user wasn't trying to create a new annotation)
+  - On `restore: true` + `restore_from_uuid`, walks soft-deleted comments via `restore_linked_comments/3` and refreshes the comments sidebar
+  - Tool list extended: `[:rectangle, :circle, :polygon, :freehand, :callout, :text, :eraser]`
+  - Etcher overlay now attaches to the Fresco viewer even when Tessera has no sources (pre-PR: an empty `tessera_sources(f)` fell back to a plain `<img>` with no annotation overlay at all). Annotations now work on fresh uploads that haven't been through the variant generator
+- `ViewerKeydown` JS hook (PR #541)
+  - Replaces `phx-window-keydown="viewer_keydown"` on the viewer modal. Two filters the stock binding couldn't express: (1) only `Escape` / `ArrowLeft` / `ArrowRight` reach the server (letter keys no longer spam LV logs), (2) navigation keys suppressed while focus is in `<input>` / `<textarea>` / contenteditable so arrow keys move the text caret instead of flipping the modal to the next image while typing
+- Post-merge review doc in `dev_docs/pull_requests/2026/541-v118-callout-text-etcher-0.2/CLAUDE_REVIEW.md` with finding disposition table
+
+### Changed
+- `{:etcher, "~> 0.1"}` → `{:etcher, "~> 0.2"}` — adds callout / text / eraser tools, undo/redo, satellite titles, and a complete `window.Etcher.layerFor(id)` programmatic control surface (PR #541)
+- `AnnotationComposer` textarea `phx-debounce` 150 → 500ms — quieter LV logs at typical typing speed, no perceived input lag (PR #541)
+- `priv/static/assets/phoenix_kit.js` strips 584 lines of inlined fresco / tessera / etcher hooks. Parent apps now import each lib's own `priv/static/` bundle ahead of `phoenix_kit.js`, and phoenix_kit adopts `window.{Fresco,Tessera,Etcher}Hooks` into `window.PhoenixKitHooks`. Eliminates drift between the inlined snapshot and the hex packages (PR #541)
+
+### Hygiene
+- Lockfile updates: `fresco 0.1.1 → 0.1.2`
+
+## 1.7.110 - 2026-05-13
+
+### Added
+- V117 migration: document composition tables for `phoenix_kit_document_creator` (PR #539)
+  - Adds nullable `category :: varchar` column + index to `phoenix_kit_doc_templates` so templates self-classify (financial / technical / etc.) and the template grid can filter by scope
+  - Creates `phoenix_kit_doc_document_sections` — join table snapshotting `(document_uuid, template_uuid, position, variable_values, image_params)` for every section of every composed document. `document_uuid → :delete_all` cascades sections with their parent; `template_uuid → :nilify_all` lets sections outlive the template (regenerate-required state). Unique `(document_uuid, position)` + lookup index on `(document_uuid)`
+  - Creates `phoenix_kit_doc_template_presets` — named reusable section recipes scoped via `(scope_type, scope_id)` and optionally categorized. `sections` is a JSONB array of `[%{template_uuid, position, variable_values, image_params}]`. Index on `(scope_type, scope_id, category)`
+  - Legacy `Document.template_uuid` column retained: composed docs leave it `NULL`, legacy single-template docs continue to use it
+
+### Fixed
+- Fixed ungrouped `handle_event/3` clauses in `MediaBrowser` by relocating `creator_attrs/2` helper to private-helpers block
+- Restored sitemap dynamic `<lastmod>` for homepage and group listing pages (`Sources.Static`, `Sources.Publishing`)
+  - PR #539's merge silently re-removed `static_lastmod/1` and `latest_post_date/2` (a zombie revert that came back via merge conflict and got cut again from a behind-the-base fork). Result: every static URL was reporting `lastmod: <today>` on every crawl (a known false-freshness signal Google de-prioritizes), and every group listing was shipping without `<lastmod>` at all
+  - Homepage `<lastmod>` now uses a new lightweight `Publishing.latest_post_date_global/0` helper — single pass over each group's posts to take max `published_at`. Replaces the prior shape that called `Publishing.collect/1` and threw away everything except the `:lastmod` field (which triggered ~3× redundant `list_posts/2` calls per group inside `collect/1`)
+
+### Hygiene
+- Routine lockfile updates (`mix.lock`)
+- Precommit: `compile --force` replaced with `compile --warnings-as-errors --all-warnings`, added `deps.unlock --check-unused`, switched from `quality` to `quality.ci` (format-check)
+- Dialyzer: removed 5 unused ignore filters (css_integration, process_scheduled_jobs_worker, duplicate conn_case/data_case, integrations guard_fail)
+- Removed stale `:phoenix_kit` self-entry from `mix.lock`
+
 ## 1.7.109 - 2026-05-12
 
 ### Added

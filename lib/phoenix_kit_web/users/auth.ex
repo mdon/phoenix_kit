@@ -716,8 +716,13 @@ defmodule PhoenixKitWeb.Users.Auth do
       user = socket.assigns[:phoenix_kit_current_user]
       full_dialect = DialectMapper.resolve_dialect(locale, user)
 
-      # Update Gettext locale
+      # Update Gettext locale — set both the backend-specific value (for
+      # PhoenixKitWeb.Gettext callers that look it up explicitly) and the
+      # process-global default (so feature modules with their own backends,
+      # e.g. PhoenixKitProjects.Gettext, also pick up the new locale without
+      # needing per-backend wiring).
       Gettext.put_locale(PhoenixKitWeb.Gettext, full_dialect)
+      Gettext.put_locale(full_dialect)
 
       socket
       |> Phoenix.Component.assign(:current_locale_base, locale)
@@ -756,6 +761,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         default_dialect = DialectMapper.resolve_dialect(default_base, user)
 
         Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+        Gettext.put_locale(default_dialect)
 
         socket
         |> Phoenix.Component.assign(:current_locale_base, default_base)
@@ -813,8 +819,10 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     current_locale = DialectMapper.resolve_dialect(current_locale_base, user)
 
-    # Set Gettext locale for translations
+    # Set Gettext locale for translations (backend-specific + global, so
+    # module backends like PhoenixKitProjects.Gettext sync too).
     Gettext.put_locale(PhoenixKitWeb.Gettext, current_locale)
+    Gettext.put_locale(current_locale)
 
     socket
     |> maybe_manage_scope_subscription(user)
@@ -1759,6 +1767,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           end
 
         Gettext.put_locale(PhoenixKitWeb.Gettext, dialect)
+        Gettext.put_locale(dialect)
 
         conn
         |> assign(:current_locale_base, base)
@@ -1790,6 +1799,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     default_dialect = DialectMapper.resolve_dialect(default_base, current_user)
 
     Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+    Gettext.put_locale(default_dialect)
 
     # Redirect to clean path so the router matches the correct route
     conn
@@ -1864,6 +1874,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       full_dialect = DialectMapper.resolve_dialect(locale, current_user)
 
       Gettext.put_locale(PhoenixKitWeb.Gettext, full_dialect)
+      Gettext.put_locale(full_dialect)
 
       conn
       |> assign(:current_locale_base, locale)

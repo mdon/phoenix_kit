@@ -529,7 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V117 - Document composition ⚡ LATEST
+  ### V118 - callout + text kinds + optional title column on annotations ⚡ LATEST
+  - Drops + re-adds the kind CHECK constraint with `"callout"` and
+    `"text"` included alongside `rectangle / circle / polygon /
+    freehand`. Etcher 0.2's callout (leader-line) tool needs `"callout"`,
+    and its text tool (freestanding label drawn as a click-drag bbox)
+    needs `"text"`. Both are folded into one CHECK update so we don't
+    take two trips over the same constraint.
+  - Adds `title varchar(200)` (nullable) to `phoenix_kit_annotations`.
+    Every kind can carry a short label — renders inline on the shape
+    when non-blank (above the bbox for rect/circle/polygon, at the
+    leader endpoint for callout, inside the bbox for text).
+
+  ### V117 - Document composition
   - Adds nullable `category :: varchar` column to `phoenix_kit_doc_templates`
     with index on `(category)` for category-filtered queries.
   - Creates `phoenix_kit_doc_document_sections` — join table linking documents
@@ -983,7 +995,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 117
+  @current_version 118
   @default_prefix "public"
 
   @doc false

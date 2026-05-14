@@ -1283,8 +1283,9 @@
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
     <% has_next = is_integer(viewer_idx) and viewer_idx < length(@uploaded_files) - 1 %>
     <div
+      id={"#{@id}-viewer-modal"}
       class="modal modal-open"
-      phx-window-keydown="viewer_keydown"
+      phx-hook="ViewerKeydown"
       phx-target={@myself}
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
@@ -1368,29 +1369,37 @@
                 <%!-- per-zoom layer-swap logic, preserving viewport bounds.     --%>
                 <%!-- Etcher's annotation overlay attaches to the same Fresco    --%>
                 <%!-- viewer and adds the pencil button to its nav column.       --%>
-                <%= case tessera_sources(f) do %>
-                  <% [first | _] = sources -> %>
-                    <Fresco.viewer
-                      id={"media-zoom-" <> f.file_uuid}
-                      src={first.url}
-                      class="w-full h-full lg:rounded"
-                    />
+                <%= with sources <- tessera_sources(f),
+                       fresco_src <-
+                         (case sources do
+                            [first | _] -> first.url
+                            [] -> f.urls["original"] || f.urls["medium"]
+                          end) do %>
+                  <Fresco.viewer
+                    id={"media-zoom-" <> f.file_uuid}
+                    src={fresco_src}
+                    class="w-full h-full lg:rounded"
+                  />
+                  <%!-- Tessera only attaches when there's something to    --%>
+                  <%!-- swap between — files without medium/large/dzi      --%>
+                  <%!-- variants (variant generator hasn't run yet, etc.) --%>
+                  <%!-- get plain Fresco without progressive zoom.         --%>
+                  <%= if sources != [] do %>
                     <Tessera.layer
                       fresco_id={"media-zoom-" <> f.file_uuid}
                       sources={sources}
                     />
-                    <Etcher.layer
-                      fresco_id={"media-zoom-" <> f.file_uuid}
-                      target_type="file"
-                      target_uuid={f.file_uuid}
-                      initial_annotations={@viewer_annotations}
-                    />
-                  <% [] -> %>
-                    <img
-                      src={f.urls["original"]}
-                      class="max-w-full max-h-full lg:rounded"
-                      alt=""
-                    />
+                  <% end %>
+                  <%!-- Etcher attaches to any Fresco viewer regardless    --%>
+                  <%!-- of Tessera; annotations work even on files that   --%>
+                  <%!-- skip the progressive-zoom layer.                  --%>
+                  <Etcher.layer
+                    fresco_id={"media-zoom-" <> f.file_uuid}
+                    target_type="file"
+                    target_uuid={f.file_uuid}
+                    initial_annotations={@viewer_annotations}
+                    tools={[:rectangle, :circle, :polygon, :freehand, :callout, :text, :eraser]}
+                  />
                 <% end %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
                 <video
