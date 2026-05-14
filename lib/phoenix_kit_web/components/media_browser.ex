@@ -87,6 +87,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   import Ecto.Query
 
+  import PhoenixKitWeb.Components.FolderExplorer,
+    only: [
+      folder_explorer: 1,
+      folder_color_hex: 1,
+      folder_icon_style: 1,
+      folder_bg_style: 1
+    ]
+
   alias Phoenix.LiveView.JS
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
@@ -459,179 +467,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
   # Function components
   # ──────────────────────────────────────────────────────────────
-
-  attr :node, :map, required: true
-  attr :current_folder, :any, required: true
-  attr :expanded_folders, :any, required: true
-  attr :renaming_folder, :any, required: true
-  attr :renaming_text, :string, default: ""
-  attr :renaming_source, :any, required: true
-  attr :filter_trash, :boolean, default: false
-  attr :depth, :integer, default: 0
-  attr :myself, :any, required: true
-
-  def folder_tree_node(assigns) do
-    # In trash view no folder is "active" in the file sense — the user is
-    # looking at trashed files, not a folder's contents. We keep
-    # `@current_folder` populated in the socket so toggling trash off
-    # restores the previous folder, but the tree highlight is suppressed
-    # while filter_trash is on (the sidebar Trash button carries the
-    # active highlight instead).
-    assigns =
-      assign(
-        assigns,
-        :is_active,
-        (not assigns.filter_trash and assigns.current_folder) &&
-          assigns.current_folder.uuid == assigns.node.folder.uuid
-      )
-
-    assigns =
-      assign(
-        assigns,
-        :is_expanded,
-        MapSet.member?(assigns.expanded_folders, assigns.node.folder.uuid)
-      )
-
-    assigns = assign(assigns, :has_children, assigns.node.children != [])
-
-    assigns =
-      assign(
-        assigns,
-        :is_renaming,
-        assigns.renaming_folder == assigns.node.folder.uuid &&
-          assigns.renaming_source == "sidebar"
-      )
-
-    ~H"""
-    <li class="overflow-hidden">
-      <div
-        class={[
-          "flex items-center gap-0.5 rounded-lg px-1 py-1 hover:bg-base-200 transition-colors group overflow-hidden min-w-0",
-          @is_active && "font-semibold"
-        ]}
-        style={
-          if @is_active,
-            do: "background-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--p))"}25"
-        }
-      >
-        <%!-- Chevron (expand/collapse) --%>
-        <%= if @has_children do %>
-          <button
-            phx-click="toggle_folder_expand"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
-          >
-            <.icon
-              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40"
-            />
-          </button>
-        <% else %>
-          <span class="w-5"></span>
-        <% end %>
-
-        <%= if @is_renaming do %>
-          <%!-- Inline rename form --%>
-          <form
-            phx-submit="rename_folder"
-            phx-change="rename_folder_input"
-            phx-target={@myself}
-            class="flex items-center gap-1.5 flex-1 min-w-0"
-          >
-            <input type="hidden" name="folder_uuid" value={@node.folder.uuid} />
-            <span style={folder_icon_style(@node.folder.color)}>
-              <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
-            </span>
-            <%!--
-              Minimal bordered input — pairs with the row's
-              `ring-2 ring-primary` above. Sits flush with the row's
-              natural height (no daisyUI `input input-bordered input-xs`
-              chunkiness) and uses a thin primary border + white bg so
-              it reads as "edit field" without overwhelming the row.
-            --%>
-            <input
-              type="text"
-              name="name"
-              value={@renaming_text}
-              class="bg-base-100 text-sm rounded px-1.5 py-0 flex-1 min-w-0 border border-primary/60 focus:outline-none focus:border-primary"
-              phx-mounted={JS.focus()}
-              required
-              phx-keydown="cancel_rename_folder"
-              phx-key="Escape"
-              phx-blur="cancel_rename_folder"
-              phx-target={@myself}
-              phx-debounce="50"
-            />
-          </form>
-        <% else %>
-          <%!-- Folder button (uncontrolled: phx-click instead of .link navigate) --%>
-          <button
-            phx-click="navigate_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            data-drop-folder={@node.folder.uuid}
-            data-draggable-folder={@node.folder.uuid}
-            class="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-sm text-left"
-          >
-            <span style={folder_icon_style(@node.folder.color, @is_active)}>
-              <.icon
-                name={if @is_expanded, do: "hero-folder-open", else: "hero-folder"}
-                class="w-4 h-4 shrink-0"
-              />
-            </span>
-            <span
-              class={[
-                "truncate block min-w-0",
-                @renaming_folder == @node.folder.uuid && !@is_renaming && "renaming-preview"
-              ]}
-              title={@node.folder.name}
-            >
-              <%= if @renaming_folder == @node.folder.uuid && @renaming_text != "" do %>
-                {@renaming_text}
-              <% else %>
-                {@node.folder.name}
-              <% end %>
-            </span>
-          </button>
-          <%!-- Rename button (visible on hover) --%>
-          <button
-            phx-click="start_rename_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            phx-value-source="sidebar"
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 opacity-0 group-hover:opacity-100"
-            title={gettext("Rename")}
-          >
-            <.icon name="hero-pencil" class="w-3 h-3 text-base-content/40" />
-          </button>
-        <% end %>
-      </div>
-
-      <%!-- Children (expanded) --%>
-      <%= if @has_children && @is_expanded do %>
-        <ul
-          class="ml-3 border-l-2 pl-1 overflow-hidden"
-          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
-        >
-          <%= for child <- @node.children do %>
-            <.folder_tree_node
-              node={child}
-              current_folder={@current_folder}
-              expanded_folders={@expanded_folders}
-              renaming_folder={@renaming_folder}
-              renaming_source={@renaming_source}
-              renaming_text={@renaming_text}
-              filter_trash={@filter_trash}
-              depth={@depth + 1}
-              myself={@myself}
-            />
-          <% end %>
-        </ul>
-      <% end %>
-    </li>
-    """
-  end
 
   attr :node, :map, required: true
   attr :depth, :integer, default: 0
@@ -2613,38 +2448,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       true -> "#{bytes} B"
     end
   end
-
-  defp folder_bg_style(color) do
-    case folder_color_hex(color) do
-      nil -> nil
-      hex -> "background-color: #{hex}15"
-    end
-  end
-
-  defp folder_icon_style(color, _active? \\ false) do
-    case folder_color_hex(color) do
-      nil -> "color: oklch(var(--wa))"
-      hex -> "color: #{hex}"
-    end
-  end
-
-  defp folder_color_hex("red"), do: "#ef4444"
-  defp folder_color_hex("orange"), do: "#f97316"
-  defp folder_color_hex("amber"), do: "#f59e0b"
-  defp folder_color_hex("yellow"), do: "#eab308"
-  defp folder_color_hex("lime"), do: "#84cc16"
-  defp folder_color_hex("green"), do: "#22c55e"
-  defp folder_color_hex("emerald"), do: "#10b981"
-  defp folder_color_hex("teal"), do: "#14b8a6"
-  defp folder_color_hex("cyan"), do: "#06b6d4"
-  defp folder_color_hex("sky"), do: "#0ea5e9"
-  defp folder_color_hex("blue"), do: "#3b82f6"
-  defp folder_color_hex("violet"), do: "#8b5cf6"
-  defp folder_color_hex("purple"), do: "#a855f7"
-  defp folder_color_hex("fuchsia"), do: "#d946ef"
-  defp folder_color_hex("pink"), do: "#ec4899"
-  defp folder_color_hex("rose"), do: "#f43f5e"
-  defp folder_color_hex(_), do: nil
 
   defp delete_selected_confirm(selected_files, selected_folders, filter_trash) do
     file_count = MapSet.size(selected_files)

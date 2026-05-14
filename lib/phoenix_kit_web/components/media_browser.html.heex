@@ -92,132 +92,22 @@
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body p-4 flex flex-row gap-0">
         <%!-- Folder Sidebar --%>
-        <div
-          class="hidden lg:block shrink-0"
-          style={if !@sidebar_collapsed, do: "width: 240px; max-width: 240px;"}
-        >
-          <%= if @sidebar_collapsed do %>
-            <%!-- Collapsed strip --%>
-            <div class="sticky top-4 w-10">
-              <button
-                phx-click="toggle_sidebar"
-                phx-target={@myself}
-                class="btn btn-ghost btn-sm w-full"
-                title={gettext("Show folders")}
-              >
-                <.icon name="hero-chevron-right" class="w-4 h-4" />
-              </button>
-            </div>
-          <% else %>
-            <%!-- Expanded sidebar --%>
-            <div
-              class="sticky top-4 border-r border-base-200 pr-3 mr-3 overflow-hidden"
-              style="width: 240px; max-width: 240px;"
-            >
-              <div class="flex items-center justify-between mb-3">
-                <%= if is_nil(@scope_folder_id) do %>
-                  <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wider">
-                    {gettext("Folders")}
-                  </h3>
-                <% else %>
-                  <div></div>
-                <% end %>
-                <div class="flex gap-0.5">
-                  <button
-                    phx-click="create_untitled_folder"
-                    phx-target={@myself}
-                    class="btn btn-ghost btn-xs"
-                    title={gettext("New folder")}
-                  >
-                    <.icon name="hero-folder-plus" class="w-4 h-4" />
-                  </button>
-                  <button
-                    phx-click="toggle_sidebar"
-                    phx-target={@myself}
-                    class="btn btn-ghost btn-xs"
-                    title={gettext("Collapse sidebar")}
-                  >
-                    <.icon name="hero-chevron-left" class="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <%!-- All Files flat view (only when unscoped — admin media page) --%>
-              <%= if is_nil(@scope_folder_id) do %>
-                <button
-                  phx-click="navigate_view_all"
-                  phx-target={@myself}
-                  class={[
-                    "flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-colors mb-1 text-left",
-                    if(@file_view == "all" and not @filter_trash,
-                      do: "bg-primary/10 font-semibold text-primary",
-                      else: "hover:bg-base-200"
-                    )
-                  ]}
-                >
-                  <.icon name="hero-rectangle-stack" class="w-4 h-4 shrink-0" /> {gettext(
-                    "All Files"
-                  )}
-                </button>
-              <% end %>
-
-              <%!-- Root (navigate to real root folder) --%>
-              <button
-                phx-click="navigate_root"
-                phx-target={@myself}
-                data-drop-folder="root"
-                class={[
-                  "flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-colors mb-1 text-left",
-                  if(@current_folder == nil and @file_view != "all" and not @filter_trash,
-                    do: "bg-primary/10 font-semibold text-primary",
-                    else: "hover:bg-base-200"
-                  )
-                ]}
-              >
-                <.icon name="hero-inbox" class="w-4 h-4 shrink-0" /> {@scope_folder_name}
-              </button>
-
-              <div class="divider my-1 h-0"></div>
-
-              <%!-- Folder Tree --%>
-              <ul class="space-y-0.5 w-full overflow-hidden">
-                <%= for node <- @folder_tree do %>
-                  <.folder_tree_node
-                    node={node}
-                    current_folder={@current_folder}
-                    expanded_folders={@expanded_folders}
-                    renaming_folder={@renaming_folder}
-                    renaming_source={@renaming_source}
-                    renaming_text={@renaming_text}
-                    filter_trash={@filter_trash}
-                    depth={0}
-                    myself={@myself}
-                  />
-                <% end %>
-              </ul>
-
-              <%!-- Trash --%>
-              <div class="divider my-1 h-0"></div>
-              <button
-                phx-click="toggle_trash_filter"
-                phx-target={@myself}
-                data-drop-trash="true"
-                class={[
-                  "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors w-full",
-                  if(@filter_trash,
-                    do: "bg-error/10 font-semibold text-error",
-                    else: "hover:bg-base-200 text-base-content/60"
-                  )
-                ]}
-              >
-                <.icon name="hero-trash" class="w-4 h-4 shrink-0" /> {gettext("Trash")}
-                <%= if @trash_count > 0 do %>
-                  <span class="badge badge-sm badge-error ml-auto">{@trash_count}</span>
-                <% end %>
-              </button>
-            </div>
-          <% end %>
-        </div>
+        <.folder_explorer
+          id="media-browser-sidebar"
+          myself={@myself}
+          folder_tree={@folder_tree}
+          current_folder={@current_folder}
+          expanded_folders={@expanded_folders}
+          scope_folder_id={@scope_folder_id}
+          scope_folder_name={@scope_folder_name}
+          renaming_folder={@renaming_folder}
+          renaming_source={@renaming_source}
+          renaming_text={@renaming_text}
+          filter_trash={@filter_trash}
+          file_view={@file_view}
+          sidebar_collapsed={@sidebar_collapsed}
+          trash_count={@trash_count}
+        />
 
         <%!-- Main content area --%>
         <div class="flex-1 min-w-0 pl-4">
