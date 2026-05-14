@@ -728,8 +728,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         %{"file_uuid" => file_uuid, "folder_uuid" => folder_uuid},
         socket
       ) do
-    target = if folder_uuid == "", do: nil, else: folder_uuid
     scope = scope_folder_id(socket)
+    # "root" in a scoped browser is the scope folder, not nil. Passing nil
+    # would mean the system's true root, which is outside the scope —
+    # `move_file_to_folder/3` would reject it with `:out_of_scope`.
+    target = if folder_uuid == "", do: scope, else: folder_uuid
 
     case Storage.move_file_to_folder(file_uuid, target, scope) do
       {:ok, _} ->
@@ -1230,8 +1233,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
-    target = if folder_uuid == "", do: nil, else: folder_uuid
     scope = scope_folder_id(socket)
+    # "root" in a scoped browser is the scope folder, not nil — same fix as
+    # the drag-drop `move_file_to_folder` handler above. Without this,
+    # picking the home/root option in the move modal silently failed for
+    # files (`:out_of_scope`) and silently *escaped* the scope for folders
+    # (the scoped `update_folder` skips the parent-scope check when the
+    # new parent is nil).
+    target = if folder_uuid == "", do: scope, else: folder_uuid
 
     Enum.each(socket.assigns.selected_files, fn file_uuid ->
       Storage.move_file_to_folder(file_uuid, target, scope)
