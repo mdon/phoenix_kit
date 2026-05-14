@@ -109,6 +109,43 @@ if (typeof window.Chart === "undefined") {
   // Initialize hooks collection
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
 
+  // ============================================================================
+  // FRESCO DAISYUI THEME INTEGRATION
+  // ============================================================================
+  //
+  // Map Fresco's six --fresco-* custom properties to daisyUI tokens so any
+  // viewer that opts into `theme={:inherit}` follows whichever daisyUI theme
+  // is active on <html>. Injected here (not in a stylesheet) because
+  // phoenix_kit's app.css isn't necessarily loaded by every parent app —
+  // the JS bundle, however, always is.
+  //
+  // base-200 / base-300 read as light grays on light themes and dark grays
+  // on dark themes, so nav buttons render as subtle chips on either side.
+  // Using --color-neutral here would give near-black chips on every theme,
+  // which fights with the typical light/dark expectation.
+  // ============================================================================
+
+  (function injectFrescoDaisyUIStyles() {
+    try {
+      if (document.querySelector("style[data-phoenix-kit-fresco]")) return;
+      var style = document.createElement("style");
+      style.setAttribute("data-phoenix-kit-fresco", "");
+      style.textContent = [
+        ".fresco-viewer[data-fresco-theme=\"inherit\"] {",
+        "  --fresco-bg: var(--color-base-100);",
+        "  --fresco-grid-dot: var(--color-base-300);",
+        "  --fresco-nav-bg: var(--color-base-200);",
+        "  --fresco-nav-bg-hover: var(--color-base-300);",
+        "  --fresco-nav-fg: var(--color-base-content);",
+        "  --fresco-nav-focus: var(--color-primary);",
+        "}"
+      ].join("\n");
+      (document.head || document.documentElement).appendChild(style);
+    } catch (e) {
+      console.debug("[PhoenixKit] Fresco theme injection failed:", e);
+    }
+  })();
+
 
   // ============================================================================
   // 1. SORTABLE MODULE
@@ -2434,7 +2471,7 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Fresco's pan-zoom image viewer JS from jsDelivr when the
   // `FrescoViewer` hook mounts. The Elixir component comes from the
-  // {:fresco, "~> 0.1.4"} hex dependency. Parent apps that pre-import
+  // {:fresco, "~> 0.1.5"} hex dependency. Parent apps that pre-import
   // fresco in their own app.js short-circuit the CDN load — the wrapper
   // detects `window.FrescoHooks.FrescoViewer` and uses it directly.
   //
@@ -2443,7 +2480,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.4/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.5/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
