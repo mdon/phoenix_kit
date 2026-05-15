@@ -2587,12 +2587,12 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
   // to a host viewer via `fresco_id` and adds the pencil toolbar, draw
-  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.5"} hex
+  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.6"} hex
   // dependency. Same parent-pre-import short-circuit as Fresco.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.5/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.6/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
