@@ -35,13 +35,9 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
       timestamps(type: :utc_datetime)
     end
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_categories, [:status], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_categories, [:status], prefix: prefix))
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_categories, [:position], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_categories, [:position], prefix: prefix))
 
     create_if_not_exists table(:phoenix_kit_doc_types,
                            primary_key: false,
@@ -68,17 +64,13 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
       timestamps(type: :utc_datetime)
     end
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_types, [:category_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_types, [:category_uuid], prefix: prefix))
 
     create_if_not_exists(
       index(:phoenix_kit_doc_types, [:category_uuid, :position], prefix: prefix)
     )
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_types, [:status], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_types, [:status], prefix: prefix))
 
     # FK columns on templates and documents.
     for table <- ["phoenix_kit_doc_templates", "phoenix_kit_doc_documents"] do
@@ -104,21 +96,13 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
       """)
     end
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_templates, [:category_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_templates, [:category_uuid], prefix: prefix))
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_templates, [:type_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_templates, [:type_uuid], prefix: prefix))
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_documents, [:category_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_documents, [:category_uuid], prefix: prefix))
 
-    create_if_not_exists(
-      index(:phoenix_kit_doc_documents, [:type_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_doc_documents, [:type_uuid], prefix: prefix))
 
     # Data migration: legacy category strings -> Category rows.
     # Only runs if the legacy column still exists.
@@ -160,9 +144,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
     """)
 
     # Drop legacy string columns.
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS category"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS category")
 
     execute("""
     DO $$ BEGIN
@@ -206,21 +188,13 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
     END $$
     """)
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS type_uuid"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS type_uuid")
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS category_uuid"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_doc_templates DROP COLUMN IF EXISTS category_uuid")
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_documents DROP COLUMN IF EXISTS type_uuid"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_doc_documents DROP COLUMN IF EXISTS type_uuid")
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_documents DROP COLUMN IF EXISTS category_uuid"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_doc_documents DROP COLUMN IF EXISTS category_uuid")
 
     drop_if_exists(table(:phoenix_kit_doc_types, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_doc_categories, prefix: prefix))
