@@ -129,9 +129,9 @@ defmodule PhoenixKit.MixProject do
       # satellite titles, and a complete `window.Etcher.layerFor(id)`
       # programmatic control surface — all driven through the same
       # MediaBrowser overlay.
-      {:fresco, "~> 0.1"},
+      {:fresco, "~> 0.1.5"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.2"},
+      {:etcher, "~> 0.2.5"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
