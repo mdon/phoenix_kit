@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V119 - Trash support for storage folders ⚡ LATEST
+  ### V120 - Document Creator Category → Type taxonomy ⚡ LATEST
+  #
+  # Creates phoenix_kit_doc_categories + phoenix_kit_doc_types, adds
+  # nullable category_uuid/type_uuid FKs to doc templates + documents,
+  # migrates legacy category strings into Category rows, drops the
+  # legacy category string columns.
+
+  ### V119 - Trash support for storage folders
   - Adds `trashed_at TIMESTAMPTZ` to `phoenix_kit_media_folders`,
     mirroring the V99 column on `phoenix_kit_files`. Folders with a
     non-nil `trashed_at` are in the trash bucket and can be restored
@@ -1007,7 +1014,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 119
+  @current_version 120
   @default_prefix "public"
 
   @doc false
