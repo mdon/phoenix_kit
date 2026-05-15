@@ -123,7 +123,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
           WHERE category IS NOT NULL AND category <> ''
           ORDER BY category
         LOOP
-          new_uuid := gen_random_uuid();
+          new_uuid := uuid_generate_v7();
           INSERT INTO #{p}phoenix_kit_doc_categories
             (uuid, name, position, status, data, inserted_at, updated_at)
           VALUES
