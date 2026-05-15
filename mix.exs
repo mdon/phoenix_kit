@@ -131,7 +131,7 @@ defmodule PhoenixKit.MixProject do
       # MediaBrowser overlay.
       {:fresco, "~> 0.1.5"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.2.5"},
+      {:etcher, "~> 0.2.6"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
