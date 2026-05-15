@@ -109,6 +109,43 @@ if (typeof window.Chart === "undefined") {
   // Initialize hooks collection
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
 
+  // ============================================================================
+  // FRESCO DAISYUI THEME INTEGRATION
+  // ============================================================================
+  //
+  // Map Fresco's six --fresco-* custom properties to daisyUI tokens so any
+  // viewer that opts into `theme={:inherit}` follows whichever daisyUI theme
+  // is active on <html>. Injected here (not in a stylesheet) because
+  // phoenix_kit's app.css isn't necessarily loaded by every parent app —
+  // the JS bundle, however, always is.
+  //
+  // base-200 / base-300 read as light grays on light themes and dark grays
+  // on dark themes, so nav buttons render as subtle chips on either side.
+  // Using --color-neutral here would give near-black chips on every theme,
+  // which fights with the typical light/dark expectation.
+  // ============================================================================
+
+  (function injectFrescoDaisyUIStyles() {
+    try {
+      if (document.querySelector("style[data-phoenix-kit-fresco]")) return;
+      var style = document.createElement("style");
+      style.setAttribute("data-phoenix-kit-fresco", "");
+      style.textContent = [
+        ".fresco-viewer[data-fresco-theme=\"inherit\"] {",
+        "  --fresco-bg: var(--color-base-100);",
+        "  --fresco-grid-dot: var(--color-base-300);",
+        "  --fresco-nav-bg: var(--color-base-200);",
+        "  --fresco-nav-bg-hover: var(--color-base-300);",
+        "  --fresco-nav-fg: var(--color-base-content);",
+        "  --fresco-nav-focus: var(--color-primary);",
+        "}"
+      ].join("\n");
+      (document.head || document.documentElement).appendChild(style);
+    } catch (e) {
+      console.debug("[PhoenixKit] Fresco theme injection failed:", e);
+    }
+  })();
+
 
   // ============================================================================
   // 1. SORTABLE MODULE
@@ -2434,7 +2471,7 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Fresco's pan-zoom image viewer JS from jsDelivr when the
   // `FrescoViewer` hook mounts. The Elixir component comes from the
-  // {:fresco, "~> 0.1.4"} hex dependency. Parent apps that pre-import
+  // {:fresco, "~> 0.1.5"} hex dependency. Parent apps that pre-import
   // fresco in their own app.js short-circuit the CDN load — the wrapper
   // detects `window.FrescoHooks.FrescoViewer` and uses it directly.
   //
@@ -2443,7 +2480,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.4/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.5/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -2550,12 +2587,12 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
   // to a host viewer via `fresco_id` and adds the pencil toolbar, draw
-  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.3"} hex
+  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.6"} hex
   // dependency. Same parent-pre-import short-circuit as Fresco.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.3/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.6/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
@@ -2700,31 +2737,199 @@ if (typeof window.Chart === "undefined") {
         el._dragstart = function(e) {
           e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
           e.dataTransfer.effectAllowed = "move";
-          el.classList.add("opacity-50");
+          // Batch mode: if the dragged item is part of the current
+          // selection, the drag moves the WHOLE selection. Marker type
+          // `application/x-pk-batch` tells the drop handler to fire the
+          // existing `move_selected_to_folder` event (which iterates
+          // `@selected_files` + `@selected_folders` server-side) rather
+          // than the single-item move. All selected items get
+          // opacity-50 for visual feedback.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
         };
         el.addEventListener("dragstart", el._dragstart);
 
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
-          el.classList.remove("opacity-50");
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
+          // Clear any lingering highlight if the drag was cancelled
+          // (Esc, dropped outside) while still hovering a target.
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
         };
         el.addEventListener("dragend", el._dragend);
       });
 
-      // Make folder targets droppable (grid, list rows, and sidebar)
+      // Make folder rows draggable. Same payload shape as files
+      // (`text/plain` carries the uuid) but with an extra marker type so
+      // drop targets can branch on folder vs file at hover time —
+      // dataTransfer values aren't readable on dragover, only types
+      // are, so the marker is the only way to make hover-time decisions
+      // like "this drop target is the dragged folder itself, suppress
+      // the drop indicator." Tracked in `self._draggedFolderUuid` for
+      // the dragover self-check below.
+      var folders = container.querySelectorAll("[data-draggable-folder]");
+      folders.forEach(function(el) {
+        el.setAttribute("draggable", "true");
+
+        el.removeEventListener("dragstart", el._folderDragstart);
+        el._folderDragstart = function(e) {
+          e.dataTransfer.setData("text/plain", el.dataset.draggableFolder);
+          e.dataTransfer.setData("application/x-pk-folder", "1");
+          e.dataTransfer.effectAllowed = "move";
+          self._draggedFolderUuid = el.dataset.draggableFolder;
+          // Batch mode (same logic as the file dragstart above): if
+          // the folder is part of the current selection, the drag
+          // represents the whole selection. The folder-marker stays
+          // set so self-drop suppression in dragover still works for
+          // the source folder; the batch marker takes precedence in
+          // the drop handler.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
+          e.stopPropagation();
+        };
+        el.addEventListener("dragstart", el._folderDragstart);
+
+        el.removeEventListener("dragend", el._folderDragend);
+        el._folderDragend = function() {
+          self._draggedFolderUuid = null;
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
+        };
+        el.addEventListener("dragend", el._folderDragend);
+      });
+
+      // Make folder targets droppable (grid, list rows, and sidebar).
+      // Accepts both file and folder drags — the `application/x-pk-folder`
+      // marker type distinguishes them. Folder-on-self drops are
+      // suppressed at hover time so the user doesn't get a "yes you can
+      // drop here" indicator on the very folder they're dragging.
+
+      // Single-active-target tracking: nested drop targets (folder card
+      // inside the main-area wrapper) need exclusivity — only the
+      // innermost should highlight. When a new target lights up, we
+      // clear the previous one. stopPropagation alone doesn't suffice
+      // because the wrapper can already be highlighted before the
+      // cursor enters a child and dragleave timing on the wrapper
+      // varies across browsers.
+      function clearHighlight(t) {
+        if (!t) return;
+        if (!t.dataset.dropNoBg) {
+          t.classList.remove("bg-primary/10");
+          if (t._origBg !== undefined) {
+            t.style.backgroundColor = t._origBg;
+            t._origBg = undefined;
+          }
+        }
+        t.style.outline = "";
+        t.style.outlineOffset = "";
+      }
+
+      // When the user picks up a selected item (during select_mode),
+      // the drag represents the whole selection — gray out every
+      // selected element so it's visually clear what's coming along.
+      // Each selected file/folder element carries `data-selected="true"`
+      // from heex, so a single querySelectorAll handles all four
+      // rendering paths (grid/list × file/folder).
+      function setBatchVisuals(active) {
+        document.querySelectorAll('[data-selected="true"]').forEach(function(el) {
+          if (active) {
+            el.classList.add("opacity-50");
+          } else {
+            el.classList.remove("opacity-50");
+          }
+        });
+      }
+
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
       dropTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._dragover);
         target._dragover = function(e) {
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          if (isFolder && target.dataset.dropFolder === self._draggedFolderUuid) {
+            // Drop-on-self for a folder — skip preventDefault so the
+            // browser shows the "no-drop" cursor and we don't paint the
+            // accept indicator. Drop-on-descendant still slips through
+            // (we can't detect descendancy in JS without the tree); the
+            // server rejects it with `{:error, :cycle}`.
+            return;
+          }
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
-          target.classList.add("ring-2", "ring-primary", "bg-primary/10");
+
+          // Exclusivity: if a different target was lit, clear it before
+          // we paint the new one. Then mark this target as active so
+          // dragleave / drop know whether to release the tracker.
+          if (self._activeDropTarget && self._activeDropTarget !== target) {
+            clearHighlight(self._activeDropTarget);
+          }
+          self._activeDropTarget = target;
+
+          // Grid/list folder cards carry an inline
+          // `style="background-color: ..."` from `folder_bg_style`, which
+          // beats any class-based bg (inline > class). Stash and clear
+          // the inline bg so `bg-primary/10` can take effect, then add
+          // the highlight outline inline.
+          //
+          // CSS `outline` instead of Tailwind's `ring-*`: ring uses
+          // `box-shadow`, which `<tr>` elements (list view rows) don't
+          // render reliably — outline works on every element type and
+          // follows border-radius in modern browsers.
+          //
+          // `data-drop-no-bg`: opt-out for large drop surfaces (the
+          // main content-area target) where a 10% primary tint over a
+          // huge area is overwhelming. Outline-only there.
+          if (!target.dataset.dropNoBg) {
+            if (target._origBg === undefined) {
+              target._origBg = target.style.backgroundColor;
+            }
+            target.style.backgroundColor = "";
+            target.classList.add("bg-primary/10");
+          }
+          // daisyUI 5 exposes the primary as a complete oklch() value
+          // in `--color-primary` (not the legacy `--p` raw components),
+          // so we use it directly without wrapping it in oklch().
+          // `outlineOffset: -2px` insets the outline so the table's
+          // `overflow-x-auto` wrapper can't clip the left/right edges
+          // of list-view rows. Visually it looks like a "highlighted
+          // row" instead of an outline that sticks out — same effect.
+          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outlineOffset = "-2px";
         };
         target.addEventListener("dragover", target._dragover);
 
         target.removeEventListener("dragleave", target._dragleave);
         target._dragleave = function() {
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
+          }
         };
         target.addEventListener("dragleave", target._dragleave);
 
@@ -2732,17 +2937,96 @@ if (typeof window.Chart === "undefined") {
         target._drop = function(e) {
           e.preventDefault();
           e.stopPropagation();
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
-          var fileUuid = e.dataTransfer.getData("text/plain");
-          var folderUuid = target.dataset.dropFolder;
-          if (fileUuid && folderUuid) {
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
+          }
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          var dropFolderUuid = target.dataset.dropFolder;
+          if (!draggedUuid || !dropFolderUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+          var resolvedTarget = dropFolderUuid === "root" ? "" : dropFolderUuid;
+
+          if (isBatch) {
+            // Drag started on a selected item — move the whole
+            // selection. `move_selected_to_folder` is the existing bulk
+            // handler used by the move modal; it reads
+            // `@selected_files` + `@selected_folders` from socket state
+            // and clears them + resets select_mode after. Drag-on-self
+            // for a folder in the batch is handled server-side (the
+            // bulk handler skips moving a folder onto itself).
+            self.pushEventTo(self.el, "move_selected_to_folder", {
+              folder_uuid: resolvedTarget
+            });
+          } else if (isFolder) {
+            if (draggedUuid === dropFolderUuid) return;
+            self.pushEventTo(self.el, "move_folder_to_folder", {
+              folder_uuid: draggedUuid,
+              target_uuid: resolvedTarget
+            });
+          } else {
             self.pushEventTo(self.el, "move_file_to_folder", {
-              file_uuid: fileUuid,
-              folder_uuid: folderUuid === "root" ? "" : folderUuid
+              file_uuid: draggedUuid,
+              folder_uuid: resolvedTarget
             });
           }
         };
         target.addEventListener("drop", target._drop);
+      });
+
+      // Trash drop target — sidebar Trash button. Mirrors the folder
+      // drop wiring above but pushes `trash_file` and uses error-colored
+      // hover feedback so the destructive action reads as different from
+      // a folder move at a glance. Folder drags are refused at hover
+      // time: folders don't go through the trash flow (no soft-delete
+      // for folders), so the user gets a "no-drop" cursor instead of
+      // a misleading red ring.
+      var trashTargets = document.querySelectorAll("[data-drop-trash]");
+      trashTargets.forEach(function(target) {
+        target.removeEventListener("dragover", target._trashDragover);
+        target._trashDragover = function(e) {
+          // Folders + batches are now valid drop targets — V119 added
+          // recursive folder trash, and batches route to
+          // `delete_selected` which handles trash vs permanent per
+          // `@filter_trash`.
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          target.classList.add("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragover", target._trashDragover);
+
+        target.removeEventListener("dragleave", target._trashDragleave);
+        target._trashDragleave = function() {
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragleave", target._trashDragleave);
+
+        target.removeEventListener("drop", target._trashDrop);
+        target._trashDrop = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          if (!draggedUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+
+          if (isBatch) {
+            // Reuses the bulk delete handler — it reads
+            // `@selected_files` + `@selected_folders` on the server
+            // and trashes (or permanent-deletes in trash view)
+            // according to `@filter_trash`.
+            self.pushEventTo(self.el, "delete_selected", {});
+          } else if (isFolder) {
+            self.pushEventTo(self.el, "trash_folder", { folder_uuid: draggedUuid });
+          } else {
+            self.pushEventTo(self.el, "trash_file", { file_uuid: draggedUuid });
+          }
+        };
+        target.addEventListener("drop", target._trashDrop);
       });
     }
   };

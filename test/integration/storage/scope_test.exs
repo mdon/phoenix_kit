@@ -443,6 +443,23 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       assert {:error, :cycle} =
                Storage.update_folder(child_a, %{parent_uuid: grandchild.uuid}, scope.uuid)
     end
+
+    test "rejects move-to-true-root under scope (parent_uuid: nil)" do
+      # Regression: previously `new_parent &&` short-circuited the scope
+      # check when `parent_uuid` was explicitly nil, letting a caller
+      # reparent a scoped folder out of its scope subtree to the system
+      # root. The MediaBrowser move modal's "root" button used to pass
+      # the empty string, which became nil here. Now any explicit
+      # `parent_uuid` in attrs runs the scope check, including nil.
+      %{scope: scope, child_a: child_a} = build_tree()
+
+      assert {:error, :out_of_scope} =
+               Storage.update_folder(child_a, %{parent_uuid: nil}, scope.uuid)
+
+      # Also via string key, for the controller / form path.
+      assert {:error, :out_of_scope} =
+               Storage.update_folder(child_a, %{"parent_uuid" => nil}, scope.uuid)
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -538,6 +555,83 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       file = create_file!(child_a.uuid)
 
       assert {:ok, _link} = Storage.create_folder_link(child_b.uuid, file.uuid, scope.uuid)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # trash_folder / restore_folder / delete_folder_completely (V119)
+  # ---------------------------------------------------------------------------
+
+  describe "trash_folder/2" do
+    test "recursively trashes the folder + descendants + files in subtree" do
+      %{scope: scope, child_a: child_a, grandchild: grandchild} = build_tree()
+      file = create_file!(grandchild.uuid)
+
+      assert {:ok, _} = Storage.trash_folder(child_a, scope.uuid)
+
+      assert Storage.get_folder(child_a.uuid).trashed_at
+      assert Storage.get_folder(grandchild.uuid).trashed_at
+
+      reloaded = Repo.get(StorageFile, file.uuid)
+      assert reloaded.status == "trashed"
+      assert reloaded.trashed_at
+    end
+
+    test "trashed folders disappear from list_folders/list_folder_tree" do
+      %{scope: scope, child_a: child_a} = build_tree()
+
+      assert child_a.uuid in Enum.map(Storage.list_folders(scope.uuid, scope.uuid), & &1.uuid)
+
+      Storage.trash_folder(child_a, scope.uuid)
+
+      refute child_a.uuid in Enum.map(Storage.list_folders(scope.uuid, scope.uuid), & &1.uuid)
+      refute child_a.uuid in tree_uuids(Storage.list_folder_tree(scope.uuid))
+    end
+
+    test "rejects trashing folder outside scope" do
+      %{scope: scope, sibling: sibling} = build_tree()
+
+      assert {:error, :out_of_scope} = Storage.trash_folder(sibling, scope.uuid)
+      refute Storage.get_folder(sibling.uuid).trashed_at
+    end
+
+    test "list_trashed_folders returns the trashed subtree roots" do
+      %{scope: scope, child_a: child_a} = build_tree()
+      Storage.trash_folder(child_a, scope.uuid)
+
+      uuids = Enum.map(Storage.list_trashed_folders(scope.uuid), & &1.uuid)
+      assert child_a.uuid in uuids
+    end
+  end
+
+  describe "restore_folder/2" do
+    test "recursively restores folder + descendants + files" do
+      %{scope: scope, child_a: child_a, grandchild: grandchild} = build_tree()
+      file = create_file!(grandchild.uuid)
+
+      Storage.trash_folder(child_a, scope.uuid)
+      assert {:ok, _} = Storage.restore_folder(child_a, scope.uuid)
+
+      refute Storage.get_folder(child_a.uuid).trashed_at
+      refute Storage.get_folder(grandchild.uuid).trashed_at
+
+      reloaded = Repo.get(StorageFile, file.uuid)
+      assert reloaded.status == "active"
+      refute reloaded.trashed_at
+    end
+  end
+
+  describe "delete_folder_completely/2" do
+    test "hard-deletes the subtree (folders + files)" do
+      %{scope: scope, child_a: child_a, grandchild: grandchild} = build_tree()
+      file = create_file!(grandchild.uuid)
+      Storage.trash_folder(child_a, scope.uuid)
+
+      assert {:ok, _} = Storage.delete_folder_completely(child_a, scope.uuid)
+
+      assert Storage.get_folder(child_a.uuid) == nil
+      assert Storage.get_folder(grandchild.uuid) == nil
+      assert Repo.get(StorageFile, file.uuid) == nil
     end
   end
 
