@@ -21,12 +21,13 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = if prefix == "public", do: "public", else: prefix
 
     create_if_not_exists table(:phoenix_kit_doc_categories,
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true)
+      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
       add(:name, :string, null: false)
       add(:description, :text)
       add(:position, :integer, null: false, default: 0)
@@ -43,7 +44,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true)
+      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
       add(:name, :string, null: false)
       add(:description, :text)
       add(:position, :integer, null: false, default: 0)
@@ -78,7 +79,8 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT FROM information_schema.columns
-          WHERE table_name = '#{table}' AND column_name = 'category_uuid'
+          WHERE table_schema = '#{schema}'
+            AND table_name = '#{table}' AND column_name = 'category_uuid'
         ) THEN
           ALTER TABLE #{p}#{table}
             ADD COLUMN category_uuid uuid
@@ -86,7 +88,8 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
         END IF;
         IF NOT EXISTS (
           SELECT FROM information_schema.columns
-          WHERE table_name = '#{table}' AND column_name = 'type_uuid'
+          WHERE table_schema = '#{schema}'
+            AND table_name = '#{table}' AND column_name = 'type_uuid'
         ) THEN
           ALTER TABLE #{p}#{table}
             ADD COLUMN type_uuid uuid
@@ -112,10 +115,12 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
       legacy text;
       new_uuid uuid;
       pos int := 0;
+      display_name text;
     BEGIN
       IF EXISTS (
         SELECT FROM information_schema.columns
-        WHERE table_name = 'phoenix_kit_doc_templates'
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_doc_templates'
           AND column_name = 'category'
       ) THEN
         FOR legacy IN
@@ -123,11 +128,17 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
           WHERE category IS NOT NULL AND category <> ''
           ORDER BY category
         LOOP
+          -- Map known values explicitly; capitalize first letter for anything else.
+          display_name := CASE lower(legacy)
+            WHEN 'financial' THEN 'Financial'
+            WHEN 'technical' THEN 'Technical'
+            ELSE upper(substr(legacy, 1, 1)) || substr(legacy, 2)
+          END;
           new_uuid := uuid_generate_v7();
           INSERT INTO #{p}phoenix_kit_doc_categories
             (uuid, name, position, status, data, inserted_at, updated_at)
           VALUES
-            (new_uuid, initcap(legacy), pos, 'active', '{}'::jsonb, now(), now());
+            (new_uuid, display_name, pos, 'active', '{}'::jsonb, now(), now());
           UPDATE #{p}phoenix_kit_doc_templates
             SET category_uuid = new_uuid WHERE category = legacy;
           pos := pos + 1;
@@ -150,7 +161,8 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
     DO $$ BEGIN
       IF EXISTS (
         SELECT FROM information_schema.columns
-        WHERE table_name = 'phoenix_kit_doc_template_presets'
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_doc_template_presets'
           AND column_name = 'category'
       ) THEN
         ALTER TABLE #{p}phoenix_kit_doc_template_presets DROP COLUMN category;
@@ -164,13 +176,14 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = if prefix == "public", do: "public", else: prefix
 
     execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_templates ADD COLUMN IF NOT EXISTS category varchar(255)"
+      "ALTER TABLE #{p}phoenix_kit_doc_templates ADD COLUMN IF NOT EXISTS category varchar"
     )
 
     execute(
-      "ALTER TABLE #{p}phoenix_kit_doc_template_presets ADD COLUMN IF NOT EXISTS category varchar(255)"
+      "ALTER TABLE #{p}phoenix_kit_doc_template_presets ADD COLUMN IF NOT EXISTS category varchar"
     )
 
     # Best-effort restore of the legacy string from the category name.
@@ -178,7 +191,8 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
     DO $$ BEGIN
       IF EXISTS (
         SELECT FROM information_schema.columns
-        WHERE table_name = 'phoenix_kit_doc_categories'
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_doc_categories'
       ) THEN
         UPDATE #{p}phoenix_kit_doc_templates t
           SET category = lower(c.name)

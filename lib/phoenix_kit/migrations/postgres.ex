@@ -530,11 +530,10 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
   ### V120 - Document Creator Category → Type taxonomy ⚡ LATEST
-  #
-  # Creates phoenix_kit_doc_categories + phoenix_kit_doc_types, adds
-  # nullable category_uuid/type_uuid FKs to doc templates + documents,
-  # migrates legacy category strings into Category rows, drops the
-  # legacy category string columns.
+  - Creates `phoenix_kit_doc_categories` and `phoenix_kit_doc_types` tables.
+  - Adds nullable `category_uuid` / `type_uuid` FK columns to doc templates and documents.
+  - Migrates legacy category strings from templates into `phoenix_kit_doc_categories` rows.
+  - Drops the legacy `category` string columns from templates and presets.
 
   ### V119 - Trash support for storage folders
   - Adds `trashed_at TIMESTAMPTZ` to `phoenix_kit_media_folders`,
