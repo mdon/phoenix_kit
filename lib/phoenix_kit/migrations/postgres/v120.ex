@@ -17,9 +17,8 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
 
   Note: `phoenix_kit_doc_template_presets` does not get a
   `category_uuid` column — presets do not join the new taxonomy, and
-  their legacy `category` strings are discarded (not migrated). If
-  presets should participate, that needs a follow-up. Dropping the
-  preset `category` column also drops the V117
+  their legacy `category` strings are discarded (not migrated).
+  Dropping the preset `category` column also drops the V117
   `phoenix_kit_doc_template_presets_scope_index`, which this migration
   recreates on `(scope_type, scope_id)`.
 
