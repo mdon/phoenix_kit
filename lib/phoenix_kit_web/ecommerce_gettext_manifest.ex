@@ -20,6 +20,10 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
   # Customer-facing storefront pages (user_orders, checkout, storefront)
   # are intentionally excluded — they use a separate translation strategy.
   #
+  # The sidebar tab labels use a separate `PhoenixKitEcommerce.Gettext` backend
+  # with its own `priv/gettext` in the ecommerce repo — that subsystem is OUT
+  # of scope and must not be modified here.
+  #
   # ## Refreshing the list
   #
   # When ecommerce admin adds or renames a translatable string, run:
@@ -44,7 +48,6 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   @doc false
-  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
   def __extract__ do
     [
       gettext("= Category specific,"),
