@@ -1,0 +1,86 @@
+<% preview_variants = Map.get(@variants_map, @current_uuid, []) %>
+<% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
+<% has_prev = is_integer(preview_idx) and preview_idx > 0 %>
+<% has_next = is_integer(preview_idx) and preview_idx < length(@files) - 1 %>
+<% download_url = download_url_for(@current_uuid, preview_variants) %>
+<% file_name = file_name_for(@file_structs, @current_uuid) %>
+<div
+  id={@id}
+  class="modal modal-open"
+  phx-hook="ViewerKeydown"
+  phx-target={@myself}
+>
+  <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[90vw] lg:!max-w-4xl lg:!h-auto lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+    <%!-- Close button --%>
+    <button
+      type="button"
+      phx-click="close_viewer"
+      phx-target={@myself}
+      class="btn btn-ghost btn-sm btn-circle absolute top-3 right-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
+      title={gettext("Close")}
+    >
+      <.icon name="hero-x-mark" class="w-4 h-4" />
+    </button>
+
+    <div class="flex flex-col lg:flex-row min-h-[60vh] lg:h-[80vh]">
+      <%!-- Image area with prev/next chevrons --%>
+      <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-4 min-h-[40vh] lg:min-h-0">
+        <%!-- Prev chevron --%>
+        <div :if={has_prev} class="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+          <button
+            type="button"
+            phx-click="step_viewer"
+            phx-value-dir="prev"
+            phx-target={@myself}
+            class="btn btn-circle btn-ghost bg-base-100/80 hover:bg-base-100 shadow-md"
+            title={gettext("Previous (←)")}
+          >
+            <.icon name="hero-chevron-left" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <%!-- Next chevron --%>
+        <div :if={has_next} class="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+          <button
+            type="button"
+            phx-click="step_viewer"
+            phx-value-dir="next"
+            phx-target={@myself}
+            class="btn btn-circle btn-ghost bg-base-100/80 hover:bg-base-100 shadow-md"
+            title={gettext("Next (→)")}
+          >
+            <.icon name="hero-chevron-right" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <.image_set
+          file_uuid={@current_uuid}
+          variants={preview_variants}
+          alt={file_name}
+          class="max-w-full max-h-full object-contain"
+          loading="eager"
+        />
+      </div>
+
+      <%!-- Sidebar: filename + download --%>
+      <div class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[220px] bg-base-100">
+        <h2 class="text-base font-bold break-all leading-tight pr-10">
+          {file_name}
+        </h2>
+
+        <a
+          :if={download_url}
+          href={download_url}
+          download={file_name}
+          target="_blank"
+          rel="noopener"
+          class="btn btn-primary btn-sm gap-2 self-start"
+        >
+          <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext("Download")}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>
+</div>
