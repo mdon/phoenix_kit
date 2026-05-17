@@ -1,3 +1,18 @@
+## 1.7.112 - 2026-05-17
+
+### Added
+- `PhoenixKitWeb.Components.MediaGallery` — reusable LiveComponent for selecting,
+  ordering, previewing and removing a set of images.
+- `PhoenixKitWeb.Components.MediaViewer` — standalone image lightbox LiveComponent
+  (prev/next, keyboard, download). Extracted from `MediaGallery`; usable independently.
+- `Storage.get_files/1` — batch file fetch preserving input order.
+
+### Changed
+- `MediaSelectorModal` accepts an optional `notify: {module, id}` to deliver the
+  selection via `send_update` instead of a process message.
+- `MediaGallery` delegates its inline lightbox to `MediaViewer` — no behavior
+  change for existing consumers.
+
 ## 1.7.111 - 2026-05-14
 
 ### Added

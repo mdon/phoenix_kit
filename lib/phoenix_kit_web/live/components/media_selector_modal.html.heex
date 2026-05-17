@@ -1,10 +1,9 @@
-<%!-- Media Selector Modal Overlay --%>
-<div
+<dialog
   id="media-selector-modal-backdrop"
-  class={[
-    "fixed inset-0 z-[10001] overflow-y-auto bg-base-300/80 backdrop-blur-sm transition-opacity",
-    if(@show, do: "opacity-100 pointer-events-auto", else: "opacity-0 pointer-events-none")
-  ]}
+  class="fixed inset-0 z-[10001] m-0 h-full max-h-none w-full max-w-none overflow-y-auto border-0 bg-base-300/80 p-0 backdrop-blur-sm"
+  phx-hook="PkDialog"
+  data-show={to_string(@show)}
+  data-close-event="close_modal"
   phx-click="close_modal"
   phx-target={@myself}
 >
@@ -343,4 +342,4 @@
       </div>
     </div>
   </div>
-</div>
+</dialog>

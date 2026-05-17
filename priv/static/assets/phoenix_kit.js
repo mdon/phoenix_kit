@@ -1431,6 +1431,92 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // MediaViewerDialog — opens the media viewer (`MediaViewer` LiveComponent) as a
+  // native <dialog> via showModal(), so it renders in the browser top layer.
+  //
+  // The top layer escapes ALL ancestor stacking contexts and z-index, fixing the
+  // case where a deeply-nested viewer (e.g. inside a documents tab) is overlapped
+  // by parent-page elements with a higher z-index.
+  //
+  // The server owns the open/closed lifecycle (the component is mounted only
+  // while a preview is open). The hook pushes `viewer_keydown` events so the
+  // existing MediaViewer `handle_event "viewer_keydown"` clauses keep working.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.MediaViewerDialog = {
+    mounted() {
+      const self = this;
+
+      if (typeof this.el.showModal === "function" && !this.el.open) {
+        this.el.showModal();
+      }
+
+      // Native Escape / programmatic cancel — route to the server so it stays
+      // the single source of truth for whether the viewer is open.
+      self._onCancel = function(e) {
+        e.preventDefault();
+        self.pushEventTo(self.el, "viewer_keydown", { key: "Escape" });
+      };
+
+      // Arrow-key navigation; suppressed while focus is in a text field.
+      self._onKey = function(e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  t.isContentEditable === true)) return;
+        self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
+      };
+
+      this.el.addEventListener("cancel", self._onCancel);
+      this.el.addEventListener("keydown", self._onKey);
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this._onKey) this.el.removeEventListener("keydown", this._onKey);
+      if (this.el.open) this.el.close();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // PkDialog — generic native <dialog> controller for server-driven modals.
+  //
+  // Renders the modal in the browser top layer (showModal()), so it is immune to
+  // ancestor stacking contexts / z-index — fixes modals being overlapped by
+  // parent-page elements.
+  //
+  //   data-show        "true" / "false" — desired open state (synced each update)
+  //   data-close-event event pushed to the component on Escape / cancel
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PkDialog = {
+    _sync() {
+      const wantOpen = this.el.dataset.show === "true";
+      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+        this.el.showModal();
+      } else if (!wantOpen && this.el.open) {
+        this.el.close();
+      }
+    },
+    mounted() {
+      const self = this;
+      self._onCancel = function(e) {
+        e.preventDefault();
+        const ev = self.el.dataset.closeEvent;
+        if (ev) self.pushEventTo(self.el, ev, {});
+      };
+      this.el.addEventListener("cancel", self._onCancel);
+      this._sync();
+    },
+    updated() {
+      this._sync();
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this.el.open) this.el.close();
+    }
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();
