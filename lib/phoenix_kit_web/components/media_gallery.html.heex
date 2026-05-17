@@ -1,0 +1,105 @@
+<div id={@id}>
+  <div class="flex flex-col gap-2">
+    <%!-- Optional heading --%>
+    <div :if={@title} class="flex items-center gap-2">
+      <span class="text-xs font-medium text-base-content/60">{@title}</span>
+    </div>
+
+    <%!-- Thumbnail strip (sortable when not readonly and items exist) --%>
+    <div
+      :if={@selected != []}
+      id={"#{@id}-sortable"}
+      phx-hook={if not @readonly, do: "SortableGrid"}
+      data-sortable-event={"reorder_images:#{@id}"}
+      phx-target={@myself}
+      class="flex flex-wrap gap-2"
+    >
+      <div
+        :for={uuid <- @selected}
+        class={[
+          "sortable-item group relative w-20 h-20 rounded border border-base-300 overflow-hidden bg-base-200",
+          if(not @readonly, do: "cursor-grab")
+        ]}
+        data-id={uuid}
+      >
+        <.image_set
+          file_uuid={uuid}
+          variants={Map.get(@variants_map, uuid, [])}
+          alt=""
+          class="w-full h-full object-cover"
+          loading="eager"
+        />
+
+        <%!-- Eye / preview button --%>
+        <button
+          type="button"
+          class="sortable-ignore btn btn-circle btn-xs absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          data-role={"preview-image-#{@id}-#{uuid}"}
+          phx-click="preview_image"
+          phx-value-uuid={uuid}
+          phx-target={@myself}
+          title={gettext("Preview")}
+        >
+          <.icon name="hero-eye" class="w-3 h-3" />
+        </button>
+
+        <%!-- Remove button — hidden in readonly mode --%>
+        <button
+          :if={not @readonly}
+          type="button"
+          class="sortable-ignore btn btn-circle btn-xs absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          data-role={"remove-image-#{@id}-#{uuid}"}
+          phx-click="remove_image"
+          phx-value-uuid={uuid}
+          phx-target={@myself}
+          title={gettext("Remove")}
+        >
+          <.icon name="hero-x-mark" class="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+
+    <%!-- Pick button — hidden in readonly mode --%>
+    <div :if={not @readonly} class="flex items-center gap-2">
+      <button
+        type="button"
+        class="btn btn-xs btn-outline"
+        data-role={"open-picker-#{@id}"}
+        phx-click="open_picker"
+        phx-target={@myself}
+      >
+        <.icon name="hero-photo" class="w-3.5 h-3.5" />
+        {gettext("Choose images")}
+      </button>
+    </div>
+
+    <%!-- Media selector modal (embedded, self-contained).
+         Only mounted once the user clicks "Choose images" — this avoids
+         rendering a live_component node in static/test contexts where
+         `show_picker` is false and no LiveView process exists. --%>
+    <.live_component
+      :if={not @readonly and @show_picker}
+      module={MediaSelectorModal}
+      id={"#{@id}-media-selector"}
+      show={true}
+      mode={@mode}
+      selected_uuids={@selected}
+      file_type_filter={:image}
+      scope_folder_id={@scope_folder_id}
+      phoenix_kit_current_user={@phoenix_kit_current_user}
+      notify={{__MODULE__, @id}}
+    />
+  </div>
+
+  <%!-- Lightbox — delegated to MediaViewer, inside the single root so morphdom patches it reliably --%>
+  <.live_component
+    :if={@preview_uuid}
+    module={PhoenixKitWeb.Components.MediaViewer}
+    id={"#{@id}-viewer"}
+    files={@selected}
+    current={@preview_uuid}
+    variants_map={@variants_map}
+    file_structs={@files}
+    notify={{__MODULE__, @id}}
+  />
+</div>
