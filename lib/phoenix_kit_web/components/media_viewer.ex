@@ -11,9 +11,18 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
   ## Attrs
   - `id` — required
   - `files` — ordered list of file UUIDs (the navigable set)
-  - `current` — UUID currently shown (must be in `files`)
-  - `variants_map` — optional `%{uuid => variants}`; resolved internally if absent
-  - `file_structs` — optional `[%Storage.File{}]`; resolved internally if absent
+  - `current` — initial UUID to show (must be in `files`). Treated as a seed: once the
+    component is mounted, internal navigation state takes precedence over subsequent
+    `current` attr changes. This is intentional when the component is mount-gated
+    (`:if={...}`) so it remounts fresh on each open. A standalone consumer that keeps
+    the component mounted and wants to jump to a different image programmatically must
+    unmount and remount it.
+  - `variants_map` — optional `%{uuid => variants}`; resolved internally if nil/omitted.
+    Note: `%{}` (empty map) is truthy and counts as pre-resolved — pass `nil` or omit to
+    trigger internal resolution.
+  - `file_structs` — optional `[%Storage.File{}]`; resolved internally if nil/omitted.
+    Note: `[]` (empty list) is truthy and counts as pre-resolved — pass `nil` or omit to
+    trigger internal resolution.
   - `notify` — optional `{module, id}`; see Close below
 
   ## Close

@@ -1464,12 +1464,19 @@ if (typeof window.Chart === "undefined") {
         if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
-                  t.isContentEditable === true)) return;
+                  t.isContentEditable)) return;
         self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
       };
 
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("keydown", self._onKey);
+    },
+    // Re-assert open state after LiveView patches children (e.g. prev/next step).
+    // The <dialog> opening tag has only stable attrs so morphdom rarely touches it,
+    // but this guard mirrors PkDialog._sync and removes the asymmetry between the
+    // two hooks.
+    updated() {
+      if (!this.el.open && typeof this.el.showModal === "function") this.el.showModal();
     },
     destroyed() {
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
