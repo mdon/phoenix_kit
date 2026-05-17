@@ -247,11 +247,13 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       assert html =~ "sortable-item"
     end
 
-    test "data-sortable-event uses the bare event name (scoped via phx-target)" do
-      # <.draggable_list> drives reorder. The event name is no longer scoped
-      # by id ("reorder_images:test-gallery") because phx-target={@myself}
-      # routes the event to the right component instance. Multiple
-      # MediaGallery instances on the same page no longer collide.
+    test "reorder grid carries a bare event name plus a component target" do
+      # <.draggable_list> drives reorder. The event name is bare
+      # ("reorder_images", not "reorder_images:test-gallery"); collisions
+      # between MediaGallery instances are avoided by `data-sortable-target`,
+      # a per-instance CSS selector ("#test-gallery"). The SortableGrid hook
+      # reads that and uses `pushEventTo` so the event reaches *this*
+      # component's `handle_event/3` rather than the host LiveView.
       uuid1 = "01900000-0000-7000-8000-000000000001"
       uuid2 = "01900000-0000-7000-8000-000000000002"
 
@@ -264,6 +266,7 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
         )
 
       assert html =~ ~s(data-sortable-event="reorder_images")
+      assert html =~ ~s(data-sortable-target="#test-gallery")
     end
 
     test "cursor-grab class applied when not readonly and multiple items" do
@@ -464,7 +467,8 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       # ordered_ids list omits uuid3 — it should be appended at the end.
       # Event contract changed from "reorder_images:{id}" + "ids" key (raw
       # SortableGrid hook) to "reorder_images" + "ordered_ids" key
-      # (<.draggable_list> wrapper, phx-target scoped).
+      # (<.draggable_list> wrapper; routed to this component via
+      # `target` -> SortableGrid `pushEventTo`).
       {:noreply, socket} =
         call_handle_event("reorder_images", %{"ordered_ids" => [uuid2, uuid1]}, assigns)
 

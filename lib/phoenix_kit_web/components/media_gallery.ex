@@ -51,9 +51,13 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
 
   The thumbnail grid uses the canonical `<.draggable_list>` primitive
   (`PhoenixKitWeb.Components.Core.DraggableList`), which fires the
-  `"reorder_images"` event with payload `%{"ordered_ids" => uuids}` —
-  scoped to this component via `phx-target`. No event-name collision
-  between multiple galleries on the same page.
+  `"reorder_images"` event with payload `%{"ordered_ids" => uuids}`.
+
+  Because `MediaGallery` is a LiveComponent, the grid is rendered with
+  `target={"#\#{@id}"}` so the `SortableGrid` hook routes the event via
+  `pushEventTo` to this component's own `handle_event/3` — not the host
+  LiveView. Each gallery's `id` is unique, so multiple galleries on the same
+  page never cross-deliver reorder events.
   """
   use PhoenixKitWeb, :live_component
 
@@ -129,7 +133,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   end
 
   # Reorder event from <.draggable_list>: payload uses `ordered_ids` and the
-  # event is scoped to this component via `phx-target={@myself}`.
+  # event is routed to this component by the SortableGrid hook via
+  # `pushEventTo` (the grid is rendered with `target={"##{@id}"}`).
   def handle_event("reorder_images", %{"ordered_ids" => ids}, socket) do
     current = socket.assigns.selected
     new_selected = Enum.filter(ids, &(&1 in current))

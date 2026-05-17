@@ -12,6 +12,15 @@
   selection via `send_update` instead of a process message.
 - `MediaGallery` delegates its inline lightbox to `MediaViewer` — no behavior
   change for existing consumers.
+- `<.draggable_list>` gains an optional `target` attr (CSS selector). When set,
+  the `SortableGrid` hook routes the reorder event via `pushEventTo` so it
+  reaches a LiveComponent rather than the host LiveView.
+
+### Fixed
+- `MediaGallery` drag-to-reorder no longer pushes `reorder_images` to the host
+  LiveView (where it had no handler and crashed the page). The grid now passes
+  `target` to `<.draggable_list>` so the event reaches the component's own
+  `handle_event/3`.
 
 ## 1.7.111 - 2026-05-14
 

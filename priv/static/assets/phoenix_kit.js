@@ -357,6 +357,19 @@ if (typeof window.Chart === "undefined") {
           return out;
         };
 
+        // Deliver the reorder event. When the container carries
+        // `data-sortable-target` (a CSS selector — set when <.draggable_list>
+        // is rendered inside a LiveComponent), route via `pushEventTo` so the
+        // component's own `handle_event` receives it. Absent → plain
+        // `pushEvent` to the host LiveView (backward compatible).
+        var emitReorder = function(targetSelector, ev, payload) {
+          if (targetSelector) {
+            self.pushEventTo(targetSelector, ev, payload);
+          } else {
+            self.pushEvent(ev, payload);
+          }
+        };
+
         // SortableJS `group` controls which sortables can exchange items.
         // - String form: simple shared group (any matching name accepts/donates).
         // - Object form: {name, pull: true, put: true} when consumer needs
@@ -454,9 +467,9 @@ if (typeof window.Chart === "undefined") {
                 // Use the destination's event name so the LV handler is
                 // co-located with the table the item ended up in.
                 var destEvent = toContainer.dataset.sortableEvent || eventName;
-                self.pushEvent(destEvent, payload);
+                emitReorder(toContainer.dataset.sortableTarget, destEvent, payload);
               } else {
-                self.pushEvent(eventName, payload);
+                emitReorder(container.dataset.sortableTarget, eventName, payload);
               }
             } catch (err) {
               console.error("PhoenixKitHooks.SortableGrid.onEnd failed:", err);
