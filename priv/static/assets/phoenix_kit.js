@@ -1431,6 +1431,53 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // MediaViewerDialog — opens the media viewer (`MediaViewer` LiveComponent) as a
+  // native <dialog> via showModal(), so it renders in the browser top layer.
+  //
+  // The top layer escapes ALL ancestor stacking contexts and z-index, fixing the
+  // case where a deeply-nested viewer (e.g. inside a documents tab) is overlapped
+  // by parent-page elements with a higher z-index.
+  //
+  // The server owns the open/closed lifecycle (the component is mounted only
+  // while a preview is open). The hook pushes `viewer_keydown` events so the
+  // existing MediaViewer `handle_event "viewer_keydown"` clauses keep working.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.MediaViewerDialog = {
+    mounted() {
+      const self = this;
+
+      if (typeof this.el.showModal === "function" && !this.el.open) {
+        this.el.showModal();
+      }
+
+      // Native Escape / programmatic cancel — route to the server so it stays
+      // the single source of truth for whether the viewer is open.
+      self._onCancel = function(e) {
+        e.preventDefault();
+        self.pushEventTo(self.el, "viewer_keydown", { key: "Escape" });
+      };
+
+      // Arrow-key navigation; suppressed while focus is in a text field.
+      self._onKey = function(e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  t.isContentEditable === true)) return;
+        self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
+      };
+
+      this.el.addEventListener("cancel", self._onCancel);
+      this.el.addEventListener("keydown", self._onKey);
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this._onKey) this.el.removeEventListener("keydown", this._onKey);
+      if (this.el.open) this.el.close();
+    }
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();

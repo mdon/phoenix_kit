@@ -1,7 +1,7 @@
-<div
+<dialog
   id={@id}
-  class="modal modal-open"
-  phx-hook="ViewerKeydown"
+  class="modal"
+  phx-hook="MediaViewerDialog"
   phx-target={@myself}
 >
   <% preview_variants = Map.get(@variants_map, @current_uuid, []) %>
@@ -83,4 +83,4 @@
   </div>
 
   <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>
-</div>
+</dialog>

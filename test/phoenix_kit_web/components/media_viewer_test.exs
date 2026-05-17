@@ -50,7 +50,7 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
 
       assert rendered.root == true,
              "MediaViewer template violates single-root constraint (rendered.root=#{inspect(rendered.root)}). " <>
-               "Ensure no <% %> expressions or other content appear before the root <div>."
+               "Ensure no <% %> expressions or other content appear before the root <dialog>."
     end
 
     # render_component/2 exercises the real Diff.component_to_rendered path and
@@ -66,14 +66,16 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
           file_structs: []
         )
 
-      assert html =~ "modal modal-open"
+      assert html =~ ~s(<dialog)
+      assert html =~ "modal"
     end
   end
 
   describe "render" do
     test "renders the modal with the current image" do
       html = render(viewer_assigns(current: @u1))
-      assert html =~ "modal modal-open"
+      assert html =~ ~s(<dialog)
+      assert html =~ "modal"
       assert html =~ "test-viewer"
     end
 
