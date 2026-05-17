@@ -357,11 +357,9 @@ if (typeof window.Chart === "undefined") {
           return out;
         };
 
-        // Deliver the reorder event. When the container carries
-        // `data-sortable-target` (a CSS selector — set when <.draggable_list>
-        // is rendered inside a LiveComponent), route via `pushEventTo` so the
-        // component's own `handle_event` receives it. Absent → plain
-        // `pushEvent` to the host LiveView (backward compatible).
+        // `pushEventTo` routes to the LiveComponent named by the selector;
+        // plain `pushEvent` reaches only the host LiveView. LiveView consumers
+        // omit `data-sortable-target`, so they keep the original behavior.
         var emitReorder = function(targetSelector, ev, payload) {
           if (targetSelector) {
             self.pushEventTo(targetSelector, ev, payload);
