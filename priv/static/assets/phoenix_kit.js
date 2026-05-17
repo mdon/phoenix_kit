@@ -1478,6 +1478,45 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // PkDialog — generic native <dialog> controller for server-driven modals.
+  //
+  // Renders the modal in the browser top layer (showModal()), so it is immune to
+  // ancestor stacking contexts / z-index — fixes modals being overlapped by
+  // parent-page elements.
+  //
+  //   data-show        "true" / "false" — desired open state (synced each update)
+  //   data-close-event event pushed to the component on Escape / cancel
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PkDialog = {
+    _sync() {
+      const wantOpen = this.el.dataset.show === "true";
+      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+        this.el.showModal();
+      } else if (!wantOpen && this.el.open) {
+        this.el.close();
+      }
+    },
+    mounted() {
+      const self = this;
+      self._onCancel = function(e) {
+        e.preventDefault();
+        const ev = self.el.dataset.closeEvent;
+        if (ev) self.pushEventTo(self.el, ev, {});
+      };
+      this.el.addEventListener("cancel", self._onCancel);
+      this._sync();
+    },
+    updated() {
+      this._sync();
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this.el.open) this.el.close();
+    }
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();
