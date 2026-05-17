@@ -85,6 +85,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       # a single domain object (e.g. a catalogue item) pass this
       # after lazy-creating their folder.
       |> assign_new(:scope_folder_id, fn -> nil end)
+      |> assign_new(:notify, fn -> nil end)
       |> assign_new(:file_type_filter, fn -> :all end)
       |> assign_new(:search_query, fn -> "" end)
       |> assign_new(:current_page, fn -> 1 end)
@@ -194,15 +195,28 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   def handle_event("confirm_selection", _params, socket) do
     selected_uuids = socket.assigns.selected_uuids |> MapSet.to_list()
 
-    # Send selected IDs to parent LiveView
-    send(self(), {:media_selected, selected_uuids})
+    case socket.assigns[:notify] do
+      {module, id} ->
+        send_update(module, id: id, media_selected: selected_uuids)
 
-    # Close modal
+      _ ->
+        # Default: send to parent LiveView process
+        send(self(), {:media_selected, selected_uuids})
+    end
+
     {:noreply, assign(socket, :show, false)}
   end
 
   def handle_event("close_modal", _params, socket) do
-    send(self(), {:media_selector_closed})
+    case socket.assigns[:notify] do
+      {_module, _id} ->
+        # Notified caller handles close; no process message needed
+        :ok
+
+      _ ->
+        send(self(), {:media_selector_closed})
+    end
+
     {:noreply, assign(socket, :show, false)}
   end
 

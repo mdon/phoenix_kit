@@ -1568,6 +1568,24 @@ defmodule PhoenixKit.Modules.Storage do
     do: repo().get(PhoenixKit.Modules.Storage.File, id)
 
   @doc """
+  Fetches multiple files by UUID in a single query and returns them ordered to
+  match `uuids`. Missing UUIDs are silently omitted from the result.
+  """
+  def get_files(uuids) when is_list(uuids) do
+    if uuids == [] do
+      []
+    else
+      rows =
+        from(f in PhoenixKit.Modules.Storage.File, where: f.uuid in ^uuids)
+        |> repo().all()
+
+      # Preserve the caller's ordering: uuids may carry semantic order (e.g. drag-drop).
+      uuid_index = Map.new(rows, &{&1.uuid, &1})
+      Enum.flat_map(uuids, fn id -> if f = uuid_index[id], do: [f], else: [] end)
+    end
+  end
+
+  @doc """
   Calculates user-specific file checksum (salted with user_uuid).
 
   This creates a unique checksum per user+file combination for duplicate detection,
