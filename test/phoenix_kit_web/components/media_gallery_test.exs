@@ -14,7 +14,11 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
 
   use ExUnit.Case, async: true
 
-  import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
+  # `render_component` macro reads @endpoint at compile time.
+  # The endpoint is started once in test_helper.exs (no DB required).
+  @endpoint PhoenixKitWeb.Endpoint
+
+  import Phoenix.LiveViewTest, except: [render: 1]
 
   alias PhoenixKitWeb.Components.MediaGallery
 
@@ -62,6 +66,14 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       assert rendered.root == true,
              "MediaGallery template violates single-root constraint (rendered.root=#{inspect(rendered.root)}). " <>
                "Ensure no <% %> expressions or other content appear before the root <div>."
+    end
+
+    # render_component/2 exercises the real Diff.component_to_rendered path and
+    # raises ArgumentError if rendered.root != true for a component with an id.
+    # No DB needed: selected: [] avoids the Storage round-trip in load_files/1.
+    test "render_component mounts as stateful LiveComponent without raising" do
+      html = render_component(MediaGallery, id: "gallery-root-check", selected: [])
+      assert html =~ "gallery-root-check"
     end
   end
 
