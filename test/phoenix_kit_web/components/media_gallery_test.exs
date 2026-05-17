@@ -31,11 +31,15 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
     preview_uuid = Keyword.get(opts, :preview_uuid, nil)
     files = Keyword.get(opts, :files, [])
     variants_map = Keyword.get(opts, :variants_map, %{})
+    cols = Keyword.get(opts, :cols, 4)
+    featured_first = Keyword.get(opts, :featured_first, false)
 
     %{
       id: "test-gallery",
       selected: selected,
       mode: :multiple,
+      cols: cols,
+      featured_first: featured_first,
       scope_folder_id: nil,
       phoenix_kit_current_user: nil,
       readonly: readonly,
@@ -103,7 +107,10 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
     test "renders pick button when selected is empty and not readonly" do
       html = render(gallery_assigns(selected: [], readonly: false))
       assert html =~ "open-picker-test-gallery"
-      assert html =~ "Choose images"
+      # Pick-button text changed in the draggable_list refactor: it is now
+      # the trailing "Add" tile of the grid, not a separate "Choose images"
+      # row. The data-role assertion above is the stable contract.
+      assert html =~ ">Add</span>"
     end
   end
 
@@ -113,7 +120,6 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
     test "hides pick button in readonly mode" do
       html = render(gallery_assigns(readonly: true))
       refute html =~ "open-picker-test-gallery"
-      refute html =~ "Choose images"
     end
 
     test "shows pick button when not readonly" do
@@ -166,7 +172,26 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       refute html =~ "SortableGrid"
     end
 
-    test "includes SortableGrid hook when not readonly and items present" do
+    test "includes SortableGrid hook when not readonly and multiple items present" do
+      # Drag is only meaningful with 2+ items. Single-item grids skip the
+      # hook (and the cursor-grab styling) so users aren't given a
+      # drag-affordance that does nothing.
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
+
+      html =
+        render(
+          gallery_assigns(
+            selected: [uuid1, uuid2],
+            readonly: false,
+            variants_map: %{uuid1 => [], uuid2 => []}
+          )
+        )
+
+      assert html =~ "SortableGrid"
+    end
+
+    test "omits SortableGrid hook for single-item selection (no reorder possible)" do
       uuid = "01900000-0000-7000-8000-000000000001"
 
       html =
@@ -178,7 +203,7 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
           )
         )
 
-      assert html =~ "SortableGrid"
+      refute html =~ "SortableGrid"
     end
 
     test "preview (eye) button is still rendered in readonly mode" do
@@ -222,29 +247,35 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       assert html =~ "sortable-item"
     end
 
-    test "data-sortable-event contains the component id" do
-      uuid = "01900000-0000-7000-8000-000000000001"
+    test "data-sortable-event uses the bare event name (scoped via phx-target)" do
+      # <.draggable_list> drives reorder. The event name is no longer scoped
+      # by id ("reorder_images:test-gallery") because phx-target={@myself}
+      # routes the event to the right component instance. Multiple
+      # MediaGallery instances on the same page no longer collide.
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
 
       html =
         render(
           gallery_assigns(
-            selected: [uuid],
-            variants_map: %{uuid => []}
+            selected: [uuid1, uuid2],
+            variants_map: %{uuid1 => [], uuid2 => []}
           )
         )
 
-      assert html =~ ~s(data-sortable-event="reorder_images:test-gallery")
+      assert html =~ ~s(data-sortable-event="reorder_images")
     end
 
-    test "cursor-grab class applied when not readonly" do
-      uuid = "01900000-0000-7000-8000-000000000001"
+    test "cursor-grab class applied when not readonly and multiple items" do
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
 
       html =
         render(
           gallery_assigns(
-            selected: [uuid],
+            selected: [uuid1, uuid2],
             readonly: false,
-            variants_map: %{uuid => []}
+            variants_map: %{uuid1 => [], uuid2 => []}
           )
         )
 
@@ -430,9 +461,12 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
 
       assigns = gallery_assigns(selected: [uuid1, uuid2, uuid3], variants_map: %{})
 
-      # ids list omits uuid3 — it should be appended at the end
+      # ordered_ids list omits uuid3 — it should be appended at the end.
+      # Event contract changed from "reorder_images:{id}" + "ids" key (raw
+      # SortableGrid hook) to "reorder_images" + "ordered_ids" key
+      # (<.draggable_list> wrapper, phx-target scoped).
       {:noreply, socket} =
-        call_handle_event("reorder_images:test-gallery", %{"ids" => [uuid2, uuid1]}, assigns)
+        call_handle_event("reorder_images", %{"ordered_ids" => [uuid2, uuid1]}, assigns)
 
       assert socket.assigns.selected == [uuid2, uuid1, uuid3]
     end
@@ -468,8 +502,8 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
 
       {:noreply, socket} =
         call_handle_event(
-          "reorder_images:test-gallery",
-          %{"ids" => [uuid3, uuid1, uuid2]},
+          "reorder_images",
+          %{"ordered_ids" => [uuid3, uuid1, uuid2]},
           assigns
         )
 
