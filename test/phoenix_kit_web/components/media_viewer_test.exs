@@ -36,6 +36,20 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
     MediaViewer.handle_event(event, params, socket)
   end
 
+  describe "single-root constraint (stateful component)" do
+    # Phoenix LiveView raises ArgumentError at runtime when rendered.root != true
+    # for stateful components with an id. This constraint is NOT caught by
+    # rendered_to_string/1 — only by inspecting the Rendered struct directly.
+    # Regression for: templates with <% %> expressions or text before root tag.
+    test "rendered struct satisfies LiveView single-root requirement" do
+      rendered = MediaViewer.render(viewer_assigns([]))
+
+      assert rendered.root == true,
+             "MediaViewer template violates single-root constraint (rendered.root=#{inspect(rendered.root)}). " <>
+               "Ensure no <% %> expressions or other content appear before the root <div>."
+    end
+  end
+
   describe "render" do
     test "renders the modal with the current image" do
       html = render(viewer_assigns(current: @u1))

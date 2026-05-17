@@ -49,6 +49,22 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
     rendered_to_string(MediaGallery.render(assigns))
   end
 
+  # ── single-root constraint ────────────────────────────────────────────────────
+
+  describe "single-root constraint (stateful component)" do
+    # Phoenix LiveView raises ArgumentError at runtime when rendered.root != true
+    # for stateful components with an id. This constraint is NOT caught by
+    # rendered_to_string/1 — only by inspecting the Rendered struct directly.
+    # Regression for: templates with <% %> expressions or text before root tag.
+    test "rendered struct satisfies LiveView single-root requirement" do
+      rendered = MediaGallery.render(gallery_assigns([]))
+
+      assert rendered.root == true,
+             "MediaGallery template violates single-root constraint (rendered.root=#{inspect(rendered.root)}). " <>
+               "Ensure no <% %> expressions or other content appear before the root <div>."
+    end
+  end
+
   # ── title ────────────────────────────────────────────────────────────────────
 
   describe "title" do
