@@ -36,7 +36,7 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
       socket
       |> assign(:id, assigns.id)
       |> assign(:files, assigns[:files] || [])
-      |> assign(:current_uuid, assigns[:current])
+      |> assign_new(:current_uuid, fn -> assigns[:current] end)
       |> assign(:notify, assigns[:notify])
       |> assign_new(:variants_map, fn -> assigns[:variants_map] end)
       |> assign_new(:file_structs, fn -> assigns[:file_structs] end)

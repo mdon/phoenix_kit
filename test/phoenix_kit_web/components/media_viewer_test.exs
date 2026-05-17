@@ -56,6 +56,55 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
     end
   end
 
+  describe "download link" do
+    test "renders download link when original variant is present" do
+      html =
+        render(
+          viewer_assigns(
+            current: @u1,
+            files: [@u1],
+            variants_map: %{
+              @u1 => [
+                %{
+                  variant_name: "original",
+                  mime_type: "image/jpeg",
+                  width: 800,
+                  height: 600,
+                  url: "https://example.com/file.jpg"
+                }
+              ]
+            }
+          )
+        )
+
+      assert html =~ "https://example.com/file.jpg"
+      assert html =~ "Download"
+    end
+  end
+
+  describe "close" do
+    test "close_viewer sends {MediaViewer, id, :closed} to self when notify is nil" do
+      assigns = viewer_assigns(notify: nil)
+      socket = %Phoenix.LiveView.Socket{assigns: Map.put(assigns, :__changed__, %{})}
+      MediaViewer.handle_event("close_viewer", %{}, socket)
+      assert_received {PhoenixKitWeb.Components.MediaViewer, "test-viewer", :closed}
+    end
+
+    test "viewer_keydown Escape sends closed message when notify is nil" do
+      assigns = viewer_assigns(notify: nil)
+      socket = %Phoenix.LiveView.Socket{assigns: Map.put(assigns, :__changed__, %{})}
+      MediaViewer.handle_event("viewer_keydown", %{"key" => "Escape"}, socket)
+      assert_received {PhoenixKitWeb.Components.MediaViewer, "test-viewer", :closed}
+    end
+
+    test "viewer_keydown unknown key is a no-op (no close)" do
+      assigns = viewer_assigns(notify: nil)
+      {:noreply, socket} = call("viewer_keydown", %{"key" => "Tab"}, assigns)
+      assert socket.assigns.current_uuid == @u1
+      refute_received {PhoenixKitWeb.Components.MediaViewer, _, _}
+    end
+  end
+
   describe "stepping" do
     test "step_viewer next advances current_uuid" do
       {:noreply, socket} = call("step_viewer", %{"dir" => "next"}, viewer_assigns(current: @u1))

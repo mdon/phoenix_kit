@@ -209,9 +209,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   def handle_event("close_modal", _params, socket) do
     case socket.assigns[:notify] do
-      {_module, _id} ->
-        # Notified caller handles close; no process message needed
-        :ok
+      {module, id} ->
+        send_update(module, id: id, media_selector_closed: true)
 
       _ ->
         send(self(), {:media_selector_closed})

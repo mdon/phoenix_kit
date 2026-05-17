@@ -39,6 +39,12 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
       {PhoenixKitWeb.Components.MediaGallery, id, {:changed, ordered_uuids}}
 
   to the parent LiveView via `send/2`.
+
+  ## SortableGrid hook contract
+
+  Reorder events are emitted by the `SortableGrid` JS hook as
+  `"reorder_images:{id}"` with payload `%{"ids" => ordered_uuid_list}`.
+  The hook emits `"ids"` (not `"ordered_ids"`).
   """
   use PhoenixKitWeb, :live_component
 
@@ -52,6 +58,10 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   @impl true
   def update(%{media_viewer_closed: true}, socket) do
     {:ok, assign(socket, :preview_uuid, nil)}
+  end
+
+  def update(%{media_selector_closed: true}, socket) do
+    {:ok, assign(socket, :show_picker, false)}
   end
 
   def update(%{media_selected: uuids} = _assigns, socket) do

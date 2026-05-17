@@ -1580,6 +1580,8 @@ defmodule PhoenixKit.Modules.Storage do
         |> repo().all()
 
       # Preserve the caller's ordering: uuids may carry semantic order (e.g. drag-drop).
+      # Duplicate UUIDs in the input produce duplicate structs in the output — callers
+      # are responsible for deduplicating if uniqueness is required.
       uuid_index = Map.new(rows, &{&1.uuid, &1})
       Enum.flat_map(uuids, fn id -> if f = uuid_index[id], do: [f], else: [] end)
     end
