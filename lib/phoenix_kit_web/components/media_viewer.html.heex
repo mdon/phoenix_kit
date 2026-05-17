@@ -1,15 +1,15 @@
-<% preview_variants = Map.get(@variants_map, @current_uuid, []) %>
-<% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
-<% has_prev = is_integer(preview_idx) and preview_idx > 0 %>
-<% has_next = is_integer(preview_idx) and preview_idx < length(@files) - 1 %>
-<% download_url = download_url_for(@current_uuid, preview_variants) %>
-<% file_name = file_name_for(@file_structs, @current_uuid) %>
 <div
   id={@id}
   class="modal modal-open"
   phx-hook="ViewerKeydown"
   phx-target={@myself}
 >
+  <% preview_variants = Map.get(@variants_map, @current_uuid, []) %>
+  <% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
+  <% has_prev = is_integer(preview_idx) and preview_idx > 0 %>
+  <% has_next = is_integer(preview_idx) and preview_idx < length(@files) - 1 %>
+  <% download_url = download_url_for(@current_uuid, preview_variants) %>
+  <% file_name = file_name_for(@file_structs, @current_uuid) %>
   <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[90vw] lg:!max-w-4xl lg:!h-auto lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
     <%!-- Close button --%>
     <button
