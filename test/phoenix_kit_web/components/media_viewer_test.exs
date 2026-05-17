@@ -40,6 +40,105 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
     MediaViewer.handle_event(event, params, socket)
   end
 
+  # Minimal socket for calling update/2 — no pre-existing assigns.
+  defp fresh_socket, do: %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
+
+  describe "update/2" do
+    test "maps :current attr to :current_uuid assign" do
+      {:ok, socket} =
+        MediaViewer.update(
+          %{
+            id: "v1",
+            current: @u2,
+            files: [@u1, @u2],
+            variants_map: %{},
+            file_structs: [],
+            notify: nil
+          },
+          fresh_socket()
+        )
+
+      assert socket.assigns.current_uuid == @u2
+    end
+
+    test "stores :notify tuple in assigns" do
+      notify = {__MODULE__, "my-id"}
+
+      {:ok, socket} =
+        MediaViewer.update(
+          %{
+            id: "v1",
+            current: @u1,
+            files: [@u1],
+            variants_map: %{},
+            file_structs: [],
+            notify: notify
+          },
+          fresh_socket()
+        )
+
+      assert socket.assigns.notify == notify
+    end
+
+    test "pre-passed variants_map and file_structs are used without DB resolution" do
+      vm = %{@u1 => [%{variant_name: "original", url: "https://cdn/img.jpg"}]}
+      fs = [%{uuid: @u1, file_name: "img.jpg"}]
+
+      {:ok, socket} =
+        MediaViewer.update(
+          %{
+            id: "v1",
+            current: @u1,
+            files: [@u1],
+            variants_map: vm,
+            file_structs: fs,
+            notify: nil
+          },
+          fresh_socket()
+        )
+
+      assert socket.assigns.variants_map == vm
+      assert socket.assigns.file_structs == fs
+    end
+
+    test "assign_new(:current_uuid) preserves navigated state on re-render" do
+      # First update seeds current_uuid from :current
+      {:ok, s1} =
+        MediaViewer.update(
+          %{
+            id: "v1",
+            current: @u1,
+            files: [@u1, @u2],
+            variants_map: %{},
+            file_structs: [],
+            notify: nil
+          },
+          fresh_socket()
+        )
+
+      assert s1.assigns.current_uuid == @u1
+
+      # Simulate user navigating to @u2 (step_viewer mutates current_uuid)
+      s1_navigated = %{s1 | assigns: Map.put(s1.assigns, :current_uuid, @u2)}
+
+      # Re-render with same :current — assign_new preserves the navigated state
+      {:ok, s2} =
+        MediaViewer.update(
+          %{
+            id: "v1",
+            current: @u1,
+            files: [@u1, @u2],
+            variants_map: %{},
+            file_structs: [],
+            notify: nil
+          },
+          s1_navigated
+        )
+
+      assert s2.assigns.current_uuid == @u2
+    end
+  end
+
   describe "single-root constraint (stateful component)" do
     # Phoenix LiveView raises ArgumentError at runtime when rendered.root != true
     # for stateful components with an id. This constraint is NOT caught by

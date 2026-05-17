@@ -3,6 +3,7 @@
   class="modal"
   phx-hook="MediaViewerDialog"
   phx-target={@myself}
+  aria-labelledby={"#{@id}-title"}
 >
   <% preview_variants = Map.get(@variants_map, @current_uuid, []) %>
   <% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
@@ -64,7 +65,7 @@
 
       <%!-- Sidebar: filename + download --%>
       <div class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[220px] bg-base-100">
-        <h2 class="text-base font-bold break-all leading-tight pr-10">
+        <h2 id={"#{@id}-title"} class="text-base font-bold break-all leading-tight pr-10">
           {file_name}
         </h2>
 
