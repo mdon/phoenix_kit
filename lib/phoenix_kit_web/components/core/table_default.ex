@@ -144,6 +144,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     doc:
       "Content rendered inside the card-view container, above the card grid. Hidden automatically when the JS hook switches to table mode (the wrapper has `md:hidden` toggled on)."
 
+  slot :sort_bar,
+    doc:
+      "Always-visible sort UI rendered in its own row above the table/cards (e.g. a `<.sort_selector>`). Unlike `:above_cards`, this slot renders in both views."
+
   slot :toolbar_title,
     doc: "Title or arbitrary content rendered at the start of the toolbar row"
 
@@ -229,6 +233,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             </button>
           </div>
         </div>
+      </div>
+      <%!-- Sort bar row: always-visible sort UI (renders in both views) --%>
+      <div :if={@sort_bar != []} class="mb-2">
+        {render_slot(@sort_bar)}
       </div>
       <%!-- Table: hidden on mobile always, shown on desktop (JS controls md: classes) --%>
       <div data-table-view="" class="hidden md:block">
@@ -371,12 +379,27 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   @doc """
   Renders a table body section.
+
+  Accepts arbitrary HTML attrs via `:rest` so consumers can wire the
+  `SortableGrid` hook directly onto the `<tbody>`:
+
+      <.table_default_body
+        id="endpoints-list-body"
+        phx-hook="SortableGrid"
+        data-sortable="true"
+        data-sortable-event="reorder_endpoints"
+        data-sortable-items=".sortable-item"
+        data-sortable-handle=".pk-drag-handle"
+      >
+        ...
+      </.table_default_body>
   """
+  attr :rest, :global
   slot :inner_block, required: true
 
   def table_default_body(assigns) do
     ~H"""
-    <tbody>
+    <tbody {@rest}>
       {render_slot(@inner_block)}
     </tbody>
     """
@@ -427,6 +450,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   @doc """
   Renders a table header cell.
 
+  `:inner_block` is optional — a self-closing call (`<.table_default_header_cell />`)
+  renders an empty `<th>`, useful for drag-handle / row-selection columns
+  that don't need a label.
+
   ## Attributes
 
   * `class` - Additional CSS classes (optional)
@@ -435,7 +462,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :class, :string, default: ""
   attr :rest, :global
 
-  slot :inner_block, required: true
+  slot :inner_block
 
   def table_default_header_cell(assigns) do
     ~H"""

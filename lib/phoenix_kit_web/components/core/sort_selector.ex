@@ -81,12 +81,22 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
   attr :target, :any, default: nil
   attr :class, :string, default: nil
 
+  attr :manual_field, :any,
+    default: nil,
+    doc:
+      "Atom or string field key that represents \"manual\" ordering (e.g. `:sort_order`). When `sort_by` matches, the direction toggle is replaced by a static drag-handle hint icon — direction has no meaning for a user-specified order."
+
   def sort_selector(assigns) do
+    sort_by_str = to_field_str(assigns[:sort_by])
+    manual_str = to_field_str(assigns[:manual_field])
+    manual_active? = manual_str != "" and sort_by_str == manual_str
+
     assigns =
       assigns
-      |> assign(:sort_by_str, to_field_str(assigns[:sort_by]))
+      |> assign(:sort_by_str, sort_by_str)
       |> assign(:sort_dir_norm, normalize_dir(assigns[:sort_dir]))
       |> assign(:normalized_options, normalize_options(assigns[:options]))
+      |> assign(:manual_active?, manual_active?)
 
     ~H"""
     <%!-- Render nothing when there's nothing to sort by. Empty options
@@ -117,7 +127,19 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
           class="select-sm join-item"
           aria-label={gettext("Sort by")}
         />
+        <%!-- In manual mode, direction is meaningless — replace the click-
+             to-flip arrow with a static drag-handle hint so the join still
+             reads as one widget but doesn't pretend to toggle anything. --%>
+        <span
+          :if={@manual_active?}
+          class="btn btn-sm btn-square join-item pointer-events-none text-base-content/60"
+          title={gettext("Drag rows to reorder")}
+          aria-label={gettext("Drag rows to reorder")}
+        >
+          <.icon name="hero-bars-3" class="w-4 h-4" />
+        </span>
         <button
+          :if={!@manual_active?}
           type="button"
           phx-click={@event}
           phx-target={@target}

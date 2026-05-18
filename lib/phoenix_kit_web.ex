@@ -149,6 +149,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.SortSelector
       import PhoenixKitWeb.Components.Core.FormSection
       import PhoenixKitWeb.Components.Core.FormActions
+      import PhoenixKitWeb.Components.Core.BulkActionsBar
     end
   end
 
