@@ -2607,20 +2607,26 @@ if (typeof window.Chart === "undefined") {
 
 
   // ============================================================================
-  // FRESCO VIEWER (loaded from CDN)
+  // FRESCO (loaded from CDN)
   //
-  // Lazy-fetches Fresco's pan-zoom image viewer JS from jsDelivr when the
-  // `FrescoViewer` hook mounts. The Elixir component comes from the
-  // {:fresco, "~> 0.1.5"} hex dependency. Parent apps that pre-import
-  // fresco in their own app.js short-circuit the CDN load — the wrapper
-  // detects `window.FrescoHooks.FrescoViewer` and uses it directly.
+  // Lazy-fetches Fresco's JS bundle from jsDelivr when one of its hooks
+  // mounts. The single fresco.js exports all three component hooks
+  // (`FrescoViewer`, `FrescoCanvas`, `FrescoScrollStrip`); we wrap the
+  // two PhoenixKit actually uses (`FrescoViewer` for plain images,
+  // `FrescoCanvas` for MediaBrowser's annotation-host). One load brings
+  // in both — the second mount short-circuits via the
+  // `window.FrescoHooks.*` cache check.
   //
-  // Keep the version constant in sync with the hex dep + the GitHub release
-  // tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
+  // The Elixir components come from the {:fresco, "~> 0.5"} hex
+  // dependency. Parent apps that pre-import fresco in their own app.js
+  // short-circuit the CDN load entirely.
+  //
+  // Keep the version constant in sync with the hex dep + the GitHub
+  // release tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.5/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -2661,6 +2667,39 @@ if (typeof window.Chart === "undefined") {
             realHook.mounted.call(self);
           }
         });
+      }
+    };
+
+    // FrescoCanvas — the layered scene component MediaBrowser uses to
+    // host annotations (Etcher). Same lazy-load mechanics as
+    // FrescoViewer above; both hooks come out of the same fresco.js
+    // bundle, so a single CDN fetch covers either / both.
+    window.PhoenixKitHooks.FrescoCanvas = {
+      mounted: function() {
+        var self = this;
+        loadFrescoJS(function() {
+          var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      },
+      updated: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.updated === "function") {
+          realHook.updated.call(this);
+        }
+      },
+      destroyed: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.destroyed === "function") {
+          realHook.destroyed.call(this);
+        }
       }
     };
   })();
@@ -2726,13 +2765,13 @@ if (typeof window.Chart === "undefined") {
   // ETCHER LAYER (loaded from CDN)
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
-  // to a host viewer via `fresco_id` and adds the pencil toolbar, draw
-  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.6"} hex
-  // dependency. Same parent-pre-import short-circuit as Fresco.
+  // to a host viewer/canvas via `fresco_id` and adds the pencil toolbar,
+  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.3"}
+  // hex dependency. Same parent-pre-import short-circuit as Fresco.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.6/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
