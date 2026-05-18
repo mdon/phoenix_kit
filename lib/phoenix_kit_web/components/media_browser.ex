@@ -1559,19 +1559,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Enum.reject(new_annotations, fn a -> Map.has_key?(current_by_uuid, a["uuid"]) end)
 
     # Adds + updates — iterate over Etcher's list, dispatch by uuid presence.
+    # Log failures so a stale CHECK constraint (e.g. unmigrated kind, NOT NULL
+    # on a column the payload skipped) doesn't silently drop annotations;
+    # without this the only symptom is "tooltip shows the default kind name
+    # and no title sibling appears" which leads to long debugging detours.
     Enum.each(new_annotations, fn a ->
       uuid = a["uuid"]
 
-      if Map.has_key?(current_by_uuid, uuid) do
-        _ = EtcherAdapter.update(uuid, a)
-      else
-        attrs =
-          a
-          |> Map.put("target_type", "file")
-          |> Map.put("target_uuid", file_uuid)
-          |> creator_attrs(socket)
+      result =
+        if Map.has_key?(current_by_uuid, uuid) do
+          EtcherAdapter.update(uuid, a)
+        else
+          attrs =
+            a
+            |> Map.put("target_type", "file")
+            |> Map.put("target_uuid", file_uuid)
+            |> creator_attrs(socket)
 
-        _ = EtcherAdapter.create(attrs)
+          EtcherAdapter.create(attrs)
+        end
+
+      case result do
+        {:ok, _} ->
+          :ok
+
+        {:error, reason} ->
+          require Logger
+
+          Logger.warning(
+            "[MediaBrowser] annotation persist failed kind=#{inspect(a["kind"])} uuid=#{inspect(uuid)}: #{inspect(reason)}"
+          )
       end
     end)
 
@@ -1580,7 +1597,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       uuid = to_string(a.uuid)
 
       unless Map.has_key?(new_by_uuid, uuid) do
-        _ = EtcherAdapter.delete(uuid)
+        case EtcherAdapter.delete(uuid) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            require Logger
+
+            Logger.warning(
+              "[MediaBrowser] annotation delete failed uuid=#{inspect(uuid)}: #{inspect(reason)}"
+            )
+        end
       end
     end)
 
