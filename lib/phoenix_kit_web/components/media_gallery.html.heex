@@ -69,7 +69,7 @@
         phx-target={@myself}
       >
         <.icon name="hero-photo" class="w-3.5 h-3.5" />
-        {gettext("Choose images")}
+        {if @mode == :single, do: gettext("Choose image"), else: gettext("Choose images")}
       </button>
     </div>
 
