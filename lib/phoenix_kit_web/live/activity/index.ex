@@ -141,6 +141,18 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp action_badge_color(action), do: Activity.action_badge_color(action)
   defp mode_badge_color(mode), do: Activity.mode_badge_color(mode)
 
+  # True when any of the four Activity filters is set. Drives both the
+  # toolbar Clear-filters button and the filtered empty-state message.
+  defp any_filter_active?(assigns) do
+    [
+      assigns.filter_module,
+      assigns.filter_mode,
+      assigns.filter_action,
+      assigns.filter_resource_type
+    ]
+    |> Enum.any?(&(&1 not in [nil, ""]))
+  end
+
   defp summarize_details(metadata) do
     meta = metadata || %{}
 

@@ -23,7 +23,7 @@ defmodule PhoenixKit.Annotations.Annotation do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
-  @kinds ~w(rectangle circle polygon freehand callout text dimension)
+  @kinds ~w(rectangle circle polygon freehand callout text dimension line)
 
   @type t :: %__MODULE__{
           uuid: UUIDv7.t() | nil,
@@ -52,7 +52,7 @@ defmodule PhoenixKit.Annotations.Annotation do
     timestamps(type: :utc_datetime)
   end
 
-  @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position title)a
+  @cast_fields ~w(uuid file_uuid creator_uuid kind geometry style metadata position title)a
   @required_fields ~w(file_uuid kind geometry)a
 
   # Fields the storage adapter is allowed to accept from event payloads.

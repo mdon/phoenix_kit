@@ -111,62 +111,6 @@
       </div>
     <% end %>
 
-    <%!-- Controls --%>
-    <div class="bg-base-200 rounded-lg p-6 mb-6">
-      <div class="flex flex-col lg:flex-row gap-4 items-end">
-        <%!-- Search --%>
-        <div class="flex-1">
-          <label class="label">
-            <span class="label-text">Search by email or token</span>
-          </label>
-          <input
-            type="text"
-            value={@search_query}
-            phx-change="search"
-            phx-debounce="300"
-            name="search"
-            placeholder="Enter email address or token prefix..."
-            class="input input-bordered w-full"
-          />
-        </div>
-
-        <%!-- Filter by User Status --%>
-        <div>
-          <label class="label">
-            <span class="label-text">Filter by User Status</span>
-          </label>
-          <label class="select w-full max-w-xs">
-            <select
-              phx-change="filter_by_user_status"
-              name="status"
-            >
-              <option value="all" selected={@filter_user_status == "all"}>All Users</option>
-              <option value="active" selected={@filter_user_status == "active"}>
-                Active Users
-              </option>
-              <option value="inactive" selected={@filter_user_status == "inactive"}>
-                Inactive Users
-              </option>
-              <option value="confirmed" selected={@filter_user_status == "confirmed"}>
-                Confirmed Email
-              </option>
-              <option value="pending" selected={@filter_user_status == "pending"}>
-                Pending Email
-              </option>
-            </select>
-          </label>
-        </div>
-
-        <%!-- Refresh Button --%>
-        <button
-          phx-click="refresh_sessions"
-          class="btn btn-primary"
-        >
-          <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> Refresh
-        </button>
-      </div>
-    </div>
-
     <%!-- Sessions Table / Cards --%>
     <.table_default
       id="sessions-table"
@@ -193,6 +137,47 @@
         end
       }
     >
+      <:toolbar_title>
+        <form phx-change="search" class="contents">
+          <label class="input input-sm w-40 sm:w-52 lg:w-64 min-w-0">
+            <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
+            <input
+              type="search"
+              name="search"
+              value={@search_query}
+              placeholder="Search by email or token..."
+              class="grow"
+              phx-debounce="300"
+            />
+          </label>
+        </form>
+      </:toolbar_title>
+      <:toolbar_actions>
+        <%!-- Filter by User Status --%>
+        <span class="text-sm text-base-content/70 whitespace-nowrap">
+          {gettext("Status:")}
+        </span>
+        <form phx-change="filter_by_user_status" class="contents">
+          <select class="select select-sm w-40 min-w-0" name="status">
+            <option value="all" selected={@filter_user_status == "all"}>All Users</option>
+            <option value="active" selected={@filter_user_status == "active"}>
+              Active Users
+            </option>
+            <option value="inactive" selected={@filter_user_status == "inactive"}>
+              Inactive Users
+            </option>
+            <option value="confirmed" selected={@filter_user_status == "confirmed"}>
+              Confirmed Email
+            </option>
+            <option value="pending" selected={@filter_user_status == "pending"}>
+              Pending Email
+            </option>
+          </select>
+        </form>
+        <button phx-click="refresh_sessions" class="btn btn-sm btn-primary">
+          <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Refresh")}
+        </button>
+      </:toolbar_actions>
       <:card_header :let={session}>
         <div class="flex items-start justify-between gap-2">
           <div class="flex flex-col min-w-0">
