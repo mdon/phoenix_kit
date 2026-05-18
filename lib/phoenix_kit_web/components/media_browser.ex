@@ -1892,9 +1892,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     :ok
   end
 
-  # Cancel path: composer requested rollback explicitly.
-  defp rollback_annotation_compose(socket, _annotation_uuid) do
-    rollback_pending_annotation_if_any(socket)
+  # Cancel path: the user clicked the composer's Cancel button. The
+  # annotation was never finished — drop the shape so it isn't left
+  # on the canvas as an untitled placeholder. Pushes
+  # `etcher:delete-shape` to the JS bridge in phoenix_kit.js, which
+  # calls `layer.deleteShape(uuid)`. That removes the shape from
+  # Etcher's local state + DOM, pushes the delete onto Etcher's undo
+  # stack (Cmd+Z restores if the user changes their mind), and fires
+  # `annotations-changed` — the regular sync path picks up the uuid
+  # going missing and deletes the DB row (cascading to comments).
+  #
+  # The passive `rollback_pending_annotation_if_any` is for the
+  # close-modal-or-switch-file case where we don't want to delete:
+  # the user might be navigating away briefly.
+  defp rollback_annotation_compose(socket, annotation_uuid) do
+    socket = assign(socket, :composing_annotation_uuid, nil)
+
+    case {annotation_uuid, socket.assigns[:viewer_file]} do
+      {uuid, %{file_uuid: file_uuid}}
+      when is_binary(uuid) and is_binary(file_uuid) ->
+        Phoenix.LiveView.push_event(socket, "etcher:delete-shape", %{
+          fresco_id: "media-zoom-" <> file_uuid,
+          uuid: uuid
+        })
+
+      _ ->
+        socket
+    end
   end
 
   defp load_annotations_for(file_uuid) do

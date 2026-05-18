@@ -3360,6 +3360,22 @@ if (typeof window.Chart === "undefined") {
     layer.patchShape(detail.uuid, fields);
   });
 
+  // Server-driven shape removal. MediaBrowser uses this on annotation
+  // composer Cancel — the user signalled the just-drawn shape was a
+  // mistake, so we drop it from Etcher's local state instead of
+  // leaving an untitled placeholder on the canvas. layer.deleteShape
+  // pushes the deletion onto Etcher's undo stack (Cmd+Z restores) and
+  // fires `etcher:annotations-changed`, which routes through the
+  // server's sync_annotations to delete the DB row + cascade comments.
+  window.addEventListener("phx:etcher:delete-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.deleteShape !== "function") return;
+    layer.deleteShape(detail.uuid);
+  });
+
   window.Etcher.tooltipSlots = {
     // Header → annotation title (user-chosen label) if present;
     // otherwise the comment author; otherwise the shape kind.
