@@ -64,7 +64,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
                 class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/admin"), do: " bg-primary text-primary-content", else: "")}
               >
                 <.icon name="hero-shield-check" class="w-4 h-4" />
-                <span>Admin Panel</span>
+                <span>{gettext("Admin Panel")}</span>
               </.link>
             </li>
             <%= if @admin_edit_url do %>

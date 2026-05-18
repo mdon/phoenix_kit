@@ -327,7 +327,9 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
             socket
             |> put_flash(
               :error,
-              "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
+              gettext(
+                "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
+              )
             )
         end
       else
