@@ -3295,6 +3295,35 @@ if (typeof window.Chart === "undefined") {
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
+  // ============================================================================
+  // Etcher live-metadata patch bridge
+  // ============================================================================
+  //
+  // Listens for the `etcher:patch-shape` LiveView push_event emitted by
+  // MediaBrowser when annotation comments are posted server-side. Calls
+  // Etcher's `layerFor(fresco_id).patchShape(uuid, {metadata})` (added
+  // in Etcher 0.3) so the in-DOM shape's metadata reflects the new
+  // comment_* fields immediately — the tooltip shows the rich content
+  // on the next hover without waiting for a layer remount.
+  //
+  // Why this bridge exists: <Fresco.canvas> uses `phx-update="ignore"`,
+  // which freezes its `data-extensions` attribute at initial mount.
+  // Server-side rebuilds of the canvas's `extensions.etcher` blob
+  // don't reach the DOM, so Etcher's `handle.getExtension("etcher")`
+  // keeps returning the old annotations. patchShape sidesteps that by
+  // mutating Etcher's internal `self.shapes[i]` directly.
+  window.addEventListener("phx:etcher:patch-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.patchShape !== "function") return;
+    var fields = {};
+    if (detail.metadata) fields.metadata = detail.metadata;
+    if (detail.style) fields.style = detail.style;
+    layer.patchShape(detail.uuid, fields);
+  });
+
   window.Etcher.tooltipSlots = {
     // Header → annotation title (user-chosen label) if present;
     // otherwise the comment author; otherwise the shape kind.

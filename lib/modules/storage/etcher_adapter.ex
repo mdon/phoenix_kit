@@ -1,7 +1,19 @@
 defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
   @moduledoc """
-  `Etcher.Storage` adapter that writes annotation events from the
-  MediaBrowser's Fresco viewer into `phoenix_kit_annotations`.
+  Persistence helper for the MediaBrowser's annotation flow.
+
+  Etcher 0.3 dropped the `Etcher.Storage` behaviour entirely — annotations
+  now live inside the host `<Fresco.canvas>`'s `extensions.etcher` blob
+  and the library doesn't reach into the consumer's DB anymore. PhoenixKit
+  still needs to persist its annotations (they're per-file, not per-canvas-
+  file-on-disk), so this module survives as a thin helper module called
+  from the MediaBrowser LV's `etcher:annotations-changed` event handler —
+  not as a behaviour implementation.
+
+  The four public functions (`create/1`, `list_for/2`, `update/2`,
+  `delete/1`) keep their pre-0.3 signatures so the diff in MediaBrowser
+  stays small. None of them are `@impl` annotations anymore; they're
+  just plain helpers wrapping the `PhoenixKit.Annotations` context.
 
   Etcher's generic API is keyed by `target_type` + `target_uuid` so the
   library can annotate any kind of resource. In PhoenixKit the only
@@ -19,22 +31,19 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
   No `comment_uuid` column on annotations is needed.
   """
 
-  @behaviour Etcher.Storage
-
   alias PhoenixKit.Annotations
   alias PhoenixKit.Annotations.Annotation
 
-  # Whitelist of annotation schema fields the adapter accepts from event
+  # Whitelist of annotation schema fields the helper accepts from event
   # payloads, sourced from `Annotation.adapter_writable_fields/0` so the
   # set stays in sync with the schema's `@cast_fields`. Anything else
-  # (Etcher routing keys, JS-side anchor coords, client-side metadata)
-  # is silently dropped — `String.to_existing_atom` on unknown payload
-  # keys used to crash the LV when Etcher's payload shape grew new
-  # client-side keys like `anchor_x` / `anchor_y`. Stored as strings
-  # here since the filter compares against `to_string(payload_key)`.
+  # (Etcher routing keys, JS-side anchor coords, comment-derived metadata
+  # we hydrate server-side) is silently dropped — `String.to_existing_atom`
+  # on unknown payload keys used to crash the LV when Etcher's payload
+  # shape grew new client-side keys. Stored as strings here since the
+  # filter compares against `to_string(payload_key)`.
   @schema_keys Enum.map(Annotation.adapter_writable_fields(), &Atom.to_string/1)
 
-  @impl Etcher.Storage
   def create(attrs) do
     with {:ok, file_uuid} <- target_uuid(attrs) do
       attrs
@@ -44,7 +53,6 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
     end
   end
 
-  @impl Etcher.Storage
   def list_for(target_type, target_uuid)
 
   def list_for("file", file_uuid) when is_binary(file_uuid) do
@@ -53,14 +61,12 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   def list_for(_other, _uuid), do: []
 
-  @impl Etcher.Storage
   def update(uuid, attrs) do
     attrs
     |> filter_to_schema()
     |> then(&Annotations.update(uuid, &1))
   end
 
-  @impl Etcher.Storage
   def delete(uuid), do: Annotations.delete(uuid)
 
   # ---------------------------------------------------------------------------

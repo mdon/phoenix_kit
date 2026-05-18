@@ -52,7 +52,7 @@ defmodule PhoenixKit.Annotations.Annotation do
     timestamps(type: :utc_datetime)
   end
 
-  @cast_fields ~w(file_uuid creator_uuid kind geometry style metadata position title)a
+  @cast_fields ~w(uuid file_uuid creator_uuid kind geometry style metadata position title)a
   @required_fields ~w(file_uuid kind geometry)a
 
   # Fields the storage adapter is allowed to accept from event payloads.

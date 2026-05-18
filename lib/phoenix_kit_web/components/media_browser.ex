@@ -291,6 +291,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
     |> assign(:file_view, nil)
     |> assign(:viewer_annotations, [])
+    |> assign(:viewer_canvas, nil)
     |> assign(:composing_annotation_uuid, nil)
     |> assign(:composer_anchor, nil)
     |> assign(
@@ -1007,99 +1008,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # ──────────────────────────────────────────────────────────────
   # Etcher annotation events — emitted by the <Etcher.Layer.layer>
-  # mounted alongside the Fresco viewer in the modal.
+  # mounted alongside the Fresco canvas in the modal.
+  #
+  # Etcher 0.3 dropped the per-op `etcher:created` / `:updated` /
+  # `:deleted` / `:selected` events in favor of one bulk event:
+  # `etcher:annotations-changed`. Payload is the full annotations
+  # array as Etcher sees it; we diff against the last-known-persisted
+  # state (`viewer_annotations`) to decide what to insert / update /
+  # delete in the DB, then reload from DB to pick up fresh comment
+  # metadata (comment_count, comment_thumbnail_url, …) and rebuild
+  # the canvas so the next render reflects truth.
+  #
+  # The composer popup flow (create → ask for title + first comment)
+  # is intentionally NOT wired here. Etcher 0.3's bulk event arrives
+  # AFTER persistence and doesn't carry a "draft" notion, so the
+  # composer doesn't compose cleanly. Annotations save immediately;
+  # title can be set via Etcher's inline text editor; the file's
+  # existing comment thread handles discussion.
   # ──────────────────────────────────────────────────────────────
 
-  def handle_event("etcher:created", %{"tmp_id" => tmp_id} = attrs, socket) do
-    case EtcherAdapter.create(creator_attrs(attrs, socket)) do
-      {:ok, annotation} ->
-        new = %{uuid: annotation.uuid, kind: annotation.kind, geometry: annotation.geometry}
-
-        # Anchor for the floating composer — etcher.js sends the shape's
-        # bottom-left in container px so the popover spawns right next
-        # to the shape the user just drew.
-        anchor =
-          case {attrs["anchor_x"], attrs["anchor_y"]} do
-            {x, y} when is_number(x) and is_number(y) -> %{x: x, y: y}
-            _ -> nil
-          end
-
-        # Two cases that skip the composer popup:
-        #   1. Text shapes — content arrives inline via etcher.js's
-        #      foreignObject editor, never through the composer.
-        #   2. Restores (undo-of-delete) — etcher.js sent
-        #      `restore: true` so the recreated row already has its
-        #      title/metadata; the user wasn't trying to create a new
-        #      annotation and shouldn't be ambushed by a composer.
-        suppress_composer =
-          annotation.kind == "text" or Map.get(attrs, "restore") == true
-
-        composer_uuid = if suppress_composer, do: nil, else: annotation.uuid
-        composer_anchor = if suppress_composer, do: nil, else: anchor
-
-        # On undo-of-delete, walk the soft-deleted comments that were
-        # cascade-removed when the original row went away and re-link
-        # them to the new uuid. Refresh the sidebar so they reappear
-        # without a page reload.
-        restored_comments =
-          maybe_restore_comments(
-            annotation,
-            Map.get(attrs, "restore_from_uuid"),
-            Map.get(attrs, "restore")
-          )
-
-        socket =
-          socket
-          |> assign(:viewer_annotations, [new | socket.assigns.viewer_annotations])
-          |> assign(:composing_annotation_uuid, composer_uuid)
-          |> assign(:composer_anchor, composer_anchor)
-          |> Phoenix.LiveView.push_event("etcher:annotation-saved", %{
-            tmp_id: tmp_id,
-            uuid: annotation.uuid
-          })
-          |> maybe_refresh_after_restore(restored_comments)
-
+  def handle_event("etcher:annotations-changed", %{"annotations" => new_annotations}, socket) do
+    case socket.assigns[:viewer_file] do
+      nil ->
+        # No file is currently open in the viewer — ignore the event.
+        # Shouldn't happen in practice (the layer only mounts when a
+        # file is open), but guards against stray events during close.
         {:noreply, socket}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not save annotation"))}
+      file ->
+        {:noreply, sync_annotations(socket, file, new_annotations)}
     end
-  end
-
-  def handle_event("etcher:updated", %{"uuid" => uuid} = params, socket) do
-    # Etcher emits this event for any persisted change to a shape:
-    # vertex drags (geometry), color picks (style), inline-edits to
-    # text shapes (title), and other metadata writes. Each field is
-    # independently optional in the payload, so only forward the ones
-    # present.
-    update_attrs =
-      %{}
-      |> maybe_put_payload("geometry", params)
-      |> maybe_put_payload("style", params)
-      |> maybe_put_payload("metadata", params)
-      |> maybe_put_payload("title", params)
-
-    if update_attrs == %{} do
-      {:noreply, socket}
-    else
-      apply_annotation_update(socket, uuid, update_attrs, params)
-    end
-  end
-
-  def handle_event("etcher:deleted", %{"uuid" => uuid}, socket) do
-    _ = EtcherAdapter.delete(uuid)
-    # The adapter's delete cascades to any linked comments; poke the
-    # file's CommentsComponent so the sidebar thread drops them too.
-    refresh_file_comments(socket)
-
-    remaining = Enum.reject(socket.assigns.viewer_annotations, fn a -> a.uuid == uuid end)
-    {:noreply, assign(socket, :viewer_annotations, remaining)}
-  end
-
-  def handle_event("etcher:selected", %{"uuid" => _uuid}, socket) do
-    # v0.1: selection is informational only; consumer UI can wire a
-    # selected-annotation panel here later (e.g. show the comment thread).
-    {:noreply, socket}
   end
 
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
@@ -1553,110 +1491,143 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Navigation helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp maybe_restore_comments(annotation, restore_from_uuid, restore_flag)
-       when restore_flag == true and is_binary(restore_from_uuid) do
-    PhoenixKit.Annotations.restore_linked_comments(
-      annotation.file_uuid,
-      restore_from_uuid,
-      annotation.uuid
-    )
-  end
+  # NOTE: `maybe_restore_comments` + `maybe_refresh_after_restore` were
+  # removed in the Etcher 0.3 migration. They were tied to the per-op
+  # `etcher:created` handler's `restore: true` flag, which signaled an
+  # undo-of-delete and triggered a soft-deleted-comment re-link. The
+  # bulk `etcher:annotations-changed` event doesn't expose that flag —
+  # if you need undo-of-delete to also restore the linked comments,
+  # we'll have to thread an explicit "restore" hint through the event
+  # payload or move the restore logic into `Annotations.create/1`.
 
-  defp maybe_restore_comments(_annotation, _restore_from_uuid, _restore_flag), do: 0
+  # NOTE: per-op annotation helpers (`apply_annotation_update`,
+  # `update_annotation_in_list`, `apply_annotation_diff`,
+  # `maybe_put_payload`, `maybe_assign_field`, `maybe_merge_metadata`,
+  # `maybe_set_title_in_metadata`, `maybe_push_title_tooltip_refresh`)
+  # were removed in the Etcher 0.3 migration. The bulk
+  # `etcher:annotations-changed` event handler now does the entire
+  # diff + apply in `sync_annotations/3`, reloading from DB after
+  # each batch so the in-memory state stays consistent with the
+  # canvas's `extensions.etcher` map.
 
-  defp maybe_refresh_after_restore(socket, count) when is_integer(count) and count > 0 do
+  # Diff `new_annotations` (Etcher's current view) against
+  # `socket.assigns.viewer_annotations` (last-known-persisted) and apply
+  # add / update / delete via `EtcherAdapter`. Reload from DB afterwards
+  # so comment-derived metadata (comment_count, author, …) stays fresh,
+  # and rebuild the viewer's canvas so `extensions.etcher` reflects the
+  # new truth on the next render.
+  #
+  # Side effect: when the user draws a NEW non-text shape, opens the
+  # AnnotationComposer popup keyed on that uuid so they can add a title
+  # + first comment in one flow. Text shapes skip the popup (they have
+  # their own inline foreignObject editor in Etcher). If the composer
+  # is already open (mid-compose), it stays open — drawing another
+  # shape doesn't ambush the in-flight one.
+  defp sync_annotations(socket, file, new_annotations) do
+    file_uuid = file.file_uuid
+
+    current_by_uuid =
+      Map.new(socket.assigns.viewer_annotations, fn a -> {to_string(a.uuid), a} end)
+
+    new_by_uuid = Map.new(new_annotations, fn a -> {a["uuid"], a} end)
+
+    # Track which annotations are new in this batch — used below to
+    # decide whether to open the composer.
+    new_in_batch =
+      Enum.reject(new_annotations, fn a -> Map.has_key?(current_by_uuid, a["uuid"]) end)
+
+    # Adds + updates — iterate over Etcher's list, dispatch by uuid presence.
+    Enum.each(new_annotations, fn a ->
+      uuid = a["uuid"]
+
+      if Map.has_key?(current_by_uuid, uuid) do
+        _ = EtcherAdapter.update(uuid, a)
+      else
+        attrs =
+          a
+          |> Map.put("target_type", "file")
+          |> Map.put("target_uuid", file_uuid)
+          |> creator_attrs(socket)
+
+        _ = EtcherAdapter.create(attrs)
+      end
+    end)
+
+    # Deletes — uuids in our state that aren't in Etcher's anymore.
+    Enum.each(socket.assigns.viewer_annotations, fn a ->
+      uuid = to_string(a.uuid)
+
+      unless Map.has_key?(new_by_uuid, uuid) do
+        _ = EtcherAdapter.delete(uuid)
+      end
+    end)
+
+    # Reload from DB to pick up fresh comment metadata + cascade
+    # changes (deleted-annotation comments cascading out).
+    refreshed = load_annotations_for(file_uuid)
     refresh_file_comments(socket)
+
+    composer_uuid = pick_composer_target(socket, new_in_batch)
+
     socket
+    |> assign(:viewer_annotations, refreshed)
+    |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
+    |> assign(:composing_annotation_uuid, composer_uuid)
+    |> assign(:composer_anchor, nil)
+    |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
   end
 
-  defp maybe_refresh_after_restore(socket, _count), do: socket
+  # For every annotation newly created in this batch, push an
+  # `etcher:patch-shape` event with the freshly-loaded metadata
+  # (comment_count: 0, comment_created_at, etc.). Etcher's
+  # `_finalizeShape` creates shapes with no `metadata` field, so the
+  # tooltip would fall back to the shape kind ("Rectangle") until the
+  # next file open. This patch hydrates the in-DOM shape immediately
+  # so the tooltip shows correct content even before the user posts a
+  # title/comment via the AnnotationComposer.
+  defp push_metadata_patches(socket, _file_uuid, [], _refreshed), do: socket
 
-  defp apply_annotation_update(socket, uuid, update_attrs, params) do
-    case EtcherAdapter.update(uuid, update_attrs) do
-      {:ok, _annotation} ->
-        new_title = Map.get(params, "title")
-        updated = update_annotation_in_list(socket.assigns.viewer_annotations, uuid, params)
+  defp push_metadata_patches(socket, file_uuid, new_in_batch, refreshed) do
+    refreshed_by_uuid =
+      Map.new(refreshed, fn a -> {to_string(a.uuid), a} end)
 
-        socket =
-          socket
-          |> assign(:viewer_annotations, updated)
-          |> maybe_push_title_tooltip_refresh(uuid, updated, new_title)
+    Enum.reduce(new_in_batch, socket, fn raw, acc ->
+      uuid = raw["uuid"]
 
-        {:noreply, socket}
+      case Map.get(refreshed_by_uuid, uuid) do
+        nil ->
+          acc
 
-      _error ->
-        {:noreply, socket}
-    end
-  end
-
-  defp update_annotation_in_list(annotations, uuid, params) do
-    Enum.map(annotations, fn a ->
-      if a.uuid == uuid, do: apply_annotation_diff(a, params), else: a
+        ann ->
+          Phoenix.LiveView.push_event(acc, "etcher:patch-shape", %{
+            fresco_id: "media-zoom-" <> file_uuid,
+            uuid: ann.uuid,
+            metadata: ann.metadata
+          })
+      end
     end)
   end
 
-  defp apply_annotation_diff(annotation, params) do
-    annotation
-    |> maybe_assign_field(:geometry, Map.get(params, "geometry"))
-    |> maybe_assign_field(:style, Map.get(params, "style"))
-    |> maybe_merge_metadata(Map.get(params, "metadata"))
-    |> maybe_set_title_in_metadata(Map.get(params, "title"))
-  end
+  # Pick which annotation, if any, should drive the AnnotationComposer
+  # popover. Rules:
+  #   1. If the composer is already open mid-compose, keep its target.
+  #   2. Otherwise the first newly-added non-text annotation in this
+  #      batch. (Text shapes get an inline editor in Etcher, no popup.)
+  #   3. Otherwise nil — composer stays closed.
+  defp pick_composer_target(socket, new_in_batch) do
+    case socket.assigns[:composing_annotation_uuid] do
+      uuid when is_binary(uuid) ->
+        uuid
 
-  defp maybe_put_payload(attrs, key, params) do
-    case Map.fetch(params, key) do
-      {:ok, value} when not is_nil(value) -> Map.put(attrs, key, value)
-      _ -> attrs
+      _ ->
+        new_in_batch
+        |> Enum.reject(fn a -> a["kind"] == "text" end)
+        |> List.first()
+        |> case do
+          %{"uuid" => uuid} when is_binary(uuid) -> uuid
+          _ -> nil
+        end
     end
-  end
-
-  defp maybe_assign_field(map, _key, nil), do: map
-  defp maybe_assign_field(map, key, value), do: Map.put(map, key, value)
-
-  defp maybe_merge_metadata(map, nil), do: map
-
-  defp maybe_merge_metadata(map, new_meta) when is_map(new_meta) do
-    existing = Map.get(map, :metadata) || %{}
-    Map.put(map, :metadata, Map.merge(existing, new_meta))
-  end
-
-  defp maybe_merge_metadata(map, _), do: map
-
-  defp maybe_set_title_in_metadata(map, nil), do: map
-
-  defp maybe_set_title_in_metadata(map, title) when is_binary(title) do
-    # `metadata.title` is the client-facing surface (etcher.js reads
-    # from it); the server stores the canonical value in the `title`
-    # column. Keep both in sync in the in-memory list so the next
-    # render doesn't lag behind the DB.
-    existing = Map.get(map, :metadata) || %{}
-
-    new_meta =
-      if title == "",
-        do: Map.delete(existing, "title"),
-        else: Map.put(existing, "title", title)
-
-    Map.put(map, :metadata, new_meta)
-  end
-
-  defp maybe_set_title_in_metadata(map, _), do: map
-
-  # Push the in-memory shape's metadata down to the in-DOM Etcher hook
-  # after a title-only update, so the tooltip reflects the new title
-  # without waiting for a full re-render of `initial_annotations`.
-  defp maybe_push_title_tooltip_refresh(socket, _uuid, _annotations, nil), do: socket
-
-  defp maybe_push_title_tooltip_refresh(socket, uuid, annotations, _title) do
-    shape_meta =
-      case Enum.find(annotations, &(&1.uuid == uuid)) do
-        %{metadata: m} when is_map(m) -> m
-        _ -> %{}
-      end
-
-    Phoenix.LiveView.push_event(socket, "etcher:annotation-updated", %{
-      uuid: uuid,
-      metadata: shape_meta
-    })
   end
 
   # Pull the current user's uuid off the scope so saved annotations carry
@@ -1717,36 +1688,98 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> rollback_pending_annotation_if_any()
     |> assign(:viewer_file, nil)
     |> assign(:viewer_annotations, [])
+    |> assign(:viewer_canvas, nil)
   end
 
   defp open_viewer(socket, %{file_uuid: uuid} = file) do
+    annotations = load_annotations_for(uuid)
+
     socket
     |> rollback_pending_annotation_if_any()
     |> assign(:viewer_file, file)
-    |> assign(:viewer_annotations, load_annotations_for(uuid))
+    |> assign(:viewer_annotations, annotations)
+    |> assign(:viewer_canvas, build_viewer_canvas(file, annotations))
+  end
+
+  # Build the `%Fresco.Canvas{}` struct the file-zoom viewer renders. The
+  # canvas wraps a single image (the file itself) at `{x: 0, y: 0}` filling
+  # the canvas extent, with the file's annotations stuffed into
+  # `extensions.etcher` so Etcher 0.3's hook hydrates them via
+  # `handle.getExtension("etcher")` on mount. Returns nil when there's no
+  # usable image url, which gates the `<Fresco.canvas>` render in heex.
+  defp build_viewer_canvas(nil, _annotations), do: nil
+
+  defp build_viewer_canvas(file, annotations) when is_map(file) do
+    src = file.urls["original"] || file.urls["large"] || file.urls["medium"]
+
+    cond do
+      not is_binary(src) or src == "" ->
+        nil
+
+      true ->
+        # Map.get (not file.width) so older entries that predate the
+        # width/height columns on the curated view map don't KeyError.
+        width = Map.get(file, :width) || 1000
+        height = Map.get(file, :height) || 1000
+
+        Fresco.Canvas.new(width: width, height: height)
+        |> Fresco.Canvas.add_image(%{
+          src: src,
+          x: 0,
+          y: 0,
+          width: width,
+          natural_width: width,
+          natural_height: height
+        })
+        |> Fresco.Canvas.put_extension("etcher", %{
+          "version" => "1",
+          "annotations" => Enum.map(annotations, &etcher_annotation_for_wire/1)
+        })
+    end
+  end
+
+  # Map an in-memory annotation (from `load_annotations_for/1`) to the
+  # Etcher 0.3 wire shape (string-keyed map with uuid/kind/geometry plus
+  # optional style/metadata). Etcher reads this from
+  # `handle.getExtension("etcher").annotations` on mount.
+  defp etcher_annotation_for_wire(a) do
+    base = %{
+      "uuid" => to_string(a.uuid),
+      "kind" => a.kind,
+      "geometry" => a.geometry
+    }
+
+    base =
+      case Map.get(a, :style) do
+        nil -> base
+        style -> Map.put(base, "style", style)
+      end
+
+    case Map.get(a, :metadata) do
+      nil -> base
+      metadata -> Map.put(base, "metadata", metadata)
+    end
   end
 
   # Called whenever the modal is closing OR navigating to a different
-  # file. If an annotation was waiting for its first comment, discard it
-  # — true "solidify on Post" semantics. Tells the client to strip the
-  # SVG via the existing `etcher:annotation-removed` event the hook
-  # listens for.
+  # file. Pre-Etcher-0.3 this used to "solidify on Post" semantics —
+  # cancel-or-close would actually delete the in-flight annotation
+  # via a server push back to the JS hook. Etcher 0.3 dropped the
+  # `etcher:annotation-removed` push event (no server→client channel
+  # remains), so we can't cleanly remove the SVG from Etcher's local
+  # state mid-session. We compromise: cancel/close just closes the
+  # popup. The annotation is already persisted and stays on screen;
+  # the user can delete it via Etcher's trash button on the shape, or
+  # leave it as a titleless annotation and add the title later.
   defp rollback_pending_annotation_if_any(socket) do
     case socket.assigns[:composing_annotation_uuid] do
       nil ->
         socket
 
-      uuid ->
-        _ = EtcherAdapter.delete(uuid)
-
-        remaining =
-          Enum.reject(socket.assigns.viewer_annotations, fn a -> a.uuid == uuid end)
-
+      _uuid ->
         socket
-        |> assign(:viewer_annotations, remaining)
         |> assign(:composing_annotation_uuid, nil)
         |> assign(:composer_anchor, nil)
-        |> Phoenix.LiveView.push_event("etcher:annotation-removed", %{uuid: uuid})
     end
   end
 
@@ -1785,24 +1818,35 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(:composing_annotation_uuid, nil)
       |> assign(:composer_anchor, nil)
       |> assign(:viewer_annotations, fresh)
+      |> rebuild_viewer_canvas(fresh)
       |> put_flash(:info, gettext("Annotation saved"))
-      # After a successful Post, drop out of the active drawing tool
-      # back to cursor mode (annotation mode stays on). Otherwise users
-      # would keep drawing accidentally after solidifying one shape.
-      |> Phoenix.LiveView.push_event("etcher:exit-drawing", %{})
 
-    # The host div's `data-initial-annotations` re-renders but the JS
-    # hook doesn't re-parse it — push a targeted update so the in-DOM
-    # shape's tooltip metadata reflects the new comment immediately.
-    case Enum.find(fresh, fn a -> a.uuid == annotation_uuid end) do
-      nil ->
-        socket
-
+    # Tell Etcher to patch the in-DOM shape's metadata for the just-
+    # posted annotation so its tooltip reflects the new title +
+    # comment_* fields without waiting for a re-mount. Etcher 0.3's
+    # `handle.getExtension("etcher")` reads `data-extensions` from the
+    # Fresco canvas DOM, which is frozen by Fresco's `phx-update="ignore"`
+    # — so a server-side rebuild of `viewer_canvas` alone doesn't reach
+    # the running Etcher instance. The patch-shape JS bridge in
+    # phoenix_kit.js subscribes to this event and mutates the layer's
+    # `self.shapes[i].metadata` directly via `Etcher.layerFor(...).patchShape/2`.
+    case file_uuid && Enum.find(fresh, fn a -> a.uuid == annotation_uuid end) do
       %{} = ann ->
-        Phoenix.LiveView.push_event(socket, "etcher:annotation-updated", %{
+        Phoenix.LiveView.push_event(socket, "etcher:patch-shape", %{
+          fresco_id: "media-zoom-" <> file_uuid,
           uuid: ann.uuid,
           metadata: ann.metadata
         })
+
+      _ ->
+        socket
+    end
+  end
+
+  defp rebuild_viewer_canvas(socket, annotations) do
+    case socket.assigns[:viewer_file] do
+      nil -> socket
+      file -> assign(socket, :viewer_canvas, build_viewer_canvas(file, annotations))
     end
   end
 
@@ -2112,6 +2156,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         size: file.size || 0,
         status: file.status,
         inserted_at: file.inserted_at,
+        # Width and height come straight from the File schema columns
+        # populated by the variant generator on upload. `nil` is
+        # possible for files uploaded before the variant generator ran
+        # (or for non-image types); `build_viewer_canvas/2` falls back
+        # to a 1000x1000 placeholder canvas in that case so the LV
+        # doesn't crash.
+        width: file.width,
+        height: file.height,
         folder_path: Map.get(folder_paths, file.folder_uuid),
         urls: urls,
         variant_widths: variant_widths
@@ -2342,46 +2394,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end)
   end
 
-  # Builds the ordered low → high quality layer list that
-  # `<Tessera.layer sources={...}>` consumes (paired with a `<Fresco.viewer>`
-  # rendering the first entry's URL as the initial source). Each entry is
-  # `%{url: <signed url>, width: <intrinsic pixel width>}`, except the
-  # top DZI layer which omits `width` (Tessera treats unknown width as
-  # the top of the pyramid with infinite zoom headroom).
-  #
-  # Layers are included only when they're meaningful:
-  #
-  #   * `medium` — always, as the initial render (cheapest preview)
-  #   * `large` — only when its width exceeds medium's (skipped for
-  #     small images where large == medium would just churn for nothing)
-  #   * `dzi`   — always available for images; takes over when zoom
-  #     exceeds what the static raster variants can serve sharply
-  defp tessera_sources(f) do
-    widths = f.variant_widths || %{}
-    medium_url = f.urls["medium"]
-    medium_w = widths["medium"]
-
-    large_url = f.urls["large"]
-    large_w = widths["large"]
-    large_useful? = is_integer(large_w) and large_w > (medium_w || 0)
-
-    dzi_url = f.urls["dzi"]
-
-    []
-    |> maybe_append_layer(medium_url, medium_w)
-    |> maybe_append_layer(large_url, large_w, large_useful?)
-    |> maybe_append_layer(dzi_url, nil)
-  end
-
-  defp maybe_append_layer(layers, url, width, gate \\ true)
-  defp maybe_append_layer(layers, nil, _width, _gate), do: layers
-  defp maybe_append_layer(layers, _url, _width, false), do: layers
-
-  defp maybe_append_layer(layers, url, nil, true),
-    do: layers ++ [%{url: url}]
-
-  defp maybe_append_layer(layers, url, width, true) when is_integer(width),
-    do: layers ++ [%{url: url, width: width}]
+  # NOTE: `tessera_sources/1` + `maybe_append_layer/4` were removed in
+  # the Fresco 0.5 / Etcher 0.3 migration. Tessera 0.2 was OpenSeadragon-
+  # backed (Fresco 0.1.x); Fresco 0.5 dropped OSD entirely, so the
+  # Tessera layer no longer attaches. Restore once a Fresco 0.5-compatible
+  # Tessera (or replacement) ships and `<Tessera.layer>` is wired back
+  # into the file-zoom heex.
 
   defp determine_file_type(mime_type) do
     cond do

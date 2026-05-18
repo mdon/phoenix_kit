@@ -1330,52 +1330,30 @@
             <% end %>
             <%= cond do %>
               <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "image/") -> %>
-                <%!-- Fresco hosts the viewer (pan + zoom + nav + viewport       --%>
-                <%!-- clamping + smooth animations). Tessera attaches as a layer --%>
-                <%!-- that adds a DZI source provider + multi-layer progressive  --%>
-                <%!-- zoom — starts on `medium` and swaps up as the user zooms:  --%>
-                <%!--                                                            --%>
-                <%!--   small image  → [medium, dzi]                             --%>
-                <%!--   4K+ image    → [medium, large, dzi]                      --%>
-                <%!--                                                            --%>
-                <%!-- Tessera 0.2 split the viewer into a Fresco OpenSeadragon   --%>
-                <%!-- viewer + a Tessera layer that swaps between source         --%>
-                <%!-- qualities. Fresco renders the initial cheap source; the    --%>
-                <%!-- Tessera layer attaches via fresco_id and takes over the    --%>
-                <%!-- per-zoom layer-swap logic, preserving viewport bounds.     --%>
-                <%!-- Etcher's annotation overlay attaches to the same Fresco    --%>
-                <%!-- viewer and adds the pencil button to its nav column.       --%>
-                <%= with sources <- tessera_sources(f),
-                       fresco_src <-
-                         (case sources do
-                            [first | _] -> first.url
-                            [] -> f.urls["original"] || f.urls["medium"]
-                          end) do %>
-                  <Fresco.viewer
+                <%!-- Image viewer migrated to Fresco 0.5 + Etcher 0.3 (2026-05-18). --%>
+                <%!--                                                                  --%>
+                <%!-- - <Fresco.canvas> hosts the image as a single-image canvas; the  --%>
+                <%!--   Canvas struct is built per-file in build_viewer_canvas/2 in    --%>
+                <%!--   media_browser.ex and stuffed into @viewer_canvas by            --%>
+                <%!--   open_viewer/2. extensions.etcher.annotations is hydrated from  --%>
+                <%!--   load_annotations_for/1 so Etcher renders existing shapes on    --%>
+                <%!--   mount via handle.getExtension("etcher").                       --%>
+                <%!-- - <Etcher.layer> attaches via fresco_id; emits a single bulk     --%>
+                <%!--   etcher:annotations-changed event the parent handles.           --%>
+                <%!-- - Tessera 0.2's progressive DZI zoom is OUT — Tessera was        --%>
+                <%!--   OSD-backed (fresco 0.1.x); fresco 0.5 dropped OSD entirely.    --%>
+                <%!--   Restore via a Fresco 0.5-compatible Tessera (or replacement)   --%>
+                <%!--   once available; for now the canvas just uses the original/     --%>
+                <%!--   large/medium URL directly.                                     --%>
+                <%= if @viewer_canvas do %>
+                  <Fresco.canvas
                     id={"media-zoom-" <> f.file_uuid}
-                    src={fresco_src}
+                    canvas={@viewer_canvas}
                     class="w-full h-full lg:rounded"
-                    rotate
                     theme={:inherit}
                   />
-                  <%!-- Tessera only attaches when there's something to    --%>
-                  <%!-- swap between — files without medium/large/dzi      --%>
-                  <%!-- variants (variant generator hasn't run yet, etc.) --%>
-                  <%!-- get plain Fresco without progressive zoom.         --%>
-                  <%= if sources != [] do %>
-                    <Tessera.layer
-                      fresco_id={"media-zoom-" <> f.file_uuid}
-                      sources={sources}
-                    />
-                  <% end %>
-                  <%!-- Etcher attaches to any Fresco viewer regardless    --%>
-                  <%!-- of Tessera; annotations work even on files that   --%>
-                  <%!-- skip the progressive-zoom layer.                  --%>
                   <Etcher.layer
                     fresco_id={"media-zoom-" <> f.file_uuid}
-                    target_type="file"
-                    target_uuid={f.file_uuid}
-                    initial_annotations={@viewer_annotations}
                     tools={[
                       :rectangle,
                       :circle,
@@ -1437,7 +1415,9 @@
                   <span>{gettext("Add a note to your annotation")}</span>
                 </div>
                 <p class="text-xs text-base-content/60 mb-3">
-                  {gettext("Post to keep it. Cancel to discard the shape.")}
+                  {gettext(
+                    "Post to add the note. Cancel to skip — you can edit or delete the annotation later via the toolbar."
+                  )}
                 </p>
                 <.live_component
                   module={PhoenixKitWeb.Components.AnnotationComposer}
