@@ -27,6 +27,13 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   - `title` — optional heading above the gallery
   - `selected` — ordered list of file UUIDs (current selection); default `[]`
   - `mode` — `:single` or `:multiple` (default `:multiple`)
+  - `cols` — number of grid columns for the thumbnail layout (1..6, default `4`).
+    Plumbed straight through to `<.draggable_list>`.
+  - `featured_first` — when `true`, the first item in `:selected` renders a
+    "Featured" badge in the top-left corner. Matches the
+    `phoenix_kit_posts` post-creation convention where the first image is the
+    featured one and drag-reordering changes the feature. Default `false` so
+    existing consumers aren't surprised.
   - `scope_folder_id` — folder scope passed to the picker
   - `phoenix_kit_current_user` — required for upload in the picker
   - `readonly` — when `true`, hides the pick button, remove buttons, and DnD;
@@ -40,11 +47,17 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
 
   to the parent LiveView via `send/2`.
 
-  ## SortableGrid hook contract
+  ## Reorder event contract
 
-  Reorder events are emitted by the `SortableGrid` JS hook as
-  `"reorder_images:{id}"` with payload `%{"ids" => ordered_uuid_list}`.
-  The hook emits `"ids"` (not `"ordered_ids"`).
+  The thumbnail grid uses the canonical `<.draggable_list>` primitive
+  (`PhoenixKitWeb.Components.Core.DraggableList`), which fires the
+  `"reorder_images"` event with payload `%{"ordered_ids" => uuids}`.
+
+  Because `MediaGallery` is a LiveComponent, the grid is rendered with
+  `target={"#\#{@id}"}` so the `SortableGrid` hook routes the event via
+  `pushEventTo` to this component's own `handle_event/3` — not the host
+  LiveView. Each gallery's `id` is unique, so multiple galleries on the same
+  page never cross-deliver reorder events.
   """
   use PhoenixKitWeb, :live_component
 
@@ -88,6 +101,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
       |> assign(assigns)
       |> assign_new(:selected, fn -> [] end)
       |> assign_new(:mode, fn -> :multiple end)
+      |> assign_new(:cols, fn -> 4 end)
+      |> assign_new(:featured_first, fn -> false end)
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:phoenix_kit_current_user, fn -> nil end)
       |> assign_new(:readonly, fn -> false end)
@@ -117,12 +132,14 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     {:noreply, assign(socket, :preview_uuid, uuid)}
   end
 
-  # Reorder event from SortableGrid hook: "reorder_images:{id}" -> ordered ids
-  def handle_event("reorder_images:" <> _rest, %{"ids" => ids}, socket) do
-    # Re-order `selected` to match the IDs from the SortableGrid hook.
+  # Reorder event from <.draggable_list>: payload uses `ordered_ids` and the
+  # event is routed to this component by the SortableGrid hook via
+  # `pushEventTo` (the grid is rendered with `target={"##{@id}"}`).
+  def handle_event("reorder_images", %{"ordered_ids" => ids}, socket) do
     current = socket.assigns.selected
     new_selected = Enum.filter(ids, &(&1 in current))
-    # Append any that weren't in the ids list (shouldn't happen, but guard it)
+    # Append any current uuids that weren't in the payload (defensive; the
+    # hook should always include every visible item).
     leftovers = Enum.reject(current, &(&1 in ids))
     new_selected = new_selected ++ leftovers
 
@@ -153,7 +170,18 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     variants_map = Storage.list_image_set_variants_for_files(selected)
     assign(socket, files: files, variants_map: variants_map, selected_loaded: selected)
   rescue
-    e in [DBConnection.ConnectionError, Ecto.Query.CastError] ->
+    # Defensive degradation at the UI boundary — if Storage can't be reached
+    # (DB outage, missing connection, sandbox unavailable in tests, cast on a
+    # malformed UUID), render an empty gallery instead of crashing the
+    # LiveView. The cases we explicitly anticipate: DBConnection.ConnectionError
+    # (network/pool), Ecto.Query.CastError (bad UUID in the list), and
+    # DBConnection.OwnershipError (Ecto.Adapters.SQL.Sandbox in tests that
+    # exercise update/handle_event paths without checking out a connection).
+    e in [
+      DBConnection.ConnectionError,
+      DBConnection.OwnershipError,
+      Ecto.Query.CastError
+    ] ->
       Logger.warning("MediaGallery: could not load files — #{Exception.message(e)}")
       assign(socket, files: [], variants_map: %{}, selected_loaded: nil)
   end
