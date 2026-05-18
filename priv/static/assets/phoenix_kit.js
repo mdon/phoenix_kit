@@ -1393,16 +1393,25 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
-  // Keeps the MediaBrowser's floating annotation-composer popover fully
-  // inside its viewer container. The server seeds the popover with the
-  // shape's bottom-left anchor coords (set by etcher.js when emitting
-  // `etcher:created`), which is fine when the shape is in the middle of
-  // the image but can land the popover past the right edge or below the
-  // bottom when the user draws near a boundary.
+  // Positions the MediaBrowser's floating annotation-composer popover
+  // directly above the shape it belongs to (falling back to below if
+  // there's no room above, then clamping to the viewer container).
   //
-  // The hook re-clamps `left` / `top` after mount, after server-driven
-  // re-renders, and on window resize. An 8px margin keeps the popover
-  // from touching the container edge.
+  // The popover's element id encodes the annotation uuid as suffix
+  // ("annotation-composer-popover-<uuid>"); Etcher tags each shape's
+  // root SVG element with the same uuid via `data-uuid`. The hook
+  // queries for that element and uses its bounding rect to compute
+  // the popover's left/top in the parent container's coordinate space.
+  //
+  // Etcher 0.3's bulk `annotations-changed` event doesn't carry an
+  // anchor for newly-drawn shapes (the old per-op `etcher:created`
+  // emitted `anchor_x`/`anchor_y`), so the server can no longer seed
+  // container-space coords. Reading the shape's DOM rect on the client
+  // sidesteps the need for any image-to-screen math server-side and
+  // keeps positioning correct after pan/zoom.
+  //
+  // Re-runs on mount, server-driven updates, and window resize. An 8px
+  // margin keeps the popover from touching the container edge.
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
@@ -1555,29 +1564,56 @@ if (typeof window.Chart === "undefined") {
       const container = el.parentElement;
       if (!container) return;
 
-      // Read the requested position from inline style (server-set).
-      let left = parseFloat(el.style.left) || 0;
-      let top = parseFloat(el.style.top) || 0;
-
       const margin = 8;
+      const popW = el.offsetWidth;
+      const popH = el.offsetHeight;
       const cw = container.clientWidth;
       const ch = container.clientHeight;
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
+
+      // Try to anchor to the associated shape. Element id is
+      // `annotation-composer-popover-<uuid>`; Etcher renders shapes
+      // with the matching `data-uuid`.
+      const uuid = el.id.replace(/^annotation-composer-popover-/, "");
+      const shapeEl = uuid
+        ? document.querySelector('[data-uuid="' + uuid + '"]')
+        : null;
+
+      let left;
+      let top;
+
+      if (shapeEl) {
+        const shapeRect = shapeEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        // Center horizontally on the shape; place bottom-of-popover
+        // `margin` px above the shape's top.
+        const shapeCenterX = shapeRect.left + shapeRect.width / 2 - containerRect.left;
+        const shapeTopY = shapeRect.top - containerRect.top;
+
+        left = shapeCenterX - popW / 2;
+        top = shapeTopY - popH - margin;
+
+        // No room above → flip below the shape.
+        if (top < margin) {
+          top = shapeRect.bottom - containerRect.top + margin;
+        }
+      } else {
+        // Fall back to whatever the server seeded (or zero).
+        left = parseFloat(el.style.left) || 0;
+        top = parseFloat(el.style.top) || 0;
+      }
 
       // Clamp horizontally: keep right edge inside the container, then
       // keep left edge inside. Order matters when the popover is wider
       // than the container — `Math.max(margin, …)` wins, leaving the
       // popover flush-left with a margin.
-      const maxLeft = cw - w - margin;
+      const maxLeft = cw - popW - margin;
       if (left > maxLeft) left = maxLeft;
       if (left < margin) left = margin;
 
-      // Same for vertical. If the popover doesn't fit below the shape
-      // (top + h > container height), it slides up. If it still doesn't
-      // fit (popover is taller than the container), it pins to the top
-      // with a margin.
-      const maxTop = ch - h - margin;
+      // Same for vertical. If the popover doesn't fit (popover taller
+      // than the container), it pins to the top with a margin.
+      const maxTop = ch - popH - margin;
       if (top > maxTop) top = maxTop;
       if (top < margin) top = margin;
 

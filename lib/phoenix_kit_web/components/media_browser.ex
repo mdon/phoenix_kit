@@ -293,7 +293,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:viewer_annotations, [])
     |> assign(:viewer_canvas, nil)
     |> assign(:composing_annotation_uuid, nil)
-    |> assign(:composer_anchor, nil)
     |> assign(
       :orphaned_count,
       if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
@@ -1573,7 +1572,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:viewer_annotations, refreshed)
     |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
     |> assign(:composing_annotation_uuid, composer_uuid)
-    |> assign(:composer_anchor, nil)
     |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
   end
 
@@ -1777,9 +1775,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         socket
 
       _uuid ->
-        socket
-        |> assign(:composing_annotation_uuid, nil)
-        |> assign(:composer_anchor, nil)
+        assign(socket, :composing_annotation_uuid, nil)
     end
   end
 
@@ -1816,7 +1812,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     socket =
       socket
       |> assign(:composing_annotation_uuid, nil)
-      |> assign(:composer_anchor, nil)
       |> assign(:viewer_annotations, fresh)
       |> rebuild_viewer_canvas(fresh)
       |> put_flash(:info, gettext("Annotation saved"))

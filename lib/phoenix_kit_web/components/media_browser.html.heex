@@ -1393,22 +1393,17 @@
                 </div>
             <% end %>
 
-            <%!-- Floating annotation composer — anchored to the shape's    --%>
-            <%!-- bottom-left in container px (supplied by etcher.js in    --%>
-            <%!-- the etcher:created event). Sidebar comments stay visible --%>
-            <%!-- alongside; this popover is for the new shape only.       --%>
+            <%!-- Floating annotation composer — positioned above the      --%>
+            <%!-- just-drawn shape by the AnnotationComposerPosition hook  --%>
+            <%!-- (looks up the shape via `[data-uuid="…"]`). Sidebar      --%>
+            <%!-- comments stay visible alongside; this popover is for     --%>
+            <%!-- the new shape only.                                       --%>
             <%= if @composing_annotation_uuid && assigns[:phoenix_kit_current_user] do %>
-              <%!-- The AnnotationComposerPosition hook clamps left/top      --%>
-              <%!-- after mount + updates + window resize so the popover     --%>
-              <%!-- never extends past the viewer's right edge or bottom     --%>
-              <%!-- (the server-set anchor is the shape's bottom-left, so a  --%>
-              <%!-- shape drawn near a boundary would otherwise place the    --%>
-              <%!-- popover off-screen).                                     --%>
               <div
                 id={"annotation-composer-popover-" <> @composing_annotation_uuid}
                 phx-hook="AnnotationComposerPosition"
                 class="absolute z-30 w-80 max-w-[calc(100%-1rem)] bg-base-100 rounded-lg shadow-xl border border-base-300 p-3"
-                style={"left: #{(@composer_anchor && @composer_anchor.x) || 16}px; top: #{(@composer_anchor && @composer_anchor.y) || 16}px;"}
+                style="left: 0px; top: 0px;"
               >
                 <div class="flex items-center gap-2 text-sm font-medium mb-2">
                   <.icon name="hero-pencil-square" class="w-4 h-4 text-warning" />
