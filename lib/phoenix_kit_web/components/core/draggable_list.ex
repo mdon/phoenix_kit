@@ -58,6 +58,20 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
         # ordered_ids is a list of item IDs in the new order
         {:noreply, socket}
       end
+
+  ## Inside a LiveComponent
+
+  The `on_reorder` event is pushed by the `SortableGrid` JS hook. By default the
+  hook uses `pushEvent`, which delivers the event to the host **LiveView**. When
+  `<.draggable_list>` is rendered inside a **LiveComponent** that handles the
+  event itself, pass `target` — a CSS selector for the component's root element
+  — so the hook routes via `pushEventTo` and the event reaches the component:
+
+      <.draggable_list id="my-gallery-grid" items={@items}
+        on_reorder="reorder_images" target={"#\#{@id}"}>
+
+  Without `target`, a LiveComponent's `handle_event("reorder_…")` never fires and
+  the event lands on the host LiveView instead.
   """
   use Phoenix.Component
 
@@ -80,6 +94,11 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
     default: nil,
     doc:
       "Optional CSS selector (e.g. `\".pk-drag-handle\"`) that restricts drag initiation to elements matching the selector inside each item. When set, the item wrapper no longer carries the `cursor-grab` styling — the caller is responsible for rendering the handle. Mirrors the workspace's `<.table_default>` `:on_reorder` + `.pk-drag-handle` convention."
+
+  attr :target, :string,
+    default: nil,
+    doc:
+      "Optional CSS selector for the LiveComponent root that should receive the `on_reorder` event (e.g. `\"#my-gallery\"`). When set, the `SortableGrid` hook uses `pushEventTo` instead of `pushEvent`. Required when `<.draggable_list>` is rendered inside a LiveComponent that handles the reorder event itself."
 
   attr :draggable, :boolean,
     default: true,
@@ -111,6 +130,7 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
       id={@id}
       data-sortable={if @draggable, do: "true"}
       data-sortable-event={if @draggable, do: @on_reorder}
+      data-sortable-target={if @draggable, do: @target}
       data-sortable-items={if @draggable, do: ".sortable-item"}
       data-sortable-hide-source={if @draggable, do: to_string(@hide_source)}
       data-sortable-handle={if @draggable, do: @sortable_handle}

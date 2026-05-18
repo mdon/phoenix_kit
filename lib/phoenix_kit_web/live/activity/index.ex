@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.Values
 
   @impl true
   def mount(_params, _session, socket) do
@@ -97,10 +98,10 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp apply_params(socket, params) do
     socket
     |> assign(:page, parse_int(params["page"], 1))
-    |> assign(:filter_module, blank_to_nil(params["module"]))
-    |> assign(:filter_mode, blank_to_nil(params["mode"]))
-    |> assign(:filter_action, blank_to_nil(params["action"]))
-    |> assign(:filter_resource_type, blank_to_nil(params["resource_type"]))
+    |> assign(:filter_module, Values.blank_to_nil(params["module"]))
+    |> assign(:filter_mode, Values.blank_to_nil(params["mode"]))
+    |> assign(:filter_action, Values.blank_to_nil(params["action"]))
+    |> assign(:filter_resource_type, Values.blank_to_nil(params["resource_type"]))
   end
 
   defp load_activities(socket) do
@@ -136,10 +137,6 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
       :error -> default
     end
   end
-
-  defp blank_to_nil(nil), do: nil
-  defp blank_to_nil(""), do: nil
-  defp blank_to_nil(val), do: val
 
   defp action_badge_color(action), do: Activity.action_badge_color(action)
   defp mode_badge_color(mode), do: Activity.mode_badge_color(mode)

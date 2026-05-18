@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.UploadController do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.ProcessFileJob
+  alias PhoenixKit.Utils.Format
 
   @upload_config %{
     # 100MB max file size
@@ -215,21 +216,7 @@ defmodule PhoenixKitWeb.UploadController do
     end
   end
 
-  defp format_bytes(bytes) when is_integer(bytes) do
-    if bytes < 1024 do
-      "#{bytes} B"
-    else
-      units = ["KB", "MB", "GB", "TB"]
-      {value, unit} = calculate_size(bytes, units)
-      "#{Float.round(value, 2)} #{unit}"
-    end
-  end
-
-  defp calculate_size(bytes, [_unit | rest]) when bytes >= 1024 and rest != [] do
-    calculate_size(bytes / 1024, rest)
-  end
-
-  defp calculate_size(bytes, [unit | _]), do: {bytes, unit}
+  defp format_bytes(bytes), do: Format.bytes(bytes, decimals: 2)
 
   defp changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->

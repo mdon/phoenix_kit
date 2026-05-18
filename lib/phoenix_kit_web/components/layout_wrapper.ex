@@ -308,7 +308,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     >
                       {@project_title}
                     </.link>
-                    <span class="font-bold text-base-content shrink-0">{gettext("Admin")}</span>
+                    <span class="font-bold text-base-content shrink-0">{gettext("Admin Panel")}</span>
                   </div>
                 </div>
 

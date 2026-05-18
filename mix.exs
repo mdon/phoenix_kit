@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.111"
+  @version "1.7.112"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -129,9 +129,9 @@ defmodule PhoenixKit.MixProject do
       # satellite titles, and a complete `window.Etcher.layerFor(id)`
       # programmatic control surface — all driven through the same
       # MediaBrowser overlay.
-      {:fresco, "~> 0.1"},
+      {:fresco, "~> 0.1.5"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.2"},
+      {:etcher, "~> 0.2.6"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

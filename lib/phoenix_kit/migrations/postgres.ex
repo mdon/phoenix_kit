@@ -529,7 +529,25 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V118 - callout + text kinds + optional title column on annotations ⚡ LATEST
+  ### V120 - Document Creator Category → Type taxonomy ⚡ LATEST
+  - Creates `phoenix_kit_doc_categories` and `phoenix_kit_doc_types` tables.
+  - Adds nullable `category_uuid` / `type_uuid` FK columns to doc templates and documents.
+  - Migrates legacy category strings from templates into `phoenix_kit_doc_categories` rows.
+  - Drops the legacy `category` string columns from templates and presets.
+
+  ### V119 - Trash support for storage folders
+  - Adds `trashed_at TIMESTAMPTZ` to `phoenix_kit_media_folders`,
+    mirroring the V99 column on `phoenix_kit_files`. Folders with a
+    non-nil `trashed_at` are in the trash bucket and can be restored
+    or permanently deleted. Trash + restore are recursive over the
+    folder's descendants and the files inside the subtree (the file
+    rows already have their own `trashed_at` from V99 — both get
+    set together).
+  - Partial index on `trashed_at IS NOT NULL` for fast trash-view
+    queries.
+  - All operations idempotent.
+
+  ### V118 - callout + text kinds + optional title column on annotations
   - Drops + re-adds the kind CHECK constraint with `"callout"` and
     `"text"` included alongside `rectangle / circle / polygon /
     freehand`. Etcher 0.2's callout (leader-line) tool needs `"callout"`,
@@ -995,7 +1013,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 118
+  @current_version 120
   @default_prefix "public"
 
   @doc false
