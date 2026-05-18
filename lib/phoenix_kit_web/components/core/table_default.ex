@@ -614,10 +614,13 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   defp active_direction(_sort, _field), do: nil
 
   defp sort_header_aria_sort(nil, _field), do: nil
+
   defp sort_header_aria_sort(%{by: field, dir: dir}, field) when dir in [:asc, "asc"],
     do: "ascending"
+
   defp sort_header_aria_sort(%{by: field, dir: dir}, field) when dir in [:desc, "desc"],
     do: "descending"
+
   defp sort_header_aria_sort(%{} = _sort, _field), do: "none"
   defp sort_header_aria_sort(_other, _field), do: nil
 

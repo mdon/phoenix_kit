@@ -105,64 +105,64 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
          control than a broken empty <select>. --%>
     <%= if @normalized_options == [] do %>
     <% else %>
-    <.form
-      for={%{}}
-      phx-change={@event}
-      phx-target={@target}
-      class={[
-        "flex flex-wrap gap-2 items-center transition-opacity",
-        "[&.phx-change-loading]:opacity-70 [&.phx-change-loading]:cursor-wait",
-        @class
-      ]}
-    >
-      <%!-- daisyUI `join` fuses the field select and direction toggle into
+      <.form
+        for={%{}}
+        phx-change={@event}
+        phx-target={@target}
+        class={[
+          "flex flex-wrap gap-2 items-center transition-opacity",
+          "[&.phx-change-loading]:opacity-70 [&.phx-change-loading]:cursor-wait",
+          @class
+        ]}
+      >
+        <%!-- daisyUI `join` fuses the field select and direction toggle into
            one widget: shared borders, no gap, single rounded rectangle. --%>
-      <div class="join">
-        <%!-- Visual label dropped to match the toolbar siblings' heights;
+        <div class="join">
+          <%!-- Visual label dropped to match the toolbar siblings' heights;
              accessible name preserved via `aria-label` on the <select> --%>
-        <.select
-          name="sort_by"
-          value={@sort_by_str}
-          options={@normalized_options}
-          class="select-sm join-item"
-          aria-label={gettext("Sort by")}
-        />
-        <%!-- In manual mode, direction is meaningless — replace the click-
+          <.select
+            name="sort_by"
+            value={@sort_by_str}
+            options={@normalized_options}
+            class="select-sm join-item"
+            aria-label={gettext("Sort by")}
+          />
+          <%!-- In manual mode, direction is meaningless — replace the click-
              to-flip arrow with a static drag-handle hint so the join still
              reads as one widget but doesn't pretend to toggle anything. --%>
-        <span
-          :if={@manual_active?}
-          class="btn btn-sm btn-square join-item pointer-events-none text-base-content/60"
-          title={gettext("Drag rows to reorder")}
-          aria-label={gettext("Drag rows to reorder")}
-        >
-          <.icon name="hero-bars-3" class="w-4 h-4" />
-        </span>
-        <button
-          :if={!@manual_active?}
-          type="button"
-          phx-click={@event}
-          phx-target={@target}
-          phx-value-sort_dir={flip_dir_str(@sort_dir_norm)}
-          class="btn btn-sm btn-square join-item [&.phx-click-loading]:pointer-events-none"
-          title={direction_title(@sort_dir_norm)}
-          aria-label={direction_title(@sort_dir_norm)}
-        >
-          <%!-- Sort-direction icon (`hero-bars-arrow-*` is the canonical
+          <span
+            :if={@manual_active?}
+            class="btn btn-sm btn-square join-item pointer-events-none text-base-content/60"
+            title={gettext("Drag rows to reorder")}
+            aria-label={gettext("Drag rows to reorder")}
+          >
+            <.icon name="hero-bars-3" class="w-4 h-4" />
+          </span>
+          <button
+            :if={!@manual_active?}
+            type="button"
+            phx-click={@event}
+            phx-target={@target}
+            phx-value-sort_dir={flip_dir_str(@sort_dir_norm)}
+            class="btn btn-sm btn-square join-item [&.phx-click-loading]:pointer-events-none"
+            title={direction_title(@sort_dir_norm)}
+            aria-label={direction_title(@sort_dir_norm)}
+          >
+            <%!-- Sort-direction icon (`hero-bars-arrow-*` is the canonical
                "sort asc/desc" pair — bars + directional arrow, visually
                distinct from the <select>'s dropdown chevron next to it).
                Hidden while a click event is in flight. --%>
-          <.icon
-            name={direction_icon(@sort_dir_norm)}
-            class="w-4 h-4 [.phx-click-loading_&]:hidden"
-          />
-          <%!-- Spinner — hidden by default; revealed while an ancestor
+            <.icon
+              name={direction_icon(@sort_dir_norm)}
+              class="w-4 h-4 [.phx-click-loading_&]:hidden"
+            />
+            <%!-- Spinner — hidden by default; revealed while an ancestor
                button carries Phoenix's `.phx-click-loading` class --%>
-          <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs">
-          </span>
-        </button>
-      </div>
-    </.form>
+            <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs">
+            </span>
+          </button>
+        </div>
+      </.form>
     <% end %>
     """
   end
