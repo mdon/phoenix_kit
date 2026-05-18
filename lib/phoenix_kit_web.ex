@@ -145,6 +145,8 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.PhoenixKitGlobals
       import PhoenixKitWeb.Components.Core.NavTabs
       import PhoenixKitWeb.Components.Core.IntegrationPicker
+      import PhoenixKitWeb.Components.Core.EmptyState
+      import PhoenixKitWeb.Components.Core.SortSelector
     end
   end
 

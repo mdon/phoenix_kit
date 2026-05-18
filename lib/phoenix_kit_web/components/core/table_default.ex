@@ -73,12 +73,19 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   * `items` - List of items for card view rendering (optional, default: [])
   * `card_title` - Function that returns the card title for an item (optional)
   * `card_fields` - Function that returns a list of `%{label: string, value: any}` for an item (optional)
+  * `card_class` - Per-card wrapper class. String OR 1-arity function `(item) -> string`.
+    Default `"card card-sm bg-base-200 shadow-sm"`. Override when the consumer needs a
+    different look (e.g. larger padding, conditional opacity for disabled rows).
   * `storage_key` - localStorage key for persisting view preference, falls back to `id` in JS (optional)
   * `rest` - Additional HTML attributes (optional)
 
   ## Slots
 
   * `inner_block` - Table content (thead, tbody, etc.)
+  * `card_body` - Fully-custom card content (receives item via `:let`). When provided,
+    REPLACES the prescribed `card_header` + `card_title` + `card_fields` rendering — the
+    consumer owns the inside of `<div class="card-body">`. `card_actions` footer still
+    renders if provided. Use for rich cards with badges, icon-prefixed rows, custom layouts.
   * `card_actions` - Action buttons rendered in each card footer (receives item via :let)
   * `toolbar_title` - Title/content rendered at the start of the toolbar row
   * `toolbar_actions` - Buttons rendered in the toolbar before the view toggle
@@ -92,6 +99,12 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :items, :list, default: []
   attr :card_title, :any, default: nil
   attr :card_fields, :any, default: nil
+
+  attr :card_class, :any,
+    default: "card card-sm bg-base-200 shadow-sm",
+    doc:
+      "Per-card wrapper class. String or 1-arity fn `(item) -> string`. When fn, called per item."
+
   attr :storage_key, :string, default: nil
   attr :wrapper_class, :string, default: "rounded-lg shadow-md overflow-x-auto overflow-y-clip"
 
@@ -121,7 +134,15 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   slot :card_header,
     doc: "Custom header for each card (receives item via :let); replaces card_title"
 
+  slot :card_body,
+    doc:
+      "Fully-custom card body (receives item via :let). When present, replaces card_header + card_title + card_fields rendering."
+
   slot :card_actions, doc: "Action buttons in card footer"
+
+  slot :above_cards,
+    doc:
+      "Content rendered inside the card-view container, above the card grid. Hidden automatically when the JS hook switches to table mode (the wrapper has `md:hidden` toggled on)."
 
   slot :toolbar_title,
     doc: "Title or arbitrary content rendered at the start of the toolbar row"
@@ -159,9 +180,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     item_id_fn = assigns[:item_id] || fn item -> Map.get(item, :uuid) end
     reorder_scope_attrs = build_sortable_scope_attrs(assigns[:reorder_scope] || %{})
 
+    card_class_fn =
+      case assigns[:card_class] do
+        fun when is_function(fun, 1) -> fun
+        str when is_binary(str) -> fn _item -> str end
+        _ -> fn _item -> "card card-sm bg-base-200 shadow-sm" end
+      end
+
     assigns =
       assigns
       |> assign(:item_id_fn, item_id_fn)
+      |> assign(:card_class_fn, card_class_fn)
       |> assign(:reorder_scope_attrs, reorder_scope_attrs)
 
     ~H"""
@@ -231,15 +260,43 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         phx-hook={if @on_reorder, do: "SortableGrid"}
         {@reorder_scope_attrs}
       >
+        <%!-- Above-cards slot — spans full grid width via `col-span-full`,
+             auto-hidden in table mode since it lives inside data-card-view --%>
+        <div :if={@above_cards != []} class="col-span-full">
+          {render_slot(@above_cards)}
+        </div>
         <div
           :for={item <- @items}
           class={[
-            "card card-sm bg-base-200 shadow-sm",
+            @card_class_fn.(item),
             @on_reorder && "sortable-item"
           ]}
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
-          <div class="card-body gap-3 flex flex-col">
+          <%!-- Custom card body slot: REPLACES prescribed header+fields rendering.
+               Consumer owns the inside of card-body. card_actions footer still
+               applies below if also provided. --%>
+          <div :if={@card_body != []} class="card-body">
+            {render_slot(@card_body, item)}
+            <%!-- Footer row inside custom-body branch so spacing stays consistent --%>
+            <div
+              :if={@on_reorder || @card_actions != []}
+              class="flex flex-wrap items-center gap-2 pt-1 border-t border-base-200 mt-auto"
+            >
+              <div
+                :if={@on_reorder}
+                class="pk-drag-handle text-base-content/30 hover:text-base-content/70 cursor-grab active:cursor-grabbing select-none"
+                title={gettext("Drag to reorder")}
+              >
+                <.icon name="hero-bars-3" class="w-4 h-4" />
+              </div>
+              <div :if={@card_actions != []} class="flex flex-wrap items-center gap-1 ml-auto">
+                {render_slot(@card_actions, item)}
+              </div>
+            </div>
+          </div>
+          <%!-- Default card body: prescribed header + key/value fields + footer --%>
+          <div :if={@card_body == []} class="card-body gap-3 flex flex-col">
             <%!-- Custom header (slot) or plain title string --%>
             <div :if={@card_header != []}>
               {render_slot(@card_header, item)}
@@ -416,10 +473,23 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   @doc """
   Renders a sortable table header cell.
 
-  When `sort` is nil, renders an inert `<th>` label. When `sort` is provided,
+  When `sort` is nil, renders an inert `<th>` label. When `sort` is a map,
   renders a clickable button emitting `toggle_sort` (or a custom event) with
-  `phx-value-by` set to the field key. The active column shows a chevron icon
-  reflecting the current sort direction.
+  `phx-value-by` set to the field key.
+
+  ## States rendered
+
+  - **Inactive column** (sortable, not the current sort) — faint
+    `hero-chevron-up-down-mini` hint, strengthens on hover via `group-hover`.
+  - **Active asc** / **Active desc** — solid chevron-up / chevron-down.
+  - **Loading** (during in-flight click) — all chevrons hide and a
+    `loading-spinner` shows; `pointer-events-none` blocks double-clicks;
+    button dims via `opacity-60`. Driven by Phoenix's auto-applied
+    `.phx-click-loading` class — no consumer wiring needed.
+  - **Active column with an unrecognised `sort.dir`** (defensive) — falls
+    back to the inactive up-down hint rather than rendering no icon.
+
+  Atom or string `sort.dir` values are accepted (`:asc`/`:desc`/`"asc"`/`"desc"`).
   """
   attr :field, :atom, required: true
 
@@ -436,6 +506,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   slot :inner_block, required: true
 
   def sort_header_cell(assigns) do
+    # Pre-compute the active direction (atom-or-string accepted; unknown
+    # values fall back to nil → renders the up-down hint instead of leaving
+    # the active column with no icon at all).
+    active_dir = active_direction(assigns.sort, assigns.field)
+    sortable? = is_map(assigns.sort)
+
+    assigns =
+      assigns
+      |> assign(:active_dir, active_dir)
+      |> assign(:sortable?, sortable?)
+
     ~H"""
     <th
       class={[
@@ -446,26 +527,42 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
       aria-sort={sort_header_aria_sort(@sort, @field)}
       {@rest}
     >
-      <%= if @sort do %>
+      <%= if @sortable? do %>
         <button
           type="button"
           phx-click={@event}
           phx-value-by={@field}
           phx-target={@target}
           class={[
-            "flex items-center gap-1",
+            "group inline-flex items-center gap-1 cursor-pointer select-none",
+            "hover:opacity-80 transition-opacity",
+            "[&.phx-click-loading]:opacity-60 [&.phx-click-loading]:pointer-events-none",
             @align == :right && "justify-end w-full",
             @align == :center && "justify-center w-full"
           ]}
         >
           {render_slot(@inner_block)}
-          <%= if @sort.by == @field do %>
-            <%= if @sort.dir == :asc do %>
-              <.icon name="hero-chevron-up-mini" class="w-4 h-4" />
-            <% else %>
-              <.icon name="hero-chevron-down-mini" class="w-4 h-4" />
-            <% end %>
-          <% end %>
+          <%!-- Sort indicator. While a click is in flight: spinner. When
+               this column is the active sort: solid chevron for current
+               direction. Otherwise (including active column with unknown
+               dir): faint up-down hint that strengthens on hover. --%>
+          <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs">
+          </span>
+          <.icon
+            :if={@active_dir == :asc}
+            name="hero-chevron-up-mini"
+            class="w-4 h-4 [.phx-click-loading_&]:hidden"
+          />
+          <.icon
+            :if={@active_dir == :desc}
+            name="hero-chevron-down-mini"
+            class="w-4 h-4 [.phx-click-loading_&]:hidden"
+          />
+          <.icon
+            :if={is_nil(@active_dir)}
+            name="hero-chevron-up-down-mini"
+            class="w-4 h-4 opacity-30 group-hover:opacity-70 transition-opacity [.phx-click-loading_&]:hidden"
+          />
         </button>
       <% else %>
         {render_slot(@inner_block)}
@@ -474,10 +571,28 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     """
   end
 
+  # Returns `:asc` / `:desc` when the given column is the active sort with a
+  # recognised direction, otherwise `nil`. Tolerates atom or string `dir`
+  # so consumers can pass either shape without crashing the render.
+  defp active_direction(%{by: by, dir: dir}, field) when by == field do
+    case dir do
+      :asc -> :asc
+      :desc -> :desc
+      "asc" -> :asc
+      "desc" -> :desc
+      _ -> nil
+    end
+  end
+
+  defp active_direction(_sort, _field), do: nil
+
   defp sort_header_aria_sort(nil, _field), do: nil
-  defp sort_header_aria_sort(%{by: field, dir: :asc}, field), do: "ascending"
-  defp sort_header_aria_sort(%{by: field, dir: :desc}, field), do: "descending"
-  defp sort_header_aria_sort(%{}, _field), do: "none"
+  defp sort_header_aria_sort(%{by: field, dir: dir}, field) when dir in [:asc, "asc"],
+    do: "ascending"
+  defp sort_header_aria_sort(%{by: field, dir: dir}, field) when dir in [:desc, "desc"],
+    do: "descending"
+  defp sort_header_aria_sort(%{} = _sort, _field), do: "none"
+  defp sort_header_aria_sort(_other, _field), do: nil
 
   @doc """
   Renders a search input with a magnifying glass icon and debounce.
