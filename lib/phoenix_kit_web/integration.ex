@@ -1293,10 +1293,15 @@ defmodule PhoenixKitWeb.Integration do
 
         # Override Phoenix.Router's call/2 (defoverridable from `use Phoenix.Router`).
         # Path-rewrites publishing-bound URLs before super() runs the matcher.
+        # The workspace's url_prefix is threaded in so the dispatch keeps
+        # working when PhoenixKit is mounted under a non-root path (e.g.
+        # `/phoenix_kit`) — without this, the dispatch's prepended segments
+        # land at the head of path_info instead of after the prefix, and
+        # nothing matches the registered internal routes.
         # See PhoenixKitPublishing.RouterDispatch for the rationale.
         def call(conn, opts) do
           conn =
-            case PhoenixKitPublishing.RouterDispatch.maybe_rewrite(conn) do
+            case PhoenixKitPublishing.RouterDispatch.maybe_rewrite(conn, unquote(url_prefix)) do
               {:rewrite, rewritten} -> rewritten
               :pass -> conn
             end
