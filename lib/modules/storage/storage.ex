@@ -1192,10 +1192,15 @@ defmodule PhoenixKit.Modules.Storage do
     {:ok, folder}
   end
 
-  # Walks the folder tree from `root_uuid` down and returns every
-  # descendant uuid (including the root itself). Used by trash, restore,
-  # and permanent-delete to determine the affected subtree in one pass.
-  defp folder_subtree_uuids(root_uuid) do
+  @doc """
+  Walks the folder tree from `root_uuid` down and returns every descendant
+  folder uuid, including the root itself.
+
+  Used by trash, restore, and permanent-delete to determine the affected
+  subtree in one pass, and by scoped media listings that should include
+  files in nested folders.
+  """
+  def folder_subtree_uuids(root_uuid) do
     Stream.unfold([root_uuid], fn
       [] ->
         nil
