@@ -1039,6 +1039,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # Fires only on a brand-new user draw (Etcher's `_finalizeShape`).
+  # Undo/redo, drags, color picks all bypass this — they go through
+  # `annotations-changed` for persistence but don't re-open the composer.
+  #
+  # Text shapes get Etcher's inline editor and skip the composer popup.
+  # If the composer is already open mid-compose, keep its target — a
+  # second quick draw shouldn't ambush an in-flight title/comment.
+  def handle_event("etcher:shape-drawn", %{"uuid" => uuid, "kind" => kind}, socket) do
+    socket =
+      cond do
+        kind == "text" ->
+          socket
+
+        is_binary(socket.assigns[:composing_annotation_uuid]) ->
+          socket
+
+        true ->
+          assign(socket, :composing_annotation_uuid, uuid)
+      end
+
+    {:noreply, socket}
+  end
+
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
     selected = socket.assigns.selected_folders
 
@@ -1566,12 +1589,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     refreshed = load_annotations_for(file_uuid)
     refresh_file_comments(socket)
 
-    composer_uuid = pick_composer_target(socket, new_in_batch)
+    # Composer-opening is NOT done here. `annotations-changed` fires
+    # for every JS-side mutation including undo/redo of deletes, drags,
+    # color picks — none of which should re-open the composer. The
+    # dedicated `etcher:shape-drawn` event handler below opens it only
+    # when the user actually drew a new shape.
 
     socket
     |> assign(:viewer_annotations, refreshed)
     |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
-    |> assign(:composing_annotation_uuid, composer_uuid)
     |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
   end
 
@@ -1604,28 +1630,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           })
       end
     end)
-  end
-
-  # Pick which annotation, if any, should drive the AnnotationComposer
-  # popover. Rules:
-  #   1. If the composer is already open mid-compose, keep its target.
-  #   2. Otherwise the first newly-added non-text annotation in this
-  #      batch. (Text shapes get an inline editor in Etcher, no popup.)
-  #   3. Otherwise nil — composer stays closed.
-  defp pick_composer_target(socket, new_in_batch) do
-    case socket.assigns[:composing_annotation_uuid] do
-      uuid when is_binary(uuid) ->
-        uuid
-
-      _ ->
-        new_in_batch
-        |> Enum.reject(fn a -> a["kind"] == "text" end)
-        |> List.first()
-        |> case do
-          %{"uuid" => uuid} when is_binary(uuid) -> uuid
-          _ -> nil
-        end
-    end
   end
 
   # Pull the current user's uuid off the scope so saved annotations carry
