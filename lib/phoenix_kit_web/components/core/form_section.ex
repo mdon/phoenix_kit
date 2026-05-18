@@ -54,13 +54,14 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   attr :icon, :string, default: nil
   attr :class, :string, default: nil
   attr :body_class, :string, default: nil
+  attr :rest, :global
 
   slot :inner_block, required: true
   slot :subtitle
 
   def form_section(assigns) do
     ~H"""
-    <section class={["card bg-base-100 shadow-lg", @class]}>
+    <section class={["card bg-base-100 shadow-lg", @class]} {@rest}>
       <div class={["card-body", @body_class]}>
         <h2 class="card-title text-lg">
           <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
