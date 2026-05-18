@@ -103,6 +103,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
   # ──────────────────────────────────────────────────────────────
@@ -2440,14 +2441,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp format_file_size(bytes) when is_integer(bytes) do
-    cond do
-      bytes >= 1_000_000_000 -> "#{Float.round(bytes / 1_000_000_000, 2)} GB"
-      bytes >= 1_000_000 -> "#{Float.round(bytes / 1_000_000, 2)} MB"
-      bytes >= 1_000 -> "#{Float.round(bytes / 1_000, 2)} KB"
-      true -> "#{bytes} B"
-    end
-  end
+  defp format_file_size(bytes), do: Format.bytes(bytes, base: 1000, decimals: 2)
 
   defp delete_selected_confirm(selected_files, selected_folders, filter_trash) do
     file_count = MapSet.size(selected_files)

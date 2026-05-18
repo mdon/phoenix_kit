@@ -145,6 +145,11 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.PhoenixKitGlobals
       import PhoenixKitWeb.Components.Core.NavTabs
       import PhoenixKitWeb.Components.Core.IntegrationPicker
+      import PhoenixKitWeb.Components.Core.EmptyState
+      import PhoenixKitWeb.Components.Core.SortSelector
+      import PhoenixKitWeb.Components.Core.FormSection
+      import PhoenixKitWeb.Components.Core.FormActions
+      import PhoenixKitWeb.Components.Core.BulkActionsBar
     end
   end
 

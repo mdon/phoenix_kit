@@ -1,4 +1,4 @@
-## 1.7.112 - 2026-05-17
+## 1.7.112 - 2026-05-18
 
 ### Added
 - `PhoenixKitWeb.Components.MediaGallery` — reusable LiveComponent for selecting,
@@ -6,6 +6,32 @@
 - `PhoenixKitWeb.Components.MediaViewer` — standalone image lightbox LiveComponent
   (prev/next, keyboard, download). Extracted from `MediaGallery`; usable independently.
 - `Storage.get_files/1` — batch file fetch preserving input order.
+- `FolderExplorer` component — folder tree extracted from `MediaBrowser` as a
+  reusable component (PR #544).
+- `<.table_default>` sort + drag-to-reorder primitives (PR #548)
+  - New `:sort_bar` slot rendered above the toolbar, visible in both card and table views.
+  - `<.table_default_body>` accepts `:global` attrs so consumers can wire the
+    `SortableGrid` hook (`phx-hook`, `data-sortable-*`) directly onto `<tbody>`.
+  - `<.table_default_header_cell>` `:inner_block` is now optional — empty `<th>`
+    cells for drag-handle / selection columns no longer need a placeholder.
+  - `:card_body` slot for fully-custom card content; `:card_class` accepts a string
+    or `(item) -> string` function; `:above_cards` slot; `2xl:grid-cols-4` card grid.
+- `<.sort_selector>` core component — field-picker select + direction toggle, with a
+  `manual_field` mode that swaps the toggle for a drag-handle hint (PR #548).
+- `<.bulk_actions_bar>` core component — selection counter + action-button slot +
+  Clear button; `wrapper_class` covers the inline-card and sticky/blurred shapes (PR #548).
+- `<.empty_state>` core component — `compact` / `card` / `featured` "no rows" panels
+  with optional icon, description, and CTA slot (PR #548).
+- `<.form_section>` and `<.form_actions>` core components — card-wrapped titled form
+  sections and a Cancel + Submit footer bar (PR #548).
+- New `PhoenixKit.Utils` helpers (PR #548)
+  - `Reorder.reorder/4` — two-phase index-rewrite primitive for drag-to-reorder list
+    views; schema-agnostic, UUID-filtered, payload-capped, returns `{:ok, count}`.
+  - `Values.blank_to_nil/1` and `Values.presence/1` — canonical `"" → nil` helpers
+    (the latter trims first); previously duplicated across 7+ modules.
+  - `Format.bytes/2` — single human-readable byte formatter with `:decimals` /
+    `:unknown` / `:base` (1024 vs 1000) options; replaced 8 private copies.
+- V120 migration — document-creator category / type taxonomy (PR #545).
 
 ### Changed
 - `MediaSelectorModal` accepts an optional `notify: {module, id}` to deliver the
@@ -15,12 +41,41 @@
 - `<.draggable_list>` gains an optional `target` attr (CSS selector). When set,
   the `SortableGrid` hook routes the reorder event via `pushEventTo` so it
   reaches a LiveComponent rather than the host LiveView.
+- `<.sort_header_cell>` polish — inactive-column up/down hint, in-flight loading
+  spinner, and atom-or-string `sort.dir` tolerance (PR #548).
+- `admin_page_header` — `back` / `back_click` are now deprecated no-ops; the back
+  arrow no longer renders. Retained so existing call sites compile (PR #548).
+- `MediaBrowser` folder management overhaul (PR #544)
+  - Recursive folder trash + drag-to-trash; instant "untitled" folder creation.
+  - Folders draggable across grid / list / sidebar; drop-into-current-folder via
+    the main content area; whole-selection drag in select mode.
+  - Per-file and per-folder kebab menus migrated to `TableRowMenu` (fixes clipping).
+  - Folder rename made more apparent; click-away cancels.
+- etcher / fresco dependency requirements tightened to `~> 0.2.6`.
+- Upgraded library dependencies.
 
 ### Fixed
 - `MediaGallery` drag-to-reorder no longer pushes `reorder_images` to the host
   LiveView (where it had no handler and crashed the page). The grid now passes
   `target` to `<.draggable_list>` so the event reaches the component's own
   `handle_event/3`.
+- `MediaBrowser` breadcrumbs no longer duplicate the current folder or ignore
+  scope; move-to-root now works under scope; `update_folder/3` guarded against
+  `parent_uuid: nil`; N+1 in session breadcrumb work eliminated (PR #544).
+- `admin_page_header` no longer carries an unused `Icon` import left by the
+  back-button removal — restores a clean `mix compile --warnings-as-errors`.
+- `Utils.Values.blank_to_nil/1` and `presence/1` no longer raise on non-string
+  input (e.g. a list from a `key[]=` query param) — they fall back to pass-through
+  and `nil` respectively.
+- V120 migration review fixes — primary-key defaults, multi-prefix guards, exact
+  legacy category mapping, `uuid_generate_v7()` per house convention (PR #545).
+- Avatar dropdown overflow, scroll, hover, and click-feedback fixes.
+
+### i18n
+- Ecommerce gettext manifest + `ru` / `et` translations; fixed 91 fuzzy ecommerce
+  translations (PR #547).
+- Projects + comments gettext manifests with `et` / `ru` translations (PR #542).
+- Global Gettext locale synced alongside the backend-specific one.
 
 ## 1.7.111 - 2026-05-14
 
