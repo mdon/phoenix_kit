@@ -118,6 +118,18 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
+  def handle_event("clear_filters", _params, socket) do
+    socket =
+      socket
+      |> assign(:search_query, "")
+      |> assign(:filter_role, "all")
+      |> assign(:filter_account_type, "all")
+      |> assign(:page, 1)
+      |> load_users()
+
+    {:noreply, socket}
+  end
+
   def handle_event("change_page", %{"page" => page}, socket) do
     page = String.to_integer(page)
 

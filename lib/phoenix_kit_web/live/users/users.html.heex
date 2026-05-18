@@ -113,11 +113,11 @@
           <%!-- Role Filter --%>
           <span class="text-sm text-base-content/70 whitespace-nowrap">Role:</span>
           <form phx-change="filter_by_role" class="contents">
-            <select name="role" class="select select-sm w-36 min-w-0" value={@filter_role}>
-              <option value="all">All Users</option>
-              <option value="Owner">Owners Only</option>
-              <option value="Admin">Admins Only</option>
-              <option value="User">Regular Users</option>
+            <select name="role" class="select select-sm w-36 min-w-0">
+              <option value="all" selected={@filter_role == "all"}>All Users</option>
+              <option value="Owner" selected={@filter_role == "Owner"}>Owners Only</option>
+              <option value="Admin" selected={@filter_role == "Admin"}>Admins Only</option>
+              <option value="User" selected={@filter_role == "User"}>Regular Users</option>
             </select>
           </form>
           <%!-- Account Type Filter --%>
@@ -191,26 +191,26 @@
         <.table_default_body>
           <%= if @users == [] do %>
             <.table_default_row>
-              <.table_default_cell colspan={length(@selected_columns)}>
+              <.table_default_cell colspan={
+                Enum.count(@selected_columns, &should_render_column?/1)
+              }>
                 <div class="text-center py-12">
                   <PhoenixKitWeb.Components.Core.Icons.icon_users_multiple class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
                   <h3 class="text-lg font-medium text-base-content mb-2">
                     No users found
                   </h3>
+                  <% filters_active? =
+                    @search_query != "" or @filter_role != "all" or
+                      @filter_account_type != "all" %>
                   <p class="text-base-content/70 mb-4">
-                    <%= if @search_query != "" or @filter_role != "all" do %>
+                    <%= if filters_active? do %>
                       Try adjusting your search or filter criteria.
                     <% else %>
                       No users are registered yet.
                     <% end %>
                   </p>
-                  <%= if @search_query != "" or @filter_role != "all" do %>
-                    <button
-                      class="btn btn-outline btn-sm"
-                      phx-click="search"
-                      phx-value-search=""
-                      onclick="document.querySelector('input[name=&quot;search&quot;]').value = ''"
-                    >
+                  <%= if filters_active? do %>
+                    <button class="btn btn-outline btn-sm" phx-click="clear_filters">
                       Clear Filters
                     </button>
                   <% end %>
