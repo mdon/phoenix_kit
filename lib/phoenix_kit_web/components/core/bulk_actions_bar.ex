@@ -2,10 +2,11 @@ defmodule PhoenixKitWeb.Components.Core.BulkActionsBar do
   @moduledoc """
   Floating bulk-action bar — shown when a list view has selected rows.
 
-  Lifts the pattern used by the entities Data Navigator
-  (`PhoenixKitEntities.Web.DataNavigator`) into a reusable primitive:
-  a card with a "N selected" counter, a slot for action buttons, and a
-  Clear button on the right that fires `deselect_all`.
+  Wraps a row of action buttons in a styled container with a "N selected"
+  counter on the left and a Clear button on the right. The container's
+  visual style is fully consumer-controlled via `wrapper_class`, so a
+  single component covers the inline cards used by entities and the
+  sticky/blurred bars used by catalogue.
 
   The consumer owns selection state — typically a
   `selected_uuids :: MapSet.t()` assign, toggled via `phx-click="toggle_select"`
@@ -19,17 +20,25 @@ defmodule PhoenixKitWeb.Components.Core.BulkActionsBar do
   - `clear_event` — Phoenix event name fired by the Clear button. Default
     `"deselect_all"`.
   - `target` — Optional `phx-target` for LiveComponents.
-  - `class` — Extra classes appended to the outer card.
+  - `wrapper_class` — Classes for the outer wrapper. **Replaces** the
+    default (`"card bg-base-200 shadow-md mb-4 p-3"`). Pass a sticky /
+    blurred variant for top-of-list placement.
+  - `class` — Extra classes appended after `wrapper_class`.
 
   ## Slots
 
   - `inner_block` — Action buttons. Render `<button phx-click="bulk_action"
     phx-value-action="...">` controls; this component lays them out in a
-    flex row. Required.
+    horizontal flex row between the count and the Clear button. Required.
 
-  ## Example
+  ## Plug-in examples
 
-      <.bulk_actions_bar count={MapSet.size(@selected_uuids)}>
+  ### Inline card (entities Data Navigator style)
+
+      <.bulk_actions_bar
+        count={MapSet.size(@selected_uuids)}
+        clear_event="deselect_all"
+      >
         <button
           phx-click="bulk_action"
           phx-value-action="archive"
@@ -47,6 +56,21 @@ defmodule PhoenixKitWeb.Components.Core.BulkActionsBar do
           <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Trash")}
         </button>
       </.bulk_actions_bar>
+
+  ### Sticky bar (catalogue Items / Categories style)
+
+      <.bulk_actions_bar
+        count={MapSet.size(@selected_items)}
+        clear_event="clear_selection"
+        wrapper_class="sticky top-[72px] z-40 px-3 py-2 rounded-lg bg-base-100/95 border border-primary/40 shadow-md backdrop-blur"
+      >
+        <button phx-click="request_bulk_move_items" class="btn btn-sm btn-outline">
+          <.icon name="hero-arrows-right-left" class="w-4 h-4" /> {gettext("Move")}
+        </button>
+        <button phx-click="request_bulk_delete_items" class="btn btn-sm btn-outline btn-error">
+          <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
+        </button>
+      </.bulk_actions_bar>
   """
 
   use Phoenix.Component
@@ -57,31 +81,34 @@ defmodule PhoenixKitWeb.Components.Core.BulkActionsBar do
   attr :count, :integer, required: true
   attr :clear_event, :string, default: "deselect_all"
   attr :target, :any, default: nil
+
+  attr :wrapper_class, :any,
+    default: "card bg-base-200 shadow-md mb-4 p-3",
+    doc:
+      "Outer wrapper classes. Replaces the default; pass a sticky / blurred variant for top-of-list placement."
+
   attr :class, :string, default: nil
 
   slot :inner_block, required: true
 
   def bulk_actions_bar(assigns) do
     ~H"""
-    <div :if={@count > 0} class={["card bg-base-200 shadow-md mb-4", @class]}>
-      <div class="card-body p-3">
-        <div class="flex flex-wrap gap-3 items-center">
-          <span class="text-sm font-semibold whitespace-nowrap">
-            {@count} {gettext("selected")}
-          </span>
-          <div class="divider divider-horizontal mx-0"></div>
-          {render_slot(@inner_block)}
-          <div class="flex-1"></div>
-          <button
-            type="button"
-            phx-click={@clear_event}
-            phx-target={@target}
-            class="btn btn-ghost btn-sm"
-          >
-            <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Clear")}
-          </button>
-        </div>
-      </div>
+    <div
+      :if={@count > 0}
+      class={["flex flex-wrap items-center gap-3", @wrapper_class, @class]}
+    >
+      <span class="text-sm font-medium whitespace-nowrap">
+        {gettext("%{count} selected", count: @count)}
+      </span>
+      {render_slot(@inner_block)}
+      <button
+        type="button"
+        phx-click={@clear_event}
+        phx-target={@target}
+        class="btn btn-ghost btn-sm ml-auto"
+      >
+        <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Clear")}
+      </button>
     </div>
     """
   end
