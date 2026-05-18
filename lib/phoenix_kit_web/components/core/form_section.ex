@@ -25,16 +25,24 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   ## Slots
 
   - `inner_block` — Section content (form fields). Required.
+  - `:subtitle` — Optional helper text rendered under the title. Slot
+    (not attr) so callers can drop a `<.pk_link>` / `<.icon>` / etc.
+    inline.
 
   ## Example
 
-      <.form_section title={gettext("Basic Information")} body_class="space-y-4">
-        <.input field={@form[:name]} label="Name" required />
-        <.textarea field={@form[:description]} label="Description" />
+      <.form_section title={gettext("Provider Configuration")}>
+        <:subtitle>
+          {gettext("Credentials live in")}
+          <.pk_link navigate="/admin/settings/integrations" class="link link-primary">
+            Settings → Integrations
+          </.pk_link>.
+        </:subtitle>
+        <.select field={@form[:provider]} ... />
       </.form_section>
 
-      <.form_section title={gettext("Configuration")} icon="hero-cog-6-tooth">
-        ...
+      <.form_section title={gettext("Basic Information")} body_class="space-y-4">
+        <.input field={@form[:name]} label="Name" required />
       </.form_section>
   """
 
@@ -48,6 +56,7 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   attr :body_class, :string, default: nil
 
   slot :inner_block, required: true
+  slot :subtitle
 
   def form_section(assigns) do
     ~H"""
@@ -56,6 +65,9 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
         <h2 class="card-title text-lg">
           <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
         </h2>
+        <p :if={@subtitle != []} class="text-sm text-base-content/60 -mt-1">
+          {render_slot(@subtitle)}
+        </p>
         {render_slot(@inner_block)}
       </div>
     </section>
