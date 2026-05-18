@@ -147,6 +147,8 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.IntegrationPicker
       import PhoenixKitWeb.Components.Core.EmptyState
       import PhoenixKitWeb.Components.Core.SortSelector
+      import PhoenixKitWeb.Components.Core.FormSection
+      import PhoenixKitWeb.Components.Core.FormActions
     end
   end
 
