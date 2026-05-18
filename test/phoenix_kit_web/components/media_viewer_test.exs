@@ -1,8 +1,17 @@
 defmodule PhoenixKitWeb.Components.MediaViewerTest do
   @moduledoc """
   Unit tests for PhoenixKitWeb.Components.MediaViewer.
-  Render tests use pre-built assigns and `rendered_to_string/1`; event tests
-  invoke `handle_event/3` against a minimal socket. No DB required.
+
+  Per-file content (canvas, annotations, sidebar) is delegated to
+  `MediaCanvasViewer` — covered by integration tests against a real
+  DB, not here. These tests focus on MediaViewer's surface:
+  navigation state (`current_uuid`), event routing (close + step), and
+  the notify hand-off.
+
+  No DB required — `curate_file/1` calls catch
+  `DBConnection.OwnershipError` and resolve to nil, which makes the
+  render path early-return (no `<.live_component>` mounted). The
+  navigation + close handlers don't touch the DB at all.
   """
   use ExUnit.Case, async: true
 
@@ -25,9 +34,9 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
     %{
       id: "test-viewer",
       current_uuid: current,
+      current_file: nil,
+      current_user: nil,
       files: files,
-      variants_map: Keyword.get(opts, :variants_map, Map.new(files, &{&1, []})),
-      file_structs: Keyword.get(opts, :file_structs, []),
       notify: Keyword.get(opts, :notify, nil),
       myself: %Phoenix.LiveComponent.CID{cid: 1}
     }
@@ -47,14 +56,7 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
     test "maps :current attr to :current_uuid assign" do
       {:ok, socket} =
         MediaViewer.update(
-          %{
-            id: "v1",
-            current: @u2,
-            files: [@u1, @u2],
-            variants_map: %{},
-            file_structs: [],
-            notify: nil
-          },
+          %{id: "v1", current: @u2, files: [@u1, @u2], notify: nil},
           fresh_socket()
         )
 
@@ -66,53 +68,18 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
 
       {:ok, socket} =
         MediaViewer.update(
-          %{
-            id: "v1",
-            current: @u1,
-            files: [@u1],
-            variants_map: %{},
-            file_structs: [],
-            notify: notify
-          },
+          %{id: "v1", current: @u1, files: [@u1], notify: notify},
           fresh_socket()
         )
 
       assert socket.assigns.notify == notify
     end
 
-    test "pre-passed variants_map and file_structs are used without DB resolution" do
-      vm = %{@u1 => [%{variant_name: "original", url: "https://cdn/img.jpg"}]}
-      fs = [%{uuid: @u1, file_name: "img.jpg"}]
-
-      {:ok, socket} =
-        MediaViewer.update(
-          %{
-            id: "v1",
-            current: @u1,
-            files: [@u1],
-            variants_map: vm,
-            file_structs: fs,
-            notify: nil
-          },
-          fresh_socket()
-        )
-
-      assert socket.assigns.variants_map == vm
-      assert socket.assigns.file_structs == fs
-    end
-
     test "assign_new(:current_uuid) preserves navigated state on re-render" do
       # First update seeds current_uuid from :current
       {:ok, s1} =
         MediaViewer.update(
-          %{
-            id: "v1",
-            current: @u1,
-            files: [@u1, @u2],
-            variants_map: %{},
-            file_structs: [],
-            notify: nil
-          },
+          %{id: "v1", current: @u1, files: [@u1, @u2], notify: nil},
           fresh_socket()
         )
 
@@ -124,18 +91,24 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
       # Re-render with same :current — assign_new preserves the navigated state
       {:ok, s2} =
         MediaViewer.update(
-          %{
-            id: "v1",
-            current: @u1,
-            files: [@u1, @u2],
-            variants_map: %{},
-            file_structs: [],
-            notify: nil
-          },
+          %{id: "v1", current: @u1, files: [@u1, @u2], notify: nil},
           s1_navigated
         )
 
       assert s2.assigns.current_uuid == @u2
+    end
+
+    test "current_file is nil when curate_file can't resolve (no DB / unknown uuid)" do
+      {:ok, socket} =
+        MediaViewer.update(
+          %{id: "v1", current: @u1, files: [@u1], notify: nil},
+          fresh_socket()
+        )
+
+      # No sandboxed connection in this test — curate_file's rescue
+      # catches the OwnershipError and returns nil. The render path
+      # then early-returns instead of mounting MediaCanvasViewer.
+      assert socket.assigns.current_file == nil
     end
   end
 
@@ -151,69 +124,19 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
              "MediaViewer template violates single-root constraint (rendered.root=#{inspect(rendered.root)}). " <>
                "Ensure no <% %> expressions or other content appear before the root <dialog>."
     end
-
-    # render_component/2 exercises the real Diff.component_to_rendered path and
-    # raises ArgumentError if rendered.root != true for a component with an id.
-    # No DB needed: variants_map and file_structs are passed directly.
-    test "render_component mounts as stateful LiveComponent without raising" do
-      html =
-        render_component(MediaViewer,
-          id: "viewer-root-check",
-          files: [@u1],
-          current: @u1,
-          variants_map: %{@u1 => []},
-          file_structs: []
-        )
-
-      assert html =~ ~s(<dialog)
-      assert html =~ "modal"
-    end
   end
 
   describe "render" do
-    test "renders the modal with the current image" do
+    test "renders the <dialog> modal shell" do
       html = render(viewer_assigns(current: @u1))
       assert html =~ ~s(<dialog)
       assert html =~ "modal"
       assert html =~ "test-viewer"
     end
 
-    test "shows next chevron but not prev on the first image" do
+    test "shows the 'File not found' fallback when current_file is nil" do
       html = render(viewer_assigns(current: @u1))
-      assert html =~ ~s(phx-value-dir="next")
-      refute html =~ ~s(phx-value-dir="prev")
-    end
-
-    test "shows prev chevron but not next on the last image" do
-      html = render(viewer_assigns(current: @u3))
-      assert html =~ ~s(phx-value-dir="prev")
-      refute html =~ ~s(phx-value-dir="next")
-    end
-  end
-
-  describe "download link" do
-    test "renders download link when original variant is present" do
-      html =
-        render(
-          viewer_assigns(
-            current: @u1,
-            files: [@u1],
-            variants_map: %{
-              @u1 => [
-                %{
-                  variant_name: "original",
-                  mime_type: "image/jpeg",
-                  width: 800,
-                  height: 600,
-                  url: "https://example.com/file.jpg"
-                }
-              ]
-            }
-          )
-        )
-
-      assert html =~ "https://example.com/file.jpg"
-      assert html =~ "Download"
+      assert html =~ "File not found"
     end
   end
 

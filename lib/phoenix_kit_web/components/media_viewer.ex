@@ -1,28 +1,29 @@
 defmodule PhoenixKitWeb.Components.MediaViewer do
   @moduledoc """
-  Standalone image lightbox ("slide box") LiveComponent.
+  Standalone media lightbox ("slide box") LiveComponent.
 
-  Renders a modal showing one image from an ordered set, with prev/next
-  navigation (chevrons + ←/→ keys), Escape/backdrop close, and a Download link.
-  Images render via `<.image_set>` (responsive `<picture>`).
+  Renders a `<dialog>` modal showing one file from an ordered set, with
+  prev/next navigation (chevrons + ←/→ keys) and Escape/backdrop close.
+  Per-file content (the pan/zoom canvas with annotations + comments
+  thread for images, video/PDF/icon fallback otherwise) is delegated to
+  the shared `PhoenixKitWeb.Components.MediaCanvasViewer` child
+  LiveComponent — the same one MediaBrowser uses, so admins get the
+  full annotation experience here too.
 
   Reusable on its own or embedded by `MediaGallery`.
 
   ## Attrs
   - `id` — required
   - `files` — ordered list of file UUIDs (the navigable set)
-  - `current` — initial UUID to show (must be in `files`). Treated as a seed: once the
-    component is mounted, internal navigation state takes precedence over subsequent
-    `current` attr changes. This is intentional when the component is mount-gated
-    (`:if={...}`) so it remounts fresh on each open. A standalone consumer that keeps
-    the component mounted and wants to jump to a different image programmatically must
-    unmount and remount it.
-  - `variants_map` — optional `%{uuid => variants}`; resolved internally if nil/omitted.
-    Note: `%{}` (empty map) is truthy and counts as pre-resolved — pass `nil` or omit to
-    trigger internal resolution.
-  - `file_structs` — optional `[%Storage.File{}]`; resolved internally if nil/omitted.
-    Note: `[]` (empty list) is truthy and counts as pre-resolved — pass `nil` or omit to
-    trigger internal resolution.
+  - `current` — initial UUID to show (must be in `files`). Treated as
+    a seed: once mounted, internal navigation state takes precedence
+    over subsequent `current` attr changes. This is intentional when
+    the component is mount-gated (`:if={...}`) so it remounts fresh
+    on each open. A standalone consumer that keeps the component
+    mounted and wants to jump to a different image programmatically
+    must unmount and remount it.
+  - `current_user` — required for the composer / comments thread to
+    render. nil-tolerant (lightbox falls back to view-only).
   - `notify` — optional `{module, id}`; see Close below
 
   ## Close
@@ -37,8 +38,6 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.URLSigner
 
-  import PhoenixKit.Modules.Shared.Components.ImageSet
-
   @impl true
   def update(assigns, socket) do
     socket =
@@ -47,11 +46,9 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
       |> assign(:files, assigns[:files] || [])
       |> assign_new(:current_uuid, fn -> assigns[:current] end)
       |> assign(:notify, assigns[:notify])
-      |> assign_new(:variants_map, fn -> assigns[:variants_map] end)
-      |> assign_new(:file_structs, fn -> assigns[:file_structs] end)
-      |> resolve_data()
+      |> assign(:current_user, assigns[:current_user])
 
-    {:ok, socket}
+    {:ok, assign(socket, :current_file, curate_file(socket.assigns.current_uuid))}
   end
 
   @impl true
@@ -81,28 +78,6 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
 
   # ── private ──────────────────────────────────────────────────────────
 
-  defp resolve_data(socket) do
-    files = socket.assigns.files
-
-    variants_map =
-      socket.assigns.variants_map ||
-        safe(fn -> Storage.list_image_set_variants_for_files(files) end, %{})
-
-    file_structs =
-      socket.assigns.file_structs ||
-        safe(fn -> Storage.get_files(files) end, [])
-
-    assign(socket, variants_map: variants_map, file_structs: file_structs)
-  end
-
-  defp safe(fun, fallback) do
-    fun.()
-  rescue
-    e in [DBConnection.ConnectionError, Ecto.Query.CastError] ->
-      Logger.warning("MediaViewer: could not load data — #{Exception.message(e)}")
-      fallback
-  end
-
   defp close(socket) do
     case socket.assigns.notify do
       {module, id} -> send_update(module, id: id, media_viewer_closed: true)
@@ -118,36 +93,65 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
          next_idx <- if(direction == :prev, do: idx - 1, else: idx + 1),
          true <- next_idx >= 0 and next_idx < length(list),
          uuid when is_binary(uuid) <- Enum.at(list, next_idx) do
-      assign(socket, :current_uuid, uuid)
+      socket
+      |> assign(:current_uuid, uuid)
+      |> assign(:current_file, curate_file(uuid))
     else
       _ -> socket
     end
   end
 
-  defp download_url_for(uuid, variants) do
-    case Enum.find(variants, &(&1.variant_name == "original")) do
-      %{url: url} ->
-        url
+  # Build the curated file map MediaCanvasViewer expects. Slim version
+  # of MediaBrowser's `enrich_files/1` — same shape minus the
+  # folder_path (lightbox doesn't show folder breadcrumbs). One File
+  # row + one FileInstance query per current file open; the prev/next
+  # navigation re-resolves on each step.
+  defp curate_file(nil), do: nil
 
-      _ ->
-        try do
-          URLSigner.signed_url(uuid, "original", locale: :none)
-        rescue
-          e in [ArgumentError, FunctionClauseError, KeyError] ->
-            Logger.warning(
-              "MediaViewer: could not sign download URL for #{uuid} — #{Exception.message(e)}"
-            )
+  defp curate_file(file_uuid) when is_binary(file_uuid) do
+    case safe(fn -> Storage.get_file(file_uuid) end, nil) do
+      nil ->
+        nil
 
-            nil
-        end
+      file ->
+        instances = safe(fn -> Storage.list_file_instances(file_uuid) end, [])
+        urls = signed_urls(file_uuid, instances)
+
+        %{
+          file_uuid: file.uuid,
+          filename: file.original_file_name || file.file_name || "Unknown",
+          file_type: file.file_type,
+          mime_type: file.mime_type,
+          size: file.size || 0,
+          inserted_at: file.inserted_at,
+          width: file.width,
+          height: file.height,
+          urls: urls
+        }
     end
   end
 
-  defp file_name_for(files, uuid) do
-    case Enum.find(files, &(&1.uuid == uuid)) do
-      %{original_file_name: name} when is_binary(name) -> name
-      %{file_name: name} when is_binary(name) -> name
-      _ -> uuid
-    end
+  defp signed_urls(file_uuid, instances) do
+    Enum.reduce(instances, %{}, fn instance, acc ->
+      case safe(fn -> URLSigner.signed_url(file_uuid, instance.variant_name) end, nil) do
+        nil -> acc
+        url -> Map.put(acc, instance.variant_name, url)
+      end
+    end)
+  end
+
+  defp safe(fun, fallback) do
+    fun.()
+  rescue
+    e in [
+      DBConnection.ConnectionError,
+      DBConnection.OwnershipError,
+      Ecto.Query.CastError,
+      ArgumentError,
+      FunctionClauseError,
+      KeyError
+    ] ->
+      Logger.warning("MediaViewer: data resolve failed — #{Exception.message(e)}")
+      fallback
   end
 end

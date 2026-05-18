@@ -185,10 +185,20 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
 
     # Dropping presets.category also dropped the V117 composite index
     # `(scope_type, scope_id, category)`. Recreate it without `category`
-    # so scope-filtered preset lookups keep an index.
+    # so scope-filtered preset lookups keep an index. Guarded on table
+    # existence — the Document Creator module is optional and parent
+    # apps that never installed it don't have `phoenix_kit_doc_template_presets`.
     execute("""
-    CREATE INDEX IF NOT EXISTS phoenix_kit_doc_template_presets_scope_index
-    ON #{p}phoenix_kit_doc_template_presets (scope_type, scope_id)
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_doc_template_presets'
+      ) THEN
+        CREATE INDEX IF NOT EXISTS phoenix_kit_doc_template_presets_scope_index
+        ON #{p}phoenix_kit_doc_template_presets (scope_type, scope_id);
+      END IF;
+    END $$
     """)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '120'")

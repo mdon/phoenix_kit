@@ -34,16 +34,19 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
       lives in `metadata.annotation_uuid` — the tooltip preview filters
       on this key.
     * `:current_user` — the user composing the comment (must be present)
-    * `:parent_id` — DOM id of the parent `MediaBrowser` LC so we can
-      `send_update/2` lifecycle notifications back to it
+    * `:parent_module` — the LiveComponent module that handles the
+      composer's lifecycle actions (typically `MediaCanvasViewer`).
+      Required.
+    * `:parent_id` — DOM id of that parent LC so we can `send_update/2`
+      lifecycle notifications back to it.
 
   ## Lifecycle notifications
 
   On submit success or explicit cancel the composer calls
-  `Phoenix.LiveView.send_update(MediaBrowser, id: parent_id, action: ...)`.
-  MediaBrowser's `update/2` translates the action into either a
-  rollback (cancel) or a "solidify" (post). No host-LV plumbing needed
-  — `send_update/2` works LC-to-LC inside the same LiveView process.
+  `Phoenix.LiveView.send_update(parent_module, id: parent_id, action: ...)`.
+  The parent's `update/2` translates the action into either a rollback
+  (cancel) or a "solidify" (post). No host-LV plumbing needed —
+  `send_update/2` works LC-to-LC inside the same LiveView process.
 
   ## Scope
 
@@ -60,7 +63,6 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKitWeb.Components.MediaBrowser
 
   @impl true
   def mount(socket) do
@@ -117,9 +119,9 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
       not has_comment_payload ->
         # Title-only annotation — skip the comment-thread create
         # entirely. The annotation row gets its `title` field set by
-        # MediaBrowser's `finalize_annotation_compose/3` on the
+        # the parent's `finalize_annotation_compose/3` on the
         # `:annotation_composer_posted` action.
-        Phoenix.LiveView.send_update(MediaBrowser,
+        Phoenix.LiveView.send_update(socket.assigns.parent_module,
           id: socket.assigns.parent_id,
           action: :annotation_composer_posted,
           annotation_uuid: socket.assigns.annotation_uuid,
@@ -135,7 +137,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
   end
 
   def handle_event("cancel", _params, socket) do
-    Phoenix.LiveView.send_update(MediaBrowser,
+    Phoenix.LiveView.send_update(socket.assigns.parent_module,
       id: socket.assigns.parent_id,
       action: :annotation_composer_cancelled,
       annotation_uuid: socket.assigns.annotation_uuid
@@ -251,7 +253,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                attachment_file_uuids: file_uuids
              }
            ) do
-      Phoenix.LiveView.send_update(MediaBrowser,
+      Phoenix.LiveView.send_update(socket.assigns.parent_module,
         id: socket.assigns.parent_id,
         action: :annotation_composer_posted,
         annotation_uuid: socket.assigns.annotation_uuid,

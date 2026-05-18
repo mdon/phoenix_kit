@@ -1393,16 +1393,25 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
-  // Keeps the MediaBrowser's floating annotation-composer popover fully
-  // inside its viewer container. The server seeds the popover with the
-  // shape's bottom-left anchor coords (set by etcher.js when emitting
-  // `etcher:created`), which is fine when the shape is in the middle of
-  // the image but can land the popover past the right edge or below the
-  // bottom when the user draws near a boundary.
+  // Positions the MediaBrowser's floating annotation-composer popover
+  // directly above the shape it belongs to (falling back to below if
+  // there's no room above, then clamping to the viewer container).
   //
-  // The hook re-clamps `left` / `top` after mount, after server-driven
-  // re-renders, and on window resize. An 8px margin keeps the popover
-  // from touching the container edge.
+  // The popover's element id encodes the annotation uuid as suffix
+  // ("annotation-composer-popover-<uuid>"); Etcher tags each shape's
+  // root SVG element with the same uuid via `data-uuid`. The hook
+  // queries for that element and uses its bounding rect to compute
+  // the popover's left/top in the parent container's coordinate space.
+  //
+  // Etcher 0.3's bulk `annotations-changed` event doesn't carry an
+  // anchor for newly-drawn shapes (the old per-op `etcher:created`
+  // emitted `anchor_x`/`anchor_y`), so the server can no longer seed
+  // container-space coords. Reading the shape's DOM rect on the client
+  // sidesteps the need for any image-to-screen math server-side and
+  // keeps positioning correct after pan/zoom.
+  //
+  // Re-runs on mount, server-driven updates, and window resize. An 8px
+  // margin keeps the popover from touching the container edge.
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
@@ -1555,29 +1564,56 @@ if (typeof window.Chart === "undefined") {
       const container = el.parentElement;
       if (!container) return;
 
-      // Read the requested position from inline style (server-set).
-      let left = parseFloat(el.style.left) || 0;
-      let top = parseFloat(el.style.top) || 0;
-
       const margin = 8;
+      const popW = el.offsetWidth;
+      const popH = el.offsetHeight;
       const cw = container.clientWidth;
       const ch = container.clientHeight;
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
+
+      // Try to anchor to the associated shape. Element id is
+      // `annotation-composer-popover-<uuid>`; Etcher renders shapes
+      // with the matching `data-uuid`.
+      const uuid = el.id.replace(/^annotation-composer-popover-/, "");
+      const shapeEl = uuid
+        ? document.querySelector('[data-uuid="' + uuid + '"]')
+        : null;
+
+      let left;
+      let top;
+
+      if (shapeEl) {
+        const shapeRect = shapeEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        // Center horizontally on the shape; place bottom-of-popover
+        // `margin` px above the shape's top.
+        const shapeCenterX = shapeRect.left + shapeRect.width / 2 - containerRect.left;
+        const shapeTopY = shapeRect.top - containerRect.top;
+
+        left = shapeCenterX - popW / 2;
+        top = shapeTopY - popH - margin;
+
+        // No room above → flip below the shape.
+        if (top < margin) {
+          top = shapeRect.bottom - containerRect.top + margin;
+        }
+      } else {
+        // Fall back to whatever the server seeded (or zero).
+        left = parseFloat(el.style.left) || 0;
+        top = parseFloat(el.style.top) || 0;
+      }
 
       // Clamp horizontally: keep right edge inside the container, then
       // keep left edge inside. Order matters when the popover is wider
       // than the container — `Math.max(margin, …)` wins, leaving the
       // popover flush-left with a margin.
-      const maxLeft = cw - w - margin;
+      const maxLeft = cw - popW - margin;
       if (left > maxLeft) left = maxLeft;
       if (left < margin) left = margin;
 
-      // Same for vertical. If the popover doesn't fit below the shape
-      // (top + h > container height), it slides up. If it still doesn't
-      // fit (popover is taller than the container), it pins to the top
-      // with a margin.
-      const maxTop = ch - h - margin;
+      // Same for vertical. If the popover doesn't fit (popover taller
+      // than the container), it pins to the top with a margin.
+      const maxTop = ch - popH - margin;
       if (top > maxTop) top = maxTop;
       if (top < margin) top = margin;
 
@@ -2571,20 +2607,26 @@ if (typeof window.Chart === "undefined") {
 
 
   // ============================================================================
-  // FRESCO VIEWER (loaded from CDN)
+  // FRESCO (loaded from CDN)
   //
-  // Lazy-fetches Fresco's pan-zoom image viewer JS from jsDelivr when the
-  // `FrescoViewer` hook mounts. The Elixir component comes from the
-  // {:fresco, "~> 0.1.5"} hex dependency. Parent apps that pre-import
-  // fresco in their own app.js short-circuit the CDN load — the wrapper
-  // detects `window.FrescoHooks.FrescoViewer` and uses it directly.
+  // Lazy-fetches Fresco's JS bundle from jsDelivr when one of its hooks
+  // mounts. The single fresco.js exports all three component hooks
+  // (`FrescoViewer`, `FrescoCanvas`, `FrescoScrollStrip`); we wrap the
+  // two PhoenixKit actually uses (`FrescoViewer` for plain images,
+  // `FrescoCanvas` for MediaBrowser's annotation-host). One load brings
+  // in both — the second mount short-circuits via the
+  // `window.FrescoHooks.*` cache check.
   //
-  // Keep the version constant in sync with the hex dep + the GitHub release
-  // tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
+  // The Elixir components come from the {:fresco, "~> 0.5"} hex
+  // dependency. Parent apps that pre-import fresco in their own app.js
+  // short-circuit the CDN load entirely.
+  //
+  // Keep the version constant in sync with the hex dep + the GitHub
+  // release tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.1.5/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -2625,6 +2667,39 @@ if (typeof window.Chart === "undefined") {
             realHook.mounted.call(self);
           }
         });
+      }
+    };
+
+    // FrescoCanvas — the layered scene component MediaBrowser uses to
+    // host annotations (Etcher). Same lazy-load mechanics as
+    // FrescoViewer above; both hooks come out of the same fresco.js
+    // bundle, so a single CDN fetch covers either / both.
+    window.PhoenixKitHooks.FrescoCanvas = {
+      mounted: function() {
+        var self = this;
+        loadFrescoJS(function() {
+          var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      },
+      updated: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.updated === "function") {
+          realHook.updated.call(this);
+        }
+      },
+      destroyed: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.destroyed === "function") {
+          realHook.destroyed.call(this);
+        }
       }
     };
   })();
@@ -2690,13 +2765,13 @@ if (typeof window.Chart === "undefined") {
   // ETCHER LAYER (loaded from CDN)
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
-  // to a host viewer via `fresco_id` and adds the pencil toolbar, draw
-  // tools, and shape persistence. Comes from the {:etcher, "~> 0.2.6"} hex
-  // dependency. Same parent-pre-import short-circuit as Fresco.
+  // to a host viewer/canvas via `fresco_id` and adds the pencil toolbar,
+  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.3"}
+  // hex dependency. Same parent-pre-import short-circuit as Fresco.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.2.6/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
@@ -3294,6 +3369,51 @@ if (typeof window.Chart === "undefined") {
     if (!s) return "";
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
+
+  // ============================================================================
+  // Etcher live-metadata patch bridge
+  // ============================================================================
+  //
+  // Listens for the `etcher:patch-shape` LiveView push_event emitted by
+  // MediaBrowser when annotation comments are posted server-side. Calls
+  // Etcher's `layerFor(fresco_id).patchShape(uuid, {metadata})` (added
+  // in Etcher 0.3) so the in-DOM shape's metadata reflects the new
+  // comment_* fields immediately — the tooltip shows the rich content
+  // on the next hover without waiting for a layer remount.
+  //
+  // Why this bridge exists: <Fresco.canvas> uses `phx-update="ignore"`,
+  // which freezes its `data-extensions` attribute at initial mount.
+  // Server-side rebuilds of the canvas's `extensions.etcher` blob
+  // don't reach the DOM, so Etcher's `handle.getExtension("etcher")`
+  // keeps returning the old annotations. patchShape sidesteps that by
+  // mutating Etcher's internal `self.shapes[i]` directly.
+  window.addEventListener("phx:etcher:patch-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.patchShape !== "function") return;
+    var fields = {};
+    if (detail.metadata) fields.metadata = detail.metadata;
+    if (detail.style) fields.style = detail.style;
+    layer.patchShape(detail.uuid, fields);
+  });
+
+  // Server-driven shape removal. MediaBrowser uses this on annotation
+  // composer Cancel — the user signalled the just-drawn shape was a
+  // mistake, so we drop it from Etcher's local state instead of
+  // leaving an untitled placeholder on the canvas. layer.deleteShape
+  // pushes the deletion onto Etcher's undo stack (Cmd+Z restores) and
+  // fires `etcher:annotations-changed`, which routes through the
+  // server's sync_annotations to delete the DB row + cascade comments.
+  window.addEventListener("phx:etcher:delete-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.deleteShape !== "function") return;
+    layer.deleteShape(detail.uuid);
+  });
 
   window.Etcher.tooltipSlots = {
     // Header → annotation title (user-chosen label) if present;

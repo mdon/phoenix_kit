@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V120 - Document Creator Category → Type taxonomy ⚡ LATEST
+  ### V121 - Line annotation kind ⚡ LATEST
+  - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
+  - Etcher gains a simple two-endpoint line tool alongside `dimension`
+    (same geometry, no arrows, no inline numeric label). Title +
+    comment ride the same composer flow as the other non-text shapes.
+
+  ### V120 - Document Creator Category → Type taxonomy
   - Creates `phoenix_kit_doc_categories` and `phoenix_kit_doc_types` tables.
   - Adds nullable `category_uuid` / `type_uuid` FK columns to doc templates and documents.
   - Migrates legacy category strings from templates into `phoenix_kit_doc_categories` rows.
@@ -1013,7 +1019,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 120
+  @current_version 121
   @default_prefix "public"
 
   @doc false

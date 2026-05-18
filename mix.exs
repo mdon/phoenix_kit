@@ -119,19 +119,21 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
-      # Deep zoom / pan-zoom image viewer (Tessera DZI layer atop the
-      # Fresco OpenSeadragon viewer). Tessera 0.2 split the standalone
-      # viewer into <Fresco.viewer> + <Tessera.layer> composition; both
-      # JS hooks ship in each lib's `priv/static/`; parent apps import
-      # the bundles in `app.js` ahead of phoenix_kit.js, which adopts
-      # `window.{Fresco|Tessera|Etcher}Hooks` into `window.PhoenixKitHooks`.
-      # Etcher 0.2 adds the callout / text / eraser tools, undo/redo,
-      # satellite titles, and a complete `window.Etcher.layerFor(id)`
-      # programmatic control surface — all driven through the same
-      # MediaBrowser overlay.
-      {:fresco, "~> 0.1.5"},
+      # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
+      # OpenSeadragon and replaced the wrapped-OSD viewer with a
+      # hand-rolled CSS-transform engine; it also added <Fresco.canvas>
+      # (the layered scene with `extensions.etcher` for annotation data).
+      # Etcher 0.3 dropped its Ecto storage adapter and now persists
+      # annotations inside the canvas's extensions map — single bulk
+      # `etcher:annotations-changed` event, client-side UUIDv7. JS hooks
+      # ship in each lib's `priv/static/`; parent apps either import them
+      # directly in `app.js` or rely on the lazy-load wrappers in
+      # phoenix_kit.js (jsdelivr-pinned to the matching version).
+      # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
+      # (residual TODO; resurrect when a Tessera 0.5 ships).
+      {:fresco, "~> 0.5"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.2.6"},
+      {:etcher, "~> 0.3"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
