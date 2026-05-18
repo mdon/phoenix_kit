@@ -1,3 +1,54 @@
+## 1.7.113 - 2026-05-18
+
+### Added
+- `line` annotation kind — a two-endpoint line tool alongside `dimension`
+  (same geometry, no arrowheads, no inline numeric label). V121 migration
+  widens the `phoenix_kit_annotations_kind_check` constraint to accept it.
+- `PhoenixKitWeb.Components.MediaCanvasViewer` — shared LiveComponent owning
+  the per-file canvas + Etcher annotation layer + composer popover + comments
+  thread. Embedded by both `MediaBrowser` and `MediaViewer`, so files opened
+  via `MediaGallery` → `MediaViewer` get the full pan/zoom + annotation
+  experience (PR #550).
+- `Storage.folder_subtree_uuids/1` is now public — walks a folder tree and
+  returns every descendant uuid including the root (PR #549).
+
+### Changed
+- `MediaBrowser` migrated to Etcher 0.3 + Fresco 0.5: per-op annotation events
+  collapse into a single bulk `etcher:annotations-changed` diff; `fresco` and
+  `etcher` deps flipped from local path deps to hex pins (`~> 0.5` / `~> 0.3`)
+  (PR #550).
+- Annotation composer now positions itself above its shape and drops the
+  shape entirely when dismissed via Cancel (PR #550).
+- Deleting an annotation now hard-deletes its linked comments instead of
+  leaving `[removed]` placeholders in the file's thread (PR #550).
+- Activity and Users/Sessions filter panels relocated into the
+  `<.table_default>` toolbar row; tables render unconditionally with the
+  empty state as a table-body row so filters/search stay visible on a
+  zero-result filter (PR #549).
+
+### Fixed
+- Users/Sessions search regression — form-less `<input>`s no longer delivered
+  `phx-change`; search inputs are wrapped in `<form phx-change="search">`
+  again (PR #549).
+- Folder-scoped media picker now includes images in nested subfolders, not
+  just files directly in the scope folder (PR #549).
+- V120 migration tolerates a missing `phoenix_kit_doc_template_presets` table
+  on hosts that never installed the Document Creator module — the index
+  rebuild is guarded on table existence (PR #550).
+- V121 migration adds the kind-check constraint unconditionally after
+  `DROP CONSTRAINT IF EXISTS`; the previous `pg_constraint` existence guard
+  was not schema-scoped and would skip the add on multi-prefix installs.
+- Annotation updates no longer cast `:uuid`, closing a path where a stray
+  payload uuid could rewrite an annotation's primary key.
+- `MediaCanvasViewer` annotation sync skips no-op `UPDATE`s — Etcher
+  re-broadcasts the full annotation list on every mutation, so untouched
+  rows are now diffed out and a zero-net-change re-broadcast does no DB work.
+- Users role-filter dropdown reflects the active filter again (`<option
+  selected>` instead of an ignored `<select value>`); the empty-state
+  "Clear Filters" button resets all filters via a dedicated handler.
+- Activity empty state distinguishes "No activities match the current
+  filters" from "No activities recorded yet".
+
 ## 1.7.112 - 2026-05-18
 
 ### Added
