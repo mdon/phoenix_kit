@@ -204,8 +204,12 @@ defmodule PhoenixKit.Annotations do
         {:error, :not_found}
 
       annotation ->
+        # `:uuid` is castable so client-generated UUIDv7s survive INSERT,
+        # but on UPDATE casting it would let a stray payload uuid rewrite
+        # the primary key. The row is already located by `uuid` above —
+        # strip it so the changeset can't touch the PK.
         annotation
-        |> Annotation.changeset(attrs)
+        |> Annotation.changeset(Map.drop(attrs, [:uuid, "uuid"]))
         |> RepoHelper.update()
     end
   end

@@ -158,21 +158,30 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
     Enum.each(new_annotations, fn a ->
       uuid = a["uuid"]
+      current = Map.get(current_by_uuid, uuid)
 
       result =
-        if Map.has_key?(current_by_uuid, uuid) do
-          Storage.EtcherAdapter.update(uuid, a)
-        else
-          attrs =
-            a
-            |> Map.put("target_type", "file")
-            |> Map.put("target_uuid", file_uuid)
-            |> creator_attrs(socket)
+        cond do
+          current && annotation_unchanged?(a, current) ->
+            :skip
 
-          Storage.EtcherAdapter.create(attrs)
+          current ->
+            Storage.EtcherAdapter.update(uuid, a)
+
+          true ->
+            attrs =
+              a
+              |> Map.put("target_type", "file")
+              |> Map.put("target_uuid", file_uuid)
+              |> creator_attrs(socket)
+
+            Storage.EtcherAdapter.create(attrs)
         end
 
       case result do
+        :skip ->
+          :ok
+
         {:ok, _} ->
           :ok
 
@@ -209,6 +218,19 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     |> assign(:viewer_annotations, refreshed)
     |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
     |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
+  end
+
+  # Etcher re-broadcasts the *entire* annotation list on every shape
+  # mutation, so a file with N annotations would otherwise issue N
+  # UPDATEs per interaction. An annotation is worth a DB write only when
+  # Etcher-owned mutable state actually moved — geometry, style or kind.
+  # (title / metadata are edited through the composer, not via
+  # annotations-changed.) Comparing against the last-known struct lets
+  # the untouched rows skip their no-op UPDATE.
+  defp annotation_unchanged?(wire, current) do
+    wire["geometry"] == current.geometry and
+      wire["style"] == current.style and
+      wire["kind"] == current.kind
   end
 
   # For every annotation newly created in this batch, push an
