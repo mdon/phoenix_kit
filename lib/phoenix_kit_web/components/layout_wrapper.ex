@@ -84,10 +84,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :from_layout, :boolean, default: false
   attr :pk_pending_invitations, :list, default: []
 
-  attr :phoenix_kit_publishing_translations, :any,
-    default: nil,
+  attr :module_assigns, :map,
+    default: %{},
     doc:
-      "Per-translation URL list exposed by `phoenix_kit_publishing` for host layouts that build their own language switcher. Plain conn assigns don't reach a function-component layout — only declared attrs do — so this gets forwarded through `prepare_parent_layout_assigns/1` to the host's `Layouts.app`."
+      "Module-supplied host-consumable assigns. Each key in this map is merged into the assigns set passed to the parent layout (`Layouts.app`), so a host's custom layout can read e.g. `assigns[:phoenix_kit_publishing_translations]` from publishing, or any other module-defined key. Plain `conn.assigns` don't reach a function-component layout — only declared attrs do — so this single map attribute is how modules thread arbitrary host-consumable data through the boundary without core having to declare each one explicitly."
 
   slot :inner_block, required: false
 
@@ -753,6 +753,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   # Prepare assigns for parent layout compatibility
   defp prepare_parent_layout_assigns(assigns) do
+    # Flatten `:module_assigns` into the top-level assigns map FIRST so that
+    # host layouts can read module-supplied keys directly (e.g.
+    # `assigns[:phoenix_kit_publishing_translations]`). Existing top-level
+    # keys win over module-supplied ones to prevent a module from
+    # overwriting core-managed assigns like `:flash` or `:current_user`.
+    module_assigns = assigns[:module_assigns] || %{}
+
+    assigns =
+      Enum.reduce(module_assigns, assigns, fn {key, value}, acc ->
+        Map.put_new(acc, key, value)
+      end)
+
     assigns
     |> Map.put_new(:current_user, get_current_user_for_parent(assigns))
     |> Map.put_new(:phoenix_kit_integrated, true)
