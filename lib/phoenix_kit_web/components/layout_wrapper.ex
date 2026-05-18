@@ -84,6 +84,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :from_layout, :boolean, default: false
   attr :pk_pending_invitations, :list, default: []
 
+  attr :phoenix_kit_publishing_translations, :any,
+    default: nil,
+    doc:
+      "Per-translation URL list exposed by `phoenix_kit_publishing` for host layouts that build their own language switcher. Plain conn assigns don't reach a function-component layout — only declared attrs do — so this gets forwarded through `prepare_parent_layout_assigns/1` to the host's `Layouts.app`."
+
   slot :inner_block, required: false
 
   def app_layout(assigns) do
