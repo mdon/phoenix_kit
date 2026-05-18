@@ -58,6 +58,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.{File, FileInstance, FolderLink, URLSigner}
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Format
 
   import Ecto.Query
 
@@ -541,16 +542,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp parse_filter("all"), do: :all
   defp parse_filter(_), do: :all
 
-  defp format_file_size(bytes) when is_number(bytes) do
-    cond do
-      bytes >= 1_073_741_824 -> "#{Float.round(bytes / 1_073_741_824, 2)} GB"
-      bytes >= 1_048_576 -> "#{Float.round(bytes / 1_048_576, 2)} MB"
-      bytes >= 1024 -> "#{Float.round(bytes / 1024, 2)} KB"
-      true -> "#{bytes} B"
-    end
-  end
-
-  defp format_file_size(_), do: "0 B"
+  defp format_file_size(bytes), do: Format.bytes(bytes, decimals: 2, unknown: "0 B")
 
   defp pagination_range(current_page, total_pages) do
     cond do

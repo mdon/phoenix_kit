@@ -6,6 +6,8 @@ defmodule PhoenixKitWeb.Components.Core.FileDisplay do
   """
   use Phoenix.Component
 
+  alias PhoenixKit.Utils.Format
+
   @doc """
   Displays a status badge for pages.
 
@@ -44,7 +46,7 @@ defmodule PhoenixKitWeb.Components.Core.FileDisplay do
 
   def file_size(assigns) do
     ~H"""
-    <span class={@class}>{format_bytes(@bytes)}</span>
+    <span class={@class}>{Format.bytes(@bytes)}</span>
     """
   end
 
@@ -74,24 +76,6 @@ defmodule PhoenixKitWeb.Components.Core.FileDisplay do
       _ -> "badge-ghost"
     end
   end
-
-  defp format_bytes(nil), do: "Unknown"
-  defp format_bytes(0), do: "0 B"
-
-  defp format_bytes(%Decimal{} = bytes) do
-    bytes |> Decimal.to_integer() |> format_bytes()
-  end
-
-  defp format_bytes(bytes) when is_integer(bytes) do
-    cond do
-      bytes >= 1_073_741_824 -> "#{Float.round(bytes / 1_073_741_824, 1)} GB"
-      bytes >= 1_048_576 -> "#{Float.round(bytes / 1_048_576, 1)} MB"
-      bytes >= 1024 -> "#{Float.round(bytes / 1024, 1)} KB"
-      true -> "#{bytes} B"
-    end
-  end
-
-  defp format_bytes(_), do: "Unknown"
 
   defp format_mtime(mtime) when is_tuple(mtime) do
     # Convert Erlang datetime tuple to NaiveDateTime

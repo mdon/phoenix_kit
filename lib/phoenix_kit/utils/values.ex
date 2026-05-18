@@ -20,4 +20,31 @@ defmodule PhoenixKit.Utils.Values do
   def blank_to_nil(nil), do: nil
   def blank_to_nil(""), do: nil
   def blank_to_nil(v) when is_binary(v), do: v
+
+  @doc """
+  Like `blank_to_nil/1`, but trims whitespace before the blank check.
+
+  Returns the trimmed string when there's content, `nil` otherwise.
+  Use this for inputs where leading / trailing whitespace shouldn't
+  count as "present" (HTML form values, URL query params that may
+  carry stray whitespace, scraped IDs, etc.). When the value will
+  already be normalised by the caller, prefer `blank_to_nil/1` to
+  avoid the unnecessary `String.trim/1`.
+
+      iex> PhoenixKit.Utils.Values.presence(nil)
+      nil
+      iex> PhoenixKit.Utils.Values.presence("   ")
+      nil
+      iex> PhoenixKit.Utils.Values.presence("  hello ")
+      "hello"
+  """
+  @spec presence(nil | String.t()) :: nil | String.t()
+  def presence(nil), do: nil
+
+  def presence(v) when is_binary(v) do
+    case String.trim(v) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
 end
