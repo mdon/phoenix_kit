@@ -250,7 +250,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
       <div
         id={if @on_reorder, do: "#{@id}-cards"}
         data-card-view=""
-        class="md:hidden grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+        class="md:hidden grid gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
         data-sortable={if @on_reorder, do: "true"}
         data-sortable-event={@on_reorder}
         data-sortable-items={if @on_reorder, do: ".sortable-item"}
