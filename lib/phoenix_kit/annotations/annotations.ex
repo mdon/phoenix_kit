@@ -215,9 +215,13 @@ defmodule PhoenixKit.Annotations do
 
   Cascades to any linked comments — i.e. comments on the annotation's
   file that carry `metadata.annotation_uuid` pointing at this row. The
-  cascade is a soft delete (status: "deleted") so reply chains stay
-  attached as `[removed]` placeholders rather than disappearing
-  silently. No-ops cleanly when PhoenixKitComments isn't installed.
+  cascade is a hard delete: annotation comments are conceptually owned
+  by their annotation, so they go with it instead of lingering as
+  `[removed]` placeholders in the file's thread. `phoenix_kit_comment_media`
+  rows fall away via their `ON DELETE CASCADE`; the underlying media
+  files (referenced via `comment_media.file_uuid`) stay untouched —
+  they're library assets, not comment-owned. No-ops cleanly when
+  PhoenixKitComments isn't installed.
   """
   @spec delete(uuid()) :: :ok | {:error, :not_found | Ecto.Changeset.t()}
   def delete(uuid) do
@@ -254,12 +258,19 @@ defmodule PhoenixKit.Annotations do
 
   defp delete_linked_comments(annotation) do
     if Code.ensure_loaded?(PhoenixKitComments) do
+      # Iterate via the PhoenixKitComments wrapper (avoids a compile-
+      # time reference to the optional dep's schema module) and hard-
+      # delete each match via Repo.delete on the struct. ON DELETE
+      # CASCADE on `phoenix_kit_comment_media.comment_uuid` drops the
+      # attachment link rows; underlying media files stay.
+      repo = RepoHelper.repo()
+
       "file"
       |> PhoenixKitComments.list_comments(annotation.file_uuid)
       |> Enum.filter(fn c ->
         get_in(c.metadata || %{}, ["annotation_uuid"]) == annotation.uuid
       end)
-      |> Enum.each(&PhoenixKitComments.delete_comment/1)
+      |> Enum.each(fn c -> repo.delete(c) end)
     end
   rescue
     # Narrow rescue — swallow only the comment-side classes we expect so
@@ -274,49 +285,5 @@ defmodule PhoenixKit.Annotations do
       require Logger
       Logger.warning("[Annotations] delete_linked_comments: #{Exception.message(e)}")
       :ok
-  end
-
-  @doc """
-  Restore comments soft-deleted by `delete/1` and re-link them to a
-  newly-created annotation row. Used by the etcher restore (undo of
-  delete) flow: the original annotation uuid is gone, but the
-  soft-deleted comments are still in the DB carrying
-  `metadata.annotation_uuid = original_uuid`. We flip them back to
-  `status: "published"` and rewrite `metadata.annotation_uuid` to
-  point at the recreated row's uuid.
-
-  Returns the number of comments restored. No-ops cleanly when
-  PhoenixKitComments isn't installed or when no soft-deleted matches
-  are found.
-  """
-  @spec restore_linked_comments(uuid(), uuid(), uuid()) :: non_neg_integer()
-  def restore_linked_comments(file_uuid, original_uuid, new_uuid)
-      when is_binary(file_uuid) and is_binary(original_uuid) and is_binary(new_uuid) do
-    if Code.ensure_loaded?(PhoenixKitComments) do
-      "file"
-      |> PhoenixKitComments.list_comments(file_uuid, include_deleted: true)
-      |> Enum.filter(fn c ->
-        c.status == "deleted" and
-          get_in(c.metadata || %{}, ["annotation_uuid"]) == original_uuid
-      end)
-      |> Enum.reduce(0, fn comment, acc ->
-        new_meta = Map.put(comment.metadata || %{}, "annotation_uuid", new_uuid)
-
-        case PhoenixKitComments.update_comment(comment, %{
-               status: "published",
-               metadata: new_meta
-             }) do
-          {:ok, _} -> acc + 1
-          _ -> acc
-        end
-      end)
-    else
-      0
-    end
-  rescue
-    e in [DBConnection.OwnershipError, Postgrex.Error, ArgumentError] ->
-      require Logger
-      Logger.warning("[Annotations] restore_linked_comments: #{Exception.message(e)}")
-      0
   end
 end
