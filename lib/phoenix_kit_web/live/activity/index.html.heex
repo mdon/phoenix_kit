@@ -13,12 +13,60 @@
       subtitle="Business-level activity across the platform"
     />
 
-    <%!-- Filters --%>
-    <div class="bg-base-200 rounded-lg p-4 mb-6">
-      <.form for={%{}} phx-change="filter" class="flex flex-wrap gap-4 items-end">
-        <div class="form-control">
-          <label class="label"><span class="label-text">Module</span></label>
-          <select name="filter[module]" class="select select-bordered select-sm">
+    <%!-- Activity List --%>
+    <.table_default
+      id="activity-table"
+      variant="zebra"
+      size="sm"
+      class="w-full"
+      toggleable={true}
+      items={@entries}
+      card_title={fn entry -> entry.action end}
+      card_fields={
+        fn entry ->
+          fields = [
+            %{
+              label: "Actor",
+              value: if(entry.actor, do: entry.actor.email, else: "System")
+            }
+          ]
+
+          fields =
+            if entry.resource_type do
+              fields ++ [%{label: "Subject", value: entry.resource_type}]
+            else
+              fields
+            end
+
+          fields =
+            if entry.target do
+              fields ++ [%{label: "Target", value: entry.target.email}]
+            else
+              fields
+            end
+
+          fields =
+            if entry.metadata["role"] do
+              fields ++ [%{label: "Role", value: entry.metadata["role"]}]
+            else
+              fields
+            end
+
+          fields ++
+            [
+              %{
+                label: "Date",
+                value:
+                  "#{Calendar.strftime(entry.inserted_at, "%b %d, %Y %H:%M")} (#{format_time_ago(entry.inserted_at)})"
+              }
+            ]
+        end
+      }
+    >
+      <:toolbar_title>
+        <.form for={%{}} phx-change="filter" class="flex flex-wrap items-center gap-2">
+          <span class="text-sm text-base-content/70 whitespace-nowrap">Module:</span>
+          <select name="filter[module]" class="select select-sm w-36 min-w-0">
             <option value="">All Modules</option>
             <%= for mod <- @modules do %>
               <option value={mod} selected={@filter_module == mod}>
@@ -26,11 +74,8 @@
               </option>
             <% end %>
           </select>
-        </div>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">Mode</span></label>
-          <select name="filter[mode]" class="select select-bordered select-sm">
+          <span class="text-sm text-base-content/70 whitespace-nowrap">Mode:</span>
+          <select name="filter[mode]" class="select select-sm w-32 min-w-0">
             <option value="">All Modes</option>
             <%= for mode <- @modes do %>
               <option value={mode} selected={@filter_mode == mode}>
@@ -38,11 +83,8 @@
               </option>
             <% end %>
           </select>
-        </div>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">Action</span></label>
-          <select name="filter[action]" class="select select-bordered select-sm">
+          <span class="text-sm text-base-content/70 whitespace-nowrap">Action:</span>
+          <select name="filter[action]" class="select select-sm w-40 min-w-0">
             <option value="">All Actions</option>
             <%= for action <- @action_types do %>
               <option value={action} selected={@filter_action == action}>
@@ -50,11 +92,8 @@
               </option>
             <% end %>
           </select>
-        </div>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">Resource Type</span></label>
-          <select name="filter[resource_type]" class="select select-bordered select-sm">
+          <span class="text-sm text-base-content/70 whitespace-nowrap">Type:</span>
+          <select name="filter[resource_type]" class="select select-sm w-36 min-w-0">
             <option value="">All Types</option>
             <%= for rt <- @resource_types do %>
               <option value={rt} selected={@filter_resource_type == rt}>
@@ -62,195 +101,149 @@
               </option>
             <% end %>
           </select>
-        </div>
-      </.form>
-    </div>
-
-    <%!-- Activity List --%>
-    <%= if Enum.empty?(@entries) do %>
-      <div class="text-center py-12 text-base-content/60">
-        <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-2 opacity-50" />
-        <p>No activities recorded yet</p>
-      </div>
-    <% else %>
-      <.table_default
-        id="activity-table"
-        variant="zebra"
-        size="sm"
-        class="w-full"
-        toggleable={true}
-        items={@entries}
-        card_title={fn entry -> entry.action end}
-        card_fields={
-          fn entry ->
-            fields = [
-              %{
-                label: "Actor",
-                value: if(entry.actor, do: entry.actor.email, else: "System")
-              }
-            ]
-
-            fields =
-              if entry.resource_type do
-                fields ++ [%{label: "Subject", value: entry.resource_type}]
-              else
-                fields
-              end
-
-            fields =
-              if entry.target do
-                fields ++ [%{label: "Target", value: entry.target.email}]
-              else
-                fields
-              end
-
-            fields =
-              if entry.metadata["role"] do
-                fields ++ [%{label: "Role", value: entry.metadata["role"]}]
-              else
-                fields
-              end
-
-            fields ++
-              [
-                %{
-                  label: "Date",
-                  value:
-                    "#{Calendar.strftime(entry.inserted_at, "%b %d, %Y %H:%M")} (#{format_time_ago(entry.inserted_at)})"
-                }
-              ]
-          end
-        }
-      >
-        <:toolbar_title>
-          <span class="text-sm text-base-content/60">{@total} activities</span>
-        </:toolbar_title>
-        <:toolbar_actions>
-          <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-            Clear filters
+        </.form>
+      </:toolbar_title>
+      <:toolbar_actions>
+        <span class="text-sm text-base-content/60 whitespace-nowrap">
+          {@total} activities
+        </span>
+        <%= if @filter_module not in [nil, ""] or @filter_mode not in [nil, ""] or
+                   @filter_action not in [nil, ""] or @filter_resource_type not in [nil, ""] do %>
+          <button type="button" phx-click="clear_filters" class="btn btn-sm btn-outline">
+            <.icon name="hero-x-mark" class="w-4 h-4" /> Clear filters
           </button>
-        </:toolbar_actions>
-        <:card_header :let={entry}>
-          <span class={"badge badge-sm #{action_badge_color(entry.action)}"}>
-            {entry.action}
-          </span>
-        </:card_header>
+        <% end %>
+      </:toolbar_actions>
+      <:card_header :let={entry}>
+        <span class={"badge badge-sm #{action_badge_color(entry.action)}"}>
+          {entry.action}
+        </span>
+      </:card_header>
 
-        <:card_actions :let={entry}>
-          <.link
-            navigate={Routes.path("/admin/activity/#{entry.uuid}")}
-            class="btn btn-sm btn-outline btn-info"
-          >
-            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> View
-          </.link>
-        </:card_actions>
+      <:card_actions :let={entry}>
+        <.link
+          navigate={Routes.path("/admin/activity/#{entry.uuid}")}
+          class="btn btn-sm btn-outline btn-info"
+        >
+          <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> View
+        </.link>
+      </:card_actions>
 
-        <.table_default_header>
-          <.table_default_row hover={false}>
-            <.table_default_header_cell>Module</.table_default_header_cell>
-            <.table_default_header_cell>Mode</.table_default_header_cell>
-            <.table_default_header_cell>Activity</.table_default_header_cell>
-            <.table_default_header_cell>Actor</.table_default_header_cell>
-            <.table_default_header_cell>Details</.table_default_header_cell>
-            <.table_default_header_cell>Subject</.table_default_header_cell>
-            <.table_default_header_cell>Date</.table_default_header_cell>
-            <.table_default_header_cell class="w-12"></.table_default_header_cell>
+      <.table_default_header>
+        <.table_default_row hover={false}>
+          <.table_default_header_cell>Module</.table_default_header_cell>
+          <.table_default_header_cell>Mode</.table_default_header_cell>
+          <.table_default_header_cell>Activity</.table_default_header_cell>
+          <.table_default_header_cell>Actor</.table_default_header_cell>
+          <.table_default_header_cell>Details</.table_default_header_cell>
+          <.table_default_header_cell>Subject</.table_default_header_cell>
+          <.table_default_header_cell>Date</.table_default_header_cell>
+          <.table_default_header_cell class="w-12"></.table_default_header_cell>
+        </.table_default_row>
+      </.table_default_header>
+
+      <.table_default_body>
+        <%= if Enum.empty?(@entries) do %>
+          <.table_default_row>
+            <.table_default_cell colspan={8}>
+              <div class="text-center py-12 text-base-content/60">
+                <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No activities recorded yet</p>
+              </div>
+            </.table_default_cell>
           </.table_default_row>
-        </.table_default_header>
-
-        <.table_default_body>
-          <%= for entry <- @entries do %>
-            <.table_default_row>
-              <.table_default_cell class="text-sm">
-                <%= if entry.module do %>
-                  <span class="badge badge-outline badge-xs">{entry.module}</span>
-                <% else %>
-                  <span class="text-base-content/30">—</span>
-                <% end %>
-              </.table_default_cell>
-              <.table_default_cell class="text-sm">
-                <%= if entry.mode do %>
-                  <span class={"badge badge-xs #{mode_badge_color(entry.mode)}"}>
-                    {entry.mode}
-                  </span>
-                <% else %>
-                  <span class="text-base-content/30">—</span>
-                <% end %>
-              </.table_default_cell>
-              <.table_default_cell>
-                <span class={"badge badge-sm #{action_badge_color(entry.action)}"}>
-                  {entry.action}
+        <% end %>
+        <%= for entry <- @entries do %>
+          <.table_default_row>
+            <.table_default_cell class="text-sm">
+              <%= if entry.module do %>
+                <span class="badge badge-outline badge-xs">{entry.module}</span>
+              <% else %>
+                <span class="text-base-content/30">—</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell class="text-sm">
+              <%= if entry.mode do %>
+                <span class={"badge badge-xs #{mode_badge_color(entry.mode)}"}>
+                  {entry.mode}
                 </span>
-              </.table_default_cell>
-              <.table_default_cell class="text-sm">
-                <%= if entry.actor do %>
-                  <span class="font-semibold">{entry.actor.email}</span>
-                  <%= if entry.metadata["actor_role"] do %>
-                    <span class={[
-                      "badge badge-xs ml-1",
-                      if(entry.metadata["actor_role"] == "admin",
-                        do: "badge-warning",
-                        else: "badge-ghost"
-                      )
-                    ]}>
-                      {entry.metadata["actor_role"]}
-                    </span>
-                  <% end %>
-                <% else %>
-                  <span class="text-base-content/50">System</span>
+              <% else %>
+                <span class="text-base-content/30">—</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell>
+              <span class={"badge badge-sm #{action_badge_color(entry.action)}"}>
+                {entry.action}
+              </span>
+            </.table_default_cell>
+            <.table_default_cell class="text-sm">
+              <%= if entry.actor do %>
+                <span class="font-semibold">{entry.actor.email}</span>
+                <%= if entry.metadata["actor_role"] do %>
+                  <span class={[
+                    "badge badge-xs ml-1",
+                    if(entry.metadata["actor_role"] == "admin",
+                      do: "badge-warning",
+                      else: "badge-ghost"
+                    )
+                  ]}>
+                    {entry.metadata["actor_role"]}
+                  </span>
                 <% end %>
-              </.table_default_cell>
-              <.table_default_cell class="text-xs text-base-content/60">
-                <%= if entry.target && entry.target_uuid != entry.resource_uuid do %>
-                  <div class="mb-0.5">
-                    <span class="text-base-content/50">&rarr;</span>
-                    <span>{entry.target.email}</span>
-                  </div>
-                <% end %>
-                <% summary = summarize_details(entry.metadata) %>
-                <%= if summary do %>
-                  <span>{summary}</span>
-                <% else %>
-                  <span class="text-base-content/30">—</span>
-                <% end %>
-              </.table_default_cell>
-              <.table_default_cell>
-                <%= if entry.resource_type do %>
-                  <span class="badge badge-ghost badge-xs">{entry.resource_type}</span>
-                  <%= case Map.get(@resource_users, entry.resource_uuid) do %>
-                    <% %{email: email} -> %>
-                      <span class="text-xs ml-1">{email}</span>
-                    <% _ -> %>
-                      <%= if entry.resource_uuid do %>
-                        <span class="text-xs text-base-content/40 ml-1">
-                          {String.slice(to_string(entry.resource_uuid), 0..7)}
-                        </span>
-                      <% end %>
-                  <% end %>
-                <% else %>
-                  <span class="text-base-content/30">—</span>
-                <% end %>
-              </.table_default_cell>
-              <.table_default_cell class="text-xs text-base-content/60">
-                <div>{Calendar.strftime(entry.inserted_at, "%b %d, %Y")}</div>
-                <div class="text-base-content/40">
-                  {Calendar.strftime(entry.inserted_at, "%H:%M:%S")}
+              <% else %>
+                <span class="text-base-content/50">System</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell class="text-xs text-base-content/60">
+              <%= if entry.target && entry.target_uuid != entry.resource_uuid do %>
+                <div class="mb-0.5">
+                  <span class="text-base-content/50">&rarr;</span>
+                  <span>{entry.target.email}</span>
                 </div>
-              </.table_default_cell>
-              <.table_default_cell>
-                <.link
-                  navigate={Routes.path("/admin/activity/#{entry.uuid}")}
-                  class="btn btn-ghost btn-xs btn-square"
-                  title="View details"
-                >
-                  <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-                </.link>
-              </.table_default_cell>
-            </.table_default_row>
-          <% end %>
-        </.table_default_body>
-      </.table_default>
-    <% end %>
+              <% end %>
+              <% summary = summarize_details(entry.metadata) %>
+              <%= if summary do %>
+                <span>{summary}</span>
+              <% else %>
+                <span class="text-base-content/30">—</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell>
+              <%= if entry.resource_type do %>
+                <span class="badge badge-ghost badge-xs">{entry.resource_type}</span>
+                <%= case Map.get(@resource_users, entry.resource_uuid) do %>
+                  <% %{email: email} -> %>
+                    <span class="text-xs ml-1">{email}</span>
+                  <% _ -> %>
+                    <%= if entry.resource_uuid do %>
+                      <span class="text-xs text-base-content/40 ml-1">
+                        {String.slice(to_string(entry.resource_uuid), 0..7)}
+                      </span>
+                    <% end %>
+                <% end %>
+              <% else %>
+                <span class="text-base-content/30">—</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell class="text-xs text-base-content/60">
+              <div>{Calendar.strftime(entry.inserted_at, "%b %d, %Y")}</div>
+              <div class="text-base-content/40">
+                {Calendar.strftime(entry.inserted_at, "%H:%M:%S")}
+              </div>
+            </.table_default_cell>
+            <.table_default_cell>
+              <.link
+                navigate={Routes.path("/admin/activity/#{entry.uuid}")}
+                class="btn btn-ghost btn-xs btn-square"
+                title="View details"
+              >
+                <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+              </.link>
+            </.table_default_cell>
+          </.table_default_row>
+        <% end %>
+      </.table_default_body>
+    </.table_default>
 
     <%!-- Pagination --%>
     <%= if @total_pages > 1 do %>
