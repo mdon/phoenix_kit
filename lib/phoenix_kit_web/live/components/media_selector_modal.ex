@@ -492,14 +492,19 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # another object's folder but are also shared with this one.
   defp scope_files_by_folder(query, nil), do: query
 
+  # Scopes to the folder AND every nested folder beneath it, so a picker
+  # scoped to (e.g.) an order's folder also surfaces images uploaded into
+  # its sub-order subfolders.
   defp scope_files_by_folder(query, folder_uuid) do
+    folder_uuids = Storage.folder_subtree_uuids(folder_uuid)
+
     linked_subq =
       from(fl in FolderLink,
-        where: fl.folder_uuid == ^folder_uuid,
+        where: fl.folder_uuid in ^folder_uuids,
         select: fl.file_uuid
       )
 
-    where(query, [f], f.folder_uuid == ^folder_uuid or f.uuid in subquery(linked_subq))
+    where(query, [f], f.folder_uuid in ^folder_uuids or f.uuid in subquery(linked_subq))
   end
 
   defp scope_files_by_type(query, :image), do: where(query, [f], f.file_type == "image")

@@ -562,6 +562,25 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
   # trash_folder / restore_folder / delete_folder_completely (V119)
   # ---------------------------------------------------------------------------
 
+  describe "folder_subtree_uuids/1" do
+    test "returns the root and every nested descendant, excluding siblings" do
+      %{scope: scope, child_a: a, child_b: b, grandchild: g, sibling: sibling} = build_tree()
+
+      uuids = MapSet.new(Storage.folder_subtree_uuids(scope.uuid))
+
+      assert MapSet.member?(uuids, scope.uuid)
+      assert MapSet.member?(uuids, a.uuid)
+      assert MapSet.member?(uuids, b.uuid)
+      assert MapSet.member?(uuids, g.uuid)
+      refute MapSet.member?(uuids, sibling.uuid)
+    end
+
+    test "a leaf folder returns just itself" do
+      %{grandchild: g} = build_tree()
+      assert Storage.folder_subtree_uuids(g.uuid) == [g.uuid]
+    end
+  end
+
   describe "trash_folder/2" do
     test "recursively trashes the folder + descendants + files in subtree" do
       %{scope: scope, child_a: child_a, grandchild: grandchild} = build_tree()
