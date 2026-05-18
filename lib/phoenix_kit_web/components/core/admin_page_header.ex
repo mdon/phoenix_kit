@@ -9,8 +9,6 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
 
   use Phoenix.Component
 
-  import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
-
   @doc """
   Renders an admin page header with title, subtitle, and optional actions.
 

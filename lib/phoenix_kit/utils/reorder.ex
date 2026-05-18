@@ -33,6 +33,8 @@ defmodule PhoenixKit.Utils.Reorder do
 
   import Ecto.Query
 
+  alias PhoenixKit.Utils.UUID
+
   @default_max_uuids 500
 
   @type result :: {:ok, non_neg_integer()} | {:error, :too_many_uuids}
@@ -92,7 +94,7 @@ defmodule PhoenixKit.Utils.Reorder do
 
   defp dedupe_uuids(ids) do
     ids
-    |> Enum.filter(&PhoenixKit.Utils.UUID.valid?/1)
+    |> Enum.filter(&UUID.valid?/1)
     |> Enum.uniq()
   end
 end
