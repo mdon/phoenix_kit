@@ -12,9 +12,18 @@ Three independent changes bundled:
 
 Overall solid. The search-regression fix is correct and the storage change is the cleanest part of the PR. A few issues below.
 
+## Resolution status
+
+Fixed in follow-up commits on `dev` (post-merge):
+
+- ✅ Role filter dropdown — `<option selected={@filter_role == ...}>` instead of the ignored `<select value=>`.
+- ✅ Activity empty state — distinguishes "No activities match the current filters" (with a Clear-filters button) from the genuinely-empty case. A follow-up `/simplify` pass extracted the shared filter-active check into `any_filter_active?/1` so the toolbar button and the empty-state message can't drift.
+- ✅ Users "Clear Filters" button — now drives a real `clear_filters` handler that resets search + role + account-type, and the filters-active check includes `@filter_account_type`.
+- ✅ Users empty-state colspan — `Enum.count(@selected_columns, &should_render_column?/1)`.
+
 ## Findings
 
-### BUG - MEDIUM — Role filter dropdown loses its selected state
+### BUG - MEDIUM — Role filter dropdown loses its selected state — ✅ FIXED
 
 `lib/phoenix_kit_web/live/users/users.html.heex` (toolbar_actions):
 
@@ -34,7 +43,7 @@ This is **preexisting** (the old code had the same `value={@filter_role}`), but 
 <option value="Owner" selected={@filter_role == "Owner"}>Owners Only</option>
 ```
 
-### IMPROVEMENT - MEDIUM — Activity empty state misleads on a zero-result filter
+### IMPROVEMENT - MEDIUM — Activity empty state misleads on a zero-result filter — ✅ FIXED
 
 `lib/phoenix_kit_web/live/activity/index.html.heex`:
 
@@ -45,11 +54,11 @@ This is **preexisting** (the old code had the same `value={@filter_role}`), but 
 
 Now that filters stay visible above an empty table, a user who filters down to zero matches is told "No activities recorded yet" — false; they have activities, just none matching. The Users page in this same PR handles this correctly (distinguishes "adjust your search/filter" from "no users registered yet"). Activity should do the same — branch the message on whether any filter is active (the `clear_filters` button already computes that condition).
 
-### NITPICK — Users "Clear Filters" button only clears search
+### NITPICK — Users "Clear Filters" button only clears search — ✅ FIXED
 
 The empty-state button (`phx-click="search" phx-value-search=""` + inline `onclick`) clears the search box but not `@filter_role` / `@filter_account_type`, despite the label saying "Clear Filters" and the text saying "adjusting your search or filter criteria". Preexisting, moved verbatim — worth a dedicated `clear_filters` handler like the Activity page has.
 
-### NITPICK — Users empty-state colspan can overshoot
+### NITPICK — Users empty-state colspan can overshoot — ✅ FIXED
 
 `colspan={length(@selected_columns)}` counts all selected columns, but rendered header cells are filtered through `should_render_column?/1`. If any selected column is non-renderable, the empty-state cell spans more columns than exist. Harmless visually; `Enum.count(@selected_columns, &should_render_column?/1)` would be exact.
 

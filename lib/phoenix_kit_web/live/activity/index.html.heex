@@ -107,8 +107,7 @@
         <span class="text-sm text-base-content/60 whitespace-nowrap">
           {@total} activities
         </span>
-        <%= if @filter_module not in [nil, ""] or @filter_mode not in [nil, ""] or
-                   @filter_action not in [nil, ""] or @filter_resource_type not in [nil, ""] do %>
+        <%= if any_filter_active?(assigns) do %>
           <button type="button" phx-click="clear_filters" class="btn btn-sm btn-outline">
             <.icon name="hero-x-mark" class="w-4 h-4" /> Clear filters
           </button>
@@ -148,8 +147,7 @@
             <.table_default_cell colspan={8}>
               <div class="text-center py-12 text-base-content/60">
                 <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <%= if @filter_module not in [nil, ""] or @filter_mode not in [nil, ""] or
-                         @filter_action not in [nil, ""] or @filter_resource_type not in [nil, ""] do %>
+                <%= if any_filter_active?(assigns) do %>
                   <p>No activities match the current filters</p>
                   <button
                     type="button"

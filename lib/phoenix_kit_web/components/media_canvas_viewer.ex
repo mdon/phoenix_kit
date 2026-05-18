@@ -156,68 +156,81 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     new_in_batch =
       Enum.reject(new_annotations, fn a -> Map.has_key?(current_by_uuid, a["uuid"]) end)
 
-    Enum.each(new_annotations, fn a ->
-      uuid = a["uuid"]
-      current = Map.get(current_by_uuid, uuid)
+    wrote? =
+      Enum.reduce(new_annotations, false, fn a, wrote? ->
+        uuid = a["uuid"]
+        current = Map.get(current_by_uuid, uuid)
 
-      result =
-        cond do
-          current && annotation_unchanged?(a, current) ->
-            :skip
+        result =
+          cond do
+            current && annotation_unchanged?(a, current) ->
+              :skip
 
-          current ->
-            Storage.EtcherAdapter.update(uuid, a)
+            current ->
+              Storage.EtcherAdapter.update(uuid, a)
 
-          true ->
-            attrs =
-              a
-              |> Map.put("target_type", "file")
-              |> Map.put("target_uuid", file_uuid)
-              |> creator_attrs(socket)
+            true ->
+              attrs =
+                a
+                |> Map.put("target_type", "file")
+                |> Map.put("target_uuid", file_uuid)
+                |> creator_attrs(socket)
 
-            Storage.EtcherAdapter.create(attrs)
+              Storage.EtcherAdapter.create(attrs)
+          end
+
+        case result do
+          :skip ->
+            wrote?
+
+          {:ok, _} ->
+            true
+
+          {:error, reason} ->
+            Logger.warning(
+              "[MediaCanvasViewer] annotation persist failed kind=#{inspect(a["kind"])} uuid=#{inspect(uuid)}: #{inspect(reason)}"
+            )
+
+            wrote?
         end
+      end)
 
-      case result do
-        :skip ->
-          :ok
+    # Deletes — uuids in our state that aren't in Etcher's anymore.
+    to_delete =
+      Enum.reject(socket.assigns.viewer_annotations, fn a ->
+        Map.has_key?(new_by_uuid, to_string(a.uuid))
+      end)
 
-        {:ok, _} ->
+    Enum.each(to_delete, fn a ->
+      uuid = to_string(a.uuid)
+
+      case Storage.EtcherAdapter.delete(uuid) do
+        :ok ->
           :ok
 
         {:error, reason} ->
           Logger.warning(
-            "[MediaCanvasViewer] annotation persist failed kind=#{inspect(a["kind"])} uuid=#{inspect(uuid)}: #{inspect(reason)}"
+            "[MediaCanvasViewer] annotation delete failed uuid=#{inspect(uuid)}: #{inspect(reason)}"
           )
       end
     end)
 
-    # Deletes — uuids in our state that aren't in Etcher's anymore.
-    Enum.each(socket.assigns.viewer_annotations, fn a ->
-      uuid = to_string(a.uuid)
+    if wrote? or to_delete != [] do
+      # A row was created / updated / deleted — reload from DB to pick up
+      # fresh comment metadata + cascade changes (deleted-annotation
+      # comments cascading out), then rebuild the canvas blob.
+      refreshed = load_annotations_for(file_uuid)
+      refresh_file_comments(socket)
 
-      unless Map.has_key?(new_by_uuid, uuid) do
-        case Storage.EtcherAdapter.delete(uuid) do
-          :ok ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning(
-              "[MediaCanvasViewer] annotation delete failed uuid=#{inspect(uuid)}: #{inspect(reason)}"
-            )
-        end
-      end
-    end)
-
-    # Reload from DB to pick up fresh comment metadata + cascade
-    # changes (deleted-annotation comments cascading out).
-    refreshed = load_annotations_for(file_uuid)
-    refresh_file_comments(socket)
-
-    socket
-    |> assign(:viewer_annotations, refreshed)
-    |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
-    |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
+      socket
+      |> assign(:viewer_annotations, refreshed)
+      |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
+      |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
+    else
+      # Etcher re-broadcast with no net change — skip the reload and
+      # canvas rebuild entirely.
+      socket
+    end
   end
 
   # Etcher re-broadcasts the *entire* annotation list on every shape

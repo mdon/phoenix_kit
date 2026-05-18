@@ -21,7 +21,7 @@ Fixed in follow-up commit on `dev` (post-merge):
 
 - ✅ V121 constraint guard — DO-block guard removed, `ADD CONSTRAINT` now unconditional after the `DROP IF EXISTS`.
 - ✅ `:uuid` castable on update — `Annotations.update/2` now strips `:uuid` from attrs before the changeset.
-- ✅ `sync_annotations/3` no-op UPDATE storm — added an `annotation_unchanged?/2` dirty-check (geometry/style/kind) so untouched rows skip their UPDATE.
+- ✅ `sync_annotations/3` no-op UPDATE storm — added an `annotation_unchanged?/2` dirty-check (geometry/style/kind) so untouched rows skip their UPDATE. A follow-up `/simplify` pass also guards the post-loop DB reload + canvas rebuild behind a `wrote? or to_delete != []` check, so a re-broadcast with no net change returns the socket untouched.
 
 Left for the developer (need decisions / external-package knowledge):
 
@@ -93,6 +93,13 @@ rewrites all N rows. Each is its own round-trip (no surrounding transaction).
 Diff geometry/style/metadata against `current_by_uuid` before issuing the
 update; skip rows that are byte-identical. Worth it once a file accumulates a
 handful of annotations.
+
+**Resolution:** `annotation_unchanged?/2` now compares geometry/style/kind and
+returns a `:skip` for untouched rows. The post-loop reload (`load_annotations_for`
++ `refresh_file_comments` + `build_viewer_canvas`) is gated on whether any row
+was actually created/updated/deleted — a zero-net-change re-broadcast now does
+no DB work at all. (`metadata` is intentionally not compared: it's edited via
+the composer, not `annotations-changed`.)
 
 ### IMPROVEMENT - LOW (verify) — hard-delete of linked comments bypasses the comments context — ⚠️ LEFT FOR DEVELOPER
 
