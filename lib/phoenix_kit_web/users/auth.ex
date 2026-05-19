@@ -1843,7 +1843,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   # typed; both shapes resolve into the same `live_session
   # :phoenix_kit_admin`, so there is no boundary to canonicalize away.
   defp process_valid_locale(conn, locale) do
-    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) do
+    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
+         prefixless_primary?() do
       redirect_default_locale_to_clean_url(conn, locale)
     else
       # URL-driven dialect — no user (see `process_as_default_locale/1`
@@ -1857,6 +1858,18 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> assign(:current_locale_base, locale)
       |> assign(:current_locale, full_dialect)
     end
+  end
+
+  # Reads the site-wide `default_language_no_prefix` setting. When ON,
+  # primary-language URLs are emitted prefixless and this plug
+  # 301-redirects `/<default>/...` to the prefixless shape to keep one
+  # canonical URL. When OFF (the default), the `/<default>/...` shape
+  # IS the canonical URL and must NOT be redirected — a 301 would
+  # discard any POST body. Defensive rescue mirrors `Routes`.
+  defp prefixless_primary? do
+    PhoenixKit.Modules.Languages.default_language_no_prefix?()
+  rescue
+    _ -> false
   end
 
   # Check if the request path is an admin path. Used by

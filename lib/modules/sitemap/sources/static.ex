@@ -284,14 +284,20 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
     "#{normalized_base}#{path}"
   end
 
-  # Add language prefix to path when in multi-language mode
-  # Single language: no prefix for anyone
-  # Multiple languages: ALL languages get prefix (including default)
-  defp build_path_with_language(path, language, _is_default) do
-    if language && !single_language_mode?() do
-      "/#{Languages.DialectMapper.extract_base(language)}#{path}"
-    else
-      path
+  # Skip rules for the language segment:
+  #   1. No language supplied — no segment to emit.
+  #   2. Single-language mode — no language is meaningful.
+  #   3. `is_default` is true AND the site-wide
+  #      `default_language_no_prefix` setting is on (keep the sitemap
+  #      consistent with the served URL shape so indexed canonicals
+  #      don't drift from served URLs).
+  # Everything else keeps the prefix.
+  defp build_path_with_language(path, language, is_default) do
+    cond do
+      is_nil(language) -> path
+      single_language_mode?() -> path
+      is_default and Languages.default_language_no_prefix?() -> path
+      true -> "/#{Languages.DialectMapper.extract_base(language)}#{path}"
     end
   end
 
