@@ -16,11 +16,13 @@ Fixed in-tree on `dev` after review:
 
 Surfaced during the fix pass (not in original review):
 
-- ⚠️ Dialyzer warning on the PR's own `@spec` —
-  `lib/modules/languages/languages.ex:567` declares
-  `PhoenixKit.Settings.Setting.t()` but `Setting` defines no
-  `@type t`. Dialyzer reports `unknown_type` under `mix quality.ci`.
-  Pre-existing in the merged PR; documented below.
+- ✅ Dialyzer warning on the PR's own `@spec` —
+  `lib/modules/languages/languages.ex:567` declared
+  `PhoenixKit.Settings.Setting.t()` but the schema had no `@type t`.
+  `mix precommit` failed with `unknown_type`. Added the missing
+  `@type t :: %__MODULE__{...}` to `PhoenixKit.Settings.Setting`
+  (`lib/phoenix_kit/settings/setting.ex`); precommit now clean
+  (dialyzer 161 errors / 161 skipped — same as baseline).
 
 ## Summary
 
@@ -115,7 +117,7 @@ never evaluates them:
 
 Adding `doctest PhoenixKit.Utils.Routes` later is now safe.
 
-### BUG - LOW — `@spec set_default_language_no_prefix/1` references undefined `Setting.t/0` — ⚠️ OPEN
+### BUG - LOW — `@spec set_default_language_no_prefix/1` references undefined `Setting.t/0` — ✅ FIXED
 
 Surfaced when running `mix quality.ci` after the docstring fix:
 
@@ -138,16 +140,12 @@ Settings consumers, so this is a workspace-wide pre-existing issue —
 PR #552 didn't introduce the underlying gap, but it added a fresh spec
 that now trips dialyzer.
 
-Two ways to clear it:
-
-1. Add `@type t :: %__MODULE__{...}` to `PhoenixKit.Settings.Setting`
-   (preferred — fixes everywhere at once).
-2. Loosen this spec to `Settings.update_setting/2`'s actual return
-   shape, e.g. `{:ok, struct()} | {:error, Ecto.Changeset.t()}`.
-
-Left open — choosing between (1) and (2) is the maintainer's call and
-sits outside the scope the user asked me to fix (the two findings
-above).
+**Fix applied** (`lib/phoenix_kit/settings/setting.ex`): added
+`@type t :: %__MODULE__{...}` to the schema, with every field typed
+against its column. Fixes the warning at the source — any future
+consumer that specs `Settings.Setting.t()` will type-check cleanly
+without further work. Verified with `mix precommit` (dialyzer:
+161 errors / 161 skipped, same as baseline pre-PR).
 
 ### NITPICK — Free-floating comments inside `cond` clauses
 
