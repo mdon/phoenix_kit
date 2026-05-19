@@ -37,8 +37,10 @@ defmodule PhoenixKit.Utils.Routes do
     base_path = if url_prefix === "/", do: "", else: url_prefix
 
     cond do
-      # Admin paths ALWAYS get locale prefix to stay within the
-      # :phoenix_kit_admin_locale live_session and avoid full-page reloads.
+      # Admin paths follow the same primary-prefixless rule as non-admin
+      # paths (see `build_admin_path/3`). The dual-scope router emission
+      # keeps `/phoenix_kit/admin/*` AND `/phoenix_kit/:locale/admin/*`
+      # both reachable, so the emitted shape is purely cosmetic.
       admin_path?(url_path) ->
         locale = resolve_locale(opts)
         build_admin_path(base_path, url_path, locale)
