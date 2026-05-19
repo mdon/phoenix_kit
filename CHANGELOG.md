@@ -1,3 +1,25 @@
+## 1.7.114 - 2026-05-19
+
+### Changed
+- Admin, public, and authenticated-dashboard LiveView routes are each served
+  from a single unified `live_session` (`:phoenix_kit_admin`,
+  `:phoenix_kit_public`, `:phoenix_kit_authenticated`) spanning both the
+  primary-language (`/<prefix>/...`) and locale-prefixed
+  (`/<prefix>/:locale/...`) URL shapes. Switching locale now stays on the
+  WebSocket via `push_navigate` instead of forcing a full-page reload —
+  previously each surface was split across two sessions and every locale
+  change crossed a `live_session` boundary.
+- `DialectMapper.resolve_dialect/2` collapsed to `resolve_dialect/1`: dialect
+  resolution is URL-driven and no longer consults a user's
+  `custom_fields["preferred_locale"]`. Removed the now-unused
+  `User.preferred_locale_changeset/2` and `User.get_preferred_locale/1`.
+
+### Fixed
+- Table RowMenu dropdown no longer leaves a duplicate menu element behind when
+  a server-side LiveView update re-renders a row while the menu is open (the
+  menu is portaled to `<body>` while open, so morphdom otherwise re-creates a
+  copy inside the row).
+
 ## 1.7.113 - 2026-05-18
 
 ### Added
