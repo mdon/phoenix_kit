@@ -1,6 +1,23 @@
 ## 1.7.114 - 2026-05-19
 
+### Added
+- `module_assigns` attribute on `LayoutWrapper.app_layout` — a single map
+  whose keys are merged into the assigns passed to a host's parent layout,
+  letting feature modules thread arbitrary host-consumable data (e.g.
+  `phoenix_kit_publishing_translations`) across the layout boundary without
+  core having to declare each key (PR #551).
+
 ### Changed
+- Locale resolution is now URL-authoritative. The `phoenix_kit_locale_base`
+  session value and `user.custom_fields["preferred_locale"]` are no longer
+  read for routing — the URL's locale segment (or its absence) is the only
+  source of truth across both the LiveView mount and the HTTP plug. Fixes a
+  sticky-locale bug where visiting one locale-prefixed URL pinned that locale
+  onto every later prefixless URL (PR #551).
+- Admin URLs drop the locale segment for the primary language, matching
+  non-admin behaviour. Both `/<prefix>/admin/*` and
+  `/<prefix>/:locale/admin/*` remain routable, so legacy prefixed links keep
+  working (PR #551).
 - Admin, public, and authenticated-dashboard LiveView routes are each served
   from a single unified `live_session` (`:phoenix_kit_admin`,
   `:phoenix_kit_public`, `:phoenix_kit_authenticated`) spanning both the
@@ -15,10 +32,14 @@
   `User.preferred_locale_changeset/2` and `User.get_preferred_locale/1`.
 
 ### Fixed
-- Table RowMenu dropdown no longer leaves a duplicate menu element behind when
-  a server-side LiveView update re-renders a row while the menu is open (the
-  menu is portaled to `<body>` while open, so morphdom otherwise re-creates a
-  copy inside the row).
+- Table RowMenu dropdown is portaled to `<body>` while open so its
+  `position: fixed` coordinates escape any `<dialog>` or `transform`/`contain`
+  containing block — previously the menu could render far off-screen inside
+  modals (PR #551). It also no longer leaves a duplicate menu element behind
+  when a server-side LiveView update re-renders the row while the menu is
+  open.
+- Publishing route dispatch threads the workspace `url_prefix`, so it keeps
+  working when PhoenixKit is mounted under a non-root path (PR #551).
 
 ## 1.7.113 - 2026-05-18
 
