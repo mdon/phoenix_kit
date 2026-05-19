@@ -2172,6 +2172,16 @@ if (typeof window.Chart === "undefined") {
       this.trigger = this.el.querySelector("[data-row-menu-trigger]");
       this.menu = this.el.querySelector("[data-row-menu-content]");
       this.isOpen = false;
+      // Track where the menu element originally lives so we can restore
+      // it on close. We portal it to <body> while open so `position: fixed`
+      // coords escape any containing block created by a `<dialog>` in the
+      // top layer or any ancestor with `transform`/`contain`/`filter` (all
+      // of which establish a new fixed-positioning origin). Without the
+      // portal, `getBoundingClientRect()` returns viewport coords but the
+      // browser applies them relative to the nearest containing block,
+      // shoving the menu hundreds of pixels off-screen inside modals.
+      this._homeParent = this.menu.parentNode;
+      this._homeNextSibling = this.menu.nextSibling;
 
       this._onTriggerClick = (e) => {
         e.stopPropagation();
@@ -2208,6 +2218,16 @@ if (typeof window.Chart === "undefined") {
     },
 
     _open() {
+      // Portal to <body> before measuring. If the menu sits inside a
+      // <dialog> or any ancestor that establishes a fixed-positioning
+      // containing block, `position: fixed` coords would be interpreted
+      // relative to that ancestor instead of the viewport. Moving the
+      // menu to <body> makes `getBoundingClientRect()` and the resulting
+      // `left`/`top` values consistent.
+      if (this.menu.parentNode !== document.body) {
+        document.body.appendChild(this.menu);
+      }
+
       var triggerRect = this.trigger.getBoundingClientRect();
       var vw = window.innerWidth;
       var vh = window.innerHeight;
@@ -2251,6 +2271,19 @@ if (typeof window.Chart === "undefined") {
       this.trigger.setAttribute("aria-expanded", "false");
       document.removeEventListener("click", this._onOutsideClick, true);
       document.removeEventListener("keydown", this._onKeydown);
+
+      // Restore the menu to its original location so LiveView's diff
+      // patching can find it on subsequent updates. Without this the
+      // menu would stay parented to <body> and LV's morphdom pass would
+      // see a "missing" element inside the row and re-create it,
+      // doubling the DOM and breaking the next open.
+      if (this._homeParent && this.menu.parentNode !== this._homeParent) {
+        if (this._homeNextSibling && this._homeNextSibling.parentNode === this._homeParent) {
+          this._homeParent.insertBefore(this.menu, this._homeNextSibling);
+        } else {
+          this._homeParent.appendChild(this.menu);
+        }
+      }
     },
 
     destroyed() {
