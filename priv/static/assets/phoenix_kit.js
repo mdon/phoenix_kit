@@ -2217,6 +2217,20 @@ if (typeof window.Chart === "undefined") {
       this.menu.addEventListener("click", this._onMenuClick);
     },
 
+    updated() {
+      // While the menu is open it lives portaled under <body>, outside
+      // this wrapper. A server diff to this row makes morphdom notice the
+      // <ul data-row-menu-content> "missing" from the wrapper and re-create
+      // a fresh (hidden) duplicate inside it. Drop that duplicate so the
+      // real, portaled menu stays the single source of truth — without
+      // this, `_close()` would restore the portaled menu alongside the
+      // duplicate and the next open would measure/operate on the wrong one.
+      if (this.isOpen) {
+        var dup = this.el.querySelector("[data-row-menu-content]");
+        if (dup && dup !== this.menu) dup.remove();
+      }
+    },
+
     _open() {
       // Portal to <body> before measuring. If the menu sits inside a
       // <dialog> or any ancestor that establishes a fixed-positioning

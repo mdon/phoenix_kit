@@ -709,9 +709,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     current_base = socket.assigns[:current_locale_base]
 
     if current_base != locale and DialectMapper.valid_base_code?(locale) do
-      # URL-driven dialect: don't pass the user — `DialectMapper.resolve_dialect/2`
-      # would otherwise upgrade base "en" → user.preferred_locale "en-GB",
-      # which contradicts the URL-is-authoritative semantic we now hold
+      # URL-driven dialect: `DialectMapper.resolve_dialect/1` maps the base
+      # code straight to its default dialect. It deliberately takes no user
+      # — a user's `preferred_locale` would otherwise upgrade base "en" →
+      # "en-GB", contradicting the URL-is-authoritative semantic we now hold
       # across both the LV mount and the HTTP plug. `preferred_locale` is
       # still written by the switcher hook but no longer read for routing
       # (base or dialect).
@@ -812,10 +813,10 @@ defmodule PhoenixKitWeb.Users.Auth do
       end ||
         Routes.get_default_admin_locale()
 
-    # URL-driven dialect: pass no user so `resolve_dialect/2` returns
-    # the default mapping for this base. The user's preferred_locale
-    # is intentionally NOT consulted for routing (see
-    # `maybe_update_locale_from_params/2` for the matching rationale).
+    # URL-driven dialect: `resolve_dialect/1` returns the default mapping
+    # for this base. The user's preferred_locale is intentionally NOT
+    # consulted for routing (see `maybe_update_locale_from_params/2` for
+    # the matching rationale).
     current_locale = DialectMapper.resolve_dialect(current_locale_base)
 
     # Set Gettext locale for translations (backend-specific + global, so
@@ -1758,9 +1759,9 @@ defmodule PhoenixKitWeb.Users.Auth do
         # URL is the only source of truth. The preferred_locale field is
         # still written by the switcher (so the data is preserved for any
         # future feature that wants to re-enable it) but never read for
-        # routing — and that includes dialect resolution: `resolve_dialect/2`
-        # gets called without the user so user-preferred dialect upgrades
-        # (e.g. base "en" → "en-GB" via custom_fields) don't sneak back in.
+        # routing — and that includes dialect resolution: `resolve_dialect/1`
+        # takes no user, so user-preferred dialect upgrades (e.g. base
+        # "en" → "en-GB" via custom_fields) cannot sneak back in.
         default_base = Routes.get_default_admin_locale()
         default_dialect = DialectMapper.resolve_dialect(default_base)
 
