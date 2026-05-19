@@ -47,4 +47,32 @@ defmodule PhoenixKit.Utils.RoutesTest do
       assert Routes.path("/users/log-in", locale: :none) == "/phoenix_kit/users/log-in"
     end
   end
+
+  describe "admin_path/2 — backcompat for legacy /en/admin URLs" do
+    # The prefixed shape is no longer EMITTED for the primary language,
+    # but it must still RESOLVE (the dual-scope admin route emission
+    # declares both `/:locale/admin/*` and `/admin/*`). Anyone with a
+    # bookmark or external link pointing at `/phoenix_kit/en/admin/...`
+    # should still reach the page. This test pins the helper-side half
+    # of that contract: explicitly passing the primary locale produces
+    # the prefixless shape (intended), while a non-primary locale still
+    # produces the prefixed shape (which legacy `/en/admin/...` URLs
+    # also match against in the route table).
+    test "explicit primary locale → prefixless (intended emission)" do
+      assert Routes.admin_path("/admin/users", "en") == "/phoenix_kit/admin/users"
+    end
+
+    test "explicit non-primary locale → prefixed (also the shape a legacy /en/ URL takes)" do
+      assert Routes.admin_path("/admin/users", "de") == "/phoenix_kit/de/admin/users"
+    end
+
+    test "dialect-shaped locale code keeps its prefix verbatim" do
+      # Full dialect codes (e.g. en-US) shouldn't ever reach the helper —
+      # callers normalise to base via DialectMapper first — but if they
+      # do, the helper passes them through unchanged. Pinning this so a
+      # future "smart-strip" refactor doesn't accidentally treat
+      # "en-US" the same as "en" and drop the prefix.
+      assert Routes.admin_path("/admin/users", "en-US") == "/phoenix_kit/en-US/admin/users"
+    end
+  end
 end
