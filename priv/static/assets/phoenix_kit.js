@@ -2218,13 +2218,9 @@ if (typeof window.Chart === "undefined") {
     },
 
     updated() {
-      // While the menu is open it lives portaled under <body>, outside
-      // this wrapper. A server diff to this row makes morphdom notice the
-      // <ul data-row-menu-content> "missing" from the wrapper and re-create
-      // a fresh (hidden) duplicate inside it. Drop that duplicate so the
-      // real, portaled menu stays the single source of truth — without
-      // this, `_close()` would restore the portaled menu alongside the
-      // duplicate and the next open would measure/operate on the wrong one.
+      // While open, the menu is portaled to <body>; a server diff to this
+      // row makes morphdom re-create a duplicate inside the wrapper. Drop
+      // it so the portaled menu stays the single source of truth.
       if (this.isOpen) {
         var dup = this.el.querySelector("[data-row-menu-content]");
         if (dup && dup !== this.menu) dup.remove();

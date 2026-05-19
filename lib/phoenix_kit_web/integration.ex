@@ -1077,148 +1077,104 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # Helper function to generate the unified public live_session.
+  # Builds one unified `live_session` for a PhoenixKit LiveView surface
+  # (public, admin, or authenticated dashboard).
   #
-  # Both public URL shapes — `/<prefix>/users/*` (primary language) and
-  # `/<prefix>/:locale/users/*` (every other locale) — live inside ONE
-  # `live_session :phoenix_kit_public`, so a front-end locale switch can
-  # `push_navigate` between the two shapes and stay on the WebSocket
-  # (mirrors `generate_admin_routes/2`; see the no-prefix plan, TODO 2).
+  # Each surface spans two URL shapes — `/<prefix>/...` for the primary
+  # language and `/<prefix>/:locale/...` for every other locale. Both
+  # shapes share ONE `live_session`, so a locale switch `push_navigate`s
+  # between them and stays on the WebSocket; a split session would force
+  # a full-page reload (see the no-prefix plan doc).
   #
-  # Auth LiveViews run their own redirect-if-authenticated check in
-  # mount/3, so the session uses the permissive
-  # :phoenix_kit_mount_current_scope hook. Non-live auth endpoints (form
-  # POSTs, OAuth and token GETs) stay outside this live_session — in
-  # `generate_basic_scope/1` and the localized scope of
-  # `generate_localized_routes/2`.
+  # `route_macro` is the surface's route-table macro
+  # (`phoenix_kit_admin_routes` etc.), called once per URL shape with the
+  # suffix its route helpers expect.
+  defp build_live_surface(url_prefix, pattern, session_name, on_mount, pipelines, route_macro) do
+    localized_routes = {route_macro, [], [:_locale]}
+    root_routes = {route_macro, [], [:""]}
+
+    quote do
+      live_session unquote(session_name), on_mount: unquote(on_mount) do
+        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
+          locale: ~r/^(#{unquote(pattern)})$/ do
+          pipe_through unquote(pipelines)
+          unquote(localized_routes)
+        end
+
+        scope unquote(url_prefix), PhoenixKitWeb do
+          pipe_through unquote(pipelines)
+          unquote(root_routes)
+        end
+      end
+    end
+  end
+
+  # Pipeline for the public and admin surfaces — neither has a plug-level
+  # auth gate (admin gates via the live_session `on_mount`). The
+  # shop-session plug is only present when phoenix_kit_ecommerce is.
+  defp public_admin_pipelines do
+    if Code.ensure_loaded?(PhoenixKitEcommerce.Web.Plugs.ShopSession) do
+      [
+        :browser,
+        :phoenix_kit_auto_setup,
+        :phoenix_kit_shop_session,
+        :phoenix_kit_locale_validation
+      ]
+    else
+      [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
+    end
+  end
+
+  # Public auth/confirmation LiveViews. The permissive
+  # :phoenix_kit_mount_current_scope hook is fine — each LiveView runs
+  # its own redirect-if-authenticated check in mount/3. Non-live auth
+  # endpoints (form POSTs, OAuth/token GETs) stay outside this
+  # live_session — in `generate_basic_scope/1` and the localized scope
+  # of `generate_localized_routes/2`.
   defp generate_public_live_routes(url_prefix, pattern) do
-    public_pipelines =
-      if Code.ensure_loaded?(PhoenixKitEcommerce.Web.Plugs.ShopSession) do
-        [
-          :browser,
-          :phoenix_kit_auto_setup,
-          :phoenix_kit_shop_session,
-          :phoenix_kit_locale_validation
-        ]
-      else
-        [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
-      end
-
-    quote do
-      live_session :phoenix_kit_public,
-        on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
-        # Localized public scope: /<prefix>/:locale/users/*
-        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-          locale: ~r/^(#{unquote(pattern)})$/ do
-          pipe_through unquote(public_pipelines)
-
-          phoenix_kit_public_routes(:_locale)
-        end
-
-        # Non-localized public scope: /<prefix>/users/* (primary language)
-        scope unquote(url_prefix), PhoenixKitWeb do
-          pipe_through unquote(public_pipelines)
-
-          phoenix_kit_public_routes(:"")
-        end
-      end
-    end
+    build_live_surface(
+      url_prefix,
+      pattern,
+      :phoenix_kit_public,
+      [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}],
+      public_admin_pipelines(),
+      :phoenix_kit_public_routes
+    )
   end
 
-  # Helper function to generate the unified admin live_session.
-  #
-  # Both admin URL shapes — `/<prefix>/admin/*` (primary language) and
-  # `/<prefix>/:locale/admin/*` (every other locale) — live inside ONE
-  # `live_session :phoenix_kit_admin`. Keeping them in a single session
-  # means an in-admin locale switch can `push_navigate` between the two
-  # shapes and stay on the WebSocket; a split session would force a
-  # full-page reload on every locale change (the pre-unification
-  # behaviour — see the no-prefix plan doc, TODO 1).
-  #
-  # The two scopes carry the same pipeline the public scopes use — admin
-  # routes have no plug-level auth gate; `:phoenix_kit_ensure_admin`
-  # runs as the live_session `on_mount`.
+  # Admin LiveViews. Gated by the `:phoenix_kit_ensure_admin` on_mount —
+  # no plug-level auth gate, so the pipeline matches the public surface.
   defp generate_admin_routes(url_prefix, pattern) do
-    admin_pipelines =
-      if Code.ensure_loaded?(PhoenixKitEcommerce.Web.Plugs.ShopSession) do
-        [
-          :browser,
-          :phoenix_kit_auto_setup,
-          :phoenix_kit_shop_session,
-          :phoenix_kit_locale_validation
-        ]
-      else
-        [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
-      end
-
-    quote do
-      live_session :phoenix_kit_admin,
-        on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}] do
-        # Localized admin scope: /<prefix>/:locale/admin/*
-        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-          locale: ~r/^(#{unquote(pattern)})$/ do
-          pipe_through unquote(admin_pipelines)
-
-          phoenix_kit_admin_routes(:_locale)
-        end
-
-        # Non-localized admin scope: /<prefix>/admin/* (primary language)
-        scope unquote(url_prefix), PhoenixKitWeb do
-          pipe_through unquote(admin_pipelines)
-
-          phoenix_kit_admin_routes(:"")
-        end
-      end
-    end
+    build_live_surface(
+      url_prefix,
+      pattern,
+      :phoenix_kit_admin,
+      [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}],
+      public_admin_pipelines(),
+      :phoenix_kit_admin_routes
+    )
   end
 
-  # Helper function to generate the unified authenticated dashboard
-  # live_session.
-  #
-  # Both dashboard URL shapes — `/<prefix>/dashboard/*` (primary
-  # language) and `/<prefix>/:locale/dashboard/*` — live inside ONE
-  # `live_session :phoenix_kit_authenticated`, so an in-dashboard locale
-  # switch `push_navigate`s between the two shapes and stays on the
-  # WebSocket (mirrors `generate_admin_routes/2` and
-  # `generate_public_live_routes/2`; see the no-prefix plan, TODO 3).
-  #
-  # Unlike the public/admin scopes, dashboard routes carry a plug-level
-  # auth gate (`:phoenix_kit_require_authenticated`); the live_session
-  # additionally runs the `:phoenix_kit_ensure_authenticated_scope` and
-  # context-provider on_mount hooks.
+  # Authenticated dashboard LiveViews. Unlike public/admin these carry a
+  # plug-level auth gate (`:phoenix_kit_require_authenticated`) plus the
+  # ensure-authenticated-scope and context-provider on_mount hooks.
   defp generate_authenticated_live_routes(url_prefix, pattern) do
-    quote do
-      live_session :phoenix_kit_authenticated,
-        on_mount: [
-          {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
-          {PhoenixKitWeb.Dashboard.ContextProvider, :default}
-        ] do
-        # Localized dashboard scope: /<prefix>/:locale/dashboard/*
-        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-          locale: ~r/^(#{unquote(pattern)})$/ do
-          pipe_through [
-            :browser,
-            :phoenix_kit_auto_setup,
-            :phoenix_kit_require_authenticated,
-            :phoenix_kit_locale_validation
-          ]
-
-          phoenix_kit_authenticated_routes(:_locale)
-        end
-
-        # Non-localized dashboard scope: /<prefix>/dashboard/* (primary language)
-        scope unquote(url_prefix), PhoenixKitWeb do
-          pipe_through [
-            :browser,
-            :phoenix_kit_auto_setup,
-            :phoenix_kit_require_authenticated,
-            :phoenix_kit_locale_validation
-          ]
-
-          phoenix_kit_authenticated_routes(:"")
-        end
-      end
-    end
+    build_live_surface(
+      url_prefix,
+      pattern,
+      :phoenix_kit_authenticated,
+      [
+        {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
+        {PhoenixKitWeb.Dashboard.ContextProvider, :default}
+      ],
+      [
+        :browser,
+        :phoenix_kit_auto_setup,
+        :phoenix_kit_require_authenticated,
+        :phoenix_kit_locale_validation
+      ],
+      :phoenix_kit_authenticated_routes
+    )
   end
 
   defmacro phoenix_kit_routes do
