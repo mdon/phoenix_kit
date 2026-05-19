@@ -46,6 +46,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Posts do
   require Logger
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.LocalePath
   # PhoenixKitPosts is an optional external package
   # All calls are guarded with Code.ensure_loaded?/1
   alias PhoenixKit.Modules.Sitemap.RouteResolver
@@ -221,30 +222,16 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Posts do
     _ -> false
   end
 
-  # Skip rules for the language segment:
-  #   1. No language supplied — no segment to emit.
-  #   2. Single-language mode — no language is meaningful.
-  #   3. `is_default` is true AND the site-wide
-  #      `default_language_no_prefix` setting is on (keep the sitemap
-  #      consistent with the served URL shape so indexed canonicals
-  #      don't drift from served URLs).
-  # Everything else keeps the prefix.
+  # Adds the locale segment to `path` when applicable. Decision rules
+  # live in `LocalePath.emit_prefix?/2` — see that module for the
+  # canonical policy shared across all sitemap sources. Post sitemap
+  # entries use the base code (no dialect suffix) for the segment.
   defp build_path_with_language(path, language, is_default) do
-    cond do
-      is_nil(language) -> path
-      single_language_mode?() -> path
-      is_default and Languages.default_language_no_prefix?() -> path
-      true -> "/#{Languages.DialectMapper.extract_base(language)}#{path}"
+    if LocalePath.emit_prefix?(language, is_default) do
+      "/#{Languages.DialectMapper.extract_base(language)}#{path}"
+    else
+      path
     end
-  end
-
-  # Check if we're in single language mode (no locale prefix needed)
-  # Returns true when languages module is off OR only one language is enabled
-  # Mirrors PublishingHTML.single_language_mode?/0 logic
-  defp single_language_mode? do
-    not Languages.enabled?() or length(Languages.get_enabled_languages()) <= 1
-  rescue
-    _ -> true
   end
 
   defp build_url(path, nil) do

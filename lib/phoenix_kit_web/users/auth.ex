@@ -1865,12 +1865,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   # 301-redirects `/<default>/...` to the prefixless shape to keep one
   # canonical URL. When OFF (the default), the `/<default>/...` shape
   # IS the canonical URL and must NOT be redirected — a 301 would
-  # discard any POST body. Defensive rescue mirrors `Routes`.
-  defp prefixless_primary? do
-    PhoenixKit.Modules.Languages.default_language_no_prefix?()
-  rescue
-    _ -> false
-  end
+  # discard any POST body. Defers to the canonical boot-safe wrapper
+  # on `Languages` so this plug + `Routes` share one rescue policy.
+  defp prefixless_primary?, do: PhoenixKit.Modules.Languages.prefixless_primary_safe?()
 
   # Check if the request path is an admin path. Used by
   # `process_valid_locale/2` to skip the default-locale-redirect so
