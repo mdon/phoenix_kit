@@ -187,16 +187,18 @@ defmodule PhoenixKit.Utils.Routes do
       iex> Routes.admin_path("/admin/users", "uk")
       "/phoenix_kit/uk/admin/users"
 
-      # primary locale with setting OFF (default)
-      iex> Routes.admin_path("/admin/users", "en")
-      "/phoenix_kit/en/admin/users"
-
-      # primary locale with `default_language_no_prefix` setting ON
-      iex> Routes.admin_path("/admin/users", "en")
-      "/phoenix_kit/admin/users"
-
       iex> Routes.admin_path("/admin/users", nil)
       "/phoenix_kit/admin/users"
+
+  Primary-locale shape depends on the `default_language_no_prefix`
+  setting (not shown as doctests because the result varies with
+  runtime state):
+
+      # setting OFF (default)
+      Routes.admin_path("/admin/users", "en") #=> "/phoenix_kit/en/admin/users"
+
+      # setting ON
+      Routes.admin_path("/admin/users", "en") #=> "/phoenix_kit/admin/users"
 
   """
   def admin_path(url_path, locale) when is_binary(locale) do

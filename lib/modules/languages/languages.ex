@@ -552,8 +552,7 @@ defmodule PhoenixKit.Modules.Languages do
   Default: `false` (matches the historical publishing default and
   keeps existing installs' indexed URLs stable on upgrade). The
   setting can be migrated from the legacy
-  `publishing_default_language_no_prefix` key — see
-  `PhoenixKit.Migration.migrate_default_language_no_prefix/0`.
+  `publishing_default_language_no_prefix` key — see `migrate_legacy/0`.
   """
   @spec default_language_no_prefix?() :: boolean()
   def default_language_no_prefix? do
