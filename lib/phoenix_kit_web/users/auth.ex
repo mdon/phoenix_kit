@@ -1835,7 +1835,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   # typed; canonicalizing to one would force a redirect that crosses
   # the still-split `:phoenix_kit_admin_locale` ↔ `:phoenix_kit_admin`
   # live_session boundary (see TODO 1 in
-  # `dev_docs/primary_language_no_prefix_plan.md`).
+  # `dev_docs/plans/2026-05-19-primary-language-no-prefix-plan.md`).
   defp process_valid_locale(conn, locale) do
     if locale == Routes.get_default_admin_locale() and not admin_request?(conn) do
       redirect_default_locale_to_clean_url(conn, locale)

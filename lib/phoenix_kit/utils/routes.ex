@@ -97,7 +97,7 @@ defmodule PhoenixKit.Utils.Routes do
   # the `:phoenix_kit_admin_locale` ↔ `:phoenix_kit_admin` live_session
   # boundary and forces a full-page reload. Unifying those sessions so
   # locale-switching stays inside the WebSocket is tracked separately —
-  # see `dev_docs/primary_language_no_prefix_plan.md` (TODO 1).
+  # see `dev_docs/plans/2026-05-19-primary-language-no-prefix-plan.md` (TODO 1).
   defp build_admin_path(base_path, url_path, :none), do: "#{base_path}#{url_path}"
 
   defp build_admin_path(base_path, url_path, locale) when is_binary(locale) do
@@ -166,7 +166,7 @@ defmodule PhoenixKit.Utils.Routes do
   declare `/:locale/admin/*` AND `/admin/*` scopes — so emitting prefixless
   for primary is safe. Locale switching across the two shapes today still
   crosses a `live_session` boundary and reloads; see
-  `dev_docs/primary_language_no_prefix_plan.md` (TODO 1) for the unification
+  `dev_docs/plans/2026-05-19-primary-language-no-prefix-plan.md` (TODO 1) for the unification
   work.
 
   ## Examples
