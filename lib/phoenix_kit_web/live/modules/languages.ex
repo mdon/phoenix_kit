@@ -64,6 +64,8 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
       |> assign(:switcher_goto_home, false)
       |> assign(:switcher_hide_current, false)
       |> assign(:switcher_show_native_names, false)
+      # Site-wide URL behavior — primary-language locale-segment toggle.
+      |> assign(:default_language_no_prefix, Languages.default_language_no_prefix?())
 
     {:ok, socket}
   end
@@ -74,6 +76,18 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
 
   def handle_event("toggle_reorder", _params, socket) do
     {:noreply, assign(socket, :show_reorder, !socket.assigns.show_reorder)}
+  end
+
+  def handle_event("toggle_default_language_no_prefix", _params, socket) do
+    new_value = !socket.assigns.default_language_no_prefix
+
+    case Languages.set_default_language_no_prefix(new_value) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :default_language_no_prefix, new_value)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update URL behavior setting"))}
+    end
   end
 
   def handle_event("reorder_languages", %{"ordered_ids" => ordered_codes}, socket) do
