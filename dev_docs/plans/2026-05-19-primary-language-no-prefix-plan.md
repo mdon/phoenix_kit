@@ -1,8 +1,9 @@
 # Primary-Language-No-Prefix — Plan & Open Items
 
 **Created:** 2026-05-19
-**Status:** Core behaviour shipped in PR #551 (v1.7.x). TODO 1 implemented
-2026-05-19 (admin `live_session` unified). TODO 2 still open.
+**Status:** Core behaviour shipped in PR #551 (v1.7.x). TODO 1 + TODO 2
+implemented 2026-05-19 (admin and public `live_session`s unified).
+TODO 3 (authenticated dashboard) optional, still open.
 **Scope:** phoenix_kit core — `lib/phoenix_kit/utils/routes.ex`,
 `lib/phoenix_kit_web/users/auth.ex`, `lib/phoenix_kit_web/integration.ex`.
 
@@ -155,10 +156,21 @@ do not bundle it with unrelated changes.
 
 ---
 
-## TODO 2 — (optional) Unify the public `live_session`s
+## TODO 2 — Unify the public `live_session`s
 
-The same split exists for non-admin routes
-(`:phoenix_kit_public_locale` vs `:phoenix_kit_public`). Unifying them
-would let the front-end locale switcher also stay on the WebSocket.
-Lower priority than TODO 1 — front-end locale switches are rarer and
-the prefixless-primary redirect already lands users on a clean URL.
+> **DONE — 2026-05-19.** The same split existed for non-admin routes
+> (`:phoenix_kit_public` vs `:phoenix_kit_public_locale`). Applied the
+> TODO 1 pattern: `phoenix_kit_public_routes/1` no longer emits its own
+> `live_session`; the new `generate_public_live_routes/2` wraps both URL
+> shapes in a single `live_session :phoenix_kit_public`. Non-live auth
+> endpoints (form POSTs, OAuth/token GETs) stay outside the
+> live_session — in `generate_basic_scope/1` and the localized scope of
+> `generate_localized_routes/2`. Verified via router metadata: all 18
+> public LiveView routes resolve into `:phoenix_kit_public`.
+
+## TODO 3 — (optional) Unify the authenticated dashboard `live_session`s
+
+`:phoenix_kit_authenticated` and `:phoenix_kit_authenticated_locale`
+remain split. Lower priority — the authenticated dashboard is a smaller
+surface and locale switching there is rare. Apply the same pattern
+(`generate_authenticated_live_routes/2`) if it becomes a pain point.
