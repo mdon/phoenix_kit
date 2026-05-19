@@ -1738,29 +1738,27 @@ defmodule PhoenixKitWeb.Users.Auth do
         end
 
       _ ->
-        # No locale in URL - check user's preferred locale first, then fall back to default
-        # This supports admin paths where locale can't be in URL but user has a preference
+        # No locale in URL → primary language. Pure URL → default, matching
+        # the LV mount path (`mount_phoenix_kit_current_scope/3`). Previously
+        # this branch consulted `user.custom_fields["preferred_locale"]`
+        # before the default, but the LV mount doesn't read it — a
+        # logged-in user with preferred_locale=de visiting `/admin/foo`
+        # would see German for the initial HTTP response and then English
+        # after the LV mount snapped to default. The two paths now agree:
+        # URL is the only source of truth. The preferred_locale field is
+        # still written by the switcher (so the data is preserved for any
+        # future feature that wants to re-enable it) but never read for
+        # routing.
         current_user = get_user_for_locale_resolution(conn)
+        default_base = Routes.get_default_admin_locale()
+        default_dialect = DialectMapper.resolve_dialect(default_base, current_user)
 
-        {base, dialect} =
-          case get_user_preferred_locale(current_user) do
-            {preferred_base, preferred_dialect} when is_binary(preferred_base) ->
-              # User has a valid preferred locale - use it
-              {preferred_base, preferred_dialect}
-
-            _ ->
-              # No user preference - use default language
-              default_base = Routes.get_default_admin_locale()
-              default_dialect = DialectMapper.resolve_dialect(default_base, current_user)
-              {default_base, default_dialect}
-          end
-
-        Gettext.put_locale(PhoenixKitWeb.Gettext, dialect)
-        Gettext.put_locale(dialect)
+        Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+        Gettext.put_locale(default_dialect)
 
         conn
-        |> assign(:current_locale_base, base)
-        |> assign(:current_locale, dialect)
+        |> assign(:current_locale_base, default_base)
+        |> assign(:current_locale, default_dialect)
     end
   end
 
@@ -1810,24 +1808,6 @@ defmodule PhoenixKitWeb.Users.Auth do
         user
     end
   end
-
-  # Get user's preferred locale if set and valid
-  # Returns {base_code, full_dialect} tuple or nil if not set/invalid
-  defp get_user_preferred_locale(nil), do: nil
-
-  defp get_user_preferred_locale(%{custom_fields: %{"preferred_locale" => preferred}})
-       when is_binary(preferred) and preferred != "" do
-    base = DialectMapper.extract_base(preferred)
-
-    # Verify the preferred locale is a valid enabled language
-    if DialectMapper.valid_base_code?(base) and language_enabled?(base) do
-      {base, preferred}
-    else
-      nil
-    end
-  end
-
-  defp get_user_preferred_locale(_user), do: nil
 
   defp locale_allowed?(base_code) do
     language_enabled?(base_code)
