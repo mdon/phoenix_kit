@@ -673,7 +673,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp handle_locale_event("phoenix_kit_set_locale", %{"locale" => locale, "url" => url}, socket) do
     save_user_locale_preference(socket.assigns, locale)
-    {:halt, Phoenix.LiveView.redirect(socket, to: url)}
+
+    # `push_navigate` rather than `redirect`: admin's two URL shapes
+    # (`/admin/*` and `/:locale/admin/*`) now share one `live_session`
+    # (`:phoenix_kit_admin`), so an in-admin locale switch stays on the
+    # WebSocket. For targets in a different live_session (e.g. front-end
+    # pages, whose public sessions are still split) `push_navigate`
+    # degrades to a full-page load on its own — so it is safe here
+    # unconditionally.
+    {:halt, Phoenix.LiveView.push_navigate(socket, to: url)}
   end
 
   defp handle_locale_event(_event, _params, socket), do: {:cont, socket}
@@ -1832,10 +1840,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   # `/phoenix_kit/<default>/admin/*` are valid (the dual-scope router
   # emission accepts both), and `Routes.admin_path/2` emits the
   # prefixless shape by default. We honor whichever URL shape the user
-  # typed; canonicalizing to one would force a redirect that crosses
-  # the still-split `:phoenix_kit_admin_locale` ↔ `:phoenix_kit_admin`
-  # live_session boundary (see TODO 1 in
-  # `dev_docs/plans/2026-05-19-primary-language-no-prefix-plan.md`).
+  # typed; both shapes resolve into the same `live_session
+  # :phoenix_kit_admin`, so there is no boundary to canonicalize away.
   defp process_valid_locale(conn, locale) do
     if locale == Routes.get_default_admin_locale() and not admin_request?(conn) do
       redirect_default_locale_to_clean_url(conn, locale)

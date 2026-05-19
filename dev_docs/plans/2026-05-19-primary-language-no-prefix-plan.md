@@ -1,7 +1,8 @@
 # Primary-Language-No-Prefix — Plan & Open Items
 
 **Created:** 2026-05-19
-**Status:** Core behaviour shipped in PR #551 (v1.7.x). Open items below.
+**Status:** Core behaviour shipped in PR #551 (v1.7.x). TODO 1 implemented
+2026-05-19 (admin `live_session` unified). TODO 2 still open.
 **Scope:** phoenix_kit core — `lib/phoenix_kit/utils/routes.ex`,
 `lib/phoenix_kit_web/users/auth.ex`, `lib/phoenix_kit_web/integration.ex`.
 
@@ -41,6 +42,16 @@ active foot-gun); dead `User.preferred_locale_changeset/2` and
 ---
 
 ## TODO 1 — Unify the admin `live_session`s so locale switching stays on the WebSocket
+
+> **DONE — 2026-05-19.** Implemented as described below.
+> `phoenix_kit_admin_routes/1` no longer emits its own `live_session`;
+> the new `generate_admin_routes/2` wraps both URL shapes in a single
+> `live_session :phoenix_kit_admin`. The locale switcher
+> (`handle_locale_event/3`) now uses `push_navigate` instead of
+> `redirect`. Verified with `mix phx.routes` + router metadata — all 80
+> admin routes resolve into `:phoenix_kit_admin`. A parent-app smoke
+> test (no full reload on an in-admin locale switch) is still
+> recommended.
 
 ### Problem
 
