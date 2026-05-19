@@ -484,12 +484,15 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # Generates unified authenticated user routes: dashboard + shop user + tickets user.
-  # All routes share one live_session for seamless navigation within the user dashboard.
-  # Module routes use alias: false since they live outside the PhoenixKitWeb namespace.
+  # Generates the authenticated user route table (dashboard + shop user +
+  # tickets user) for one URL shape (`suffix` is `:_locale` or `:""`).
+  # Emits the `live`/`scope` entries only — the wrapping
+  # `live_session :phoenix_kit_authenticated` is supplied by
+  # `generate_authenticated_live_routes/2`, so both URL shapes share a
+  # single session and an in-dashboard locale switch stays on the
+  # WebSocket. Module routes use alias: false since they live outside
+  # the PhoenixKitWeb namespace.
   defmacro phoenix_kit_authenticated_routes(suffix) do
-    session_name = :"phoenix_kit_authenticated#{suffix}"
-
     module_routes =
       if suffix == :_locale do
         authenticated_live_locale_routes()
@@ -498,25 +501,19 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     quote do
-      live_session unquote(session_name),
-        on_mount: [
-          {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
-          {PhoenixKitWeb.Dashboard.ContextProvider, :default}
-        ] do
-        # Core dashboard routes (conditional on config)
-        if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do
-          live "/dashboard", Live.Dashboard.Index, :index
-          live "/dashboard/settings", Live.Dashboard.Settings, :edit
+      # Core dashboard routes (conditional on config)
+      if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do
+        live "/dashboard", Live.Dashboard.Index, :index
+        live "/dashboard/settings", Live.Dashboard.Settings, :edit
 
-          live "/dashboard/settings/confirm-email/:token",
-               Live.Dashboard.Settings,
-               :confirm_email
-        end
+        live "/dashboard/settings/confirm-email/:token",
+             Live.Dashboard.Settings,
+             :confirm_email
+      end
 
-        # Module user pages (full module names — no PhoenixKitWeb alias)
-        scope "/", alias: false do
-          unquote(module_routes)
-        end
+      # Module user pages (full module names — no PhoenixKitWeb alias)
+      scope "/", alias: false do
+        unquote(module_routes)
       end
     end
   end
@@ -1037,7 +1034,9 @@ defmodule PhoenixKitWeb.Integration do
   # Route Scope Generators
   # ============================================================================
 
-  # Helper function to generate localized routes
+  # Helper function to generate the localized non-live auth endpoints
+  # (form POSTs, OAuth and token GETs). Every localized LiveView surface
+  # lives in a unified live_session generated elsewhere.
   defp generate_localized_routes(url_prefix, pattern) do
     # Only include shop session pipeline when the package is installed
     public_pipelines =
@@ -1053,10 +1052,11 @@ defmodule PhoenixKitWeb.Integration do
       end
 
     quote do
-      # Localized scope: non-live auth endpoints (form POSTs, OAuth and
-      # token GETs). Public LiveViews and admin routes live in their own
-      # unified live_sessions — see `generate_public_live_routes/2` and
-      # `generate_admin_routes/2`.
+      # Localized scope: non-live auth endpoints only (form POSTs, OAuth
+      # and token GETs). Every LiveView surface — public, admin and the
+      # authenticated dashboard — lives in its own unified live_session;
+      # see `generate_public_live_routes/2`, `generate_admin_routes/2`
+      # and `generate_authenticated_live_routes/2`.
       scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
         locale: ~r/^(#{unquote(pattern)})$/ do
         pipe_through unquote(public_pipelines)
@@ -1073,39 +1073,6 @@ defmodule PhoenixKitWeb.Integration do
 
         # Magic Link Registration
         get "/users/register/verify/:token", Users.MagicLinkRegistrationVerify, :verify
-      end
-
-      # Localized scope: authenticated user routes (plug-level auth check)
-      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-        locale: ~r/^(#{unquote(pattern)})$/ do
-        pipe_through [
-          :browser,
-          :phoenix_kit_auto_setup,
-          :phoenix_kit_require_authenticated,
-          :phoenix_kit_locale_validation
-        ]
-
-        phoenix_kit_authenticated_routes(:_locale)
-      end
-    end
-  end
-
-  # Helper function to generate non-localized routes
-  defp generate_non_localized_routes(url_prefix) do
-    quote do
-      # Non-localized scope: authenticated user routes (plug-level auth
-      # check). Public LiveViews and admin routes live in their own
-      # unified live_sessions — see `generate_public_live_routes/2` and
-      # `generate_admin_routes/2`.
-      scope unquote(url_prefix), PhoenixKitWeb do
-        pipe_through [
-          :browser,
-          :phoenix_kit_auto_setup,
-          :phoenix_kit_require_authenticated,
-          :phoenix_kit_locale_validation
-        ]
-
-        phoenix_kit_authenticated_routes(:"")
       end
     end
   end
@@ -1205,6 +1172,55 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
+  # Helper function to generate the unified authenticated dashboard
+  # live_session.
+  #
+  # Both dashboard URL shapes — `/<prefix>/dashboard/*` (primary
+  # language) and `/<prefix>/:locale/dashboard/*` — live inside ONE
+  # `live_session :phoenix_kit_authenticated`, so an in-dashboard locale
+  # switch `push_navigate`s between the two shapes and stays on the
+  # WebSocket (mirrors `generate_admin_routes/2` and
+  # `generate_public_live_routes/2`; see the no-prefix plan, TODO 3).
+  #
+  # Unlike the public/admin scopes, dashboard routes carry a plug-level
+  # auth gate (`:phoenix_kit_require_authenticated`); the live_session
+  # additionally runs the `:phoenix_kit_ensure_authenticated_scope` and
+  # context-provider on_mount hooks.
+  defp generate_authenticated_live_routes(url_prefix, pattern) do
+    quote do
+      live_session :phoenix_kit_authenticated,
+        on_mount: [
+          {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
+          {PhoenixKitWeb.Dashboard.ContextProvider, :default}
+        ] do
+        # Localized dashboard scope: /<prefix>/:locale/dashboard/*
+        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
+          locale: ~r/^(#{unquote(pattern)})$/ do
+          pipe_through [
+            :browser,
+            :phoenix_kit_auto_setup,
+            :phoenix_kit_require_authenticated,
+            :phoenix_kit_locale_validation
+          ]
+
+          phoenix_kit_authenticated_routes(:_locale)
+        end
+
+        # Non-localized dashboard scope: /<prefix>/dashboard/* (primary language)
+        scope unquote(url_prefix), PhoenixKitWeb do
+          pipe_through [
+            :browser,
+            :phoenix_kit_auto_setup,
+            :phoenix_kit_require_authenticated,
+            :phoenix_kit_locale_validation
+          ]
+
+          phoenix_kit_authenticated_routes(:"")
+        end
+      end
+    end
+  end
+
   defmacro phoenix_kit_routes do
     # OAuth configuration is handled by PhoenixKit.Workers.OAuthConfigLoader
     # which runs synchronously during supervisor startup
@@ -1275,21 +1291,16 @@ defmodule PhoenixKitWeb.Integration do
       # routes to prevent /:language/:group catch-alls from intercepting them (e.g., unsubscribe)
       unquote_splicing(module_public_routes)
 
-      # Generate localized routes
+      # Generate localized non-live auth endpoints (form POSTs, token GETs)
       unquote(generate_localized_routes(url_prefix, pattern))
 
-      # Generate non-localized routes
-      unquote(generate_non_localized_routes(url_prefix))
-
-      # Generate public routes — one live_session spanning both URL shapes
-      # so front-end locale switches stay on the WebSocket.
+      # Generate the LiveView surfaces — each a single live_session
+      # spanning both URL shapes, so locale switches stay on the
+      # WebSocket. All emitted before the publishing catch-all so
+      # `/<prefix>/:locale/...` paths are never shadowed.
       unquote(generate_public_live_routes(url_prefix, pattern))
-
-      # Generate admin routes — one live_session spanning both URL shapes
-      # so in-admin locale switches stay on the WebSocket. Emitted after
-      # the public/authenticated scopes and before the publishing
-      # catch-all so `/<prefix>/:locale/admin/*` is never shadowed.
       unquote(generate_admin_routes(url_prefix, pattern))
+      unquote(generate_authenticated_live_routes(url_prefix, pattern))
 
       # External route modules with public routes
       unquote_splicing(external_public_routes)

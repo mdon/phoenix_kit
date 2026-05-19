@@ -1,9 +1,10 @@
 # Primary-Language-No-Prefix — Plan & Open Items
 
 **Created:** 2026-05-19
-**Status:** Core behaviour shipped in PR #551 (v1.7.x). TODO 1 + TODO 2
-implemented 2026-05-19 (admin and public `live_session`s unified).
-TODO 3 (authenticated dashboard) optional, still open.
+**Status:** Core behaviour shipped in PR #551 (v1.7.x). TODO 1, 2 and 3
+implemented 2026-05-19 — every PhoenixKit LiveView surface (admin,
+public, authenticated dashboard) now lives in a single unified
+`live_session`. No `_locale`-suffixed sessions remain.
 **Scope:** phoenix_kit core — `lib/phoenix_kit/utils/routes.ex`,
 `lib/phoenix_kit_web/users/auth.ex`, `lib/phoenix_kit_web/integration.ex`.
 
@@ -168,9 +169,17 @@ do not bundle it with unrelated changes.
 > `generate_localized_routes/2`. Verified via router metadata: all 18
 > public LiveView routes resolve into `:phoenix_kit_public`.
 
-## TODO 3 — (optional) Unify the authenticated dashboard `live_session`s
+## TODO 3 — Unify the authenticated dashboard `live_session`s
 
-`:phoenix_kit_authenticated` and `:phoenix_kit_authenticated_locale`
-remain split. Lower priority — the authenticated dashboard is a smaller
-surface and locale switching there is rare. Apply the same pattern
-(`generate_authenticated_live_routes/2`) if it becomes a pain point.
+> **DONE — 2026-05-19.** Applied the TODO 1/2 pattern to the
+> authenticated dashboard. `phoenix_kit_authenticated_routes/1` no
+> longer emits its own `live_session`; the new
+> `generate_authenticated_live_routes/2` wraps both URL shapes in a
+> single `live_session :phoenix_kit_authenticated` (keeping the
+> `:phoenix_kit_require_authenticated` pipeline and the
+> ensure-authenticated-scope + context-provider on_mount hooks). With
+> both `generate_localized_routes/2` shapes now reduced to non-live
+> endpoints, the empty `generate_non_localized_routes/1` helper was
+> dropped. Verified via router metadata: all 6 dashboard routes resolve
+> into `:phoenix_kit_authenticated`; no `_locale`-suffixed sessions
+> remain.
