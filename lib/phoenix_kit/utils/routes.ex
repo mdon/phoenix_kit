@@ -37,8 +37,10 @@ defmodule PhoenixKit.Utils.Routes do
     base_path = if url_prefix === "/", do: "", else: url_prefix
 
     cond do
-      # Admin paths ALWAYS get locale prefix to stay within the
-      # :phoenix_kit_admin_locale live_session and avoid full-page reloads.
+      # Admin paths follow the same primary-prefixless rule as non-admin
+      # paths (see `build_admin_path/3`). The dual-scope router emission
+      # keeps `/phoenix_kit/admin/*` AND `/phoenix_kit/:locale/admin/*`
+      # both reachable, so the emitted shape is purely cosmetic.
       admin_path?(url_path) ->
         locale = resolve_locale(opts)
         build_admin_path(base_path, url_path, locale)
@@ -85,13 +87,26 @@ defmodule PhoenixKit.Utils.Routes do
   # Check if a path is an admin path.
   defp admin_path?(url_path), do: String.starts_with?(url_path, "/admin")
 
-  # Admin paths ALWAYS include locale (even default locale) to match the
-  # :phoenix_kit_admin_locale live_session scope (/:locale/admin/*).
-  # This prevents live_session boundary crossings that cause full-page reloads.
+  # Admin paths drop the locale segment for the primary language, matching
+  # the non-admin behaviour in `build_localized_path/3`. The two emission
+  # shapes both have routes in the table (the admin route macros declare
+  # both `/:locale/admin/*` and `/admin/*` scopes), so emitting prefixless
+  # for the primary locale is safe.
+  #
+  # Known tradeoff: switching locales inside admin via the UI today crosses
+  # the `:phoenix_kit_admin_locale` ↔ `:phoenix_kit_admin` live_session
+  # boundary and forces a full-page reload. Unifying those sessions so
+  # locale-switching stays inside the WebSocket is tracked separately —
+  # see `dev_docs/primary_language_no_prefix_plan.md` (TODO 1).
   defp build_admin_path(base_path, url_path, :none), do: "#{base_path}#{url_path}"
 
-  defp build_admin_path(base_path, url_path, locale) when is_binary(locale),
-    do: "#{base_path}/#{locale}#{url_path}"
+  defp build_admin_path(base_path, url_path, locale) when is_binary(locale) do
+    if default_locale?(locale) do
+      "#{base_path}#{url_path}"
+    else
+      "#{base_path}/#{locale}#{url_path}"
+    end
+  end
 
   defp build_admin_path(base_path, url_path, _), do: "#{base_path}#{url_path}"
 
@@ -143,16 +158,24 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   @doc """
-  Returns a locale-prefixed admin path, bypassing the reserved-path
-  locale stripping that `path/2` applies.
+  Returns a locale-aware admin path. Strips the locale segment for the
+  primary language (mirroring `path/2`'s non-admin behaviour); keeps the
+  segment for every other locale.
 
-  Admin routes use a `/:locale/admin/*` scope, so they need locale
-  in the URL even though `/admin` is a reserved prefix.
+  Both URL shapes resolve at the router level — the admin route macros
+  declare `/:locale/admin/*` AND `/admin/*` scopes — so emitting prefixless
+  for primary is safe. Locale switching across the two shapes today still
+  crosses a `live_session` boundary and reloads; see
+  `dev_docs/primary_language_no_prefix_plan.md` (TODO 1) for the unification
+  work.
 
   ## Examples
 
       iex> Routes.admin_path("/admin/users", "uk")
       "/phoenix_kit/uk/admin/users"
+
+      iex> Routes.admin_path("/admin/users", "en")
+      "/phoenix_kit/admin/users"
 
       iex> Routes.admin_path("/admin/users", nil)
       "/phoenix_kit/admin/users"
@@ -161,7 +184,12 @@ defmodule PhoenixKit.Utils.Routes do
   def admin_path(url_path, locale) when is_binary(locale) do
     url_prefix = Config.get_url_prefix()
     base_prefix = if url_prefix == "/", do: "", else: url_prefix
-    "#{base_prefix}/#{locale}#{url_path}"
+
+    if default_locale?(locale) do
+      "#{base_prefix}#{url_path}"
+    else
+      "#{base_prefix}/#{locale}#{url_path}"
+    end
   end
 
   def admin_path(url_path, _locale), do: path(url_path)
