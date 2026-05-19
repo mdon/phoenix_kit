@@ -1,3 +1,42 @@
+## 1.7.115 - 2026-05-19
+
+### Added
+- Site-wide `default_language_no_prefix` setting on the Languages admin page
+  (`/admin/settings/languages`) controls whether the primary language emits
+  its locale segment in URLs. When on, `/admin/users` and `/blog/post`
+  replace `/en/admin/users` and `/en/blog/post` across admin pages, public
+  pages, sitemap, and redirects; other languages always keep their prefix.
+  Default is off, matching the historical publishing default, so existing
+  installs' indexed URLs stay stable on upgrade. Installs that previously
+  toggled `publishing_default_language_no_prefix` get auto-migrated to the
+  new key on the next boot via `Languages.migrate_legacy/0` (PR #552).
+- `@type t/0` on `PhoenixKit.Settings.Setting` schema. Lets consumers spec
+  setting-returning functions (`{:ok, Settings.Setting.t()} | {:error, …}`)
+  without tripping dialyzer's `unknown_type` warning.
+
+### Changed
+- Admin URL emission for the primary language now follows the new site-wide
+  `default_language_no_prefix` setting (default off), restoring the
+  `/en/admin/users` shape that 1.7.114 had emitted prefixless
+  unconditionally. Both URL shapes still resolve at the router level via the
+  dual-scope admin emission, so existing bookmarks and external links keep
+  working (PR #552).
+- Dependency bumps: `ecto` 3.13.6 → 3.14.0, `ecto_sql` 3.13.5 → 3.14.0,
+  `fresco` 0.5.0 → 0.5.2, `hammer` 7.3.0 → 7.4.0.
+
+### Fixed
+- Publishing sitemap honors `default_language_no_prefix` for the primary
+  language. Previously the sitemap always emitted `/en/blog/post` in
+  multilang mode regardless of the setting, drifting away from the URLs
+  publishing actually served at request time (PR #552).
+- `Languages.default_language_no_prefix?/0` docstring no longer references
+  the nonexistent `PhoenixKit.Migration.migrate_default_language_no_prefix/0`
+  — points at the real entry point `migrate_legacy/0`.
+- `Routes.admin_path/2` `## Examples` no longer mixes setting-dependent
+  cases with deterministic ones inside `iex>` doctest prompts, so adding
+  `doctest PhoenixKit.Utils.Routes` later won't fail. Setting-dependent
+  shapes are still shown, just outside the executable doctest block.
+
 ## 1.7.114 - 2026-05-19
 
 ### Added
