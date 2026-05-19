@@ -104,6 +104,7 @@ defmodule PhoenixKit.Modules.Languages do
   alias PhoenixKit.Settings
 
   @config_key "languages_config"
+  @default_language_no_prefix_key "default_language_no_prefix"
   @default_locale Config.default_locale()
   @enabled_key "languages_enabled"
   @module_name "languages"
@@ -256,6 +257,41 @@ defmodule PhoenixKit.Modules.Languages do
     :ok
   catch
     :enable_failed -> :ok
+  end
+
+  @impl PhoenixKit.Module
+  @doc """
+  Backfills the `default_language_no_prefix` setting from the legacy
+  `publishing_default_language_no_prefix` key the first time this runs
+  on an install that predates the site-wide setting. Idempotent — once
+  the new key is set, subsequent calls are no-ops.
+
+  Called by `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0`
+  from the host app's `Application.start/2`.
+  """
+  @spec migrate_legacy() :: :ok | {:ok, map()}
+  def migrate_legacy do
+    new_key = @default_language_no_prefix_key
+    legacy_key = "publishing_default_language_no_prefix"
+
+    case Settings.get_setting(new_key) do
+      nil ->
+        case Settings.get_setting(legacy_key) do
+          nil ->
+            {:ok, %{default_language_no_prefix: :not_migrated}}
+
+          legacy_value when is_binary(legacy_value) ->
+            # Settings serialize booleans as the strings "true"/"false";
+            # rewrite the same shape under the new key so
+            # `get_boolean_setting/2` parses it identically.
+            {:ok, _} = Settings.update_setting(new_key, legacy_value)
+
+            {:ok, %{default_language_no_prefix: :migrated_from_legacy, value: legacy_value}}
+        end
+
+      _existing ->
+        {:ok, %{default_language_no_prefix: :already_set}}
+    end
   end
 
   @impl PhoenixKit.Module
@@ -499,6 +535,48 @@ defmodule PhoenixKit.Modules.Languages do
       nil
     end
   end
+
+  @doc """
+  Returns true when public + admin URLs should omit the locale segment
+  for the primary language.
+
+  Site-wide setting (key `default_language_no_prefix`). When `true`,
+  every URL generator that honors it — `Routes.path/1`,
+  `Routes.admin_path/2`, the sitemap, publishing's HTML builders, the
+  publishing canonical-redirect controller, and the publishing
+  `RouterDispatch` rewriter — emits the primary language as the
+  prefixless shape (`/admin/users`, `/blog/post`). When `false`, all
+  generators emit the prefixed shape (`/en/admin/users`,
+  `/en/blog/post`).
+
+  Default: `false` (matches the historical publishing default and
+  keeps existing installs' indexed URLs stable on upgrade). The
+  setting can be migrated from the legacy
+  `publishing_default_language_no_prefix` key — see
+  `PhoenixKit.Migration.migrate_default_language_no_prefix/0`.
+  """
+  @spec default_language_no_prefix?() :: boolean()
+  def default_language_no_prefix? do
+    Settings.get_boolean_setting(@default_language_no_prefix_key, false)
+  end
+
+  @doc """
+  Persists the `default_language_no_prefix` setting. Returns
+  `{:ok, setting}` on success or `{:error, changeset}` on failure.
+  """
+  @spec set_default_language_no_prefix(boolean()) ::
+          {:ok, PhoenixKit.Settings.Setting.t()} | {:error, Ecto.Changeset.t()}
+  def set_default_language_no_prefix(value) when is_boolean(value) do
+    Settings.update_boolean_setting(@default_language_no_prefix_key, value)
+  end
+
+  @doc """
+  Returns the storage key used for the no-prefix setting. Exposed for
+  the legacy-key migration in `PhoenixKit.Migration`; callers should
+  prefer `default_language_no_prefix?/0`.
+  """
+  @spec default_language_no_prefix_key() :: String.t()
+  def default_language_no_prefix_key, do: @default_language_no_prefix_key
 
   @doc """
   Gets a specific language by its code.

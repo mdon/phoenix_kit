@@ -511,24 +511,30 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     |> Enum.map_join(" ", &String.capitalize/1)
   end
 
-  # Build group path with PhoenixKit prefix and optional language
+  # Build group path with PhoenixKit prefix and optional language.
   # Format: /{prefix}/{lang?}/{segments...}
-  # When in single language mode, no language prefix is added for anyone
-  # When in multi-language mode, ALL languages get prefix (including default)
-  defp build_group_path(segments, language, _is_default) do
+  #
+  # Skip rules for the language segment:
+  #   1. Single-language mode — no language is meaningful.
+  #   2. `is_default` is true AND the site-wide
+  #      `default_language_no_prefix` setting is on (the primary language
+  #      should match the public URL shape that
+  #      `PublishingHTML.use_language_prefix?/1` emits at request time;
+  #      keeping the sitemap consistent prevents indexed canonicals
+  #      drifting from served URLs).
+  # Everything else keeps the prefix.
+  defp build_group_path(segments, language, is_default) do
     prefix_parts = url_prefix_segments()
 
-    # Add language prefix when:
-    # 1. Language is specified
-    # 2. Multiple languages are enabled (not single language mode)
     lang_parts =
-      if language && !single_language_mode?() do
+      cond do
+        is_nil(language) -> []
+        single_language_mode?() -> []
+        is_default and Languages.default_language_no_prefix?() -> []
         # Use display code to match controller's canonical URL logic
         # This returns base code ("en") when single dialect enabled,
         # or full code ("en-US") when multiple dialects enabled
-        [get_display_code(language)]
-      else
-        []
+        true -> [get_display_code(language)]
       end
 
     all_parts =

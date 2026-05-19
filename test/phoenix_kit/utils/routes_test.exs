@@ -6,12 +6,18 @@ defmodule PhoenixKit.Utils.RoutesTest do
   # All assertions below assume the default language resolves to "en".
   # `Routes.get_default_language_base/0` rescues any DB lookup failure and
   # falls back to "en", so these tests run without a connected database.
-  # If the test repo is ever wired up, the default still resolves to "en"
-  # unless a different language is explicitly configured as default.
+  #
+  # `Routes.prefixless_primary?/0` (the new gate on primary-language
+  # stripping) ALSO rescues into `false` when no DB is reachable, so this
+  # whole file exercises the "setting is OFF" branch of the new
+  # site-wide `default_language_no_prefix` behaviour. The "setting is ON"
+  # branch is covered by the integration tests in
+  # `test/phoenix_kit/modules/languages/default_language_no_prefix_test.exs`
+  # (DB-backed).
 
-  describe "admin_path/2 — primary-language prefix stripping" do
-    test "primary locale (en) emits no prefix" do
-      assert Routes.admin_path("/admin/users", "en") == "/phoenix_kit/admin/users"
+  describe "admin_path/2 — primary-language prefix (setting OFF, the default)" do
+    test "primary locale (en) KEEPS its prefix" do
+      assert Routes.admin_path("/admin/users", "en") == "/phoenix_kit/en/admin/users"
     end
 
     test "non-primary locale keeps its prefix" do
@@ -20,23 +26,25 @@ defmodule PhoenixKit.Utils.RoutesTest do
     end
 
     test "nil locale falls back to no prefix (no locale segment)" do
-      # When no locale is supplied, admin_path delegates to `path/1`. With a
-      # primary-locale fallback that's "en", the result is unprefixed.
-      assert Routes.admin_path("/admin/users", nil) == "/phoenix_kit/admin/users"
+      # When no locale is supplied, admin_path delegates to `path/1`. With
+      # the gettext fallback set to "en" (the default), the path uses the
+      # `build_path_with_locale/3` branch which respects the setting.
+      # Setting OFF + primary locale = prefixed shape.
+      assert Routes.admin_path("/admin/users", nil) == "/phoenix_kit/en/admin/users"
     end
 
     test "nested admin paths follow the same rule" do
       assert Routes.admin_path("/admin/users/edit/123", "en") ==
-               "/phoenix_kit/admin/users/edit/123"
+               "/phoenix_kit/en/admin/users/edit/123"
 
       assert Routes.admin_path("/admin/users/edit/123", "de") ==
                "/phoenix_kit/de/admin/users/edit/123"
     end
   end
 
-  describe "path/2 — non-admin routes (regression coverage)" do
-    test "primary locale emits no prefix (unchanged behaviour)" do
-      assert Routes.path("/users/log-in", locale: "en") == "/phoenix_kit/users/log-in"
+  describe "path/2 — non-admin routes (setting OFF, the default)" do
+    test "primary locale KEEPS its prefix" do
+      assert Routes.path("/users/log-in", locale: "en") == "/phoenix_kit/en/users/log-in"
     end
 
     test "non-primary locale keeps its prefix" do
@@ -49,20 +57,16 @@ defmodule PhoenixKit.Utils.RoutesTest do
   end
 
   describe "admin_path/2 — backcompat for legacy /en/admin URLs" do
-    # The prefixed shape is no longer EMITTED for the primary language,
-    # but it must still RESOLVE (the dual-scope admin route emission
-    # declares both `/:locale/admin/*` and `/admin/*`). Anyone with a
-    # bookmark or external link pointing at `/phoenix_kit/en/admin/...`
-    # should still reach the page. This test pins the helper-side half
-    # of that contract: explicitly passing the primary locale produces
-    # the prefixless shape (intended), while a non-primary locale still
-    # produces the prefixed shape (which legacy `/en/admin/...` URLs
-    # also match against in the route table).
-    test "explicit primary locale → prefixless (intended emission)" do
-      assert Routes.admin_path("/admin/users", "en") == "/phoenix_kit/admin/users"
+    # Both URL shapes resolve at the router level — the admin route
+    # macros declare both `/:locale/admin/*` AND `/admin/*` scopes — so
+    # legacy `/phoenix_kit/en/admin/...` bookmarks still reach the page
+    # regardless of the new setting. This test pins the helper-side
+    # behaviour for both setting states.
+    test "explicit primary locale with setting OFF → prefixed (default)" do
+      assert Routes.admin_path("/admin/users", "en") == "/phoenix_kit/en/admin/users"
     end
 
-    test "explicit non-primary locale → prefixed (also the shape a legacy /en/ URL takes)" do
+    test "explicit non-primary locale → prefixed (legacy shape passes through)" do
       assert Routes.admin_path("/admin/users", "de") == "/phoenix_kit/de/admin/users"
     end
 

@@ -130,8 +130,11 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
         """)
 
       # Both languages use the locale-rewrite default with url_prefix.
-      # Default locale (en) is treated as prefixless inside the locale segment.
-      assert html =~ ~s(href="/phoenix_kit/some/page")
+      # `default_language_no_prefix` is OFF (the default) and no DB is
+      # reachable for this unit test, so the primary locale ALSO gets a
+      # prefix. The "ON" branch (prefixless primary) is covered DB-side
+      # in `test/integration/languages/default_language_no_prefix_test.exs`.
+      assert html =~ ~s(href="/phoenix_kit/en/some/page")
       assert html =~ ~s(href="/phoenix_kit/fr/some/page")
     end
 
@@ -148,7 +151,8 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
         />
         """)
 
-      assert html =~ ~s(href="/phoenix_kit/some/page")
+      # Setting OFF (default) + no DB → primary locale also gets prefix.
+      assert html =~ ~s(href="/phoenix_kit/en/some/page")
       assert html =~ ~s(href="/phoenix_kit/fr/some/page")
     end
 
