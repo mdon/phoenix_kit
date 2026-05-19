@@ -103,7 +103,7 @@ alias PhoenixKit.Modules.Languages.DialectMapper
 
 DialectMapper.extract_base("en-US")           # => "en"
 DialectMapper.base_to_dialect("en")           # => "en-US"
-DialectMapper.resolve_dialect("en", user)     # Considers user.custom_fields["preferred_locale"]
+DialectMapper.resolve_dialect("en")           # => "en-US" (URL-driven; base -> default dialect)
 ```
 
 ## Key API Functions

@@ -59,39 +59,22 @@ defmodule PhoenixKit.Modules.Languages.DialectMapperTest do
     end
   end
 
-  describe "resolve_dialect/2" do
-    test "returns default dialect when no user" do
-      assert DialectMapper.resolve_dialect("en", nil) == "en-US"
-      assert DialectMapper.resolve_dialect("pt", nil) == "pt-BR"
+  describe "resolve_dialect/1" do
+    test "maps a base code to its default dialect" do
+      assert DialectMapper.resolve_dialect("en") == "en-US"
+      assert DialectMapper.resolve_dialect("pt") == "pt-BR"
+      assert DialectMapper.resolve_dialect("es") == "es-ES"
     end
 
-    test "returns default dialect when user has no preference" do
-      user = %{some_field: "value"}
-      assert DialectMapper.resolve_dialect("en", user) == "en-US"
+    test "returns the base code as-is when no dialect mapping exists" do
+      assert DialectMapper.resolve_dialect("ja") == "ja"
     end
 
-    test "uses user preference when it matches base code" do
-      user = %{custom_fields: %{"preferred_locale" => "en-GB"}}
-      assert DialectMapper.resolve_dialect("en", user) == "en-GB"
-    end
-
-    test "ignores user preference when it doesn't match base code" do
-      user = %{custom_fields: %{"preferred_locale" => "es-MX"}}
-      assert DialectMapper.resolve_dialect("en", user) == "en-US"
-    end
-
-    test "empty preference returns empty string (matched by guard)" do
-      # Empty string matches `when is_binary(preferred)` but extract_base("") returns "en"
-      # which matches base "en", so it returns the empty string preference
-      # This is edge-case behavior — real preferences are never empty
-      user = %{custom_fields: %{"preferred_locale" => ""}}
-      result = DialectMapper.resolve_dialect("en", user)
-      assert is_binary(result)
-    end
-
-    test "handles user without custom_fields key" do
-      user = %{email: "test@example.com"}
-      assert DialectMapper.resolve_dialect("en", user) == "en-US"
+    test "is URL-driven — no user preference is consulted" do
+      # Resolution is purely base -> default dialect. A logged-in user's
+      # custom_fields["preferred_locale"] is intentionally never read here
+      # (see PhoenixKitWeb.Users.Auth for the URL-is-authoritative rule).
+      assert DialectMapper.resolve_dialect("en") == "en-US"
     end
   end
 

@@ -26,9 +26,9 @@ defmodule PhoenixKit.Modules.Languages.DialectMapper do
         ↓
   Extract base: "en"
         ↓
-  Resolve dialect: "en-US" (default) or user.custom_fields["preferred_locale"] ("en-GB")
+  Resolve dialect: "en" → "en-US" (default mapping for the base code)
         ↓
-  Set Gettext: "en-US" or "en-GB"
+  Set Gettext: "en-US"
         ↓
   Generate URLs: Always use base code "en"
   ```
@@ -43,13 +43,13 @@ defmodule PhoenixKit.Modules.Languages.DialectMapper do
   - `de` → `de-DE` (German Germany)
   - `fr` → `fr-FR` (French France)
 
-  ## User Preferences
+  ## URL-Driven Resolution
 
-  Authenticated users can override default mappings:
-  - User prefers British English: sets `custom_fields["preferred_locale"]` = "en-GB"
-  - Visits `/en/dashboard`
-  - System uses "en-GB" for translations
-  - URLs remain `/en/` (not `/en-GB/`)
+  Dialect resolution is purely URL-driven: a base code maps to its
+  default dialect and nothing else. A logged-in user's locale preference
+  is intentionally not consulted (see `PhoenixKitWeb.Users.Auth` for the
+  URL-is-authoritative rationale), so `/en/dashboard` always resolves to
+  the default `en-US` regardless of who is signed in.
 
   ## Examples
 
@@ -67,12 +67,8 @@ defmodule PhoenixKit.Modules.Languages.DialectMapper do
       iex> DialectMapper.base_to_dialect("pt")
       "pt-BR"
 
-      # Resolve dialect with user preference (stored in custom_fields)
-      iex> user = %User{custom_fields: %{"preferred_locale" => "en-GB"}}
-      iex> DialectMapper.resolve_dialect("en", user)
-      "en-GB"
-
-      iex> DialectMapper.resolve_dialect("en", nil)
+      # Resolve a base code to its default dialect (URL-driven)
+      iex> DialectMapper.resolve_dialect("en")
       "en-US"
 
   ## Validation
@@ -249,53 +245,28 @@ defmodule PhoenixKit.Modules.Languages.DialectMapper do
   end
 
   @doc """
-  Resolves the full dialect code for a user visiting a base language URL.
+  Resolves the full dialect code for a base language URL.
 
-  Resolution priority:
-  1. User's saved preference (if authenticated and preference matches base code)
-  2. Default dialect mapping for that base language
+  The URL is authoritative: the base code maps straight to its default
+  dialect via `base_to_dialect/1`. User locale preferences are
+  deliberately NOT consulted here — locale resolution is URL-driven
+  across both the LiveView mount and the HTTP plug (see the rationale in
+  `PhoenixKitWeb.Users.Auth`). Resolving without a user keeps a logged-in
+  user's `custom_fields["preferred_locale"]` from silently upgrading e.g.
+  base `"en"` to `"en-GB"`.
 
   ## Examples
 
-      iex> user = %User{custom_fields: %{"preferred_locale" => "en-GB"}}
-      iex> DialectMapper.resolve_dialect("en", user)
-      "en-GB"
-
-      iex> user = %User{custom_fields: %{"preferred_locale" => "es-MX"}}
-      iex> DialectMapper.resolve_dialect("en", user)
-      "en-US"  # Preference doesn't match base, use default
-
-      iex> DialectMapper.resolve_dialect("en", nil)
+      iex> DialectMapper.resolve_dialect("en")
       "en-US"
 
-      iex> guest = %{some_field: "value"}
-      iex> DialectMapper.resolve_dialect("es", guest)
+      iex> DialectMapper.resolve_dialect("es")
       "es-ES"
 
-  ## Security
-
-  User preference only applied if it matches the requested base code.
-  This prevents users from forcing unintended locales via preference tampering.
-
-  ## Graceful Degradation
-
-  If user preference becomes invalid (dialect disabled, typo, etc.),
-  system falls back to default mapping. No crashes or errors.
+      iex> DialectMapper.resolve_dialect("ja")
+      "ja"
   """
-  def resolve_dialect(base_code, user \\ nil)
-
-  def resolve_dialect(base_code, %{custom_fields: %{"preferred_locale" => preferred}} = _user)
-      when is_binary(preferred) do
-    # Verify user's preference matches the base code in URL
-    # Security: prevents locale preference injection attacks
-    if extract_base(preferred) == String.downcase(base_code) do
-      preferred
-    else
-      base_to_dialect(base_code)
-    end
-  end
-
-  def resolve_dialect(base_code, _user) do
+  def resolve_dialect(base_code) when is_binary(base_code) do
     base_to_dialect(base_code)
   end
 
