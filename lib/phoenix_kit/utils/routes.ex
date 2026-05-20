@@ -110,17 +110,10 @@ defmodule PhoenixKit.Utils.Routes do
   defp build_admin_path(base_path, url_path, _), do: "#{base_path}#{url_path}"
 
   # Reads the site-wide setting controlled by the Languages admin page.
-  # Wrapped to survive boot / mix-task contexts where the settings table
-  # may not exist yet — same defensive shape as `get_default_language_base/0`.
-  defp prefixless_primary? do
-    if mix_task_context?() do
-      false
-    else
-      Languages.default_language_no_prefix?()
-    end
-  rescue
-    _ -> false
-  end
+  # Defers to the canonical boot-safe wrapper on `Languages` so all
+  # URL-emission call sites (this module + `Users.Auth`) share one
+  # rescue policy.
+  defp prefixless_primary?, do: Languages.prefixless_primary_safe?()
 
   # Check if a path starts with one of the reserved prefixes.
   defp reserved_path?(path) do

@@ -1843,7 +1843,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   # typed; both shapes resolve into the same `live_session
   # :phoenix_kit_admin`, so there is no boundary to canonicalize away.
   defp process_valid_locale(conn, locale) do
-    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) do
+    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
+         prefixless_primary?() do
       redirect_default_locale_to_clean_url(conn, locale)
     else
       # URL-driven dialect — no user (see `process_as_default_locale/1`
@@ -1858,6 +1859,15 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> assign(:current_locale, full_dialect)
     end
   end
+
+  # Reads the site-wide `default_language_no_prefix` setting. When ON,
+  # primary-language URLs are emitted prefixless and this plug
+  # 301-redirects `/<default>/...` to the prefixless shape to keep one
+  # canonical URL. When OFF (the default), the `/<default>/...` shape
+  # IS the canonical URL and must NOT be redirected — a 301 would
+  # discard any POST body. Defers to the canonical boot-safe wrapper
+  # on `Languages` so this plug + `Routes` share one rescue policy.
+  defp prefixless_primary?, do: PhoenixKit.Modules.Languages.prefixless_primary_safe?()
 
   # Check if the request path is an admin path. Used by
   # `process_valid_locale/2` to skip the default-locale-redirect so
@@ -1959,26 +1969,33 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   @doc """
-  Redirects invalid locale URLs to the default locale.
+  Redirects invalid locale URLs to the canonical default-locale shape.
 
-  Takes the current URL path and replaces the invalid locale with the default
-  locale base code, then redirects the user to the corrected URL.
+  Takes the current URL path and replaces the invalid locale segment so
+  the redirect target matches the rest of the app's URL emission:
 
-  For the default language, the locale segment is removed entirely to produce
-  clean URLs (e.g., /phoenix_kit/admin).
+  - With `default_language_no_prefix?` ON → strip the segment entirely
+    (the canonical primary shape is prefixless, e.g. `/phoenix_kit/admin`).
+  - With the setting OFF (default) → swap the invalid segment for the
+    primary base code so the canonical prefixed shape is preserved
+    (e.g. `/phoenix_kit/xx/admin` → `/phoenix_kit/en/admin`).
   """
   def redirect_invalid_locale(conn, invalid_locale) do
     # Get the default language
     default_base = Routes.get_default_admin_locale()
 
-    # For default language, remove locale segment entirely for clean URLs
-    # For other languages, replace with that language code
+    replacement_segment =
+      if prefixless_primary?(), do: "/", else: "/#{default_base}/"
+
+    replacement_suffix =
+      if prefixless_primary?(), do: "", else: "/#{default_base}"
+
     corrected_path =
       conn.request_path
-      |> String.replace("/#{invalid_locale}/", "/", global: false)
+      |> String.replace("/#{invalid_locale}/", replacement_segment, global: false)
       |> then(fn path ->
         if String.ends_with?(conn.request_path, "/#{invalid_locale}") do
-          String.replace_suffix(path, "/#{invalid_locale}", "")
+          String.replace_suffix(path, "/#{invalid_locale}", replacement_suffix)
         else
           path
         end

@@ -578,6 +578,45 @@ defmodule PhoenixKit.Modules.Languages do
   def default_language_no_prefix_key, do: @default_language_no_prefix_key
 
   @doc """
+  Boot- and mix-task-safe wrapper around `default_language_no_prefix?/0`.
+
+  URL-emission call sites (`PhoenixKit.Utils.Routes`,
+  `PhoenixKitWeb.Users.Auth`) need the setting before the application
+  is fully up — during `mix phoenix_kit.install`, during host-app
+  routing macros that execute at compile time, or when the Settings
+  table simply doesn't exist yet. This wrapper:
+
+    * Returns `false` during mix-task context (detected via the same
+      sentinel `Routes.path/1` uses) so admin URL emission stays
+      sensible without DB.
+    * Rescues any other exception (DB unreachable, schema mismatch,
+      cache miss) to `false` — the safer default since prefixed URLs
+      resolve under both setting states.
+
+  Use `default_language_no_prefix?/0` from runtime contexts where the
+  DB is guaranteed reachable. Use this from boot/middleware contexts.
+  """
+  @spec prefixless_primary_safe?() :: boolean()
+  def prefixless_primary_safe? do
+    if mix_task_context?() do
+      false
+    else
+      default_language_no_prefix?()
+    end
+  rescue
+    _ -> false
+  end
+
+  # Mirrors `PhoenixKit.Utils.Routes.mix_task_context?/0` — the
+  # settings-cache-status sentinel is the same regardless of caller.
+  defp mix_task_context? do
+    case Process.get(:phoenix_kit_config_status) do
+      nil -> false
+      _ -> true
+    end
+  end
+
+  @doc """
   Gets a specific language by its code.
 
   Returns the language map if found, or nil if not found.
