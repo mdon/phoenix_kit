@@ -18,11 +18,14 @@ defmodule PhoenixKit.Modules.AI do
   """
 
   @doc """
-  Returns true when the `PhoenixKitAI` plugin is installed and ready
-  to handle requests.
+  Returns true when the `PhoenixKitAI` plugin is loaded and exports the
+  `ask_with_prompt/4` entry point this namespace relies on.
 
-  Use this at host call sites to decide whether to surface AI-driven UI
-  (e.g. a "translate with AI" affordance on the language switcher):
+  **Note on the semantics:** this is a *module-loadability* check —
+  it does NOT verify that the host has a configured endpoint, a valid
+  prompt template, or working credentials. Use it to decide whether to
+  surface AI-driven UI at all; the actual request is the only place
+  that can confirm runtime readiness.
 
       <.language_switcher_dropdown
         ai_translate={
@@ -32,6 +35,11 @@ defmodule PhoenixKit.Modules.AI do
         }
         ...
       />
+
+  Hosts that need a stricter "endpoint configured and reachable" check
+  should call into `PhoenixKitAI` directly (e.g. validating that
+  `PhoenixKitAI.list_endpoints/0` returns at least one connected row)
+  before showing the affordance.
 
   Cheap — a single atom lookup against the code server. No DB hit.
   """

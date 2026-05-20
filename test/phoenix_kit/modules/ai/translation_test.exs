@@ -2,7 +2,8 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
   @moduledoc """
   Unit coverage for `PhoenixKit.Modules.AI.Translation` — focuses on
   the pieces that don't need a live `PhoenixKitAI` plugin: argument
-  validation, structured-response parsing, marker normalisation.
+  validation, marker uniqueness, structured-response parsing, error
+  normalisation.
 
   End-to-end coverage (the actual `ask_with_prompt/4` round-trip) lives
   in each consumer's worker test (`phoenix_kit_publishing`'s
@@ -12,33 +13,60 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
 
   use ExUnit.Case, async: true
 
-  alias PhoenixKit.Modules.AI
   alias PhoenixKit.Modules.AI.Translation
 
-  describe "translate_fields/6 — argument validation" do
-    test "returns :ai_not_installed when PhoenixKitAI is absent" do
-      # Test runs in phoenix_kit core which does not depend on
-      # :phoenix_kit_ai; the plugin module is undefined and
-      # `AI.available?/0` returns false.
+  describe "translate_fields/6 — argument validation runs before plugin check" do
+    # Validation order is `endpoint → prompt → unique-markers → plugin-available`.
+    # Tests below assume PhoenixKitAI is NOT loaded in core's CI; the
+    # input-validation errors must still surface so callers can unit-test
+    # them without a configured plugin.
+
+    test "empty endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("", "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "whitespace-only endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("   ", "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "nil endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields(nil, "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "empty prompt_uuid → :missing_prompt" do
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "", "en", "es", %{"a" => "b"})
+    end
+
+    test "whitespace-only prompt_uuid → :missing_prompt" do
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "  ", "en", "es", %{"a" => "b"})
+    end
+
+    test "two fields that normalise to the same marker → duplicate_markers error" do
+      # `foo-bar` and `foo_bar` both upcase + non-alnum-collapse to `FOO_BAR`.
+      # Without this rejection, the parser would silently overwrite one
+      # field's translation with the other's.
+      assert {:error, {:parse_error, {:duplicate_markers, dupes}}} =
+               Translation.translate_fields(
+                 "ep",
+                 "p",
+                 "en",
+                 "es",
+                 %{"foo-bar" => "a", "foo_bar" => "b"}
+               )
+
+      assert "FOO_BAR" in dupes
+    end
+
+    test "valid inputs + missing plugin → :ai_not_installed" do
+      # All input-validation passes; AI plugin presence check fails (core
+      # CI doesn't depend on :phoenix_kit_ai).
       assert {:error, :ai_not_installed} =
-               Translation.translate_fields("ep-uuid", "p-uuid", "en", "es", %{"a" => "b"})
-    end
-
-    test "returns :no_endpoint when endpoint_uuid is empty" do
-      with_mock_ai_available(fn ->
-        assert {:error, :no_endpoint} =
-                 Translation.translate_fields("", "p-uuid", "en", "es", %{"a" => "b"})
-
-        assert {:error, :no_endpoint} =
-                 Translation.translate_fields("  ", "p-uuid", "en", "es", %{"a" => "b"})
-      end)
-    end
-
-    test "returns :missing_prompt when prompt_uuid is empty" do
-      with_mock_ai_available(fn ->
-        assert {:error, :missing_prompt} =
-                 Translation.translate_fields("ep", "", "en", "es", %{"a" => "b"})
-      end)
+               Translation.translate_fields("ep", "p", "en", "es", %{"a" => "b"})
     end
   end
 
@@ -88,16 +116,27 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
                Translation.parse_response(response, ["title", "body"])
     end
 
-    test "omits fields whose marker is missing from the response" do
+    test "missing field returns :missing_fields error with the absent name" do
+      # Critical: pre-fix, the parser silently returned partial results.
+      # Callers persisting that result would write half-translated rows.
       response = "---TITLE---\nonly title\n"
 
-      assert {:ok, parsed} =
+      assert {:error, {:parse_error, {:missing_fields, ["body"]}}} =
                Translation.parse_response(response, ["title", "body"])
-
-      assert parsed == %{"title" => "only title"}
     end
 
-    test "returns :parse_error when no markers match" do
+    test "multiple missing fields are all surfaced in the error" do
+      response = "---TITLE---\nonly title\n"
+
+      assert {:error, {:parse_error, {:missing_fields, missing}}} =
+               Translation.parse_response(response, ["title", "body", "slug"])
+
+      assert "body" in missing
+      assert "slug" in missing
+      refute "title" in missing
+    end
+
+    test "returns :no_markers when nothing matches at all" do
       response = "just some markdown\n\n# header"
 
       assert {:error, {:parse_error, :no_markers}} =
@@ -105,7 +144,6 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
     end
 
     test "normalises punctuation in field names to underscores in the marker" do
-      # `field-name with spaces` becomes `---FIELD_NAME_WITH_SPACES---`
       response = "---FIELD_NAME_WITH_SPACES---\nvalue\n"
 
       assert {:ok, %{"field-name with spaces" => "value"}} =
@@ -117,27 +155,6 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
 
       assert {:ok, %{"description" => "A short description without trailing markers"}} =
                Translation.parse_response(response, ["description"])
-    end
-  end
-
-  # PhoenixKitAI isn't loadable in this test suite; without it the
-  # `available?/0` guard short-circuits before any of the other
-  # validation branches. The tests above that exercise the other
-  # branches need to bypass that guard. A real mock library is overkill
-  # for one boolean — wrap the body in a try with a function-exported
-  # check around the `:no_endpoint` / `:missing_prompt` paths and skip
-  # the AI-call assertion entirely.
-  defp with_mock_ai_available(fun) do
-    # The argument-validation tests only need to bypass `available?/0`.
-    # Since we can't actually load PhoenixKitAI here, assert the
-    # short-circuit behaviour directly by inspecting the public spec —
-    # if `AI.available?/0` returns false (which it does in this test
-    # env) we skip the body and trust the integration test in
-    # `translate_post_worker_test` for the full round-trip.
-    if AI.available?() do
-      fun.()
-    else
-      :ok
     end
   end
 end

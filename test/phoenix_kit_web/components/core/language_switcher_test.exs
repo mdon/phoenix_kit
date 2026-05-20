@@ -485,5 +485,99 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
       assert html =~ ~s|phx-click="translate_lang"|
       assert html =~ "Translate all missing"
     end
+
+    test "missing or blank event renders no AI UI (no dead clickable)" do
+      # Three ways a host can misconfigure: forget `:event` entirely,
+      # pass an empty string, or pass whitespace. Component hides the
+      # affordance in all of them.
+      assigns = %{languages: three_languages()}
+
+      for cfg <- [
+            %{enabled: true, missing: ["fr"]},
+            %{enabled: true, event: "", missing: ["fr"]},
+            %{enabled: true, event: "   ", missing: ["fr"]},
+            %{enabled: true, event: nil, missing: ["fr"]}
+          ] do
+        ai = cfg
+
+        html =
+          rendered_to_string(~H"""
+          <LanguageSwitcher.language_switcher_dropdown
+            current_locale="en"
+            languages={@languages}
+            current_path="/blog/post"
+            ai_translate={ai}
+          />
+          """)
+
+        refute html =~ "✨"
+        refute html =~ "Translate all missing"
+      end
+    end
+
+    test "bulk count subtracts in_flight (doesn't re-enqueue what's already queued)" do
+      # Three missing langs, two already in flight → only 1 actionable.
+      # Bulk button needs ≥2 actionable to render, so it should be
+      # hidden here.
+      assigns = %{
+        languages: [
+          %{code: "en-US", name: "English (US)", is_primary: true},
+          %{code: "fr", name: "French"},
+          %{code: "es", name: "Spanish"},
+          %{code: "de", name: "German"}
+        ],
+        ai: %{
+          enabled: true,
+          event: "translate_lang",
+          missing: ["fr", "es", "de"],
+          in_flight: ["fr", "es"]
+        }
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <LanguageSwitcher.language_switcher_dropdown
+          current_locale="en"
+          languages={@languages}
+          current_path="/blog/post"
+          ai_translate={@ai}
+        />
+        """)
+
+      refute html =~ "Translate all missing"
+      # Spinners for fr + es, sparkle still on de.
+      assert html =~ "loading-spinner"
+      assert html =~ ~s|phx-value-lang="de"|
+    end
+
+    test "bulk count shows the actionable number (missing minus in_flight)" do
+      assigns = %{
+        languages: [
+          %{code: "en-US", name: "English (US)", is_primary: true},
+          %{code: "fr", name: "French"},
+          %{code: "es", name: "Spanish"},
+          %{code: "de", name: "German"}
+        ],
+        ai: %{
+          enabled: true,
+          event: "translate_lang",
+          missing: ["fr", "es", "de"],
+          in_flight: ["fr"]
+        }
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <LanguageSwitcher.language_switcher_dropdown
+          current_locale="en"
+          languages={@languages}
+          current_path="/blog/post"
+          ai_translate={@ai}
+        />
+        """)
+
+      # 3 missing minus 1 in-flight = 2 actionable
+      assert html =~ "Translate all missing (2)"
+    end
   end
 end

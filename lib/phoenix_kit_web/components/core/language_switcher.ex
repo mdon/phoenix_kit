@@ -419,7 +419,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
         <% true -> %>
           <button
             type="button"
-            phx-click={@ai_translate[:event] || @ai_translate["event"]}
+            phx-click={event_name(@ai_translate)}
             phx-value-lang={@base_code}
             class="flex items-center justify-center px-3 text-base-content/50 hover:text-primary hover:bg-base-200 rounded-r-lg transition"
             aria-label="Translate this language with AI"
@@ -444,12 +444,12 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       <div class="border-t border-base-200 p-2">
         <button
           type="button"
-          phx-click={@ai_translate[:event] || @ai_translate["event"]}
+          phx-click={event_name(@ai_translate)}
           phx-value-lang="*"
           class="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-base-200 transition"
         >
           <span aria-hidden="true">✨</span>
-          <span>Translate all missing ({length(missing_codes(@ai_translate))})</span>
+          <span>Translate all missing ({length(actionable_missing(@ai_translate))})</span>
         </button>
       </div>
     <% end %>
@@ -459,23 +459,46 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   defp ai_translate_show?(nil, _base_code), do: false
 
   defp ai_translate_show?(cfg, base_code) when is_map(cfg) do
-    enabled?(cfg) and base_code in missing_codes(cfg)
+    enabled?(cfg) and event_name(cfg) != nil and base_code in missing_codes(cfg)
   end
 
   defp bulk_show?(nil), do: false
 
   defp bulk_show?(cfg) when is_map(cfg) do
-    enabled?(cfg) and length(missing_codes(cfg)) >= 2
+    enabled?(cfg) and event_name(cfg) != nil and length(actionable_missing(cfg)) >= 2
   end
 
   defp enabled?(cfg), do: cfg[:enabled] == true or cfg["enabled"] == true
 
-  defp in_flight?(cfg, base_code) do
-    base_code in (cfg[:in_flight] || cfg["in_flight"] || [])
+  # Non-empty event name. Without a host handler to dispatch to, the
+  # affordance is dead UI — hide it. Whitespace-only event strings
+  # count as empty.
+  defp event_name(cfg) do
+    case cfg[:event] || cfg["event"] do
+      e when is_binary(e) ->
+        trimmed = String.trim(e)
+        if trimmed == "", do: nil, else: trimmed
+
+      _ ->
+        nil
+    end
   end
+
+  defp in_flight?(cfg, base_code) do
+    base_code in in_flight_codes(cfg)
+  end
+
+  defp in_flight_codes(cfg), do: cfg[:in_flight] || cfg["in_flight"] || []
 
   defp missing_codes(cfg) do
     cfg[:missing] || cfg["missing"] || []
+  end
+
+  # Languages still needing a translation **and** not already enqueued.
+  # The bulk button uses this count so a single click doesn't redundantly
+  # re-enqueue jobs the host already has in flight.
+  defp actionable_missing(cfg) do
+    missing_codes(cfg) -- in_flight_codes(cfg)
   end
 
   @doc """

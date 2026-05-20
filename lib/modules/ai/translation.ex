@@ -118,19 +118,46 @@ defmodule PhoenixKit.Modules.AI.Translation do
         ) :: translation_result()
   def translate_fields(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts \\ [])
       when is_map(fields) and is_binary(source_lang) and is_binary(target_lang) do
-    cond do
-      not AI.available?() ->
-        {:error, :ai_not_installed}
-
-      not is_binary(endpoint_uuid) or endpoint_uuid == "" ->
-        {:error, :no_endpoint}
-
-      not is_binary(prompt_uuid) or prompt_uuid == "" ->
-        {:error, :missing_prompt}
-
-      true ->
-        do_translate(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts)
+    # Order matters: validate inputs first so callers can unit-test the
+    # argument-validation contract without needing the optional plugin
+    # loaded. The plugin-availability check is a system-state question,
+    # not an input-shape question — fail fast on bad args either way.
+    with :ok <- validate_uuid(endpoint_uuid, :no_endpoint),
+         :ok <- validate_uuid(prompt_uuid, :missing_prompt),
+         :ok <- validate_unique_markers(Map.keys(fields)),
+         :ok <- ensure_available() do
+      do_translate(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts)
     end
+  end
+
+  defp validate_uuid(value, error) when is_binary(value) do
+    if String.trim(value) == "", do: {:error, error}, else: :ok
+  end
+
+  defp validate_uuid(_value, error), do: {:error, error}
+
+  # Two field names like `"foo-bar"` and `"foo_bar"` both normalise to
+  # the marker `FOO_BAR`. Reject duplicates at entry — silently
+  # overwriting one field with another's translation is worse than
+  # crashing with a clear error.
+  defp validate_unique_markers(field_names) do
+    normalised = Enum.map(field_names, &marker/1)
+
+    if length(Enum.uniq(normalised)) == length(normalised) do
+      :ok
+    else
+      duplicates =
+        normalised
+        |> Enum.frequencies()
+        |> Enum.filter(fn {_, n} -> n > 1 end)
+        |> Enum.map(fn {marker, _} -> marker end)
+
+      {:error, {:parse_error, {:duplicate_markers, duplicates}}}
+    end
+  end
+
+  defp ensure_available do
+    if AI.available?(), do: :ok, else: {:error, :ai_not_installed}
   end
 
   defp do_translate(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts) do
@@ -151,12 +178,31 @@ defmodule PhoenixKit.Modules.AI.Translation do
 
     log_request(source_lang, target_lang, Map.keys(fields), opts)
 
-    case PhoenixKitAI.ask_with_prompt(endpoint_uuid, prompt_uuid, variables, ai_opts) do
-      {:ok, response} ->
-        parse_response(response, Map.keys(fields))
+    # Wrap the plugin call so unexpected return shapes, raised
+    # exceptions, GenServer.call exits, and throws all come out as
+    # `{:error, {:ai_error, _}}` — matching the documented contract.
+    # The plugin uses `GenServer.call/3` internally for streaming
+    # endpoints; that exits the caller process by default on timeout,
+    # which `rescue` alone wouldn't catch.
+    try do
+      case PhoenixKitAI.ask_with_prompt(endpoint_uuid, prompt_uuid, variables, ai_opts) do
+        {:ok, response} when is_binary(response) ->
+          parse_response(response, Map.keys(fields))
 
-      {:error, reason} ->
-        {:error, {:ai_error, reason}}
+        {:ok, other} ->
+          {:error, {:ai_error, {:unexpected_response, other}}}
+
+        {:error, reason} ->
+          {:error, {:ai_error, reason}}
+
+        other ->
+          {:error, {:ai_error, {:unexpected_return, other}}}
+      end
+    rescue
+      e -> {:error, {:ai_error, {:exception, Exception.message(e)}}}
+    catch
+      :exit, reason -> {:error, {:ai_error, {:exit, reason}}}
+      :throw, value -> {:error, {:ai_error, {:throw, value}}}
     end
   end
 
@@ -179,16 +225,22 @@ defmodule PhoenixKit.Modules.AI.Translation do
   the returned map preserves the input casing of `fields` so callers
   can round-trip with their original field-name strings.
 
-  When a marker is missing from the response the field is omitted
-  from the result (rather than nil-padded). Callers should treat a
-  missing key as "model didn't return this field" and fall back to
-  the source value as appropriate.
+  **All requested fields must be present** in the response. When the
+  model returns a partial response (e.g. it forgot the `---SLUG---`
+  marker), this function returns
+  `{:error, {:parse_error, {:missing_fields, [...]}}}` so the caller
+  can decide whether to retry, fall back to the source value, or
+  surface an error to the user — rather than silently persisting a
+  half-translated row.
 
       iex> Translation.parse_response(
       ...>   "---TITLE---\\nHola\\n---BODY---\\nMundo",
       ...>   ["title", "body"]
       ...> )
       {:ok, %{"title" => "Hola", "body" => "Mundo"}}
+
+      iex> Translation.parse_response("---TITLE---\\nonly", ["title", "body"])
+      {:error, {:parse_error, {:missing_fields, ["body"]}}}
 
       iex> Translation.parse_response(":shrug:", ["title"])
       {:error, {:parse_error, :no_markers}}
@@ -207,10 +259,12 @@ defmodule PhoenixKit.Modules.AI.Translation do
         end
       end)
 
-    if map_size(parsed) == 0 do
-      {:error, {:parse_error, :no_markers}}
-    else
-      {:ok, parsed}
+    missing = for name <- field_names, not Map.has_key?(parsed, name), do: name
+
+    cond do
+      map_size(parsed) == 0 -> {:error, {:parse_error, :no_markers}}
+      missing != [] -> {:error, {:parse_error, {:missing_fields, missing}}}
+      true -> {:ok, parsed}
     end
   end
 
