@@ -442,12 +442,13 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   ## Attributes
 
-  * `class` - Overrides the default header styling. Default is `"bg-primary text-primary-content"`
-    (loud, daisyUI primary). Pass `class=""` (or any other class string) for a neutral header —
-    e.g. `class=""` blends the header with `<tbody>` for a flatter look. The string fully
-    replaces the default; concatenate manually if you want both.
+  * `class` - Overrides the default header styling. Default is `"bg-base-300"` — a calm,
+    theme-neutral header that reads as a subtle separator from `<tbody>` instead of the
+    loud daisyUI primary. Pass `"bg-primary text-primary-content"` to restore the legacy
+    look, or `class=""` for a fully bare header. The string fully replaces the default;
+    concatenate manually if you want to add classes on top.
   """
-  attr :class, :string, default: "bg-primary text-primary-content"
+  attr :class, :string, default: "bg-base-300"
   slot :inner_block, required: true
 
   def table_default_header(assigns) do
