@@ -132,6 +132,47 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     """
   )
 
+  attr(:ai_translate, :map,
+    default: nil,
+    doc: """
+    Optional opt-in for the AI-translate affordance. When present and
+    `:enabled` is true, missing-language items show a sparkle button
+    that fires the host LV's `phx-click` event (and a bulk
+    "translate all missing" CTA renders below the list when ≥2 languages
+    are missing).
+
+    Shape:
+
+        %{
+          enabled: true,
+          event: "translate_lang",        # phx-click target on host LV
+          missing: ["es", "de"],          # base codes lacking a translation
+          in_flight: ["es"],              # show spinner, click disabled
+          completed: ["fr"]               # transient checkmark
+        }
+
+    The component emits the host's event; the host owns enqueuing the
+    actual translation worker and broadcasting `:in_flight` / `:completed`
+    state back via PubSub. Set `:enabled` to `false` (or pass `nil`) to
+    fall back to today's behavior with no AI UI — convenient for hosts
+    that gate on `PhoenixKit.Modules.AI.available?/0`.
+
+    ## Bulk action dispatch
+
+    The "Translate all missing" CTA fires the same event with
+    `phx-value-lang="*"` as a sentinel. Host handlers branch on the
+    value:
+
+        def handle_event("translate_lang", %{"lang" => "*"}, socket) do
+          # enqueue one job per language in `missing`
+        end
+
+        def handle_event("translate_lang", %{"lang" => lang}, socket) do
+          # enqueue a single-language job
+        end
+    """
+  )
+
   def language_switcher_dropdown(assigns) do
     assigns = prepare_dropdown_assigns(assigns)
 
@@ -229,7 +270,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                 <%= for language <- langs do %>
                   <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                   <li
-                    class="w-full language-item"
+                    class="w-full language-item flex items-stretch"
                     data-name={String.downcase(language["name"] || "")}
                     data-native={String.downcase(language["native"] || "")}
                   >
@@ -239,7 +280,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                       phx-value-locale={language["base_code"]}
                       phx-value-url={url}
                       class={[
-                        "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                        "flex-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                         if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
                       ]}
                     >
@@ -253,6 +294,10 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                         <span class="ml-auto">✓</span>
                       <% end %>
                     </a>
+                    <.ai_translate_action
+                      ai_translate={@ai_translate}
+                      base_code={language["base_code"]}
+                    />
                   </li>
                 <% end %>
                 <li class="ls-no-results px-3 py-2 text-sm text-base-content/50" style="display:none">
@@ -296,7 +341,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
               <%= for language <- @languages do %>
                 <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                 <li
-                  class="w-full language-item"
+                  class="w-full language-item flex items-stretch"
                   data-name={String.downcase(language["name"] || "")}
                   data-native={String.downcase(language["native"] || "")}
                 >
@@ -306,7 +351,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                     phx-value-locale={language["base_code"]}
                     phx-value-url={url}
                     class={[
-                      "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                      "flex-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                       if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
                     ]}
                   >
@@ -330,6 +375,10 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                       <span class="ml-auto">✓</span>
                     <% end %>
                   </a>
+                  <.ai_translate_action
+                    ai_translate={@ai_translate}
+                    base_code={language["base_code"]}
+                  />
                 </li>
               <% end %>
               <%= if @needs_scroll do %>
@@ -339,10 +388,94 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
               <% end %>
             </ul>
           <% end %>
+          <.ai_translate_bulk ai_translate={@ai_translate} />
         </div>
       </details>
     </div>
     """
+  end
+
+  # Per-language sparkle button rendered next to each `<a>` link.
+  # Visible only when `ai_translate.enabled` is true AND the language
+  # is in `ai_translate.missing`. Swaps to a spinner while the
+  # corresponding language is in `ai_translate.in_flight`. Hosts that
+  # complete a translation (and remove the code from `missing`) cause
+  # the button to disappear naturally on the next render.
+  attr(:ai_translate, :map, default: nil)
+  attr(:base_code, :string, required: true)
+
+  defp ai_translate_action(assigns) do
+    ~H"""
+    <%= if ai_translate_show?(@ai_translate, @base_code) do %>
+      <%= cond do %>
+        <% in_flight?(@ai_translate, @base_code) -> %>
+          <span
+            class="flex items-center justify-center px-3 text-base-content/60"
+            aria-label="Translation in progress"
+            title="Translation in progress"
+          >
+            <span class="loading loading-spinner loading-xs"></span>
+          </span>
+        <% true -> %>
+          <button
+            type="button"
+            phx-click={@ai_translate[:event] || @ai_translate["event"]}
+            phx-value-lang={@base_code}
+            class="flex items-center justify-center px-3 text-base-content/50 hover:text-primary hover:bg-base-200 rounded-r-lg transition"
+            aria-label="Translate this language with AI"
+            title="Translate with AI"
+          >
+            <span aria-hidden="true">✨</span>
+          </button>
+      <% end %>
+    <% end %>
+    """
+  end
+
+  # Bulk "translate all missing" CTA rendered below the language list
+  # when ≥2 languages are missing. Same `phx-click` event as the
+  # per-language buttons; the host's handler distinguishes by the
+  # absence of `phx-value-lang` (or its sentinel value).
+  attr(:ai_translate, :map, default: nil)
+
+  defp ai_translate_bulk(assigns) do
+    ~H"""
+    <%= if bulk_show?(@ai_translate) do %>
+      <div class="border-t border-base-200 p-2">
+        <button
+          type="button"
+          phx-click={@ai_translate[:event] || @ai_translate["event"]}
+          phx-value-lang="*"
+          class="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-base-200 transition"
+        >
+          <span aria-hidden="true">✨</span>
+          <span>Translate all missing ({length(missing_codes(@ai_translate))})</span>
+        </button>
+      </div>
+    <% end %>
+    """
+  end
+
+  defp ai_translate_show?(nil, _base_code), do: false
+
+  defp ai_translate_show?(cfg, base_code) when is_map(cfg) do
+    enabled?(cfg) and base_code in missing_codes(cfg)
+  end
+
+  defp bulk_show?(nil), do: false
+
+  defp bulk_show?(cfg) when is_map(cfg) do
+    enabled?(cfg) and length(missing_codes(cfg)) >= 2
+  end
+
+  defp enabled?(cfg), do: cfg[:enabled] == true or cfg["enabled"] == true
+
+  defp in_flight?(cfg, base_code) do
+    base_code in (cfg[:in_flight] || cfg["in_flight"] || [])
+  end
+
+  defp missing_codes(cfg) do
+    cfg[:missing] || cfg["missing"] || []
   end
 
   @doc """
