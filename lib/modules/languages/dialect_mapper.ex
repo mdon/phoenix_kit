@@ -358,4 +358,40 @@ defmodule PhoenixKit.Modules.Languages.DialectMapper do
       "pt-BR"
   """
   def default_dialects, do: @default_dialects
+
+  @doc """
+  Counts how many entries share each base language code in a list of
+  language entries. Used by language switchers to decide whether to
+  show a country qualifier or just the bare language name.
+
+  Accepts both maps with atom-keyed `:code` (e.g. `%Language{}` structs)
+  and string-keyed `"code"` (e.g. JSON-decoded settings). Entries
+  without a recognizable code are skipped.
+
+  ## Examples
+
+      iex> DialectMapper.group_dialects_by_base([
+      ...>   %{code: "en-US"},
+      ...>   %{code: "en-GB"},
+      ...>   %{code: "et-EE"}
+      ...> ])
+      %{"en" => 2, "et" => 1}
+
+      iex> DialectMapper.group_dialects_by_base([])
+      %{}
+  """
+  def group_dialects_by_base(languages) when is_list(languages) do
+    languages
+    |> Enum.reduce([], fn lang, acc ->
+      case lang_code(lang) do
+        nil -> acc
+        code -> [extract_base(code) | acc]
+      end
+    end)
+    |> Enum.frequencies()
+  end
+
+  defp lang_code(%{code: code}) when is_binary(code), do: code
+  defp lang_code(%{"code" => code}) when is_binary(code), do: code
+  defp lang_code(_), do: nil
 end

@@ -174,4 +174,133 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
       assert html =~ ~s(href="/phoenix_kit/fr/some/page")
     end
   end
+
+  describe "single-vs-multi-dialect label dedup" do
+    @moduledoc """
+    `build_dialect_list/1` strips the country qualifier from each
+    rendered name when only one dialect of that base language is
+    configured. As soon as a second dialect of the *same* base shows
+    up, both English entries reacquire the qualifier so the user can
+    distinguish them. Other languages with only one dialect stay
+    bare.
+    """
+
+    test "single dialect per language → bare language names render" do
+      assigns = %{
+        languages: [
+          %{code: "en-US", name: "English (United States)"},
+          %{code: "et-EE", name: "Estonian (Estonia)"},
+          %{code: "fr-FR", name: "French (France)"}
+        ]
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <LanguageSwitcher.language_switcher_dropdown
+          current_locale="en"
+          languages={@languages}
+          current_path="/p"
+        />
+        """)
+
+      assert html =~ "English"
+      assert html =~ "Estonian"
+      assert html =~ "French"
+      refute html =~ "(United States)"
+      refute html =~ "(Estonia)"
+      refute html =~ "(France)"
+    end
+
+    test "multiple dialects of the same base → that base reacquires the country qualifier" do
+      assigns = %{
+        languages: [
+          %{code: "en-US", name: "English (United States)"},
+          %{code: "en-GB", name: "English (United Kingdom)"},
+          %{code: "et-EE", name: "Estonian (Estonia)"},
+          %{code: "fr-FR", name: "French (France)"}
+        ]
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <LanguageSwitcher.language_switcher_dropdown
+          current_locale="en"
+          languages={@languages}
+          current_path="/p"
+        />
+        """)
+
+      # English variants need disambiguation
+      assert html =~ "English (United States)"
+      assert html =~ "English (United Kingdom)"
+
+      # Sibling-free languages still render bare
+      assert html =~ "Estonian"
+      assert html =~ "French"
+      refute html =~ "(Estonia)"
+      refute html =~ "(France)"
+    end
+
+    test "dedupe_names/1 — public helper called from admin_nav + user_dashboard_nav" do
+      # Single dialect → strip qualifier
+      input = [
+        %{code: "de-DE", name: "German (Germany)", flag: "🇩🇪"},
+        %{code: "zh", name: "Chinese (Simplified)", flag: "🇨🇳"},
+        %{code: "lv", name: "Latvian", flag: "🇱🇻"}
+      ]
+
+      assert [
+               %{code: "de-DE", name: "German", flag: "🇩🇪"},
+               %{code: "zh", name: "Chinese", flag: "🇨🇳"},
+               %{code: "lv", name: "Latvian", flag: "🇱🇻"}
+             ] = LanguageSwitcher.dedupe_names(input)
+
+      # Multi-dialect → keep qualifier
+      multi = [
+        %{code: "en-US", name: "English (United States)"},
+        %{code: "en-GB", name: "English (United Kingdom)"},
+        %{code: "de-DE", name: "German (Germany)"}
+      ]
+
+      assert [
+               %{code: "en-US", name: "English (United States)"},
+               %{code: "en-GB", name: "English (United Kingdom)"},
+               %{code: "de-DE", name: "German"}
+             ] = LanguageSwitcher.dedupe_names(multi)
+    end
+
+    test "dedupe_names/1 supports string-keyed maps" do
+      input = [
+        %{"code" => "de-DE", "name" => "German (Germany)"},
+        %{"code" => "fr-FR", "name" => "French (France)"}
+      ]
+
+      assert [
+               %{"code" => "de-DE", "name" => "German"},
+               %{"code" => "fr-FR", "name" => "French"}
+             ] = LanguageSwitcher.dedupe_names(input)
+    end
+
+    test "unknown base code parses the bare name from the configured name" do
+      assigns = %{
+        languages: [
+          %{code: "fil-PH", name: "Filipino (Philippines)"}
+        ]
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <LanguageSwitcher.language_switcher_dropdown
+          current_locale="fil"
+          languages={@languages}
+          current_path="/p"
+        />
+        """)
+
+      # Single dialect → strip the parenthetical from the configured
+      # name. Works for any base code without a predefined map.
+      assert html =~ "Filipino"
+      refute html =~ "(Philippines)"
+    end
+  end
 end
