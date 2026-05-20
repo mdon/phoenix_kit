@@ -1,3 +1,20 @@
+## Unreleased
+
+### Changed
+- Frontend language switcher (`PhoenixKitWeb.Components.Core.LanguageSwitcher`'s
+  dropdown + continent-grouped views) now drops the country qualifier from
+  rendered labels when only one dialect of a given base language is enabled.
+  `English (United States)`, `Estonian (Estonia)`, `French (France)` render
+  as `English`, `Estonian`, `French` whenever no sibling dialect is
+  configured; enabling a second dialect of the same base (e.g. `en-US` +
+  `en-GB`) causes those entries to reacquire the country qualifier so they
+  remain distinguishable. Implementation reuses the historical
+  `extract_base_language_name/1` string-parse approach
+  ("Spanish (Mexico)" → "Spanish") plus a new
+  `DialectMapper.group_dialects_by_base/1` to count siblings per base.
+  Restores the bare-label rendering that was lost when commit `d1c2d577`
+  rewrote the switcher to one-row-per-dialect.
+
 ## 1.7.115 - 2026-05-19
 
 ### Added
