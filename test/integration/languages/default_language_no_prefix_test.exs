@@ -113,4 +113,28 @@ defmodule PhoenixKit.Integration.Languages.DefaultLanguageNoPrefixTest do
                Languages.migrate_legacy()
     end
   end
+
+  describe "prefixless_primary_safe?/0 — boot-safe wrapper" do
+    test "returns the same value as default_language_no_prefix?/0 from runtime" do
+      refute Languages.prefixless_primary_safe?()
+
+      Languages.set_default_language_no_prefix(true)
+      assert Languages.prefixless_primary_safe?()
+
+      Languages.set_default_language_no_prefix(false)
+      refute Languages.prefixless_primary_safe?()
+    end
+
+    test "returns false in mix-task context regardless of setting" do
+      Languages.set_default_language_no_prefix(true)
+
+      # Mark the process as in mix-task context — same sentinel
+      # `Routes.path/1` checks
+      Process.put(:phoenix_kit_config_status, :mix_task)
+      refute Languages.prefixless_primary_safe?()
+
+      Process.delete(:phoenix_kit_config_status)
+      assert Languages.prefixless_primary_safe?()
+    end
+  end
 end

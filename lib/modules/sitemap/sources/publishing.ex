@@ -50,6 +50,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.LocalePath
   alias PhoenixKit.Modules.Sitemap.UrlEntry
 
   @publishing_mod PhoenixKit.Modules.Publishing
@@ -511,30 +512,23 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     |> Enum.map_join(" ", &String.capitalize/1)
   end
 
-  # Build group path with PhoenixKit prefix and optional language.
-  # Format: /{prefix}/{lang?}/{segments...}
+  # Builds group path with PhoenixKit prefix and optional language.
+  # Format: /{prefix}/{lang?}/{segments...}. The locale-segment policy
+  # lives in `LocalePath.emit_prefix?/2` — see that module for the
+  # canonical decision rules shared across all sitemap sources.
   #
-  # Skip rules for the language segment:
-  #   1. Single-language mode — no language is meaningful.
-  #   2. `is_default` is true AND the site-wide
-  #      `default_language_no_prefix` setting is on (the primary language
-  #      should match the public URL shape that
-  #      `PublishingHTML.use_language_prefix?/1` emits at request time;
-  #      keeping the sitemap consistent prevents indexed canonicals
-  #      drifting from served URLs).
-  # Everything else keeps the prefix.
+  # Publishing emits the **display code** (`get_display_code/2`) for
+  # the language segment so hreflang entries match the controller's
+  # canonical URL logic — base code when only one dialect is enabled,
+  # full dialect code when multiple dialects are enabled.
   defp build_group_path(segments, language, is_default) do
     prefix_parts = url_prefix_segments()
 
     lang_parts =
-      cond do
-        is_nil(language) -> []
-        single_language_mode?() -> []
-        is_default and Languages.default_language_no_prefix?() -> []
-        # Use display code to match controller's canonical URL logic
-        # This returns base code ("en") when single dialect enabled,
-        # or full code ("en-US") when multiple dialects enabled
-        true -> [get_display_code(language)]
+      if LocalePath.emit_prefix?(language, is_default) do
+        [get_display_code(language)]
+      else
+        []
       end
 
     all_parts =
@@ -557,15 +551,6 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
       "/" -> []
       prefix -> prefix |> String.trim("/") |> String.split("/", trim: true)
     end
-  end
-
-  # Check if we're in single language mode (no locale prefix needed)
-  # Returns true when languages module is off OR only one language is enabled
-  # Mirrors PublishingHTML.single_language_mode?/0 logic
-  defp single_language_mode? do
-    not Languages.enabled?() or length(Languages.get_enabled_languages()) <= 1
-  rescue
-    _ -> true
   end
 
   # Get default language from the Languages module

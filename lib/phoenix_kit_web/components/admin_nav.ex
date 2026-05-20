@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.ThemeController, only: [theme_controller: 1]
@@ -500,13 +501,19 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   end
 
   # Helper function to get languages for admin nav display
-  # Uses the unified Languages module as the single source of truth
+  # Uses the unified Languages module as the single source of truth.
+  # The final `dedupe_names/1` call drops the country qualifier from
+  # `:name` when only one dialect of a given base language is
+  # configured (e.g. "German (Germany)" → "German") — same rule the
+  # frontend dropdown applies; the helper lives in
+  # `Core.LanguageSwitcher` so all menus share one implementation.
   defp get_admin_languages do
     if Code.ensure_loaded?(Languages) do
       Languages.get_display_languages()
       |> Enum.filter(fn lang -> is_map(lang) and Map.get(lang, :is_enabled, false) end)
       |> Enum.map(&enrich_language/1)
       |> Enum.reject(&is_nil/1)
+      |> LanguageSwitcher.dedupe_names()
     else
       []
     end

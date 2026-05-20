@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
   @doc """
   Renders user dropdown for dashboard navigation.
@@ -179,7 +180,12 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
         [%{code: "en-US", name: "English (United States)", is_enabled: true}]
       end
 
-    # Map to expected format with enriched data from predefined languages
+    # Map to expected format with enriched data from predefined languages.
+    # The final `dedupe_names/1` call drops the country qualifier when
+    # only one dialect of a given base language is configured — the
+    # same rule the frontend switcher applies, called from its
+    # canonical home in `Core.LanguageSwitcher` so the logic lives in
+    # one place.
     languages
     |> Enum.map(fn lang ->
       case Languages.get_predefined_language(lang.code) do
@@ -190,6 +196,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
           %{code: lang.code, name: String.upcase(lang.code), flag: "🌐", native: ""}
       end
     end)
+    |> LanguageSwitcher.dedupe_names()
   end
 
   # Helper function to get language flag emoji

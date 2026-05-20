@@ -1,3 +1,67 @@
+## 1.7.116 - 2026-05-20
+
+### Added
+- `Languages.prefixless_primary_safe?/0` — boot- and mix-task-safe wrapper
+  around `default_language_no_prefix?/0`. Returns `false` during mix-task
+  context (via the same `:phoenix_kit_config_status` sentinel `Routes.path/1`
+  uses) and rescues any other lookup exception to `false`. Use from
+  boot/middleware contexts where the Settings table may not be reachable;
+  `default_language_no_prefix?/0` remains the runtime entry point.
+  `Routes.path/1` and `PhoenixKitWeb.Users.Auth` now both delegate to this
+  canonical implementation (PR #554).
+- `PhoenixKit.Modules.Sitemap.LocalePath` — shared `emit_prefix?/2`
+  decision rule for the three sitemap sources (`publishing`, `static`,
+  `posts`). Each source still owns its segment formatting (display code
+  with hreflang awareness for publishing, base code for static + posts);
+  the module owns only the decision so the policy stays consistent across
+  sources (PR #554).
+- `DialectMapper.group_dialects_by_base/1` — counts sibling dialects per
+  base language code. Used by the language switcher and admin/user nav
+  dropdowns to decide whether to show a country qualifier (PR #555).
+- `LanguageSwitcher.dedupe_names/1` + `extract_base_language_name/1` —
+  public helpers called from `AdminNav` and `UserDashboardNav` so all
+  language menus share one country-qualifier dedup rule (PR #555).
+
+### Changed
+- Frontend language switcher (`PhoenixKitWeb.Components.Core.LanguageSwitcher`'s
+  dropdown + continent-grouped views) now drops the country qualifier from
+  rendered labels when only one dialect of a given base language is enabled.
+  `English (United States)`, `Estonian (Estonia)`, `French (France)` render
+  as `English`, `Estonian`, `French` whenever no sibling dialect is
+  configured; enabling a second dialect of the same base (e.g. `en-US` +
+  `en-GB`) causes those entries to reacquire the country qualifier so they
+  remain distinguishable. Same rule applies in the admin top-bar dropdown
+  and user dashboard nav. Continent-grouped views compute sibling counts
+  globally across all enabled languages, so a base split across continents
+  keeps its qualifier in both groups. Restores the bare-label rendering
+  that was lost when commit `d1c2d577` rewrote the switcher to
+  one-row-per-dialect (PR #555).
+- Sitemap sources `publishing`, `static`, and `posts` share one
+  `LocalePath.emit_prefix?/2` decision rule instead of three byte-identical
+  copies; three near-identical private `single_language_mode?/0` helpers
+  collapse into one defensive lookup on `LocalePath` (PR #554).
+- `redirect_invalid_locale/2` honors the site-wide
+  `default_language_no_prefix` setting. With the setting OFF (default), an
+  invalid locale segment is swapped for the primary base code so the
+  redirect lands on the canonical prefixed shape; with the setting ON, the
+  segment is stripped entirely. Previously the plug always emitted the
+  prefixless shape, which was inconsistent with how the rest of the app
+  emits primary-language URLs when the setting is OFF (PR #554).
+- Dependency bumps: `etcher` 0.3.0 → 0.4.0, `fresco` 0.5.2 → 0.5.3.
+
+### Fixed
+- Login (and any other primary-language POST) no longer fails with the
+  default `default_language_no_prefix` setting. `process_valid_locale/2`
+  was unconditionally 301-redirecting `/<default>/...` → `/...` for
+  non-admin requests, discarding the POST body. The redirect is now gated
+  on `Languages.prefixless_primary_safe?/0` so the canonical primary shape
+  matches whichever setting state the site is in (PR #554).
+- Sitemap sources `static.ex` and `posts.ex` honor the site-wide
+  `default_language_no_prefix` setting for the primary language. Both had
+  the same `_is_default` ignored bug that PR #552 fixed in the publishing
+  source — they previously emitted `/en/about` and `/en/blog/post` in
+  multilang mode regardless of the setting (PR #554).
+
 ## 1.7.115 - 2026-05-19
 
 ### Added

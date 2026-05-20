@@ -129,4 +129,55 @@ defmodule PhoenixKit.Modules.Languages.DialectMapperTest do
       assert defaults["zh"] == "zh-CN"
     end
   end
+
+  describe "group_dialects_by_base/1" do
+    test "counts dialects per base code for atom-keyed maps" do
+      result =
+        DialectMapper.group_dialects_by_base([
+          %{code: "en-US"},
+          %{code: "en-GB"},
+          %{code: "et-EE"}
+        ])
+
+      assert result == %{"en" => 2, "et" => 1}
+    end
+
+    test "supports string-keyed maps" do
+      result =
+        DialectMapper.group_dialects_by_base([
+          %{"code" => "en-US"},
+          %{"code" => "es-ES"}
+        ])
+
+      assert result == %{"en" => 1, "es" => 1}
+    end
+
+    test "supports mixed atom/string keys in the same list" do
+      result =
+        DialectMapper.group_dialects_by_base([
+          %{code: "en-US"},
+          %{"code" => "en-GB"},
+          %{code: "fr-FR"}
+        ])
+
+      assert result == %{"en" => 2, "fr" => 1}
+    end
+
+    test "ignores entries without a binary :code / \"code\"" do
+      result =
+        DialectMapper.group_dialects_by_base([
+          %{code: "en-US"},
+          %{code: nil},
+          nil,
+          %{other: "junk"},
+          "not a map"
+        ])
+
+      assert result == %{"en" => 1}
+    end
+
+    test "returns an empty map for an empty list" do
+      assert DialectMapper.group_dialects_by_base([]) == %{}
+    end
+  end
 end
