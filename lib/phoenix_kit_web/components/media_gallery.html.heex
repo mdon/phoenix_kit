@@ -68,11 +68,11 @@
         </div>
       </:item>
 
-      <:add_button>
-        <%!-- Add tile is omitted entirely once the selection reaches its limit
-             (instead of rendering a disabled tile) so it simply disappears. --%>
+      <%!-- Add tile is omitted entirely (the slot itself is conditional) once the
+           selection reaches its limit, so draggable_list renders no trailing cell
+           at all — not even an empty wrapper. --%>
+      <:add_button :if={not @readonly and not selection_at_limit?(@selected, @mode, @max_count)}>
         <button
-          :if={not @readonly and not selection_at_limit?(@selected, @mode, @max_count)}
           type="button"
           class="w-full aspect-square border-2 border-dashed rounded-lg transition-all flex flex-col items-center justify-center gap-1 text-xs font-medium border-base-300 hover:border-primary hover:bg-base-200 cursor-pointer text-base-content/60 hover:text-primary"
           data-role={"open-picker-#{@id}"}
