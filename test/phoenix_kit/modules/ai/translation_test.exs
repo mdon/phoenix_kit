@@ -1,0 +1,160 @@
+defmodule PhoenixKit.Modules.AI.TranslationTest do
+  @moduledoc """
+  Unit coverage for `PhoenixKit.Modules.AI.Translation` — focuses on
+  the pieces that don't need a live `PhoenixKitAI` plugin: argument
+  validation, marker uniqueness, structured-response parsing, error
+  normalisation.
+
+  End-to-end coverage (the actual `ask_with_prompt/4` round-trip) lives
+  in each consumer's worker test (`phoenix_kit_publishing`'s
+  `translate_post_worker_test`, etc.) since the orchestration needs a
+  configured endpoint + prompt that only those repos seed.
+  """
+
+  use ExUnit.Case, async: true
+
+  alias PhoenixKit.Modules.AI.Translation
+
+  describe "translate_fields/6 — argument validation runs before plugin check" do
+    # Validation order is `endpoint → prompt → unique-markers → plugin-available`.
+    # Tests below assume PhoenixKitAI is NOT loaded in core's CI; the
+    # input-validation errors must still surface so callers can unit-test
+    # them without a configured plugin.
+
+    test "empty endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("", "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "whitespace-only endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("   ", "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "nil endpoint_uuid → :no_endpoint" do
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields(nil, "p-uuid", "en", "es", %{"a" => "b"})
+    end
+
+    test "empty prompt_uuid → :missing_prompt" do
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "", "en", "es", %{"a" => "b"})
+    end
+
+    test "whitespace-only prompt_uuid → :missing_prompt" do
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "  ", "en", "es", %{"a" => "b"})
+    end
+
+    test "two fields that normalise to the same marker → duplicate_markers error" do
+      # `foo-bar` and `foo_bar` both upcase + non-alnum-collapse to `FOO_BAR`.
+      # Without this rejection, the parser would silently overwrite one
+      # field's translation with the other's.
+      assert {:error, {:parse_error, {:duplicate_markers, dupes}}} =
+               Translation.translate_fields(
+                 "ep",
+                 "p",
+                 "en",
+                 "es",
+                 %{"foo-bar" => "a", "foo_bar" => "b"}
+               )
+
+      assert "FOO_BAR" in dupes
+    end
+
+    test "valid inputs + missing plugin → :ai_not_installed" do
+      # All input-validation passes; AI plugin presence check fails (core
+      # CI doesn't depend on :phoenix_kit_ai).
+      assert {:error, :ai_not_installed} =
+               Translation.translate_fields("ep", "p", "en", "es", %{"a" => "b"})
+    end
+  end
+
+  describe "parse_response/2 — structured `---FIELD---` markers" do
+    test "parses two fields back into a map keyed by the input names" do
+      response = """
+      ---TITLE---
+      Hola Mundo
+      ---BODY---
+      Bienvenido a la app.
+      """
+
+      assert {:ok, %{"title" => "Hola Mundo", "body" => "Bienvenido a la app."}} =
+               Translation.parse_response(response, ["title", "body"])
+    end
+
+    test "preserves the caller's input casing in the result keys" do
+      response = "---FOO_BAR---\nvalue\n"
+
+      assert {:ok, %{"Foo_Bar" => "value"}} =
+               Translation.parse_response(response, ["Foo_Bar"])
+    end
+
+    test "handles three fields with arbitrary names" do
+      response = """
+      ---TITLE---
+      Greeting
+      ---SLUG---
+      hello-world
+      ---CONTENT---
+      Body text spans
+      multiple lines.
+      """
+
+      assert {:ok, parsed} =
+               Translation.parse_response(response, ["title", "slug", "content"])
+
+      assert parsed["title"] == "Greeting"
+      assert parsed["slug"] == "hello-world"
+      assert parsed["content"] == "Body text spans\nmultiple lines."
+    end
+
+    test "trims whitespace from each section" do
+      response = "---TITLE---\n   spaced   \n---BODY---\n\ntext\n\n"
+
+      assert {:ok, %{"title" => "spaced", "body" => "text"}} =
+               Translation.parse_response(response, ["title", "body"])
+    end
+
+    test "missing field returns :missing_fields error with the absent name" do
+      # Critical: pre-fix, the parser silently returned partial results.
+      # Callers persisting that result would write half-translated rows.
+      response = "---TITLE---\nonly title\n"
+
+      assert {:error, {:parse_error, {:missing_fields, ["body"]}}} =
+               Translation.parse_response(response, ["title", "body"])
+    end
+
+    test "multiple missing fields are all surfaced in the error" do
+      response = "---TITLE---\nonly title\n"
+
+      assert {:error, {:parse_error, {:missing_fields, missing}}} =
+               Translation.parse_response(response, ["title", "body", "slug"])
+
+      assert "body" in missing
+      assert "slug" in missing
+      refute "title" in missing
+    end
+
+    test "returns :no_markers when nothing matches at all" do
+      response = "just some markdown\n\n# header"
+
+      assert {:error, {:parse_error, :no_markers}} =
+               Translation.parse_response(response, ["title", "body"])
+    end
+
+    test "normalises punctuation in field names to underscores in the marker" do
+      response = "---FIELD_NAME_WITH_SPACES---\nvalue\n"
+
+      assert {:ok, %{"field-name with spaces" => "value"}} =
+               Translation.parse_response(response, ["field-name with spaces"])
+    end
+
+    test "single-field response works without a closing boundary" do
+      response = "---DESCRIPTION---\nA short description without trailing markers"
+
+      assert {:ok, %{"description" => "A short description without trailing markers"}} =
+               Translation.parse_response(response, ["description"])
+    end
+  end
+end
