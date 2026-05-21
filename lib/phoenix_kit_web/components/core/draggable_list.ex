@@ -84,7 +84,10 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
 
   attr :on_reorder, :string, required: true, doc: "Event name to send on reorder"
   attr :layout, :atom, default: :grid, values: [:grid, :list], doc: "Layout mode"
-  attr :cols, :integer, default: 4, doc: "Number of grid columns (only for layout={:grid})"
+  attr :cols, :any,
+    default: 4,
+    doc:
+      "Grid columns (only for layout={:grid}). Either an integer 1..6 (mapped to a static `grid-cols-N`), or a string of Tailwind grid-column classes used verbatim — e.g. `\"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8\"` — for a responsive grid. The string form must be a literal in a Tailwind-scanned source so the classes are compiled."
   attr :gap, :string, default: "gap-2", doc: "Gap between items (Tailwind class)"
   attr :class, :string, default: "", doc: "Additional CSS classes for the container"
   attr :item_class, :string, default: "", doc: "Additional CSS classes for each item wrapper"
@@ -159,7 +162,10 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
     """
   end
 
-  # Map column count to Tailwind class (must be static for Tailwind to recognize)
+  # Map column count to Tailwind class (must be static for Tailwind to recognize).
+  # A string is taken verbatim so consumers can pass responsive grid-column
+  # classes (e.g. "grid-cols-4 lg:grid-cols-6 3xl:grid-cols-8").
+  defp cols_to_class(cols) when is_binary(cols), do: cols
   defp cols_to_class(1), do: "grid-cols-1"
   defp cols_to_class(2), do: "grid-cols-2"
   defp cols_to_class(3), do: "grid-cols-3"

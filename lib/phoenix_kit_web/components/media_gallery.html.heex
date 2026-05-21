@@ -68,21 +68,16 @@
         </div>
       </:item>
 
-      <:add_button>
+      <%!-- Add tile is omitted entirely (the slot itself is conditional) once the
+           selection reaches its limit, so draggable_list renders no trailing cell
+           at all — not even an empty wrapper. --%>
+      <:add_button :if={not @readonly and not selection_at_limit?(@selected, @mode, @max_count)}>
         <button
-          :if={not @readonly}
           type="button"
-          class={[
-            "w-full aspect-square border-2 border-dashed rounded-lg transition-all flex flex-col items-center justify-center gap-1 text-xs font-medium",
-            selection_at_limit?(@selected, @mode, @max_count) &&
-              "border-base-300 bg-base-200 text-base-content/30 cursor-not-allowed",
-            not selection_at_limit?(@selected, @mode, @max_count) &&
-              "border-base-300 hover:border-primary hover:bg-base-200 cursor-pointer text-base-content/60 hover:text-primary"
-          ]}
+          class="w-full aspect-square border-2 border-dashed rounded-lg transition-all flex flex-col items-center justify-center gap-1 text-xs font-medium border-base-300 hover:border-primary hover:bg-base-200 cursor-pointer text-base-content/60 hover:text-primary"
           data-role={"open-picker-#{@id}"}
           phx-click="open_picker"
           phx-target={@myself}
-          disabled={selection_at_limit?(@selected, @mode, @max_count)}
         >
           <.icon name="hero-plus" class="w-6 h-6" />
           <span>{gettext("Add")}</span>
