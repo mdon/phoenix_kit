@@ -73,6 +73,31 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       assert "FOO_BAR" in dupes
     end
 
+    test "handles OpenAI-shaped response map (extract_content path)" do
+      # `PhoenixKitAI.ask_with_prompt/4` returns the full OpenAI
+      # response map, not a raw string. The helper now reaches into
+      # `choices[0].message.content`. Directly exercises the
+      # extract-and-parse path via `parse_response/2`.
+      response_map = %{
+        "choices" => [
+          %{
+            "message" => %{
+              "role" => "assistant",
+              "content" => "---TITLE---\nHola\n---BODY---\nMundo"
+            }
+          }
+        ]
+      }
+
+      assert {:ok, %{"title" => "Hola", "body" => "Mundo"}} =
+               Translation.parse_response(
+                 response_map["choices"]
+                 |> List.first()
+                 |> get_in(["message", "content"]),
+                 ["title", "body"]
+               )
+    end
+
     test "valid inputs + missing plugin → :ai_not_installed" do
       # All input-validation passes; AI plugin presence check fails (core
       # CI doesn't depend on :phoenix_kit_ai).

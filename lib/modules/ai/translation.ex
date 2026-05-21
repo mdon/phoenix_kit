@@ -198,11 +198,8 @@ defmodule PhoenixKit.Modules.AI.Translation do
     # which `rescue` alone wouldn't catch.
     try do
       case PhoenixKitAI.ask_with_prompt(endpoint_uuid, prompt_uuid, variables, ai_opts) do
-        {:ok, response} when is_binary(response) ->
-          parse_response(response, Map.keys(fields))
-
-        {:ok, other} ->
-          {:error, {:ai_error, {:unexpected_response, other}}}
+        {:ok, response} ->
+          handle_ai_response(response, fields)
 
         {:error, reason} ->
           {:error, {:ai_error, reason}}
@@ -216,6 +213,35 @@ defmodule PhoenixKit.Modules.AI.Translation do
       :exit, reason -> {:error, {:ai_error, {:exit, reason}}}
       :throw, value -> {:error, {:ai_error, {:throw, value}}}
     end
+  end
+
+  # `PhoenixKitAI.ask_with_prompt/4` returns the full OpenAI-shaped
+  # response map (`%{"choices" => [%{"message" => %{"content" => "..."}}]}`),
+  # not a raw string. Reach for `PhoenixKitAI.Completion.extract_content/1`
+  # to pull the assistant's content out — same helper publishing's
+  # `TranslatePostWorker` already uses for its post-translate AI call.
+  # Older versions of the plugin (or test stubs) may still return a
+  # plain binary; the second clause keeps that working.
+  @compile {:no_warn_undefined, [{PhoenixKitAI.Completion, :extract_content, 1}]}
+  defp handle_ai_response(response, fields) when is_map(response) do
+    case PhoenixKitAI.Completion.extract_content(response) do
+      {:ok, content} when is_binary(content) ->
+        parse_response(content, Map.keys(fields))
+
+      {:ok, _other} ->
+        {:error, {:ai_error, {:unexpected_response, response}}}
+
+      {:error, reason} ->
+        {:error, {:ai_error, reason}}
+    end
+  end
+
+  defp handle_ai_response(response, fields) when is_binary(response) do
+    parse_response(response, Map.keys(fields))
+  end
+
+  defp handle_ai_response(other, _fields) do
+    {:error, {:ai_error, {:unexpected_response, other}}}
   end
 
   @doc """
