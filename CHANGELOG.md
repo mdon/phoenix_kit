@@ -1,3 +1,50 @@
+## 1.7.117 - 2026-05-21
+
+### Added
+- `PhoenixKit.Modules.AI` — core-side conveniences for the optional
+  `PhoenixKitAI` plugin. `available?/0` is a module-loadability check (loaded
+  AND exports `ask_with_prompt/4`); gate AI-driven UI on it so apps without the
+  plugin fall back to non-AI behavior automatically (PR #557).
+- `PhoenixKit.Modules.AI.Translation` — shared AI-translation orchestration
+  reused by every feature module that wants AI translation. `translate_fields/6`
+  takes a `%{field_name => text}` map and returns the same shape, or a
+  normalized `{:error, atom_or_tuple}` covering every failure mode (missing
+  endpoint/prompt, plugin absent, duplicate/partial markers, AI exception/exit).
+  `parse_response/2` is the public, case-insensitive `---FIELD_NAME---` parser.
+  Each dispatch writes one `core.ai_translation.requested` activity entry for a
+  unified token-spend audit trail (PR #557).
+- `ai_translate` attr on `LanguageSwitcher.language_switcher_dropdown` — opt-in
+  affordance that renders a per-missing-language sparkle button plus a bulk
+  "translate all missing" CTA. The component is pure event-emit (no
+  `PhoenixKitAI` reference): it fires the host's `phx-click` event and the host
+  enqueues its own translation worker. `nil`/`enabled: false` = today's behavior
+  (PR #557).
+- `max_count` attr on `PhoenixKitWeb.Components.MediaGallery` — caps the number
+  of selected images in `:multiple` mode and disables the Add button at the
+  limit (defence-in-depth: `apply_selection` also clamps). `nil` = unlimited;
+  `:single` mode implies a limit of 1 (PR #556).
+- `card_media` slot on `PhoenixKitWeb.Components.Core.TableDefault` — optional
+  media region (thumbnail / cover image / document preview) rendered above the
+  card body in card view; the slot owns its own padding/background (PR #556).
+- Controlled `view_mode` (+ `view_event`) on `TableDefault` — pass
+  `view_mode="card"|"table"` to take the card⇄table toggle from assigns instead
+  of the default JS hook + localStorage. The component then renders only that
+  view and the toolbar buttons emit `view_event` with `phx-value-mode`, so the
+  view choice can be URL-backed (`push_patch`) or survive LV navigation (PR #556).
+- `class` attr on `TableDefault.table_default_header` — override the header
+  styling per call site (PR #556).
+
+### Changed
+- `TableDefault.table_default_header` default changed from
+  `bg-primary text-primary-content` to `bg-base-300` — a calmer, theme-neutral
+  header that reads as a subtle separator from `<tbody>`. This affects every
+  `<.table_default_header>` that does not pass an explicit `class`. Pass
+  `class="bg-primary text-primary-content"` to restore the previous look, or
+  `class=""` for a bare header (PR #556).
+- `MediaGallery` in `:single` mode now disables the Add button once an image is
+  selected; replace the image via the per-thumbnail Remove (✕) then Add. The
+  selection cap of 1 is unchanged (PR #556).
+
 ## 1.7.116 - 2026-05-20
 
 ### Added
