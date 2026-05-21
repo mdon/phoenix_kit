@@ -80,6 +80,15 @@ handler to `start_async` to match `magic_link.ex` and *then* the `@loading`
 spinner becomes real and `phx-disable-with` can go. The latter is a behavior
 change (non-blocking submit), out of scope for a one-liner.
 
+> **Resolved in follow-up.** Done in two steps for the record: first the dead
+> branch was removed (commit `34c494ad`); then, for consistency across both
+> magic-link flows, the handler was converted to `start_async` mirroring
+> `magic_link.ex` — `handle_event` now assigns `loading: true` + dispatches,
+> `handle_async(:send_magic_link, …)` carries the distinct error messages and
+> the `{:exit, _}` crash path, and the template re-renders the `@loading`
+> spinner branch with `phx-disable-with` dropped (no double-swap since only the
+> server diff swaps content now). Submit is non-blocking; `mix precommit` green.
+
 The remaining four forms with `phx-disable-with` (`confirmation`,
 `confirmation_instructions`, `login`, `reset_password`) and `user_form` have
 **no** `@loading` branch, so there's no double-swap — leaving their button
