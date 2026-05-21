@@ -18,9 +18,51 @@ I read both new modules in full plus the `language_switcher.ex` and test diffs.
 
 Strong PR — well-documented, defensively coded, and well-tested (17 + 9 cases).
 Error normalization (`try/rescue` + `catch :exit/:throw`), atom-or-string key
-handling, and the dead-UI event gating are all done right. No blocking issues.
-The notes below are documentation/contract mismatches and minor robustness
-nits, not bugs in the happy path.
+handling, and the dead-UI event gating are all done right. One **blocking**
+issue slipped through: it left dialyzer (and thus `quality.ci` / CI) red on
+`dev` — see BUG-HIGH below; fixed in follow-up. The remaining notes are
+documentation/contract mismatches and minor robustness nits.
+
+---
+
+## Follow-up changes applied post-merge — @mdon
+
+What I changed on `dev` on top of your PR (commits `91d14ddc` + `2d0a3660`),
+so you're not surprised on your next pull:
+
+1. **dialyzer red on `dev` (the blocking one) — fixed.** Added
+   `{"lib/modules/ai/translation.ex", :unknown_function}` to
+   `.dialyzer_ignore.exs`. Your `@compile {:no_warn_undefined, …}` covers the
+   compiler but `mix quality.ci` / `mix precommit` also run **dialyzer**, which
+   still flagged `PhoenixKitAI.ask_with_prompt/4` as `unknown_function` and
+   exited 2. Same pattern `publishing.ex` / `integration.ex` use for their
+   optional plugins. (Note: CLAUDE.md describes precommit as only
+   format+compile+credo — it actually runs dialyzer too, and credo failing
+   short-circuits before dialyzer, which is how this stayed hidden.)
+2. **`translation.ex` — removed the dead `variable_key/1` fallback.** Its
+   non-binary clause was unreachable (`marker/1` crashes on non-binary keys
+   first, in `validate_unique_markers`, before `do_translate` runs), and the
+   `Enum.reduce` it fed just rebuilt `fields`. Replaced with a direct
+   `Map.merge(fields, %{"SourceLanguage" => …, "TargetLanguage" => …})`. No
+   behavior change for the string-keyed contract.
+3. **`translation.ex` — added the `i` flag to the marker regex.** Your
+   moduledoc/PR said "case-insensitive marker matching," but the regex had only
+   `/s`, so a model emitting `---title---` (lowercase) wouldn't parse. Now it's
+   actually case-insensitive, matching the documented contract.
+4. **`language_switcher.ex` doc fixes.** Dropped the documented-but-ignored
+   `completed` key from the `ai_translate` shape (the component never reads it —
+   your own test confirms it; "completed" = host drops the code from `:missing`),
+   and corrected the bulk-handler example to enqueue *actionable* (missing −
+   in_flight) languages so it matches the count the button shows.
+5. **`language_switcher.ex` — `event_name/1` now uses `PhoenixKit.Utils.Values.presence/1`**
+   instead of hand-rolling trim-or-nil (existing helper, identical behavior).
+
+All verified: `mix precommit` (compile, deps.unlock, format, credo --strict,
+dialyzer) green. No behavior changes to the tested paths.
+
+Still **your call** (untouched): the `completed` key — implement a real
+checkmark or leave it documented-out (I chose doc-out); and the empty-`fields`
+wasted-AI-request guard.
 
 ---
 

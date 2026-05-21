@@ -27,6 +27,33 @@ mismatch between the PR description and what shipped is the headline issue.
 
 ---
 
+## Follow-up changes applied post-merge — @timujinne
+
+Heads-up on what I changed on `dev` on top of your PR (commit `91d14ddc`),
+so it's not a surprise next time you pull:
+
+1. **credo `--strict` was red on `dev` because of this PR (now fixed).**
+   `selection_at_limit?(selected, :single, _) -> length(selected) >= 1`
+   (`media_gallery.ex`) tripped credo's "prefer comparing against an empty
+   list" check, so `mix credo --strict` exited 16 — which means
+   `mix quality.ci` / `mix precommit` (and the CI lint job) were failing on
+   `dev` after the merge. Changed it to `selected != []` (same semantics,
+   credo-clean). Worth running `mix precommit` — not just `mix test` — before
+   pushing; it's the gate CI enforces.
+2. **`table_default` card-view display cleanup.** The card `<div>` carried a
+   permanent `grid` class and *also* got `hidden` in controlled `view_mode="table"`,
+   so it relied on Tailwind emitting `.hidden` after `.grid` for the element to
+   actually hide. Made the `display` utility per-branch (only `hidden` in table
+   mode), matching the sibling table `<div>` — no behavior change, just removes
+   the source-order dependency.
+
+Still needs **your / a maintainer's** decision (I did not touch these — see
+findings below): the `:single`-mode Add-button disable behavior change, the
+global `table_default_header` recolor, and the missing test coverage for the
+controlled `view_mode` / `card_media` surface.
+
+---
+
 ## IMPROVEMENT - MEDIUM — PR scope vastly exceeds its description
 
 The description is titled "MediaGallery: add max_count attr" and its Summary
