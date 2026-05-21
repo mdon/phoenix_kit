@@ -320,12 +320,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
       <div
         id={if @on_reorder, do: "#{@id}-cards"}
         data-card-view=""
-        class={[
-          "grid gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
-          is_nil(@view_mode) && "md:hidden",
-          @view_mode == "card" && "grid",
-          @view_mode == "table" && "hidden"
-        ]}
+        class={
+          [
+            # Layout-only classes (no `display`) are always safe; the `display`
+            # utility is set per-branch so controlled "table" mode emits only
+            # `hidden` — no reliance on Tailwind's hidden-beats-grid source order.
+            "gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+            is_nil(@view_mode) && "grid md:hidden",
+            @view_mode == "card" && "grid",
+            @view_mode == "table" && "hidden"
+          ]
+        }
         data-sortable={if @on_reorder, do: "true"}
         data-sortable-event={@on_reorder}
         data-sortable-items={if @on_reorder, do: ".sortable-item"}

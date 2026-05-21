@@ -147,15 +147,19 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
           enabled: true,
           event: "translate_lang",        # phx-click target on host LV
           missing: ["es", "de"],          # base codes lacking a translation
-          in_flight: ["es"],              # show spinner, click disabled
-          completed: ["fr"]               # transient checkmark
+          in_flight: ["es"]               # show spinner, click disabled
         }
 
+    Only `:missing` and `:in_flight` drive rendering. A "completed"
+    language is signalled simply by the host dropping its code from
+    `:missing` — the sparkle then disappears on the next render. (There
+    is no separate `:completed` checkmark state; pass nothing for it.)
+
     The component emits the host's event; the host owns enqueuing the
-    actual translation worker and broadcasting `:in_flight` / `:completed`
-    state back via PubSub. Set `:enabled` to `false` (or pass `nil`) to
-    fall back to today's behavior with no AI UI — convenient for hosts
-    that gate on `PhoenixKit.Modules.AI.available?/0`.
+    actual translation worker and broadcasting the resulting `:missing` /
+    `:in_flight` state back via PubSub. Set `:enabled` to `false` (or pass
+    `nil`) to fall back to today's behavior with no AI UI — convenient for
+    hosts that gate on `PhoenixKit.Modules.AI.available?/0`.
 
     ## Bulk action dispatch
 
@@ -164,7 +168,8 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     value:
 
         def handle_event("translate_lang", %{"lang" => "*"}, socket) do
-          # enqueue one job per language in `missing`
+          # enqueue one job per *actionable* language (missing minus
+          # in_flight) — matches the count shown on the bulk button
         end
 
         def handle_event("translate_lang", %{"lang" => lang}, socket) do

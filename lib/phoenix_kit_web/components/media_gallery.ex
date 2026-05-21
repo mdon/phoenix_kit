@@ -201,7 +201,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
 
   defp apply_selection(_current, uuids, _multiple, nil), do: uuids
 
-  defp apply_selection(_current, uuids, _multiple, max_count) when is_integer(max_count) and max_count > 0 do
+  defp apply_selection(_current, uuids, _multiple, max_count)
+       when is_integer(max_count) and max_count > 0 do
     Enum.take(uuids, max_count)
   end
 
@@ -211,7 +212,7 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   # - :single mode → limit is always 1
   # - :multiple with a positive max_count → limit is max_count
   # - :multiple with nil or 0 max_count → unlimited (always false)
-  defp selection_at_limit?(selected, :single, _max_count), do: length(selected) >= 1
+  defp selection_at_limit?(selected, :single, _max_count), do: selected != []
 
   defp selection_at_limit?(selected, _multiple, max_count)
        when is_integer(max_count) and max_count > 0 do

@@ -278,7 +278,10 @@ defmodule PhoenixKit.Modules.AI.Translation do
   defp extract_section(body, marker, all_markers) do
     others = for {_, m} <- all_markers, m != marker, do: Regex.escape(m)
     boundary = if others == [], do: ~s|\\z|, else: "---(?:#{Enum.join(others, "|")})---"
-    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=#{boundary}|\z)/s
+    # `i` flag: markers are normalised to uppercase by `marker/1`, but a model
+    # may emit them lowercased (`---title---`). Case-insensitive matching keeps
+    # the documented "case-insensitive marker matching" contract honest.
+    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=#{boundary}|\z)/si
 
     case Regex.run(pattern, body) do
       [_, value] -> String.trim(value)
