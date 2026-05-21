@@ -87,18 +87,17 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       # (e.g. moves `validate_non_empty` before `validate_uuid`),
       # these regressions catch it.
 
-      # Empty endpoint wins over empty fields, dup markers, missing plugin.
+      # Empty endpoint wins over empty fields + missing plugin.
       assert {:error, :no_endpoint} =
                Translation.translate_fields("", "", "en", "es", %{})
 
-      # Endpoint present, empty prompt wins over empty fields + dups.
+      # Endpoint present, empty prompt wins over empty fields.
       assert {:error, :missing_prompt} =
                Translation.translate_fields("ep", "", "en", "es", %{})
 
-      # Endpoint + prompt present, empty fields wins over duplicate
-      # markers — the empty-fields check happens BEFORE
-      # validate_unique_markers, which is the cheaper rejection
-      # (avoids iterating Map.keys over an empty map for nothing).
+      # Endpoint + prompt present, empty fields wins before
+      # validate_unique_markers gets to iterate Map.keys over a
+      # zero-element map for nothing.
       assert {:error, {:parse_error, :no_markers}} =
                Translation.translate_fields("ep", "p", "en", "es", %{})
 
