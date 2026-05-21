@@ -172,6 +172,31 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       refute "title" in missing
     end
 
+    test "unrequested markers in the response don't leak into adjacent fields" do
+      # A model that emits a marker the caller didn't ask for (e.g.
+      # `---TITLE---` here, but the caller only requested `name` +
+      # `description`) used to silently roll the unrequested block's
+      # content into the preceding requested field. Surfaced on a
+      # real deepseek-v3.2 translation where the prompt template
+      # referenced `{{title}}` literally — the AI emitted a
+      # `---TITLE---{{title}}` block and the parser appended it
+      # to `---NAME---`'s capture.
+      response = """
+      ---NAME---
+      Mitarbeiter-Onboarding
+      ---TITLE---
+      {{title}}
+      ---DESCRIPTION---
+      Standardablauf für den ersten Tag und die erste Woche.
+      """
+
+      assert {:ok, fields} = Translation.parse_response(response, ["name", "description"])
+      assert fields["name"] == "Mitarbeiter-Onboarding"
+      refute fields["name"] =~ "TITLE"
+      refute fields["name"] =~ "title"
+      assert fields["description"] =~ "Standardablauf"
+    end
+
     test "returns :no_markers when nothing matches at all" do
       response = "just some markdown\n\n# header"
 
