@@ -40,8 +40,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     preview (lightbox) still works; default `false`
   - `max_count` — integer upper bound on the number of selected images for
     `:multiple` mode; `nil` means unlimited. For `:single` mode the limit is
-    always 1 (implied by `mode`). When the limit is reached, the "Add" button
-    is disabled and `apply_selection` refuses to exceed it.
+    always 1 (implied by `mode`). When the limit is reached, the "Add" tile is
+    hidden entirely (not just disabled) and `apply_selection` refuses to exceed it.
 
   ## Change notifications
 
