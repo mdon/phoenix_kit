@@ -16,7 +16,7 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
   alias PhoenixKit.Modules.AI.Translation
 
   describe "translate_fields/6 — argument validation runs before plugin check" do
-    # Validation order is `endpoint → prompt → unique-markers → plugin-available`.
+    # Validation order is `endpoint → prompt → non-empty → unique-markers → plugin-available`.
     # Tests below assume PhoenixKitAI is NOT loaded in core's CI; the
     # input-validation errors must still surface so callers can unit-test
     # them without a configured plugin.
@@ -44,6 +44,17 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
     test "whitespace-only prompt_uuid → :missing_prompt" do
       assert {:error, :missing_prompt} =
                Translation.translate_fields("ep", "  ", "en", "es", %{"a" => "b"})
+    end
+
+    test "empty fields map → :no_markers (rejected before plugin call)" do
+      # Empty `fields` would render a prompt with no field variables,
+      # spend tokens on a `PhoenixKitAI.ask_with_prompt/4` call, and
+      # only fail downstream in `parse_response/2`. Reject up front so
+      # a caller bug doesn't burn a request. Sentinel matches the
+      # `parse_response/2` shape (`{:parse_error, :no_markers}`) so
+      # callers can branch on a single class.
+      assert {:error, {:parse_error, :no_markers}} =
+               Translation.translate_fields("ep", "p", "en", "es", %{})
     end
 
     test "two fields that normalise to the same marker → duplicate_markers error" do

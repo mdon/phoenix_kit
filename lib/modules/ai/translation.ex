@@ -124,11 +124,23 @@ defmodule PhoenixKit.Modules.AI.Translation do
     # not an input-shape question — fail fast on bad args either way.
     with :ok <- validate_uuid(endpoint_uuid, :no_endpoint),
          :ok <- validate_uuid(prompt_uuid, :missing_prompt),
+         :ok <- validate_non_empty(fields),
          :ok <- validate_unique_markers(Map.keys(fields)),
          :ok <- ensure_available() do
       do_translate(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts)
     end
   end
+
+  # Short-circuit before dispatching to the AI plugin — an empty
+  # `fields` map would render a prompt with no field variables, spend
+  # real tokens on a `PhoenixKitAI.ask_with_prompt/4` call, and then
+  # fail downstream in `parse_response/2` with `:no_markers`. Cheap to
+  # reject up front. The error sentinel mirrors `parse_response/2`'s
+  # shape so callers don't have to branch on a new error class.
+  defp validate_non_empty(fields) when map_size(fields) == 0,
+    do: {:error, {:parse_error, :no_markers}}
+
+  defp validate_non_empty(_fields), do: :ok
 
   defp validate_uuid(value, error) when is_binary(value) do
     if String.trim(value) == "", do: {:error, error}, else: :ok
