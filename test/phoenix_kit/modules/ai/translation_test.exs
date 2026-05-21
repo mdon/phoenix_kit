@@ -46,6 +46,17 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
                Translation.translate_fields("ep", "  ", "en", "es", %{"a" => "b"})
     end
 
+    test "empty fields map → :no_markers (rejected before plugin call)" do
+      # Empty `fields` would render a prompt with no field variables,
+      # spend tokens on a `PhoenixKitAI.ask_with_prompt/4` call, and
+      # only fail downstream in `parse_response/2`. Reject up front so
+      # a caller bug doesn't burn a request. Sentinel matches the
+      # `parse_response/2` shape (`{:parse_error, :no_markers}`) so
+      # callers can branch on a single class.
+      assert {:error, {:parse_error, :no_markers}} =
+               Translation.translate_fields("ep", "p", "en", "es", %{})
+    end
+
     test "two fields that normalise to the same marker → duplicate_markers error" do
       # `foo-bar` and `foo_bar` both upcase + non-alnum-collapse to `FOO_BAR`.
       # Without this rejection, the parser would silently overwrite one
