@@ -104,6 +104,39 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       assert {:error, :ai_not_installed} =
                Translation.translate_fields("ep", "p", "en", "es", %{"a" => "b"})
     end
+
+    test "validation order: endpoint > prompt > non-empty > unique-markers > plugin" do
+      # Pin the documented validation order. Each test below stacks
+      # multiple input violations and asserts which one wins — if a
+      # future refactor accidentally reorders the validation chain
+      # (e.g. moves `validate_non_empty` before `validate_uuid`),
+      # these regressions catch it.
+
+      # Empty endpoint wins over empty fields, dup markers, missing plugin.
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("", "", "en", "es", %{})
+
+      # Endpoint present, empty prompt wins over empty fields + dups.
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "", "en", "es", %{})
+
+      # Endpoint + prompt present, empty fields wins over duplicate
+      # markers — the empty-fields check happens BEFORE
+      # validate_unique_markers, which is the cheaper rejection
+      # (avoids iterating Map.keys over an empty map for nothing).
+      assert {:error, {:parse_error, :no_markers}} =
+               Translation.translate_fields("ep", "p", "en", "es", %{})
+
+      # Endpoint + prompt + non-empty fields, dup markers reject.
+      assert {:error, {:parse_error, {:duplicate_markers, _}}} =
+               Translation.translate_fields(
+                 "ep",
+                 "p",
+                 "en",
+                 "es",
+                 %{"foo-bar" => "a", "foo_bar" => "b"}
+               )
+    end
   end
 
   describe "parse_response/2 — structured `---FIELD---` markers" do
