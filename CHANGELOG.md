@@ -1,3 +1,47 @@
+## 1.7.118 - 2026-05-21
+
+### Added
+- `card_grid_class` attr on `PhoenixKitWeb.Components.Core.TableDefault` —
+  overrides the card-view grid layout (column density, gaps) without touching
+  the component. Default unchanged. Must be layout-only (no `display` utility —
+  the component sets `grid`/`hidden` per view-mode branch) and a literal in a
+  Tailwind-scanned source so the classes compile (PR #561).
+- Responsive `cols` on `PhoenixKitWeb.Components.Core.DraggableList` (and the
+  `MediaGallery` passthrough) — `:cols` now accepts a string of Tailwind
+  grid-column classes (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`) for a
+  responsive thumbnail grid, in addition to an integer 1..6. Any other value
+  (out-of-range integer, atom, …) falls back to `grid-cols-4` (PR #561).
+
+### Changed
+- `MediaGallery` now hides the Add tile entirely once the selection reaches
+  `max_count` (or 1 in `:single` mode), instead of rendering it disabled and
+  greyed. Supersedes the disable-at-limit behavior shipped in 1.7.117 (PR #561).
+- Magic-link registration request sends the email via `start_async`, so the
+  submit is non-blocking and the in-flight spinner renders, matching the
+  password-less magic-link login flow. Replaces the prior `phx-disable-with`
+  (follow-up to PR #559).
+- Dependency bumps: `etcher` 0.4.6 → 0.4.8, `fresco` 0.5.4 → 0.5.5,
+  `ex_doc` 0.40.2 → 0.40.3.
+
+### Fixed
+- AI translation no longer fails on every real request.
+  `Translation.translate_fields/6` was treating `PhoenixKitAI.ask_with_prompt/4`'s
+  OpenAI-shaped response map (`%{"choices" => [...]}`) as `:unexpected_response`
+  and erroring out. The success branch now routes map responses through
+  `PhoenixKitAI.Completion.extract_content/1` (the helper publishing's
+  `TranslatePostWorker` already uses), with a raw-binary fallback so test stubs
+  and older plugin versions keep working (PR #560).
+- `Translation.translate_fields/6` rejects an empty `fields` map up front with
+  `{:error, {:parse_error, :no_markers}}` instead of rendering a field-less
+  prompt and spending an AI request that only fails downstream in the parser
+  (PR #558).
+- Auth-form submit buttons no longer overflow their card.
+  `<fieldset>`'s browser-default `min-width: min-content` let the fieldset — and
+  its `w-full` submit button — grow past the form width; `min-w-0` is now applied
+  to the six remaining auth-form fieldsets. Also dropped `phx-disable-with` on
+  the magic-link login form, where it collided with the `@loading` branch and
+  made LiveView's diff merger inject a stray SVG into the button (PR #559).
+
 ## 1.7.117 - 2026-05-21
 
 ### Added
