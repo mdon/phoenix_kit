@@ -27,8 +27,10 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   - `title` — optional heading above the gallery
   - `selected` — ordered list of file UUIDs (current selection); default `[]`
   - `mode` — `:single` or `:multiple` (default `:multiple`)
-  - `cols` — number of grid columns for the thumbnail layout (1..6, default `4`).
-    Plumbed straight through to `<.draggable_list>`.
+  - `cols` — grid columns for the thumbnail layout (default `4`). Either an
+    integer 1..6, or a string of Tailwind grid-column classes for a responsive
+    grid (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`). Plumbed straight
+    through to `<.draggable_list>`.
   - `featured_first` — when `true`, the first item in `:selected` renders a
     "Featured" badge in the top-left corner. Matches the
     `phoenix_kit_posts` post-creation convention where the first image is the
