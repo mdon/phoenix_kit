@@ -72,14 +72,15 @@
         disabled={@loading}
         class="btn btn-primary w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
       >
-        <%= if @loading do %>
-          <span class="loading loading-spinner loading-sm"></span>
-          <span>Sending...</span>
-        <% else %>
-          <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
-          <span>Send Magic Link</span>
-          <span aria-hidden="true">→</span>
-        <% end %>
+        <%!--
+          In-flight feedback is `phx-disable-with` (client-side swap to
+          "Sending..."), not an `@loading` branch: the `send_magic_link`
+          handler is synchronous, so it never re-renders with `@loading = true`
+          before the send completes. A spinner branch here would be dead code.
+        --%>
+        <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
+        <span>Send Magic Link</span>
+        <span aria-hidden="true">→</span>
       </button>
     </form>
 

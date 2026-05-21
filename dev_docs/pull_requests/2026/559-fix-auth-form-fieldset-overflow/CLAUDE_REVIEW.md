@@ -38,35 +38,47 @@ Dropping `phx-disable-with` on magic_link is sound: the LiveView sets
 fully reproduce the in-flight feedback `phx-disable-with` gave, with no JS-side
 content swap to collide with.
 
-One real gap: **the same root-cause-#2 antipattern survives on a sibling page
-the PR didn't touch** — see IMPROVEMENT-MEDIUM. Plus a cosmetic consistency nit.
+One genuine cleanup opportunity on a sibling page — see NITPICK (dead `@loading`
+branch). Plus a cosmetic consistency nit.
+
+> **Correction (post-review, after reading the backing LiveView).** An earlier
+> draft of this review flagged `magic_link_registration_request.html.heex` as
+> carrying the same root-cause-#2 double-swap and recommended dropping its
+> `phx-disable-with`. That was wrong. Reading
+> `magic_link_registration_request.ex:50-86` shows the `send_magic_link` handler
+> is **synchronous**: it assigns `:loading, true` (line 54) but then calls
+> `send_registration_link/1` inline and returns with `:loading, false` in every
+> branch, with no re-render in between — so `@loading = true` never reaches the
+> client. Therefore (a) the `if @loading` branch never renders, so the two
+> content-swap mechanisms never both fire and there is **no** phantom-SVG bug on
+> that page, and (b) `phx-disable-with` is the *only* in-flight feedback during
+> the blocking email send — dropping it would be a regression, not a fix. The
+> finding below is restated accordingly.
 
 ---
 
-## IMPROVEMENT - MEDIUM — `magic_link_registration_request.html.heex` keeps the same `phx-disable-with` + `@loading` double-swap
+## NITPICK — `magic_link_registration_request.html.heex` has a dead `@loading` branch
 
-`magic_link_registration_request.html.heex:69-83` has the *identical* second
-root cause this PR diagnosed and fixed on `magic_link.html.heex`: a submit button
-with **both** `phx-disable-with="Sending..."` (line 71) and an
-`<%= if @loading do %>` spinner branch (line 75). It was not in the PR's six
-changed files.
+`magic_link_registration_request.html.heex:75-82` renders a
+`<%= if @loading do %>` spinner branch, but its LiveView handler
+(`magic_link_registration_request.ex:50-86`) is synchronous: `assign(:loading, true)`
+on line 54 is overwritten by `:loading, false` before the single `{:noreply, _}`
+return, with no render in between. So the client never sees `@loading = true` and
+the spinner branch is unreachable — the button always renders the `else` (default
+"Send Magic Link →") state, and `phx-disable-with="Sending..."` does the actual
+in-flight swap client-side.
 
-Why it didn't show up in the same sweep: that form isn't wrapped in a
-`<fieldset>` (it's a plain `<form class="space-y-4">`), so root cause #1 — the
-fieldset overflow — genuinely doesn't apply, and skipping it for `min-w-0` was
-correct. But root cause #2 is structural to the button, not the fieldset: the
-two content-swap mechanisms still fight on submit. There's an info-box icon
-(`icon_info`, line 89) rendered as a sibling below the still-mounted form during
-the `@loading` window, which is the same adjacency that fed the phantom SVG into
-the magic_link button.
+Unlike `magic_link.html.heex` (which uses `start_async`, so its `@loading` branch
+genuinely renders and the two swap mechanisms collided), here there is **no
+double-swap and no overflow** — the form isn't in a `<fieldset>`, and `@loading`
+never renders. So the PR correctly left this page alone. **Do not drop
+`phx-disable-with` here** — it's the only in-flight feedback the page has.
 
-I have **not** visually reproduced it there (the success state replaces the whole
-form via `if @email_sent`, a different DOM shape than magic_link's persistent
-form + success alert, so the symptom may differ or not surface). But the
-antipattern is the same one the PR exists to kill, and the fix is the same one
-line: drop `phx-disable-with` and let the `@loading` branch own the swap
-(`disabled={@loading}` is already present on line 72). Worth folding into a quick
-follow-up so the bug class doesn't resurface the next time this page is touched.
+Two honest options if this page is revisited: either delete the dead `@loading`
+branch (cheapest; `phx-disable-with` stays as the sole feedback), or convert the
+handler to `start_async` to match `magic_link.ex` and *then* the `@loading`
+spinner becomes real and `phx-disable-with` can go. The latter is a behavior
+change (non-blocking submit), out of scope for a one-liner.
 
 The remaining four forms with `phx-disable-with` (`confirmation`,
 `confirmation_instructions`, `login`, `reset_password`) and `user_form` have
