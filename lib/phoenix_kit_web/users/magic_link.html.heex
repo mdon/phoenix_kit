@@ -14,7 +14,15 @@
     phx-submit="send_magic_link"
     phx-change="validate"
   >
-    <fieldset class="fieldset">
+    <%!--
+      `min-w-0` overrides the browser-default `min-width: min-content`
+      on <fieldset>, which would otherwise let the fieldset grow past
+      its parent <form>'s width whenever a child has a longer
+      intrinsic width (the icon + "Send Magic Link →" content). With
+      `min-w-0` the fieldset honors the form's flex container width,
+      so the `w-full` submit button no longer overflows the card.
+    --%>
+    <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">Magic Link Authentication</legend>
 
       <div :if={@error} class="alert alert-error text-sm mb-4">
@@ -36,10 +44,20 @@
         required
       />
 
+      <%!--
+        No `phx-disable-with` here: the `@loading` branch already
+        swaps the button to the spinner + "Sending magic link…"
+        state on submit, and the two mechanisms conflict — when
+        both fire on the same submit Phoenix LV's diff merger
+        injects a stray empty `<svg data-phx-skip>` into the button
+        (~183px wide) from the success-alert icon below, which then
+        forces the text to wrap onto 3 lines and look broken.
+        `min-w-0` + `max-w-full` belt-and-suspenders against the
+        fieldset overflow bug.
+      --%>
       <button
         type="submit"
-        phx-disable-with="Sending magic link..."
-        class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
+        class="btn btn-primary w-full max-w-full min-w-0 mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
         disabled={@loading || @sent}
       >
         <%= if @loading do %>

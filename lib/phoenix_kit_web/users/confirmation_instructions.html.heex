@@ -10,7 +10,7 @@
     We'll send a new confirmation link to your inbox
   </p>
   <.form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
-    <fieldset class="fieldset">
+    <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">Resend Confirmation</legend>
       <.input field={@form[:email]} type="email" placeholder="Email" required />
       <button
