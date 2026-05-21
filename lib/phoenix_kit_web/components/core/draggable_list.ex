@@ -88,7 +88,7 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
   attr :cols, :any,
     default: 4,
     doc:
-      "Grid columns (only for layout={:grid}). Either an integer 1..6 (mapped to a static `grid-cols-N`), or a string of Tailwind grid-column classes used verbatim — e.g. `\"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8\"` — for a responsive grid. The string form must be a literal in a Tailwind-scanned source so the classes are compiled."
+      "Grid columns (only for layout={:grid}). Either an integer 1..6 (mapped to a static `grid-cols-N`), or a string of Tailwind grid-column classes used verbatim — e.g. `\"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8\"` — for a responsive grid. The string form must be a literal in a Tailwind-scanned source so the classes are compiled. Any other value (out-of-range integer, atom, etc.) falls back to `grid-cols-4`."
 
   attr :gap, :string, default: "gap-2", doc: "Gap between items (Tailwind class)"
   attr :class, :string, default: "", doc: "Additional CSS classes for the container"

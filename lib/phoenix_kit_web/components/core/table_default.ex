@@ -123,7 +123,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :card_grid_class, :string,
     default: "gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
     doc:
-      "Layout classes for the card-view grid (column density, gaps). Must NOT include a `display` utility (`grid`/`hidden`) — the component sets `display` per view-mode branch so controlled table mode can emit `hidden` cleanly. Override to change column count, e.g. a denser `gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`."
+      "Layout classes for the card-view grid (column density, gaps). Must NOT include a `display` utility (`grid`/`hidden`) — the component sets `display` per view-mode branch so controlled table mode can emit `hidden` cleanly. Override to change column count, e.g. a denser `gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`. Must be a literal in a Tailwind-scanned source so the classes are compiled — a dynamically-built string won't be in the generated CSS."
 
   attr :view_mode, :string,
     default: nil,
