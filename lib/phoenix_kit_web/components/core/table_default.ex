@@ -120,6 +120,11 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :storage_key, :string, default: nil
   attr :wrapper_class, :string, default: "rounded-lg shadow-md overflow-x-auto overflow-y-clip"
 
+  attr :card_grid_class, :string,
+    default: "gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+    doc:
+      "Layout classes for the card-view grid (column density, gaps). Must NOT include a `display` utility (`grid`/`hidden`) — the component sets `display` per view-mode branch so controlled table mode can emit `hidden` cleanly. Override to change column count, e.g. a denser `gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`."
+
   attr :view_mode, :string,
     default: nil,
     values: [nil, "card", "table"],
@@ -325,7 +330,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             # Layout-only classes (no `display`) are always safe; the `display`
             # utility is set per-branch so controlled "table" mode emits only
             # `hidden` — no reliance on Tailwind's hidden-beats-grid source order.
-            "gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+            @card_grid_class,
             is_nil(@view_mode) && "grid md:hidden",
             @view_mode == "card" && "grid",
             @view_mode == "table" && "hidden"
