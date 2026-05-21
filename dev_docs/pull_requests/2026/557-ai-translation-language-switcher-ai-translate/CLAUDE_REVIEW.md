@@ -24,6 +24,30 @@ nits, not bugs in the happy path.
 
 ---
 
+## BUG - HIGH — dialyzer fails on `PhoenixKitAI.ask_with_prompt/4` → `quality.ci` red on `dev`
+
+`translation.ex:188` calls `PhoenixKitAI.ask_with_prompt/4`, an optional plugin
+module. The PR added `@compile {:no_warn_undefined, [{PhoenixKitAI, :ask_with_prompt, 4}]}`
+which silences the **compiler** warning — but not **dialyzer**, which `mix
+quality.ci` (and therefore `mix precommit`) runs. Dialyzer reports:
+
+```
+lib/modules/ai/translation.ex:188:25:unknown_function
+Function PhoenixKitAI.ask_with_prompt/4 does not exist.
+Halting VM with exit status 2
+```
+
+This is the one un-skipped error (Total 162 / Skipped 161), so the gate exits 2.
+The repo's established pattern for optional-plugin calls is a
+`{"path", :unknown_function}` entry in `.dialyzer_ignore.exs` (see
+`lib/modules/sitemap/sources/publishing.ex` and `lib/phoenix_kit_web/integration.ex`,
+which guard `PhoenixKitPublishing` / `phoenix_kit_ecommerce` the same way). #557
+added the compile no-warn but missed the dialyzer ignore, so CI's `quality.ci`
+job has been red on `dev` since the merge.
+
+**Fixed in follow-up:** added
+`{"lib/modules/ai/translation.ex", :unknown_function}` to `.dialyzer_ignore.exs`.
+
 ## IMPROVEMENT - MEDIUM — documented `completed` key does nothing (misleading public API)
 
 The `ai_translate` attr doc (`language_switcher.ex:147`) lists

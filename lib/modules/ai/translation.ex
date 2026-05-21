@@ -161,12 +161,12 @@ defmodule PhoenixKit.Modules.AI.Translation do
   end
 
   defp do_translate(endpoint_uuid, prompt_uuid, source_lang, target_lang, fields, opts) do
+    # Field names are used verbatim as prompt-variable keys (unlike markers,
+    # which are upcased) so existing TitleCase/original-casing prompts keep
+    # working. `fields` keys are strings per the contract, so they merge in
+    # directly alongside the language slots.
     variables =
-      fields
-      |> Enum.reduce(%{}, fn {name, value}, acc ->
-        Map.put(acc, variable_key(name), value)
-      end)
-      |> Map.merge(%{
+      Map.merge(fields, %{
         "SourceLanguage" => source_lang,
         "TargetLanguage" => target_lang
       })
@@ -205,13 +205,6 @@ defmodule PhoenixKit.Modules.AI.Translation do
       :throw, value -> {:error, {:ai_error, {:throw, value}}}
     end
   end
-
-  # Variable names in `PhoenixKitAI.Prompt` templates are case-insensitive
-  # by convention but the publishing translation prompt uses TitleCase for
-  # the language slots and the field's original casing for everything else.
-  # Pass field names through unchanged so existing prompts keep working.
-  defp variable_key(name) when is_binary(name), do: name
-  defp variable_key(name), do: to_string(name)
 
   @doc """
   Parses a structured `---FIELD_NAME---` response into a field map.

@@ -41,6 +41,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.Values
   alias PhoenixKitWeb.Components.Core.Icon
 
   @default_locale Config.default_locale()
@@ -478,16 +479,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   # Non-empty event name. Without a host handler to dispatch to, the
   # affordance is dead UI — hide it. Whitespace-only event strings
   # count as empty.
-  defp event_name(cfg) do
-    case cfg[:event] || cfg["event"] do
-      e when is_binary(e) ->
-        trimmed = String.trim(e)
-        if trimmed == "", do: nil, else: trimmed
-
-      _ ->
-        nil
-    end
-  end
+  defp event_name(cfg), do: Values.presence(cfg[:event] || cfg["event"])
 
   defp in_flight?(cfg, base_code) do
     base_code in in_flight_codes(cfg)
