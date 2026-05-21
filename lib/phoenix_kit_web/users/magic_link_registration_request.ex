@@ -82,40 +82,45 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
 
       {:error, :email_already_exists} ->
         {:noreply,
-         socket
-         |> assign(:loading, false)
-         |> assign(:error_message, "This email is already registered. Please log in instead.")
-         |> put_flash(:error, "Email already exists")}
+         error_state(
+           socket,
+           "This email is already registered. Please log in instead.",
+           "Email already exists"
+         )}
 
       {:error, :invalid_email} ->
         {:noreply,
-         socket
-         |> assign(:loading, false)
-         |> assign(:error_message, "Please enter a valid email address.")
-         |> put_flash(:error, "Invalid email format")}
+         error_state(socket, "Please enter a valid email address.", "Invalid email format")}
 
       {:error, _reason} ->
-        {:noreply,
-         socket
-         |> assign(:loading, false)
-         |> assign(:error_message, "Failed to send registration link. Please try again.")
-         |> put_flash(:error, "Something went wrong")}
+        {:noreply, generic_failure(socket)}
     end
   end
 
+  # A crashed/exited task is indistinguishable to the user from a failed send.
   @impl true
   def handle_async(:send_magic_link, {:exit, _reason}, socket) do
-    {:noreply,
-     socket
-     |> assign(:loading, false)
-     |> assign(:error_message, "Failed to send registration link. Please try again.")
-     |> put_flash(:error, "Something went wrong")}
+    {:noreply, generic_failure(socket)}
   end
 
-  # Process the registration-link sending in the background.
   defp send_registration_link_async(socket, email) do
     Phoenix.LiveView.start_async(socket, :send_magic_link, fn ->
       MagicLinkRegistration.send_registration_link(email)
     end)
+  end
+
+  defp generic_failure(socket) do
+    error_state(
+      socket,
+      "Failed to send registration link. Please try again.",
+      "Something went wrong"
+    )
+  end
+
+  defp error_state(socket, message, flash_message) do
+    socket
+    |> assign(:loading, false)
+    |> assign(:error_message, message)
+    |> put_flash(:error, flash_message)
   end
 end
