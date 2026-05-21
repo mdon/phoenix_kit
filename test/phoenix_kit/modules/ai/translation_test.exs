@@ -16,7 +16,7 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
   alias PhoenixKit.Modules.AI.Translation
 
   describe "translate_fields/6 — argument validation runs before plugin check" do
-    # Validation order is `endpoint → prompt → unique-markers → plugin-available`.
+    # Validation order is `endpoint → prompt → non-empty → unique-markers → plugin-available`.
     # Tests below assume PhoenixKitAI is NOT loaded in core's CI; the
     # input-validation errors must still surface so callers can unit-test
     # them without a configured plugin.
