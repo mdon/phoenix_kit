@@ -294,13 +294,22 @@ defmodule PhoenixKit.Modules.AI.Translation do
   # Pulls the text between `---MARKER---` and the next `---OTHER---`
   # marker (or end-of-string). Returns nil when the marker isn't
   # present.
-  defp extract_section(body, marker, all_markers) do
-    others = for {_, m} <- all_markers, m != marker, do: Regex.escape(m)
-    boundary = if others == [], do: ~s|\\z|, else: "---(?:#{Enum.join(others, "|")})---"
-    # `i` flag: markers are normalised to uppercase by `marker/1`, but a model
-    # may emit them lowercased (`---title---`). Case-insensitive matching keeps
-    # the documented "case-insensitive marker matching" contract honest.
-    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=#{boundary}|\z)/si
+  defp extract_section(body, marker, _all_markers) do
+    # Boundary matches ANY `---<NAME>---` marker, not just the
+    # requested-field markers. Without that, an AI that emits a
+    # marker the caller didn't ask for (e.g. an extra `---TITLE---`
+    # because the prompt template referenced `{{title}}` with no
+    # variable bound, leaving the literal text in the rendered
+    # prompt) gets that block's content rolled into the previous
+    # requested field. The marker name pattern intentionally accepts
+    # the same character class `marker/1` normalises field names
+    # into: uppercase letters, digits, underscores.
+    #
+    # `i` flag: markers are normalised to uppercase by `marker/1`,
+    # but a model may emit them lowercased (`---title---`). Case-
+    # insensitive matching keeps the documented "case-insensitive
+    # marker matching" contract honest.
+    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=---[A-Z0-9_]+---|\z)/si
 
     case Regex.run(pattern, body) do
       [_, value] -> String.trim(value)
