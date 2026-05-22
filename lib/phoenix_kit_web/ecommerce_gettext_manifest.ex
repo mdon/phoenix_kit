@@ -83,6 +83,7 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       ),
       gettext("Are you sure you want to delete this import log?"),
       gettext("Are you sure you want to delete this product?"),
+      gettext("Are you sure you want to delete this product? This action cannot be undone."),
       gettext("Attached"),
       gettext("Auto-add"),
       gettext("Auto-detect (first product with image)"),
@@ -92,6 +93,7 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       gettext("Available Options"),
       gettext("Available Product Options"),
       gettext("Base Price"),
+      gettext("Base price:"),
       gettext("Basic Information"),
       gettext("Billing module settings"),
       gettext("Blue"),
@@ -339,6 +341,7 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       gettext("Parent"),
       gettext("Parent Category"),
       gettext("Pending"),
+      gettext("Per-product price modifiers"),
       gettext("Physical"),
       gettext("Physical Products"),
       gettext("Please enter a value first"),
@@ -394,6 +397,7 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       gettext("Set Hidden"),
       gettext("Set Unlisted"),
       gettext("Set parent for %{count} selected categories", count: 0),
+      gettext("Set prices for each option value. Enter the final price (base price + modifier)."),
       gettext("Settings"),
       gettext("Show Categories in Shop"),
       gettext("Show icons next to category names in sidebar"),
@@ -425,6 +429,7 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       gettext("Tags:"),
       gettext("Tax Settings"),
       gettext("Text fields will be imported to this language"),
+      gettext("These option keys were found in product metadata. Click to add as a filter."),
       gettext("Time"),
       gettext("Timestamps"),
       gettext("Title"),
@@ -497,10 +502,10 @@ defmodule PhoenixKitWeb.EcommerceGettextManifest do
       gettext("%{count} products moved", count: 0),
       gettext("%{count} products updated to %{status}", count: 0, status: ""),
       gettext("%{count} selected", count: 0),
+      gettext("— Standalone (no mapping) —"),
       ngettext("1 category", "%{count} categories", 1, count: 1),
       ngettext("1 day", "%{count} days", 1, count: 1),
-      ngettext("1 product", "%{count} products", 1, count: 1),
-      gettext("— Standalone (no mapping) —")
+      ngettext("1 product", "%{count} products", 1, count: 1)
     ]
   end
 end
