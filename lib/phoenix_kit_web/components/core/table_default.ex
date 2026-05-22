@@ -103,7 +103,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   survive across LV navigation or be part of the URL.
   """
   attr :id, :string, default: nil
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
   attr :variant, :string, default: "default", values: ["default", "zebra", "pin-rows", "pin-cols"]
   attr :size, :string, default: "md", values: ["xs", "sm", "md", "lg"]
   attr :toggleable, :boolean, default: false
@@ -463,7 +463,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     look, or `class=""` for a fully bare header. The string fully replaces the default;
     concatenate manually if you want to add classes on top.
   """
-  attr :class, :string, default: "bg-base-300"
+  attr :class, :any, default: "bg-base-300"
   slot :inner_block, required: true
 
   def table_default_header(assigns) do
@@ -524,7 +524,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   * `hover` - Enable hover effect: true/false (optional, default: true)
   * `rest` - Additional HTML attributes (optional)
   """
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
   attr :hover, :boolean, default: true
   attr :rest, :global
 
@@ -556,7 +556,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   * `class` - Additional CSS classes (optional)
   * `rest` - Additional HTML attributes (optional)
   """
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
   attr :rest, :global
 
   slot :inner_block
@@ -579,7 +579,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   * `rowspan` - Number of rows to span (optional)
   * `rest` - Additional HTML attributes (optional)
   """
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
   attr :colspan, :integer, default: nil
   attr :rowspan, :integer, default: nil
   attr :rest, :global
@@ -624,7 +624,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :event, :string, default: "toggle_sort"
   attr :target, :any, default: nil
   attr :align, :atom, default: :left, values: [:left, :right, :center]
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
   attr :rest, :global, include: ~w(colspan rowspan)
 
   slot :inner_block, required: true
@@ -734,7 +734,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :debounce, :integer, default: 300
   attr :name, :string, default: "search"
   attr :target, :any, default: nil
-  attr :class, :string, default: ""
+  attr :class, :any, default: ""
 
   def search_toolbar(assigns) do
     assigns =

@@ -538,7 +538,10 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     * `current_lang` — the currently selected language code
     * `compact` — force compact mode (short codes). Default: nil (auto)
     * `show_header` — show the "Content Language" header. Default: true
-    * `show_info` — show the info alert. Default: true
+    * `show_info` — show an info tooltip next to the header. Default:
+      true. The tooltip surface explains the primary-language /
+      fallback semantics on hover; requires `show_header: true` to
+      have an anchor element.
   """
   attr :multilang_enabled, :boolean, required: true
   attr :language_tabs, :list, required: true
@@ -564,21 +567,31 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
         <div class="flex items-center gap-2">
           <.icon name="hero-language" class="w-5 h-5 text-primary" />
           <h2 class="card-title text-lg m-0">{gettext("Content Language")}</h2>
+          <%!-- Info tooltip replaces the standalone alert block that
+               used to live below the header. Boss feedback was that
+               the wall of text was too prominent for what is mostly
+               static explanation; hide it behind an info icon that
+               reveals on hover/focus. The `[--tooltip-color:…]`
+               override is needed because daisyUI's default tooltip
+               background can be too dark for small body text on some
+               themes — explicit base-300 keeps contrast readable. --%>
+          <span
+            :if={@show_info}
+            class="tooltip tooltip-right cursor-help text-base-content/60 hover:text-base-content [--tooltip-max-width:24rem]"
+            data-tip={
+              gettext(
+                "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
+              )
+            }
+          >
+            <.icon name="hero-information-circle" class="w-4 h-4" />
+          </span>
         </div>
         <% primary_tab = Enum.find(@language_tabs, fn t -> t.is_primary end) %>
         <div :if={primary_tab} class="flex items-center gap-1.5 text-xs text-base-content/60">
           <.icon name="hero-star-solid" class="w-3.5 h-3.5 text-primary" />
           <span>{gettext("Primary: %{lang}", lang: primary_tab.name)}</span>
         </div>
-      </div>
-
-      <div :if={@show_info} class="alert alert-info py-2 text-xs mb-4">
-        <.icon name="hero-information-circle" class="w-4 h-4" />
-        <span>
-          {gettext(
-            "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
-          )}
-        </span>
       </div>
 
       <div class="mb-4">
@@ -674,13 +687,20 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
         {render_slot(@skeleton)}
       <% else %>
         <div class="space-y-4">
+          <%!-- Default skeleton uses `bg-base-content/15 animate-pulse`
+               instead of daisyUI's `.skeleton` because the latter's
+               ~8%-opacity base-content grey is nearly invisible on a
+               `bg-base-100` card — multiple consumers reported the
+               loading state looking like a "blank page". Theme-safe
+               via base-content opacity (dark-on-light AND
+               light-on-dark themes both render visibly). --%>
           <div class="space-y-2">
-            <div class="skeleton h-4 w-24"></div>
-            <div class="skeleton h-12 w-full"></div>
+            <div class="bg-base-content/15 rounded h-4 w-24 animate-pulse"></div>
+            <div class="bg-base-content/15 rounded h-12 w-full animate-pulse"></div>
           </div>
           <div class="space-y-2">
-            <div class="skeleton h-4 w-32"></div>
-            <div class="skeleton h-24 w-full"></div>
+            <div class="bg-base-content/15 rounded h-4 w-32 animate-pulse"></div>
+            <div class="bg-base-content/15 rounded h-24 w-full animate-pulse"></div>
           </div>
         </div>
       <% end %>
