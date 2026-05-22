@@ -41,6 +41,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.Values
   alias PhoenixKitWeb.Components.Core.Icon
 
   @default_locale Config.default_locale()
@@ -129,6 +130,52 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     (via `DialectMapper.extract_base/1`) and falls back to the
     locale-rewrite URL when no entry matches or the matched entry
     has a `nil` `url` (e.g. an unpublished draft).
+    """
+  )
+
+  attr(:ai_translate, :map,
+    default: nil,
+    doc: """
+    Optional opt-in for the AI-translate affordance. When present and
+    `:enabled` is true, missing-language items show a sparkle button
+    that fires the host LV's `phx-click` event (and a bulk
+    "translate all missing" CTA renders below the list when ≥2 languages
+    are missing).
+
+    Shape:
+
+        %{
+          enabled: true,
+          event: "translate_lang",        # phx-click target on host LV
+          missing: ["es", "de"],          # base codes lacking a translation
+          in_flight: ["es"]               # show spinner, click disabled
+        }
+
+    Only `:missing` and `:in_flight` drive rendering. A "completed"
+    language is signalled simply by the host dropping its code from
+    `:missing` — the sparkle then disappears on the next render. (There
+    is no separate `:completed` checkmark state; pass nothing for it.)
+
+    The component emits the host's event; the host owns enqueuing the
+    actual translation worker and broadcasting the resulting `:missing` /
+    `:in_flight` state back via PubSub. Set `:enabled` to `false` (or pass
+    `nil`) to fall back to today's behavior with no AI UI — convenient for
+    hosts that gate on `PhoenixKit.Modules.AI.available?/0`.
+
+    ## Bulk action dispatch
+
+    The "Translate all missing" CTA fires the same event with
+    `phx-value-lang="*"` as a sentinel. Host handlers branch on the
+    value:
+
+        def handle_event("translate_lang", %{"lang" => "*"}, socket) do
+          # enqueue one job per *actionable* language (missing minus
+          # in_flight) — matches the count shown on the bulk button
+        end
+
+        def handle_event("translate_lang", %{"lang" => lang}, socket) do
+          # enqueue a single-language job
+        end
     """
   )
 
@@ -229,7 +276,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                 <%= for language <- langs do %>
                   <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                   <li
-                    class="w-full language-item"
+                    class="w-full language-item flex items-stretch"
                     data-name={String.downcase(language["name"] || "")}
                     data-native={String.downcase(language["native"] || "")}
                   >
@@ -239,7 +286,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                       phx-value-locale={language["base_code"]}
                       phx-value-url={url}
                       class={[
-                        "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                        "flex-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                         if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
                       ]}
                     >
@@ -253,6 +300,10 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                         <span class="ml-auto">✓</span>
                       <% end %>
                     </a>
+                    <.ai_translate_action
+                      ai_translate={@ai_translate}
+                      base_code={language["base_code"]}
+                    />
                   </li>
                 <% end %>
                 <li class="ls-no-results px-3 py-2 text-sm text-base-content/50" style="display:none">
@@ -296,7 +347,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
               <%= for language <- @languages do %>
                 <% url = resolve_url(language["base_code"], @current_path, @per_translation_urls) %>
                 <li
-                  class="w-full language-item"
+                  class="w-full language-item flex items-stretch"
                   data-name={String.downcase(language["name"] || "")}
                   data-native={String.downcase(language["native"] || "")}
                 >
@@ -306,7 +357,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                     phx-value-locale={language["base_code"]}
                     phx-value-url={url}
                     class={[
-                      "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
+                      "flex-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-base-200",
                       if(language["base_code"] == @current_base, do: "bg-base-200", else: "")
                     ]}
                   >
@@ -330,6 +381,10 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
                       <span class="ml-auto">✓</span>
                     <% end %>
                   </a>
+                  <.ai_translate_action
+                    ai_translate={@ai_translate}
+                    base_code={language["base_code"]}
+                  />
                 </li>
               <% end %>
               <%= if @needs_scroll do %>
@@ -339,10 +394,108 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
               <% end %>
             </ul>
           <% end %>
+          <.ai_translate_bulk ai_translate={@ai_translate} />
         </div>
       </details>
     </div>
     """
+  end
+
+  # Per-language sparkle button rendered next to each `<a>` link.
+  # Visible only when `ai_translate.enabled` is true AND the language
+  # is in `ai_translate.missing`. Swaps to a spinner while the
+  # corresponding language is in `ai_translate.in_flight`. Hosts that
+  # complete a translation (and remove the code from `missing`) cause
+  # the button to disappear naturally on the next render.
+  attr(:ai_translate, :map, default: nil)
+  attr(:base_code, :string, required: true)
+
+  defp ai_translate_action(assigns) do
+    ~H"""
+    <%= if ai_translate_show?(@ai_translate, @base_code) do %>
+      <%= cond do %>
+        <% in_flight?(@ai_translate, @base_code) -> %>
+          <span
+            class="flex items-center justify-center px-3 text-base-content/60"
+            aria-label="Translation in progress"
+            title="Translation in progress"
+          >
+            <span class="loading loading-spinner loading-xs"></span>
+          </span>
+        <% true -> %>
+          <button
+            type="button"
+            phx-click={event_name(@ai_translate)}
+            phx-value-lang={@base_code}
+            class="flex items-center justify-center px-3 text-base-content/50 hover:text-primary hover:bg-base-200 rounded-r-lg transition"
+            aria-label="Translate this language with AI"
+            title="Translate with AI"
+          >
+            <span aria-hidden="true">✨</span>
+          </button>
+      <% end %>
+    <% end %>
+    """
+  end
+
+  # Bulk "translate all missing" CTA rendered below the language list
+  # when ≥2 languages are missing. Same `phx-click` event as the
+  # per-language buttons; the host's handler distinguishes by the
+  # absence of `phx-value-lang` (or its sentinel value).
+  attr(:ai_translate, :map, default: nil)
+
+  defp ai_translate_bulk(assigns) do
+    ~H"""
+    <%= if bulk_show?(@ai_translate) do %>
+      <div class="border-t border-base-200 p-2">
+        <button
+          type="button"
+          phx-click={event_name(@ai_translate)}
+          phx-value-lang="*"
+          class="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-base-200 transition"
+        >
+          <span aria-hidden="true">✨</span>
+          <span>Translate all missing ({length(actionable_missing(@ai_translate))})</span>
+        </button>
+      </div>
+    <% end %>
+    """
+  end
+
+  defp ai_translate_show?(nil, _base_code), do: false
+
+  defp ai_translate_show?(cfg, base_code) when is_map(cfg) do
+    enabled?(cfg) and event_name(cfg) != nil and base_code in missing_codes(cfg)
+  end
+
+  defp bulk_show?(nil), do: false
+
+  defp bulk_show?(cfg) when is_map(cfg) do
+    enabled?(cfg) and event_name(cfg) != nil and length(actionable_missing(cfg)) >= 2
+  end
+
+  defp enabled?(cfg), do: cfg[:enabled] == true or cfg["enabled"] == true
+
+  # Non-empty event name. Without a host handler to dispatch to, the
+  # affordance is dead UI — hide it. Whitespace-only event strings
+  # count as empty.
+  defp event_name(cfg), do: Values.presence(cfg[:event] || cfg["event"])
+
+  defp in_flight?(cfg, base_code) do
+    base_code in in_flight_codes(cfg)
+  end
+
+  defp in_flight_codes(cfg), do: cfg[:in_flight] || cfg["in_flight"] || []
+
+  defp missing_codes(cfg) do
+    cfg[:missing] || cfg["missing"] || []
+  end
+
+  # Languages still needing a translation **and** not already enqueued.
+  # The bulk button uses this count so a single click doesn't redundantly
+  # re-enqueue jobs the host already has in flight.
+  defp actionable_missing(cfg) do
+    missing_codes(cfg) -- in_flight_codes(cfg)
   end
 
   @doc """
@@ -678,10 +831,22 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   # Falls back to flat list if grouping fails or produces no results.
   defp maybe_build_continent_groups(assigns, filtered_languages) do
     if assigns.group_by_continent and length(filtered_languages) > assigns.continent_threshold do
+      # Count siblings globally before slicing by continent so dedup
+      # decisions stay consistent across continent groups (a base
+      # language with one dialect in Europe + another in North
+      # America still gets the country qualifier in both groups).
+      continent_groups_data = Languages.get_enabled_languages_by_continent()
+
+      global_counts =
+        continent_groups_data
+        |> Enum.flat_map(fn {_continent, langs} -> langs end)
+        |> Enum.uniq_by(&lang_code_for_counts/1)
+        |> DialectMapper.group_dialects_by_base()
+
       groups =
-        Languages.get_enabled_languages_by_continent()
+        continent_groups_data
         |> Enum.map(fn {continent, langs} ->
-          {continent, langs_to_dialect_maps(langs)}
+          {continent, langs_to_dialect_maps(langs, global_counts)}
         end)
         |> Enum.reject(fn {_, langs} -> langs == [] end)
 
@@ -693,18 +858,25 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     _ -> {false, []}
   end
 
-  # Transforms Language structs/maps from grouped continent data into dialect maps
-  defp langs_to_dialect_maps(langs) do
+  defp lang_code_for_counts(lang) when is_struct(lang), do: lang.code
+  defp lang_code_for_counts(lang) when is_map(lang), do: lang[:code] || lang["code"]
+  defp lang_code_for_counts(_), do: nil
+
+  # Transforms Language structs/maps from grouped continent data into
+  # dialect maps. `counts` is the GLOBAL sibling count across all
+  # enabled languages — never per-continent — so the dedup rule
+  # behaves identically to the flat dropdown.
+  defp langs_to_dialect_maps(langs, counts) do
     langs
     |> Enum.map(fn lang ->
       code = if is_struct(lang), do: lang.code, else: lang[:code]
-      name = if is_struct(lang), do: lang.name, else: lang[:name]
+      base = DialectMapper.extract_base(code)
 
       if is_binary(code) do
         %{
-          "base_code" => DialectMapper.extract_base(code),
+          "base_code" => base,
           "dialect" => code,
-          "name" => name || code,
+          "name" => display_name_for(lang, base, counts),
           "flag" => get_language_flag(code)
         }
       end
@@ -713,11 +885,24 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     |> Enum.sort_by(& &1["name"])
   end
 
-  # Transforms language config into dialect maps for display
+  # Transforms language config into dialect maps for display.
+  #
+  # When only one dialect of a given base language is configured, the
+  # displayed `name` strips the country qualifier and falls back to
+  # the canonical base-language name (e.g. "English", "Estonian") —
+  # the parenthetical implies a choice that doesn't exist when no
+  # sibling dialect is enabled. Multiple dialects of the same base
+  # language keep their full configured name so the user can tell
+  # them apart.
   defp build_dialect_list(languages_config) do
-    languages_config
-    |> Enum.reject(&is_nil/1)
-    |> Enum.filter(&is_map/1)
+    configured =
+      languages_config
+      |> Enum.reject(&is_nil/1)
+      |> Enum.filter(&is_map/1)
+
+    counts = DialectMapper.group_dialects_by_base(configured)
+
+    configured
     |> Enum.map(fn lang ->
       dialect = lang.code
       base = DialectMapper.extract_base(dialect)
@@ -725,7 +910,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       %{
         "base_code" => base,
         "dialect" => dialect,
-        "name" => lang.name || dialect || "Unknown",
+        "name" => display_name_for(lang, base, counts),
         "native" => get_native_name(dialect),
         "flag" => get_language_flag(dialect)
       }
@@ -736,6 +921,115 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     end)
     |> Enum.sort_by(& &1["name"])
   end
+
+  # Picks the displayed name for a single language entry: bare
+  # language name (derived from the configured `:name` by stripping
+  # the country qualifier) when this is the only dialect of its base,
+  # full `:name` otherwise. Falls back to `String.upcase(base)` when
+  # the entry has no name. Mirrors the pre-`d1c2d577` convention.
+  #
+  # `base` is always a binary at the call site
+  # (`DialectMapper.extract_base/1` clauses cover `nil` / `""` / binary
+  # and all return a binary), so the no-binary-base branch is
+  # unreachable — keeping it would just confuse dialyzer.
+  defp display_name_for(lang, base, counts) when is_binary(base) do
+    full = get_in_lang(lang, :name) || get_in_lang(lang, "name")
+
+    cond do
+      Map.get(counts, base, 0) > 1 -> full || get_in_lang(lang, :code) || base
+      is_binary(full) -> extract_base_language_name(full)
+      true -> String.upcase(base)
+    end
+  end
+
+  @doc """
+  Strips the country / region qualifier from a configured language
+  name. Used to render bare base-language labels when only one
+  dialect of the base is enabled.
+
+  Public because the admin top-bar dropdown
+  (`PhoenixKitWeb.Components.AdminNav`) and the user dashboard nav
+  (`PhoenixKitWeb.Components.UserDashboardNav`) both call into it via
+  `dedupe_names/1` so all language menus share one rule.
+
+  ## Examples
+
+      iex> extract_base_language_name("Spanish (Mexico)")
+      "Spanish"
+
+      iex> extract_base_language_name("Chinese (Simplified)")
+      "Chinese"
+
+      iex> extract_base_language_name("Japanese")
+      "Japanese"
+  """
+  def extract_base_language_name(full_name) when is_binary(full_name) do
+    full_name
+    |> String.split("(")
+    |> List.first()
+    |> String.trim()
+  end
+
+  @doc """
+  Overrides each language entry's `:name` (or `"name"`) with the
+  bare base-language label when only one dialect of that base is
+  configured. Multi-dialect bases keep their full configured name so
+  users can tell them apart.
+
+  Accepts a list of language entries shaped as atom-keyed maps,
+  string-keyed maps, or `%PhoenixKit.Modules.Languages.Language{}`
+  structs. Returns the list in the same shape with the relevant
+  `:name`/`"name"` key replaced.
+
+  Used by the admin top-bar dropdown and the user dashboard nav to
+  inherit the frontend switcher's dedup rule without duplicating the
+  logic. Internal frontend-switcher code paths
+  (`build_dialect_list/1`, `langs_to_dialect_maps/2`) compute names
+  inline because they emit a new result map per entry; this helper
+  is the entry point for callers that already have a list of entries
+  and just need their names normalized.
+  """
+  def dedupe_names(languages) when is_list(languages) do
+    counts = DialectMapper.group_dialects_by_base(languages)
+    Enum.map(languages, &dedupe_one_name(&1, counts))
+  end
+
+  defp dedupe_one_name(lang, counts) do
+    with code when is_binary(code) <- lang_code(lang),
+         base <- DialectMapper.extract_base(code),
+         true <- Map.get(counts, base, 0) <= 1 do
+      full = get_in_lang(lang, :name) || get_in_lang(lang, "name")
+      put_lang_name(lang, bare_name(full, base))
+    else
+      _ -> lang
+    end
+  end
+
+  # `base` is always a binary at the call site (see
+  # `display_name_for/3` for the same rationale), so we only need
+  # two clauses.
+  defp bare_name(full, _base) when is_binary(full), do: extract_base_language_name(full)
+  defp bare_name(_full, base) when is_binary(base), do: String.upcase(base)
+
+  defp lang_code(%{code: code}) when is_binary(code), do: code
+  defp lang_code(%{"code" => code}) when is_binary(code), do: code
+  defp lang_code(_), do: nil
+
+  defp put_lang_name(lang, name) when is_struct(lang) do
+    if Map.has_key?(lang, :name), do: %{lang | name: name}, else: lang
+  end
+
+  defp put_lang_name(lang, name) when is_map(lang) do
+    cond do
+      Map.has_key?(lang, :name) -> Map.put(lang, :name, name)
+      Map.has_key?(lang, "name") -> Map.put(lang, "name", name)
+      true -> Map.put(lang, :name, name)
+    end
+  end
+
+  defp get_in_lang(lang, key) when is_struct(lang) and is_atom(key), do: Map.get(lang, key)
+  defp get_in_lang(lang, key) when is_map(lang), do: Map.get(lang, key)
+  defp get_in_lang(_, _), do: nil
 
   # Helper function to get language flag emoji
   defp get_language_flag(code) when is_binary(code) do

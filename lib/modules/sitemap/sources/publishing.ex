@@ -50,6 +50,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.LocalePath
   alias PhoenixKit.Modules.Sitemap.UrlEntry
 
   @publishing_mod PhoenixKit.Modules.Publishing
@@ -511,21 +512,20 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     |> Enum.map_join(" ", &String.capitalize/1)
   end
 
-  # Build group path with PhoenixKit prefix and optional language
-  # Format: /{prefix}/{lang?}/{segments...}
-  # When in single language mode, no language prefix is added for anyone
-  # When in multi-language mode, ALL languages get prefix (including default)
-  defp build_group_path(segments, language, _is_default) do
+  # Builds group path with PhoenixKit prefix and optional language.
+  # Format: /{prefix}/{lang?}/{segments...}. The locale-segment policy
+  # lives in `LocalePath.emit_prefix?/2` — see that module for the
+  # canonical decision rules shared across all sitemap sources.
+  #
+  # Publishing emits the **display code** (`get_display_code/2`) for
+  # the language segment so hreflang entries match the controller's
+  # canonical URL logic — base code when only one dialect is enabled,
+  # full dialect code when multiple dialects are enabled.
+  defp build_group_path(segments, language, is_default) do
     prefix_parts = url_prefix_segments()
 
-    # Add language prefix when:
-    # 1. Language is specified
-    # 2. Multiple languages are enabled (not single language mode)
     lang_parts =
-      if language && !single_language_mode?() do
-        # Use display code to match controller's canonical URL logic
-        # This returns base code ("en") when single dialect enabled,
-        # or full code ("en-US") when multiple dialects enabled
+      if LocalePath.emit_prefix?(language, is_default) do
         [get_display_code(language)]
       else
         []
@@ -551,15 +551,6 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
       "/" -> []
       prefix -> prefix |> String.trim("/") |> String.split("/", trim: true)
     end
-  end
-
-  # Check if we're in single language mode (no locale prefix needed)
-  # Returns true when languages module is off OR only one language is enabled
-  # Mirrors PublishingHTML.single_language_mode?/0 logic
-  defp single_language_mode? do
-    not Languages.enabled?() or length(Languages.get_enabled_languages()) <= 1
-  rescue
-    _ -> true
   end
 
   # Get default language from the Languages module

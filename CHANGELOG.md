@@ -1,3 +1,240 @@
+## 1.7.118 - 2026-05-21
+
+### Added
+- `card_grid_class` attr on `PhoenixKitWeb.Components.Core.TableDefault` —
+  overrides the card-view grid layout (column density, gaps) without touching
+  the component. Default unchanged. Must be layout-only (no `display` utility —
+  the component sets `grid`/`hidden` per view-mode branch) and a literal in a
+  Tailwind-scanned source so the classes compile (PR #561).
+- Responsive `cols` on `PhoenixKitWeb.Components.Core.DraggableList` (and the
+  `MediaGallery` passthrough) — `:cols` now accepts a string of Tailwind
+  grid-column classes (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`) for a
+  responsive thumbnail grid, in addition to an integer 1..6. Any other value
+  (out-of-range integer, atom, …) falls back to `grid-cols-4` (PR #561).
+
+### Changed
+- `MediaGallery` now hides the Add tile entirely once the selection reaches
+  `max_count` (or 1 in `:single` mode), instead of rendering it disabled and
+  greyed. Supersedes the disable-at-limit behavior shipped in 1.7.117 (PR #561).
+- Magic-link registration request sends the email via `start_async`, so the
+  submit is non-blocking and the in-flight spinner renders, matching the
+  password-less magic-link login flow. Replaces the prior `phx-disable-with`
+  (follow-up to PR #559).
+- Dependency bumps: `etcher` 0.4.6 → 0.4.8, `fresco` 0.5.4 → 0.5.5,
+  `ex_doc` 0.40.2 → 0.40.3.
+
+### Fixed
+- AI translation no longer fails on every real request.
+  `Translation.translate_fields/6` was treating `PhoenixKitAI.ask_with_prompt/4`'s
+  OpenAI-shaped response map (`%{"choices" => [...]}`) as `:unexpected_response`
+  and erroring out. The success branch now routes map responses through
+  `PhoenixKitAI.Completion.extract_content/1` (the helper publishing's
+  `TranslatePostWorker` already uses), with a raw-binary fallback so test stubs
+  and older plugin versions keep working (PR #560).
+- `Translation.translate_fields/6` rejects an empty `fields` map up front with
+  `{:error, {:parse_error, :no_markers}}` instead of rendering a field-less
+  prompt and spending an AI request that only fails downstream in the parser
+  (PR #558).
+- Auth-form submit buttons no longer overflow their card.
+  `<fieldset>`'s browser-default `min-width: min-content` let the fieldset — and
+  its `w-full` submit button — grow past the form width; `min-w-0` is now applied
+  to the six remaining auth-form fieldsets. Also dropped `phx-disable-with` on
+  the magic-link login form, where it collided with the `@loading` branch and
+  made LiveView's diff merger inject a stray SVG into the button (PR #559).
+
+## 1.7.117 - 2026-05-21
+
+### Added
+- `PhoenixKit.Modules.AI` — core-side conveniences for the optional
+  `PhoenixKitAI` plugin. `available?/0` is a module-loadability check (loaded
+  AND exports `ask_with_prompt/4`); gate AI-driven UI on it so apps without the
+  plugin fall back to non-AI behavior automatically (PR #557).
+- `PhoenixKit.Modules.AI.Translation` — shared AI-translation orchestration
+  reused by every feature module that wants AI translation. `translate_fields/6`
+  takes a `%{field_name => text}` map and returns the same shape, or a
+  normalized `{:error, atom_or_tuple}` covering every failure mode (missing
+  endpoint/prompt, plugin absent, duplicate/partial markers, AI exception/exit).
+  `parse_response/2` is the public, case-insensitive `---FIELD_NAME---` parser.
+  Each dispatch writes one `core.ai_translation.requested` activity entry for a
+  unified token-spend audit trail (PR #557).
+- `ai_translate` attr on `LanguageSwitcher.language_switcher_dropdown` — opt-in
+  affordance that renders a per-missing-language sparkle button plus a bulk
+  "translate all missing" CTA. The component is pure event-emit (no
+  `PhoenixKitAI` reference): it fires the host's `phx-click` event and the host
+  enqueues its own translation worker. `nil`/`enabled: false` = today's behavior
+  (PR #557).
+- `max_count` attr on `PhoenixKitWeb.Components.MediaGallery` — caps the number
+  of selected images in `:multiple` mode and disables the Add button at the
+  limit (defence-in-depth: `apply_selection` also clamps). `nil` = unlimited;
+  `:single` mode implies a limit of 1 (PR #556).
+- `card_media` slot on `PhoenixKitWeb.Components.Core.TableDefault` — optional
+  media region (thumbnail / cover image / document preview) rendered above the
+  card body in card view; the slot owns its own padding/background (PR #556).
+- Controlled `view_mode` (+ `view_event`) on `TableDefault` — pass
+  `view_mode="card"|"table"` to take the card⇄table toggle from assigns instead
+  of the default JS hook + localStorage. The component then renders only that
+  view and the toolbar buttons emit `view_event` with `phx-value-mode`, so the
+  view choice can be URL-backed (`push_patch`) or survive LV navigation (PR #556).
+- `class` attr on `TableDefault.table_default_header` — override the header
+  styling per call site (PR #556).
+
+### Changed
+- `TableDefault.table_default_header` default changed from
+  `bg-primary text-primary-content` to `bg-base-300` — a calmer, theme-neutral
+  header that reads as a subtle separator from `<tbody>`. This affects every
+  `<.table_default_header>` that does not pass an explicit `class`. Pass
+  `class="bg-primary text-primary-content"` to restore the previous look, or
+  `class=""` for a bare header (PR #556).
+- `MediaGallery` in `:single` mode now disables the Add button once an image is
+  selected; replace the image via the per-thumbnail Remove (✕) then Add. The
+  selection cap of 1 is unchanged (PR #556).
+
+## 1.7.116 - 2026-05-20
+
+### Added
+- `Languages.prefixless_primary_safe?/0` — boot- and mix-task-safe wrapper
+  around `default_language_no_prefix?/0`. Returns `false` during mix-task
+  context (via the same `:phoenix_kit_config_status` sentinel `Routes.path/1`
+  uses) and rescues any other lookup exception to `false`. Use from
+  boot/middleware contexts where the Settings table may not be reachable;
+  `default_language_no_prefix?/0` remains the runtime entry point.
+  `Routes.path/1` and `PhoenixKitWeb.Users.Auth` now both delegate to this
+  canonical implementation (PR #554).
+- `PhoenixKit.Modules.Sitemap.LocalePath` — shared `emit_prefix?/2`
+  decision rule for the three sitemap sources (`publishing`, `static`,
+  `posts`). Each source still owns its segment formatting (display code
+  with hreflang awareness for publishing, base code for static + posts);
+  the module owns only the decision so the policy stays consistent across
+  sources (PR #554).
+- `DialectMapper.group_dialects_by_base/1` — counts sibling dialects per
+  base language code. Used by the language switcher and admin/user nav
+  dropdowns to decide whether to show a country qualifier (PR #555).
+- `LanguageSwitcher.dedupe_names/1` + `extract_base_language_name/1` —
+  public helpers called from `AdminNav` and `UserDashboardNav` so all
+  language menus share one country-qualifier dedup rule (PR #555).
+
+### Changed
+- Frontend language switcher (`PhoenixKitWeb.Components.Core.LanguageSwitcher`'s
+  dropdown + continent-grouped views) now drops the country qualifier from
+  rendered labels when only one dialect of a given base language is enabled.
+  `English (United States)`, `Estonian (Estonia)`, `French (France)` render
+  as `English`, `Estonian`, `French` whenever no sibling dialect is
+  configured; enabling a second dialect of the same base (e.g. `en-US` +
+  `en-GB`) causes those entries to reacquire the country qualifier so they
+  remain distinguishable. Same rule applies in the admin top-bar dropdown
+  and user dashboard nav. Continent-grouped views compute sibling counts
+  globally across all enabled languages, so a base split across continents
+  keeps its qualifier in both groups. Restores the bare-label rendering
+  that was lost when commit `d1c2d577` rewrote the switcher to
+  one-row-per-dialect (PR #555).
+- Sitemap sources `publishing`, `static`, and `posts` share one
+  `LocalePath.emit_prefix?/2` decision rule instead of three byte-identical
+  copies; three near-identical private `single_language_mode?/0` helpers
+  collapse into one defensive lookup on `LocalePath` (PR #554).
+- `redirect_invalid_locale/2` honors the site-wide
+  `default_language_no_prefix` setting. With the setting OFF (default), an
+  invalid locale segment is swapped for the primary base code so the
+  redirect lands on the canonical prefixed shape; with the setting ON, the
+  segment is stripped entirely. Previously the plug always emitted the
+  prefixless shape, which was inconsistent with how the rest of the app
+  emits primary-language URLs when the setting is OFF (PR #554).
+- Dependency bumps: `etcher` 0.3.0 → 0.4.0, `fresco` 0.5.2 → 0.5.3.
+
+### Fixed
+- Login (and any other primary-language POST) no longer fails with the
+  default `default_language_no_prefix` setting. `process_valid_locale/2`
+  was unconditionally 301-redirecting `/<default>/...` → `/...` for
+  non-admin requests, discarding the POST body. The redirect is now gated
+  on `Languages.prefixless_primary_safe?/0` so the canonical primary shape
+  matches whichever setting state the site is in (PR #554).
+- Sitemap sources `static.ex` and `posts.ex` honor the site-wide
+  `default_language_no_prefix` setting for the primary language. Both had
+  the same `_is_default` ignored bug that PR #552 fixed in the publishing
+  source — they previously emitted `/en/about` and `/en/blog/post` in
+  multilang mode regardless of the setting (PR #554).
+
+## 1.7.115 - 2026-05-19
+
+### Added
+- Site-wide `default_language_no_prefix` setting on the Languages admin page
+  (`/admin/settings/languages`) controls whether the primary language emits
+  its locale segment in URLs. When on, `/admin/users` and `/blog/post`
+  replace `/en/admin/users` and `/en/blog/post` across admin pages, public
+  pages, sitemap, and redirects; other languages always keep their prefix.
+  Default is off, matching the historical publishing default, so existing
+  installs' indexed URLs stay stable on upgrade. Installs that previously
+  toggled `publishing_default_language_no_prefix` get auto-migrated to the
+  new key on the next boot via `Languages.migrate_legacy/0` (PR #552).
+- `@type t/0` on `PhoenixKit.Settings.Setting` schema. Lets consumers spec
+  setting-returning functions (`{:ok, Settings.Setting.t()} | {:error, …}`)
+  without tripping dialyzer's `unknown_type` warning.
+
+### Changed
+- Admin URL emission for the primary language now follows the new site-wide
+  `default_language_no_prefix` setting (default off), restoring the
+  `/en/admin/users` shape that 1.7.114 had emitted prefixless
+  unconditionally. Both URL shapes still resolve at the router level via the
+  dual-scope admin emission, so existing bookmarks and external links keep
+  working (PR #552).
+- Dependency bumps: `ecto` 3.13.6 → 3.14.0, `ecto_sql` 3.13.5 → 3.14.0,
+  `fresco` 0.5.0 → 0.5.2, `hammer` 7.3.0 → 7.4.0.
+
+### Fixed
+- Publishing sitemap honors `default_language_no_prefix` for the primary
+  language. Previously the sitemap always emitted `/en/blog/post` in
+  multilang mode regardless of the setting, drifting away from the URLs
+  publishing actually served at request time (PR #552).
+- `Languages.default_language_no_prefix?/0` docstring no longer references
+  the nonexistent `PhoenixKit.Migration.migrate_default_language_no_prefix/0`
+  — points at the real entry point `migrate_legacy/0`.
+- `Routes.admin_path/2` `## Examples` no longer mixes setting-dependent
+  cases with deterministic ones inside `iex>` doctest prompts, so adding
+  `doctest PhoenixKit.Utils.Routes` later won't fail. Setting-dependent
+  shapes are still shown, just outside the executable doctest block.
+
+## 1.7.114 - 2026-05-19
+
+### Added
+- `module_assigns` attribute on `LayoutWrapper.app_layout` — a single map
+  whose keys are merged into the assigns passed to a host's parent layout,
+  letting feature modules thread arbitrary host-consumable data (e.g.
+  `phoenix_kit_publishing_translations`) across the layout boundary without
+  core having to declare each key (PR #551).
+
+### Changed
+- Locale resolution is now URL-authoritative. The `phoenix_kit_locale_base`
+  session value and `user.custom_fields["preferred_locale"]` are no longer
+  read for routing — the URL's locale segment (or its absence) is the only
+  source of truth across both the LiveView mount and the HTTP plug. Fixes a
+  sticky-locale bug where visiting one locale-prefixed URL pinned that locale
+  onto every later prefixless URL (PR #551).
+- Admin URLs drop the locale segment for the primary language, matching
+  non-admin behaviour. Both `/<prefix>/admin/*` and
+  `/<prefix>/:locale/admin/*` remain routable, so legacy prefixed links keep
+  working (PR #551).
+- Admin, public, and authenticated-dashboard LiveView routes are each served
+  from a single unified `live_session` (`:phoenix_kit_admin`,
+  `:phoenix_kit_public`, `:phoenix_kit_authenticated`) spanning both the
+  primary-language (`/<prefix>/...`) and locale-prefixed
+  (`/<prefix>/:locale/...`) URL shapes. Switching locale now stays on the
+  WebSocket via `push_navigate` instead of forcing a full-page reload —
+  previously each surface was split across two sessions and every locale
+  change crossed a `live_session` boundary.
+- `DialectMapper.resolve_dialect/2` collapsed to `resolve_dialect/1`: dialect
+  resolution is URL-driven and no longer consults a user's
+  `custom_fields["preferred_locale"]`. Removed the now-unused
+  `User.preferred_locale_changeset/2` and `User.get_preferred_locale/1`.
+
+### Fixed
+- Table RowMenu dropdown is portaled to `<body>` while open so its
+  `position: fixed` coordinates escape any `<dialog>` or `transform`/`contain`
+  containing block — previously the menu could render far off-screen inside
+  modals (PR #551). It also no longer leaves a duplicate menu element behind
+  when a server-side LiveView update re-renders the row while the menu is
+  open.
+- Publishing route dispatch threads the workspace `url_prefix`, so it keeps
+  working when PhoenixKit is mounted under a non-root path (PR #551).
+
 ## 1.7.113 - 2026-05-18
 
 ### Added
