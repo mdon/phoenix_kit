@@ -715,7 +715,7 @@
                   </.link>
                 <% end %>
                 <%= if ext.admin_links != [] do %>
-                  <div class="flex gap-2">
+                  <div class="flex flex-wrap gap-2">
                     <%= for link <- ext.admin_links do %>
                       <.link
                         navigate={PhoenixKit.Utils.Routes.path(link.path)}
