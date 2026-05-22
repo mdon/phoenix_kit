@@ -224,6 +224,12 @@ defmodule PhoenixKit.Modules.AI.Translation do
   # version). The shape is OpenAI-standard so the inline match is
   # stable.
   #
+  # KEEP IN SYNC with `PhoenixKitAI.Completion.extract_content/1`: this
+  # is a deliberate second source of truth for "pull the assistant text
+  # out of a completion." If that helper grows to normalise additional
+  # provider/response shapes, mirror the relevant ones here or this
+  # clause will reject them as `:unexpected_response`.
+  #
   # Older plugin versions (or test stubs) may still return a plain
   # binary; the second clause keeps that path working.
 
@@ -327,7 +333,17 @@ defmodule PhoenixKit.Modules.AI.Translation do
     # but a model may emit them lowercased (`---title---`). Case-
     # insensitive matching keeps the documented "case-insensitive
     # marker matching" contract honest.
-    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=\n---[A-Z0-9_]+---|\z)/si
+    #
+    # `(.*?)` (not `.+?`) so a present-but-empty *trailing* marker
+    # (`...\n---BODY---` at end-of-string) captures `""` and is
+    # recorded as an empty field, matching how an empty *middle*
+    # section resolves via the guard below. An entirely absent marker
+    # still fails the `---MARKER---` literal and returns `nil` →
+    # `missing_fields`, so the "model forgot a marker" signal is
+    # preserved. The empty match only succeeds at `\z` (greedy `\s*`
+    # always eats the newline before an inter-marker boundary), so a
+    # mid-document field with real content is never falsely emptied.
+    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.*?)(?=\n---[A-Z0-9_]+---|\z)/si
 
     case Regex.run(pattern, body) do
       [_, value] ->

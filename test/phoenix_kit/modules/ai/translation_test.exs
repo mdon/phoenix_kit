@@ -310,6 +310,37 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       assert fields["body"] == "Body content here"
     end
 
+    test "present-but-empty trailing marker resolves to empty string, not missing_fields" do
+      # A trailing marker with no content (`...\n---BODY---` at EOS)
+      # used to fail the `(.+?)` floor → no regex match → reported in
+      # `missing_fields`, even though the model DID emit the marker.
+      # That diverged from how an empty MIDDLE section resolves (`""`).
+      # `(.*?)` lets the trailing capture match empty at `\z` so both
+      # positions agree: a present-but-empty field is `""`, an absent
+      # marker is still `missing_fields`.
+      response = """
+      ---TITLE---
+      Hello
+      ---BODY---
+      """
+
+      assert {:ok, fields} = Translation.parse_response(response, ["title", "body"])
+      assert fields["title"] == "Hello"
+      assert fields["body"] == ""
+    end
+
+    test "genuinely absent trailing marker is still reported as missing" do
+      # Guards the other half of the contract changed above: dropping
+      # the `(.+?)` floor must NOT turn a forgotten marker into `""`.
+      response = """
+      ---TITLE---
+      Hello
+      """
+
+      assert {:error, {:parse_error, {:missing_fields, ["body"]}}} =
+               Translation.parse_response(response, ["title", "body"])
+    end
+
     test "returns :no_markers when nothing matches at all" do
       response = "just some markdown\n\n# header"
 

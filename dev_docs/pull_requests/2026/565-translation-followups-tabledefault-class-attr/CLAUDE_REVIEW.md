@@ -8,6 +8,14 @@
 
 **Approve (post-merge).** The parser fix is correct for every scenario it claims to handle — I traced the regex against single-empty, consecutive-empty, leak, and mid-line-marker cases and they all behave as the tests assert. The TableDefault widening is safe. Two MEDIUM/minor items below are worth a follow-up but none block.
 
+## Follow-up fixes applied (post-review, on `dev`)
+
+Implemented as a follow-up commit after this review:
+
+- **MEDIUM (extraction divergence)** — `lib/modules/ai/translation.ex`: added a `KEEP IN SYNC with PhoenixKitAI.Completion.extract_content/1` note at the inline-match site so the deliberate second source of truth doesn't silently drift. Comment-only; no behavior change.
+- **NITPICK #2 (empty-section asymmetry)** — `lib/modules/ai/translation.ex`: changed the section-capture group from `(.+?)` to `(.*?)` so a *present-but-empty trailing* marker (`...\n---BODY---` at end-of-string) resolves to `""` — matching how an empty *middle* section already resolves — instead of being reported in `missing_fields`. The empty match only succeeds at `\z` (greedy `\s*` always eats the newline before an inter-marker boundary), so a real mid-document field is never falsely emptied. An entirely **absent** marker still fails the `---MARKER---` literal → `nil` → `missing_fields`, so the "model forgot a marker" signal is preserved. Two regression tests added: trailing-empty → `""`, and absent-trailing → `missing_fields`.
+- **NITPICK #3 (`show_info` gated on `show_header`)** — **no code change, by decision.** The info tooltip annotates the header title and has no sensible anchor without it; rendering a floating tooltip with no visible anchor would be worse UX. The behavior is correct-by-design and the docstring already states the dependency. Resolution: documentation, not code.
+
 ---
 
 ## Findings
