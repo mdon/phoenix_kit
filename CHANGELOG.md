@@ -1,3 +1,37 @@
+## 1.7.119 - 2026-05-22
+
+### Changed
+- `PhoenixKitWeb.Components.Core.TableDefault` — `:class` attr widened from
+  `:string` to `:any` on all 7 `table_default*` components, so the
+  Phoenix-idiomatic `class={[if(...), ...]}` list form compiles without an attr
+  warning. The components already wrap `@class` in a flattened list, so there is
+  no rendered-output change for existing string callers (PR #565).
+- `PhoenixKitWeb.Components.MultilangForm` — the standalone info alert is now a
+  hover/focus tooltip on an info icon beside the "Content Language" header, and
+  the default loading skeleton uses `bg-base-content/15 animate-pulse` instead of
+  daisyUI's near-invisible `.skeleton`, so the loading state is visible on
+  `bg-base-100` cards (PR #565).
+- `Translation.handle_ai_response/2` extracts the OpenAI-shaped completion
+  content inline rather than via `PhoenixKitAI.Completion.extract_content/1`,
+  dropping the cross-module dependency on the optional AI plugin — works whether
+  the plugin is present, absent, or stubbed (PR #565).
+- Dependency bumps: `etcher` 0.4.8 → 0.4.9, `fresco` 0.5.5 → 0.5.8,
+  `floki` 0.38.2 → 0.38.3.
+
+### Fixed
+- AI translation parser no longer leaks an unrequested marker's content into the
+  preceding field. A field capture now terminates at any line-anchored
+  `\n---<NAME>---` marker, not just the requested-field markers — so a model
+  emitting an extra `---TITLE---` (e.g. from an unbound `{{title}}` template
+  variable) no longer rolls that block into the prior `---NAME---` field. The
+  newline anchor keeps literal mid-paragraph `---WORD---` tokens (technical docs,
+  API examples) inside the capture (PR #565).
+- AI translation empty sections resolve consistently to `""`. A present-but-empty
+  trailing marker now records `""` instead of failing the whole response with
+  `{:parse_error, {:missing_fields, ...}}`, matching how an empty middle section
+  already resolved. A genuinely absent marker still reports `missing_fields`, so
+  the "model forgot a marker" signal is preserved (follow-up to PR #565).
+
 ## 1.7.118 - 2026-05-21
 
 ### Added
