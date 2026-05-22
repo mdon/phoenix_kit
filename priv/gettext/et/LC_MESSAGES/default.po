@@ -9775,14 +9775,14 @@ msgid "Controls how the primary language appears in URLs across the site — adm
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:294
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Default Language Without Prefix"
-msgstr "Vaikekeel"
+msgstr "Vaikekeel ilma prefiksita"
 
 #: lib/phoenix_kit_web/live/modules/languages.ex:89
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update URL behavior setting"
-msgstr "Seade uuendamine ebaõnnestus"
+msgstr "URL-i käitumise seade uuendamine ebaõnnestus"
 
 #: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:344
 #, elixir-autogen, elixir-format
