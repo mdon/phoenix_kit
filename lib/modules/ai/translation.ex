@@ -330,8 +330,31 @@ defmodule PhoenixKit.Modules.AI.Translation do
     pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=\n---[A-Z0-9_]+---|\z)/si
 
     case Regex.run(pattern, body) do
-      [_, value] -> String.trim(value)
-      _ -> nil
+      [_, value] ->
+        # Empty-section guard: when a section is truly empty (e.g.
+        # `---TITLE---\n---BODY---\n...`), `\s*\n?` will consume the
+        # `\n` between the markers and `(.+?)` starts capturing
+        # `---BODY---\n...` as TITLE's content. The lookahead can't
+        # rescue it because it requires a leading `\n` (which the
+        # previous `\s*` already ate). Detect after the fact: if the
+        # captured value starts with what LOOKS like another marker,
+        # the original section had no content — return `""` so the
+        # parser records it as empty rather than misattributing the
+        # next field's content. The boundary regex up above ensures
+        # only "real" marker shapes trigger this; legitimately
+        # translated content that begins with `---WORD---` would be
+        # an unlikely UI translation, and the cost of misclassifying
+        # that as empty is lower than misattributing a whole field.
+        trimmed = String.trim(value)
+
+        if Regex.match?(~r/\A---[A-Z0-9_]+---/i, trimmed) do
+          ""
+        else
+          trimmed
+        end
+
+      _ ->
+        nil
     end
   end
 

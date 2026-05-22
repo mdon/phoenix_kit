@@ -290,6 +290,26 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       assert fields["body"] =~ "another ---WEIRD--- inline token"
     end
 
+    test "empty section between two markers returns empty string, not next field's content" do
+      # When a model emits a marker with no content followed
+      # immediately by the next marker (`---TITLE---\n---BODY---\n...`),
+      # the underlying regex would otherwise consume the inter-marker
+      # newline and capture `---BODY---\nBody...` as TITLE's content
+      # — leaking the next section into the current one. Empty-section
+      # guard in `extract_section/3` detects the leak by checking
+      # whether the captured value starts with a marker-shaped token
+      # and returns `""` instead.
+      response = """
+      ---TITLE---
+      ---BODY---
+      Body content here
+      """
+
+      assert {:ok, fields} = Translation.parse_response(response, ["title", "body"])
+      assert fields["title"] == ""
+      assert fields["body"] == "Body content here"
+    end
+
     test "returns :no_markers when nothing matches at all" do
       response = "just some markdown\n\n# header"
 
