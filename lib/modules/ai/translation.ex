@@ -217,30 +217,30 @@ defmodule PhoenixKit.Modules.AI.Translation do
 
   # `PhoenixKitAI.ask_with_prompt/4` returns the full OpenAI-shaped
   # response map (`%{"choices" => [%{"message" => %{"content" => "..."}}]}`),
-  # not a raw string. Reach for `PhoenixKitAI.Completion.extract_content/1`
-  # to pull the assistant's content out — same helper publishing's
-  # `TranslatePostWorker` already uses for its post-translate AI call.
-  # Older versions of the plugin (or test stubs) may still return a
-  # plain binary; the second clause keeps that working.
-  @compile {:no_warn_undefined, [{PhoenixKitAI.Completion, :extract_content, 1}]}
-  defp handle_ai_response(response, fields) when is_map(response) do
-    case PhoenixKitAI.Completion.extract_content(response) do
-      {:ok, content} when is_binary(content) ->
-        parse_response(content, Map.keys(fields))
+  # not a raw string. We extract the assistant's content inline rather
+  # than via `PhoenixKitAI.Completion.extract_content/1` so the helper
+  # has no cross-module dep on the optional plugin — works in core's
+  # test env (plugin absent) and any host (plugin present, any
+  # version). The shape is OpenAI-standard so the inline match is
+  # stable.
+  #
+  # Older plugin versions (or test stubs) may still return a plain
+  # binary; the second clause keeps that path working.
 
-      {:ok, _other} ->
-        {:error, {:ai_error, {:unexpected_response, response}}}
-
-      {:error, reason} ->
-        {:error, {:ai_error, reason}}
-    end
+  @doc false
+  # Public-for-testing entry point so the OpenAI-shape extraction can
+  # be unit-tested without spinning up the live `PhoenixKitAI`
+  # plugin. Production callers go through `do_translate/6`.
+  def handle_ai_response(%{"choices" => [%{"message" => %{"content" => content}} | _]}, fields)
+      when is_binary(content) do
+    parse_response(content, Map.keys(fields))
   end
 
-  defp handle_ai_response(response, fields) when is_binary(response) do
+  def handle_ai_response(response, fields) when is_binary(response) do
     parse_response(response, Map.keys(fields))
   end
 
-  defp handle_ai_response(other, _fields) do
+  def handle_ai_response(other, _fields) do
     {:error, {:ai_error, {:unexpected_response, other}}}
   end
 
@@ -306,17 +306,55 @@ defmodule PhoenixKit.Modules.AI.Translation do
   # Pulls the text between `---MARKER---` and the next `---OTHER---`
   # marker (or end-of-string). Returns nil when the marker isn't
   # present.
-  defp extract_section(body, marker, all_markers) do
-    others = for {_, m} <- all_markers, m != marker, do: Regex.escape(m)
-    boundary = if others == [], do: ~s|\\z|, else: "---(?:#{Enum.join(others, "|")})---"
-    # `i` flag: markers are normalised to uppercase by `marker/1`, but a model
-    # may emit them lowercased (`---title---`). Case-insensitive matching keeps
-    # the documented "case-insensitive marker matching" contract honest.
-    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=#{boundary}|\z)/si
+  defp extract_section(body, marker, _all_markers) do
+    # Boundary matches ANY `---<NAME>---` marker, not just the
+    # requested-field markers. Without that, an AI that emits a
+    # marker the caller didn't ask for (e.g. an extra `---TITLE---`
+    # because the prompt template referenced `{{title}}` with no
+    # variable bound, leaving the literal text in the rendered
+    # prompt) gets that block's content rolled into the previous
+    # requested field. The marker name pattern intentionally accepts
+    # the same character class `marker/1` normalises field names
+    # into: uppercase letters, digits, underscores.
+    #
+    # The `\n` before `---` is load-bearing: real AI-emitted markers
+    # always start on their own line, so requiring a newline before
+    # the boundary avoids prematurely terminating a capture when the
+    # translated content happens to contain a literal `---WORD---`
+    # token mid-paragraph (technical docs, API examples).
+    #
+    # `i` flag: markers are normalised to uppercase by `marker/1`,
+    # but a model may emit them lowercased (`---title---`). Case-
+    # insensitive matching keeps the documented "case-insensitive
+    # marker matching" contract honest.
+    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=\n---[A-Z0-9_]+---|\z)/si
 
     case Regex.run(pattern, body) do
-      [_, value] -> String.trim(value)
-      _ -> nil
+      [_, value] ->
+        # Empty-section guard: when a section is truly empty (e.g.
+        # `---TITLE---\n---BODY---\n...`), `\s*\n?` will consume the
+        # `\n` between the markers and `(.+?)` starts capturing
+        # `---BODY---\n...` as TITLE's content. The lookahead can't
+        # rescue it because it requires a leading `\n` (which the
+        # previous `\s*` already ate). Detect after the fact: if the
+        # captured value starts with what LOOKS like another marker,
+        # the original section had no content — return `""` so the
+        # parser records it as empty rather than misattributing the
+        # next field's content. The boundary regex up above ensures
+        # only "real" marker shapes trigger this; legitimately
+        # translated content that begins with `---WORD---` would be
+        # an unlikely UI translation, and the cost of misclassifying
+        # that as empty is lower than misattributing a whole field.
+        trimmed = String.trim(value)
+
+        if Regex.match?(~r/\A---[A-Z0-9_]+---/i, trimmed) do
+          ""
+        else
+          trimmed
+        end
+
+      _ ->
+        nil
     end
   end
 
