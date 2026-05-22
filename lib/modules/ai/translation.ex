@@ -317,11 +317,17 @@ defmodule PhoenixKit.Modules.AI.Translation do
     # the same character class `marker/1` normalises field names
     # into: uppercase letters, digits, underscores.
     #
+    # The `\n` before `---` is load-bearing: real AI-emitted markers
+    # always start on their own line, so requiring a newline before
+    # the boundary avoids prematurely terminating a capture when the
+    # translated content happens to contain a literal `---WORD---`
+    # token mid-paragraph (technical docs, API examples).
+    #
     # `i` flag: markers are normalised to uppercase by `marker/1`,
     # but a model may emit them lowercased (`---title---`). Case-
     # insensitive matching keeps the documented "case-insensitive
     # marker matching" contract honest.
-    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=---[A-Z0-9_]+---|\z)/si
+    pattern = ~r/---#{Regex.escape(marker)}---\s*\n?(.+?)(?=\n---[A-Z0-9_]+---|\z)/si
 
     case Regex.run(pattern, body) do
       [_, value] -> String.trim(value)

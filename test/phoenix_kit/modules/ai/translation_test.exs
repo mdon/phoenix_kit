@@ -77,11 +77,10 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       # Drives the actual code path that was broken pre-fix:
       # `ask_with_prompt/4` returns the full OpenAI response map,
       # not a raw string. The helper must reach into
-      # `choices[0].message.content` (via
-      # `PhoenixKitAI.Completion.extract_content/1`) before passing
-      # through to `parse_response/2`. The previous test asserted
-      # only on `parse_response/2` directly and would have passed
-      # against the broken implementation.
+      # `choices[0].message.content` inline before passing through
+      # to `parse_response/2`. The previous test asserted only on
+      # `parse_response/2` directly and would have passed against
+      # the broken implementation.
       response_map = %{
         "choices" => [
           %{
@@ -106,8 +105,26 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
     end
 
     test "handle_ai_response/2 returns :ai_error for malformed shape" do
+      # Atom — wholly wrong type
       assert {:error, {:ai_error, {:unexpected_response, _}}} =
                Translation.handle_ai_response(:not_a_response, %{"a" => "b"})
+
+      # Empty choices list — valid OpenAI envelope but no completion
+      assert {:error, {:ai_error, {:unexpected_response, _}}} =
+               Translation.handle_ai_response(%{"choices" => []}, %{"a" => "b"})
+
+      # Choice present but non-binary content (e.g. structured-parts
+      # API or refusal/tool_call response — falls back to the same
+      # unexpected_response shape rather than crashing)
+      assert {:error, {:ai_error, {:unexpected_response, _}}} =
+               Translation.handle_ai_response(
+                 %{"choices" => [%{"message" => %{"content" => nil}}]},
+                 %{"a" => "b"}
+               )
+
+      # Missing `message` entirely
+      assert {:error, {:ai_error, {:unexpected_response, _}}} =
+               Translation.handle_ai_response(%{"choices" => [%{}]}, %{"a" => "b"})
     end
 
     test "valid inputs + missing plugin → :ai_not_installed" do
@@ -147,6 +164,17 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
                  "es",
                  %{"foo-bar" => "a", "foo_bar" => "b"}
                )
+
+      # Whitespace-only endpoint behaves like empty endpoint — the
+      # validator trims before checking. Pins the contract so a
+      # future "strict equality" refactor (`endpoint == ""`) breaks
+      # loudly instead of silently accepting `"   "`.
+      assert {:error, :no_endpoint} =
+               Translation.translate_fields("   ", "p", "en", "es", %{"a" => "b"})
+
+      # Whitespace-only prompt — same trim-then-check contract.
+      assert {:error, :missing_prompt} =
+               Translation.translate_fields("ep", "   ", "en", "es", %{"a" => "b"})
     end
   end
 
@@ -239,6 +267,27 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       refute fields["name"] =~ "TITLE"
       refute fields["name"] =~ "title"
       assert fields["description"] =~ "Standardablauf"
+    end
+
+    test "literal `---WORD---` in field content doesn't prematurely terminate the capture" do
+      # The boundary lookahead requires a newline before the marker
+      # (`\n---WORD---`), so a literal `---WORD---` token that
+      # appears MID-LINE in the translated content (technical docs,
+      # API examples, code snippets describing the marker format)
+      # is kept inside the capture instead of acting as a boundary.
+      # Without the line-anchor, this content would prematurely
+      # terminate at `---API_KEY---` and lose the trailing text.
+      response = """
+      ---TITLE---
+      Translated title text containing literal ---API_KEY--- token and trailing text
+      ---BODY---
+      Body content with another ---WEIRD--- inline token here too.
+      """
+
+      assert {:ok, fields} = Translation.parse_response(response, ["title", "body"])
+      assert fields["title"] =~ "containing literal ---API_KEY--- token"
+      assert fields["title"] =~ "trailing text"
+      assert fields["body"] =~ "another ---WEIRD--- inline token"
     end
 
     test "returns :no_markers when nothing matches at all" do
