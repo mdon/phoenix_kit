@@ -14,7 +14,9 @@
     phx-submit="send_magic_link"
     phx-change="validate"
   >
-    <fieldset class="fieldset">
+    <%!-- `min-w-0` overrides <fieldset>'s default `min-width: min-content`
+         so a long-content child doesn't push the form past the card. --%>
+    <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">Magic Link Authentication</legend>
 
       <div :if={@error} class="alert alert-error text-sm mb-4">
@@ -36,10 +38,13 @@
         required
       />
 
+      <%!-- `@loading` already swaps the button content; redundant
+           `phx-disable-with` was removed because the double swap
+           broke the DOM merge. `min-w-0 max-w-full` belt-and-
+           suspenders for the fieldset overflow fix. --%>
       <button
         type="submit"
-        phx-disable-with="Sending magic link..."
-        class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
+        class="btn btn-primary w-full max-w-full min-w-0 mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
         disabled={@loading || @sent}
       >
         <%= if @loading do %>

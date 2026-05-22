@@ -49,46 +49,78 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
   @impl true
   def handle_event("send_magic_link", %{"email" => email}, socket) do
     if Settings.get_boolean_setting("allow_registration", true) do
+      # Send in the background via start_async so the `@loading` spinner
+      # actually renders (a synchronous handler never re-renders with
+      # loading: true before completing). Mirrors PhoenixKitWeb.Users.MagicLink.
       email = String.trim(email)
 
-      socket = assign(socket, :loading, true)
-
-      case MagicLinkRegistration.send_registration_link(email) do
-        {:ok, sent_email, _token} ->
-          {:noreply,
-           socket
-           |> assign(:email_sent, true)
-           |> assign(:email, sent_email)
-           |> assign(:loading, false)
-           |> assign(:error_message, nil)
-           |> put_flash(:info, "Registration link sent! Check your email.")}
-
-        {:error, :email_already_exists} ->
-          {:noreply,
-           socket
-           |> assign(:loading, false)
-           |> assign(:error_message, "This email is already registered. Please log in instead.")
-           |> put_flash(:error, "Email already exists")}
-
-        {:error, :invalid_email} ->
-          {:noreply,
-           socket
-           |> assign(:loading, false)
-           |> assign(:error_message, "Please enter a valid email address.")
-           |> put_flash(:error, "Invalid email format")}
-
-        {:error, _reason} ->
-          {:noreply,
-           socket
-           |> assign(:loading, false)
-           |> assign(:error_message, "Failed to send registration link. Please try again.")
-           |> put_flash(:error, "Something went wrong")}
-      end
+      {:noreply,
+       socket
+       |> assign(:email, email)
+       |> assign(:loading, true)
+       |> assign(:error_message, nil)
+       |> send_registration_link_async(email)}
     else
       {:noreply,
        socket
        |> put_flash(:error, "User registration is currently disabled.")
        |> redirect(to: Routes.path("/users/log-in"))}
     end
+  end
+
+  @impl true
+  def handle_async(:send_magic_link, {:ok, result}, socket) do
+    case result do
+      {:ok, sent_email, _token} ->
+        {:noreply,
+         socket
+         |> assign(:email_sent, true)
+         |> assign(:email, sent_email)
+         |> assign(:loading, false)
+         |> assign(:error_message, nil)
+         |> put_flash(:info, "Registration link sent! Check your email.")}
+
+      {:error, :email_already_exists} ->
+        {:noreply,
+         error_state(
+           socket,
+           "This email is already registered. Please log in instead.",
+           "Email already exists"
+         )}
+
+      {:error, :invalid_email} ->
+        {:noreply,
+         error_state(socket, "Please enter a valid email address.", "Invalid email format")}
+
+      {:error, _reason} ->
+        {:noreply, generic_failure(socket)}
+    end
+  end
+
+  # A crashed/exited task is indistinguishable to the user from a failed send.
+  @impl true
+  def handle_async(:send_magic_link, {:exit, _reason}, socket) do
+    {:noreply, generic_failure(socket)}
+  end
+
+  defp send_registration_link_async(socket, email) do
+    Phoenix.LiveView.start_async(socket, :send_magic_link, fn ->
+      MagicLinkRegistration.send_registration_link(email)
+    end)
+  end
+
+  defp generic_failure(socket) do
+    error_state(
+      socket,
+      "Failed to send registration link. Please try again.",
+      "Something went wrong"
+    )
+  end
+
+  defp error_state(socket, message, flash_message) do
+    socket
+    |> assign(:loading, false)
+    |> assign(:error_message, message)
+    |> put_flash(:error, flash_message)
   end
 end

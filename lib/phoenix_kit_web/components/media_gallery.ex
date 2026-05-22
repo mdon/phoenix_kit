@@ -27,8 +27,10 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   - `title` — optional heading above the gallery
   - `selected` — ordered list of file UUIDs (current selection); default `[]`
   - `mode` — `:single` or `:multiple` (default `:multiple`)
-  - `cols` — number of grid columns for the thumbnail layout (1..6, default `4`).
-    Plumbed straight through to `<.draggable_list>`.
+  - `cols` — grid columns for the thumbnail layout (default `4`). Either an
+    integer 1..6, or a string of Tailwind grid-column classes for a responsive
+    grid (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`). Plumbed straight
+    through to `<.draggable_list>`.
   - `featured_first` — when `true`, the first item in `:selected` renders a
     "Featured" badge in the top-left corner. Matches the
     `phoenix_kit_posts` post-creation convention where the first image is the
@@ -38,6 +40,10 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   - `phoenix_kit_current_user` — required for upload in the picker
   - `readonly` — when `true`, hides the pick button, remove buttons, and DnD;
     preview (lightbox) still works; default `false`
+  - `max_count` — integer upper bound on the number of selected images for
+    `:multiple` mode; `nil` means unlimited. For `:single` mode the limit is
+    always 1 (implied by `mode`). When the limit is reached, the "Add" tile is
+    hidden entirely (not just disabled) and `apply_selection` refuses to exceed it.
 
   ## Change notifications
 
@@ -82,7 +88,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     # Guard: if component hasn't been fully initialised yet these are nil-safe defaults.
     current = socket.assigns[:selected] || []
     mode = socket.assigns[:mode] || :multiple
-    new_selected = apply_selection(current, uuids, mode)
+    max_count = socket.assigns[:max_count]
+    new_selected = apply_selection(current, uuids, mode, max_count)
 
     socket =
       socket
@@ -106,6 +113,7 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:phoenix_kit_current_user, fn -> nil end)
       |> assign_new(:readonly, fn -> false end)
+      |> assign_new(:max_count, fn -> nil end)
       |> assign_new(:title, fn -> nil end)
       |> assign_new(:show_picker, fn -> false end)
       |> assign_new(:preview_uuid, fn -> nil end)
@@ -186,14 +194,34 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
       assign(socket, files: [], variants_map: %{}, selected_loaded: nil)
   end
 
-  defp apply_selection(_current, uuids, :single) do
+  defp apply_selection(_current, uuids, :single, _max_count) do
     case uuids do
       [uuid | _] -> [uuid]
       [] -> []
     end
   end
 
-  defp apply_selection(_current, uuids, _multiple), do: uuids
+  defp apply_selection(_current, uuids, _multiple, nil), do: uuids
+
+  defp apply_selection(_current, uuids, _multiple, max_count)
+       when is_integer(max_count) and max_count > 0 do
+    Enum.take(uuids, max_count)
+  end
+
+  defp apply_selection(_current, uuids, _multiple, _max_count), do: uuids
+
+  # Returns true when the current selection has reached its limit:
+  # - :single mode → limit is always 1
+  # - :multiple with a positive max_count → limit is max_count
+  # - :multiple with nil or 0 max_count → unlimited (always false)
+  defp selection_at_limit?(selected, :single, _max_count), do: selected != []
+
+  defp selection_at_limit?(selected, _multiple, max_count)
+       when is_integer(max_count) and max_count > 0 do
+    length(selected) >= max_count
+  end
+
+  defp selection_at_limit?(_selected, _mode, _max_count), do: false
 
   defp notify_parent(socket) do
     parent = self()

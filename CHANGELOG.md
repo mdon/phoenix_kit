@@ -1,3 +1,128 @@
+## 1.7.119 - 2026-05-22
+
+### Changed
+- `PhoenixKitWeb.Components.Core.TableDefault` — `:class` attr widened from
+  `:string` to `:any` on all 7 `table_default*` components, so the
+  Phoenix-idiomatic `class={[if(...), ...]}` list form compiles without an attr
+  warning. The components already wrap `@class` in a flattened list, so there is
+  no rendered-output change for existing string callers (PR #565).
+- `PhoenixKitWeb.Components.MultilangForm` — the standalone info alert is now a
+  hover/focus tooltip on an info icon beside the "Content Language" header, and
+  the default loading skeleton uses `bg-base-content/15 animate-pulse` instead of
+  daisyUI's near-invisible `.skeleton`, so the loading state is visible on
+  `bg-base-100` cards (PR #565).
+- `Translation.handle_ai_response/2` extracts the OpenAI-shaped completion
+  content inline rather than via `PhoenixKitAI.Completion.extract_content/1`,
+  dropping the cross-module dependency on the optional AI plugin — works whether
+  the plugin is present, absent, or stubbed (PR #565).
+- Dependency bumps: `etcher` 0.4.8 → 0.4.9, `fresco` 0.5.5 → 0.5.8,
+  `floki` 0.38.2 → 0.38.3.
+
+### Fixed
+- AI translation parser no longer leaks an unrequested marker's content into the
+  preceding field. A field capture now terminates at any line-anchored
+  `\n---<NAME>---` marker, not just the requested-field markers — so a model
+  emitting an extra `---TITLE---` (e.g. from an unbound `{{title}}` template
+  variable) no longer rolls that block into the prior `---NAME---` field. The
+  newline anchor keeps literal mid-paragraph `---WORD---` tokens (technical docs,
+  API examples) inside the capture (PR #565).
+- AI translation empty sections resolve consistently to `""`. A present-but-empty
+  trailing marker now records `""` instead of failing the whole response with
+  `{:parse_error, {:missing_fields, ...}}`, matching how an empty middle section
+  already resolved. A genuinely absent marker still reports `missing_fields`, so
+  the "model forgot a marker" signal is preserved (follow-up to PR #565).
+
+## 1.7.118 - 2026-05-21
+
+### Added
+- `card_grid_class` attr on `PhoenixKitWeb.Components.Core.TableDefault` —
+  overrides the card-view grid layout (column density, gaps) without touching
+  the component. Default unchanged. Must be layout-only (no `display` utility —
+  the component sets `grid`/`hidden` per view-mode branch) and a literal in a
+  Tailwind-scanned source so the classes compile (PR #561).
+- Responsive `cols` on `PhoenixKitWeb.Components.Core.DraggableList` (and the
+  `MediaGallery` passthrough) — `:cols` now accepts a string of Tailwind
+  grid-column classes (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`) for a
+  responsive thumbnail grid, in addition to an integer 1..6. Any other value
+  (out-of-range integer, atom, …) falls back to `grid-cols-4` (PR #561).
+
+### Changed
+- `MediaGallery` now hides the Add tile entirely once the selection reaches
+  `max_count` (or 1 in `:single` mode), instead of rendering it disabled and
+  greyed. Supersedes the disable-at-limit behavior shipped in 1.7.117 (PR #561).
+- Magic-link registration request sends the email via `start_async`, so the
+  submit is non-blocking and the in-flight spinner renders, matching the
+  password-less magic-link login flow. Replaces the prior `phx-disable-with`
+  (follow-up to PR #559).
+- Dependency bumps: `etcher` 0.4.6 → 0.4.8, `fresco` 0.5.4 → 0.5.5,
+  `ex_doc` 0.40.2 → 0.40.3.
+
+### Fixed
+- AI translation no longer fails on every real request.
+  `Translation.translate_fields/6` was treating `PhoenixKitAI.ask_with_prompt/4`'s
+  OpenAI-shaped response map (`%{"choices" => [...]}`) as `:unexpected_response`
+  and erroring out. The success branch now routes map responses through
+  `PhoenixKitAI.Completion.extract_content/1` (the helper publishing's
+  `TranslatePostWorker` already uses), with a raw-binary fallback so test stubs
+  and older plugin versions keep working (PR #560).
+- `Translation.translate_fields/6` rejects an empty `fields` map up front with
+  `{:error, {:parse_error, :no_markers}}` instead of rendering a field-less
+  prompt and spending an AI request that only fails downstream in the parser
+  (PR #558).
+- Auth-form submit buttons no longer overflow their card.
+  `<fieldset>`'s browser-default `min-width: min-content` let the fieldset — and
+  its `w-full` submit button — grow past the form width; `min-w-0` is now applied
+  to the six remaining auth-form fieldsets. Also dropped `phx-disable-with` on
+  the magic-link login form, where it collided with the `@loading` branch and
+  made LiveView's diff merger inject a stray SVG into the button (PR #559).
+
+## 1.7.117 - 2026-05-21
+
+### Added
+- `PhoenixKit.Modules.AI` — core-side conveniences for the optional
+  `PhoenixKitAI` plugin. `available?/0` is a module-loadability check (loaded
+  AND exports `ask_with_prompt/4`); gate AI-driven UI on it so apps without the
+  plugin fall back to non-AI behavior automatically (PR #557).
+- `PhoenixKit.Modules.AI.Translation` — shared AI-translation orchestration
+  reused by every feature module that wants AI translation. `translate_fields/6`
+  takes a `%{field_name => text}` map and returns the same shape, or a
+  normalized `{:error, atom_or_tuple}` covering every failure mode (missing
+  endpoint/prompt, plugin absent, duplicate/partial markers, AI exception/exit).
+  `parse_response/2` is the public, case-insensitive `---FIELD_NAME---` parser.
+  Each dispatch writes one `core.ai_translation.requested` activity entry for a
+  unified token-spend audit trail (PR #557).
+- `ai_translate` attr on `LanguageSwitcher.language_switcher_dropdown` — opt-in
+  affordance that renders a per-missing-language sparkle button plus a bulk
+  "translate all missing" CTA. The component is pure event-emit (no
+  `PhoenixKitAI` reference): it fires the host's `phx-click` event and the host
+  enqueues its own translation worker. `nil`/`enabled: false` = today's behavior
+  (PR #557).
+- `max_count` attr on `PhoenixKitWeb.Components.MediaGallery` — caps the number
+  of selected images in `:multiple` mode and disables the Add button at the
+  limit (defence-in-depth: `apply_selection` also clamps). `nil` = unlimited;
+  `:single` mode implies a limit of 1 (PR #556).
+- `card_media` slot on `PhoenixKitWeb.Components.Core.TableDefault` — optional
+  media region (thumbnail / cover image / document preview) rendered above the
+  card body in card view; the slot owns its own padding/background (PR #556).
+- Controlled `view_mode` (+ `view_event`) on `TableDefault` — pass
+  `view_mode="card"|"table"` to take the card⇄table toggle from assigns instead
+  of the default JS hook + localStorage. The component then renders only that
+  view and the toolbar buttons emit `view_event` with `phx-value-mode`, so the
+  view choice can be URL-backed (`push_patch`) or survive LV navigation (PR #556).
+- `class` attr on `TableDefault.table_default_header` — override the header
+  styling per call site (PR #556).
+
+### Changed
+- `TableDefault.table_default_header` default changed from
+  `bg-primary text-primary-content` to `bg-base-300` — a calmer, theme-neutral
+  header that reads as a subtle separator from `<tbody>`. This affects every
+  `<.table_default_header>` that does not pass an explicit `class`. Pass
+  `class="bg-primary text-primary-content"` to restore the previous look, or
+  `class=""` for a bare header (PR #556).
+- `MediaGallery` in `:single` mode now disables the Add button once an image is
+  selected; replace the image via the per-thumbnail Remove (✕) then Add. The
+  selection cap of 1 is unchanged (PR #556).
+
 ## 1.7.116 - 2026-05-20
 
 ### Added

@@ -43,6 +43,7 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       scope_folder_id: nil,
       phoenix_kit_current_user: nil,
       readonly: readonly,
+      max_count: nil,
       title: title,
       show_picker: false,
       preview_uuid: preview_uuid,
@@ -512,6 +513,124 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
         )
 
       assert socket.assigns.selected == [uuid3, uuid1, uuid2]
+    end
+  end
+
+  # ── max_count / Add-button disable behavior ────────────────────────────────────
+
+  describe "max_count" do
+    defp gallery_assigns_with(extra) do
+      base =
+        gallery_assigns([])
+        |> Map.put(:max_count, nil)
+
+      Map.merge(base, extra)
+    end
+
+    test "Add button is enabled when selection is below max_count" do
+      html =
+        render(
+          gallery_assigns_with(%{
+            mode: :multiple,
+            max_count: 3,
+            selected: ["01900000-0000-7000-8000-000000000001"],
+            variants_map: %{"01900000-0000-7000-8000-000000000001" => []}
+          })
+        )
+
+      assert html =~ "open-picker-test-gallery"
+      refute html =~ ~s(disabled="")
+    end
+
+    test "Add button is disabled when selection equals max_count" do
+      uuid = "01900000-0000-7000-8000-000000000001"
+
+      html =
+        render(
+          gallery_assigns_with(%{
+            mode: :multiple,
+            max_count: 1,
+            selected: [uuid],
+            variants_map: %{uuid => []}
+          })
+        )
+
+      # Phoenix renders boolean true attr as bare `disabled` (no ="")
+      assert html =~ "cursor-not-allowed"
+      assert html =~ " disabled"
+    end
+
+    test "Add button is disabled in :single mode with one item" do
+      uuid = "01900000-0000-7000-8000-000000000001"
+
+      html =
+        render(
+          gallery_assigns_with(%{
+            mode: :single,
+            max_count: nil,
+            selected: [uuid],
+            variants_map: %{uuid => []}
+          })
+        )
+
+      assert html =~ "cursor-not-allowed"
+      assert html =~ " disabled"
+    end
+
+    test "Add button is enabled in :single mode with empty selection" do
+      html =
+        render(
+          gallery_assigns_with(%{
+            mode: :single,
+            max_count: nil,
+            selected: [],
+            variants_map: %{}
+          })
+        )
+
+      assert html =~ "open-picker-test-gallery"
+      refute html =~ "cursor-not-allowed"
+    end
+
+    test "Add button is enabled when max_count is nil (unlimited)" do
+      uuid = "01900000-0000-7000-8000-000000000001"
+
+      html =
+        render(
+          gallery_assigns_with(%{
+            mode: :multiple,
+            max_count: nil,
+            selected: [uuid],
+            variants_map: %{uuid => []}
+          })
+        )
+
+      assert html =~ "open-picker-test-gallery"
+      refute html =~ "cursor-not-allowed"
+    end
+
+    test "apply_selection clamps to max_count in :multiple mode" do
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
+      uuid3 = "01900000-0000-7000-8000-000000000003"
+
+      assigns_before =
+        gallery_assigns([])
+        |> Map.put(:mode, :multiple)
+        |> Map.put(:max_count, 2)
+        |> Map.put(:selected, [uuid1])
+        |> Map.put(:selected_loaded, [uuid1])
+        |> Map.put(:files, [])
+        |> Map.put(:variants_map, %{})
+        |> Map.put(:__changed__, %{})
+
+      socket_before = %Phoenix.LiveView.Socket{assigns: assigns_before}
+
+      {:ok, socket} =
+        MediaGallery.update(%{media_selected: [uuid1, uuid2, uuid3]}, socket_before)
+
+      assert length(socket.assigns.selected) <= 2
+      assert uuid3 not in socket.assigns.selected
     end
   end
 
