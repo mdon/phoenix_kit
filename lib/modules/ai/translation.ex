@@ -217,30 +217,30 @@ defmodule PhoenixKit.Modules.AI.Translation do
 
   # `PhoenixKitAI.ask_with_prompt/4` returns the full OpenAI-shaped
   # response map (`%{"choices" => [%{"message" => %{"content" => "..."}}]}`),
-  # not a raw string. Reach for `PhoenixKitAI.Completion.extract_content/1`
-  # to pull the assistant's content out — same helper publishing's
-  # `TranslatePostWorker` already uses for its post-translate AI call.
-  # Older versions of the plugin (or test stubs) may still return a
-  # plain binary; the second clause keeps that working.
-  @compile {:no_warn_undefined, [{PhoenixKitAI.Completion, :extract_content, 1}]}
-  defp handle_ai_response(response, fields) when is_map(response) do
-    case PhoenixKitAI.Completion.extract_content(response) do
-      {:ok, content} when is_binary(content) ->
-        parse_response(content, Map.keys(fields))
+  # not a raw string. We extract the assistant's content inline rather
+  # than via `PhoenixKitAI.Completion.extract_content/1` so the helper
+  # has no cross-module dep on the optional plugin — works in core's
+  # test env (plugin absent) and any host (plugin present, any
+  # version). The shape is OpenAI-standard so the inline match is
+  # stable.
+  #
+  # Older plugin versions (or test stubs) may still return a plain
+  # binary; the second clause keeps that path working.
 
-      {:ok, _other} ->
-        {:error, {:ai_error, {:unexpected_response, response}}}
-
-      {:error, reason} ->
-        {:error, {:ai_error, reason}}
-    end
+  @doc false
+  # Public-for-testing entry point so the OpenAI-shape extraction can
+  # be unit-tested without spinning up the live `PhoenixKitAI`
+  # plugin. Production callers go through `do_translate/6`.
+  def handle_ai_response(%{"choices" => [%{"message" => %{"content" => content}} | _]}, fields)
+      when is_binary(content) do
+    parse_response(content, Map.keys(fields))
   end
 
-  defp handle_ai_response(response, fields) when is_binary(response) do
+  def handle_ai_response(response, fields) when is_binary(response) do
     parse_response(response, Map.keys(fields))
   end
 
-  defp handle_ai_response(other, _fields) do
+  def handle_ai_response(other, _fields) do
     {:error, {:ai_error, {:unexpected_response, other}}}
   end
 
