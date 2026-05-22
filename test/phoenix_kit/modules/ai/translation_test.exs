@@ -62,11 +62,15 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       assert "FOO_BAR" in dupes
     end
 
-    test "handles OpenAI-shaped response map (extract_content path)" do
-      # `PhoenixKitAI.ask_with_prompt/4` returns the full OpenAI
-      # response map, not a raw string. The helper now reaches into
-      # `choices[0].message.content`. Directly exercises the
-      # extract-and-parse path via `parse_response/2`.
+    test "handle_ai_response/2 unwraps OpenAI-shaped response map" do
+      # Drives the actual code path that was broken pre-fix:
+      # `ask_with_prompt/4` returns the full OpenAI response map,
+      # not a raw string. The helper must reach into
+      # `choices[0].message.content` (via
+      # `PhoenixKitAI.Completion.extract_content/1`) before passing
+      # through to `parse_response/2`. The previous test asserted
+      # only on `parse_response/2` directly and would have passed
+      # against the broken implementation.
       response_map = %{
         "choices" => [
           %{
@@ -79,12 +83,20 @@ defmodule PhoenixKit.Modules.AI.TranslationTest do
       }
 
       assert {:ok, %{"title" => "Hola", "body" => "Mundo"}} =
-               Translation.parse_response(
-                 response_map["choices"]
-                 |> List.first()
-                 |> get_in(["message", "content"]),
-                 ["title", "body"]
-               )
+               Translation.handle_ai_response(response_map, %{
+                 "title" => "Hello",
+                 "body" => "World"
+               })
+    end
+
+    test "handle_ai_response/2 also accepts raw binary (test stub / legacy)" do
+      assert {:ok, %{"title" => "Hola"}} =
+               Translation.handle_ai_response("---TITLE---\nHola", %{"title" => "Hello"})
+    end
+
+    test "handle_ai_response/2 returns :ai_error for malformed shape" do
+      assert {:error, {:ai_error, {:unexpected_response, _}}} =
+               Translation.handle_ai_response(:not_a_response, %{"a" => "b"})
     end
 
     test "valid inputs + missing plugin → :ai_not_installed" do
