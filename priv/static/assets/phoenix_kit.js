@@ -109,6 +109,43 @@ if (typeof window.Chart === "undefined") {
   // Initialize hooks collection
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
 
+  // ============================================================================
+  // FRESCO DAISYUI THEME INTEGRATION
+  // ============================================================================
+  //
+  // Map Fresco's six --fresco-* custom properties to daisyUI tokens so any
+  // viewer that opts into `theme={:inherit}` follows whichever daisyUI theme
+  // is active on <html>. Injected here (not in a stylesheet) because
+  // phoenix_kit's app.css isn't necessarily loaded by every parent app —
+  // the JS bundle, however, always is.
+  //
+  // base-200 / base-300 read as light grays on light themes and dark grays
+  // on dark themes, so nav buttons render as subtle chips on either side.
+  // Using --color-neutral here would give near-black chips on every theme,
+  // which fights with the typical light/dark expectation.
+  // ============================================================================
+
+  (function injectFrescoDaisyUIStyles() {
+    try {
+      if (document.querySelector("style[data-phoenix-kit-fresco]")) return;
+      var style = document.createElement("style");
+      style.setAttribute("data-phoenix-kit-fresco", "");
+      style.textContent = [
+        ".fresco-viewer[data-fresco-theme=\"inherit\"] {",
+        "  --fresco-bg: var(--color-base-100);",
+        "  --fresco-grid-dot: var(--color-base-300);",
+        "  --fresco-nav-bg: var(--color-base-200);",
+        "  --fresco-nav-bg-hover: var(--color-base-300);",
+        "  --fresco-nav-fg: var(--color-base-content);",
+        "  --fresco-nav-focus: var(--color-primary);",
+        "}"
+      ].join("\n");
+      (document.head || document.documentElement).appendChild(style);
+    } catch (e) {
+      console.debug("[PhoenixKit] Fresco theme injection failed:", e);
+    }
+  })();
+
 
   // ============================================================================
   // 1. SORTABLE MODULE
@@ -320,6 +357,17 @@ if (typeof window.Chart === "undefined") {
           return out;
         };
 
+        // `pushEventTo` routes to the LiveComponent named by the selector;
+        // plain `pushEvent` reaches only the host LiveView. LiveView consumers
+        // omit `data-sortable-target`, so they keep the original behavior.
+        var emitReorder = function(targetSelector, ev, payload) {
+          if (targetSelector) {
+            self.pushEventTo(targetSelector, ev, payload);
+          } else {
+            self.pushEvent(ev, payload);
+          }
+        };
+
         // SortableJS `group` controls which sortables can exchange items.
         // - String form: simple shared group (any matching name accepts/donates).
         // - Object form: {name, pull: true, put: true} when consumer needs
@@ -417,9 +465,9 @@ if (typeof window.Chart === "undefined") {
                 // Use the destination's event name so the LV handler is
                 // co-located with the table the item ended up in.
                 var destEvent = toContainer.dataset.sortableEvent || eventName;
-                self.pushEvent(destEvent, payload);
+                emitReorder(toContainer.dataset.sortableTarget, destEvent, payload);
               } else {
-                self.pushEvent(eventName, payload);
+                emitReorder(container.dataset.sortableTarget, eventName, payload);
               }
             } catch (err) {
               console.error("PhoenixKitHooks.SortableGrid.onEnd failed:", err);
@@ -1343,6 +1391,238 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // AnnotationComposerPosition
+  //
+  // Positions the MediaBrowser's floating annotation-composer popover
+  // directly above the shape it belongs to (falling back to below if
+  // there's no room above, then clamping to the viewer container).
+  //
+  // The popover's element id encodes the annotation uuid as suffix
+  // ("annotation-composer-popover-<uuid>"); Etcher tags each shape's
+  // root SVG element with the same uuid via `data-uuid`. The hook
+  // queries for that element and uses its bounding rect to compute
+  // the popover's left/top in the parent container's coordinate space.
+  //
+  // Etcher 0.3's bulk `annotations-changed` event doesn't carry an
+  // anchor for newly-drawn shapes (the old per-op `etcher:created`
+  // emitted `anchor_x`/`anchor_y`), so the server can no longer seed
+  // container-space coords. Reading the shape's DOM rect on the client
+  // sidesteps the need for any image-to-screen math server-side and
+  // keeps positioning correct after pan/zoom.
+  //
+  // Re-runs on mount, server-driven updates, and window resize. An 8px
+  // margin keeps the popover from touching the container edge.
+  // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // ViewerKeydown — global keydown shortcut handler for the media viewer
+  // modal, with two filters that the stock `phx-window-keydown` can't
+  // express:
+  //
+  //   1. Only Escape / ArrowLeft / ArrowRight reach the server. Letter
+  //      keys typed into the annotation composer no longer fire the
+  //      modal's nav handler and spam the LV logs.
+  //   2. Even the navigation keys are suppressed when focus is inside an
+  //      <input> / <textarea> / contenteditable so the arrow keys can
+  //      move the text caret without flipping the modal to the next
+  //      image while the user is typing.
+  //
+  // Pushes to the hook element's component so the existing
+  // `handle_event "viewer_keydown"` clauses keep working unchanged.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewerKeydown = {
+    mounted() {
+      const self = this;
+      self._handler = function(e) {
+        if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  t.isContentEditable === true)) return;
+        self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
+      };
+      document.addEventListener("keydown", self._handler);
+    },
+    destroyed() {
+      if (this._handler) {
+        document.removeEventListener("keydown", this._handler);
+        this._handler = null;
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // MediaViewerDialog — opens the media viewer (`MediaViewer` LiveComponent) as a
+  // native <dialog> via showModal(), so it renders in the browser top layer.
+  //
+  // The top layer escapes ALL ancestor stacking contexts and z-index, fixing the
+  // case where a deeply-nested viewer (e.g. inside a documents tab) is overlapped
+  // by parent-page elements with a higher z-index.
+  //
+  // The server owns the open/closed lifecycle (the component is mounted only
+  // while a preview is open). The hook pushes `viewer_keydown` events so the
+  // existing MediaViewer `handle_event "viewer_keydown"` clauses keep working.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.MediaViewerDialog = {
+    mounted() {
+      const self = this;
+
+      if (typeof this.el.showModal === "function" && !this.el.open) {
+        this.el.showModal();
+      }
+
+      // Native Escape / programmatic cancel — route to the server so it stays
+      // the single source of truth for whether the viewer is open.
+      self._onCancel = function(e) {
+        e.preventDefault();
+        self.pushEventTo(self.el, "viewer_keydown", { key: "Escape" });
+      };
+
+      // Arrow-key navigation; suppressed while focus is in a text field.
+      self._onKey = function(e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                  t.isContentEditable)) return;
+        self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
+      };
+
+      this.el.addEventListener("cancel", self._onCancel);
+      this.el.addEventListener("keydown", self._onKey);
+    },
+    // Re-assert open state after LiveView patches children (e.g. prev/next step).
+    // The <dialog> opening tag has only stable attrs so morphdom rarely touches it,
+    // but this guard mirrors PkDialog._sync and removes the asymmetry between the
+    // two hooks.
+    updated() {
+      if (!this.el.open && typeof this.el.showModal === "function") this.el.showModal();
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this._onKey) this.el.removeEventListener("keydown", this._onKey);
+      if (this.el.open) this.el.close();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // PkDialog — generic native <dialog> controller for server-driven modals.
+  //
+  // Renders the modal in the browser top layer (showModal()), so it is immune to
+  // ancestor stacking contexts / z-index — fixes modals being overlapped by
+  // parent-page elements.
+  //
+  //   data-show        "true" / "false" — desired open state (synced each update)
+  //   data-close-event event pushed to the component on Escape / cancel
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PkDialog = {
+    _sync() {
+      const wantOpen = this.el.dataset.show === "true";
+      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+        this.el.showModal();
+      } else if (!wantOpen && this.el.open) {
+        this.el.close();
+      }
+    },
+    mounted() {
+      const self = this;
+      self._onCancel = function(e) {
+        e.preventDefault();
+        const ev = self.el.dataset.closeEvent;
+        if (ev) self.pushEventTo(self.el, ev, {});
+      };
+      this.el.addEventListener("cancel", self._onCancel);
+      this._sync();
+    },
+    updated() {
+      this._sync();
+    },
+    destroyed() {
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this.el.open) this.el.close();
+    }
+  };
+
+  window.PhoenixKitHooks.AnnotationComposerPosition = {
+    mounted() {
+      this._reposition = () => this.reposition();
+      this.reposition();
+      window.addEventListener("resize", this._reposition);
+    },
+
+    updated() {
+      this.reposition();
+    },
+
+    destroyed() {
+      window.removeEventListener("resize", this._reposition);
+    },
+
+    reposition() {
+      const el = this.el;
+      const container = el.parentElement;
+      if (!container) return;
+
+      const margin = 8;
+      const popW = el.offsetWidth;
+      const popH = el.offsetHeight;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+
+      // Try to anchor to the associated shape. Element id is
+      // `annotation-composer-popover-<uuid>`; Etcher renders shapes
+      // with the matching `data-uuid`.
+      const uuid = el.id.replace(/^annotation-composer-popover-/, "");
+      const shapeEl = uuid
+        ? document.querySelector('[data-uuid="' + uuid + '"]')
+        : null;
+
+      let left;
+      let top;
+
+      if (shapeEl) {
+        const shapeRect = shapeEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        // Center horizontally on the shape; place bottom-of-popover
+        // `margin` px above the shape's top.
+        const shapeCenterX = shapeRect.left + shapeRect.width / 2 - containerRect.left;
+        const shapeTopY = shapeRect.top - containerRect.top;
+
+        left = shapeCenterX - popW / 2;
+        top = shapeTopY - popH - margin;
+
+        // No room above → flip below the shape.
+        if (top < margin) {
+          top = shapeRect.bottom - containerRect.top + margin;
+        }
+      } else {
+        // Fall back to whatever the server seeded (or zero).
+        left = parseFloat(el.style.left) || 0;
+        top = parseFloat(el.style.top) || 0;
+      }
+
+      // Clamp horizontally: keep right edge inside the container, then
+      // keep left edge inside. Order matters when the popover is wider
+      // than the container — `Math.max(margin, …)` wins, leaving the
+      // popover flush-left with a margin.
+      const maxLeft = cw - popW - margin;
+      if (left > maxLeft) left = maxLeft;
+      if (left < margin) left = margin;
+
+      // Same for vertical. If the popover doesn't fit (popover taller
+      // than the container), it pins to the top with a margin.
+      const maxTop = ch - popH - margin;
+      if (top > maxTop) top = maxTop;
+      if (top < margin) top = margin;
+
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // CopyToClipboard Hook
   // ---------------------------------------------------------------------------
   //
@@ -1892,6 +2172,16 @@ if (typeof window.Chart === "undefined") {
       this.trigger = this.el.querySelector("[data-row-menu-trigger]");
       this.menu = this.el.querySelector("[data-row-menu-content]");
       this.isOpen = false;
+      // Track where the menu element originally lives so we can restore
+      // it on close. We portal it to <body> while open so `position: fixed`
+      // coords escape any containing block created by a `<dialog>` in the
+      // top layer or any ancestor with `transform`/`contain`/`filter` (all
+      // of which establish a new fixed-positioning origin). Without the
+      // portal, `getBoundingClientRect()` returns viewport coords but the
+      // browser applies them relative to the nearest containing block,
+      // shoving the menu hundreds of pixels off-screen inside modals.
+      this._homeParent = this.menu.parentNode;
+      this._homeNextSibling = this.menu.nextSibling;
 
       this._onTriggerClick = (e) => {
         e.stopPropagation();
@@ -1927,7 +2217,27 @@ if (typeof window.Chart === "undefined") {
       this.menu.addEventListener("click", this._onMenuClick);
     },
 
+    updated() {
+      // While open, the menu is portaled to <body>; a server diff to this
+      // row makes morphdom re-create a duplicate inside the wrapper. Drop
+      // it so the portaled menu stays the single source of truth.
+      if (this.isOpen) {
+        var dup = this.el.querySelector("[data-row-menu-content]");
+        if (dup && dup !== this.menu) dup.remove();
+      }
+    },
+
     _open() {
+      // Portal to <body> before measuring. If the menu sits inside a
+      // <dialog> or any ancestor that establishes a fixed-positioning
+      // containing block, `position: fixed` coords would be interpreted
+      // relative to that ancestor instead of the viewport. Moving the
+      // menu to <body> makes `getBoundingClientRect()` and the resulting
+      // `left`/`top` values consistent.
+      if (this.menu.parentNode !== document.body) {
+        document.body.appendChild(this.menu);
+      }
+
       var triggerRect = this.trigger.getBoundingClientRect();
       var vw = window.innerWidth;
       var vh = window.innerHeight;
@@ -1971,6 +2281,19 @@ if (typeof window.Chart === "undefined") {
       this.trigger.setAttribute("aria-expanded", "false");
       document.removeEventListener("click", this._onOutsideClick, true);
       document.removeEventListener("keydown", this._onKeydown);
+
+      // Restore the menu to its original location so LiveView's diff
+      // patching can find it on subsequent updates. Without this the
+      // menu would stay parented to <body> and LV's morphdom pass would
+      // see a "missing" element inside the row and re-create it,
+      // doubling the DOM and breaking the next open.
+      if (this._homeParent && this.menu.parentNode !== this._homeParent) {
+        if (this._homeNextSibling && this._homeNextSibling.parentNode === this._homeParent) {
+          this._homeParent.insertBefore(this.menu, this._homeNextSibling);
+        } else {
+          this._homeParent.appendChild(this.menu);
+        }
+      }
     },
 
     destroyed() {
@@ -2277,7 +2600,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.11/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.13/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -2318,6 +2641,217 @@ if (typeof window.Chart === "undefined") {
               }
             });
             // Call the real mounted
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // FRESCO (loaded from CDN)
+  //
+  // Lazy-fetches Fresco's JS bundle from jsDelivr when one of its hooks
+  // mounts. The single fresco.js exports all three component hooks
+  // (`FrescoViewer`, `FrescoCanvas`, `FrescoScrollStrip`); we wrap the
+  // two PhoenixKit actually uses (`FrescoViewer` for plain images,
+  // `FrescoCanvas` for MediaBrowser's annotation-host). One load brings
+  // in both — the second mount short-circuits via the
+  // `window.FrescoHooks.*` cache check.
+  //
+  // The Elixir components come from the {:fresco, "~> 0.5"} hex
+  // dependency. Parent apps that pre-import fresco in their own app.js
+  // short-circuit the CDN load entirely.
+  //
+  // Keep the version constant in sync with the hex dep + the GitHub
+  // release tag (jsDelivr resolves `gh/<user>/<repo>@<tag>`).
+  // ============================================================================
+
+  (function() {
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
+    var frescoLoading = false;
+    var frescoCallbacks = [];
+
+    function loadFrescoJS(callback) {
+      if (window.FrescoHooks && window.FrescoHooks.FrescoViewer) {
+        callback();
+        return;
+      }
+
+      frescoCallbacks.push(callback);
+
+      if (frescoLoading) return;
+      frescoLoading = true;
+
+      var script = document.createElement("script");
+      script.src = FRESCO_CDN;
+      script.onload = function() {
+        frescoCallbacks.forEach(function(cb) { cb(); });
+        frescoCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Fresco] Failed to load Fresco viewer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.FrescoViewer = {
+      mounted: function() {
+        var self = this;
+        loadFrescoJS(function() {
+          var realHook = window.FrescoHooks && window.FrescoHooks.FrescoViewer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+
+    // FrescoCanvas — the layered scene component MediaBrowser uses to
+    // host annotations (Etcher). Same lazy-load mechanics as
+    // FrescoViewer above; both hooks come out of the same fresco.js
+    // bundle, so a single CDN fetch covers either / both.
+    window.PhoenixKitHooks.FrescoCanvas = {
+      mounted: function() {
+        var self = this;
+        loadFrescoJS(function() {
+          var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      },
+      updated: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.updated === "function") {
+          realHook.updated.call(this);
+        }
+      },
+      destroyed: function() {
+        var realHook = window.FrescoHooks && window.FrescoHooks.FrescoCanvas;
+        if (realHook && typeof realHook.destroyed === "function") {
+          realHook.destroyed.call(this);
+        }
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // TESSERA LAYER (loaded from CDN)
+  //
+  // Lazy-fetches Tessera's deep-zoom (DZI) tile-source layer JS. Pairs with
+  // Fresco — the host viewer must mount first, then the Tessera layer
+  // attaches via `fresco_id`. Comes from the {:tessera, "~> 0.2.1"} hex
+  // dependency. Same parent-pre-import short-circuit as Fresco.
+  // ============================================================================
+
+  (function() {
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.2.1/priv/static/tessera.js";
+    var tesseraLoading = false;
+    var tesseraCallbacks = [];
+
+    function loadTesseraJS(callback) {
+      if (window.TesseraHooks && window.TesseraHooks.TesseraLayer) {
+        callback();
+        return;
+      }
+
+      tesseraCallbacks.push(callback);
+
+      if (tesseraLoading) return;
+      tesseraLoading = true;
+
+      var script = document.createElement("script");
+      script.src = TESSERA_CDN;
+      script.onload = function() {
+        tesseraCallbacks.forEach(function(cb) { cb(); });
+        tesseraCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Tessera] Failed to load Tessera layer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.TesseraLayer = {
+      mounted: function() {
+        var self = this;
+        loadTesseraJS(function() {
+          var realHook = window.TesseraHooks && window.TesseraHooks.TesseraLayer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
+            realHook.mounted.call(self);
+          }
+        });
+      }
+    };
+  })();
+
+
+  // ============================================================================
+  // ETCHER LAYER (loaded from CDN)
+  //
+  // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
+  // to a host viewer/canvas via `fresco_id` and adds the pencil toolbar,
+  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.3"}
+  // hex dependency. Same parent-pre-import short-circuit as Fresco.
+  // ============================================================================
+
+  (function() {
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
+    var etcherLoading = false;
+    var etcherCallbacks = [];
+
+    function loadEtcherJS(callback) {
+      if (window.EtcherHooks && window.EtcherHooks.EtcherLayer) {
+        callback();
+        return;
+      }
+
+      etcherCallbacks.push(callback);
+
+      if (etcherLoading) return;
+      etcherLoading = true;
+
+      var script = document.createElement("script");
+      script.src = ETCHER_CDN;
+      script.onload = function() {
+        etcherCallbacks.forEach(function(cb) { cb(); });
+        etcherCallbacks = [];
+      };
+      script.onerror = function() {
+        console.error("[PhoenixKit:Etcher] Failed to load Etcher layer from CDN");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.PhoenixKitHooks.EtcherLayer = {
+      mounted: function() {
+        var self = this;
+        loadEtcherJS(function() {
+          var realHook = window.EtcherHooks && window.EtcherHooks.EtcherLayer;
+          if (realHook) {
+            Object.keys(realHook).forEach(function(key) {
+              if (key !== "mounted") {
+                self[key] = realHook[key];
+              }
+            });
             realHook.mounted.call(self);
           }
         });
@@ -2425,31 +2959,199 @@ if (typeof window.Chart === "undefined") {
         el._dragstart = function(e) {
           e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
           e.dataTransfer.effectAllowed = "move";
-          el.classList.add("opacity-50");
+          // Batch mode: if the dragged item is part of the current
+          // selection, the drag moves the WHOLE selection. Marker type
+          // `application/x-pk-batch` tells the drop handler to fire the
+          // existing `move_selected_to_folder` event (which iterates
+          // `@selected_files` + `@selected_folders` server-side) rather
+          // than the single-item move. All selected items get
+          // opacity-50 for visual feedback.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
         };
         el.addEventListener("dragstart", el._dragstart);
 
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
-          el.classList.remove("opacity-50");
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
+          // Clear any lingering highlight if the drag was cancelled
+          // (Esc, dropped outside) while still hovering a target.
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
         };
         el.addEventListener("dragend", el._dragend);
       });
 
-      // Make folder targets droppable (grid, list rows, and sidebar)
+      // Make folder rows draggable. Same payload shape as files
+      // (`text/plain` carries the uuid) but with an extra marker type so
+      // drop targets can branch on folder vs file at hover time —
+      // dataTransfer values aren't readable on dragover, only types
+      // are, so the marker is the only way to make hover-time decisions
+      // like "this drop target is the dragged folder itself, suppress
+      // the drop indicator." Tracked in `self._draggedFolderUuid` for
+      // the dragover self-check below.
+      var folders = container.querySelectorAll("[data-draggable-folder]");
+      folders.forEach(function(el) {
+        el.setAttribute("draggable", "true");
+
+        el.removeEventListener("dragstart", el._folderDragstart);
+        el._folderDragstart = function(e) {
+          e.dataTransfer.setData("text/plain", el.dataset.draggableFolder);
+          e.dataTransfer.setData("application/x-pk-folder", "1");
+          e.dataTransfer.effectAllowed = "move";
+          self._draggedFolderUuid = el.dataset.draggableFolder;
+          // Batch mode (same logic as the file dragstart above): if
+          // the folder is part of the current selection, the drag
+          // represents the whole selection. The folder-marker stays
+          // set so self-drop suppression in dragover still works for
+          // the source folder; the batch marker takes precedence in
+          // the drop handler.
+          if (el.dataset.selected === "true") {
+            e.dataTransfer.setData("application/x-pk-batch", "1");
+            self._draggedBatch = true;
+            setBatchVisuals(true);
+          } else {
+            el.classList.add("opacity-50");
+          }
+          e.stopPropagation();
+        };
+        el.addEventListener("dragstart", el._folderDragstart);
+
+        el.removeEventListener("dragend", el._folderDragend);
+        el._folderDragend = function() {
+          self._draggedFolderUuid = null;
+          if (self._draggedBatch) {
+            setBatchVisuals(false);
+            self._draggedBatch = false;
+          } else {
+            el.classList.remove("opacity-50");
+          }
+          if (self._activeDropTarget) {
+            clearHighlight(self._activeDropTarget);
+            self._activeDropTarget = null;
+          }
+        };
+        el.addEventListener("dragend", el._folderDragend);
+      });
+
+      // Make folder targets droppable (grid, list rows, and sidebar).
+      // Accepts both file and folder drags — the `application/x-pk-folder`
+      // marker type distinguishes them. Folder-on-self drops are
+      // suppressed at hover time so the user doesn't get a "yes you can
+      // drop here" indicator on the very folder they're dragging.
+
+      // Single-active-target tracking: nested drop targets (folder card
+      // inside the main-area wrapper) need exclusivity — only the
+      // innermost should highlight. When a new target lights up, we
+      // clear the previous one. stopPropagation alone doesn't suffice
+      // because the wrapper can already be highlighted before the
+      // cursor enters a child and dragleave timing on the wrapper
+      // varies across browsers.
+      function clearHighlight(t) {
+        if (!t) return;
+        if (!t.dataset.dropNoBg) {
+          t.classList.remove("bg-primary/10");
+          if (t._origBg !== undefined) {
+            t.style.backgroundColor = t._origBg;
+            t._origBg = undefined;
+          }
+        }
+        t.style.outline = "";
+        t.style.outlineOffset = "";
+      }
+
+      // When the user picks up a selected item (during select_mode),
+      // the drag represents the whole selection — gray out every
+      // selected element so it's visually clear what's coming along.
+      // Each selected file/folder element carries `data-selected="true"`
+      // from heex, so a single querySelectorAll handles all four
+      // rendering paths (grid/list × file/folder).
+      function setBatchVisuals(active) {
+        document.querySelectorAll('[data-selected="true"]').forEach(function(el) {
+          if (active) {
+            el.classList.add("opacity-50");
+          } else {
+            el.classList.remove("opacity-50");
+          }
+        });
+      }
+
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
       dropTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._dragover);
         target._dragover = function(e) {
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          if (isFolder && target.dataset.dropFolder === self._draggedFolderUuid) {
+            // Drop-on-self for a folder — skip preventDefault so the
+            // browser shows the "no-drop" cursor and we don't paint the
+            // accept indicator. Drop-on-descendant still slips through
+            // (we can't detect descendancy in JS without the tree); the
+            // server rejects it with `{:error, :cycle}`.
+            return;
+          }
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
-          target.classList.add("ring-2", "ring-primary", "bg-primary/10");
+
+          // Exclusivity: if a different target was lit, clear it before
+          // we paint the new one. Then mark this target as active so
+          // dragleave / drop know whether to release the tracker.
+          if (self._activeDropTarget && self._activeDropTarget !== target) {
+            clearHighlight(self._activeDropTarget);
+          }
+          self._activeDropTarget = target;
+
+          // Grid/list folder cards carry an inline
+          // `style="background-color: ..."` from `folder_bg_style`, which
+          // beats any class-based bg (inline > class). Stash and clear
+          // the inline bg so `bg-primary/10` can take effect, then add
+          // the highlight outline inline.
+          //
+          // CSS `outline` instead of Tailwind's `ring-*`: ring uses
+          // `box-shadow`, which `<tr>` elements (list view rows) don't
+          // render reliably — outline works on every element type and
+          // follows border-radius in modern browsers.
+          //
+          // `data-drop-no-bg`: opt-out for large drop surfaces (the
+          // main content-area target) where a 10% primary tint over a
+          // huge area is overwhelming. Outline-only there.
+          if (!target.dataset.dropNoBg) {
+            if (target._origBg === undefined) {
+              target._origBg = target.style.backgroundColor;
+            }
+            target.style.backgroundColor = "";
+            target.classList.add("bg-primary/10");
+          }
+          // daisyUI 5 exposes the primary as a complete oklch() value
+          // in `--color-primary` (not the legacy `--p` raw components),
+          // so we use it directly without wrapping it in oklch().
+          // `outlineOffset: -2px` insets the outline so the table's
+          // `overflow-x-auto` wrapper can't clip the left/right edges
+          // of list-view rows. Visually it looks like a "highlighted
+          // row" instead of an outline that sticks out — same effect.
+          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outlineOffset = "-2px";
         };
         target.addEventListener("dragover", target._dragover);
 
         target.removeEventListener("dragleave", target._dragleave);
         target._dragleave = function() {
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
+          }
         };
         target.addEventListener("dragleave", target._dragleave);
 
@@ -2457,17 +3159,96 @@ if (typeof window.Chart === "undefined") {
         target._drop = function(e) {
           e.preventDefault();
           e.stopPropagation();
-          target.classList.remove("ring-2", "ring-primary", "bg-primary/10");
-          var fileUuid = e.dataTransfer.getData("text/plain");
-          var folderUuid = target.dataset.dropFolder;
-          if (fileUuid && folderUuid) {
+          clearHighlight(target);
+          if (self._activeDropTarget === target) {
+            self._activeDropTarget = null;
+          }
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          var dropFolderUuid = target.dataset.dropFolder;
+          if (!draggedUuid || !dropFolderUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+          var resolvedTarget = dropFolderUuid === "root" ? "" : dropFolderUuid;
+
+          if (isBatch) {
+            // Drag started on a selected item — move the whole
+            // selection. `move_selected_to_folder` is the existing bulk
+            // handler used by the move modal; it reads
+            // `@selected_files` + `@selected_folders` from socket state
+            // and clears them + resets select_mode after. Drag-on-self
+            // for a folder in the batch is handled server-side (the
+            // bulk handler skips moving a folder onto itself).
+            self.pushEventTo(self.el, "move_selected_to_folder", {
+              folder_uuid: resolvedTarget
+            });
+          } else if (isFolder) {
+            if (draggedUuid === dropFolderUuid) return;
+            self.pushEventTo(self.el, "move_folder_to_folder", {
+              folder_uuid: draggedUuid,
+              target_uuid: resolvedTarget
+            });
+          } else {
             self.pushEventTo(self.el, "move_file_to_folder", {
-              file_uuid: fileUuid,
-              folder_uuid: folderUuid === "root" ? "" : folderUuid
+              file_uuid: draggedUuid,
+              folder_uuid: resolvedTarget
             });
           }
         };
         target.addEventListener("drop", target._drop);
+      });
+
+      // Trash drop target — sidebar Trash button. Mirrors the folder
+      // drop wiring above but pushes `trash_file` and uses error-colored
+      // hover feedback so the destructive action reads as different from
+      // a folder move at a glance. Folder drags are refused at hover
+      // time: folders don't go through the trash flow (no soft-delete
+      // for folders), so the user gets a "no-drop" cursor instead of
+      // a misleading red ring.
+      var trashTargets = document.querySelectorAll("[data-drop-trash]");
+      trashTargets.forEach(function(target) {
+        target.removeEventListener("dragover", target._trashDragover);
+        target._trashDragover = function(e) {
+          // Folders + batches are now valid drop targets — V119 added
+          // recursive folder trash, and batches route to
+          // `delete_selected` which handles trash vs permanent per
+          // `@filter_trash`.
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          target.classList.add("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragover", target._trashDragover);
+
+        target.removeEventListener("dragleave", target._trashDragleave);
+        target._trashDragleave = function() {
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+        };
+        target.addEventListener("dragleave", target._trashDragleave);
+
+        target.removeEventListener("drop", target._trashDrop);
+        target._trashDrop = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          target.classList.remove("ring-2", "ring-error", "bg-error/10");
+          var draggedUuid = e.dataTransfer.getData("text/plain");
+          if (!draggedUuid) return;
+
+          var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
+          var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
+
+          if (isBatch) {
+            // Reuses the bulk delete handler — it reads
+            // `@selected_files` + `@selected_folders` on the server
+            // and trashes (or permanent-deletes in trash view)
+            // according to `@filter_trash`.
+            self.pushEventTo(self.el, "delete_selected", {});
+          } else if (isFolder) {
+            self.pushEventTo(self.el, "trash_folder", { folder_uuid: draggedUuid });
+          } else {
+            self.pushEventTo(self.el, "trash_file", { file_uuid: draggedUuid });
+          }
+        };
+        target.addEventListener("drop", target._trashDrop);
       });
     }
   };
@@ -2584,6 +3365,152 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ============================================================================
+  // Etcher tooltip — comment-flavored slot overrides
+  // ============================================================================
+  //
+  // Etcher exposes `window.Etcher.tooltipSlots` (header / body / footer)
+  // for downstream consumers to customize its hover tooltip. PhoenixKit's
+  // MediaBrowser flows comment-thread metadata through `metadata.comment_*`
+  // keys; the three slots below translate those into the rich tooltip
+  // (author header, date · count subheader, thumbnail + quoted text body)
+  // that's been the PhoenixKit out-of-the-box look.
+  //
+  // PhoenixKit owns the tooltip layout — this assignment overwrites
+  // whatever was on `window.Etcher.tooltipSlots`. Load order: when
+  // phoenix_kit.js runs before etcher.js, Etcher's bootstrap honors the
+  // pre-set slots (it uses `||` against defaults); when phoenix_kit.js
+  // runs after, this assignment takes effect immediately. If a downstream
+  // consumer wants to override these, their script must load AFTER
+  // phoenix_kit.js. If Etcher never loads the only cost is a few dormant
+  // fields on `window.Etcher`.
+  //
+  // The `comment_*` key naming is PhoenixKit's internal contract with
+  // itself — Etcher knows nothing about them.
+
+  window.Etcher = window.Etcher || {};
+
+  var pkEscape = function(v) {
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  };
+
+  // Paperclip icon used as the body-slot's attachment fallback when a
+  // comment has media but no preview-able image (PDFs, audio, zips,
+  // broken-image URLs).
+  var pkPaperclip =
+    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"' +
+    ' stroke-width="1.5" stroke="currentColor" aria-hidden="true">' +
+    '<path stroke-linecap="round" stroke-linejoin="round"' +
+    ' d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>' +
+    "</svg>";
+
+  function pkCapitalize(s) {
+    if (!s) return "";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  // ============================================================================
+  // Etcher live-metadata patch bridge
+  // ============================================================================
+  //
+  // Listens for the `etcher:patch-shape` LiveView push_event emitted by
+  // MediaBrowser when annotation comments are posted server-side. Calls
+  // Etcher's `layerFor(fresco_id).patchShape(uuid, {metadata})` (added
+  // in Etcher 0.3) so the in-DOM shape's metadata reflects the new
+  // comment_* fields immediately — the tooltip shows the rich content
+  // on the next hover without waiting for a layer remount.
+  //
+  // Why this bridge exists: <Fresco.canvas> uses `phx-update="ignore"`,
+  // which freezes its `data-extensions` attribute at initial mount.
+  // Server-side rebuilds of the canvas's `extensions.etcher` blob
+  // don't reach the DOM, so Etcher's `handle.getExtension("etcher")`
+  // keeps returning the old annotations. patchShape sidesteps that by
+  // mutating Etcher's internal `self.shapes[i]` directly.
+  window.addEventListener("phx:etcher:patch-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.patchShape !== "function") return;
+    var fields = {};
+    if (detail.metadata) fields.metadata = detail.metadata;
+    if (detail.style) fields.style = detail.style;
+    layer.patchShape(detail.uuid, fields);
+  });
+
+  // Server-driven shape removal. MediaBrowser uses this on annotation
+  // composer Cancel — the user signalled the just-drawn shape was a
+  // mistake, so we drop it from Etcher's local state instead of
+  // leaving an untitled placeholder on the canvas. layer.deleteShape
+  // pushes the deletion onto Etcher's undo stack (Cmd+Z restores) and
+  // fires `etcher:annotations-changed`, which routes through the
+  // server's sync_annotations to delete the DB row + cascade comments.
+  window.addEventListener("phx:etcher:delete-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var layer = window.Etcher && window.Etcher.layerFor &&
+                window.Etcher.layerFor(detail.fresco_id);
+    if (!layer || typeof layer.deleteShape !== "function") return;
+    layer.deleteShape(detail.uuid);
+  });
+
+  window.Etcher.tooltipSlots = {
+    // Header → annotation title (user-chosen label) if present;
+    // otherwise the comment author; otherwise the shape kind.
+    header: function(shape) {
+      var m = shape.metadata || {};
+      return pkEscape(m.title || m.comment_author || pkCapitalize(shape.kind));
+    },
+
+    // Footer → "May 12, 2026 · 3 comments". Date and count are both
+    // optional; if neither is set the row is omitted entirely.
+    footer: function(shape) {
+      var m = shape.metadata || {};
+      var parts = [];
+      if (m.comment_created_at) parts.push(pkEscape(m.comment_created_at));
+      var count = m.comment_count || 0;
+      if (count > 0) {
+        parts.push(count + " " + (count === 1 ? "comment" : "comments"));
+      }
+      return parts.length ? parts.join(" · ") : null;
+    },
+
+    // Body → optional thumbnail (image or paperclip) + truncated
+    // quoted text. Uses Etcher's opt-in styling primitives
+    // (`.etcher-tooltip-body`, `.etcher-tooltip-thumb`,
+    // `.etcher-tooltip-text`, `.etcher-tooltip-quote`).
+    body: function(shape) {
+      var m = shape.metadata || {};
+      var text = m.comment_text || null;
+      var thumb = m.comment_thumbnail_url || null;
+      var hasAttachment = m.comment_has_attachment === true;
+
+      if (!text && !thumb && !hasAttachment) return null;
+
+      var html = '<div class="etcher-tooltip-body">';
+      if (thumb) {
+        html +=
+          '<img class="etcher-tooltip-thumb" src="' + pkEscape(thumb) + '" alt="">';
+      } else if (hasAttachment) {
+        html +=
+          '<span class="etcher-tooltip-thumb etcher-tooltip-thumb-icon">' +
+          pkPaperclip +
+          "</span>";
+      }
+      html += '<div class="etcher-tooltip-text">';
+      if (text) {
+        html += '<div class="etcher-tooltip-quote">' + pkEscape(text) + "</div>";
+      }
+      html += "</div></div>";
+      return html;
+    }
+  };
+
+  // ============================================================================
   // INITIALIZATION COMPLETE
   // ============================================================================
 
@@ -2597,4 +3524,50 @@ if (typeof window.Chart === "undefined") {
     }
   }
 
+})();
+
+// ===========================================================================
+// PhoenixKitHooks bridge — adopts any hooks exposed by sibling libraries
+// (fresco, tessera, etcher) into the single `window.PhoenixKitHooks`
+// namespace the parent app spreads into LiveSocket.
+//
+// Default setup (zero-config): the FrescoViewer / TesseraLayer /
+// EtcherLayer wrapper hooks above lazy-load the sibling libs from
+// jsDelivr on first mount, so the parent app only needs to spread
+// `...window.PhoenixKitHooks` into LiveSocket:
+//
+//   let liveSocket = new LiveSocket("/live", Socket, {
+//     hooks: { ...window.PhoenixKitHooks, ...colocatedHooks }
+//   });
+//
+// Optional pre-import (for offline / CSP-strict / pre-bundled apps):
+// import the libs in your own `app.js` before phoenix_kit.js and the
+// wrappers will detect `window.{Fresco|Tessera|Etcher}Hooks` and skip
+// the CDN load:
+//
+//   import "../../deps/fresco/priv/static/fresco.js"
+//   import "../../deps/tessera/priv/static/tessera.js"
+//   import "../../deps/etcher/priv/static/etcher.js"
+//
+// The `adopt` calls below are a defensive backstop for any sibling hook
+// the wrappers above don't explicitly cover (e.g. a future hook added by
+// one of the libs). No-ops when the global is missing.
+// ===========================================================================
+
+(function() {
+  if (typeof window === "undefined") return;
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  function adopt(src) {
+    if (!src) return;
+    Object.keys(src).forEach(function(name) {
+      if (!window.PhoenixKitHooks[name]) {
+        window.PhoenixKitHooks[name] = src[name];
+      }
+    });
+  }
+
+  adopt(window.FrescoHooks);
+  adopt(window.TesseraHooks);
+  adopt(window.EtcherHooks);
 })();

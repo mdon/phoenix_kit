@@ -109,9 +109,12 @@ defmodule PhoenixKit.Modules.Storage.File do
           status: String.t(),
           trashed_at: DateTime.t() | nil,
           metadata: map() | nil,
-          user_uuid: UUIDv7.t(),
+          system_managed: boolean(),
+          user_uuid: UUIDv7.t() | nil,
           folder_uuid: UUIDv7.t() | nil,
+          parent_file_uuid: UUIDv7.t() | nil,
           user: PhoenixKit.Users.Auth.User.t() | Ecto.Association.NotLoaded.t(),
+          parent_file: t() | Ecto.Association.NotLoaded.t() | nil,
           instances:
             [PhoenixKit.Modules.Storage.FileInstance.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -135,6 +138,12 @@ defmodule PhoenixKit.Modules.Storage.File do
     field :trashed_at, :utc_datetime
     field :metadata, :map
 
+    # `true` for internally-generated media (e.g. Tessera DZI tile pyramids
+    # and their per-tile chunks). System-managed rows are excluded from the
+    # MediaBrowser's user-facing listings and skipped by the variant
+    # generator.
+    field :system_managed, :boolean, default: false
+
     belongs_to :user, PhoenixKit.Users.Auth.User,
       foreign_key: :user_uuid,
       references: :uuid,
@@ -142,6 +151,14 @@ defmodule PhoenixKit.Modules.Storage.File do
 
     belongs_to :folder, PhoenixKit.Modules.Storage.Folder,
       foreign_key: :folder_uuid,
+      references: :uuid,
+      type: UUIDv7
+
+    # For system-managed children (e.g. tile chunks), points at the source
+    # File the chunk was derived from. Cascade-deletes via the DB FK
+    # `ON DELETE :delete_all`, so removing a source image clears its tiles.
+    belongs_to :parent_file, __MODULE__,
+      foreign_key: :parent_file_uuid,
       references: :uuid,
       type: UUIDv7
 
@@ -192,8 +209,10 @@ defmodule PhoenixKit.Modules.Storage.File do
       :status,
       :trashed_at,
       :metadata,
+      :system_managed,
       :user_uuid,
-      :folder_uuid
+      :folder_uuid,
+      :parent_file_uuid
     ])
     |> validate_required([
       :original_file_name,
@@ -203,17 +222,47 @@ defmodule PhoenixKit.Modules.Storage.File do
       :ext,
       :file_checksum,
       :user_file_checksum,
-      :size,
-      :user_uuid
+      :size
     ])
-    |> validate_inclusion(:file_type, ["image", "video", "audio", "document", "archive", "other"])
+    |> validate_inclusion(:file_type, [
+      "image",
+      "video",
+      "audio",
+      "document",
+      "archive",
+      "other",
+      "tile"
+    ])
     |> validate_inclusion(:status, ["processing", "active", "failed", "trashed"])
     |> validate_number(:size, greater_than: 0)
     |> validate_number(:width, greater_than: 0)
     |> validate_number(:height, greater_than: 0)
     |> validate_number(:duration, greater_than: 0)
+    |> validate_system_managed_invariants()
     |> foreign_key_constraint(:user_uuid)
     |> foreign_key_constraint(:folder_uuid)
+    |> foreign_key_constraint(:parent_file_uuid)
+    # V113's `phoenix_kit_files_system_dedup_index` keeps concurrent
+    # lazy-generators for the same Tessera tile from inserting duplicate
+    # rows. Naming the constraint here lets `Storage.store_system_file/3`
+    # detect the race via the changeset error and re-fetch the winning
+    # row instead of bubbling a Postgrex unique-violation.
+    |> unique_constraint([:parent_file_uuid, :file_name],
+      name: :phoenix_kit_files_system_dedup_index
+    )
+  end
+
+  # User-uploaded files require `user_uuid` (existing invariant). System-
+  # managed files (tile chunks) don't have a user owner — they live under
+  # a parent File and inherit lifecycle from it.
+  defp validate_system_managed_invariants(changeset) do
+    case get_field(changeset, :system_managed) do
+      true ->
+        validate_required(changeset, [:parent_file_uuid])
+
+      _ ->
+        validate_required(changeset, [:user_uuid])
+    end
   end
 
   @doc """

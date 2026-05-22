@@ -1,9 +1,4 @@
 defmodule PhoenixKitWeb.Components.MediaBrowser do
-  # PhoenixKitComments is an optional sibling package — silence undefined
-  # warnings for parent apps that don't install it. The comments_enabled?/0
-  # helper guards every actual call at runtime with Code.ensure_loaded?/1.
-  @compile {:no_warn_undefined, [PhoenixKitComments, PhoenixKitComments.Web.CommentsComponent]}
-
   @moduledoc """
   MediaBrowser LiveComponent — embeddable media management UI.
 
@@ -87,12 +82,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   import Ecto.Query
 
+  import PhoenixKitWeb.Components.FolderExplorer,
+    only: [
+      folder_explorer: 1,
+      folder_color_hex: 1,
+      folder_icon_style: 1,
+      folder_bg_style: 1
+    ]
+
   alias Phoenix.LiveView.JS
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
   # ──────────────────────────────────────────────────────────────
@@ -211,7 +215,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:filter_trash, false)
     |> assign(:file_view, file_view)
     |> assign(:orphaned_count, orphaned_count)
-    |> assign(:trash_count, Storage.count_trashed_files(scope_folder_id(socket)))
+    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
     |> assign(:uploaded_files, files)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, ceil(total_count / per_page))
@@ -271,7 +275,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:batch_scheduled, false)
     |> assign(:filter_orphaned, false)
     |> assign(:filter_trash, false)
-    |> assign(:trash_count, Storage.count_trashed_files(scope_folder_id(socket)))
+    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
     |> assign(:file_view, nil)
     |> assign(
       :orphaned_count,
@@ -281,7 +285,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:breadcrumbs, [])
     |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
     |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
-    |> assign(:show_new_folder, false)
     |> assign(:sidebar_collapsed, false)
     |> assign(:expanded_folders, MapSet.new())
     |> assign(:renaming_folder, nil)
@@ -451,188 +454,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
 
   attr :node, :map, required: true
-  attr :current_folder, :any, required: true
-  attr :expanded_folders, :any, required: true
-  attr :renaming_folder, :any, required: true
-  attr :renaming_text, :string, default: ""
-  attr :show_new_folder, :boolean, default: false
-  attr :renaming_source, :any, required: true
-  attr :depth, :integer, default: 0
-  attr :myself, :any, required: true
-
-  def folder_tree_node(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :is_active,
-        assigns.current_folder && assigns.current_folder.uuid == assigns.node.folder.uuid
-      )
-
-    assigns =
-      assign(
-        assigns,
-        :is_expanded,
-        MapSet.member?(assigns.expanded_folders, assigns.node.folder.uuid)
-      )
-
-    assigns = assign(assigns, :has_children, assigns.node.children != [])
-
-    assigns =
-      assign(
-        assigns,
-        :is_renaming,
-        assigns.renaming_folder == assigns.node.folder.uuid &&
-          assigns.renaming_source == "sidebar"
-      )
-
-    ~H"""
-    <li class="overflow-hidden">
-      <div
-        class={[
-          "flex items-center gap-0.5 rounded-lg px-1 py-1 hover:bg-base-200 transition-colors group overflow-hidden min-w-0",
-          @is_active && "font-semibold"
-        ]}
-        style={
-          if @is_active,
-            do: "background-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--p))"}25"
-        }
-      >
-        <%!-- Chevron (expand/collapse) --%>
-        <%= if @has_children do %>
-          <button
-            phx-click="toggle_folder_expand"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
-          >
-            <.icon
-              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40"
-            />
-          </button>
-        <% else %>
-          <span class="w-5"></span>
-        <% end %>
-
-        <%= if @is_renaming do %>
-          <%!-- Inline rename form --%>
-          <form
-            phx-submit="rename_folder"
-            phx-change="rename_folder_input"
-            phx-target={@myself}
-            class="flex items-center gap-1.5 flex-1 min-w-0"
-          >
-            <input type="hidden" name="folder_uuid" value={@node.folder.uuid} />
-            <span style={folder_icon_style(@node.folder.color)}>
-              <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
-            </span>
-            <input
-              type="text"
-              name="name"
-              value={@renaming_text}
-              class="bg-transparent border-none outline-none text-sm flex-1 min-w-0 p-0 h-auto focus:outline-none focus:ring-0"
-              phx-mounted={JS.focus()}
-              required
-              phx-keydown="cancel_rename_folder"
-              phx-target={@myself}
-              phx-key="Escape"
-              phx-debounce="50"
-            />
-          </form>
-        <% else %>
-          <%!-- Folder button (uncontrolled: phx-click instead of .link navigate) --%>
-          <button
-            phx-click="navigate_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            data-drop-folder={@node.folder.uuid}
-            class="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-sm text-left"
-          >
-            <span style={folder_icon_style(@node.folder.color, @is_active)}>
-              <.icon
-                name={if @is_expanded, do: "hero-folder-open", else: "hero-folder"}
-                class="w-4 h-4 shrink-0"
-              />
-            </span>
-            <span
-              class={[
-                "truncate block min-w-0",
-                @renaming_folder == @node.folder.uuid && !@is_renaming && "renaming-preview"
-              ]}
-              title={@node.folder.name}
-            >
-              <%= if @renaming_folder == @node.folder.uuid && @renaming_text != "" do %>
-                {@renaming_text}
-              <% else %>
-                {@node.folder.name}
-              <% end %>
-            </span>
-          </button>
-          <%!-- Rename button (visible on hover) --%>
-          <button
-            phx-click="start_rename_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            phx-value-source="sidebar"
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 opacity-0 group-hover:opacity-100"
-            title={gettext("Rename")}
-          >
-            <.icon name="hero-pencil" class="w-3 h-3 text-base-content/40" />
-          </button>
-        <% end %>
-      </div>
-
-      <%!-- Children (expanded or active with new folder form) --%>
-      <%= if (@has_children && @is_expanded) || (@is_active && @show_new_folder) do %>
-        <ul
-          class="ml-3 border-l-2 pl-1 overflow-hidden"
-          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
-        >
-          <%= for child <- @node.children do %>
-            <.folder_tree_node
-              node={child}
-              current_folder={@current_folder}
-              expanded_folders={@expanded_folders}
-              renaming_folder={@renaming_folder}
-              renaming_source={@renaming_source}
-              renaming_text={@renaming_text}
-              show_new_folder={@show_new_folder}
-              depth={@depth + 1}
-              myself={@myself}
-            />
-          <% end %>
-          <%= if @is_active && @show_new_folder do %>
-            <li>
-              <form
-                phx-submit="create_folder"
-                phx-target={@myself}
-                class="flex items-center gap-0.5 rounded-lg px-1 py-1"
-              >
-                <span class="w-5"></span>
-                <span class="text-warning">
-                  <.icon name="hero-folder-plus" class="w-4 h-4" />
-                </span>
-                <input
-                  type="text"
-                  name="name"
-                  placeholder={gettext("Folder name")}
-                  class="input input-bordered input-xs flex-1 min-w-0"
-                  phx-mounted={JS.focus()}
-                  required
-                  phx-keydown="toggle_new_folder"
-                  phx-target={@myself}
-                  phx-key="Escape"
-                />
-              </form>
-            </li>
-          <% end %>
-        </ul>
-      <% end %>
-    </li>
-    """
-  end
-
-  attr :node, :map, required: true
   attr :depth, :integer, default: 0
   attr :myself, :any, required: true
 
@@ -658,32 +479,42 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Event handlers
   # ──────────────────────────────────────────────────────────────
 
-  def handle_event("toggle_new_folder", _params, socket) do
-    {:noreply, assign(socket, :show_new_folder, !socket.assigns.show_new_folder)}
-  end
+  # Finder/Explorer-style instant folder creation. Click the "+" button
+  # in any toolbar and a folder appears named "untitled" (or
+  # "untitled 1", "untitled 2", ... if that's taken). User can rename
+  # via the kebab → Rename action afterward.
+  def handle_event("create_untitled_folder", _params, socket) do
+    cond do
+      socket.assigns[:filter_trash] ->
+        {:noreply, put_flash(socket, :error, gettext("Cannot create folders in trash"))}
 
-  def handle_event("create_folder", %{"name" => name}, socket) do
-    folder_uuid = current_folder_uuid(socket)
-    user = socket.assigns[:phoenix_kit_current_user]
-    scope = scope_folder_id(socket)
-
-    case Storage.create_folder(
-           %{name: name, parent_uuid: folder_uuid, user_uuid: user && user.uuid},
-           scope
-         ) do
-      {:ok, _folder} ->
+      socket.assigns[:file_view] == "all" ->
         {:noreply,
-         socket
-         |> assign(:show_new_folder, false)
-         |> assign(:folders, Storage.list_folders(folder_uuid, scope))
-         |> assign(:folder_tree, Storage.list_folder_tree(scope))
-         |> put_flash(:info, gettext("Folder created"))}
+         put_flash(socket, :error, gettext("Cannot create folders in the all-files view"))}
 
-      {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot create folder outside the allowed scope"))}
+      true ->
+        parent_uuid = current_folder_uuid(socket)
+        scope = scope_folder_id(socket)
+        user = socket.assigns[:phoenix_kit_current_user]
+        name = next_untitled_name(parent_uuid, scope)
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to create folder"))}
+        case Storage.create_folder(
+               %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid},
+               scope
+             ) do
+          {:ok, _folder} ->
+            {:noreply,
+             socket
+             |> reload_folder_lists()
+             |> put_flash(:info, gettext("Folder \"%{name}\" created", name: name))}
+
+          {:error, :out_of_scope} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot create folder outside the allowed scope"))}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, gettext("Failed to create folder"))}
+        end
     end
   end
 
@@ -692,18 +523,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
 
     if folder do
-      case Storage.delete_folder(folder, scope) do
+      # Mirror the file kebab: trash-recursive when outside the trash
+      # view, permanent-recursive (with storage cleanup) when inside.
+      # Subtree files come along automatically — both helpers walk
+      # descendants via `Storage.folder_subtree_uuids/1` and apply the
+      # operation atomically.
+      result =
+        if socket.assigns[:filter_trash] do
+          Storage.delete_folder_completely(folder, scope)
+        else
+          Storage.trash_folder(folder, scope)
+        end
+
+      flash =
+        if socket.assigns[:filter_trash],
+          do: gettext("Folder permanently deleted"),
+          else: gettext("Folder moved to trash")
+
+      case result do
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot delete folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot delete folder outside the allowed scope"))}
 
         _ ->
-          parent_uuid = current_folder_uuid(socket)
-
           {:noreply,
            socket
-           |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-           |> assign(:folder_tree, Storage.list_folder_tree(scope))
-           |> put_flash(:info, gettext("Folder deleted"))}
+           |> reload_folder_lists()
+           |> reload_current_page()
+           |> put_flash(:info, flash)}
       end
     else
       {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
@@ -715,18 +562,126 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         %{"file_uuid" => file_uuid, "folder_uuid" => folder_uuid},
         socket
       ) do
-    target = if folder_uuid == "", do: nil, else: folder_uuid
     scope = scope_folder_id(socket)
+    # "root" in a scoped browser is the scope folder, not nil. Passing nil
+    # would mean the system's true root, which is outside the scope —
+    # `move_file_to_folder/3` would reject it with `:out_of_scope`.
+    target = if folder_uuid == "", do: scope, else: folder_uuid
 
     case Storage.move_file_to_folder(file_uuid, target, scope) do
       {:ok, _} ->
         {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
 
       {:error, :out_of_scope} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to move file"))}
+    end
+  end
+
+  # Drag a folder onto another folder (or the root drop target) to
+  # reparent it. Mirrors `move_file_to_folder` but uses
+  # `Storage.update_folder/3`, which enforces the cycle check (can't
+  # move a folder into its own descendant). JS pre-empts the
+  # drop-on-self case so we don't see it here.
+  def handle_event(
+        "move_folder_to_folder",
+        %{"folder_uuid" => folder_uuid, "target_uuid" => target_uuid},
+        socket
+      ) do
+    scope = scope_folder_id(socket)
+    target = if target_uuid == "", do: scope, else: target_uuid
+
+    case Storage.get_folder(folder_uuid) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
+
+      folder ->
+        case Storage.update_folder(folder, %{parent_uuid: target}, scope) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, gettext("Folder moved"))
+             |> reload_folder_lists()
+             |> reload_current_page()}
+
+          {:error, :out_of_scope} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
+
+          {:error, :cycle} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot move a folder into its own descendant"))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, gettext("Failed to move folder"))}
+        end
+    end
+  end
+
+  # Drag-to-trash: file dragged onto the sidebar Trash button. Always
+  # soft-deletes via `Storage.trash_file/1` — the "drop on trash" gesture
+  # means "put this in the trash", not "permanently destroy". Permanent
+  # deletion stays explicit (kebab Delete Permanently when already in
+  # trash view, or the Empty Trash button).
+  def handle_event("trash_file", %{"file_uuid" => file_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    repo = PhoenixKit.Config.get_repo()
+    file = repo.get(Storage.File, file_uuid)
+
+    cond do
+      is_nil(file) ->
+        {:noreply, put_flash(socket, :error, gettext("File not found"))}
+
+      not Storage.within_scope?(file.folder_uuid, scope) ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
+
+      true ->
+        Storage.trash_file(file)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("File moved to trash"))
+         |> reload_current_page()}
+    end
+  end
+
+  # Drag-to-trash for a single folder. Mirrors `trash_file` above but
+  # uses `Storage.trash_folder/2`, which recursively trashes the folder
+  # and every descendant + file inside the subtree. Always soft-delete
+  # — permanent deletion stays explicit (kebab Delete Permanently when
+  # already in the trash view, or bulk select + delete).
+  def handle_event("trash_folder", %{"folder_uuid" => folder_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    folder = Storage.get_folder(folder_uuid)
+
+    cond do
+      is_nil(folder) ->
+        {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
+
+      not Storage.within_scope?(folder.uuid, scope) ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
+
+      true ->
+        case Storage.trash_folder(folder, scope) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, gettext("Folder moved to trash"))
+             |> reload_folder_lists()
+             |> reload_current_page()}
+
+          {:error, :out_of_scope} ->
+            {:noreply,
+             put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, gettext("Failed to move folder to trash"))}
+        end
     end
   end
 
@@ -916,7 +871,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot rename folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot rename folder outside the allowed scope"))}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to rename folder"))}
@@ -950,7 +906,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:folder_tree, Storage.list_folder_tree(scope))}
 
         {:error, :out_of_scope} ->
-          {:noreply, put_flash(socket, :error, gettext("Cannot change folder outside the allowed scope"))}
+          {:noreply,
+           put_flash(socket, :error, gettext("Cannot change folder outside the allowed scope"))}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to change color"))}
@@ -1000,18 +957,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # modal viewer for that file. This is the default and is what every
       # embedded MediaBrowser gets unless `admin={true}` is set.
       true ->
-        {:noreply, assign(socket, :viewer_file, find_uploaded_file(socket, file_uuid))}
+        {:noreply, open_viewer(socket, find_uploaded_file(socket, file_uuid))}
     end
   end
 
   def handle_event("close_viewer", _params, socket) do
-    {:noreply, assign(socket, :viewer_file, nil)}
+    {:noreply, open_viewer(socket, nil)}
   end
 
   # Single keydown router so we can handle multiple keys without stacking
   # phx-window-keydown directives (only one fires per element).
   def handle_event("viewer_keydown", %{"key" => "Escape"}, socket) do
-    {:noreply, assign(socket, :viewer_file, nil)}
+    {:noreply, open_viewer(socket, nil)}
   end
 
   def handle_event("viewer_keydown", %{"key" => "ArrowLeft"}, socket) do
@@ -1031,6 +988,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("step_viewer", %{"dir" => "next"}, socket) do
     {:noreply, step_viewer(socket, :next)}
   end
+
+  # Etcher annotation events + composer lifecycle are owned by the
+  # MediaCanvasViewer child LiveComponent embedded in the viewer
+  # modal — events fire there, not here. See
+  # `lib/phoenix_kit_web/components/media_canvas_viewer.ex`.
 
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
     selected = socket.assigns.selected_folders
@@ -1077,12 +1039,54 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("close_move_modal", _params, socket) do
-    {:noreply, assign(socket, :show_move_modal, false)}
+    # Clear the transient single-item selection when the cancel came from
+    # a kebab-triggered move. Bulk-mode users may want their selection to
+    # persist across a cancel (so they can retry without reselecting), so
+    # only clear when select_mode is off — which is also when the kebabs
+    # are visible, since we hide them in select_mode.
+    socket = assign(socket, :show_move_modal, false)
+
+    socket =
+      if socket.assigns.select_mode do
+        socket
+      else
+        socket
+        |> assign(:selected_files, MapSet.new())
+        |> assign(:selected_folders, MapSet.new())
+      end
+
+    {:noreply, socket}
+  end
+
+  # Single-file move from kebab — pre-populates the selection with just
+  # this file and opens the move modal. Reuses the bulk
+  # `move_selected_to_folder` flow without entering select_mode.
+  def handle_event("prepare_move_file", %{"file-uuid" => file_uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_files, MapSet.new([file_uuid]))
+     |> assign(:selected_folders, MapSet.new())
+     |> assign(:show_move_modal, true)}
+  end
+
+  # Single-folder move from kebab — symmetric to `prepare_move_file`.
+  def handle_event("prepare_move_folder", %{"folder-uuid" => folder_uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_files, MapSet.new())
+     |> assign(:selected_folders, MapSet.new([folder_uuid]))
+     |> assign(:show_move_modal, true)}
   end
 
   def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
-    target = if folder_uuid == "", do: nil, else: folder_uuid
     scope = scope_folder_id(socket)
+    # "root" in a scoped browser is the scope folder, not nil — same fix as
+    # the drag-drop `move_file_to_folder` handler above. Without this,
+    # picking the home/root option in the move modal silently failed for
+    # files (`:out_of_scope`) and silently *escaped* the scope for folders
+    # (the scoped `update_folder` skips the parent-scope check when the
+    # new parent is nil).
+    target = if folder_uuid == "", do: scope, else: folder_uuid
 
     Enum.each(socket.assigns.selected_files, fn file_uuid ->
       Storage.move_file_to_folder(file_uuid, target, scope)
@@ -1104,7 +1108,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> assign(:show_move_modal, false)
-     |> put_flash(:info, ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count))
+     |> put_flash(
+       :info,
+       ngettext("%{count} item moved", "%{count} items moved", file_count + folder_count)
+     )
+     |> reload_folder_lists()
      |> reload_current_page()}
   end
 
@@ -1132,10 +1140,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end)
     end
 
-    # Folders are always permanently deleted (no trash for folders)
+    # Folders now have trash support (V119) — recursive trash outside
+    # the trash view, recursive permanent delete inside. Both operations
+    # cover the folder's entire subtree (descendant folders + files).
     Enum.each(socket.assigns.selected_folders, fn folder_uuid ->
       folder = Storage.get_folder(folder_uuid)
-      if folder, do: Storage.delete_folder(folder, scope)
+
+      if folder do
+        if socket.assigns.filter_trash do
+          Storage.delete_folder_completely(folder, scope)
+        else
+          Storage.trash_folder(folder, scope)
+        end
+      end
     end)
 
     file_count = MapSet.size(socket.assigns.selected_files)
@@ -1152,6 +1169,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> put_flash(:info, flash)
+     |> reload_folder_lists()
      |> reload_current_page()}
   end
 
@@ -1167,35 +1185,87 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, push_event(socket, "download_files", %{files: files})}
   end
 
+  # Single-file delete via the per-row kebab menu. Mirrors `delete_selected`
+  # for one file — soft-delete to trash when outside the trash view, permanent
+  # delete when already inside it. Scope-guarded the same way.
+  def handle_event("delete_file", %{"file-uuid" => file_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    repo = PhoenixKit.Config.get_repo()
+    file = repo.get(Storage.File, file_uuid)
+
+    if file && Storage.within_scope?(file.folder_uuid, scope) do
+      if socket.assigns.filter_trash do
+        Storage.delete_file_completely(file)
+      else
+        Storage.trash_file(file)
+      end
+
+      flash =
+        if socket.assigns.filter_trash,
+          do: gettext("File permanently deleted"),
+          else: gettext("File moved to trash")
+
+      {:noreply,
+       socket
+       |> put_flash(:info, flash)
+       |> reload_current_page()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Single-file download via the per-row kebab menu. Pushes the same
+  # `download_files` event the JS hook listens for, with one entry. The heex
+  # only renders the menu item when an "original" URL is present, so a
+  # missing URL here is a stale assigns / race condition — silent no-op is
+  # the right call.
+  def handle_event("download_file", %{"file-uuid" => file_uuid}, socket) do
+    file = Enum.find(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
+    url = file && (Map.get(file.urls || %{}, "original") || Map.get(file.urls || %{}, :original))
+
+    if url do
+      {:noreply,
+       push_event(socket, "download_files", %{files: [%{url: url, name: file.filename}]})}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("toggle_trash_filter", _params, socket) do
     filter_trash = !socket.assigns.filter_trash
+    scope = scope_folder_id(socket)
 
     {files, total_count} =
       if filter_trash do
-        load_trashed_files(scope_folder_id(socket), 1, socket.assigns.per_page)
+        load_trashed_files(scope, 1, socket.assigns.per_page)
       else
-        scope = scope_folder_id(socket)
         folder_uuid = current_folder_uuid(socket)
         load_scoped_files(scope, 1, socket.assigns.per_page, folder_uuid, "")
       end
+
+    # In trash view `@folders` becomes the trashed-folder list so the
+    # grid/list rows render trashed folders alongside trashed files.
+    # Outside trash it stays the active folder set.
+    folders =
+      if filter_trash, do: Storage.list_trashed_folders(scope), else: socket.assigns.folders
 
     {:noreply,
      socket
      |> assign(:filter_trash, filter_trash)
      |> assign(:filter_orphaned, false)
-     |> assign(:folders, if(filter_trash, do: [], else: socket.assigns.folders))
+     |> assign(:folders, folders)
      |> assign(:uploaded_files, files)
      |> assign(:total_count, total_count)
      |> assign(:total_pages, ceil(total_count / socket.assigns.per_page))
      |> assign(:current_page, 1)
-     |> assign(:trash_count, Storage.count_trashed_files(scope_folder_id(socket)))}
+     |> assign(:trash_count, full_trash_count(scope))}
   end
 
   def handle_event("restore_selected", _params, socket) do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
 
-    restored =
+    restored_files =
       Enum.reduce(socket.assigns.selected_files, 0, fn file_uuid, acc ->
         file = repo.get(Storage.File, file_uuid)
 
@@ -1209,11 +1279,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         end
       end)
 
+    restored_folders =
+      Enum.reduce(socket.assigns.selected_folders, 0, fn folder_uuid, acc ->
+        folder = Storage.get_folder(folder_uuid)
+
+        if folder && Storage.within_scope?(folder.uuid, scope) do
+          case Storage.restore_folder(folder, scope) do
+            {:ok, _} -> acc + 1
+            _ -> acc
+          end
+        else
+          acc
+        end
+      end)
+
+    total = restored_files + restored_folders
+
     {:noreply,
      socket
      |> assign(:select_mode, false)
      |> assign(:selected_files, MapSet.new())
-     |> put_flash(:info, ngettext("%{count} file restored", "%{count} files restored", restored))
+     |> assign(:selected_folders, MapSet.new())
+     |> put_flash(:info, ngettext("%{count} item restored", "%{count} items restored", total))
+     |> reload_folder_lists()
      |> reload_current_page()}
   end
 
@@ -1223,7 +1311,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply,
      socket
      |> assign(:filter_trash, false)
-     |> put_flash(:info, ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count))
+     |> put_flash(
+       :info,
+       ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count)
+     )
      |> reload_current_page()}
   end
 
@@ -1276,7 +1367,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     Storage.queue_file_cleanup(orphan_uuids)
 
     {:noreply,
-     put_flash(socket, :info, ngettext("%{count} orphaned file queued for deletion", "%{count} orphaned files queued for deletion", length(orphan_uuids)))}
+     put_flash(
+       socket,
+       :info,
+       ngettext(
+         "%{count} orphaned file queued for deletion",
+         "%{count} orphaned files queued for deletion",
+         length(orphan_uuids)
+       )
+     )}
   end
 
   def handle_event("toggle_upload", _params, socket) do
@@ -1377,11 +1476,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
          next_idx <- if(direction == :prev, do: idx - 1, else: idx + 1),
          true <- next_idx >= 0 and next_idx < length(list),
          %{} = next_file <- Enum.at(list, next_idx) do
-      assign(socket, :viewer_file, next_file)
+      open_viewer(socket, next_file)
     else
       _ -> socket
     end
   end
+
+  # Opens / closes the modal viewer. The per-file content (canvas,
+  # annotations, composer, sidebar with comments) lives in the
+  # `MediaCanvasViewer` child LiveComponent embedded in the viewer
+  # heex — it loads its own annotations on mount based on the file
+  # we pass through `assigns[:file]`. MediaBrowser only owns the
+  # modal open/close lifecycle and which file is currently shown.
+  defp open_viewer(socket, nil), do: assign(socket, :viewer_file, nil)
+  defp open_viewer(socket, %{file_uuid: _} = file), do: assign(socket, :viewer_file, file)
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do
     if controlled_mode?(socket) do
@@ -1454,6 +1562,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # Refresh `@folders` (the children of the current navigation folder)
+  # and `@folder_tree` (the sidebar tree). Called from handlers that
+  # mutate folder rows — move, bulk move/delete — so the UI shows the
+  # new structure without a manual refresh. File-only mutations skip
+  # this since they don't change the folder set.
+  defp reload_folder_lists(socket) do
+    scope = scope_folder_id(socket)
+    parent_uuid = current_folder_uuid(socket)
+    filter_trash = socket.assigns[:filter_trash]
+    file_view = socket.assigns[:file_view]
+
+    folders =
+      cond do
+        filter_trash -> Storage.list_trashed_folders(scope)
+        file_view == "all" -> []
+        true -> Storage.list_folders(parent_uuid, scope)
+      end
+
+    socket
+    |> assign(:folders, folders)
+    |> assign(:folder_tree, Storage.list_folder_tree(scope))
+  end
+
+  # Combined trash count for the sidebar badge — files + folders.
+  # Used wherever `:trash_count` is assigned so the badge reflects the
+  # whole trash bucket, not just files.
+  defp full_trash_count(scope) do
+    Storage.count_trashed_files(scope) + Storage.count_trashed_folders(scope)
+  end
+
   defp reload_current_page(socket) do
     folder_uuid = current_folder_uuid(socket)
     page = socket.assigns.current_page
@@ -1474,7 +1612,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:uploaded_files, files)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, ceil(total_count / per_page))
-    |> assign(:trash_count, Storage.count_trashed_files(scope_folder_id(socket)))
+    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
   end
 
   defp current_folder_uuid(socket) do
@@ -1489,78 +1627,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Data loading
   # ──────────────────────────────────────────────────────────────
 
+  # Both trash and orphan views render through the same list / grid
+  # markup, so delegate to `enrich_files/1` for the per-file display
+  # shape (urls, folder_path, etc.). Previously these hand-rolled the
+  # map and omitted `folder_path`, which the list-view Path column
+  # reads unconditionally — opening the trash or orphan view in list
+  # mode crashed with `KeyError`.
   defp load_trashed_files(scope, page, per_page) do
-    repo = PhoenixKit.Config.get_repo()
     offset = (page - 1) * per_page
     total_count = Storage.count_trashed_files(scope)
     files = Storage.list_trashed_files(scope, limit: per_page, offset: offset)
-    file_uuids = Enum.map(files, & &1.uuid)
-
-    instances_by_file =
-      if file_uuids != [] do
-        from(fi in FileInstance, where: fi.file_uuid in ^file_uuids)
-        |> repo.all()
-        |> Enum.group_by(& &1.file_uuid)
-      else
-        %{}
-      end
-
-    existing_files =
-      Enum.map(files, fn file ->
-        instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
-
-        %{
-          file_uuid: file.uuid,
-          filename: file.original_file_name || file.file_name || "Unknown",
-          file_type: file.file_type,
-          mime_type: file.mime_type,
-          size: file.size || 0,
-          status: file.status,
-          inserted_at: file.inserted_at,
-          trashed_at: file.trashed_at,
-          urls: urls
-        }
-      end)
-
-    {existing_files, total_count}
+    {enrich_files(files), total_count}
   end
 
   defp load_orphaned_files(page, per_page) do
-    repo = PhoenixKit.Config.get_repo()
     offset = (page - 1) * per_page
     total_count = Storage.count_orphaned_files()
     files = Storage.find_orphaned_files(limit: per_page, offset: offset)
-    file_uuids = Enum.map(files, & &1.uuid)
-
-    instances_by_file =
-      if file_uuids != [] do
-        from(fi in FileInstance, where: fi.file_uuid in ^file_uuids)
-        |> repo.all()
-        |> Enum.group_by(& &1.file_uuid)
-      else
-        %{}
-      end
-
-    existing_files =
-      Enum.map(files, fn file ->
-        instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
-
-        %{
-          file_uuid: file.uuid,
-          filename: file.original_file_name || file.file_name || "Unknown",
-          original_filename: file.original_file_name,
-          file_type: file.file_type,
-          mime_type: file.mime_type,
-          size: file.size || 0,
-          status: file.status,
-          inserted_at: file.inserted_at,
-          urls: urls
-        }
-      end)
-
-    {existing_files, total_count}
+    {enrich_files(files), total_count}
   end
 
   # Loads files within scope with optional folder/search filters.
@@ -1610,15 +1694,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     folder_uuids =
       files |> Enum.map(& &1.folder_uuid) |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
-    folder_paths =
-      Map.new(folder_uuids, fn fuuid ->
-        path = Storage.folder_breadcrumbs(fuuid) |> Enum.map_join(" / ", & &1.name)
-        {fuuid, path}
-      end)
+    folder_paths = Map.new(folder_uuids, fn fuuid -> {fuuid, breadcrumb_path(fuuid)} end)
 
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
-      urls = generate_urls_from_instances(instances, file.uuid)
+      urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
+      variant_widths = generate_widths_from_instances(instances)
 
       %{
         file_uuid: file.uuid,
@@ -1629,8 +1710,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         size: file.size || 0,
         status: file.status,
         inserted_at: file.inserted_at,
+        # Width and height come straight from the File schema columns
+        # populated by the variant generator on upload. `nil` is
+        # possible for files uploaded before the variant generator ran
+        # (or for non-image types); `build_viewer_canvas/2` falls back
+        # to a 1000x1000 placeholder canvas in that case so the LV
+        # doesn't crash.
+        width: file.width,
+        height: file.height,
         folder_path: Map.get(folder_paths, file.folder_uuid),
-        urls: urls
+        urls: urls,
+        variant_widths: variant_widths
       }
     end)
   end
@@ -1813,12 +1903,57 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Style / icon helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp generate_urls_from_instances(instances, file_uuid) do
+  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+    base =
+      Enum.reduce(instances, %{}, fn instance, acc ->
+        url = URLSigner.signed_url(file_uuid, instance.variant_name)
+        Map.put(acc, instance.variant_name, url)
+      end)
+
+    # For images, surface a DZI manifest URL only when tile generation is
+    # enabled in storage settings. The manifest itself is generated lazily
+    # on first request; tiles are generated lazily as OSD asks for them.
+    # When the setting is off, no `urls["dzi"]` → Tessera falls back to
+    # the medium / large layers and never asks for tiles, so the
+    # lazy-generation path is never triggered.
+    #
+    # The signed token lives in the URL path (not query string) so
+    # OpenSeadragon's tile-URL derivation preserves it across the
+    # manifest → tile fetch. The "dzi" variant name is distinct from
+    # the storage variants ("original" / "small" / "medium" / "large")
+    # so a leaked file-serving token can't grant tile access.
+    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
+         tile_generation_enabled?() do
+      token = URLSigner.generate_token(file_uuid, "dzi")
+      Map.put(base, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
+    else
+      base
+    end
+  end
+
+  defp tile_generation_enabled? do
+    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
+  end
+
+  # Builds a parallel map of `%{variant_name => width}` from the same
+  # FileInstance rows that produce the URLs. Used downstream by
+  # `tessera_sources/1` to decide which variants to surface as zoom
+  # layers and where to set the swap thresholds.
+  defp generate_widths_from_instances(instances) do
     Enum.reduce(instances, %{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name)
-      Map.put(acc, instance.variant_name, url)
+      case instance.width do
+        nil -> acc
+        w -> Map.put(acc, instance.variant_name, w)
+      end
     end)
   end
+
+  # NOTE: `tessera_sources/1` + `maybe_append_layer/4` were removed in
+  # the Fresco 0.5 / Etcher 0.3 migration. Tessera 0.2 was OpenSeadragon-
+  # backed (Fresco 0.1.x); Fresco 0.5 dropped OSD entirely, so the
+  # Tessera layer no longer attaches. Restore once a Fresco 0.5-compatible
+  # Tessera (or replacement) ships and `<Tessera.layer>` is wired back
+  # into the file-zoom heex.
 
   defp determine_file_type(mime_type) do
     cond do
@@ -1832,46 +1967,53 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp format_file_size(bytes) when is_integer(bytes) do
-    cond do
-      bytes >= 1_000_000_000 -> "#{Float.round(bytes / 1_000_000_000, 2)} GB"
-      bytes >= 1_000_000 -> "#{Float.round(bytes / 1_000_000, 2)} MB"
-      bytes >= 1_000 -> "#{Float.round(bytes / 1_000, 2)} KB"
-      true -> "#{bytes} B"
+  # Build a "Folder1 / Folder2 / ..." path string from a folder uuid.
+  # Returns nil at root so callers can render a `/` placeholder. Shared
+  # by `enrich_files` (per-file folder_path) and `folder_list_path`
+  # (single per-render path for the folder list view).
+  defp breadcrumb_path(nil), do: nil
+
+  defp breadcrumb_path(uuid) do
+    case Storage.folder_breadcrumbs(uuid) do
+      [] -> nil
+      chain -> Enum.map_join(chain, " / ", & &1.name)
     end
   end
 
-  defp folder_bg_style(color) do
-    case folder_color_hex(color) do
-      nil -> nil
-      hex -> "background-color: #{hex}15"
+  # Path shown in the list-view folder rows' Path column. All folders
+  # displayed share the same parent (children of @current_folder, or of
+  # the scope when at the scoped root), so we compute it once per render
+  # instead of recomputing per row — the previous `folder_parent_path/1`
+  # did one breadcrumbs walk per folder, an N+1 over identical work.
+  defp folder_list_path(nil, scope_id), do: breadcrumb_path(scope_id)
+  defp folder_list_path(%{uuid: uuid}, _scope_id), do: breadcrumb_path(uuid)
+
+  # Finder-style "untitled" / "untitled 1" / "untitled 2" naming for
+  # quick folder creation. Looks at sibling folders in the same parent
+  # and picks the first non-conflicting name. Gaps fill before
+  # extending — if "untitled" and "untitled 5" exist, we create
+  # "untitled 1".
+  defp next_untitled_name(parent_uuid, scope) do
+    base = gettext("untitled")
+
+    existing =
+      parent_uuid
+      |> Storage.list_folders(scope)
+      |> Enum.map(& &1.name)
+      |> MapSet.new()
+
+    if MapSet.member?(existing, base) do
+      n =
+        Stream.iterate(1, &(&1 + 1))
+        |> Enum.find(fn n -> not MapSet.member?(existing, "#{base} #{n}") end)
+
+      "#{base} #{n}"
+    else
+      base
     end
   end
 
-  defp folder_icon_style(color, _active? \\ false) do
-    case folder_color_hex(color) do
-      nil -> "color: oklch(var(--wa))"
-      hex -> "color: #{hex}"
-    end
-  end
-
-  defp folder_color_hex("red"), do: "#ef4444"
-  defp folder_color_hex("orange"), do: "#f97316"
-  defp folder_color_hex("amber"), do: "#f59e0b"
-  defp folder_color_hex("yellow"), do: "#eab308"
-  defp folder_color_hex("lime"), do: "#84cc16"
-  defp folder_color_hex("green"), do: "#22c55e"
-  defp folder_color_hex("emerald"), do: "#10b981"
-  defp folder_color_hex("teal"), do: "#14b8a6"
-  defp folder_color_hex("cyan"), do: "#06b6d4"
-  defp folder_color_hex("sky"), do: "#0ea5e9"
-  defp folder_color_hex("blue"), do: "#3b82f6"
-  defp folder_color_hex("violet"), do: "#8b5cf6"
-  defp folder_color_hex("purple"), do: "#a855f7"
-  defp folder_color_hex("fuchsia"), do: "#d946ef"
-  defp folder_color_hex("pink"), do: "#ec4899"
-  defp folder_color_hex("rose"), do: "#f43f5e"
-  defp folder_color_hex(_), do: nil
+  defp format_file_size(bytes), do: Format.bytes(bytes, base: 1000, decimals: 2)
 
   defp delete_selected_confirm(selected_files, selected_folders, filter_trash) do
     file_count = MapSet.size(selected_files)
@@ -1912,21 +2054,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp file_icon("pdf"), do: "hero-document-text"
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
-
-  # True only when PhoenixKitComments is in the dep tree AND its admin toggle
-  # is on. Anything else (module missing, settings table missing, raise from
-  # enabled?/0) falls through to false so the modal still renders without it.
-  #
-  # The @dialyzer attribute silences the cross-package static call —
-  # phoenix_kit_comments is optional and not a transitive dep of phoenix_kit
-  # itself, so dialyzer can't see PhoenixKitComments.enabled?/0. The
-  # `Code.ensure_loaded?/1` guard above handles the actual runtime safety.
-  @dialyzer {:nowarn_function, comments_enabled?: 0}
-  defp comments_enabled? do
-    Code.ensure_loaded?(PhoenixKitComments) and PhoenixKitComments.enabled?()
-  rescue
-    _ -> false
-  end
 
   defp auto_expand_breadcrumbs(socket, breadcrumbs) do
     ancestor_uuids = Enum.map(breadcrumbs, & &1.uuid)

@@ -1,0 +1,47 @@
+<dialog
+  id={@id}
+  class="modal"
+  phx-hook="MediaViewerDialog"
+  phx-target={@myself}
+  aria-labelledby={"#{@id}-title"}
+>
+  <% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
+  <% has_prev = is_integer(preview_idx) and preview_idx > 0 %>
+  <% has_next = is_integer(preview_idx) and preview_idx < length(@files) - 1 %>
+  <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+    <%= if @current_file do %>
+      <%!-- Per-file content (close button, prev/next chevrons, canvas/   --%>
+      <%!-- video/pdf/icon renderer, composer popover, sidebar with       --%>
+      <%!-- filename + Download + metadata + comments thread) is owned   --%>
+      <%!-- by the MediaCanvasViewer child LiveComponent. Same surface   --%>
+      <%!-- MediaBrowser uses; admins see annotations in either viewer.  --%>
+      <.live_component
+        module={PhoenixKitWeb.Components.MediaCanvasViewer}
+        id={"media-canvas-viewer-" <> @current_uuid}
+        file={@current_file}
+        current_user={@current_user}
+        parent_id={@id}
+        has_prev={has_prev}
+        has_next={has_next}
+      />
+    <% else %>
+      <%!-- Fallback: current uuid resolved to nil (file not found).     --%>
+      <%!-- Show a close button only — without the canvas viewer there's --%>
+      <%!-- nothing else useful to render.                                 --%>
+      <button
+        type="button"
+        phx-click="close_viewer"
+        phx-target={@myself}
+        class="btn btn-ghost btn-sm btn-circle absolute top-3 right-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
+        title={gettext("Close")}
+      >
+        <.icon name="hero-x-mark" class="w-4 h-4" />
+      </button>
+      <div class="flex items-center justify-center h-[60vh] text-base-content/50">
+        {gettext("File not found")}
+      </div>
+    <% end %>
+  </div>
+
+  <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>
+</dialog>

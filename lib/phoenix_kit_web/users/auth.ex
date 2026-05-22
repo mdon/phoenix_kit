@@ -133,20 +133,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   # This function renews the session ID and erases the whole
-  # session to avoid fixation attacks. See renew_session/1 below
-  # which preserves locale preference across session renewal.
+  # session to avoid fixation attacks. Locale is no longer kept in
+  # session (URL is authoritative; logged-in users persist preference
+  # on `user.custom_fields["preferred_locale"]`), so there's nothing
+  # to preserve across renewal.
   defp renew_session(conn) do
-    # Preserve locale preference across session renewal
-    locale_base = get_session(conn, :phoenix_kit_locale_base)
-
     delete_csrf_token()
 
     conn
     |> configure_session(renew: true)
     |> clear_session()
-    |> then(fn conn ->
-      if locale_base, do: put_session(conn, :phoenix_kit_locale_base, locale_base), else: conn
-    end)
   end
 
   @doc """
@@ -677,7 +673,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp handle_locale_event("phoenix_kit_set_locale", %{"locale" => locale, "url" => url}, socket) do
     save_user_locale_preference(socket.assigns, locale)
-    {:halt, Phoenix.LiveView.redirect(socket, to: url)}
+
+    # `push_navigate` rather than `redirect`: admin's two URL shapes
+    # (`/admin/*` and `/:locale/admin/*`) now share one `live_session`
+    # (`:phoenix_kit_admin`), so an in-admin locale switch stays on the
+    # WebSocket. For targets in a different live_session (e.g. front-end
+    # pages, whose public sessions are still split) `push_navigate`
+    # degrades to a full-page load on its own — so it is safe here
+    # unconditionally.
+    {:halt, Phoenix.LiveView.push_navigate(socket, to: url)}
   end
 
   defp handle_locale_event(_event, _params, socket), do: {:cont, socket}
@@ -713,11 +717,22 @@ defmodule PhoenixKitWeb.Users.Auth do
     current_base = socket.assigns[:current_locale_base]
 
     if current_base != locale and DialectMapper.valid_base_code?(locale) do
-      user = socket.assigns[:phoenix_kit_current_user]
-      full_dialect = DialectMapper.resolve_dialect(locale, user)
+      # URL-driven dialect: `DialectMapper.resolve_dialect/1` maps the base
+      # code straight to its default dialect. It deliberately takes no user
+      # — a user's `preferred_locale` would otherwise upgrade base "en" →
+      # "en-GB", contradicting the URL-is-authoritative semantic we now hold
+      # across both the LV mount and the HTTP plug. `preferred_locale` is
+      # still written by the switcher hook but no longer read for routing
+      # (base or dialect).
+      full_dialect = DialectMapper.resolve_dialect(locale)
 
-      # Update Gettext locale
+      # Update Gettext locale — set both the backend-specific value (for
+      # PhoenixKitWeb.Gettext callers that look it up explicitly) and the
+      # process-global default (so feature modules with their own backends,
+      # e.g. PhoenixKitProjects.Gettext, also pick up the new locale without
+      # needing per-backend wiring).
       Gettext.put_locale(PhoenixKitWeb.Gettext, full_dialect)
+      Gettext.put_locale(full_dialect)
 
       socket
       |> Phoenix.Component.assign(:current_locale_base, locale)
@@ -727,40 +742,32 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  # No locale in params - could be:
-  # 1. Default language URL (clean URL without prefix) - should use default locale
-  # 2. Reserved path (admin, api, etc.) - should preserve user's session preference
+  # No locale in URL = primary language. Snap Gettext + assigns to default.
+  #
+  # Pre-fix this branch special-cased reserved paths (`/admin`, `/api`, …)
+  # to "preserve session locale" — back when admin URLs always carried a
+  # locale prefix, the reserved-path snap was unreachable. Now that
+  # `Routes.admin_path/2` emits prefixless URLs for the primary language,
+  # the reserved-path branch was active and pinned a stale session locale
+  # to every prefixless admin navigation (sticky-Estonian bug). Removing
+  # the special case restores the URL-is-authoritative semantics.
   defp maybe_update_locale_from_params(socket, _params) do
-    url_path = socket.assigns[:url_path] || ""
+    default_base = Routes.get_default_admin_locale()
+    current_base = socket.assigns[:current_locale_base]
 
-    # Check if we're on a reserved path (admin, api, etc.)
-    # These paths never have locale prefix, so we should preserve user's preference
-    reserved_prefixes = ~w(/admin /api /webhooks /assets /static /files /images)
-    is_reserved_path = Enum.any?(reserved_prefixes, &String.contains?(url_path, &1))
-
-    if is_reserved_path do
-      # Preserve existing locale from session - don't reset to default
-      # The locale was already set correctly in mount_phoenix_kit_current_scope
+    if current_base == default_base do
       socket
     else
-      # Normal frontend path without locale prefix = default language URL
-      default_base = Routes.get_default_admin_locale()
-      current_base = socket.assigns[:current_locale_base]
+      # URL-driven dialect (see sibling clause above for the rationale —
+      # `preferred_locale` is intentionally ignored for routing).
+      default_dialect = DialectMapper.resolve_dialect(default_base)
 
-      # If we're already on the default locale, no need to update
-      if current_base == default_base do
-        socket
-      else
-        # URL has no locale prefix, so we're navigating to default language
-        user = socket.assigns[:phoenix_kit_current_user]
-        default_dialect = DialectMapper.resolve_dialect(default_base, user)
+      Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+      Gettext.put_locale(default_dialect)
 
-        Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
-
-        socket
-        |> Phoenix.Component.assign(:current_locale_base, default_base)
-        |> Phoenix.Component.assign(:current_locale, default_dialect)
-      end
+      socket
+      |> Phoenix.Component.assign(:current_locale_base, default_base)
+      |> Phoenix.Component.assign(:current_locale, default_dialect)
     end
   end
 
@@ -795,10 +802,15 @@ defmodule PhoenixKitWeb.Users.Auth do
     user = socket.assigns.phoenix_kit_current_user
     scope = Scope.for_user(user)
 
-    # Get locale from params (URL path) first, then session, then defaults
-    # This ensures locale from URL takes precedence during initial mount
-    session_locale = session["phoenix_kit_locale_base"]
-
+    # Locale is URL-driven: the URL's `:locale` segment wins; absent
+    # that, we fall straight to the default. The previous session-locale
+    # fallback ("remember the last-picked locale across prefixless URLs")
+    # caused a sticky-locale bug after `Routes.path/2` was changed to
+    # emit prefixless URLs for the primary language — e.g. visiting
+    # `/foo/et/...` once stashed `"et"` in the session, then every
+    # primary-prefixless URL inherited Estonian forever. Pure URL→default
+    # makes prefixless URL ≡ primary language, which matches what the
+    # URL helpers now emit.
     current_locale_base =
       case params do
         %{"locale" => locale} when is_binary(locale) and locale != "" ->
@@ -807,14 +819,18 @@ defmodule PhoenixKitWeb.Users.Auth do
         _ ->
           nil
       end ||
-        session_locale ||
-        Process.get(:phoenix_kit_current_locale_base) ||
         Routes.get_default_admin_locale()
 
-    current_locale = DialectMapper.resolve_dialect(current_locale_base, user)
+    # URL-driven dialect: `resolve_dialect/1` returns the default mapping
+    # for this base. The user's preferred_locale is intentionally NOT
+    # consulted for routing (see `maybe_update_locale_from_params/2` for
+    # the matching rationale).
+    current_locale = DialectMapper.resolve_dialect(current_locale_base)
 
-    # Set Gettext locale for translations
+    # Set Gettext locale for translations (backend-specific + global, so
+    # module backends like PhoenixKitProjects.Gettext sync too).
     Gettext.put_locale(PhoenixKitWeb.Gettext, current_locale)
+    Gettext.put_locale(current_locale)
 
     socket
     |> maybe_manage_scope_subscription(user)
@@ -1741,29 +1757,28 @@ defmodule PhoenixKitWeb.Users.Auth do
         end
 
       _ ->
-        # No locale in URL - check user's preferred locale first, then fall back to default
-        # This supports admin paths where locale can't be in URL but user has a preference
-        current_user = get_user_for_locale_resolution(conn)
+        # No locale in URL → primary language. Pure URL → default, matching
+        # the LV mount path (`mount_phoenix_kit_current_scope/3`). Previously
+        # this branch consulted `user.custom_fields["preferred_locale"]`
+        # before the default, but the LV mount doesn't read it — a
+        # logged-in user with preferred_locale=de visiting `/admin/foo`
+        # would see German for the initial HTTP response and then English
+        # after the LV mount snapped to default. The two paths now agree:
+        # URL is the only source of truth. The preferred_locale field is
+        # still written by the switcher (so the data is preserved for any
+        # future feature that wants to re-enable it) but never read for
+        # routing — and that includes dialect resolution: `resolve_dialect/1`
+        # takes no user, so user-preferred dialect upgrades (e.g. base
+        # "en" → "en-GB" via custom_fields) cannot sneak back in.
+        default_base = Routes.get_default_admin_locale()
+        default_dialect = DialectMapper.resolve_dialect(default_base)
 
-        {base, dialect} =
-          case get_user_preferred_locale(current_user) do
-            {preferred_base, preferred_dialect} when is_binary(preferred_base) ->
-              # User has a valid preferred locale - use it
-              {preferred_base, preferred_dialect}
-
-            _ ->
-              # No user preference - use default language
-              default_base = Routes.get_default_admin_locale()
-              default_dialect = DialectMapper.resolve_dialect(default_base, current_user)
-              {default_base, default_dialect}
-          end
-
-        Gettext.put_locale(PhoenixKitWeb.Gettext, dialect)
+        Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+        Gettext.put_locale(default_dialect)
 
         conn
-        |> assign(:current_locale_base, base)
-        |> assign(:current_locale, dialect)
-        |> put_session(:phoenix_kit_locale_base, base)
+        |> assign(:current_locale_base, default_base)
+        |> assign(:current_locale, default_dialect)
     end
   end
 
@@ -1784,52 +1799,19 @@ defmodule PhoenixKitWeb.Users.Auth do
         path -> path
       end)
 
-    # Set locale before redirecting
+    # Set locale before redirecting. URL-driven dialect — no user (see
+    # `process_valid_locale/2` for the rationale).
     default_base = Routes.get_default_admin_locale()
-    current_user = get_user_for_locale_resolution(conn)
-    default_dialect = DialectMapper.resolve_dialect(default_base, current_user)
+    default_dialect = DialectMapper.resolve_dialect(default_base)
 
     Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
+    Gettext.put_locale(default_dialect)
 
     # Redirect to clean path so the router matches the correct route
     conn
     |> Phoenix.Controller.redirect(to: clean_path, status: 307)
     |> halt()
   end
-
-  # Helper to get user for locale resolution
-  # Checks conn assigns first, then tries to fetch from session token if available
-  defp get_user_for_locale_resolution(conn) do
-    case conn.assigns[:phoenix_kit_current_user] do
-      nil ->
-        # User not assigned yet, try to fetch from session token
-        case get_session(conn, "user_token") do
-          nil -> nil
-          token -> Auth.get_user_by_session_token(token)
-        end
-
-      user ->
-        user
-    end
-  end
-
-  # Get user's preferred locale if set and valid
-  # Returns {base_code, full_dialect} tuple or nil if not set/invalid
-  defp get_user_preferred_locale(nil), do: nil
-
-  defp get_user_preferred_locale(%{custom_fields: %{"preferred_locale" => preferred}})
-       when is_binary(preferred) and preferred != "" do
-    base = DialectMapper.extract_base(preferred)
-
-    # Verify the preferred locale is a valid enabled language
-    if DialectMapper.valid_base_code?(base) and language_enabled?(base) do
-      {base, preferred}
-    else
-      nil
-    end
-  end
-
-  defp get_user_preferred_locale(_user), do: nil
 
   defp locale_allowed?(base_code) do
     language_enabled?(base_code)
@@ -1854,27 +1836,43 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   # Process a validated and enabled locale.
   # For non-admin paths: redirect default locale to clean URL (no prefix needed).
-  # Admin paths ALWAYS keep the locale in the URL to stay within the
-  # :phoenix_kit_admin_locale live_session and avoid full-page reloads.
+  # Admin paths: do NOT redirect — both `/phoenix_kit/admin/*` and
+  # `/phoenix_kit/<default>/admin/*` are valid (the dual-scope router
+  # emission accepts both), and `Routes.admin_path/2` emits the
+  # prefixless shape by default. We honor whichever URL shape the user
+  # typed; both shapes resolve into the same `live_session
+  # :phoenix_kit_admin`, so there is no boundary to canonicalize away.
   defp process_valid_locale(conn, locale) do
-    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) do
+    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
+         prefixless_primary?() do
       redirect_default_locale_to_clean_url(conn, locale)
     else
-      current_user = get_user_for_locale_resolution(conn)
-      full_dialect = DialectMapper.resolve_dialect(locale, current_user)
+      # URL-driven dialect — no user (see `process_as_default_locale/1`
+      # for the rationale matching the LV mount path).
+      full_dialect = DialectMapper.resolve_dialect(locale)
 
       Gettext.put_locale(PhoenixKitWeb.Gettext, full_dialect)
+      Gettext.put_locale(full_dialect)
 
       conn
       |> assign(:current_locale_base, locale)
       |> assign(:current_locale, full_dialect)
-      |> put_session(:phoenix_kit_locale_base, locale)
     end
   end
 
-  # Check if the request path is an admin path.
-  # Admin paths must keep the locale in the URL to stay within the
-  # :phoenix_kit_admin_locale live_session boundary.
+  # Reads the site-wide `default_language_no_prefix` setting. When ON,
+  # primary-language URLs are emitted prefixless and this plug
+  # 301-redirects `/<default>/...` to the prefixless shape to keep one
+  # canonical URL. When OFF (the default), the `/<default>/...` shape
+  # IS the canonical URL and must NOT be redirected — a 301 would
+  # discard any POST body. Defers to the canonical boot-safe wrapper
+  # on `Languages` so this plug + `Routes` share one rescue policy.
+  defp prefixless_primary?, do: PhoenixKit.Modules.Languages.prefixless_primary_safe?()
+
+  # Check if the request path is an admin path. Used by
+  # `process_valid_locale/2` to skip the default-locale-redirect so
+  # both `/phoenix_kit/admin/*` and `/phoenix_kit/<default>/admin/*`
+  # render whichever shape the user typed.
   defp admin_request?(conn) do
     String.contains?(conn.request_path, "/admin")
   end
@@ -1971,26 +1969,33 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   @doc """
-  Redirects invalid locale URLs to the default locale.
+  Redirects invalid locale URLs to the canonical default-locale shape.
 
-  Takes the current URL path and replaces the invalid locale with the default
-  locale base code, then redirects the user to the corrected URL.
+  Takes the current URL path and replaces the invalid locale segment so
+  the redirect target matches the rest of the app's URL emission:
 
-  For the default language, the locale segment is removed entirely to produce
-  clean URLs (e.g., /phoenix_kit/admin).
+  - With `default_language_no_prefix?` ON → strip the segment entirely
+    (the canonical primary shape is prefixless, e.g. `/phoenix_kit/admin`).
+  - With the setting OFF (default) → swap the invalid segment for the
+    primary base code so the canonical prefixed shape is preserved
+    (e.g. `/phoenix_kit/xx/admin` → `/phoenix_kit/en/admin`).
   """
   def redirect_invalid_locale(conn, invalid_locale) do
     # Get the default language
     default_base = Routes.get_default_admin_locale()
 
-    # For default language, remove locale segment entirely for clean URLs
-    # For other languages, replace with that language code
+    replacement_segment =
+      if prefixless_primary?(), do: "/", else: "/#{default_base}/"
+
+    replacement_suffix =
+      if prefixless_primary?(), do: "", else: "/#{default_base}"
+
     corrected_path =
       conn.request_path
-      |> String.replace("/#{invalid_locale}/", "/", global: false)
+      |> String.replace("/#{invalid_locale}/", replacement_segment, global: false)
       |> then(fn path ->
         if String.ends_with?(conn.request_path, "/#{invalid_locale}") do
-          String.replace_suffix(path, "/#{invalid_locale}", "")
+          String.replace_suffix(path, "/#{invalid_locale}", replacement_suffix)
         else
           path
         end

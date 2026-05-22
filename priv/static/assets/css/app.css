@@ -628,3 +628,23 @@
     margin-bottom: 0.5rem;
   }
 }
+
+/* Fresco theme integration. Viewers that pass theme={:inherit} skip
+   Fresco's own color rules; this block supplies the six --fresco-*
+   custom properties from daisyUI tokens so the viewer's background,
+   dot grid, and nav follow whichever daisyUI theme is active on
+   <html>. The variables flip automatically with `data-theme` —
+   no JS required.
+
+   Nav buttons use base-200 / base-300 (chip-style surfaces) so they
+   read as light gray on light themes and dark gray on dark themes
+   instead of the high-contrast neutral surface (which would be near-
+   black on every theme). */
+.fresco-viewer[data-fresco-theme="inherit"] {
+  --fresco-bg: var(--color-base-100);
+  --fresco-grid-dot: var(--color-base-300);
+  --fresco-nav-bg: var(--color-base-200);
+  --fresco-nav-bg-hover: var(--color-base-300);
+  --fresco-nav-fg: var(--color-base-content);
+  --fresco-nav-focus: var(--color-primary);
+}

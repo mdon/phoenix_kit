@@ -43,8 +43,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
   ## Options
 
-  - `:async` - Whether to generate variants asynchronously (default: true)
   - `:dimensions` - List of specific dimensions to generate (default: all enabled)
+
+  Variant generation is always synchronous from the caller's perspective.
+  Internally `process_variants/2` parallelizes the per-dimension work via
+  `Task.await_many/2` with a 10-minute cap. Callers that need fire-and-forget
+  semantics should enqueue the work via Oban (see `process_file_job.ex`).
 
   ## Returns
 
@@ -52,7 +56,6 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   - `{:error, reason}` - Error if generation fails
   """
   def generate_variants(file, opts \\ []) do
-    async = Keyword.get(opts, :async, true)
     specific_dimensions = Keyword.get(opts, :dimensions, [])
 
     if should_generate_variants?(file) do
@@ -60,21 +63,11 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
       case dimensions do
         [] -> {:ok, []}
-        _ -> run_variant_processing(file, dimensions, async)
+        _ -> process_variants(file, dimensions)
       end
     else
       {:ok, []}
     end
-  end
-
-  defp run_variant_processing(file, dimensions, true) do
-    task = Task.async(fn -> process_variants(file, dimensions) end)
-    # 30 second timeout
-    Task.await(task, 30_000)
-  end
-
-  defp run_variant_processing(file, dimensions, false) do
-    process_variants(file, dimensions)
   end
 
   @doc """
@@ -252,8 +245,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   end
 
   defp should_generate_variants?(file) do
-    (file.file_type in ["image", "video"] or
-       (file.file_type == "document" and file.mime_type == "application/pdf")) and
+    # System-managed media (Tessera DZI tiles + manifests) never get
+    # quality variants — a tile is already 256×256, generating a smaller
+    # tile-of-a-tile would waste CPU and disk for no user-facing value.
+    not file.system_managed and
+      (file.file_type in ["image", "video"] or
+         (file.file_type == "document" and file.mime_type == "application/pdf")) and
       Storage.get_auto_generate_variants()
   end
 

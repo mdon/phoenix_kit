@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.107"
+  @version "1.7.119"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -119,6 +119,22 @@ defmodule PhoenixKit.MixProject do
       # Content editor
       {:leaf, "~> 0.2.11"},
 
+      # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
+      # OpenSeadragon and replaced the wrapped-OSD viewer with a
+      # hand-rolled CSS-transform engine; it also added <Fresco.canvas>
+      # (the layered scene with `extensions.etcher` for annotation data).
+      # Etcher 0.3 dropped its Ecto storage adapter and now persists
+      # annotations inside the canvas's extensions map — single bulk
+      # `etcher:annotations-changed` event, client-side UUIDv7. JS hooks
+      # ship in each lib's `priv/static/`; parent apps either import them
+      # directly in `app.js` or rely on the lazy-load wrappers in
+      # phoenix_kit.js (jsdelivr-pinned to the matching version).
+      # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
+      # (residual TODO; resurrect when a Tessera 0.5 ships).
+      {:fresco, "~> 0.5"},
+      {:tessera, "~> 0.2"},
+      {:etcher, "~> 0.3"},
+
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
       {:backblaze_regions, "~> 0.1.0"},
@@ -223,7 +239,11 @@ defmodule PhoenixKit.MixProject do
       # Code quality
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
-      precommit: ["compile", "quality"]
+      precommit: [
+        "compile --warnings-as-errors --all-warnings",
+        "deps.unlock --check-unused",
+        "quality.ci"
+      ]
     ]
   end
 end

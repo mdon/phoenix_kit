@@ -58,6 +58,20 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
         # ordered_ids is a list of item IDs in the new order
         {:noreply, socket}
       end
+
+  ## Inside a LiveComponent
+
+  The `on_reorder` event is pushed by the `SortableGrid` JS hook. By default the
+  hook uses `pushEvent`, which delivers the event to the host **LiveView**. When
+  `<.draggable_list>` is rendered inside a **LiveComponent** that handles the
+  event itself, pass `target` — a CSS selector for the component's root element
+  — so the hook routes via `pushEventTo` and the event reaches the component:
+
+      <.draggable_list id="my-gallery-grid" items={@items}
+        on_reorder="reorder_images" target={"#\#{@id}"}>
+
+  Without `target`, a LiveComponent's `handle_event("reorder_…")` never fires and
+  the event lands on the host LiveView instead.
   """
   use Phoenix.Component
 
@@ -70,11 +84,26 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
 
   attr :on_reorder, :string, required: true, doc: "Event name to send on reorder"
   attr :layout, :atom, default: :grid, values: [:grid, :list], doc: "Layout mode"
-  attr :cols, :integer, default: 4, doc: "Number of grid columns (only for layout={:grid})"
+
+  attr :cols, :any,
+    default: 4,
+    doc:
+      "Grid columns (only for layout={:grid}). Either an integer 1..6 (mapped to a static `grid-cols-N`), or a string of Tailwind grid-column classes used verbatim — e.g. `\"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8\"` — for a responsive grid. The string form must be a literal in a Tailwind-scanned source so the classes are compiled. Any other value (out-of-range integer, atom, etc.) falls back to `grid-cols-4`."
+
   attr :gap, :string, default: "gap-2", doc: "Gap between items (Tailwind class)"
   attr :class, :string, default: "", doc: "Additional CSS classes for the container"
   attr :item_class, :string, default: "", doc: "Additional CSS classes for each item wrapper"
   attr :hide_source, :boolean, default: false, doc: "Hide source element on drag start"
+
+  attr :sortable_handle, :string,
+    default: nil,
+    doc:
+      "Optional CSS selector (e.g. `\".pk-drag-handle\"`) that restricts drag initiation to elements matching the selector inside each item. When set, the item wrapper no longer carries the `cursor-grab` styling — the caller is responsible for rendering the handle. Mirrors the workspace's `<.table_default>` `:on_reorder` + `.pk-drag-handle` convention."
+
+  attr :target, :string,
+    default: nil,
+    doc:
+      "Optional CSS selector for the LiveComponent root that should receive the `on_reorder` event (e.g. `\"#my-gallery\"`). When set, the `SortableGrid` hook uses `pushEventTo` instead of `pushEvent`. Required when `<.draggable_list>` is rendered inside a LiveComponent that handles the reorder event itself."
 
   attr :draggable, :boolean,
     default: true,
@@ -106,15 +135,18 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
       id={@id}
       data-sortable={if @draggable, do: "true"}
       data-sortable-event={if @draggable, do: @on_reorder}
+      data-sortable-target={if @draggable, do: @target}
       data-sortable-items={if @draggable, do: ".sortable-item"}
       data-sortable-hide-source={if @draggable, do: to_string(@hide_source)}
+      data-sortable-handle={if @draggable, do: @sortable_handle}
       phx-hook={if @draggable, do: "SortableGrid"}
       class={@container_class}
     >
       <%= for item <- @items do %>
         <div
           class={[
-            @draggable && "sortable-item cursor-grab active:cursor-grabbing",
+            @draggable && "sortable-item",
+            @draggable && is_nil(@sortable_handle) && "cursor-grab active:cursor-grabbing",
             @item_class
           ]}
           data-id={@item_id_fn.(item)}
@@ -132,7 +164,10 @@ defmodule PhoenixKitWeb.Components.Core.DraggableList do
     """
   end
 
-  # Map column count to Tailwind class (must be static for Tailwind to recognize)
+  # Map column count to Tailwind class (must be static for Tailwind to recognize).
+  # A string is taken verbatim so consumers can pass responsive grid-column
+  # classes (e.g. "grid-cols-4 lg:grid-cols-6 3xl:grid-cols-8").
+  defp cols_to_class(cols) when is_binary(cols), do: cols
   defp cols_to_class(1), do: "grid-cols-1"
   defp cols_to_class(2), do: "grid-cols-2"
   defp cols_to_class(3), do: "grid-cols-3"

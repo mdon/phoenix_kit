@@ -52,6 +52,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
   @behaviour PhoenixKit.Modules.Sitemap.Sources.Source
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.LocalePath
   alias PhoenixKit.Modules.Sitemap.RouteResolver
   alias PhoenixKit.Modules.Sitemap.UrlEntry
   alias PhoenixKit.Settings
@@ -199,7 +200,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
 
       UrlEntry.new(%{
         loc: url,
-        lastmod: Date.utc_today(),
+        lastmod: static_lastmod(path),
         changefreq: Map.get(config, "changefreq", "weekly"),
         priority: Map.get(config, "priority", 0.5),
         title: Map.get(config, "title", path),
@@ -224,7 +225,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
 
       UrlEntry.new(%{
         loc: url,
-        lastmod: Date.utc_today(),
+        lastmod: static_lastmod(path),
         changefreq: Map.get(config, "changefreq", "weekly"),
         priority: Map.get(config, "priority", 0.5),
         title: Map.get(config, "title", path),
@@ -236,6 +237,25 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
       nil
     end
   end
+
+  # For the homepage, use the newest published-content date across all
+  # publishing groups so crawlers see an honest "site was updated when its
+  # newest post landed" signal. Other static pages have no associated
+  # content date, so today's date is the best approximation.
+  defp static_lastmod("/") do
+    alias PhoenixKit.Modules.Sitemap.Sources.Publishing
+
+    if Code.ensure_loaded?(Publishing) and
+         function_exported?(Publishing, :latest_post_date_global, 0) do
+      Publishing.latest_post_date_global() || Date.utc_today()
+    else
+      Date.utc_today()
+    end
+  rescue
+    _ -> Date.utc_today()
+  end
+
+  defp static_lastmod(_path), do: Date.utc_today()
 
   # Resolve path from config: explicit path OR via RouteResolver
   defp resolve_path(%{"path" => path}) when is_binary(path) and path != "" do
@@ -265,23 +285,15 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
     "#{normalized_base}#{path}"
   end
 
-  # Add language prefix to path when in multi-language mode
-  # Single language: no prefix for anyone
-  # Multiple languages: ALL languages get prefix (including default)
-  defp build_path_with_language(path, language, _is_default) do
-    if language && !single_language_mode?() do
+  # Adds the locale segment to `path` when applicable. Decision rules
+  # live in `LocalePath.emit_prefix?/2` — see that module for the
+  # canonical policy shared across all sitemap sources. Static sitemap
+  # entries use the base code (no dialect suffix) for the segment.
+  defp build_path_with_language(path, language, is_default) do
+    if LocalePath.emit_prefix?(language, is_default) do
       "/#{Languages.DialectMapper.extract_base(language)}#{path}"
     else
       path
     end
-  end
-
-  # Check if we're in single language mode (no locale prefix needed)
-  # Returns true when languages module is off OR only one language is enabled
-  # Mirrors PublishingHTML.single_language_mode?/0 logic
-  defp single_language_mode? do
-    not Languages.enabled?() or length(Languages.get_enabled_languages()) <= 1
-  rescue
-    _ -> true
   end
 end

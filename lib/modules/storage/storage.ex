@@ -865,9 +865,14 @@ defmodule PhoenixKit.Modules.Storage do
 
   # ===== FOLDERS =====
 
-  @doc "Returns all folders as a flat list ordered by name, for building a tree."
+  @doc """
+  Returns all non-trashed folders as a flat list ordered by name, for
+  building a tree. Trashed folders are excluded — they live in the
+  trash bucket alongside trashed files and are read via
+  `list_trashed_folders/2`.
+  """
   def list_all_folders do
-    from(f in Folder, order_by: [asc: f.name])
+    from(f in Folder, where: is_nil(f.trashed_at), order_by: [asc: f.name])
     |> repo().all()
   end
 
@@ -908,17 +913,26 @@ defmodule PhoenixKit.Modules.Storage do
   def list_folders(parent_uuid \\ nil, scope_folder_id \\ nil)
 
   def list_folders(nil, nil) do
-    from(f in Folder, where: is_nil(f.parent_uuid), order_by: [asc: f.name])
+    from(f in Folder,
+      where: is_nil(f.parent_uuid) and is_nil(f.trashed_at),
+      order_by: [asc: f.name]
+    )
     |> repo().all()
   end
 
   def list_folders(nil, scope_folder_id) do
-    from(f in Folder, where: f.parent_uuid == ^scope_folder_id, order_by: [asc: f.name])
+    from(f in Folder,
+      where: f.parent_uuid == ^scope_folder_id and is_nil(f.trashed_at),
+      order_by: [asc: f.name]
+    )
     |> repo().all()
   end
 
   def list_folders(parent_uuid, _scope_folder_id) do
-    from(f in Folder, where: f.parent_uuid == ^parent_uuid, order_by: [asc: f.name])
+    from(f in Folder,
+      where: f.parent_uuid == ^parent_uuid and is_nil(f.trashed_at),
+      order_by: [asc: f.name]
+    )
     |> repo().all()
   end
 
@@ -962,6 +976,12 @@ defmodule PhoenixKit.Modules.Storage do
 
   Returns `{:error, :cycle}` if the move would create a circular reference.
   Returns `{:error, :out_of_scope}` if the folder or new parent is outside scope.
+
+  **`parent_uuid` semantics under scope:** omit `:parent_uuid` from `attrs`
+  for rename/recolor (no move is attempted). Pass an explicit value to
+  move — including `nil`, which means "move to the system's true root."
+  Under a non-nil scope, an explicit `parent_uuid: nil` fails with
+  `:out_of_scope` because the system root is outside the scope subtree.
   """
   def update_folder(folder, attrs, scope_folder_id \\ nil)
 
@@ -979,10 +999,19 @@ defmodule PhoenixKit.Modules.Storage do
 
   def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
     if within_scope?(folder.uuid, scope_folder_id) do
+      # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
+      # no move attempted) from "attrs has parent_uuid: nil" (an explicit
+      # move to the system root). The previous `new_parent &&` short-circuit
+      # treated both the same, letting a caller silently reparent a folder
+      # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
+      # explicit parent_uuid in attrs runs the scope check, and
+      # `within_scope?(nil, scope)` is false when scope is set, so a
+      # move-to-true-root attempt fails with `:out_of_scope`.
+      moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
       new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
       cond do
-        new_parent && not within_scope?(new_parent, scope_folder_id) ->
+        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
           {:error, :out_of_scope}
 
         new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
@@ -1035,6 +1064,193 @@ defmodule PhoenixKit.Modules.Storage do
         {:error, changeset} -> repo().rollback(changeset)
       end
     end)
+  end
+
+  @doc """
+  Soft-deletes a folder and everything underneath it (descendant folders +
+  files in the subtree). All affected rows get `trashed_at = now`; files
+  also get `status = "trashed"` to match the existing file-trash convention.
+  Restore via `restore_folder/2`, permanent delete via
+  `delete_folder_completely/2`.
+
+  Scope-guarded: returns `{:error, :out_of_scope}` if the folder is outside
+  the provided scope.
+  """
+  def trash_folder(folder, scope_folder_id \\ nil)
+
+  def trash_folder(%Folder{} = folder, scope_folder_id) when not is_nil(scope_folder_id) do
+    if within_scope?(folder.uuid, scope_folder_id) do
+      do_trash_folder(folder)
+    else
+      {:error, :out_of_scope}
+    end
+  end
+
+  def trash_folder(%Folder{} = folder, nil), do: do_trash_folder(folder)
+
+  defp do_trash_folder(%Folder{} = folder) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    subtree_uuids = folder_subtree_uuids(folder.uuid)
+
+    repo().transaction(fn ->
+      # Trash every folder in the subtree (including the root).
+      from(f in Folder, where: f.uuid in ^subtree_uuids)
+      |> repo().update_all(set: [trashed_at: now, updated_at: now])
+
+      # Trash every file whose folder is in the subtree. Files use both
+      # `status: "trashed"` and `trashed_at` (the V99 convention) so the
+      # existing file-listing filters (`status != "trashed"`) already
+      # hide them without further changes.
+      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+      |> repo().update_all(set: [status: "trashed", trashed_at: now, updated_at: now])
+
+      {:ok, folder}
+    end)
+    |> case do
+      {:ok, {:ok, f}} -> {:ok, f}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Restores a previously trashed folder and everything underneath it.
+  Reverses `trash_folder/2` — clears `trashed_at` on all subtree folders
+  and resets `status: "active", trashed_at: nil` on all files in the
+  subtree.
+  """
+  def restore_folder(folder, scope_folder_id \\ nil)
+
+  def restore_folder(%Folder{} = folder, scope_folder_id) when not is_nil(scope_folder_id) do
+    if within_scope?(folder.uuid, scope_folder_id) do
+      do_restore_folder(folder)
+    else
+      {:error, :out_of_scope}
+    end
+  end
+
+  def restore_folder(%Folder{} = folder, nil), do: do_restore_folder(folder)
+
+  defp do_restore_folder(%Folder{} = folder) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    subtree_uuids = folder_subtree_uuids(folder.uuid)
+
+    repo().transaction(fn ->
+      from(f in Folder, where: f.uuid in ^subtree_uuids)
+      |> repo().update_all(set: [trashed_at: nil, updated_at: now])
+
+      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+      |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+
+      {:ok, folder}
+    end)
+    |> case do
+      {:ok, {:ok, f}} -> {:ok, f}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Permanently deletes a (presumably trashed) folder and everything
+  underneath it. Files are removed via `delete_file_completely/1` so
+  backend storage cleanup runs; folders are deleted from the DB in
+  bottom-up order so foreign-key constraints stay happy.
+  """
+  def delete_folder_completely(folder, scope_folder_id \\ nil)
+
+  def delete_folder_completely(%Folder{} = folder, scope_folder_id)
+      when not is_nil(scope_folder_id) do
+    if within_scope?(folder.uuid, scope_folder_id) do
+      do_delete_folder_completely(folder)
+    else
+      {:error, :out_of_scope}
+    end
+  end
+
+  def delete_folder_completely(%Folder{} = folder, nil), do: do_delete_folder_completely(folder)
+
+  defp do_delete_folder_completely(%Folder{} = folder) do
+    subtree_uuids = folder_subtree_uuids(folder.uuid)
+
+    # Pull files first (need them for storage-backend cleanup via
+    # `delete_file_completely/1`), then delete bottom-up.
+    files =
+      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+      |> repo().all()
+
+    Enum.each(files, &delete_file_completely/1)
+
+    # Delete folders from deepest first so parent_uuid foreign keys
+    # don't break. `folder_subtree_uuids/1` walks breadth-first; reverse
+    # gives us leaves-first ordering.
+    Enum.each(Enum.reverse(subtree_uuids), fn uuid ->
+      case repo().get(Folder, uuid) do
+        nil -> :ok
+        f -> repo().delete(f)
+      end
+    end)
+
+    {:ok, folder}
+  end
+
+  @doc """
+  Walks the folder tree from `root_uuid` down and returns every descendant
+  folder uuid, including the root itself.
+
+  Used by trash, restore, and permanent-delete to determine the affected
+  subtree in one pass, and by scoped media listings that should include
+  files in nested folders.
+  """
+  def folder_subtree_uuids(root_uuid) do
+    Stream.unfold([root_uuid], fn
+      [] ->
+        nil
+
+      pending ->
+        children =
+          from(f in Folder, where: f.parent_uuid in ^pending, select: f.uuid)
+          |> repo().all()
+
+        {pending, children}
+    end)
+    |> Enum.to_list()
+    |> List.flatten()
+  end
+
+  @doc "Returns trashed folders ordered by trashed_at descending, with optional scope."
+  def list_trashed_folders(scope_folder_id \\ nil, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    query =
+      from(f in Folder,
+        where: not is_nil(f.trashed_at),
+        order_by: [desc: f.trashed_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+
+    query =
+      if scope_folder_id do
+        from(f in query, where: f.uuid != ^scope_folder_id)
+      else
+        query
+      end
+
+    repo().all(query)
+  end
+
+  @doc "Counts trashed folders (with optional scope)."
+  def count_trashed_folders(scope_folder_id \\ nil) do
+    query = from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
+
+    query =
+      if scope_folder_id do
+        from(f in query, where: f.uuid != ^scope_folder_id)
+      else
+        query
+      end
+
+    repo().one(query) || 0
   end
 
   @doc """
@@ -1158,6 +1374,7 @@ defmodule PhoenixKit.Modules.Storage do
       query =
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
+        |> exclude_system_managed()
 
       total = repo().aggregate(query, :count, :uuid)
 
@@ -1334,6 +1551,7 @@ defmodule PhoenixKit.Modules.Storage do
   def list_files(opts \\ []) do
     PhoenixKit.Modules.Storage.File
     |> where([f], f.status != "trashed")
+    |> exclude_system_managed()
     |> maybe_filter_by_bucket(opts[:bucket_uuid])
     |> maybe_order_by(opts[:order_by])
     |> maybe_limit(opts[:limit])
@@ -1341,11 +1559,38 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
+  # Filters out system-managed File rows (Tessera tile chunks + manifests)
+  # so they never appear in user-facing listings. Use this in every
+  # `list_*` / `count_*` query that powers the MediaBrowser.
+  defp exclude_system_managed(query) do
+    where(query, [f], f.system_managed == false)
+  end
+
   @doc """
   Gets a single file by ID.
   """
   def get_file(id) when is_binary(id),
     do: repo().get(PhoenixKit.Modules.Storage.File, id)
+
+  @doc """
+  Fetches multiple files by UUID in a single query and returns them ordered to
+  match `uuids`. Missing UUIDs are silently omitted from the result.
+  """
+  def get_files(uuids) when is_list(uuids) do
+    if uuids == [] do
+      []
+    else
+      rows =
+        from(f in PhoenixKit.Modules.Storage.File, where: f.uuid in ^uuids)
+        |> repo().all()
+
+      # Preserve the caller's ordering: uuids may carry semantic order (e.g. drag-drop).
+      # Duplicate UUIDs in the input produce duplicate structs in the output — callers
+      # are responsible for deduplicating if uniqueness is required.
+      uuid_index = Map.new(rows, &{&1.uuid, &1})
+      Enum.flat_map(uuids, fn id -> if f = uuid_index[id], do: [f], else: [] end)
+    end
+  end
 
   @doc """
   Calculates user-specific file checksum (salted with user_uuid).
@@ -1395,6 +1640,183 @@ defmodule PhoenixKit.Modules.Storage do
     %PhoenixKit.Modules.Storage.File{}
     |> PhoenixKit.Modules.Storage.File.changeset(attrs)
     |> repo().insert()
+  end
+
+  @doc """
+  Persists a system-managed chunk (e.g. a Tessera DZI tile or manifest)
+  into every configured bucket *and* into the storage DB as a File row
+  with a single `"original"` FileInstance.
+
+  System-managed Files:
+
+    * have `system_managed: true`
+    * carry a `parent_file_uuid` pointing at the source File that this
+      chunk was derived from — used for cascade cleanup (the FK in V112
+      is `ON DELETE :delete_all`)
+    * have no `user_uuid` (the changeset's `validate_system_managed_invariants`
+      requires the parent instead)
+    * skip the variant pipeline (see `VariantGenerator.should_generate_variants?/1`)
+    * are excluded from MediaBrowser listings
+
+  ## Required opts
+
+    * `:parent_file_uuid` — the source image's UUID
+    * `:mime_type` — content type
+    * `:size` — content size in bytes (taken from disk if omitted)
+
+  ## Optional opts
+
+    * `:file_type` — defaults to `"tile"`
+    * `:width` / `:height` — dimensions, if known
+    * `:metadata` — JSONB payload (e.g. tile coords)
+
+  Returns `{:ok, %{file: file, instance: instance}}` or `{:error, reason}`.
+  """
+  def store_system_file(content_path, key, opts) do
+    parent_file_uuid = Keyword.fetch!(opts, :parent_file_uuid)
+    mime_type = Keyword.fetch!(opts, :mime_type)
+    file_type = Keyword.get(opts, :file_type, "tile")
+
+    # Short-circuit when a prior concurrent generation already produced
+    # the row. V113's `phoenix_kit_files_system_dedup_index` makes
+    # `(parent_file_uuid, file_name)` unique-where-system_managed, so this
+    # SELECT is the cheap path of the double-checked-locking pattern that
+    # `FileController.serve_tile/2` uses (mutex + re-check + insert).
+    case existing_system_file(parent_file_uuid, key) do
+      {:ok, file, instance} ->
+        {:ok, %{file: file, instance: instance}}
+
+      :not_found ->
+        do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts)
+    end
+  end
+
+  defp do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts) do
+    with {:ok, _info} <- Manager.store_file(content_path, path_prefix: key),
+         {:ok, size} <- file_size(content_path, opts),
+         checksum <- calculate_file_hash(content_path),
+         file_attrs = %{
+           original_file_name: Path.basename(key),
+           file_name: key,
+           file_path: Path.dirname(key),
+           mime_type: mime_type,
+           file_type: file_type,
+           ext: Path.extname(key),
+           file_checksum: checksum,
+           user_file_checksum: checksum,
+           size: size,
+           width: Keyword.get(opts, :width),
+           height: Keyword.get(opts, :height),
+           status: "active",
+           metadata: Keyword.get(opts, :metadata),
+           system_managed: true,
+           parent_file_uuid: parent_file_uuid
+         },
+         {:ok, file} <- insert_or_fetch_system_file(file_attrs, parent_file_uuid, key),
+         instance_attrs = %{
+           variant_name: "original",
+           file_name: key,
+           mime_type: mime_type,
+           ext: Path.extname(key),
+           checksum: checksum,
+           size: size,
+           width: Keyword.get(opts, :width),
+           height: Keyword.get(opts, :height),
+           processing_status: "completed",
+           file_uuid: file.uuid
+         },
+         {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
+      {:ok, %{file: file, instance: instance}}
+    end
+  end
+
+  defp existing_system_file(parent_file_uuid, file_name) do
+    query =
+      from(f in PhoenixKit.Modules.Storage.File,
+        where:
+          f.system_managed == true and
+            f.parent_file_uuid == ^parent_file_uuid and
+            f.file_name == ^file_name,
+        limit: 1
+      )
+
+    case repo().one(query) do
+      nil ->
+        :not_found
+
+      file ->
+        instance =
+          repo().one(
+            from(i in PhoenixKit.Modules.Storage.FileInstance,
+              where: i.file_uuid == ^file.uuid and i.variant_name == "original",
+              limit: 1
+            )
+          )
+
+        {:ok, file, instance}
+    end
+  end
+
+  defp insert_or_fetch_system_file(attrs, parent_file_uuid, file_name) do
+    case create_file(attrs) do
+      {:ok, file} ->
+        {:ok, file}
+
+      {:error, %Ecto.Changeset{errors: errors}} = err ->
+        # Lost the race against a concurrent writer — the dedup index
+        # surfaces as a unique-constraint violation on the changeset.
+        # Re-fetch the row the other writer just inserted.
+        if has_unique_violation?(errors) do
+          case existing_system_file(parent_file_uuid, file_name) do
+            {:ok, file, _instance} -> {:ok, file}
+            :not_found -> err
+          end
+        else
+          err
+        end
+    end
+  end
+
+  defp insert_or_fetch_system_instance(attrs, file_uuid) do
+    case create_file_instance(attrs) do
+      {:ok, instance} ->
+        {:ok, instance}
+
+      {:error, %Ecto.Changeset{errors: errors}} = err ->
+        if has_unique_violation?(errors) do
+          instance =
+            repo().one(
+              from(i in PhoenixKit.Modules.Storage.FileInstance,
+                where: i.file_uuid == ^file_uuid and i.variant_name == "original",
+                limit: 1
+              )
+            )
+
+          if instance, do: {:ok, instance}, else: err
+        else
+          err
+        end
+    end
+  end
+
+  defp has_unique_violation?(errors) do
+    Enum.any?(errors, fn
+      {_field, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
+    end)
+  end
+
+  defp file_size(path, opts) do
+    case Keyword.get(opts, :size) do
+      n when is_integer(n) and n > 0 ->
+        {:ok, n}
+
+      _ ->
+        case Elixir.File.stat(path) do
+          {:ok, %{size: size}} when size > 0 -> {:ok, size}
+          _ -> {:error, :invalid_size}
+        end
+    end
   end
 
   @doc """
@@ -1491,10 +1913,11 @@ defmodule PhoenixKit.Modules.Storage do
     protected_uuids = protected_file_uuids()
 
     # Core check — phoenix_kit_users always exists; exclude trashed files
+    # and system-managed media (tile chunks never count as orphans).
     base =
       from(f in PhoenixKit.Modules.Storage.File,
         where:
-          f.status != "trashed" and
+          f.status != "trashed" and f.system_managed == false and
             fragment(
               "NOT EXISTS (SELECT 1 FROM phoenix_kit_users u WHERE u.custom_fields->>'avatar_file_uuid' = ?::text)",
               f.uuid
@@ -2020,7 +2443,9 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp build_trashed_query(nil) do
-    from(f in PhoenixKit.Modules.Storage.File, where: f.status == "trashed")
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.status == "trashed" and f.system_managed == false
+    )
   end
 
   defp build_trashed_query(scope_folder_id) do
@@ -2042,7 +2467,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in PhoenixKit.Modules.Storage.File,
       join: d in "scope_descendants",
       on: f.folder_uuid == d.uuid,
-      where: f.status == "trashed"
+      where: f.status == "trashed" and f.system_managed == false
     )
     |> with_cte("scope_descendants", as: ^cte)
     |> recursive_ctes(true)
@@ -2604,7 +3029,11 @@ defmodule PhoenixKit.Modules.Storage do
     end)
   end
 
-  # Check if other File records share the same storage path
+  # Check if other File records share the same storage path. Returns
+  # false when this file has no path — nothing to share, and Ecto
+  # forbids `column == nil` for safety so we short-circuit explicitly.
+  defp other_files_share_path?(%{file_path: nil}), do: false
+
   defp other_files_share_path?(file) do
     PhoenixKit.Modules.Storage.File
     |> where([f], f.file_path == ^file.file_path and f.uuid != ^file.uuid)

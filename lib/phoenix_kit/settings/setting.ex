@@ -96,6 +96,16 @@ defmodule PhoenixKit.Settings.Setting do
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
+  @type t :: %__MODULE__{
+          uuid: String.t() | nil,
+          key: String.t() | nil,
+          value: String.t() | nil,
+          value_json: map() | nil,
+          module: String.t() | nil,
+          date_added: DateTime.t() | nil,
+          date_updated: DateTime.t() | nil
+        }
+
   schema "phoenix_kit_settings" do
     field :key, :string
     field :value, :string

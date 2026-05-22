@@ -74,6 +74,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
   attr :label, :string, default: "Actions"
   attr :mode, :string, default: "dropdown", values: ["dropdown", "inline", "auto"]
   attr :class, :string, default: nil
+  attr :trigger_class, :string, default: nil
 
   slot :inner_block, required: true
 
@@ -117,13 +118,19 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
         aria-label={@label}
         aria-expanded="false"
         aria-haspopup="menu"
-        class="btn btn-xs btn-ghost btn-circle"
+        class={["btn btn-xs btn-ghost btn-circle", @trigger_class]}
       >
         <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
       </button>
 
-      <%!-- Floating menu — hidden by default, positioned via JS hook --%>
+      <%!-- Floating menu — hidden by default, positioned via JS hook.
+           Stable id: the RowMenu hook portals this <ul> to <body> while
+           open (so `position: fixed` escapes table containing blocks). A
+           server diff to this row while the menu is open would otherwise
+           make morphdom re-create a duplicate <ul> inside the wrapper —
+           the hook's `updated()` callback drops that duplicate. --%>
       <ul
+        id={"#{@id}-content"}
         data-row-menu-content
         role="menu"
         class="hidden fixed z-[9999] min-w-[10rem] rounded-box bg-base-100 border border-base-200 shadow-xl p-1 focus:outline-none"

@@ -14,6 +14,8 @@ defmodule PhoenixKit.Modules.Shared.Components.Video do
   """
   use Phoenix.Component
 
+  alias PhoenixKit.Utils.Values
+
   @standard_youtube_hosts [
     "youtube.com",
     "www.youtube.com",
@@ -35,7 +37,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Video do
     video_id =
       attrs
       |> Map.get("video_id")
-      |> presence() || extract_video_id(Map.get(attrs, "url"))
+      |> Values.presence() || extract_video_id(Map.get(attrs, "url"))
 
     assigns =
       assigns
@@ -135,15 +137,6 @@ defmodule PhoenixKit.Modules.Shared.Components.Video do
   end
 
   defp extract_video_id(_), do: nil
-
-  defp presence(nil), do: nil
-
-  defp presence(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  defp presence(_), do: nil
 
   defp truthy?(true), do: true
   defp truthy?(false), do: false

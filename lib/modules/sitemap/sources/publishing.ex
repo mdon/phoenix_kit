@@ -50,6 +50,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.LocalePath
   alias PhoenixKit.Modules.Sitemap.UrlEntry
 
   @publishing_mod PhoenixKit.Modules.Publishing
@@ -166,7 +167,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
 
       UrlEntry.new(%{
         loc: url,
-        lastmod: nil,
+        lastmod: latest_post_date(slug, language),
         changefreq: "daily",
         priority: 0.7,
         title: name,
@@ -392,6 +393,53 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     end
   end
 
+  # Latest lastmod among published posts in a group (drives group listing <lastmod>).
+  defp latest_post_date(group_slug, language) do
+    post_language = language || get_default_language()
+
+    @publishing_mod.list_posts(group_slug, post_language)
+    |> Enum.filter(&published?/1)
+    |> Enum.reject(&excluded?/1)
+    |> Enum.map(&get_post_lastmod/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max(Date, fn -> nil end)
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  Max post lastmod across all included groups, using the default language.
+
+  Drives the homepage `<lastmod>` from `Sources.Static`. Equivalent to taking
+  `max(:lastmod)` across `collect/1`'s URL entries, but skips the URL-entry
+  construction work. One `list_posts/2` call per included group instead of
+  three (as in `collect/1`).
+  """
+  @spec latest_post_date_global() :: Date.t() | nil
+  def latest_post_date_global do
+    if enabled?() do
+      language = get_default_language()
+
+      dates =
+        @publishing_mod.list_groups()
+        |> Enum.reject(&group_excluded?/1)
+        |> Enum.flat_map(fn group ->
+          @publishing_mod.list_posts(group["slug"], language)
+          |> Enum.filter(&published?/1)
+          |> Enum.reject(&excluded?/1)
+          |> Enum.map(&get_post_lastmod/1)
+          |> Enum.reject(&is_nil/1)
+        end)
+
+      case dates do
+        [] -> nil
+        _ -> Enum.max(dates, Date)
+      end
+    end
+  rescue
+    _ -> nil
+  end
+
   defp get_post_lastmod(post) do
     case post do
       # Check metadata fields first (PhoenixKit Publishing uses published_at)
@@ -464,21 +512,20 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
     |> Enum.map_join(" ", &String.capitalize/1)
   end
 
-  # Build group path with PhoenixKit prefix and optional language
-  # Format: /{prefix}/{lang?}/{segments...}
-  # When in single language mode, no language prefix is added for anyone
-  # When in multi-language mode, ALL languages get prefix (including default)
-  defp build_group_path(segments, language, _is_default) do
+  # Builds group path with PhoenixKit prefix and optional language.
+  # Format: /{prefix}/{lang?}/{segments...}. The locale-segment policy
+  # lives in `LocalePath.emit_prefix?/2` — see that module for the
+  # canonical decision rules shared across all sitemap sources.
+  #
+  # Publishing emits the **display code** (`get_display_code/2`) for
+  # the language segment so hreflang entries match the controller's
+  # canonical URL logic — base code when only one dialect is enabled,
+  # full dialect code when multiple dialects are enabled.
+  defp build_group_path(segments, language, is_default) do
     prefix_parts = url_prefix_segments()
 
-    # Add language prefix when:
-    # 1. Language is specified
-    # 2. Multiple languages are enabled (not single language mode)
     lang_parts =
-      if language && !single_language_mode?() do
-        # Use display code to match controller's canonical URL logic
-        # This returns base code ("en") when single dialect enabled,
-        # or full code ("en-US") when multiple dialects enabled
+      if LocalePath.emit_prefix?(language, is_default) do
         [get_display_code(language)]
       else
         []
@@ -504,15 +551,6 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
       "/" -> []
       prefix -> prefix |> String.trim("/") |> String.split("/", trim: true)
     end
-  end
-
-  # Check if we're in single language mode (no locale prefix needed)
-  # Returns true when languages module is off OR only one language is enabled
-  # Mirrors PublishingHTML.single_language_mode?/0 logic
-  defp single_language_mode? do
-    not Languages.enabled?() or length(Languages.get_enabled_languages()) <= 1
-  rescue
-    _ -> true
   end
 
   # Get default language from the Languages module

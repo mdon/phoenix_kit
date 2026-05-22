@@ -63,7 +63,7 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
   mix run --eval "IO.puts Mix.Project.config[:version]"
   ls lib/phoenix_kit/migrations/postgres/v*.ex | sed 's/.*\/v\([0-9]*\)\.ex/\1/' | sort -rn | head -1
   ```
-- **CHANGELOG ownership:** entries written by the maintainer, not agents. If `@version` bump precedes the CHANGELOG entry, that's intentional — flag the gap and stop.
+- **CHANGELOG entries:** agents write the entry against the bumped `@version` heading. Match the existing style (Added / Changed / Fixed / i18n sections, bullets sourced from PR scopes + post-merge review fixes).
 - **PR reviews:** files go in `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md` (always `CLAUDE_REVIEW.md` for me). Severity levels: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
 - **Publish:** `mix hex.build`, `mix hex.publish`, `mix docs`.
 
@@ -394,7 +394,7 @@ Workspace-tracked items not ready for inline `# TODO` in `lib/`.
 
 `test/phoenix_kit_web/components/core/` doesn't exist yet. Components needing `Phoenix.LiveViewTest`-style coverage:
 
-- `<.draggable_list>` — `:draggable` attr conditionally hides SortableJS hook + `cursor-grab`. Both branches need rendered-HTML asserts.
+- `<.draggable_list>` — three-axis coverage: (a) `:draggable=false` → no SortableJS hook, no `cursor-grab`; (b) `:draggable=true, :sortable_handle=nil` → SortableJS hook + full-item `cursor-grab`; (c) `:draggable=true, :sortable_handle=".pk-drag-handle"` → SortableJS hook + `data-sortable-handle` attribute set, **no** `cursor-grab` on the item wrapper (caller's responsibility). All three branches need rendered-HTML asserts.
 - `<.table_default>` — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Both branches need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
 - `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch.
 - `<.flash>`, `<.modal>` if complexity has grown.

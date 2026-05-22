@@ -276,6 +276,40 @@
       </div>
     </div>
 
+    <%!-- URL Behavior Section --%>
+    <div class="card bg-base-100 shadow-xl mt-6">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-2">{gettext("URL Behavior")}</h2>
+        <p class="text-base-content/70 mb-4">
+          {gettext(
+            "Controls how the primary language appears in URLs across the site — admin pages, public pages, sitemap, and redirects."
+          )}
+        </p>
+
+        <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
+          <div class="flex items-center gap-3">
+            <.icon name="hero-link" class="w-5 h-5 text-base-content/70" />
+            <div>
+              <p class="font-medium">
+                {gettext("Default Language Without Prefix")}
+              </p>
+              <p class="text-xs text-base-content/60">
+                {gettext(
+                  "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
+                )}
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-primary"
+            checked={@default_language_no_prefix}
+            phx-click="toggle_default_language_no_prefix"
+          />
+        </div>
+      </div>
+    </div>
+
     <%!-- Frontend Language Switcher Component Section --%>
     <div class="card bg-base-100 shadow-xl mt-6">
       <div class="card-body">

@@ -97,20 +97,44 @@
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
-    <%!-- Filters and Search --%>
-    <div class="card bg-base-100 shadow-xl mb-6">
-      <div class="card-body p-4">
-        <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+    <%!-- Sessions Table / Cards --%>
+    <.table_default
+      id="live-sessions-table"
+      variant="zebra"
+      toggleable={true}
+      items={@sessions}
+      card_fields={
+        fn session ->
+          [
+            %{label: "IP Address", value: session.ip_address || "Unknown"},
+            %{label: "Current Page", value: session.current_page || "—"},
+            %{
+              label: "Connected",
+              value: Calendar.strftime(session.connected_at, "%H:%M:%S %d/%m/%Y")
+            },
+            %{label: "Status", value: "● Active"}
+          ]
+        end
+      }
+    >
+      <:toolbar_title>
+        <div class="flex flex-wrap items-center gap-2">
           <%!-- Search --%>
-          <div class="flex-1 max-w-md">
-            <.search_toolbar
-              value={@search_query}
-              placeholder="Search by IP, User-Agent, email..."
-            />
-          </div>
-
+          <form phx-change="search" class="contents">
+            <label class="input input-sm w-40 sm:w-52 lg:w-64 min-w-0">
+              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
+              <input
+                type="search"
+                name="search"
+                value={@search_query}
+                placeholder="Search by IP, User-Agent, email..."
+                class="grow"
+                phx-debounce="300"
+              />
+            </label>
+          </form>
           <%!-- Filter Tabs --%>
-          <div class="tabs tabs-boxed">
+          <div class="tabs tabs-boxed tabs-sm">
             <button
               phx-click="filter_by"
               phx-value-type="all"
@@ -134,29 +158,7 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <%!-- Sessions Table / Cards --%>
-    <.table_default
-      id="live-sessions-table"
-      variant="zebra"
-      toggleable={true}
-      items={@sessions}
-      card_fields={
-        fn session ->
-          [
-            %{label: "IP Address", value: session.ip_address || "Unknown"},
-            %{label: "Current Page", value: session.current_page || "—"},
-            %{
-              label: "Connected",
-              value: Calendar.strftime(session.connected_at, "%H:%M:%S %d/%m/%Y")
-            },
-            %{label: "Status", value: "● Active"}
-          ]
-        end
-      }
-    >
+      </:toolbar_title>
       <:card_header :let={session}>
         <div class="flex items-start justify-between gap-2">
           <%= if session.type == :authenticated do %>

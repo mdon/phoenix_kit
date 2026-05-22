@@ -1,12 +1,12 @@
-<%!-- Media Selector Modal Overlay --%>
-<div
+<dialog
   id="media-selector-modal-backdrop"
-  class={[
-    "fixed inset-0 z-[10001] overflow-y-auto bg-base-300/80 backdrop-blur-sm transition-opacity",
-    if(@show, do: "opacity-100 pointer-events-auto", else: "opacity-0 pointer-events-none")
-  ]}
+  class="fixed inset-0 z-[10001] m-0 h-full max-h-none w-full max-w-none overflow-y-auto border-0 bg-base-300/80 p-0 backdrop-blur-sm"
+  phx-hook="PkDialog"
+  data-show={to_string(@show)}
+  data-close-event="close_modal"
   phx-click="close_modal"
   phx-target={@myself}
+  aria-labelledby="media-selector-modal-title"
 >
   <%!-- Modal Container --%>
   <div class="min-h-screen px-2 py-2 sm:px-4 sm:py-6 flex items-center justify-center">
@@ -21,18 +21,26 @@
         <div class="flex flex-col gap-3">
           <div class="flex justify-between items-start">
             <div>
-              <h2 class="text-xl sm:text-2xl font-bold text-base-content">
-                Select Media
+              <h2
+                id="media-selector-modal-title"
+                class="text-xl sm:text-2xl font-bold text-base-content"
+              >
+                {gettext("Select Media")}
               </h2>
               <p class="text-base-content/70 text-sm mt-1">
                 <%= if @mode == :single do %>
-                  Click on an image to select it
+                  {gettext("Click on an image to select it")}
                 <% else %>
-                  Select one or more images
+                  {gettext("Select one or more images")}
                 <% end %>
                 <%= if MapSet.size(@selected_uuids) > 0 do %>
                   <span class="badge badge-primary ml-2">
-                    {MapSet.size(@selected_uuids)} selected
+                    {ngettext(
+                      "%{count} selected",
+                      "%{count} selected",
+                      MapSet.size(@selected_uuids),
+                      count: MapSet.size(@selected_uuids)
+                    )}
                   </span>
                 <% end %>
               </p>
@@ -53,7 +61,7 @@
               phx-target={@myself}
               class="btn btn-outline btn-sm flex-1 sm:flex-none"
             >
-              Cancel
+              {gettext("Cancel")}
             </button>
             <button
               type="button"
@@ -62,7 +70,7 @@
               class="btn btn-primary btn-sm flex-1 sm:flex-none"
               disabled={MapSet.size(@selected_uuids) == 0}
             >
-              <.icon name="hero-check" class="w-4 h-4" /> Confirm
+              <.icon name="hero-check" class="w-4 h-4" /> {gettext("Confirm")}
             </button>
           </div>
         </div>
@@ -74,14 +82,16 @@
           <div class="alert alert-warning">
             <.icon name="hero-exclamation-triangle" class="stroke-current shrink-0 h-6 w-6" />
             <div>
-              <h3 class="font-bold">No Storage Buckets Configured</h3>
+              <h3 class="font-bold">{gettext("No Storage Buckets Configured")}</h3>
               <div class="text-sm mt-1">
-                You need to configure at least one storage bucket before you can upload files.
+                {gettext(
+                  "You need to configure at least one storage bucket before you can upload files."
+                )}
                 <.link
                   navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
                   class="link link-primary font-semibold"
                 >
-                  Configure Storage Buckets
+                  {gettext("Configure Storage Buckets")}
                 </.link>
               </div>
             </div>
@@ -94,7 +104,7 @@
         ]}>
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-3 flex items-center gap-2">
-              <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Upload New Files
+              <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> {gettext("Upload New Files")}
             </h3>
             <%= if @has_buckets do %>
               <form phx-change="validate" phx-submit="save" phx-target={@myself}>
@@ -111,10 +121,10 @@
                       <.icon name="hero-cloud-arrow-up" class="w-8 h-8 text-primary" />
                       <div>
                         <p class="font-semibold text-base-content text-sm">
-                          Drag files here or click to browse
+                          {gettext("Drag files here or click to browse")}
                         </p>
                         <p class="text-xs text-base-content/70 mt-1">
-                          Images, videos, or documents
+                          {gettext("Images, videos, or documents")}
                         </p>
                       </div>
                     </div>
@@ -149,7 +159,7 @@
                           phx-value-ref={entry.ref}
                           phx-target={@myself}
                           class="btn btn-xs btn-ghost text-error"
-                          title="Cancel upload"
+                          title={gettext("Cancel upload")}
                         >
                           <.icon name="hero-x-mark" class="w-4 h-4" />
                         </button>
@@ -165,10 +175,10 @@
                   <.icon name="hero-cloud-arrow-up" class="w-8 h-8 text-base-content/50" />
                   <div>
                     <p class="font-semibold text-base-content/70 text-sm">
-                      Upload disabled
+                      {gettext("Upload disabled")}
                     </p>
                     <p class="text-xs text-base-content/50 mt-1">
-                      Configure storage buckets to enable uploads
+                      {gettext("Configure storage buckets to enable uploads")}
                     </p>
                   </div>
                 </div>
@@ -188,7 +198,7 @@
                       type="text"
                       name="search[query]"
                       value={@search_query}
-                      placeholder="Search by filename..."
+                      placeholder={gettext("Search by filename...")}
                       class="input input-bordered input-sm join-item flex-1"
                     />
                     <button type="submit" class="btn btn-primary btn-sm join-item">
@@ -205,12 +215,14 @@
                     phx-target={@myself}
                     name="filter"
                   >
-                    <option value="all" selected={@file_type_filter == :all}>All Files</option>
+                    <option value="all" selected={@file_type_filter == :all}>
+                      {gettext("All Files")}
+                    </option>
                     <option value="image" selected={@file_type_filter == :image}>
-                      Images Only
+                      {gettext("Images Only")}
                     </option>
                     <option value="video" selected={@file_type_filter == :video}>
-                      Videos Only
+                      {gettext("Videos Only")}
                     </option>
                   </select>
                 </label>
@@ -222,9 +234,9 @@
         <%= if Enum.empty?(@uploaded_files) do %>
           <div class="text-center py-8">
             <.icon name="hero-photo" class="w-12 h-12 mx-auto mb-3 text-base-content/30" />
-            <p class="text-sm text-base-content/70 mb-1">No media files found</p>
+            <p class="text-sm text-base-content/70 mb-1">{gettext("No media files found")}</p>
             <p class="text-xs text-base-content/50">
-              Upload files using the area above or adjust your search filters
+              {gettext("Upload files using the area above or adjust your search filters")}
             </p>
           </div>
         <% else %>
@@ -343,4 +355,4 @@
       </div>
     </div>
   </div>
-</div>
+</dialog>

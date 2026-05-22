@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
   @doc """
   Renders user dropdown for dashboard navigation.
@@ -45,7 +46,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
         <ul
           tabindex="0"
-          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto flex-nowrap"
         >
           <li class="menu-title px-4 py-2">
             <div class="flex flex-col gap-1">
@@ -64,7 +65,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
                 class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/admin"), do: " bg-primary text-primary-content", else: "")}
               >
                 <.icon name="hero-shield-check" class="w-4 h-4" />
-                <span>Admin Panel</span>
+                <span>{gettext("Admin Panel")}</span>
               </.link>
             </li>
             <%= if @admin_edit_url do %>
@@ -108,17 +109,27 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
               <span class="text-xs">Language</span>
             </li>
 
-            <%!-- Scrollable container when there are many languages --%>
-            <div class={[
-              length(user_languages) > 6 && "max-h-48 overflow-y-auto"
-            ]}>
-              <%= for language <- user_languages do %>
-                <li>
+            <%!--
+              Independently scrollable language list — caps at ~5 visible rows.
+              Anchors are styled directly (no nested daisyUI <ul class="menu">) so
+              the parent menu doesn't apply submenu indent or li-child padding
+              that would otherwise force horizontal scroll and leave a weird
+              left indent. See admin_nav.ex for the matching pattern.
+            --%>
+            <li class="p-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+              <div class="!p-0 block w-full max-h-60 overflow-y-auto overflow-x-hidden !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+                <%= for language <- user_languages do %>
                   <a
                     href={generate_language_switch_url(@current_path, language.code)}
                     class={[
-                      "flex items-center gap-3",
-                      if(language.code == @current_locale, do: "active", else: "")
+                      "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
+                      "focus:outline-none focus-visible:outline-none",
+                      if(language.code == @current_locale,
+                        do:
+                          "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
+                        else:
+                          "!text-base-content hover:bg-base-200 hover:!text-base-content focus:!text-base-content active:!text-base-content active:!bg-base-300"
+                      )
                     ]}
                   >
                     <span class="text-lg">{get_language_flag(language.code)}</span>
@@ -127,9 +138,9 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
                       <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
                     <% end %>
                   </a>
-                </li>
-              <% end %>
-            </div>
+                <% end %>
+              </div>
+            </li>
           <% end %>
 
           <div class="divider my-0"></div>
@@ -169,7 +180,12 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
         [%{code: "en-US", name: "English (United States)", is_enabled: true}]
       end
 
-    # Map to expected format with enriched data from predefined languages
+    # Map to expected format with enriched data from predefined languages.
+    # The final `dedupe_names/1` call drops the country qualifier when
+    # only one dialect of a given base language is configured — the
+    # same rule the frontend switcher applies, called from its
+    # canonical home in `Core.LanguageSwitcher` so the logic lives in
+    # one place.
     languages
     |> Enum.map(fn lang ->
       case Languages.get_predefined_language(lang.code) do
@@ -180,6 +196,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
           %{code: lang.code, name: String.upcase(lang.code), flag: "🌐", native: ""}
       end
     end)
+    |> LanguageSwitcher.dedupe_names()
   end
 
   # Helper function to get language flag emoji

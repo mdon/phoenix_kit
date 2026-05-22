@@ -1,3 +1,603 @@
+## 1.7.119 - 2026-05-22
+
+### Changed
+- `PhoenixKitWeb.Components.Core.TableDefault` — `:class` attr widened from
+  `:string` to `:any` on all 7 `table_default*` components, so the
+  Phoenix-idiomatic `class={[if(...), ...]}` list form compiles without an attr
+  warning. The components already wrap `@class` in a flattened list, so there is
+  no rendered-output change for existing string callers (PR #565).
+- `PhoenixKitWeb.Components.MultilangForm` — the standalone info alert is now a
+  hover/focus tooltip on an info icon beside the "Content Language" header, and
+  the default loading skeleton uses `bg-base-content/15 animate-pulse` instead of
+  daisyUI's near-invisible `.skeleton`, so the loading state is visible on
+  `bg-base-100` cards (PR #565).
+- `Translation.handle_ai_response/2` extracts the OpenAI-shaped completion
+  content inline rather than via `PhoenixKitAI.Completion.extract_content/1`,
+  dropping the cross-module dependency on the optional AI plugin — works whether
+  the plugin is present, absent, or stubbed (PR #565).
+- Dependency bumps: `etcher` 0.4.8 → 0.4.9, `fresco` 0.5.5 → 0.5.8,
+  `floki` 0.38.2 → 0.38.3.
+
+### Fixed
+- AI translation parser no longer leaks an unrequested marker's content into the
+  preceding field. A field capture now terminates at any line-anchored
+  `\n---<NAME>---` marker, not just the requested-field markers — so a model
+  emitting an extra `---TITLE---` (e.g. from an unbound `{{title}}` template
+  variable) no longer rolls that block into the prior `---NAME---` field. The
+  newline anchor keeps literal mid-paragraph `---WORD---` tokens (technical docs,
+  API examples) inside the capture (PR #565).
+- AI translation empty sections resolve consistently to `""`. A present-but-empty
+  trailing marker now records `""` instead of failing the whole response with
+  `{:parse_error, {:missing_fields, ...}}`, matching how an empty middle section
+  already resolved. A genuinely absent marker still reports `missing_fields`, so
+  the "model forgot a marker" signal is preserved (follow-up to PR #565).
+
+## 1.7.118 - 2026-05-21
+
+### Added
+- `card_grid_class` attr on `PhoenixKitWeb.Components.Core.TableDefault` —
+  overrides the card-view grid layout (column density, gaps) without touching
+  the component. Default unchanged. Must be layout-only (no `display` utility —
+  the component sets `grid`/`hidden` per view-mode branch) and a literal in a
+  Tailwind-scanned source so the classes compile (PR #561).
+- Responsive `cols` on `PhoenixKitWeb.Components.Core.DraggableList` (and the
+  `MediaGallery` passthrough) — `:cols` now accepts a string of Tailwind
+  grid-column classes (e.g. `"grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"`) for a
+  responsive thumbnail grid, in addition to an integer 1..6. Any other value
+  (out-of-range integer, atom, …) falls back to `grid-cols-4` (PR #561).
+
+### Changed
+- `MediaGallery` now hides the Add tile entirely once the selection reaches
+  `max_count` (or 1 in `:single` mode), instead of rendering it disabled and
+  greyed. Supersedes the disable-at-limit behavior shipped in 1.7.117 (PR #561).
+- Magic-link registration request sends the email via `start_async`, so the
+  submit is non-blocking and the in-flight spinner renders, matching the
+  password-less magic-link login flow. Replaces the prior `phx-disable-with`
+  (follow-up to PR #559).
+- Dependency bumps: `etcher` 0.4.6 → 0.4.8, `fresco` 0.5.4 → 0.5.5,
+  `ex_doc` 0.40.2 → 0.40.3.
+
+### Fixed
+- AI translation no longer fails on every real request.
+  `Translation.translate_fields/6` was treating `PhoenixKitAI.ask_with_prompt/4`'s
+  OpenAI-shaped response map (`%{"choices" => [...]}`) as `:unexpected_response`
+  and erroring out. The success branch now routes map responses through
+  `PhoenixKitAI.Completion.extract_content/1` (the helper publishing's
+  `TranslatePostWorker` already uses), with a raw-binary fallback so test stubs
+  and older plugin versions keep working (PR #560).
+- `Translation.translate_fields/6` rejects an empty `fields` map up front with
+  `{:error, {:parse_error, :no_markers}}` instead of rendering a field-less
+  prompt and spending an AI request that only fails downstream in the parser
+  (PR #558).
+- Auth-form submit buttons no longer overflow their card.
+  `<fieldset>`'s browser-default `min-width: min-content` let the fieldset — and
+  its `w-full` submit button — grow past the form width; `min-w-0` is now applied
+  to the six remaining auth-form fieldsets. Also dropped `phx-disable-with` on
+  the magic-link login form, where it collided with the `@loading` branch and
+  made LiveView's diff merger inject a stray SVG into the button (PR #559).
+
+## 1.7.117 - 2026-05-21
+
+### Added
+- `PhoenixKit.Modules.AI` — core-side conveniences for the optional
+  `PhoenixKitAI` plugin. `available?/0` is a module-loadability check (loaded
+  AND exports `ask_with_prompt/4`); gate AI-driven UI on it so apps without the
+  plugin fall back to non-AI behavior automatically (PR #557).
+- `PhoenixKit.Modules.AI.Translation` — shared AI-translation orchestration
+  reused by every feature module that wants AI translation. `translate_fields/6`
+  takes a `%{field_name => text}` map and returns the same shape, or a
+  normalized `{:error, atom_or_tuple}` covering every failure mode (missing
+  endpoint/prompt, plugin absent, duplicate/partial markers, AI exception/exit).
+  `parse_response/2` is the public, case-insensitive `---FIELD_NAME---` parser.
+  Each dispatch writes one `core.ai_translation.requested` activity entry for a
+  unified token-spend audit trail (PR #557).
+- `ai_translate` attr on `LanguageSwitcher.language_switcher_dropdown` — opt-in
+  affordance that renders a per-missing-language sparkle button plus a bulk
+  "translate all missing" CTA. The component is pure event-emit (no
+  `PhoenixKitAI` reference): it fires the host's `phx-click` event and the host
+  enqueues its own translation worker. `nil`/`enabled: false` = today's behavior
+  (PR #557).
+- `max_count` attr on `PhoenixKitWeb.Components.MediaGallery` — caps the number
+  of selected images in `:multiple` mode and disables the Add button at the
+  limit (defence-in-depth: `apply_selection` also clamps). `nil` = unlimited;
+  `:single` mode implies a limit of 1 (PR #556).
+- `card_media` slot on `PhoenixKitWeb.Components.Core.TableDefault` — optional
+  media region (thumbnail / cover image / document preview) rendered above the
+  card body in card view; the slot owns its own padding/background (PR #556).
+- Controlled `view_mode` (+ `view_event`) on `TableDefault` — pass
+  `view_mode="card"|"table"` to take the card⇄table toggle from assigns instead
+  of the default JS hook + localStorage. The component then renders only that
+  view and the toolbar buttons emit `view_event` with `phx-value-mode`, so the
+  view choice can be URL-backed (`push_patch`) or survive LV navigation (PR #556).
+- `class` attr on `TableDefault.table_default_header` — override the header
+  styling per call site (PR #556).
+
+### Changed
+- `TableDefault.table_default_header` default changed from
+  `bg-primary text-primary-content` to `bg-base-300` — a calmer, theme-neutral
+  header that reads as a subtle separator from `<tbody>`. This affects every
+  `<.table_default_header>` that does not pass an explicit `class`. Pass
+  `class="bg-primary text-primary-content"` to restore the previous look, or
+  `class=""` for a bare header (PR #556).
+- `MediaGallery` in `:single` mode now disables the Add button once an image is
+  selected; replace the image via the per-thumbnail Remove (✕) then Add. The
+  selection cap of 1 is unchanged (PR #556).
+
+## 1.7.116 - 2026-05-20
+
+### Added
+- `Languages.prefixless_primary_safe?/0` — boot- and mix-task-safe wrapper
+  around `default_language_no_prefix?/0`. Returns `false` during mix-task
+  context (via the same `:phoenix_kit_config_status` sentinel `Routes.path/1`
+  uses) and rescues any other lookup exception to `false`. Use from
+  boot/middleware contexts where the Settings table may not be reachable;
+  `default_language_no_prefix?/0` remains the runtime entry point.
+  `Routes.path/1` and `PhoenixKitWeb.Users.Auth` now both delegate to this
+  canonical implementation (PR #554).
+- `PhoenixKit.Modules.Sitemap.LocalePath` — shared `emit_prefix?/2`
+  decision rule for the three sitemap sources (`publishing`, `static`,
+  `posts`). Each source still owns its segment formatting (display code
+  with hreflang awareness for publishing, base code for static + posts);
+  the module owns only the decision so the policy stays consistent across
+  sources (PR #554).
+- `DialectMapper.group_dialects_by_base/1` — counts sibling dialects per
+  base language code. Used by the language switcher and admin/user nav
+  dropdowns to decide whether to show a country qualifier (PR #555).
+- `LanguageSwitcher.dedupe_names/1` + `extract_base_language_name/1` —
+  public helpers called from `AdminNav` and `UserDashboardNav` so all
+  language menus share one country-qualifier dedup rule (PR #555).
+
+### Changed
+- Frontend language switcher (`PhoenixKitWeb.Components.Core.LanguageSwitcher`'s
+  dropdown + continent-grouped views) now drops the country qualifier from
+  rendered labels when only one dialect of a given base language is enabled.
+  `English (United States)`, `Estonian (Estonia)`, `French (France)` render
+  as `English`, `Estonian`, `French` whenever no sibling dialect is
+  configured; enabling a second dialect of the same base (e.g. `en-US` +
+  `en-GB`) causes those entries to reacquire the country qualifier so they
+  remain distinguishable. Same rule applies in the admin top-bar dropdown
+  and user dashboard nav. Continent-grouped views compute sibling counts
+  globally across all enabled languages, so a base split across continents
+  keeps its qualifier in both groups. Restores the bare-label rendering
+  that was lost when commit `d1c2d577` rewrote the switcher to
+  one-row-per-dialect (PR #555).
+- Sitemap sources `publishing`, `static`, and `posts` share one
+  `LocalePath.emit_prefix?/2` decision rule instead of three byte-identical
+  copies; three near-identical private `single_language_mode?/0` helpers
+  collapse into one defensive lookup on `LocalePath` (PR #554).
+- `redirect_invalid_locale/2` honors the site-wide
+  `default_language_no_prefix` setting. With the setting OFF (default), an
+  invalid locale segment is swapped for the primary base code so the
+  redirect lands on the canonical prefixed shape; with the setting ON, the
+  segment is stripped entirely. Previously the plug always emitted the
+  prefixless shape, which was inconsistent with how the rest of the app
+  emits primary-language URLs when the setting is OFF (PR #554).
+- Dependency bumps: `etcher` 0.3.0 → 0.4.0, `fresco` 0.5.2 → 0.5.3.
+
+### Fixed
+- Login (and any other primary-language POST) no longer fails with the
+  default `default_language_no_prefix` setting. `process_valid_locale/2`
+  was unconditionally 301-redirecting `/<default>/...` → `/...` for
+  non-admin requests, discarding the POST body. The redirect is now gated
+  on `Languages.prefixless_primary_safe?/0` so the canonical primary shape
+  matches whichever setting state the site is in (PR #554).
+- Sitemap sources `static.ex` and `posts.ex` honor the site-wide
+  `default_language_no_prefix` setting for the primary language. Both had
+  the same `_is_default` ignored bug that PR #552 fixed in the publishing
+  source — they previously emitted `/en/about` and `/en/blog/post` in
+  multilang mode regardless of the setting (PR #554).
+
+## 1.7.115 - 2026-05-19
+
+### Added
+- Site-wide `default_language_no_prefix` setting on the Languages admin page
+  (`/admin/settings/languages`) controls whether the primary language emits
+  its locale segment in URLs. When on, `/admin/users` and `/blog/post`
+  replace `/en/admin/users` and `/en/blog/post` across admin pages, public
+  pages, sitemap, and redirects; other languages always keep their prefix.
+  Default is off, matching the historical publishing default, so existing
+  installs' indexed URLs stay stable on upgrade. Installs that previously
+  toggled `publishing_default_language_no_prefix` get auto-migrated to the
+  new key on the next boot via `Languages.migrate_legacy/0` (PR #552).
+- `@type t/0` on `PhoenixKit.Settings.Setting` schema. Lets consumers spec
+  setting-returning functions (`{:ok, Settings.Setting.t()} | {:error, …}`)
+  without tripping dialyzer's `unknown_type` warning.
+
+### Changed
+- Admin URL emission for the primary language now follows the new site-wide
+  `default_language_no_prefix` setting (default off), restoring the
+  `/en/admin/users` shape that 1.7.114 had emitted prefixless
+  unconditionally. Both URL shapes still resolve at the router level via the
+  dual-scope admin emission, so existing bookmarks and external links keep
+  working (PR #552).
+- Dependency bumps: `ecto` 3.13.6 → 3.14.0, `ecto_sql` 3.13.5 → 3.14.0,
+  `fresco` 0.5.0 → 0.5.2, `hammer` 7.3.0 → 7.4.0.
+
+### Fixed
+- Publishing sitemap honors `default_language_no_prefix` for the primary
+  language. Previously the sitemap always emitted `/en/blog/post` in
+  multilang mode regardless of the setting, drifting away from the URLs
+  publishing actually served at request time (PR #552).
+- `Languages.default_language_no_prefix?/0` docstring no longer references
+  the nonexistent `PhoenixKit.Migration.migrate_default_language_no_prefix/0`
+  — points at the real entry point `migrate_legacy/0`.
+- `Routes.admin_path/2` `## Examples` no longer mixes setting-dependent
+  cases with deterministic ones inside `iex>` doctest prompts, so adding
+  `doctest PhoenixKit.Utils.Routes` later won't fail. Setting-dependent
+  shapes are still shown, just outside the executable doctest block.
+
+## 1.7.114 - 2026-05-19
+
+### Added
+- `module_assigns` attribute on `LayoutWrapper.app_layout` — a single map
+  whose keys are merged into the assigns passed to a host's parent layout,
+  letting feature modules thread arbitrary host-consumable data (e.g.
+  `phoenix_kit_publishing_translations`) across the layout boundary without
+  core having to declare each key (PR #551).
+
+### Changed
+- Locale resolution is now URL-authoritative. The `phoenix_kit_locale_base`
+  session value and `user.custom_fields["preferred_locale"]` are no longer
+  read for routing — the URL's locale segment (or its absence) is the only
+  source of truth across both the LiveView mount and the HTTP plug. Fixes a
+  sticky-locale bug where visiting one locale-prefixed URL pinned that locale
+  onto every later prefixless URL (PR #551).
+- Admin URLs drop the locale segment for the primary language, matching
+  non-admin behaviour. Both `/<prefix>/admin/*` and
+  `/<prefix>/:locale/admin/*` remain routable, so legacy prefixed links keep
+  working (PR #551).
+- Admin, public, and authenticated-dashboard LiveView routes are each served
+  from a single unified `live_session` (`:phoenix_kit_admin`,
+  `:phoenix_kit_public`, `:phoenix_kit_authenticated`) spanning both the
+  primary-language (`/<prefix>/...`) and locale-prefixed
+  (`/<prefix>/:locale/...`) URL shapes. Switching locale now stays on the
+  WebSocket via `push_navigate` instead of forcing a full-page reload —
+  previously each surface was split across two sessions and every locale
+  change crossed a `live_session` boundary.
+- `DialectMapper.resolve_dialect/2` collapsed to `resolve_dialect/1`: dialect
+  resolution is URL-driven and no longer consults a user's
+  `custom_fields["preferred_locale"]`. Removed the now-unused
+  `User.preferred_locale_changeset/2` and `User.get_preferred_locale/1`.
+
+### Fixed
+- Table RowMenu dropdown is portaled to `<body>` while open so its
+  `position: fixed` coordinates escape any `<dialog>` or `transform`/`contain`
+  containing block — previously the menu could render far off-screen inside
+  modals (PR #551). It also no longer leaves a duplicate menu element behind
+  when a server-side LiveView update re-renders the row while the menu is
+  open.
+- Publishing route dispatch threads the workspace `url_prefix`, so it keeps
+  working when PhoenixKit is mounted under a non-root path (PR #551).
+
+## 1.7.113 - 2026-05-18
+
+### Added
+- `line` annotation kind — a two-endpoint line tool alongside `dimension`
+  (same geometry, no arrowheads, no inline numeric label). V121 migration
+  widens the `phoenix_kit_annotations_kind_check` constraint to accept it.
+- `PhoenixKitWeb.Components.MediaCanvasViewer` — shared LiveComponent owning
+  the per-file canvas + Etcher annotation layer + composer popover + comments
+  thread. Embedded by both `MediaBrowser` and `MediaViewer`, so files opened
+  via `MediaGallery` → `MediaViewer` get the full pan/zoom + annotation
+  experience (PR #550).
+- `Storage.folder_subtree_uuids/1` is now public — walks a folder tree and
+  returns every descendant uuid including the root (PR #549).
+
+### Changed
+- `MediaBrowser` migrated to Etcher 0.3 + Fresco 0.5: per-op annotation events
+  collapse into a single bulk `etcher:annotations-changed` diff; `fresco` and
+  `etcher` deps flipped from local path deps to hex pins (`~> 0.5` / `~> 0.3`)
+  (PR #550).
+- Annotation composer now positions itself above its shape and drops the
+  shape entirely when dismissed via Cancel (PR #550).
+- Deleting an annotation now hard-deletes its linked comments instead of
+  leaving `[removed]` placeholders in the file's thread (PR #550).
+- Activity and Users/Sessions filter panels relocated into the
+  `<.table_default>` toolbar row; tables render unconditionally with the
+  empty state as a table-body row so filters/search stay visible on a
+  zero-result filter (PR #549).
+
+### Fixed
+- Users/Sessions search regression — form-less `<input>`s no longer delivered
+  `phx-change`; search inputs are wrapped in `<form phx-change="search">`
+  again (PR #549).
+- Folder-scoped media picker now includes images in nested subfolders, not
+  just files directly in the scope folder (PR #549).
+- V120 migration tolerates a missing `phoenix_kit_doc_template_presets` table
+  on hosts that never installed the Document Creator module — the index
+  rebuild is guarded on table existence (PR #550).
+- V121 migration adds the kind-check constraint unconditionally after
+  `DROP CONSTRAINT IF EXISTS`; the previous `pg_constraint` existence guard
+  was not schema-scoped and would skip the add on multi-prefix installs.
+- Annotation updates no longer cast `:uuid`, closing a path where a stray
+  payload uuid could rewrite an annotation's primary key.
+- `MediaCanvasViewer` annotation sync skips no-op `UPDATE`s — Etcher
+  re-broadcasts the full annotation list on every mutation, so untouched
+  rows are now diffed out and a zero-net-change re-broadcast does no DB work.
+- Users role-filter dropdown reflects the active filter again (`<option
+  selected>` instead of an ignored `<select value>`); the empty-state
+  "Clear Filters" button resets all filters via a dedicated handler.
+- Activity empty state distinguishes "No activities match the current
+  filters" from "No activities recorded yet".
+
+## 1.7.112 - 2026-05-18
+
+### Added
+- `PhoenixKitWeb.Components.MediaGallery` — reusable LiveComponent for selecting,
+  ordering, previewing and removing a set of images.
+- `PhoenixKitWeb.Components.MediaViewer` — standalone image lightbox LiveComponent
+  (prev/next, keyboard, download). Extracted from `MediaGallery`; usable independently.
+- `Storage.get_files/1` — batch file fetch preserving input order.
+- `FolderExplorer` component — folder tree extracted from `MediaBrowser` as a
+  reusable component (PR #544).
+- `<.table_default>` sort + drag-to-reorder primitives (PR #548)
+  - New `:sort_bar` slot rendered above the toolbar, visible in both card and table views.
+  - `<.table_default_body>` accepts `:global` attrs so consumers can wire the
+    `SortableGrid` hook (`phx-hook`, `data-sortable-*`) directly onto `<tbody>`.
+  - `<.table_default_header_cell>` `:inner_block` is now optional — empty `<th>`
+    cells for drag-handle / selection columns no longer need a placeholder.
+  - `:card_body` slot for fully-custom card content; `:card_class` accepts a string
+    or `(item) -> string` function; `:above_cards` slot; `2xl:grid-cols-4` card grid.
+- `<.sort_selector>` core component — field-picker select + direction toggle, with a
+  `manual_field` mode that swaps the toggle for a drag-handle hint (PR #548).
+- `<.bulk_actions_bar>` core component — selection counter + action-button slot +
+  Clear button; `wrapper_class` covers the inline-card and sticky/blurred shapes (PR #548).
+- `<.empty_state>` core component — `compact` / `card` / `featured` "no rows" panels
+  with optional icon, description, and CTA slot (PR #548).
+- `<.form_section>` and `<.form_actions>` core components — card-wrapped titled form
+  sections and a Cancel + Submit footer bar (PR #548).
+- New `PhoenixKit.Utils` helpers (PR #548)
+  - `Reorder.reorder/4` — two-phase index-rewrite primitive for drag-to-reorder list
+    views; schema-agnostic, UUID-filtered, payload-capped, returns `{:ok, count}`.
+  - `Values.blank_to_nil/1` and `Values.presence/1` — canonical `"" → nil` helpers
+    (the latter trims first); previously duplicated across 7+ modules.
+  - `Format.bytes/2` — single human-readable byte formatter with `:decimals` /
+    `:unknown` / `:base` (1024 vs 1000) options; replaced 8 private copies.
+- V120 migration — document-creator category / type taxonomy (PR #545).
+
+### Changed
+- `MediaSelectorModal` accepts an optional `notify: {module, id}` to deliver the
+  selection via `send_update` instead of a process message.
+- `MediaGallery` delegates its inline lightbox to `MediaViewer` — no behavior
+  change for existing consumers.
+- `<.draggable_list>` gains an optional `target` attr (CSS selector). When set,
+  the `SortableGrid` hook routes the reorder event via `pushEventTo` so it
+  reaches a LiveComponent rather than the host LiveView.
+- `<.sort_header_cell>` polish — inactive-column up/down hint, in-flight loading
+  spinner, and atom-or-string `sort.dir` tolerance (PR #548).
+- `admin_page_header` — `back` / `back_click` are now deprecated no-ops; the back
+  arrow no longer renders. Retained so existing call sites compile (PR #548).
+- `MediaBrowser` folder management overhaul (PR #544)
+  - Recursive folder trash + drag-to-trash; instant "untitled" folder creation.
+  - Folders draggable across grid / list / sidebar; drop-into-current-folder via
+    the main content area; whole-selection drag in select mode.
+  - Per-file and per-folder kebab menus migrated to `TableRowMenu` (fixes clipping).
+  - Folder rename made more apparent; click-away cancels.
+- etcher / fresco dependency requirements tightened to `~> 0.2.6`.
+- Upgraded library dependencies.
+
+### Fixed
+- `MediaGallery` drag-to-reorder no longer pushes `reorder_images` to the host
+  LiveView (where it had no handler and crashed the page). The grid now passes
+  `target` to `<.draggable_list>` so the event reaches the component's own
+  `handle_event/3`.
+- `MediaBrowser` breadcrumbs no longer duplicate the current folder or ignore
+  scope; move-to-root now works under scope; `update_folder/3` guarded against
+  `parent_uuid: nil`; N+1 in session breadcrumb work eliminated (PR #544).
+- `admin_page_header` no longer carries an unused `Icon` import left by the
+  back-button removal — restores a clean `mix compile --warnings-as-errors`.
+- `Utils.Values.blank_to_nil/1` and `presence/1` no longer raise on non-string
+  input (e.g. a list from a `key[]=` query param) — they fall back to pass-through
+  and `nil` respectively.
+- V120 migration review fixes — primary-key defaults, multi-prefix guards, exact
+  legacy category mapping, `uuid_generate_v7()` per house convention (PR #545).
+- Avatar dropdown overflow, scroll, hover, and click-feedback fixes.
+
+### i18n
+- Ecommerce gettext manifest + `ru` / `et` translations; fixed 91 fuzzy ecommerce
+  translations (PR #547).
+- Projects + comments gettext manifests with `et` / `ru` translations (PR #542).
+- Global Gettext locale synced alongside the backend-specific one.
+
+## 1.7.111 - 2026-05-14
+
+### Added
+- V118 migration: callout + text annotation kinds + optional `title` column on `phoenix_kit_annotations` (PR #541)
+  - Widens `phoenix_kit_annotations_kind_check` to include `"callout"` (leader-line annotation: anchor point + line to a labeled bbox) and `"text"` (freestanding click-drag text label). Both new tools shipped in Etcher 0.2; the CHECK update is folded into a single `DROP + ADD` so we don't take two trips over the same constraint
+  - Adds nullable `title varchar(200)` column. Every kind can carry a short label — renders inline on the shape (above the bbox for rect/circle/polygon, at the leader endpoint for callout, inside the bbox for text). Length matches the schema-side `validate_length(:title, max: 200)`. Lives in its own column so it stays queryable outside the JSONB blob
+  - `Annotation` schema gains `:title` field + the two new kinds in `@kinds`; `@cast_fields` allows it through the changeset
+- `PhoenixKit.Annotations.restore_linked_comments/3` (PR #541)
+  - Undo-of-delete support: when an annotation deletion is reversed via Etcher's undo stack, the original uuid is gone but the soft-deleted comments still reference it through `metadata.annotation_uuid`. The function flips matching `status: "deleted"` comments back to `"published"` and rewrites their `metadata.annotation_uuid` to point at the recreated row. Returns count restored. No-ops cleanly when PhoenixKitComments isn't installed
+- `AnnotationComposer` title input (PR #541)
+  - Optional title field above the comment textarea. Title-only annotations are now allowed (skips the comment-thread create entirely; the row gets only its `title` column set). `update_draft` accepts both `comment` and `title` keys, debounced 500ms each. Title persistence threaded through `:annotation_composer_posted` → `MediaBrowser.finalize_annotation_compose/3`
+- `MediaBrowser` etcher 0.2 wiring (PR #541)
+  - `etcher:updated` now accepts any combination of `geometry / style / metadata / title` in one payload (previously geometry-only). In-memory annotation list mirrors writes so the tooltip reflects the new title without waiting for a `load_annotations_for/1` round-trip
+  - Composer popover suppressed for `kind == "text"` (content arrives inline via etcher's foreignObject editor) and `restore: true` (recreated row already has its title/metadata; user wasn't trying to create a new annotation)
+  - On `restore: true` + `restore_from_uuid`, walks soft-deleted comments via `restore_linked_comments/3` and refreshes the comments sidebar
+  - Tool list extended: `[:rectangle, :circle, :polygon, :freehand, :callout, :text, :eraser]`
+  - Etcher overlay now attaches to the Fresco viewer even when Tessera has no sources (pre-PR: an empty `tessera_sources(f)` fell back to a plain `<img>` with no annotation overlay at all). Annotations now work on fresh uploads that haven't been through the variant generator
+- `ViewerKeydown` JS hook (PR #541)
+  - Replaces `phx-window-keydown="viewer_keydown"` on the viewer modal. Two filters the stock binding couldn't express: (1) only `Escape` / `ArrowLeft` / `ArrowRight` reach the server (letter keys no longer spam LV logs), (2) navigation keys suppressed while focus is in `<input>` / `<textarea>` / contenteditable so arrow keys move the text caret instead of flipping the modal to the next image while typing
+- Post-merge review doc in `dev_docs/pull_requests/2026/541-v118-callout-text-etcher-0.2/CLAUDE_REVIEW.md` with finding disposition table
+
+### Changed
+- `{:etcher, "~> 0.1"}` → `{:etcher, "~> 0.2"}` — adds callout / text / eraser tools, undo/redo, satellite titles, and a complete `window.Etcher.layerFor(id)` programmatic control surface (PR #541)
+- `AnnotationComposer` textarea `phx-debounce` 150 → 500ms — quieter LV logs at typical typing speed, no perceived input lag (PR #541)
+- `priv/static/assets/phoenix_kit.js` strips 584 lines of inlined fresco / tessera / etcher hooks. Parent apps now import each lib's own `priv/static/` bundle ahead of `phoenix_kit.js`, and phoenix_kit adopts `window.{Fresco,Tessera,Etcher}Hooks` into `window.PhoenixKitHooks`. Eliminates drift between the inlined snapshot and the hex packages (PR #541)
+
+### Hygiene
+- Lockfile updates: `fresco 0.1.1 → 0.1.2`
+
+## 1.7.110 - 2026-05-13
+
+### Added
+- V117 migration: document composition tables for `phoenix_kit_document_creator` (PR #539)
+  - Adds nullable `category :: varchar` column + index to `phoenix_kit_doc_templates` so templates self-classify (financial / technical / etc.) and the template grid can filter by scope
+  - Creates `phoenix_kit_doc_document_sections` — join table snapshotting `(document_uuid, template_uuid, position, variable_values, image_params)` for every section of every composed document. `document_uuid → :delete_all` cascades sections with their parent; `template_uuid → :nilify_all` lets sections outlive the template (regenerate-required state). Unique `(document_uuid, position)` + lookup index on `(document_uuid)`
+  - Creates `phoenix_kit_doc_template_presets` — named reusable section recipes scoped via `(scope_type, scope_id)` and optionally categorized. `sections` is a JSONB array of `[%{template_uuid, position, variable_values, image_params}]`. Index on `(scope_type, scope_id, category)`
+  - Legacy `Document.template_uuid` column retained: composed docs leave it `NULL`, legacy single-template docs continue to use it
+
+### Fixed
+- Fixed ungrouped `handle_event/3` clauses in `MediaBrowser` by relocating `creator_attrs/2` helper to private-helpers block
+- Restored sitemap dynamic `<lastmod>` for homepage and group listing pages (`Sources.Static`, `Sources.Publishing`)
+  - PR #539's merge silently re-removed `static_lastmod/1` and `latest_post_date/2` (a zombie revert that came back via merge conflict and got cut again from a behind-the-base fork). Result: every static URL was reporting `lastmod: <today>` on every crawl (a known false-freshness signal Google de-prioritizes), and every group listing was shipping without `<lastmod>` at all
+  - Homepage `<lastmod>` now uses a new lightweight `Publishing.latest_post_date_global/0` helper — single pass over each group's posts to take max `published_at`. Replaces the prior shape that called `Publishing.collect/1` and threw away everything except the `:lastmod` field (which triggered ~3× redundant `list_posts/2` calls per group inside `collect/1`)
+
+### Hygiene
+- Routine lockfile updates (`mix.lock`)
+- Precommit: `compile --force` replaced with `compile --warnings-as-errors --all-warnings`, added `deps.unlock --check-unused`, switched from `quality` to `quality.ci` (format-check)
+- Dialyzer: removed 5 unused ignore filters (css_integration, process_scheduled_jobs_worker, duplicate conn_case/data_case, integrations guard_fail)
+- Removed stale `:phoenix_kit` self-entry from `mix.lock`
+
+## 1.7.109 - 2026-05-12
+
+### Added
+- V114 migration: Integrations storage switched to uuid-only `key` column on `phoenix_kit_settings` (PR #536)
+  - Collapses the per-row `key` from the composite `integration:<provider>:<name>` shape to just the row's UUIDv7. Lifts both name restrictions baked into the old shape: the regex `[a-zA-Z0-9][a-zA-Z0-9\-_]*` and per-provider uniqueness are gone. Any non-empty string (after trim) is now a valid connection name; duplicates within a provider coexist (uuids disambiguate). Names with spaces, punctuation, "My Company Drive (US)" — all allowed
+  - `add_connection/3`: generates UUIDv7 up-front, embeds it in both the `uuid` and `key` columns; provider + name live purely in `value_json`. `rename_connection/3` rewrites only the JSONB `name` field — storage key is the row uuid, untouched across renames, so consumer modules pinning to uuid keep working
+  - Read sites (`get_integration_by_uuid/1`, `list_connections/1`, `load_all_connections/1`) source provider + name from JSONB; the list helpers expose `:date_added` so UI callers render "Created N ago" without a second lookup
+  - `provider:name` string lookups now first-match by case-insensitive name sort (names aren't unique anymore). Read-shim contract preserved for legacy `migrate_legacy/0` callsites
+  - `log_activity` takes explicit `(provider, name)` so audit rows carry human-readable names — parsing the key would have stamped a uuid string into `metadata.connection`
+  - Migration walks every `integration:%`-keyed row in a single UPDATE, backfills missing `value_json -> 'name'` / `'provider'`, ensures `module = 'integrations'`, and rewrites `key = uuid::text`. Legacy V0-shape keys without `:name` fold to `name = "default"`. `down/1` rewrites back to composite shape with `-<8-char>` suffix from UUIDv7's random tail on duplicate `(provider, name)` pairs
+- V115 migration: `phoenix_kit_annotations` table for drawn-on-image shapes via the Etcher overlay (PR #537)
+  - Stores rectangle / circle / polygon / freehand shapes tied to a `phoenix_kit_files` row in image-pixel coordinates. Geometry is JSONB; shape kinds enforced via DB-level CHECK constraint matching Etcher 0.1's four-tool set
+  - `file_uuid` FK `ON DELETE :delete_all` — annotations vanish with their host image. `creator_uuid` nullable + `ON DELETE :nilify_all` so user deletion preserves their annotations as anonymous
+  - Discussion threads attach via the existing comments convention: comments anchored to the **file** (`resource_type = "file"`, `resource_uuid = file_uuid`) with `metadata.annotation_uuid` carrying the back-reference. Annotation-rooted comments appear in the file's main thread alongside non-annotated discussion
+  - Indexes: `(file_uuid)` for per-file listing, partial `(creator_uuid) WHERE creator_uuid IS NOT NULL` for author lookups
+- V116 migration: nullable self-FK `parent_uuid` on `phoenix_kit_entity_data` (PR #538)
+  - Each entity-data row can point at another row of the same entity as its parent. System field — always present, optional, never user-removable (does not appear in `entities.fields_definition`). Existing rows stay `parent_uuid = NULL` and become roots; no backfill
+  - No `ON DELETE` cascade — parent/child linkage and same-entity scope are managed by the `PhoenixKitEntities.EntityData` context inside a transaction. A DB-level cascade would bypass the soft-delete machinery and the activity log
+  - Same-entity enforcement is a context-layer responsibility. B-tree index on `(parent_uuid)` covers the "list children" query for the WordPress-style indented tree
+- `PhoenixKit.Annotations` context + `PhoenixKit.Modules.Storage.EtcherAdapter` (PR #537)
+  - Context handles CRUD against `phoenix_kit_annotations` plus `list_for_file_with_previews/1` that pulls every file comment in a single bulk query and groups by `metadata.annotation_uuid` for the tooltip preview
+  - `Annotations.delete/1` runs comment cascade + annotation row delete in a `Repo.transaction/1` so a failure between the two doesn't leave the annotation alive with its discussion thread destroyed
+  - `Annotation.adapter_writable_fields/0` exposes the schema's `@cast_fields` (minus `file_uuid`, which the adapter sets server-side from `target_uuid`) as the source of truth for the adapter whitelist — the adapter's `@schema_keys` derives from it so a future schema field can't drift silently
+  - `EtcherAdapter` implements the `Etcher.Storage` behaviour, dispatching to the context. Adapter explicitly whitelists payload keys before reaching `String.to_existing_atom` — guards against forward-compat with Etcher's payload shape growing new client-side keys
+- `PhoenixKitWeb.Components.AnnotationComposer` LiveComponent (PR #537)
+  - Focused composer for attaching the first comment to a newly-drawn annotation. Explicit Post / Cancel control flow owns the annotation lifecycle: Post commits comment + solidifies annotation, Cancel rolls the annotation back. Communicates with the parent MediaBrowser via LC-to-LC `send_update/2`, no host-LV plumbing required
+  - Scope: text + file uploads (image / video / audio / pdf / archive) + Giphy picker. Audio recording (which the full `CommentsComponent` supports) intentionally skipped for v1
+- MediaBrowser integration with the Etcher overlay (PR #537)
+  - `Etcher.layer` mounted alongside `Fresco.viewer` in the modal. New `etcher:created` / `:updated` / `:deleted` / `:selected` handlers wire the JS overlay into the storage backend
+  - Lifecycle: `open_viewer/2` preloads annotations + rolls back any pending compose; `finalize_annotation_compose/2` reloads annotations and pokes the file's `CommentsComponent` to refresh; `refresh_file_comments/1` flips the component's `loaded?` to false to trigger a sidebar reload
+  - `creator_uuid` is set server-side from the scope — client-supplied `creator_uuid` in the payload is overridden, preventing author spoofing
+- `IntegrationPicker` rewrite (PR #536)
+  - Card subtitle: priority `external_account_id` → masked credential tail (first 8 + `…` + last 4 for any of `api_key` / `bot_token` / `access_key`; `•••` for keys under 14 chars)
+  - Age line under subtitle using shared `<.time_ago>`
+  - Status badge: distinct label + colour for each of the four canonical statuses (`connected` → green "Connected", `error` → red "Auth failed" with `validation_status` tooltip, `configured` → yellow "Not tested", `disconnected` → grey "Not connected")
+  - Provider icon + display name auto-resolve via `Integrations.Providers.get/1` — callers no longer pre-attach a `:provider` struct
+  - Provider-name badge hidden when picker is filtered to a single provider (both real callsites do this)
+  - Click feedback: `phx-click-loading` dims the clicked card + blocks rapid re-clicks during the LV round-trip; daisyUI `loading-spinner` swaps in for the status badge during the same window
+  - `provider_def` memoized in a `Map.new(connections, ...)` shared between `filter_by_search/3` and the render path — drops `Providers.get/1` calls from 2N to N per render
+  - 33 new component spec tests covering subtitle priority + masked credential + age + provider auto-resolve + status branches + filter-by-provider + search threshold + empty state + deleted-card warning + click-action dispatch
+- `<.draggable_list>` `:sortable_handle` attribute (PR #538)
+  - Optional CSS selector (e.g. `".pk-drag-handle"`) that restricts drag initiation to elements matching the selector inside each item. When set, the item wrapper drops `cursor-grab` styling — the caller renders their own handle. Backward-compatible: default `nil` preserves whole-item drag. Mirrors `<.table_default>`'s `:on_reorder` + `.pk-drag-handle` convention. JS hook (`SortableGrid`) already supported `data-sortable-handle`; this PR wires the Elixir-side knob through
+- Etcher tooltip JS slot overrides (PR #537)
+  - `window.Etcher.tooltipSlots` `.header` / `.footer` / `.body` translate `metadata.comment_*` keys into the rich tooltip (author header, date · count subheader, thumbnail + quoted text body). `window.Etcher = window.Etcher || {}` guards against load order
+- `AnnotationComposerPosition` JS hook keeping the MediaBrowser's floating annotation-composer popover inside the viewer bounds via re-clamping on mount + updates + window resize
+- Dep adds: `:fresco ~> 0.1` (OpenSeadragon viewer wrapper, now a direct dep since Tessera 0.2 split it out), `:etcher ~> 0.1` (annotation overlay)
+- Three post-merge review docs in `dev_docs/pull_requests/2026/`: `536-integrations-v114-uuid-keys-picker-ux/`, `537-annotations-v115-etcher-overlay/`, `538-v116-parent-uuid-draggable-handle/` — each with finding disposition tables tracking which items were addressed in follow-up commits and which were deferred to the original PR author
+
+### Changed
+- `Integrations.validate_connection/2` rescue narrowed to `[DBConnection.OwnershipError, Postgrex.Error, Req.TransportError]` so genuine logic bugs (`KeyError`, `ArgumentError`, `MatchError`) bubble up to the supervisor instead of being swallowed under a generic "validation failed". `validate_credentials/2` mirrored the narrowing post-merge for parity (PR #536)
+- `Integrations.authenticated_request/4` docstring spells out the URL-trust contract: the integration's Bearer token is attached to every request, so callers must pin URLs to a domain allowlist before invoking. Internal callers (`OpenRouterClient`, OAuth refresh, userinfo) build URLs from the Providers registry which is hardcoded and safe; new callsites taking URLs from elsewhere need their own guard (PR #536)
+- `phx-disable-with` on Save / Test Connection / Disconnect / Delete buttons on `integration_form.html.heex` plus the OAuth Connect Account button. Pre-fix, a double-click + slow network could submit two save requests or spawn parallel HTTP probes (PR #536)
+- IntegrationForm `create_connection` + `save_form_with_rename` error branches preserve `:new_name` + `:form_values` on error so a failed `:empty_name` submit doesn't wipe the api_key the operator just typed. Dropped the dead `:already_exists` / `:invalid_name` error branches (those tuples no longer fire post-V114). Template: removed the now-incorrect "Letters, digits, hyphens, and underscores. Must be unique per provider." name-rules hint (PR #536)
+- `PhoenixKit.Users.Permissions.module_label("db")` / `module_icon` / `module_description` pin `db` in `@core_*` maps so the display is correct even when the external `phoenix_kit_db` module isn't loaded (PR #536)
+- `MediaBrowser.format_date/1` strftime format string wrapped in `gettext(...)` so locales can reorder date components (`%d %b %Y` for en-GB / fr / de) without code changes
+- `AnnotationComposer.first_error/1` routes through `PhoenixKitWeb.Components.Core.Input.translate_error/1` — gettext-aware helper that interpolates `%{count}` and other opts properly
+- `AGENTS.md` CHANGELOG-ownership instruction corrected — entries are written by agents against the bumped `@version` heading, matching the project's actual workflow
+
+### Fixed
+- Post-merge fixes folded from review of PR #536:
+  - V114 docstring drift after rebase rename: moduledoc references "V113" but the module is V114; "Stamp the table comment with '113'" while code stamps '114'; "post-V113 regression / invariant" in tests and picker comment. All swept to V114
+  - `Permissions.module_label("db")` was falling through to `String.capitalize("db")` = `"Db"` when the external `phoenix_kit_db` module isn't loaded; test asserts `"DB"`. Folded in to keep the post-rebase baseline green
+  - Test fixture rows in `storage/scope_test.exs`, `media_browser_scope_test.exs`, `media_browser_test.exs` violated V113's `phoenix_kit_files_user_or_parent_check` CHECK constraint; each `create_file!/1` now stamps `user_uuid` via a memoised `ensure_user!/0` helper
+  - `IntegrationPicker.filter_by_search/3` had a shadowing `name` variable in the inner case pattern match; renamed to `provider_name`
+  - `String.slice` negative-bound range pinned with explicit step (`-4..-1//1`) to silence Elixir 1.16+ range-step warning
+  - Credo cleanup: `get_integration/1` 2-branch `cond` with `true` arm → `if/else`; inline `PhoenixKit.Settings.Queries.get_setting_by_uuid/1` calls aliased as `SettingsQueries` in `integrations_test.exs`; three test files (`storage/scope_test.exs`, `media_browser_scope_test.exs`, `media_browser_test.exs`) alias `PhoenixKit.Users.Auth` for their `ensure_user!` helpers
+- Post-merge fixes folded from review of PR #537:
+  - `Annotations.delete/1` deleted linked comments outside a transaction — if the comment cascade succeeded and the annotation row delete then failed (FK violation, DB transient), comments were gone but the annotation remained with its discussion permanently destroyed. Wrapped in `Repo.transaction/1` via an extracted `delete_in_transaction/1` helper
+  - `resource_type = "annotation"` claim in three moduledocs (`annotation.ex`, `v115.ex`, `etcher_adapter.ex`) contradicted the actual implementation, which anchors comments to the **file** (`resource_type = "file"`) with `metadata.annotation_uuid`. All docs swept to match reality
+  - `Annotations.delete_linked_comments/1` bare `rescue _ -> :ok` swallowed every exception class including logic bugs. Narrowed to `[DBConnection.OwnershipError, Postgrex.Error, ArgumentError]` so logic bugs surface
+  - `AnnotationComposer.normalize/1` reinvented what `Ecto.Changeset.cast/3` already does (accepts both atom- and string-keyed maps) AND silently passed the original map through when `String.to_existing_atom` failed, hiding typo'd field names from the user as "geometry: can't be blank" rather than "unknown field" — function deleted
+  - In-repo `Code.ensure_loaded?(PhoenixKit.Annotations)` guard in `MediaBrowser.load_annotations_for/1` was needless defensive code — `Annotations` is in the same compilation unit
+  - `@compile {:no_warn_undefined, [PhoenixKit.Modules.Storage, ...]}` would have shadowed legitimate compile errors on a core module rename — `Storage` removed from the suppression list
+  - `AnnotationComposerPosition.destroyed` cleanup conditional was a never-falls-through guard — simplified
+  - Etcher slot-preservation JS comment misstated the mechanism — corrected to "PhoenixKit owns the tooltip layout; downstream consumers must load AFTER phoenix_kit.js"
+  - Credo cleanup: `Annotations.first_attachment_thumbnail/1` single-clause `with` → `case`; aliased `Annotations`, `Storage`, `EtcherAdapter`, `Storage.File` so six "nested modules could be aliased" findings clear
+  - PhoenixKitComments dialyzer ignores added for `annotations.ex` + `annotation_composer.ex` (optional sibling package, guarded at runtime)
+- V114 down SQL collision-suffix source: `substring(uuid::text from 1 for 8)` extracted UUIDv7's timestamp prefix — same-millisecond rows produced identical suffixes ⇒ duplicate "uniquified" keys when two+ rows collided on `(provider, name)`. Switched to `substring(uuid::text from 25 for 8)` (random tail, 32 bits of entropy). Mirrored in `run_down!` in the V114 test (PR #538 follow-up)
+- 3-row collision test added to V114 test suite covering N ≥ 3 case (exactly one plain key, N-1 distinct suffixed keys, all keys unique)
+- IntegrationPicker click feedback was missing: clicking a card showed no visual response during the 100-500ms LV round-trip — operators would click again and submit a second request. Added `phx-click-loading:opacity-60 phx-click-loading:pointer-events-none` + status-badge → spinner swap during the in-flight window (PR #536)
+
+### i18n
+- AnnotationComposer user-facing strings wrapped in gettext (flash messages + heex literals + ARIA labels — ~17 strings)
+- MediaBrowser `format_date` strftime pattern wrapped in gettext so locales reorder date components
+- IntegrationPicker status labels (`Connected` / `Auth failed` / `Not tested` / `Not connected`) and search placeholder + empty-state strings wrapped in gettext
+- IntegrationForm flash messages, button labels, name placeholder, danger-zone copy, OAuth step labels, redirect-uri instructions wrapped in gettext
+
+
+## 1.7.108 - 2026-05-11
+
+### Added
+- V112 migration: `phoenix_kit_projects*` schema evolution (PR #533)
+  - `archived_at TIMESTAMP(0)` on `phoenix_kit_projects` so the admin dashboard can soft-hide projects without flipping a status enum. Mirrors the workspace convention used by `phoenix_kit_publishing`'s `posts.trashed_at` and `phoenix_kit_files.trashed_at` — null = visible, non-null = soft-hidden, with the timestamp doubling as audit metadata. Existing `status = 'archived'` rows backfilled into `archived_at` so the dashboard filters keep working transparently
+  - `phoenix_kit_projects_visible_idx` partial index on `(inserted_at DESC) WHERE archived_at IS NULL` — one partial covers both project-list and template-list dashboard reads (neither view shows archived rows)
+  - `translations JSONB NOT NULL DEFAULT '{}'` on `phoenix_kit_projects`, `phoenix_kit_project_tasks`, `phoenix_kit_project_assignments` for per-language overrides on user-input content (name / description / title). Primary stays in dedicated columns; JSONB only carries non-primary overrides
+  - `position INTEGER NOT NULL DEFAULT 0` on `phoenix_kit_projects` and `phoenix_kit_project_tasks` so the drag-and-drop reorder API can persist manual ordering. Existing rows fold into the `0` bucket and the schema's secondary order-by-`inserted_at` kicks in until a user actually drags
+  - `scheduled_start_date` retyped from `DATE` to `TIMESTAMP(0)` so scheduled-overdue detection honors time-of-day (a project scheduled for today 09:00 flips to `:overdue` at 09:01, not at midnight). Column name kept — lying name + honest type beats the churn of renaming every call site
+  - Drops the three remaining unique-name indexes — `phoenix_kit_projects_name_template_index`, `phoenix_kit_projects_name_project_index`, `phoenix_kit_project_tasks_title_index`. Name uniqueness is now policy, not schema — editing or duplicating names no longer trips a stale index, and future renames don't need migration coordination
+  - Bumps migrator `@current_version` 111 → 112 — without this V112 was dead code
+  - All steps idempotent (column-existence, index-existence, USING coercion clauses); `down/1` reverses each change so a rollback restores the V111 shape. `down/1` restores the V105/V101 unique indexes **first**, before dropping any V112 columns, so a duplicate-name conflict at rollback aborts cleanly rather than leaving a half-rolled schema
+- `test/phoenix_kit/migrations/v112_test.exs` — pins every V112 addition (archived_at column + type + nullability, visible-index existence AND predicate shape, translations JSONB on the three tables, scheduled_start_date retype, position columns) plus the four dropped indexes and the duplicate-name behavior. The predicate test refutes any `is_template` mention, closing the docs-drift loop
+- `dev_docs/pull_requests/2026/533-v112-projects-schema-evolution/CLAUDE_REVIEW.md` — post-merge review with finding dispositions
+- V113 migration: system-managed media flag for Tessera deep-zoom tiles + comments↔files junction (PR #534)
+  - `system_managed BOOLEAN NOT NULL DEFAULT false` on `phoenix_kit_files` — marks internally-generated media (DZI tile pyramids + per-tile chunks) so the MediaBrowser excludes them from user listings and the variant generator skips them (tile chunks don't need small / medium / large — just an `"original"` FileInstance)
+  - `parent_file_uuid UUID` nullable FK to `phoenix_kit_files(uuid)` ON DELETE CASCADE — system-managed tile rows cascade away when their source image is hard-deleted
+  - `user_uuid` drops NOT NULL — system-managed rows belong to a parent File, not a user. The DB-level CHECK `phoenix_kit_files_user_or_parent_check` enforces "`user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL`" so raw inserts can't violate the invariant
+  - `phoenix_kit_files_system_dedup_index` partial unique index on `(parent_file_uuid, file_name) WHERE system_managed = true` — concurrent lazy-generation requests for the same uncached tile dedupe at the DB level via the changeset's `unique_constraint`; `Storage.store_system_file/3` recovers the winner's row on conflict
+  - Two more partial indexes — `phoenix_kit_files_parent_uuid_index` (per-source lookup + cascade-cleanup) and `phoenix_kit_files_system_managed_index` (keeps the MediaBrowser's "user files only" sort cheap as the tile catalog grows)
+  - `phoenix_kit_comment_media` junction table letting the comments module attach core File rows to comments with position + caption. Cascade on `comment_uuid`, RESTRICT on `file_uuid` (a file can't hard-delete while attached). Consumer code lands in a later PR
+  - Bumps migrator `@current_version` 112 → 113; all DDL idempotent via `IF NOT EXISTS` / DO-blocks
+- Deep Zoom Image viewer in MediaBrowser via Tessera (OpenSeadragon wrapper, PR #534)
+  - New `Tessera.Viewer.viewer` replaces the static `<img>` in the file modal; `tessera_sources/1` builds the progressive layer list (medium → optional large → DZI manifest)
+  - `<Tessera.Storage>` adapter (`PhoenixKit.Modules.Storage.TesseraAdapter`) lands tile writes in the storage pipeline (multi-bucket via `Manager.store_file/2` + a system-managed File row via `Storage.store_system_file/3`)
+  - Two new public endpoints — `/tiles/:token/:dzi_filename` and `/tiles/:token/:files_segment/:level/:tile_filename` — generate the DZI manifest and individual tiles **lazily** on first request, then serve from storage. Signed `URLSigner` token in the URL path (not query) so OpenSeadragon's tile-URL derivation preserves it across manifest → tile fetch. The "dzi" variant name is distinct from storage variants so a leaked file-serving token can't grant tile access. Unauthorized requests return 404 to prevent UUID enumeration
+  - Per-`file_uuid` `:global.set_lock` mutex + double-checked locking around the generators serializes concurrent cold-path requests for the same image; different images stay parallel. Lock timeout surfaces as 503 + `Retry-After` header
+  - Tempfile lifecycles wrapped in `try/after` so `Tessera.generate_tile/4` or `Manager.retrieve_file/2` exceptions don't leak files into `System.tmp_dir!()`
+  - New storage setting `storage_tile_generation_enabled` (default `"false"`) is the kill switch — when off, MediaBrowser emits no manifest URLs and the tile endpoints return 404
+- `Storage.store_system_file/3` — context helper for system-managed media (tiles, manifests). Idempotent: check-then-insert with unique-violation recovery via the new dedup index, so two concurrent writers for the same key both end up with the same row
+- `Storage` query helper `exclude_system_managed/1` — applied to every `list_*` / `count_*` / orphan / trash query so system-managed rows are invisible in the MediaBrowser regardless of how the query is composed
+- `test/phoenix_kit/migrations/v113_test.exs` — pins every V113 addition (system_managed column shape, parent_file_uuid FK with cascade verification, user_uuid nullability change, three indexes including the partial-unique dedup, CHECK constraint with a raw-SQL test that double-null inserts are rejected, comment_media table + its two indexes)
+- `dev_docs/pull_requests/2026/534-media-browser-tessera-tiles/CLAUDE_REVIEW.md` — review with finding dispositions; CRITICAL + HIGH items fixed in the same release
+
+### Changed
+- `<.translatable_field>` in `PhoenixKitWeb.Components.MultilangForm` — wrapper now `flex flex-col gap-1` and base input/textarea classes carry `w-full` (commits `52856738`, `0412beaf`). daisyUI 5's `.label` is `inline-flex` and `.input`/`.textarea` are `inline-block`, so without forcing column direction here label and field sat on the same row. Aligns the multilang form's layout with the regular `<.input>` core component
+- `test/phoenix_kit/migrations/v106_test.exs` — dropped the "schema state (verified at boot)" `describe` block (its assertions pinned V112's drops, not V106's adds — moved to `V112Test`). File now scoped to V106's `down/1` cross-mode duplicate pre-check, matching its filename
+
+### Fixed
+- V112 `down/1` rollback ordering (post-merge review fix, commit `0cde04a8`). Original `down/1` dropped columns before restoring unique indexes; if post-V112 work introduced any duplicate names (V112's whole purpose), the `CREATE UNIQUE INDEX` would raise mid-rollback after columns were already gone. Reordered so index restoration runs first
+- V112 visible-index predicate docs/code alignment — migrator moduledoc claimed `WHERE archived_at IS NULL AND is_template = false` but actual index only filtered on `archived_at IS NULL`. Docs updated to match the emitted SQL with rationale (one partial covers both visible projects and visible templates)
+- MediaBrowser i18n — list-view dropdown duplicates of the folder menu (Color heading, delete data-confirm, Delete button) were missed in the original sweep; wrapped so list view matches grid view. Three flash/confirm messages embedded two independent counts in a single `gettext` call which made correct pluralization impossible in Russian (3 forms) and Estonian (2 forms); each composed from two `ngettext` calls injected into the surrounding `gettext` template (PR #532)
+
+### i18n
+- MediaBrowser UI strings wrapped in gettext + Russian and Estonian translations (PRs #532, plus earlier commits `c717c9d0` / `d44bf95c`)
+- `/admin/modules` page strings wrapped in gettext + ru/et translations (PR #530)
+- Core sidebar tabs wired to `PhoenixKitWeb.Gettext` for ru/et (PR #529, commits `43e528ac` / `c5fd5bae`)
+- Sitemap settings UI strings wrapped in gettext (commit `afcc281a`)
+- General Settings widened + `/admin/modules/languages` strings wrapped (commit `24ceec90`)
+- Core `badge.ex` + `time_display.ex` status strings wrapped (commit `1fe0ad78`)
+- 9 new tab-label msgids + complete Estonian translation in `default.po` (commit `373478f5`)
+- Bare `Active` badge in `users.html.heex:278` wrapped (commit `8a341e90`)
+
+### Layout
+- Admin settings pages widened for wide screens (commit `3ea70ec1`)
+- Module settings pages — sitemap, storage, referrals — widened for wide screens (commit `d867cb57`)
+
+### Hygiene
+- `mix format` reflow of long-line `gettext` / `ngettext` / `put_flash` calls in `media_browser.ex` and `media_browser.html.heex` (commit `9841ac31`). Surfaced when `mix precommit` ran during V112 review-followup work; no semantic changes
+- New Hex dep: `{:tessera, "~> 0.1"}` — OpenSeadragon wrapper used by the Deep Zoom viewer
+
 ## 1.7.107 - 2026-05-10
 
 ### Added

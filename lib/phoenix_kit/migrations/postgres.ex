@@ -529,7 +529,180 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V111 - PDF library tables for catalogue ⚡ LATEST
+  ### V121 - Line annotation kind ⚡ LATEST
+  - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
+  - Etcher gains a simple two-endpoint line tool alongside `dimension`
+    (same geometry, no arrows, no inline numeric label). Title +
+    comment ride the same composer flow as the other non-text shapes.
+
+  ### V120 - Document Creator Category → Type taxonomy
+  - Creates `phoenix_kit_doc_categories` and `phoenix_kit_doc_types` tables.
+  - Adds nullable `category_uuid` / `type_uuid` FK columns to doc templates and documents.
+  - Migrates legacy category strings from templates into `phoenix_kit_doc_categories` rows.
+  - Drops the legacy `category` string columns from templates and presets.
+
+  ### V119 - Trash support for storage folders
+  - Adds `trashed_at TIMESTAMPTZ` to `phoenix_kit_media_folders`,
+    mirroring the V99 column on `phoenix_kit_files`. Folders with a
+    non-nil `trashed_at` are in the trash bucket and can be restored
+    or permanently deleted. Trash + restore are recursive over the
+    folder's descendants and the files inside the subtree (the file
+    rows already have their own `trashed_at` from V99 — both get
+    set together).
+  - Partial index on `trashed_at IS NOT NULL` for fast trash-view
+    queries.
+  - All operations idempotent.
+
+  ### V118 - callout + text kinds + optional title column on annotations
+  - Drops + re-adds the kind CHECK constraint with `"callout"` and
+    `"text"` included alongside `rectangle / circle / polygon /
+    freehand`. Etcher 0.2's callout (leader-line) tool needs `"callout"`,
+    and its text tool (freestanding label drawn as a click-drag bbox)
+    needs `"text"`. Both are folded into one CHECK update so we don't
+    take two trips over the same constraint.
+  - Adds `title varchar(200)` (nullable) to `phoenix_kit_annotations`.
+    Every kind can carry a short label — renders inline on the shape
+    when non-blank (above the bbox for rect/circle/polygon, at the
+    leader endpoint for callout, inside the bbox for text).
+
+  ### V117 - Document composition
+  - Adds nullable `category :: varchar` column to `phoenix_kit_doc_templates`
+    with index on `(category)` for category-filtered queries.
+  - Creates `phoenix_kit_doc_document_sections` — join table linking documents
+    to templates at ordered positions, with per-section `variable_values` and
+    `image_params` JSONB. Unique index on `(document_uuid, position)`. FK to
+    documents cascades on delete; FK to templates nullifies on delete.
+  - Creates `phoenix_kit_doc_template_presets` — named reusable section
+    compositions, optionally scoped via `scope_type`/`scope_id` and
+    categorized. `sections` is a JSONB array. Index on
+    `(scope_type, scope_id, category)`.
+
+  ### V116 - Parent reference on entity_data
+  - Adds nullable self-referential `parent_uuid` column to
+    `phoenix_kit_entity_data` so each data row can point at another row
+    of the same entity as its parent. The feature is a system field on
+    every entity_data row — always present, optional to fill, never
+    removable by the user (does not appear in
+    `entities.fields_definition`).
+  - No `ON DELETE` cascade: parent/child linkage and same-entity scope
+    are managed by the `PhoenixKitEntities.EntityData` context inside a
+    transaction. A DB-level cascade would bypass the soft-delete
+    machinery and the activity log.
+  - Same-entity enforcement (a row's parent must share its
+    `entity_uuid`) is a context-layer responsibility — the self-FK has
+    no view of `entity_uuid`.
+  - B-tree index on `(parent_uuid)` covers the "list children" query
+    used when rendering the WordPress-style indented tree.
+  - Existing rows stay `parent_uuid = NULL` and become roots — no
+    backfill needed.
+
+  ### V115 - phoenix_kit_annotations table for Etcher-drawn shapes
+  - Creates `phoenix_kit_annotations` storing user-drawn rectangle /
+    circle / polygon / freehand shapes anchored to `phoenix_kit_files`
+    rows in image-pixel coordinates. Geometry is JSONB; shape kinds are
+    enforced via a DB-level CHECK constraint matching Etcher's v0.1
+    tool set.
+  - `file_uuid` FK `ON DELETE :delete_all` — annotations vanish with
+    their host image. `creator_uuid` is nullable + `ON DELETE :nilify_all`
+    so deleting a user preserves their annotations as anonymous.
+  - Discussion threads attach via the existing comments convention
+    (`resource_type = "annotation"`, `resource_uuid = annotation.uuid`)
+    — no `comment_uuid` column on annotations; the relationship is
+    one-directional from the comment side.
+  - Indexes: `(file_uuid)` for per-file listing, partial
+    `(creator_uuid) WHERE creator_uuid IS NOT NULL` for author lookups.
+
+  ### V114 - Integrations storage: uuid-only keys
+  - Rewrites every `phoenix_kit_settings` row keyed
+    `integration:<provider>:<name>` so that `key = uuid` (the row's
+    primary key). Provider and name move into JSONB
+    (`value_json->>'provider'`, `value_json->>'name'`); the `module`
+    column (`'integrations'`) becomes the row-class discriminator.
+  - Backfills any missing `provider`/`name` JSONB fields from the old
+    composite key. Legacy V0-shape keys without a `:name` segment fold
+    to `name = 'default'`.
+  - Lifts both name restrictions on `add_connection/3` /
+    `rename_connection/3`: any non-empty string (after trim) is
+    allowed, including spaces, punctuation, and duplicates within a
+    provider. The `key` column's unique constraint is satisfied by
+    the UUIDv7, not by the human-chosen label.
+  - `down/1` rewrites keys back to the composite shape. Duplicate
+    `(provider, name)` pairs cannot be represented in the old shape,
+    so on collision the name is suffixed with `-<8-char uuid>` to
+    keep the rewrite well-defined.
+
+  ### V113 - System-managed media flag for Tessera tiles + comments↔files junction
+  - Adds `system_managed BOOLEAN DEFAULT false NOT NULL` to
+    `phoenix_kit_files`. Marks internally-generated media (DZI tile
+    pyramids + per-tile chunks) so the MediaBrowser can exclude them
+    from user listings and the variant generator can skip them (tile
+    chunks don't need small / medium / large — just an `"original"`
+    FileInstance).
+  - Adds nullable `parent_file_uuid` FK to `phoenix_kit_files(uuid)`
+    `ON DELETE :delete_all`. When a source image is hard-deleted, its
+    system-managed tile rows cascade away with it.
+  - Drops `NOT NULL` on `user_uuid`: system-managed rows belong to a
+    parent File, not a user. The changeset's
+    `validate_system_managed_invariants` enforces "user_uuid OR
+    parent_file_uuid" at the app level.
+  - Two partial indexes: one on `parent_file_uuid` where not null (per-
+    source cleanup + listing), one on `inserted_at DESC` where
+    `system_managed = false` (keeps the MediaBrowser's "user files
+    only" sort cheap as the tile catalog grows).
+  - Creates `phoenix_kit_comment_media` — junction table letting the
+    comments module attach core File rows to individual comments with
+    a position + optional caption. Cascade on `comment_uuid` (deleting
+    a comment removes its attachments), restrict on `file_uuid` (files
+    can't hard-delete while attached). Unique `(comment_uuid, position)`
+    slot index + secondary index on `file_uuid` for reverse lookup.
+  - Partial unique index `phoenix_kit_files_system_dedup_index` on
+    `(parent_file_uuid, file_name) WHERE system_managed = true` —
+    lets `Storage.store_system_file/3` use `ON CONFLICT DO NOTHING`
+    so concurrent lazy-generation requests for the same uncached
+    tile dedupe at the DB level instead of producing duplicate File
+    rows.
+  - DB-level CHECK constraint `phoenix_kit_files_user_or_parent_check`
+    enforcing `user_uuid IS NOT NULL OR parent_file_uuid IS NOT NULL`
+    — the schema's `validate_system_managed_invariants` is the
+    user-facing check, this is the safety net for raw inserts.
+  - All column / FK / NOT-NULL changes use raw SQL with explicit
+    `IF NOT EXISTS` / `DO $$ … END $$` guards so re-running on a
+    partially-applied schema is a no-op.
+
+  ### V112 - phoenix_kit_projects: archived_at + translations + drop name uniqueness + position + utc_datetime
+  - Adds `archived_at TIMESTAMP(0)` to `phoenix_kit_projects` so the
+    admin dashboard can soft-hide projects without flipping a status
+    enum. Visible-set partial index (`phoenix_kit_projects_visible_idx`
+    on `inserted_at DESC WHERE archived_at IS NULL`) keeps both the
+    project list and template list queries fast — neither view shows
+    archived rows, so one partial covers both `is_template = false`
+    and `is_template = true` reads without two scoped indexes.
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_projects`, `phoenix_kit_project_tasks`, and
+    `phoenix_kit_project_assignments` for per-language overrides on
+    user-input content (name, description, title). Primary stays in
+    the dedicated columns; the JSONB only carries non-primary
+    overrides.
+  - Drops the three remaining unique-name indexes
+    (`phoenix_kit_projects_name_template_index`,
+    `phoenix_kit_projects_name_project_index`,
+    `phoenix_kit_project_tasks_title_index`). Name uniqueness is now
+    policy, not schema — editing or duplicating names no longer
+    trips a stale index.
+  - Retypes `phoenix_kit_projects.scheduled_start_date` from `DATE`
+    to `TIMESTAMP(0)` so scheduled-overdue detection honors time-of-
+    day (a project scheduled for today 09:00 flips to `:overdue` at
+    09:01, not at midnight).
+  - Adds `position INTEGER NOT NULL DEFAULT 0` to
+    `phoenix_kit_project_tasks` and `phoenix_kit_projects` so the
+    drag-and-drop reorder API can persist manual ordering. Per-row
+    `next_*_position/N` helpers in the projects context auto-assign
+    on insert.
+  - All steps guarded for idempotence (column existence + index
+    existence + USING coercion clauses). `down/1` reverses each
+    change so a rollback restores the V111 shape.
+
+  ### V111 - PDF library tables for catalogue
   - Creates `phoenix_kit_cat_pdfs` — thin per-upload row. `file_uuid`
     FK to `phoenix_kit_files(uuid)` ON DELETE RESTRICT (catalogue
     manages the file lifecycle; core prune can't delete files we
@@ -846,7 +1019,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 111
+  @current_version 121
   @default_prefix "public"
 
   @doc false
