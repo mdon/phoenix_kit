@@ -1526,6 +1526,21 @@ if (typeof window.Chart === "undefined") {
   // multiple <dialog> can be open simultaneously).
   window._PkDialogOpenCount = window._PkDialogOpenCount || 0;
 
+  // ---------------------------------------------------------------------------
+  // PkCheckboxIndeterminate — applies the `indeterminate` property to a
+  // checkbox based on `data-indeterminate="true"`. HTML has no attribute
+  // form of `indeterminate`, so a small hook is needed to read the dataset
+  // and assign the JS property after every LV patch.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PkCheckboxIndeterminate = {
+    _apply() {
+      this.el.indeterminate = this.el.dataset.indeterminate === "true";
+    },
+    mounted() { this._apply(); },
+    updated() { this._apply(); }
+  };
+
   window.PhoenixKitHooks.PkDialog = {
     _onOpened() {
       // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`
