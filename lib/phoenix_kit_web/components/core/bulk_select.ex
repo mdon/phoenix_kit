@@ -146,8 +146,12 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   attr :total_count, :integer, required: true
 
   attr :on_open_reorder, :string, required: true
-  attr :on_bulk_delete, :string, required: true
   attr :on_clear_selection, :string, required: true
+
+  attr :on_bulk_delete, :string,
+    default: nil,
+    doc:
+      "Only required when allow_delete is true. Left nil otherwise so callers don't have to wire a dead event."
 
   attr :noun_plural, :string, default: "items"
   attr :allow_reorder_all, :boolean, default: true

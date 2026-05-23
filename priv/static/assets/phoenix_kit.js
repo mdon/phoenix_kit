@@ -1578,21 +1578,33 @@ if (typeof window.Chart === "undefined") {
     },
     mounted() {
       const self = this;
-      // Element only enters the DOM when LV's @show is true — open it.
+      // `_opened` tracks whether we've incremented the global refcount,
+      // so the close event handler can decrement exactly once regardless
+      // of whether the close originated from Esc, backdrop, programmatic
+      // close, or destroyed(). Without this, a user-driven close would
+      // leave the gutter override sticky until `destroyed()` ran — and
+      // if LV didn't process the on_close event, that could be forever.
+      this._opened = false;
+      this._closeFromLV = false;
+
       if (typeof this.el.showModal === "function" && !this.el.open) {
         this.el.showModal();
+        this._opened = true;
+        this._onOpened();
       }
-      this._onOpened();
-
-      // _closeFromLV: set to true in `destroyed()` so the `close` listener
-      // can distinguish LV-driven teardown (don't echo a close event back)
-      // from user-driven closes (Esc, backdrop — echo so server state syncs).
-      this._closeFromLV = false;
 
       self._onCancel = function(e) {
         if (!self._isCloseable()) e.preventDefault();
       };
+      // 'close' fires for every close path: Esc, our own el.close() in
+      // destroyed(), backdrop click (via _onClick → el.close()), and
+      // form `method="dialog"` submits. This is the ONE place that
+      // decrements the refcount.
       self._onClose = function() {
+        if (self._opened) {
+          self._onClosed();
+          self._opened = false;
+        }
         if (!self._closeFromLV) self._pushClose();
       };
       // Backdrop click: a click event whose target is the <dialog> itself
@@ -1607,10 +1619,19 @@ if (typeof window.Chart === "undefined") {
       this.el.addEventListener("click", self._onClick);
     },
     destroyed() {
-      // LV is removing the element. Don't echo a close event — LV initiated.
+      // LV is removing the element. Tell _onClose not to echo a close
+      // event back (LV already initiated this).
       this._closeFromLV = true;
+      // Try the friendly path first (fires 'close' which decrements via
+      // _onClose). But if the element is already detached from the DOM
+      // when destroyed runs, close() may not fire 'close' on every UA —
+      // so always decrement defensively. _opened gates so we never
+      // double-decrement (whoever runs first wins).
       if (this.el.open) this.el.close();
-      this._onClosed();
+      if (this._opened) {
+        this._onClosed();
+        this._opened = false;
+      }
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
