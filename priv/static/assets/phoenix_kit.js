@@ -1541,6 +1541,173 @@ if (typeof window.Chart === "undefined") {
     updated() { this._apply(); }
   };
 
+  // ---------------------------------------------------------------------------
+  // BulkSelectScope — client-side bulk-select state for admin tables.
+  //
+  // The hook owns the selection set in the browser; the server only learns
+  // about it at action time (when the user clicks an action button). This
+  // makes per-checkbox toggles feel instant — no round-trip on every click.
+  //
+  // Markup contract (inside the hook root element):
+  //
+  //   data-bulk-total="N"                   on the root, total row count
+  //                                         (drives the header's
+  //                                         all-selected check)
+  //
+  //   data-bulk-role="select-all"           the header checkbox. Click
+  //                                         toggles every row to match.
+  //
+  //   data-bulk-role="row"
+  //   data-uuid="<row-uuid>"                a per-row checkbox.
+  //
+  //   data-bulk-action="<lv-event>"         on a button: clicking pushes
+  //                                         <lv-event> to the LV with
+  //                                         `{ uuids: [...] }` payload.
+  //
+  //   data-bulk-clear                       on a button: pure client-side
+  //                                         clear (uncheck all + reset).
+  //
+  //   data-bulk-count                       text content gets set to the
+  //                                         current selected count.
+  //
+  //   data-bulk-show="has-selection"        element shown only when
+  //                                         count > 0 (hidden otherwise).
+  //   data-bulk-show="no-selection"         inverse: shown only when count
+  //                                         is 0.
+  //
+  //   data-bulk-text-template="…%{count}…"  element's textContent is
+  //                                         re-rendered from the template
+  //                                         each time the count changes
+  //                                         (%{count} → current count).
+  //
+  //   data-bulk-label-empty / -selected     button label flips between
+  //                                         the two strings based on
+  //                                         count (selected supports
+  //                                         %{count} interpolation).
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.BulkSelectScope = {
+    mounted() {
+      this.selected = new Set();
+      this._readFromDom();
+      this._wire();
+      this._sync();
+    },
+    updated() {
+      // LV may have re-rendered the row set (filter, reload, delete).
+      // Re-derive from whatever's actually in the DOM now — that's
+      // the source of truth.
+      this._readFromDom();
+      this._wire();
+      this._sync();
+    },
+    _readFromDom() {
+      this.selected.clear();
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach((r) => {
+        if (r.checked && r.dataset.uuid) this.selected.add(r.dataset.uuid);
+      });
+    },
+    _wire() {
+      const self = this;
+      const header = this.el.querySelector('[data-bulk-role="select-all"]');
+      if (header && !header._pkBulkWired) {
+        header.addEventListener("click", function() { self._onHeaderClick(header); });
+        header._pkBulkWired = true;
+      }
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach(function(r) {
+        if (r._pkBulkWired) return;
+        r.addEventListener("click", function() { self._onRowClick(r); });
+        r._pkBulkWired = true;
+      });
+      this.el.querySelectorAll("[data-bulk-action]").forEach(function(btn) {
+        if (btn._pkBulkWired) return;
+        btn.addEventListener("click", function(e) { self._onActionClick(e, btn); });
+        btn._pkBulkWired = true;
+      });
+      this.el.querySelectorAll("[data-bulk-clear]").forEach(function(btn) {
+        if (btn._pkBulkWired) return;
+        btn.addEventListener("click", function() { self._clearAll(); });
+        btn._pkBulkWired = true;
+      });
+    },
+    _onHeaderClick(header) {
+      const rows = this.el.querySelectorAll('[data-bulk-role="row"]');
+      const self = this;
+      if (header.checked) {
+        rows.forEach(function(r) {
+          r.checked = true;
+          if (r.dataset.uuid) self.selected.add(r.dataset.uuid);
+        });
+      } else {
+        rows.forEach(function(r) { r.checked = false; });
+        this.selected.clear();
+      }
+      this._sync();
+    },
+    _onRowClick(input) {
+      const uuid = input.dataset.uuid;
+      if (!uuid) return;
+      if (input.checked) this.selected.add(uuid);
+      else this.selected.delete(uuid);
+      this._sync();
+    },
+    _onActionClick(e, btn) {
+      e.preventDefault();
+      const event = btn.dataset.bulkAction;
+      if (!event) return;
+      this.pushEventTo(this.el, event, { uuids: Array.from(this.selected) });
+    },
+    _clearAll() {
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach(function(r) {
+        r.checked = false;
+      });
+      this.selected.clear();
+      this._sync();
+    },
+    _sync() {
+      const total = parseInt(this.el.dataset.bulkTotal || "0", 10);
+      const count = this.selected.size;
+
+      const header = this.el.querySelector('[data-bulk-role="select-all"]');
+      if (header) {
+        header.checked = count > 0 && count === total;
+        header.indeterminate = count > 0 && count < total;
+      }
+
+      this.el.querySelectorAll("[data-bulk-count]").forEach(function(el) {
+        el.textContent = String(count);
+      });
+
+      this.el.querySelectorAll("[data-bulk-text-template]").forEach(function(el) {
+        el.textContent = el.dataset.bulkTextTemplate.replace("%{count}", String(count));
+      });
+
+      this.el.querySelectorAll("[data-bulk-show]").forEach(function(el) {
+        const mode = el.dataset.bulkShow;
+        const visible =
+          mode === "has-selection" ? count > 0 :
+          mode === "no-selection" ? count === 0 : true;
+        el.style.display = visible ? "" : "none";
+      });
+
+      this.el.querySelectorAll("[data-bulk-label-empty][data-bulk-label-selected]").forEach(function(el) {
+        const label = count > 0
+          ? el.dataset.bulkLabelSelected.replace("%{count}", String(count))
+          : el.dataset.bulkLabelEmpty;
+        // Only swap the text node so we don't blow away icon children.
+        let updated = false;
+        for (const node of el.childNodes) {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== "") {
+            node.textContent = label;
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) el.appendChild(document.createTextNode(label));
+      });
+    }
+  };
+
   window.PhoenixKitHooks.PkDialog = {
     _onOpened() {
       // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`

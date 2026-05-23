@@ -1,74 +1,73 @@
 defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   @moduledoc """
-  Bulk-select toolkit that composes with `<.table_default>`. Three
-  function components, all opt-in — the consumer decides whether to
-  render them and what events they emit.
+  Bulk-select toolkit for admin tables, **client-side**. The selection
+  lives in the browser; the server only learns about it at action time
+  (when the user clicks an action button) via the `BulkSelectScope`
+  JS hook. This makes per-checkbox toggles feel instant — no LV
+  round-trip on every click.
 
-    * `<.bulk_select_header_cell>` — drops into the table header in
-      place of a `<.table_default_header_cell>`. Renders a tri-state
-      checkbox via the `PkCheckboxIndeterminate` JS hook. State:
+  Three function components compose with `<.table_default>`, plus a
+  wrapper element with the hook attached.
 
-        0 selected      → unchecked
-        partial         → indeterminate (—)
-        all selected    → checked
+    * `<.bulk_select_scope>` — opens an inline-styled wrapper with
+      `phx-hook="BulkSelectScope"`. Everything inside (header cell,
+      row cells, toolbar buttons) participates in the same selection
+      set. Pass `total_count` so the hook knows when "all" is checked.
 
-      Clicking always emits `on_toggle`; the LV handler picks "all"
-      or "none" based on current state.
+    * `<.bulk_select_header_cell>` — the header checkbox. Tri-state
+      (unchecked / indeterminate / checked) is managed by the hook.
 
-    * `<.bulk_select_cell>` — drops into each row in place of a
-      `<.table_default_cell>`. Renders a per-row checkbox bound to a
-      uuid value.
+    * `<.bulk_select_cell>` — per-row checkbox bound to a UUID value.
 
-    * `<.bulk_actions_toolbar>` — floating toolbar rendered ABOVE the
-      table (sibling to `<.table_default>`, not nested). Shows the
-      selection count + actions (Reorder, Delete, Clear). Reorder and
-      Delete are gated by `allow_reorder_all` / `allow_delete` so
-      consumers can hide them when they don't apply.
-
-  Per-row checkboxes are consumer-wired (the row content varies per
-  module). The header cell + toolbar are reusable shells.
+    * `<.bulk_actions_toolbar>` — the toolbar above the table. Buttons
+      with `data-bulk-action` dispatch LV events with the selected
+      UUIDs in the `{uuids: [...]}` payload.
 
   ## Example
 
-      <.table_default id="projects-list" size="sm">
-        <.table_default_header>
-          <.table_default_row>
-            <.bulk_select_header_cell
-              :if={@bulk_enabled?}
-              id="projects-select-all"
-              selected_count={MapSet.size(@selected_uuids)}
-              total_count={length(@projects)}
-              on_toggle="toggle_select_all"
-              aria_label={gettext("Select all projects")}
-            />
-            <.table_default_header_cell>Name</.table_default_header_cell>
-            ...
-          </.table_default_row>
-        </.table_default_header>
-        <tbody>
-          <.table_default_row :for={p <- @projects}>
-            <.bulk_select_cell
-              :if={@bulk_enabled?}
-              value={p.uuid}
-              checked={MapSet.member?(@selected_uuids, p.uuid)}
-              on_toggle="toggle_select"
-            />
-            <.table_default_cell>{p.name}</.table_default_cell>
-            ...
-          </.table_default_row>
-        </tbody>
-      </.table_default>
+      <.bulk_select_scope id="projects-bulk" total_count={length(@projects)}>
+        <.bulk_actions_toolbar
+          on_open_reorder="open_reorder_modal"
+          on_clear_selection="clear"
+          noun_singular={gettext("project")}
+          noun_plural={gettext("projects")}
+        />
 
-      <.bulk_actions_toolbar
-        :if={@bulk_enabled? and @projects != []}
-        selected_count={MapSet.size(@selected_uuids)}
-        total_count={length(@projects)}
-        on_open_reorder="open_reorder_modal"
-        on_bulk_delete="bulk_delete"
-        on_clear_selection="clear_selection"
-        noun_plural={gettext("projects")}
-        allow_delete={false}
-      />
+        <.table_default id="projects-list" size="sm">
+          <.table_default_header>
+            <.table_default_row>
+              <.bulk_select_header_cell
+                id="projects-select-all"
+                aria_label={gettext("Select all projects")}
+              />
+              <.table_default_header_cell>Name</.table_default_header_cell>
+              ...
+            </.table_default_row>
+          </.table_default_header>
+          <tbody>
+            <.table_default_row :for={p <- @projects}>
+              <.bulk_select_cell value={p.uuid} />
+              <.table_default_cell>{p.name}</.table_default_cell>
+              ...
+            </.table_default_row>
+          </tbody>
+        </.table_default>
+      </.bulk_select_scope>
+
+  The consumer LV handles `on_open_reorder` (etc.) with a payload of
+  `%{"uuids" => uuids}`:
+
+      def handle_event("open_reorder_modal", %{"uuids" => uuids}, socket) do
+        {:noreply, assign(socket, show_reorder_modal: true, captured_uuids: uuids)}
+      end
+
+  ## Why client-side
+
+  Server-side selection (each click is a `phx-click` round-trip)
+  forces a re-render with every toggle, which feels laggy at any
+  meaningful network latency. Bulk-select is a high-frequency UI
+  interaction where the server only needs to know the selection at
+  the moment it acts on it — making the client the natural owner.
   """
 
   use Phoenix.Component
@@ -77,13 +76,33 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
   @doc """
-  Header checkbox cell — drop-in replacement for `<.table_default_header_cell>`
-  in the bulk-select column.
+  Opens a bulk-select scope. Everything inside this wrapper
+  participates in the same selection set.
   """
   attr :id, :string, required: true
-  attr :selected_count, :integer, required: true
   attr :total_count, :integer, required: true
-  attr :on_toggle, :string, required: true
+  attr :class, :string, default: ""
+  slot :inner_block, required: true
+
+  def bulk_select_scope(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class={@class}
+      phx-hook="BulkSelectScope"
+      data-bulk-total={@total_count}
+    >
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Header checkbox cell — drop-in replacement for `<.table_default_header_cell>`
+  in the bulk-select column. The `BulkSelectScope` hook drives its
+  checked / indeterminate state based on the current selection.
+  """
+  attr :id, :string, required: true
   attr :aria_label, :string, default: "Toggle select all"
   attr :class, :string, default: "w-8"
 
@@ -94,10 +113,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
         type="checkbox"
         id={@id}
         class="checkbox checkbox-sm"
-        checked={@selected_count > 0 and @selected_count == @total_count}
-        data-indeterminate={to_string(@selected_count > 0 and @selected_count < @total_count)}
-        phx-hook="PkCheckboxIndeterminate"
-        phx-click={@on_toggle}
+        data-bulk-role="select-all"
         aria-label={@aria_label}
       />
     </th>
@@ -105,13 +121,11 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   end
 
   @doc """
-  Per-row checkbox cell — drop-in replacement for `<.table_default_cell>`
-  in the bulk-select column. The `value` is forwarded as `phx-value-uuid`
-  so the LV handler can identify which row was toggled.
+  Per-row checkbox cell. The `value` is captured into the selection
+  set when checked; it's the identifier the server receives in
+  `{uuids: [...]}` when an action fires.
   """
   attr :value, :string, required: true
-  attr :checked, :boolean, required: true
-  attr :on_toggle, :string, required: true
   attr :class, :string, default: "w-8"
 
   def bulk_select_cell(assigns) do
@@ -120,91 +134,85 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
       <input
         type="checkbox"
         class="checkbox checkbox-sm"
-        checked={@checked}
-        phx-click={@on_toggle}
-        phx-value-uuid={@value}
+        data-bulk-role="row"
+        data-uuid={@value}
       />
     </td>
     """
   end
 
   @doc """
-  Floating toolbar above a bulk-selectable table. Shows selection count +
-  actions. Renders when bulk mode is engaged on the consumer side (this
-  component doesn't gate visibility — wrap with `:if={@bulk_enabled?}` or
-  similar).
+  Floating toolbar above the table. Built-in actions: Reorder, Delete,
+  Clear. Each button is opt-in via flags / event-name attrs. Toolbar
+  always renders; the count text + button labels + visibility update
+  live as the user toggles checkboxes.
 
-  Built-in actions: Reorder, Delete, Clear. Each is opt-in via flags so
-  consumers can hide the buttons they don't need. The actions emit the
-  events the consumer wires up — this component owns layout only.
-
-  When `selected_count == 0`, only Reorder-all is shown (Delete + Clear
-  hide). When > 0, Reorder flips to "Reorder selected" and Delete + Clear
-  become visible.
+  Reorder is mandatory (`on_open_reorder` is required). Delete and
+  Clear are optional.
   """
-  attr :selected_count, :integer, required: true
-  attr :total_count, :integer, required: true
-
-  attr :on_open_reorder, :string, required: true
-  attr :on_clear_selection, :string, required: true
+  attr :on_open_reorder, :string,
+    required: true,
+    doc: "Event pushed when the Reorder button is clicked. Receives `%{\"uuids\" => uuids}`."
 
   attr :on_bulk_delete, :string,
     default: nil,
-    doc:
-      "Only required when allow_delete is true. Left nil otherwise so callers don't have to wire a dead event."
+    doc: "Event pushed when Delete is clicked. Required if `allow_delete` is true."
 
+  attr :noun_singular, :string, default: "item"
   attr :noun_plural, :string, default: "items"
-  attr :allow_reorder_all, :boolean, default: true
   attr :allow_delete, :boolean, default: true
 
   def bulk_actions_toolbar(assigns) do
+    # `%{count}` is substituted by the BulkSelectScope JS hook at run
+    # time, not at render time. `gettext_noop` marks the strings for
+    # POT extraction without trying to bind `count` here (which would
+    # raise a "missing Gettext bindings" warning).
+    assigns =
+      assigns
+      |> assign(:reorder_empty_label, gettext("Reorder all"))
+      |> assign(:reorder_selected_label, gettext_noop("Reorder %{count} selected"))
+      |> assign(:no_selection_label, gettext("No selection"))
+      |> assign(:selected_text_template, gettext_noop("%{count} selected"))
+      |> assign(:delete_label, gettext("Delete"))
+      |> assign(:clear_label, gettext("Clear"))
+
     ~H"""
     <div class="flex items-center gap-3 bg-base-200 rounded-lg px-3 py-2 text-sm">
       <span class="text-base-content/70">
-        <%= if @selected_count > 0 do %>
-          {gettext("%{count} selected", count: @selected_count)}
-        <% else %>
-          {gettext("No selection")}
-        <% end %>
+        <span data-bulk-show="no-selection">{@no_selection_label}</span>
+        <span data-bulk-show="has-selection" data-bulk-text-template={@selected_text_template}>
+          0
+        </span>
       </span>
 
       <div class="flex items-center gap-2 ml-auto">
         <button
-          :if={@allow_reorder_all or @selected_count > 0}
           type="button"
           class="btn btn-sm btn-ghost"
-          phx-click={@on_open_reorder}
-          disabled={@total_count == 0}
+          data-bulk-action={@on_open_reorder}
+          data-bulk-label-empty={@reorder_empty_label}
+          data-bulk-label-selected={@reorder_selected_label}
         >
-          <.icon name="hero-arrows-up-down" class="w-4 h-4" />
-          {if @selected_count > 0,
-            do: gettext("Reorder selected"),
-            else: gettext("Reorder all")}
+          <.icon name="hero-arrows-up-down" class="w-4 h-4" /> {@reorder_empty_label}
         </button>
 
         <button
-          :if={@allow_delete and @selected_count > 0}
+          :if={@allow_delete and @on_bulk_delete}
           type="button"
           class="btn btn-sm btn-ghost text-error"
-          phx-click={@on_bulk_delete}
-          data-confirm={
-            gettext("Delete %{count} selected %{noun}? This cannot be undone.",
-              count: @selected_count,
-              noun: @noun_plural
-            )
-          }
+          data-bulk-action={@on_bulk_delete}
+          data-bulk-show="has-selection"
         >
-          <.icon name="hero-trash" class="w-4 h-4" />
-          {gettext("Delete")}
+          <.icon name="hero-trash" class="w-4 h-4" /> {@delete_label}
         </button>
 
         <button
-          :if={@selected_count > 0}
           type="button"
           class="btn btn-sm btn-ghost"
-          phx-click={@on_clear_selection}
+          data-bulk-clear="true"
+          data-bulk-show="has-selection"
         >
-          {gettext("Clear")}
+          {@clear_label}
         </button>
       </div>
     </div>
