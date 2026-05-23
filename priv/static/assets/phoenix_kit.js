@@ -1510,37 +1510,95 @@ if (typeof window.Chart === "undefined") {
   //
   // Renders the modal in the browser top layer (showModal()), so it is immune to
   // ancestor stacking contexts / z-index — fixes modals being overlapped by
-  // parent-page elements.
+  // parent-page elements. The dialog also covers the FULL visual viewport
+  // (top-layer rendering bypasses the daisyUI `scrollbar-gutter: stable` trick
+  // that previously left a 15px gap on the right of `<div class="modal">`).
   //
   //   data-show        "true" / "false" — desired open state (synced each update)
-  //   data-close-event event pushed to the component on Escape / cancel
+  //   data-close-event event pushed to the component on Escape / cancel / backdrop
+  //   data-closeable   "false" → Escape + backdrop click are no-ops (modal still
+  //                    closable only via an explicit action button). Default:
+  //                    closeable.
   // ---------------------------------------------------------------------------
 
+  // Refcount of open PkDialog modals. Used to know when to restore the
+  // html's scrollbar-gutter (only when the LAST modal closes, since
+  // multiple <dialog> can be open simultaneously).
+  window._PkDialogOpenCount = window._PkDialogOpenCount || 0;
+
   window.PhoenixKitHooks.PkDialog = {
-    _sync() {
-      const wantOpen = this.el.dataset.show === "true";
-      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
-        this.el.showModal();
-      } else if (!wantOpen && this.el.open) {
-        this.el.close();
+    _onOpened() {
+      // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`
+      // rule that prevents body layout jump when a modal opens but ALSO
+      // reduces the layout viewport by ~15px, leaving a strip on the right
+      // where the dialog/backdrop don't reach. Override per modal open so
+      // the dialog can cover the full visual viewport. Refcounted so
+      // concurrent modals don't fight each other.
+      if (window._PkDialogOpenCount === 0) {
+        const html = document.documentElement;
+        html.dataset.pkPrevScrollbarGutter = html.style.scrollbarGutter || "";
+        html.style.setProperty("scrollbar-gutter", "auto", "important");
       }
+      window._PkDialogOpenCount += 1;
+    },
+    _onClosed() {
+      window._PkDialogOpenCount = Math.max(0, window._PkDialogOpenCount - 1);
+      if (window._PkDialogOpenCount === 0) {
+        const html = document.documentElement;
+        const prev = html.dataset.pkPrevScrollbarGutter;
+        if (prev) {
+          html.style.scrollbarGutter = prev;
+        } else {
+          html.style.removeProperty("scrollbar-gutter");
+        }
+        delete html.dataset.pkPrevScrollbarGutter;
+      }
+    },
+    _isCloseable() {
+      return this.el.dataset.closeable !== "false";
+    },
+    _pushClose() {
+      const ev = this.el.dataset.closeEvent;
+      if (ev) this.pushEventTo(this.el, ev, {});
     },
     mounted() {
       const self = this;
+      // Element only enters the DOM when LV's @show is true — open it.
+      if (typeof this.el.showModal === "function" && !this.el.open) {
+        this.el.showModal();
+      }
+      this._onOpened();
+
+      // _closeFromLV: set to true in `destroyed()` so the `close` listener
+      // can distinguish LV-driven teardown (don't echo a close event back)
+      // from user-driven closes (Esc, backdrop — echo so server state syncs).
+      this._closeFromLV = false;
+
       self._onCancel = function(e) {
-        e.preventDefault();
-        const ev = self.el.dataset.closeEvent;
-        if (ev) self.pushEventTo(self.el, ev, {});
+        if (!self._isCloseable()) e.preventDefault();
+      };
+      self._onClose = function() {
+        if (!self._closeFromLV) self._pushClose();
+      };
+      // Backdrop click: a click event whose target is the <dialog> itself
+      // (rather than a descendant) means the user clicked outside the
+      // modal-box on the ::backdrop surface. Children stop propagation
+      // naturally because event.target lands on them, not on the dialog.
+      self._onClick = function(e) {
+        if (e.target === self.el && self._isCloseable()) self.el.close();
       };
       this.el.addEventListener("cancel", self._onCancel);
-      this._sync();
-    },
-    updated() {
-      this._sync();
+      this.el.addEventListener("close", self._onClose);
+      this.el.addEventListener("click", self._onClick);
     },
     destroyed() {
-      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      // LV is removing the element. Don't echo a close event — LV initiated.
+      this._closeFromLV = true;
       if (this.el.open) this.el.close();
+      this._onClosed();
+      if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
+      if (this._onClose) this.el.removeEventListener("close", this._onClose);
+      if (this._onClick) this.el.removeEventListener("click", this._onClick);
     }
   };
 
