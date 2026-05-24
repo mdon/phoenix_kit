@@ -7707,7 +7707,7 @@ msgid "Admin Panel"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:126
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account type:"
 msgstr ""
 
@@ -7723,12 +7723,12 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:136
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:137
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Drag rows to reorder"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:38
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Featured"
 msgstr ""
 
@@ -7743,7 +7743,7 @@ msgid "Sort by"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:158
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr ""
 
@@ -7753,12 +7753,12 @@ msgid "Controls how the primary language appears in URLs across the site — adm
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:294
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Default Language Without Prefix"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules/languages.ex:89
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update URL behavior setting"
 msgstr "Einstellung konnte nicht aktualisiert werden"
 

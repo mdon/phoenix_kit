@@ -7729,9 +7729,9 @@ msgid "Admin Panel"
 msgstr "Halduspaneel"
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:126
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account type:"
-msgstr "Konto tüüp"
+msgstr "Konto tüüp:"
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:197
 #, elixir-autogen, elixir-format
@@ -7745,14 +7745,14 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:136
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:137
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Drag rows to reorder"
-msgstr "Lohistage järjestuse muutmiseks"
+msgstr "Lohistage ridu järjekorra muutmiseks"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:38
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Featured"
-msgstr "Funktsionaalsed moodulid"
+msgstr "Esiletõstetud"
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:134
 #, elixir-autogen, elixir-format
@@ -7765,9 +7765,9 @@ msgid "Sort by"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:158
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Status:"
-msgstr "Olek"
+msgstr "Olek:"
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:284
 #, elixir-autogen, elixir-format

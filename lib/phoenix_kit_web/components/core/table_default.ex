@@ -403,8 +403,8 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             <%!-- Key-value fields --%>
             <div :if={@card_fields} class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm flex-1">
               <%= for field <- @card_fields.(item) do %>
-                <div class="text-base-content/60">{field.label}</div>
-                <div>{field.value}</div>
+                <div class="text-base-content/60 min-w-0">{field.label}</div>
+                <div class="min-w-0 break-words">{field.value}</div>
               <% end %>
             </div>
             <%!-- Footer row: drag handle (leftmost), action buttons

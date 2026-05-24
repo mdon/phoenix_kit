@@ -123,7 +123,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
             {render_slot(@status_badges)}
           </div>
 
-          <div class="card-actions relative z-10 grow min-w-0 flex-wrap">
+          <div class="card-actions relative z-10 grow min-w-0">
             {render_slot(@action_buttons)}
           </div>
         </div>
