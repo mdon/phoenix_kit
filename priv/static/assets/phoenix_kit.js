@@ -1687,7 +1687,10 @@ if (typeof window.Chart === "undefined") {
         const visible =
           mode === "has-selection" ? count > 0 :
           mode === "no-selection" ? count === 0 :
-          mode === "has-multiple" ? count > 1 : true;
+          mode === "has-multiple" ? count > 1 :
+          // count is 0 OR > 1 — used by reorder-like buttons whose
+          // single-row case is a no-op (count=1 hides the button).
+          mode === "not-single" ? count !== 1 : true;
         el.style.display = visible ? "" : "none";
       });
 

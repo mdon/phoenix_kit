@@ -166,7 +166,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
     default: :always,
     values: [:always, :multi],
     doc:
-      "When `:always`, the Reorder button is visible at any selection count (label flips between 'Reorder all' at 0 and 'Reorder N selected' at N>0). When `:multi`, the button is hidden unless count > 1 — useful when the surrounding context doesn't have a meaningful 'reorder all' interpretation (e.g. the list is currently sorted by name, not the manual position field)."
+      "When `:always`, the Reorder button is visible at count 0 (label: 'Reorder all') or > 1 ('Reorder N selected'); hidden at count = 1 because a single-row reorder is a no-op. When `:multi`, hidden unless count > 1 — useful when the surrounding context has no meaningful 'reorder all' interpretation (e.g. the list is currently sorted by name, not the manual position field)."
 
   slot :leading,
     doc:
@@ -189,7 +189,12 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
           type="button"
           class="btn btn-sm btn-ghost"
           data-bulk-action={@on_open_reorder}
-          data-bulk-show={if @reorder_gate == :multi, do: "has-multiple"}
+          data-bulk-show={
+            case @reorder_gate do
+              :multi -> "has-multiple"
+              :always -> "not-single"
+            end
+          }
           data-bulk-label-empty={if @reorder_gate == :always, do: @reorder_empty_label}
           data-bulk-label-selected={@reorder_selected_label}
         >
