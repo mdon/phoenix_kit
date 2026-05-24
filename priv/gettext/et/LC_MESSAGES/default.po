@@ -56,8 +56,8 @@ msgstr "Kasutajate haldamine"
 #: lib/phoenix_kit_web/live/dashboard.html.heex:44
 #: lib/phoenix_kit_web/live/users/roles.ex:47
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:135
-#: lib/phoenix_kit_web/live/users/users.html.heex:387
-#: lib/phoenix_kit_web/live/users/users.html.heex:481
+#: lib/phoenix_kit_web/live/users/users.html.heex:397
+#: lib/phoenix_kit_web/live/users/users.html.heex:492
 #, elixir-autogen
 msgid "Roles"
 msgstr "Rollid"
@@ -113,6 +113,7 @@ msgstr "E-posti logid ja analüütika"
 
 #: lib/modules/storage/web/health.html.heex:75
 #: lib/phoenix_kit_web/live/dashboard.html.heex:121
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:178
 #, elixir-autogen
 msgid "Refresh"
 msgstr "Värskenda"
@@ -303,13 +304,12 @@ msgstr "Autentimine"
 #: lib/phoenix_kit_web/components/core/badge.ex:105
 #: lib/phoenix_kit_web/components/core/badge.ex:131
 #: lib/phoenix_kit_web/components/core/badge.ex:191
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:56
 #: lib/phoenix_kit_web/live/dashboard.html.heex:364
 #: lib/phoenix_kit_web/live/modules.html.heex:69
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:110
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:251
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:579
-#: lib/phoenix_kit_web/live/users/users.html.heex:279
+#: lib/phoenix_kit_web/live/users/users.html.heex:289
 #: lib/phoenix_kit_web/users/user_form.html.heex:765
 #, elixir-autogen
 msgid "Active"
@@ -428,13 +428,12 @@ msgstr "Konto teave"
 #: lib/modules/storage/web/dimensions.html.heex:151
 #: lib/modules/storage/web/dimensions.html.heex:351
 #: lib/modules/storage/web/settings.html.heex:191
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:55
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:83
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:127
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:174
 #: lib/phoenix_kit_web/live/settings/users.html.heex:426
 #: lib/phoenix_kit_web/live/users/roles.html.heex:167
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:238
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:223
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:556
 #: lib/phoenix_kit_web/users/user_form.html.heex:742
 #: lib/phoenix_kit_web/users/user_form.html.heex:822
@@ -442,7 +441,7 @@ msgstr "Konto teave"
 msgid "Actions"
 msgstr "Tegevused"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:59
+#: lib/phoenix_kit_web/components/media_gallery.html.heex:83
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:965
 #: lib/phoenix_kit_web/live/settings/users.html.heex:726
 #: lib/phoenix_kit_web/users/user_form.html.heex:721
@@ -503,7 +502,6 @@ msgid "All session tokens and authentication data"
 msgstr "Kõik seansi tokenid ja autentimisandmed"
 
 #: lib/phoenix_kit_web/components/language_switcher.ex:831
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:70
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr "Arhiveeritud"
@@ -541,7 +539,6 @@ msgstr "Pangaandmed salvestatud"
 
 #: lib/modules/storage/web/bucket_form.html.heex:21
 #: lib/modules/storage/web/dimension_form.html.heex:21
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:86
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Basic Information"
@@ -572,13 +569,13 @@ msgstr "Punktloend"
 #: lib/modules/storage/web/bucket_form.html.heex:416
 #: lib/modules/storage/web/dimension_form.html.heex:235
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
-#: lib/phoenix_kit_web/components/annotation_composer.ex:593
+#: lib/phoenix_kit_web/components/annotation_composer.ex:595
+#: lib/phoenix_kit_web/components/core/form_actions.ex:67
 #: lib/phoenix_kit_web/components/core/modal.ex:263
 #: lib/phoenix_kit_web/components/media_browser.html.heex:60
 #: lib/phoenix_kit_web/components/media_browser.html.heex:237
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1241
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:90
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:62
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:64
 #: lib/phoenix_kit_web/live/settings/users.html.heex:753
 #: lib/phoenix_kit_web/live/users/roles.html.heex:42
 #: lib/phoenix_kit_web/live/users/roles.html.heex:76
@@ -631,8 +628,8 @@ msgid "Click any check or cross icon to toggle a permission for that role. The O
 msgstr "Klõpsa mis tahes linnukese või risti ikoonil, et lülitada selle rolli õigust. Omaniku rollil on alati täielik juurdepääs ja seda ei saa muuta. Sa ei saa muuta oma rolli ega kõrgema volitusega rollide õigusi. Sa saad anda või tühistada ainult neid õigusi, mis sinu rollil on."
 
 #: lib/modules/sitemap/web/settings.html.heex:656
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1292
-#: lib/phoenix_kit_web/components/media_viewer.html.heex:21
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:21
+#: lib/phoenix_kit_web/components/media_viewer.html.heex:36
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -663,7 +660,6 @@ msgstr "Ettevõtte teave jagatud Juriidilise ja Arvelduse moodulitega"
 msgid "Company name is required"
 msgstr "Ettevõtte nimi on kohustuslik"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:116
 #: lib/phoenix_kit_web/live/modules.html.heex:58
 #: lib/phoenix_kit_web/live/modules.html.heex:108
 #: lib/phoenix_kit_web/live/modules.html.heex:121
@@ -686,10 +682,9 @@ msgstr "Seadista"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:261
 #: lib/phoenix_kit_web/components/core/modal.ex:262
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:120
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:71
-#: lib/phoenix_kit_web/live/users/users.html.heex:415
-#: lib/phoenix_kit_web/live/users/users.html.heex:500
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:73
+#: lib/phoenix_kit_web/live/users/users.html.heex:425
+#: lib/phoenix_kit_web/live/users/users.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Confirm"
 msgstr "Kinnita"
@@ -785,8 +780,8 @@ msgid "Create and manage user roles"
 msgstr "Loo ja halda kasutajarolle"
 
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:305
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:182
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:235
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:126
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr "Loodud"
@@ -849,7 +844,6 @@ msgstr "Andmed, mis kustutatakse jäädavalt:"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:291
 #: lib/phoenix_kit_web/components/media_browser.html.heex:680
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1034
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:138
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:494
 #: lib/phoenix_kit_web/live/settings/users.html.heex:501
 #: lib/phoenix_kit_web/live/settings/users.html.heex:541
@@ -858,8 +852,8 @@ msgstr "Andmed, mis kustutatakse jäädavalt:"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:25
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:511
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:514
-#: lib/phoenix_kit_web/live/users/users.html.heex:442
-#: lib/phoenix_kit_web/live/users/users.html.heex:518
+#: lib/phoenix_kit_web/live/users/users.html.heex:452
+#: lib/phoenix_kit_web/live/users/users.html.heex:529
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "Kustuta"
@@ -882,7 +876,6 @@ msgstr "Kustuta kasutaja"
 msgid "Describe what this role can do (optional)"
 msgstr "Kirjelda, mida see roll teha saab (valikuline)"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:148
 #: lib/phoenix_kit_web/live/users/roles.html.heex:33
 #: lib/phoenix_kit_web/live/users/roles.html.heex:67
 #: lib/phoenix_kit_web/live/users/roles.html.heex:100
@@ -928,7 +921,6 @@ msgid "Do you want to continue?"
 msgstr "Kas soovid jätkata?"
 
 #: lib/phoenix_kit_web/components/language_switcher.ex:830
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:153
 #, elixir-autogen, elixir-format
 msgid "Draft"
 msgstr "Mustand"
@@ -938,7 +930,6 @@ msgstr "Mustand"
 #: lib/modules/storage/web/dimensions.html.heex:420
 #: lib/modules/storage/web/dimensions.html.heex:457
 #: lib/modules/storage/web/settings.html.heex:296
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:158
 #: lib/phoenix_kit_web/live/settings/users.html.heex:492
 #: lib/phoenix_kit_web/live/settings/users.html.heex:532
 #: lib/phoenix_kit_web/live/users/roles.html.heex:132
@@ -946,8 +937,8 @@ msgstr "Mustand"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:18
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:500
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:503
-#: lib/phoenix_kit_web/live/users/users.html.heex:378
-#: lib/phoenix_kit_web/live/users/users.html.heex:473
+#: lib/phoenix_kit_web/live/users/users.html.heex:388
+#: lib/phoenix_kit_web/live/users/users.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr "Muuda"
@@ -1014,7 +1005,6 @@ msgid "Enter your password"
 msgstr "Sisesta oma parool"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:484
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:164
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:96
 #: lib/phoenix_kit_web/live/settings/integrations.ex:168
 #, elixir-autogen, elixir-format
@@ -1096,7 +1086,6 @@ msgstr "SEO seadete uuendamine ebaõnnestus"
 msgid "Failed to update permissions"
 msgstr "Õiguste uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:182
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:70
 #, elixir-autogen, elixir-format
 msgid "Failed to update setting"
@@ -1180,7 +1169,7 @@ msgstr "Pilt"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:112
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:251
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:583
-#: lib/phoenix_kit_web/live/users/users.html.heex:283
+#: lib/phoenix_kit_web/live/users/users.html.heex:293
 #: lib/phoenix_kit_web/users/user_form.html.heex:769
 #, elixir-autogen, elixir-format
 msgid "Inactive"
@@ -1417,7 +1406,6 @@ msgstr "Valikuline"
 msgid "Optional, up to 500 characters."
 msgstr "Valikuline, kuni 500 tähemärki."
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:265
 #: lib/phoenix_kit_web/live/settings/users.html.heex:685
 #, elixir-autogen, elixir-format
 msgid "Options"
@@ -1613,8 +1601,7 @@ msgstr "Keeldu"
 msgid "Reject All"
 msgstr "Keeldu kõigest"
 
-#: lib/phoenix_kit_web/components/media_gallery.html.heex:55
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:292
+#: lib/phoenix_kit_web/components/media_gallery.html.heex:50
 #: lib/phoenix_kit_web/live/settings.html.heex:107
 #: lib/phoenix_kit_web/live/settings.html.heex:174
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:116
@@ -1625,7 +1612,6 @@ msgstr "Keeldu kõigest"
 msgid "Remove"
 msgstr "Eemalda"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:294
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:87
 #: lib/phoenix_kit_web/live/modules.html.heex:97
 #: lib/phoenix_kit_web/live/settings/users.html.heex:376
@@ -1774,13 +1760,12 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:312
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:244
 #: lib/phoenix_kit_web/live/modules.html.heex:316
 #: lib/phoenix_kit_web/live/settings.html.heex:12
-#: lib/phoenix_kit_web/live/users/users.html.heex:396
-#: lib/phoenix_kit_web/live/users/users.html.heex:489
+#: lib/phoenix_kit_web/live/users/users.html.heex:406
+#: lib/phoenix_kit_web/live/users/users.html.heex:500
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "Seaded"
@@ -1831,12 +1816,11 @@ msgstr "Maakond/provints"
 #: lib/modules/storage/web/health.html.heex:222
 #: lib/modules/storage/web/settings.html.heex:177
 #: lib/modules/storage/web/settings.html.heex:190
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:331
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:28
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:82
 #: lib/phoenix_kit_web/live/settings/users.html.heex:380
 #: lib/phoenix_kit_web/live/settings/users.html.heex:421
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:234
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:219
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:248
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:555
 #: lib/phoenix_kit_web/users/user_form.html.heex:741
@@ -1920,7 +1904,6 @@ msgstr "See kasutaja on kustutatud"
 msgid "Timezone"
 msgstr "Ajavöönd"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:338
 #: lib/phoenix_kit_web/live/modules.html.heex:260
 #: lib/phoenix_kit_web/live/modules.html.heex:332
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:181
@@ -1936,7 +1919,6 @@ msgstr "Rolle kokku"
 #: lib/modules/storage/web/health.html.heex:197
 #: lib/modules/storage/web/health.html.heex:220
 #: lib/phoenix_kit_web/components/media_browser.html.heex:836
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:347
 #: lib/phoenix_kit_web/live/settings/users.html.heex:374
 #: lib/phoenix_kit_web/live/settings/users.html.heex:417
 #: lib/phoenix_kit_web/live/settings/users.html.heex:617
@@ -2040,10 +2022,9 @@ msgstr "Käibemaksukohustuslase number peab olema EL-i vormingus (nt %{country}1
 msgid "Video"
 msgstr "Video"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:371
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:592
-#: lib/phoenix_kit_web/live/users/users.html.heex:370
-#: lib/phoenix_kit_web/live/users/users.html.heex:468
+#: lib/phoenix_kit_web/live/users/users.html.heex:380
+#: lib/phoenix_kit_web/live/users/users.html.heex:479
 #: lib/phoenix_kit_web/users/user_form.html.heex:780
 #, elixir-autogen, elixir-format
 msgid "View"
@@ -2130,14 +2111,13 @@ msgstr "muudetud"
 msgid "users"
 msgstr "kasutajat"
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:431
-#: lib/phoenix_kit_web/live/users/users.html.heex:508
+#: lib/phoenix_kit_web/live/users/users.html.heex:441
+#: lib/phoenix_kit_web/live/users/users.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "Activate"
 msgstr "Aktiveeri"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:68
-#: lib/phoenix_kit_web/live/users/users.html.heex:121
+#: lib/phoenix_kit_web/live/users/users.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "All Types"
 msgstr "Kõik tüübid"
@@ -2147,8 +2127,8 @@ msgstr "Kõik tüübid"
 msgid "Apply"
 msgstr "Rakenda"
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:430
-#: lib/phoenix_kit_web/live/users/users.html.heex:508
+#: lib/phoenix_kit_web/live/users/users.html.heex:440
+#: lib/phoenix_kit_web/live/users/users.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "Deactivate"
 msgstr "Deaktiveeri"
@@ -2189,8 +2169,8 @@ msgstr "Muuda bucket"
 msgid "Enable"
 msgstr "Luba"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:188
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:237
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:132
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:222
 #: lib/phoenix_kit_web/users/user_form.html.heex:821
 #, elixir-autogen, elixir-format
 msgid "Expires"
@@ -2208,7 +2188,7 @@ msgid "Hide"
 msgstr "Peida"
 
 #: lib/modules/maintenance/settings.ex:459
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:370
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Live Preview"
 msgstr "Reaalajas eelvaade"
@@ -2232,19 +2212,18 @@ msgstr "Teenusepakkuja"
 
 #: lib/modules/sitemap/web/settings.html.heex:564
 #: lib/modules/storage/web/settings.html.heex:504
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:291
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr "Kiiraktsioonid"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:218
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:314
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:203
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Revoke"
 msgstr "Tühista"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:225
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:321
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:210
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Revoke all"
 msgstr "Tühista kõik"
@@ -2275,8 +2254,8 @@ msgstr "Sünkroonimine..."
 msgid "System"
 msgstr "Süsteem"
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:414
-#: lib/phoenix_kit_web/live/users/users.html.heex:500
+#: lib/phoenix_kit_web/live/users/users.html.heex:424
+#: lib/phoenix_kit_web/live/users/users.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Unconfirm"
 msgstr "Tühista kinnitus"
@@ -2286,7 +2265,7 @@ msgstr "Tühista kinnitus"
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Kasuta allpool olevaid keelekaarti selle kirje sisu tõlkimiseks. Esmane keel (tärniga tähistatud) on kohustuslik. Muud keeled on valikulised — tühjad väljad kasutavad esmase keele väärtust."
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:186
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "days"
 msgstr "päeva"
@@ -2434,8 +2413,8 @@ msgstr "Ainult administraatorile"
 msgid "Advanced Features Coming Soon"
 msgstr "Täiustatud funktsioonid tulemas varsti"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:186
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:236
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:130
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Age"
 msgstr "Vanus"
@@ -3010,7 +2989,6 @@ msgstr "Võtme ID"
 msgid "Key:"
 msgstr "Võti:"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:221
 #: lib/phoenix_kit_web/live/settings/users.html.heex:602
 #, elixir-autogen, elixir-format
 msgid "Label"
@@ -3086,7 +3064,6 @@ msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i
 #: lib/modules/storage/web/dimensions.html.heex:341
 #: lib/modules/storage/web/settings.html.heex:186
 #: lib/phoenix_kit_web/components/media_browser.html.heex:834
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:232
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:39
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:80
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:553
@@ -3114,7 +3091,7 @@ msgstr "Uued kasutajad luuakse mitteaktiivsena ja nad ei saa sisse logida, kuni 
 msgid "No active buckets available. Enable buckets to configure redundancy."
 msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfigureerimiseks."
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:246
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "No active sessions found."
 msgstr "Aktiivseid seansse ei leitud."
@@ -3134,7 +3111,7 @@ msgstr "Kohandatud väljad pole veel määratud"
 msgid "No dimensions configured"
 msgstr "Dimensioonid pole konfigureeritud"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:248
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "No sessions match your current filters."
 msgstr "Ükski seanss ei vasta teie praegustele filtritele."
@@ -3273,7 +3250,6 @@ msgstr "Laadi OAuth konfiguratsioon uuesti"
 msgid "Remote Servers"
 msgstr "Kaugserverid"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:295
 #: lib/phoenix_kit_web/live/settings/users.html.heex:647
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Required field"
@@ -3417,8 +3393,8 @@ msgstr "Valitud:"
 msgid "Services ID"
 msgstr "Teenuste ID"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:212
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:308
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:197
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Session actions"
 msgstr "Seansi tegevused"
@@ -3551,8 +3527,8 @@ msgstr "Kellaaja vorming"
 msgid "Time Zone"
 msgstr "Ajavöönd"
 
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:180
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:233
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:124
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Token"
 msgstr "Token"
@@ -3574,8 +3550,7 @@ msgid "Type an option and press Enter or click Add"
 msgstr "Sisesta valik ja vajuta Enter või klõpsa Lisa"
 
 ## Navigation menu items
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:364
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:232
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:217
 #: lib/phoenix_kit_web/users/user_form.html.heex:739
 #, elixir-autogen, elixir-format, fuzzy
 msgid "User"
@@ -3603,8 +3578,8 @@ msgstr "Kasutaja muudetav"
 msgid "User Settings"
 msgstr "Kasutaja seaded"
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:362
-#: lib/phoenix_kit_web/live/users/users.html.heex:464
+#: lib/phoenix_kit_web/live/users/users.html.heex:372
+#: lib/phoenix_kit_web/live/users/users.html.heex:475
 #, elixir-autogen, elixir-format
 msgid "User actions"
 msgstr "Kasutaja tegevused"
@@ -4056,11 +4031,6 @@ msgstr "Konto tüüp"
 #, elixir-autogen, elixir-format
 msgid "Account disconnected"
 msgstr "Konto lahti ühendatud"
-
-#: lib/phoenix_kit_web/live/users/users.html.heex:112
-#, elixir-autogen, elixir-format
-msgid "Account type"
-msgstr "Konto tüüp"
 
 #: lib/modules/maintenance/settings.ex:277
 #, elixir-autogen, elixir-format
@@ -4606,7 +4576,6 @@ msgid "Failed to update avatar"
 msgstr "Avatari uuendamine ebaõnnestus"
 
 #: lib/modules/storage/web/health.html.heex:219
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:184
 #, elixir-autogen, elixir-format, fuzzy
 msgid "File"
 msgstr "Fail"
@@ -5078,7 +5047,7 @@ msgstr "Kasutatakse ainult laiust, kõrgus arvutatakse automaatselt"
 msgid "OpenRouter"
 msgstr "OpenRouter"
 
-#: lib/phoenix_kit_web/live/users/users.html.heex:233
+#: lib/phoenix_kit_web/live/users/users.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Org"
 msgstr "Org"
@@ -5087,7 +5056,7 @@ msgstr "Org"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:149
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:179
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:193
-#: lib/phoenix_kit_web/live/users/users.html.heex:127
+#: lib/phoenix_kit_web/live/users/users.html.heex:141
 #: lib/phoenix_kit_web/users/registration.html.heex:122
 #: lib/phoenix_kit_web/users/user_form.html.heex:197
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
@@ -5133,7 +5102,7 @@ msgid "Per-user inbox driven by the activity feed"
 msgstr "Kasutajapõhine postkast, mida juhib tegevusvoog"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:126
-#: lib/phoenix_kit_web/live/users/users.html.heex:124
+#: lib/phoenix_kit_web/live/users/users.html.heex:138
 #: lib/phoenix_kit_web/users/registration.html.heex:116
 #: lib/phoenix_kit_web/users/user_form.html.heex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -5396,7 +5365,6 @@ msgstr "Sünkroonimine peatatud: %{synced} sünkroonitud, %{failed} ebaõnnestus
 msgid "Syncing files..."
 msgstr "Failide sünkroonimine..."
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:334
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tax Settings"
@@ -5730,7 +5698,8 @@ msgstr "Kustuta see ühendus"
 msgid "Disconnect account"
 msgstr "Ühenda konto lahti"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:269
+#: lib/phoenix_kit_web/components/core/table_default.ex:380
+#: lib/phoenix_kit_web/components/core/table_default.ex:417
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
 msgstr "Lohistage järjestuse muutmiseks"
@@ -5881,7 +5850,7 @@ msgstr "Registreerige rakendus Microsoft Entra ID-s (Azure AD)"
 msgid "Removes the integration permanently. Any module pinned to this connection will stop working until repointed."
 msgstr "Eemaldab integratsiooni jäädavalt. Ükski moodul, mis on selle ühendusega seotud, ei tööta, kuni see on ümber suunatud."
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:499
+#: lib/phoenix_kit_web/components/core/table_default.ex:736
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "Otsi..."
@@ -5976,7 +5945,7 @@ msgstr "Blokeeringuid"
 msgid "Body Saved"
 msgstr "Sisu salvestatakse"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1512
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:209
 #: lib/phoenix_kit_web/live/modules.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Comments"
@@ -6348,52 +6317,52 @@ msgstr "Saadaolevad keeled"
 msgid "Language Configuration"
 msgstr "Keele seadistus"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:282
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:316
 #, elixir-autogen
 msgid "Frontend Language Switcher"
 msgstr "Esikülje keelevahetaja"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:292
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:326
 #, elixir-autogen
 msgid "Switcher Settings"
 msgstr "Vahetaja seaded"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:297
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:331
 #, elixir-autogen
 msgid "Show Flags"
 msgstr "Näita lippe"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:311
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:345
 #, elixir-autogen
 msgid "Show Names"
 msgstr "Näita nimesid"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:325
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:359
 #, elixir-autogen
 msgid "Native Names"
 msgstr "Emakeelsed nimed"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:339
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:373
 #, elixir-autogen
 msgid "Go to Home"
 msgstr "Mine avalehele"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:353
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:387
 #, elixir-autogen
 msgid "Hide Current"
 msgstr "Peida praegune"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:384
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:418
 #, elixir-autogen
 msgid "Generated Code"
 msgstr "Genereeritud kood"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:399
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:433
 #, elixir-autogen
 msgid "Implementation Notes"
 msgstr "Rakenduse märkused"
 
-#: lib/phoenix_kit_web/live/modules/languages.html.heex:417
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:451
 #, elixir-autogen
 msgid "Enable and Configure Languages"
 msgstr "Luba ja seadista keeled"
@@ -6713,29 +6682,29 @@ msgstr "Saidikaardi lähtekood"
 msgid "Open in Browser"
 msgstr "Ava brauseris"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1423
+#: lib/phoenix_kit_web/components/media_browser.ex:1316
 #, elixir-autogen, elixir-format
 msgid "%{count} file permanently deleted"
 msgid_plural "%{count} files permanently deleted"
 msgstr[0] "%{count} fail jäädavalt kustutatud"
 msgstr[1] "%{count} faili jäädavalt kustutatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1220
+#: lib/phoenix_kit_web/components/media_browser.ex:1113
 #, elixir-autogen, elixir-format
 msgid "%{count} item moved"
 msgid_plural "%{count} items moved"
 msgstr[0] "%{count} element liigutatud"
 msgstr[1] "%{count} elementi liigutatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1480
+#: lib/phoenix_kit_web/components/media_browser.ex:1373
 #, elixir-autogen, elixir-format
 msgid "%{count} orphaned file queued for deletion"
 msgid_plural "%{count} orphaned files queued for deletion"
 msgstr[0] "%{count} sidumata fail kustutamise järjekorras"
 msgstr[1] "%{count} sidumata faili kustutamise järjekorras"
 
+#: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:101
 #: lib/phoenix_kit_web/components/media_browser.html.heex:240
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:389
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "%{count} selected"
@@ -6755,7 +6724,7 @@ msgstr "Lisa meedia"
 
 #: lib/phoenix_kit_web/components/folder_explorer.ex:155
 #: lib/phoenix_kit_web/components/media_browser.html.heex:322
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:217
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "All Files"
 msgstr "Kõik failid"
@@ -6770,39 +6739,40 @@ msgstr "Kogu meedia"
 msgid "All file types supported"
 msgstr "Toetatud on kõik failitüübid"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2237
+#: lib/phoenix_kit_web/components/media_browser.ex:1844
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
 msgstr[0] "Juba olemas %{count} duplikaatfail. Uusi faile ei lisatud."
 msgstr[1] "Juba olemas %{count} duplikaatfaili. Uusi faile ei lisatud."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:925
+#: lib/phoenix_kit_web/components/media_browser.ex:910
 #, elixir-autogen, elixir-format
 msgid "Cannot change folder outside the allowed scope"
 msgstr "Kausta ei saa muuta lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:528
+#: lib/phoenix_kit_web/components/media_browser.ex:513
 #, elixir-autogen, elixir-format
 msgid "Cannot create folder outside the allowed scope"
 msgstr "Kausta ei saa luua lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:561
+#: lib/phoenix_kit_web/components/media_browser.ex:546
 #, elixir-autogen, elixir-format
 msgid "Cannot delete folder outside the allowed scope"
 msgstr "Kausta ei saa kustutada lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:592
-#: lib/phoenix_kit_web/components/media_browser.ex:655
+#: lib/phoenix_kit_web/components/media_browser.ex:577
+#: lib/phoenix_kit_web/components/media_browser.ex:640
 #, elixir-autogen, elixir-format
 msgid "Cannot move file outside the allowed scope"
 msgstr "Faili ei saa liigutada lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:890
+#: lib/phoenix_kit_web/components/media_browser.ex:875
 #, elixir-autogen, elixir-format
 msgid "Cannot rename folder outside the allowed scope"
 msgstr "Kausta ei saa ümber nimetada lubatud ulatusest väljaspool"
 
+#: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:110
 #: lib/phoenix_kit_web/components/media_browser.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Clear"
@@ -6820,18 +6790,17 @@ msgid "Color"
 msgstr "Värv"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:81
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:92
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Configure Storage Buckets"
 msgstr "Konfigureeri salvestushoidlad"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:838
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:134
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr "Kuupäev"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2475
+#: lib/phoenix_kit_web/components/media_browser.ex:2041
 #, elixir-autogen, elixir-format
 msgid "Delete %{count} folder? Folder contents will be moved to parent."
 msgid_plural "Delete %{count} folders? Folder contents will be moved to parent."
@@ -6869,8 +6838,7 @@ msgstr "Kustutatud failid ilmuvad siia"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:269
 #: lib/phoenix_kit_web/components/media_browser.html.heex:789
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1132
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1468
-#: lib/phoenix_kit_web/components/media_viewer.html.heex:80
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "Lae alla"
@@ -6885,27 +6853,27 @@ msgstr "Lohista failid siia või klõpsa „Lisa meedia“, et üles laadida"
 msgid "Empty Trash"
 msgstr "Tühjenda prügikast"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:928
+#: lib/phoenix_kit_web/components/media_browser.ex:913
 #, elixir-autogen, elixir-format
 msgid "Failed to change color"
 msgstr "Värvi muutmine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:531
+#: lib/phoenix_kit_web/components/media_browser.ex:516
 #, elixir-autogen, elixir-format
 msgid "Failed to create folder"
 msgstr "Kausta loomine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:595
+#: lib/phoenix_kit_web/components/media_browser.ex:580
 #, elixir-autogen, elixir-format
 msgid "Failed to move file"
 msgstr "Faili liigutamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:893
+#: lib/phoenix_kit_web/components/media_browser.ex:878
 #, elixir-autogen, elixir-format
 msgid "Failed to rename folder"
 msgstr "Kausta ümbernimetamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:588
+#: lib/phoenix_kit_web/components/media_browser.ex:573
 #, elixir-autogen, elixir-format
 msgid "File moved"
 msgstr "Fail liigutatud"
@@ -6915,14 +6883,14 @@ msgstr "Fail liigutatud"
 msgid "Find orphaned (%{count})"
 msgstr "Leia sidumata (%{count})"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:236
+#: lib/phoenix_kit_web/components/media_browser.ex:224
 #, elixir-autogen, elixir-format
 msgid "Folder not accessible — showing root"
 msgstr "Kaust pole ligipääsetav — näitan juurkausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:571
-#: lib/phoenix_kit_web/components/media_browser.ex:614
-#: lib/phoenix_kit_web/components/media_browser.ex:678
+#: lib/phoenix_kit_web/components/media_browser.ex:556
+#: lib/phoenix_kit_web/components/media_browser.ex:599
+#: lib/phoenix_kit_web/components/media_browser.ex:663
 #, elixir-autogen, elixir-format
 msgid "Folder not found"
 msgstr "Kausta ei leitud"
@@ -6947,7 +6915,7 @@ msgstr "Pilt puudub"
 msgid "List view"
 msgstr "Loendivaade"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1480
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "MIME:"
 msgstr "MIME:"
@@ -6971,7 +6939,7 @@ msgstr "Veel toiminguid"
 msgid "Move"
 msgstr "Liiguta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2482
+#: lib/phoenix_kit_web/components/media_browser.ex:2048
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6993,14 +6961,13 @@ msgstr "Uus kaust"
 msgid "Next"
 msgstr "Järgmine"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1325
-#: lib/phoenix_kit_web/components/media_viewer.html.heex:51
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Next (→)"
 msgstr "Järgmine (→)"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:75
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:83
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "No Storage Buckets Configured"
 msgstr "Salvestushoidlaid pole konfigureeritud"
@@ -7025,7 +6992,7 @@ msgstr "Sidumata failid"
 msgid "Path"
 msgstr "Tee"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2458
+#: lib/phoenix_kit_web/components/media_browser.ex:2024
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -7044,8 +7011,7 @@ msgstr[1] "Kustuta jäädavalt kõik %{count} faili prügikastist?"
 msgid "Prev"
 msgstr "Eelmine"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1311
-#: lib/phoenix_kit_web/components/media_viewer.html.heex:37
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Previous (←)"
 msgstr "Eelmine (←)"
@@ -7063,7 +7029,6 @@ msgid "Restore"
 msgstr "Taasta"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:368
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:301
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Otsi"
@@ -7088,7 +7053,7 @@ msgstr "Näita kaustu"
 msgid "Showing orphaned (%{count})"
 msgstr "Sidumata (%{count})"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1484
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Size:"
 msgstr "Suurus:"
@@ -7114,7 +7079,7 @@ msgstr "Prügikast"
 msgid "Trash is empty."
 msgstr "Prügikast on tühi."
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1474
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "Tüüp:"
@@ -7129,93 +7094,93 @@ msgstr "Laadi meedia üles"
 msgid "Upload Media Files"
 msgstr "Laadi meediafailid üles"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2218
-#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:330
+#: lib/phoenix_kit_web/components/media_browser.ex:1825
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:331
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Üleslaadimine ebaõnnestus: salvestushoidlaid pole konfigureeritud. Konfigureeri vähemalt üks salvestushoidla enne failide üleslaadimist."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2204
+#: lib/phoenix_kit_web/components/media_browser.ex:1811
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Üleslaadimine töödeldud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2246
+#: lib/phoenix_kit_web/components/media_browser.ex:1853
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
 msgstr[0] "Üleslaadimine edukas! Töödeldud %{count} uus fail"
 msgstr[1] "Üleslaadimine edukas! Töödeldud %{count} uut faili"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1488
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Uploaded:"
 msgstr "Üles laaditud:"
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1398
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the video tag."
 msgstr "Teie brauser ei toeta video-elementi."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2225
+#: lib/phoenix_kit_web/components/media_browser.ex:1832
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
 msgstr[0] "%{count} ebaõnnestus"
 msgstr[1] "%{count} ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2465
+#: lib/phoenix_kit_web/components/media_browser.ex:2031
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
 msgid_plural "%{count} files"
 msgstr[0] "%{count} fail"
 msgstr[1] "%{count} faili"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2224
+#: lib/phoenix_kit_web/components/media_browser.ex:1831
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
 msgstr[0] "%{count} fail üles laaditud"
 msgstr[1] "%{count} faili üles laaditud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2257
+#: lib/phoenix_kit_web/components/media_browser.ex:1864
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
 msgstr[0] "%{count} fail oli juba üles laaditud"
 msgstr[1] "%{count} faili oli juba üles laaditud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2466
+#: lib/phoenix_kit_web/components/media_browser.ex:2032
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
 msgstr[0] "%{count} kaust"
 msgstr[1] "%{count} kausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2254
+#: lib/phoenix_kit_web/components/media_browser.ex:1861
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
 msgstr[0] "lisatud %{count} uus fail"
 msgstr[1] "lisatud %{count} uut faili"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2468
+#: lib/phoenix_kit_web/components/media_browser.ex:2034
 #, elixir-autogen, elixir-format
 msgid "Delete %{files} (to trash) and %{folders}? Folder contents will be moved to parent."
 msgstr "Kas kustutada %{files} (prügikasti) ja %{folders}? Kaustade sisu liigub ülemkausta."
 
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1412
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1476
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:112
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "FILE"
 msgstr "FAIL"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2228
+#: lib/phoenix_kit_web/components/media_browser.ex:1835
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Osaliselt edukas: %{uploaded}, %{failed} puuduvate salvestushoidlate tõttu."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2264
+#: lib/phoenix_kit_web/components/media_browser.ex:1871
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Üleslaadimine edukas! %{added}. %{duplicates}."
@@ -7295,7 +7260,6 @@ msgstr "%{day}. %{month} %{year} kell %{time}"
 msgid "%{month} %{day} %{time}"
 msgstr "%{day}. %{month} %{time}"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:337
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:54
 #, elixir-autogen, elixir-format
 msgid "Title"
@@ -7312,20 +7276,20 @@ msgid "Write a comment..."
 msgstr "Kirjuta kommentaar…"
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:43
-#: lib/phoenix_kit_web/components/annotation_composer.ex:408
-#: lib/phoenix_kit_web/components/annotation_composer.ex:499
+#: lib/phoenix_kit_web/components/annotation_composer.ex:410
+#: lib/phoenix_kit_web/components/annotation_composer.ex:501
 #, elixir-autogen, elixir-format
 msgid "GIF"
 msgstr "GIF"
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:44
-#: lib/phoenix_kit_web/components/annotation_composer.ex:414
+#: lib/phoenix_kit_web/components/annotation_composer.ex:416
 #, elixir-autogen, elixir-format
 msgid "Remove GIF"
 msgstr "Eemalda GIF"
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:45
-#: lib/phoenix_kit_web/components/annotation_composer.ex:443
+#: lib/phoenix_kit_web/components/annotation_composer.ex:445
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}"
 msgstr "Eemalda %{name}"
@@ -7336,7 +7300,7 @@ msgid "Stop recording"
 msgstr "Lõpeta salvestus"
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:47
-#: lib/phoenix_kit_web/components/annotation_composer.ex:476
+#: lib/phoenix_kit_web/components/annotation_composer.ex:478
 #, elixir-autogen, elixir-format
 msgid "Attach media"
 msgstr "Lisa meedia"
@@ -7367,7 +7331,7 @@ msgid "Search GIFs"
 msgstr "Otsi GIFe"
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:54
-#: lib/phoenix_kit_web/components/annotation_composer.ex:537
+#: lib/phoenix_kit_web/components/annotation_composer.ex:539
 #, elixir-autogen, elixir-format
 msgid "Search GIFs..."
 msgstr "Otsi GIFe…"
@@ -7388,7 +7352,7 @@ msgid "Type a search term to find GIFs."
 msgstr "Sisesta otsisõna GIFide leidmiseks."
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:58
-#: lib/phoenix_kit_web/components/annotation_composer.ex:576
+#: lib/phoenix_kit_web/components/annotation_composer.ex:578
 #, elixir-autogen, elixir-format
 msgid "No results."
 msgstr "Tulemusi pole."
@@ -7423,179 +7387,40 @@ msgstr "Vasta"
 msgid "Are you sure you want to delete this comment?"
 msgstr "Kas oled kindel, et soovid selle kommentaari kustutada?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1891
-#: lib/phoenix_kit_web/components/media_browser.ex:1892
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:491
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:492
 #, elixir-autogen, elixir-format
 msgid "%b %d, %Y"
 msgstr "%d %b %Y"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:381
-#, elixir-autogen, elixir-format
-msgid "%{count} carts total"
-msgstr "%{count} ostukorvi kokku"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:382
-#, elixir-autogen, elixir-format
-msgid "%{count} categories deleted"
-msgstr "%{count} kategooriat kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:383
-#, elixir-autogen, elixir-format
-msgid "%{count} categories updated"
-msgstr "%{count} kategooriat uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:384
-#, elixir-autogen, elixir-format
-msgid "%{count} categories updated to %{status}"
-msgstr "%{count} kategooriat muudetud olekusse %{status}"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:1410
+#: lib/phoenix_kit_web/components/media_browser.ex:1303
 #, elixir-autogen, elixir-format
 msgid "%{count} item restored"
 msgid_plural "%{count} items restored"
 msgstr[0] "%{count} üksus taastatud"
 msgstr[1] "%{count} üksust taastatud"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:385
-#, elixir-autogen, elixir-format
-msgid "%{count} methods configured"
-msgstr "%{count} meetodit seadistatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:386
-#, elixir-autogen, elixir-format
-msgid "%{count} products deleted"
-msgstr "%{count} toodet kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:387
-#, elixir-autogen, elixir-format
-msgid "%{count} products moved"
-msgstr "%{count} toodet teisaldatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:388
-#, elixir-autogen, elixir-format
-msgid "%{count} products updated to %{status}"
-msgstr "%{count} toodet muudetud olekusse %{status}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:390
-#, elixir-autogen, elixir-format
-msgid "1 category"
-msgid_plural "%{count} categories"
-msgstr[0] "1 kategooria"
-msgstr[1] "%{count} kategooriat"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:391
-#, elixir-autogen, elixir-format
-msgid "1 product"
-msgid_plural "%{count} products"
-msgstr[0] "1 toode"
-msgstr[1] "%{count} toodet"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:53
-#, elixir-autogen, elixir-format
-msgid "= Category specific,"
-msgstr "= Kategooriaspetsiifiline,"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:54
-#, elixir-autogen, elixir-format
-msgid "= Global"
-msgstr "= Globaalne"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:57
-#, elixir-autogen, elixir-format
-msgid "Active Products"
-msgstr "Aktiivsed tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:58
-#, elixir-autogen, elixir-format
-msgid "Active — Category and products visible"
-msgstr "Aktiivne — kategooria ja tooted nähtavad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:60
-#, elixir-autogen, elixir-format
-msgid "Add Category"
-msgstr "Lisa kategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:61
-#, elixir-autogen, elixir-format
-msgid "Add Category Option"
-msgstr "Lisa kategooria valik"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:62
-#, elixir-autogen, elixir-format
-msgid "Add Method"
-msgstr "Lisa meetod"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:63
-#, elixir-autogen, elixir-format
-msgid "Add Option"
-msgstr "Lisa valik"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:64
-#, elixir-autogen, elixir-format
-msgid "Add Product"
-msgstr "Lisa toode"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1437
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Add a note to your annotation"
 msgstr "Lisa märkus oma annotatsioonile"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:115
+#: lib/phoenix_kit_web/components/annotation_composer.ex:117
 #, elixir-autogen, elixir-format
 msgid "Add a title, a note, a GIF, or an attachment"
 msgstr "Lisa pealkiri, märkus, GIF või manus"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:269
+#: lib/phoenix_kit_web/components/annotation_composer.ex:271
 #, elixir-autogen, elixir-format
 msgid "Add some text, a GIF, or an attachment"
 msgstr "Lisa tekst, GIF või manus"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:65
-#, elixir-autogen, elixir-format
-msgid "All Categories"
-msgstr "Kõik kategooriad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:66
-#, elixir-autogen, elixir-format
-msgid "All Images Migrated"
-msgstr "Kõik pildid migreeritud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:67
-#, elixir-autogen, elixir-format
-msgid "All Status"
-msgstr "Kõik olekud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:69
-#, elixir-autogen, elixir-format
-msgid "Analyze & Configure"
-msgstr "Analüüsi ja seadista"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:1787
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:421
 #, elixir-autogen, elixir-format
 msgid "Annotation saved"
 msgstr "Annotatsioon salvestatud"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:71
-#, elixir-autogen, elixir-format
-msgid "Are you sure you want to delete %{count} categories? This action cannot be undone."
-msgstr "Kas olete kindel, et soovite kustutada %{count} kategooriat? Seda toimingut ei saa tagasi võtta."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:75
-#, elixir-autogen, elixir-format
-msgid "Are you sure you want to delete %{count} products? This action cannot be undone."
-msgstr "Kas olete kindel, et soovite kustutada %{count} toodet? Seda toimingut ei saa tagasi võtta."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:78
-#, elixir-autogen, elixir-format
-msgid "Are you sure you want to delete this import log?"
-msgstr "Kas oled kindel, et soovid kustutada selle impordiloogi?"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:79
-#, elixir-autogen, elixir-format
-msgid "Are you sure you want to delete this product?"
-msgstr "Kas oled kindel, et soovid kustutada selle toote?"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:272
+#: lib/phoenix_kit_web/components/annotation_composer.ex:274
 #, elixir-autogen, elixir-format
 msgid "Attachments are disabled"
 msgstr "Manused on keelatud"
@@ -7605,303 +7430,38 @@ msgstr "Manused on keelatud"
 msgid "Auth failed"
 msgstr "Autentimine ebaõnnestus"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:80
-#, elixir-autogen, elixir-format
-msgid "Auto-detect (first product with image)"
-msgstr "Automaattuvastus (esimene toode pildiga)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:81
-#, elixir-autogen, elixir-format
-msgid "Auto-generated"
-msgstr "Automaatselt genereeritud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:82
-#, elixir-autogen, elixir-format
-msgid "Auto-generated from name"
-msgstr "Genereeritakse nimest"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:83
-#, elixir-autogen, elixir-format
-msgid "Auto-generated from title"
-msgstr "Genereeritakse pealkirjast"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:84
-#, elixir-autogen, elixir-format
-msgid "Available Options"
-msgstr "Saadaolevad valikud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:85
-#, elixir-autogen, elixir-format
-msgid "Base Price"
-msgstr "Põhihind"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:87
-#, elixir-autogen, elixir-format
-msgid "Blue"
-msgstr "Sinine"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:88
-#, elixir-autogen, elixir-format
-msgid "Brand or manufacturer"
-msgstr "Bränd või tootja"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:89
-#, elixir-autogen, elixir-format
-msgid "CSV Import"
-msgstr "CSV import"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:91
-#, elixir-autogen, elixir-format
-msgid "Cancel Migration"
-msgstr "Tühista migreermine"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:92
-#, elixir-autogen, elixir-format
-msgid "Cancelled %{count} pending migration jobs"
-msgstr "Tühistati %{count} migreerimistehtust"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:508
+#: lib/phoenix_kit_web/components/media_browser.ex:493
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "Kaustu ei saa luua kõigi failide vaates"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:504
+#: lib/phoenix_kit_web/components/media_browser.ex:489
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Prügikastis ei saa kaustu luua"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:631
+#: lib/phoenix_kit_web/components/media_browser.ex:616
 #, elixir-autogen, elixir-format
 msgid "Cannot move a folder into its own descendant"
 msgstr "Kausta ei saa teisaldada oma alamkausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:627
-#: lib/phoenix_kit_web/components/media_browser.ex:682
-#: lib/phoenix_kit_web/components/media_browser.ex:695
+#: lib/phoenix_kit_web/components/media_browser.ex:612
+#: lib/phoenix_kit_web/components/media_browser.ex:667
+#: lib/phoenix_kit_web/components/media_browser.ex:680
 #, elixir-autogen, elixir-format
 msgid "Cannot move folder outside the allowed scope"
 msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:93
-#, elixir-autogen, elixir-format
-msgid "Cannot retry: file no longer exists"
-msgstr "Kordamine pole võimalik: fail puudub"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:94
-#, elixir-autogen, elixir-format
-msgid "Carts"
-msgstr "Ostukorvid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:95
-#, elixir-autogen, elixir-format
-msgid "Carts will appear here when customers add items"
-msgstr "Ostukorvid ilmuvad siia, kui kliendid lisavad tooteid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:96
-#, elixir-autogen, elixir-format
-msgid "Categories"
-msgstr "Kategooriad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:97
-#, elixir-autogen, elixir-format
-msgid "Categories in shop disabled"
-msgstr "Kategooriad poes keelatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:98
-#, elixir-autogen, elixir-format
-msgid "Categories in shop enabled"
-msgstr "Kategooriad poes lubatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:99
-#, elixir-autogen, elixir-format
-msgid "Category"
-msgstr "Kategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:100
-#, elixir-autogen, elixir-format
-msgid "Category Image"
-msgstr "Kategooria pilt"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:101
-#, elixir-autogen, elixir-format
-msgid "Category Options"
-msgstr "Kategooria valikud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:102
-#, elixir-autogen, elixir-format
-msgid "Category created"
-msgstr "Kategooria loodud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:103
-#, elixir-autogen, elixir-format
-msgid "Category deleted"
-msgstr "Kategooria kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:104
-#, elixir-autogen, elixir-format
-msgid "Category description"
-msgstr "Kategooria kirjeldus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:105
-#, elixir-autogen, elixir-format
-msgid "Category display setting updated"
-msgstr "Kategooria kuvamissäe uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:106
-#, elixir-autogen, elixir-format
-msgid "Category icon setting updated"
-msgstr "Kategooria ikooni säe uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:107
-#, elixir-autogen, elixir-format
-msgid "Category name"
-msgstr "Kategooria nimi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:108
-#, elixir-autogen, elixir-format
-msgid "Category updated"
-msgstr "Kategooria uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:109
-#, elixir-autogen, elixir-format
-msgid "Change Image"
-msgstr "Muuda pilti"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:110
-#, elixir-autogen, elixir-format
-msgid "Change Parent"
-msgstr "Muuda ülematkat"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:111
-#, elixir-autogen, elixir-format
-msgid "Change Status"
-msgstr "Muuda olekut"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:112
-#, elixir-autogen, elixir-format
-msgid "Charge tax on this product"
-msgstr "Rakenda maks sellele tootele"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:113
-#, elixir-autogen, elixir-format
-msgid "Clear selection"
-msgstr "Tühista valik"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:114
-#, elixir-autogen, elixir-format
-msgid "Compare at Price"
-msgstr "Võrdlushind"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:115
-#, elixir-autogen, elixir-format
-msgid "Completed At"
-msgstr "Lõpetamise aeg"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:117
-#, elixir-autogen, elixir-format
-msgid "Configure Option Mappings"
-msgstr "Seadista valikute kaardistus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:118
-#, elixir-autogen, elixir-format
-msgid "Configure shipping method details"
-msgstr "Seadista tarneviisi üksikasjad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:119
-#, elixir-autogen, elixir-format
-msgid "Configure your e-commerce store"
-msgstr "Seadista oma e-pood"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:121
-#, elixir-autogen, elixir-format
-msgid "Confirm Import"
-msgstr "Kinnita import"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:122
-#, elixir-autogen, elixir-format
-msgid "Constraints"
-msgstr "Piirangud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:123
-#, elixir-autogen, elixir-format
-msgid "Cost per Item"
-msgstr "Kauba omahind"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:266
-#: lib/phoenix_kit_web/components/annotation_composer.ex:286
+#: lib/phoenix_kit_web/components/annotation_composer.ex:268
+#: lib/phoenix_kit_web/components/annotation_composer.ex:288
 #, elixir-autogen, elixir-format
 msgid "Could not post comment"
 msgstr "Kommentaari postitamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:1064
-#, elixir-autogen, elixir-format
-msgid "Could not save annotation"
-msgstr "Annotatsiooni salvestamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:124
-#, elixir-autogen, elixir-format
-msgid "Create Category"
-msgstr "Loo kategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:125
-#, elixir-autogen, elixir-format
-msgid "Create Method"
-msgstr "Loo meetod"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:126
-#, elixir-autogen, elixir-format
-msgid "Create Product"
-msgstr "Loo toode"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:127
-#, elixir-autogen, elixir-format
-msgid "Create a new category"
-msgstr "Loo uus kategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:128
-#, elixir-autogen, elixir-format
-msgid "Create a new product"
-msgstr "Loo uus toode"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:129
-#, elixir-autogen, elixir-format
-msgid "Create your first category to organize products"
-msgstr "Loo esimene kategooria toodete korraldamiseks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:130
-#, elixir-autogen, elixir-format
-msgid "Create your first product to get started"
-msgstr "Loo esimene toode alustamiseks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:131
-#, elixir-autogen, elixir-format
-msgid "Create your first shipping method to get started"
-msgstr "Loo esimene tarneviis alustamiseks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:132
-#, elixir-autogen, elixir-format
-msgid "Currency"
-msgstr "Valuuta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:133
-#, elixir-autogen, elixir-format
-msgid "Customer"
-msgstr "Klient"
 
 #: lib/modules/storage/web/settings.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:135
-#, elixir-autogen, elixir-format
-msgid "Define options specific to this category. These override global options with the same key."
-msgstr "Määratle kategooriaspetsiifilised valikud. Need alistavad sama võtmega globaalsed valikud."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:139
-#, elixir-autogen, elixir-format
-msgid "Delete Categories"
-msgstr "Kustuta kategooriad"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:813
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1156
@@ -7909,507 +7469,93 @@ msgstr "Kustuta kategooriad"
 msgid "Delete Permanently"
 msgstr "Kustuta jäädavalt"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:140
-#, elixir-autogen, elixir-format
-msgid "Delete Product"
-msgstr "Kustuta toode"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:141
-#, elixir-autogen, elixir-format
-msgid "Delete Products"
-msgstr "Kustuta tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:142
-#, elixir-autogen, elixir-format
-msgid "Delete associated media files (orphaned only)"
-msgstr "Kustuta seotud meedifailid (ainult orbfailid)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:143
-#, elixir-autogen, elixir-format
-msgid "Delete this category?"
-msgstr "Kustuta see kategooria?"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:144
-#, elixir-autogen, elixir-format
-msgid "Delete this shipping method?"
-msgstr "Kustuta see tarneviis?"
-
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:491
 #, elixir-autogen, elixir-format
 msgid "Deleting…"
 msgstr "Kustutamine…"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:145
-#, elixir-autogen, elixir-format
-msgid "Delivery"
-msgstr "Tarne"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:146
-#, elixir-autogen, elixir-format
-msgid "Delivery & Status"
-msgstr "Tarne ja olek"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:147
-#, elixir-autogen, elixir-format
-msgid "Delivery in 3-5 business days"
-msgstr "Tarne 3–5 tööpäeva jooksul"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:149
-#, elixir-autogen, elixir-format
-msgid "Digital"
-msgstr "Digitaalne"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:150
-#, elixir-autogen, elixir-format
-msgid "Digital Products"
-msgstr "Digitaalsed tooted"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "Disconnecting…"
 msgstr "Lahtiühendamine…"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:151
-#, elixir-autogen, elixir-format
-msgid "Download images to Storage"
-msgstr "Laadi pildid salvestusruumi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:152
-#, elixir-autogen, elixir-format
-msgid "Downloadable products"
-msgstr "Allalaaditavad tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:154
-#, elixir-autogen, elixir-format
-msgid "Draft Products"
-msgstr "Mustandtooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:155
-#, elixir-autogen, elixir-format
-msgid "Drag CSV file here or click to browse"
-msgstr "Lohista CSV-fail siia või kliki sirvimiseks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:156
-#, elixir-autogen, elixir-format
-msgid "E-Commerce"
-msgstr "E-pood"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:157
-#, elixir-autogen, elixir-format
-msgid "E-Commerce Settings"
-msgstr "E-poe seaded"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:159
-#, elixir-autogen, elixir-format
-msgid "Edit %{name}"
-msgstr "Muuda %{name}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:160
-#, elixir-autogen, elixir-format
-msgid "Edit %{title}"
-msgstr "Muuda %{title}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:161
-#, elixir-autogen, elixir-format
-msgid "Edit Option"
-msgstr "Muuda valikut"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:162
-#, elixir-autogen, elixir-format
-msgid "Edit category details"
-msgstr "Muuda kategooria andmeid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:163
-#, elixir-autogen, elixir-format
-msgid "Edit product details"
-msgstr "Muuda toote andmeid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:165
-#, elixir-autogen, elixir-format
-msgid "Errors"
-msgstr "Vead"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:166
-#, elixir-autogen, elixir-format
-msgid "Est. days (max)"
-msgstr "Tähtaeg (maks, päevades)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:167
-#, elixir-autogen, elixir-format
-msgid "Est. days (min)"
-msgstr "Tähtaeg (min, päevades)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:168
-#, elixir-autogen, elixir-format
-msgid "Failed to add filter"
-msgstr "Filtri lisamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:169
-#, elixir-autogen, elixir-format
-msgid "Failed to create import log"
-msgstr "Impordiloogi loomine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:170
-#, elixir-autogen, elixir-format
-msgid "Failed to delete category"
-msgstr "Kategooria kustutamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:171
-#, elixir-autogen, elixir-format
-msgid "Failed to delete import log"
-msgstr "Impordiloogi kustutamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:172
-#, elixir-autogen, elixir-format
-msgid "Failed to delete product"
-msgstr "Toote kustutamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:173
-#, elixir-autogen, elixir-format
-msgid "Failed to delete shipping method"
-msgstr "Tarnemeetodi kustutamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:634
+#: lib/phoenix_kit_web/components/media_browser.ex:619
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder"
 msgstr "Kausta teisaldamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:698
+#: lib/phoenix_kit_web/components/media_browser.ex:683
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder to trash"
 msgstr "Kausta prügikasti teisaldamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:174
-#, elixir-autogen, elixir-format
-msgid "Failed to read CSV file headers"
-msgstr "CSV-faili päiste lugemine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:175
-#, elixir-autogen, elixir-format
-msgid "Failed to remove filter"
-msgstr "Filtri eemaldamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:176
-#, elixir-autogen, elixir-format
-msgid "Failed to reset filters"
-msgstr "Filtrite lähtestamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:177
-#, elixir-autogen, elixir-format
-msgid "Failed to update category display setting"
-msgstr "Kategooria kuvamisseade uuendamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:178
-#, elixir-autogen, elixir-format
-msgid "Failed to update category icon setting"
-msgstr "Kategooria ikooni seade uuendamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:179
-#, elixir-autogen, elixir-format
-msgid "Failed to update filter"
-msgstr "Filtri uuendamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:180
-#, elixir-autogen, elixir-format
-msgid "Failed to update filter label"
-msgstr "Filtri sildi uuendamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:181
-#, elixir-autogen, elixir-format
-msgid "Failed to update inventory setting"
-msgstr "Laoseade uuendamine ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:183
-#, elixir-autogen, elixir-format
-msgid "Featured Product (image fallback)"
-msgstr "Esitletud toode (varupilt)"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:518
+#: lib/phoenix_kit_web/components/annotation_composer.ex:520
 #, elixir-autogen, elixir-format
 msgid "File / Image"
 msgstr "Fail / Pilt"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:185
-#, elixir-autogen, elixir-format
-msgid "File is too large (max 50MB)"
-msgstr "Fail on liiga suur (maks 50 MB)"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:662
-#: lib/phoenix_kit_web/components/media_browser.ex:1313
+#: lib/phoenix_kit_web/components/media_browser.ex:647
+#: lib/phoenix_kit_web/components/media_browser.ex:1206
 #, elixir-autogen, elixir-format
 msgid "File moved to trash"
 msgstr "Fail teisaldati prügikasti"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:651
+#: lib/phoenix_kit_web/components/media_browser.ex:636
+#: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "File not found"
 msgstr "Faili ei leitud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1312
+#: lib/phoenix_kit_web/components/media_browser.ex:1205
 #, elixir-autogen, elixir-format
 msgid "File permanently deleted"
 msgstr "Fail jäädavalt kustutatud"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:339
+#: lib/phoenix_kit_web/components/annotation_composer.ex:341
 #, elixir-autogen, elixir-format
 msgid "File too large"
 msgstr "Fail on liiga suur"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:341
+#: lib/phoenix_kit_web/components/annotation_composer.ex:343
 #, elixir-autogen, elixir-format
 msgid "File type not allowed"
 msgstr "Failtüüp pole lubatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:186
-#, elixir-autogen, elixir-format
-msgid "Filename"
-msgstr "Failinimi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:187
-#, elixir-autogen, elixir-format
-msgid "Filter '%{key}' added"
-msgstr "Filter '%{key}' lisatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:188
-#, elixir-autogen, elixir-format
-msgid "Filter for '%{key}' already exists"
-msgstr "Filter '%{key}' on juba olemas"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:189
-#, elixir-autogen, elixir-format
-msgid "Filter removed"
-msgstr "Filter eemaldatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:190
-#, elixir-autogen, elixir-format
-msgid "Filters reset to defaults"
-msgstr "Filtrid lähtestatud"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:972
 #, elixir-autogen, elixir-format
 msgid "Folder"
 msgstr "Kaust"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:524
+#: lib/phoenix_kit_web/components/media_browser.ex:509
 #, elixir-autogen, elixir-format
 msgid "Folder \"%{name}\" created"
 msgstr "Kaust \"%{name}\" loodud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:621
+#: lib/phoenix_kit_web/components/media_browser.ex:606
 #, elixir-autogen, elixir-format
 msgid "Folder moved"
 msgstr "Kaust teisaldatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:556
-#: lib/phoenix_kit_web/components/media_browser.ex:689
+#: lib/phoenix_kit_web/components/media_browser.ex:541
+#: lib/phoenix_kit_web/components/media_browser.ex:674
 #, elixir-autogen, elixir-format
 msgid "Folder moved to trash"
 msgstr "Kaust teisaldatud prügikasti"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:555
+#: lib/phoenix_kit_web/components/media_browser.ex:540
 #, elixir-autogen, elixir-format
 msgid "Folder permanently deleted"
 msgstr "Kaust jäädavalt kustutatud"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:191
-#, elixir-autogen, elixir-format
-msgid "Free above"
-msgstr "Tasuta alates"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:198
+#: lib/phoenix_kit_web/components/annotation_composer.ex:200
 #, elixir-autogen, elixir-format
 msgid "Giphy search failed"
 msgstr "Giphy otsing ebaõnnestus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:192
-#, elixir-autogen, elixir-format
-msgid "Gray"
-msgstr "Hall"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:193
-#, elixir-autogen, elixir-format
-msgid "Handle"
-msgstr "Identifikaator"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:194
-#, elixir-autogen, elixir-format
-msgid "Hidden"
-msgstr "Peidetud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:195
-#, elixir-autogen, elixir-format
-msgid "Hidden — Category and products hidden"
-msgstr "Peidetud — kategooria ja tooted peidetud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:196
-#, elixir-autogen, elixir-format
-msgid "Image Migration"
-msgstr "Piltide migratsioon"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:197
-#, elixir-autogen, elixir-format
-msgid "Images will be downloaded from CDN URLs and stored in the Storage module"
-msgstr "Pildid laaditakse CDN-ist alla ja salvestatakse Salvestusmoodulisse"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:198
-#, elixir-autogen, elixir-format
-msgid "Import"
-msgstr "Import"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:199
-#, elixir-autogen, elixir-format
-msgid "Import Details"
-msgstr "Impordi üksikasjad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:200
-#, elixir-autogen, elixir-format
-msgid "Import Filter"
-msgstr "Impordi filter"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:201
-#, elixir-autogen, elixir-format
-msgid "Import History"
-msgstr "Impordi ajalugu"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:202
-#, elixir-autogen, elixir-format
-msgid "Import Information"
-msgstr "Impordi teave"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:203
-#, elixir-autogen, elixir-format
-msgid "Import Language"
-msgstr "Impordi keel"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:204
-#, elixir-autogen, elixir-format
-msgid "Import completed successfully!"
-msgstr "Import edukalt lõpetatud!"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:205
-#, elixir-autogen, elixir-format
-msgid "Import failed: %{reason}"
-msgstr "Import ebaõnnestus: %{reason}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:206
-#, elixir-autogen, elixir-format
-msgid "Import in Progress"
-msgstr "Import käib"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:207
-#, elixir-autogen, elixir-format
-msgid "Import language:"
-msgstr "Impordi keel:"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:208
-#, elixir-autogen, elixir-format
-msgid "Import log deleted"
-msgstr "Impordi logi kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:209
-#, elixir-autogen, elixir-format
-msgid "Import not found"
-msgstr "Importi ei leitud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:210
-#, elixir-autogen, elixir-format
-msgid "Import products from CSV files"
-msgstr "Impordi tooteid CSV-failidest"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:211
-#, elixir-autogen, elixir-format
-msgid "Import started: %{filename}"
-msgstr "Import alustatud: %{filename}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:212
-#, elixir-autogen, elixir-format
-msgid "Import: %{filename}"
-msgstr "Import: %{filename}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:213
-#, elixir-autogen, elixir-format
-msgid "Imported"
-msgstr "Imporditud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:214
-#, elixir-autogen, elixir-format
-msgid "Imported Option Prices"
-msgstr "Imporditud valikute hinnad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:215
-#, elixir-autogen, elixir-format
-msgid "Imported Products"
-msgstr "Imporditud tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:216
-#, elixir-autogen, elixir-format
-msgid "Invalid import ID"
-msgstr "Vigane impordi ID"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:217
-#, elixir-autogen, elixir-format
-msgid "Inventory tracking disabled"
-msgstr "Laoarvestus keelatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:218
-#, elixir-autogen, elixir-format
-msgid "Inventory tracking enabled"
-msgstr "Laoarvestus lubatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:219
-#, elixir-autogen, elixir-format
-msgid "Items"
-msgstr "Kirjed"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:220
-#, elixir-autogen, elixir-format
-msgid "Key"
-msgstr "Võti"
 
 #: lib/modules/storage/web/settings.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Genereeri DZI-plaadipüramiide laisklaadimisega suurendamisel. Väljalylitatuna vahetab MediaBrowser variantide vahel, kuid ei genereeri plaate. Vajalik ImageMagick."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:222
-#, elixir-autogen, elixir-format
-msgid "Make Root (No Parent)"
-msgstr "Tee juurkategooriaks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:223
-#, elixir-autogen, elixir-format
-msgid "Manage your e-commerce store"
-msgstr "Halda oma e-poodi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:224
-#, elixir-autogen, elixir-format
-msgid "Max order"
-msgstr "Maks. tellimus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:225
-#, elixir-autogen, elixir-format
-msgid "Max weight (g)"
-msgstr "Maks. kaal (g)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:226
-#, elixir-autogen, elixir-format
-msgid "Method"
-msgstr "Meetod"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:227
-#, elixir-autogen, elixir-format
-msgid "Migrate %{count} Products"
-msgstr "Migreeri %{count} toodet"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:228
-#, elixir-autogen, elixir-format
-msgid "Min order"
-msgstr "Min. tellimus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:229
-#, elixir-autogen, elixir-format
-msgid "Min weight (g)"
-msgstr "Min. kaal (g)"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1218
 #, elixir-autogen, elixir-format
@@ -8418,186 +7564,11 @@ msgid_plural "Move %{count} items to folder"
 msgstr[0] "Teisalda %{count} üksus kausta"
 msgstr[1] "Teisalda %{count} üksust kausta"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:230
-#, elixir-autogen, elixir-format
-msgid "Move %{count} selected products to a category"
-msgstr "Teisalda %{count} valitud toodet kategooriasse"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:231
-#, elixir-autogen, elixir-format
-msgid "Move to Category"
-msgstr "Teisalda kategooriasse"
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1157
 #, elixir-autogen, elixir-format
 msgid "Move to Trash"
 msgstr "Teisalda prügikasti"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:233
-#, elixir-autogen, elixir-format
-msgid "New Category"
-msgstr "Uus kategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:234
-#, elixir-autogen, elixir-format
-msgid "New Product"
-msgstr "Uus toode"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:235
-#, elixir-autogen, elixir-format
-msgid "New Shipping Method"
-msgstr "Uus tarneviis"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:236
-#, elixir-autogen, elixir-format
-msgid "No Category"
-msgstr "Kategooriata"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:237
-#, elixir-autogen, elixir-format
-msgid "No carts found"
-msgstr "Ostukorve ei leitud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:238
-#, elixir-autogen, elixir-format
-msgid "No categories found"
-msgstr "Kategooriaid ei leitud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:239
-#, elixir-autogen, elixir-format
-msgid "No category"
-msgstr "Kategooriata"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:240
-#, elixir-autogen, elixir-format
-msgid "No category-specific options"
-msgstr "Kategooriaspetsiifilisi valikuid pole"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:241
-#, elixir-autogen, elixir-format
-msgid "No filter (import all products)"
-msgstr "Ilma filtrita (impordi kõik tooted)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:242
-#, elixir-autogen, elixir-format
-msgid "No imports yet"
-msgstr "Importe pole veel"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:243
-#, elixir-autogen, elixir-format
-msgid "No limit"
-msgstr "Piiranguta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:244
-#, elixir-autogen, elixir-format
-msgid "No limits"
-msgstr "Piiranguta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:245
-#, elixir-autogen, elixir-format
-msgid "No max"
-msgstr "Maks. piiranguta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:246
-#, elixir-autogen, elixir-format
-msgid "No min"
-msgstr "Min. piiranguta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:247
-#, elixir-autogen, elixir-format
-msgid "No options defined"
-msgstr "Valikuid pole määratud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:248
-#, elixir-autogen, elixir-format
-msgid "No parent (root category)"
-msgstr "Ülemkategooriata (juurkategooria)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:249
-#, elixir-autogen, elixir-format
-msgid "No products found"
-msgstr "Tooteid ei leitud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:250
-#, elixir-autogen, elixir-format
-msgid "No products with images in this category. Add product images to enable this option."
-msgstr "Selles kategoorias pole piltidega tooteid. Lisa toote pildid selle valiku aktiveerimiseks."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:253
-#, elixir-autogen, elixir-format
-msgid "No shipping methods"
-msgstr "Tarneviisid puuduvad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:254
-#, elixir-autogen, elixir-format
-msgid "No threshold"
-msgstr "Piiranguta"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:255
-#, elixir-autogen, elixir-format
-msgid "Not authorized"
-msgstr "Puuduvad õigused"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:256
-#, elixir-autogen, elixir-format
-msgid "Only CSV files are accepted"
-msgstr "Aktsepteeritakse ainult CSV-faile"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:257
-#, elixir-autogen, elixir-format
-msgid "Only one file at a time"
-msgstr "Korraga ainult üks fail"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:258
-#, elixir-autogen, elixir-format
-msgid "Option '%{key}' created"
-msgstr "Valik '%{key}' loodud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:259
-#, elixir-autogen, elixir-format
-msgid "Option Prices"
-msgstr "Valikute hinnad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:260
-#, elixir-autogen, elixir-format
-msgid "Option added"
-msgstr "Valik lisatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:261
-#, elixir-autogen, elixir-format
-msgid "Option key and value are required"
-msgstr "Valiku võti ja väärtus on kohustuslikud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:262
-#, elixir-autogen, elixir-format
-msgid "Option removed"
-msgstr "Valik eemaldatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:263
-#, elixir-autogen, elixir-format
-msgid "Option updated"
-msgstr "Valik uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:264
-#, elixir-autogen, elixir-format
-msgid "Option value"
-msgstr "Valiku väärtus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:266
-#, elixir-autogen, elixir-format
-msgid "Original price"
-msgstr "Algne hind"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:267
-#, elixir-autogen, elixir-format
-msgid "Parent"
-msgstr "Ülemkategooria"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:268
-#, elixir-autogen, elixir-format
-msgid "Parent Category"
-msgstr "Ülemkategooria"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:805
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1148
@@ -8605,612 +7576,113 @@ msgstr "Ülemkategooria"
 msgid "Permanently delete '%{name}'? This cannot be undone."
 msgstr "Kustuta '%{name}' jäädavalt? Seda ei saa tagasi võtta."
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:269
-#, elixir-autogen, elixir-format
-msgid "Physical"
-msgstr "Füüsiline"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:270
-#, elixir-autogen, elixir-format
-msgid "Physical Products"
-msgstr "Füüsilised tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:271
-#, elixir-autogen, elixir-format
-msgid "Please enter a value first"
-msgstr "Sisesta esmalt väärtus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:272
-#, elixir-autogen, elixir-format
-msgid "Please select a CSV file first"
-msgstr "Vali esmalt CSV-fail"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:273
-#, elixir-autogen, elixir-format
-msgid "Position"
-msgstr "Positsioon"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:596
+#: lib/phoenix_kit_web/components/annotation_composer.ex:598
 #, elixir-autogen, elixir-format
 msgid "Post"
 msgstr "Postitus"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1440
-#, elixir-autogen, elixir-format
-msgid "Post to keep it. Cancel to discard the shape."
-msgstr "Postita säilitamiseks. Tühista kuju hülgamiseks."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:274
-#, elixir-autogen, elixir-format
-msgid "Preparing import..."
-msgstr "Impordi ettevalmistamine..."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:275
-#, elixir-autogen, elixir-format
-msgid "Preview: Merged Schema"
-msgstr "Eelvaade: ühendatud skeem"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:276
-#, elixir-autogen, elixir-format
-msgid "Price"
-msgstr "Hind"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:277
-#, elixir-autogen, elixir-format
-msgid "Pricing"
-msgstr "Hinnad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:278
-#, elixir-autogen, elixir-format
-msgid "Product"
-msgstr "Toode"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:279
-#, elixir-autogen, elixir-format
-msgid "Product Details"
-msgstr "Toote üksikasjad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:280
-#, elixir-autogen, elixir-format
-msgid "Product Images"
-msgstr "Toote pildid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:281
-#, elixir-autogen, elixir-format
-msgid "Product Type"
-msgstr "Toote tüüp"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:282
-#, elixir-autogen, elixir-format
-msgid "Product created"
-msgstr "Toode loodud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:283
-#, elixir-autogen, elixir-format
-msgid "Product deleted"
-msgstr "Toode kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:284
-#, elixir-autogen, elixir-format
-msgid "Product title"
-msgstr "Toote pealkiri"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:285
-#, elixir-autogen, elixir-format
-msgid "Product updated"
-msgstr "Toode uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:286
-#, elixir-autogen, elixir-format
-msgid "Products"
-msgstr "Tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:287
-#, elixir-autogen, elixir-format
-msgid "Products in this category will show these options:"
-msgstr "Selle kategooria toodetel kuvatakse järgmised valikud:"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:288
-#, elixir-autogen, elixir-format
-msgid "Products requiring shipping"
-msgstr "Tarnet vajavad tooted"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:289
-#, elixir-autogen, elixir-format
-msgid "Products will use global options only"
-msgstr "Tooted kasutavad ainult globaalseid valikuid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:290
-#, elixir-autogen, elixir-format
-msgid "Progress"
-msgstr "Edenemine"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Redirecting…"
 msgstr "Suunamine…"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:293
-#, elixir-autogen, elixir-format
-msgid "Remove auto-created categories that have no products after import"
-msgstr "Eemalda automaatselt loodud tühjad kategooriad pärast importi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:296
-#, elixir-autogen, elixir-format
-msgid "Results"
-msgstr "Tulemused"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:297
-#, elixir-autogen, elixir-format
-msgid "Retry"
-msgstr "Proovi uuesti"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:298
-#, elixir-autogen, elixir-format
-msgid "Retrying import: %{filename}"
-msgstr "Impordi kordamine: %{filename}"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:299
-#, elixir-autogen, elixir-format
-msgid "Root Only"
-msgstr "Ainult juurkategooriad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:300
-#, elixir-autogen, elixir-format
-msgid "SEO-friendly URL for this language"
-msgstr "SEO-sõbralik URL selle keele jaoks"
-
+#: lib/phoenix_kit_web/components/core/form_actions.ex:61
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Saving…"
 msgstr "Salvestamine…"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:302
-#, elixir-autogen, elixir-format
-msgid "Search by email or session ID..."
-msgstr "Otsi e-posti või seansi ID järgi..."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:303
-#, elixir-autogen, elixir-format
-msgid "Search categories..."
-msgstr "Otsi kategooriaid..."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:304
-#, elixir-autogen, elixir-format
-msgid "Search products..."
-msgstr "Otsi tooteid..."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:305
-#, elixir-autogen, elixir-format
-msgid "Select from Storage"
-msgstr "Vali salvestusest"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:306
-#, elixir-autogen, elixir-format
-msgid "Set Active"
-msgstr "Aktiveeri"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:307
-#, elixir-autogen, elixir-format
-msgid "Set Archived"
-msgstr "Arhiveeri"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:308
-#, elixir-autogen, elixir-format
-msgid "Set Draft"
-msgstr "Määra mustandiks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:309
-#, elixir-autogen, elixir-format
-msgid "Set Hidden"
-msgstr "Peida"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:310
-#, elixir-autogen, elixir-format
-msgid "Set Unlisted"
-msgstr "Eemalda loendist"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:311
-#, elixir-autogen, elixir-format
-msgid "Set parent for %{count} selected categories"
-msgstr "Määra ülemkategooria %{count} valitud kategooriale"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:313
-#, elixir-autogen, elixir-format
-msgid "Shipping Methods"
-msgstr "Tarneviisid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:314
-#, elixir-autogen, elixir-format
-msgid "Shipping method created"
-msgstr "Tarneviis loodud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:315
-#, elixir-autogen, elixir-format
-msgid "Shipping method deleted"
-msgstr "Tarneviis kustutatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:316
-#, elixir-autogen, elixir-format
-msgid "Shipping method updated"
-msgstr "Tarneviis uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:317
-#, elixir-autogen, elixir-format
-msgid "Shopify or Prom.ua CSV format, max 50MB"
-msgstr "Shopify või Prom.ua CSV-vorming, maks 50 MB"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:318
-#, elixir-autogen, elixir-format
-msgid "Shopping Carts"
-msgstr "Ostlejate korvid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:319
-#, elixir-autogen, elixir-format
-msgid "Short product description"
-msgstr "Lühike tootekirjeldus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:320
-#, elixir-autogen, elixir-format
-msgid "Skip Mapping"
-msgstr "Jäta kaardistus vahele"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:321
-#, elixir-autogen, elixir-format
-msgid "Skip empty categories"
-msgstr "Jäta tühjad kategooriad vahele"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:322
-#, elixir-autogen, elixir-format
-msgid "Skip empty categories (remove categories with no products after import)"
-msgstr "Jäta tühjad kategooriad vahele (eemalda tootevaesed kategooriad pärast importi)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:323
-#, elixir-autogen, elixir-format
-msgid "Skipped"
-msgstr "Vahele jäetud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:324
-#, elixir-autogen, elixir-format
-msgid "Slug"
-msgstr "Slug"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:325
-#, elixir-autogen, elixir-format
-msgid "Something went wrong. Please try again."
-msgstr "Midagi läks valesti. Proovi uuesti."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:326
-#, elixir-autogen, elixir-format
-msgid "Specifications"
-msgstr "Omadused"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:327
-#, elixir-autogen, elixir-format
-msgid "Standard Shipping"
-msgstr "Standardtarne"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:328
-#, elixir-autogen, elixir-format
-msgid "Start Import"
-msgstr "Alusta importi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:329
-#, elixir-autogen, elixir-format
-msgid "Started At"
-msgstr "Alustatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:330
-#, elixir-autogen, elixir-format
-msgid "Started migration for %{count} products"
-msgstr "Alustati migreerimist %{count} toote jaoks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:332
-#, elixir-autogen, elixir-format
-msgid "Storage image has priority"
-msgstr "Salvestusmooduli pildil on prioriteet"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:333
-#, elixir-autogen, elixir-format
-msgid "Storefront filter updated"
-msgstr "Poe filter uuendatud"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Testing…"
 msgstr "Testimine…"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:335
-#, elixir-autogen, elixir-format
-msgid "Text fields will be imported to this language"
-msgstr "Tekstiväljad imporditakse sellesse keelde"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:336
-#, elixir-autogen, elixir-format
-msgid "Time"
-msgstr "Aeg"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:340
+#: lib/phoenix_kit_web/components/annotation_composer.ex:342
 #, elixir-autogen, elixir-format
 msgid "Too many files"
 msgstr "Liiga palju faile"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:339
-#, elixir-autogen, elixir-format
-msgid "Total Products"
-msgstr "Tooteid kokku"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:340
-#, elixir-autogen, elixir-format
-msgid "Tracking supported"
-msgstr "Jälgimine toetatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:341
-#, elixir-autogen, elixir-format
-msgid "Translate category content for different languages. The default language uses the main fields above."
-msgstr "Tõlgi kategooria sisu erinevatesse keeltesse. Vaikekeel kasutab üla olevaid põhijalju."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:344
-#, elixir-autogen, elixir-format
-msgid "Translated category name"
-msgstr "Tõlgitud kategooria nimi"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:345
-#, elixir-autogen, elixir-format
-msgid "Translated description"
-msgstr "Tõlgitud kirjeldus"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:346
-#, elixir-autogen, elixir-format
-msgid "Translations"
-msgstr "Tõlked"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:572
+#: lib/phoenix_kit_web/components/annotation_composer.ex:574
 #, elixir-autogen, elixir-format
 msgid "Type to search GIFs."
 msgstr "Kirjuta GIF-ide otsimiseks."
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:348
-#, elixir-autogen, elixir-format
-msgid "URL Slug"
-msgstr "URL Slug"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:349
-#, elixir-autogen, elixir-format
-msgid "Unit (optional)"
-msgstr "Ühik (valikuline)"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:350
-#, elixir-autogen, elixir-format
-msgid "Unlisted"
-msgstr "Peidetud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:351
-#, elixir-autogen, elixir-format
-msgid "Unlisted — Category hidden, products still visible"
-msgstr "Peidetud — kategooria peidetud, tooted nähtavad"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:352
-#, elixir-autogen, elixir-format
-msgid "Unlisted: products appear in search/catalog but category not in menu"
-msgstr "Peidetud: tooted nähtavad otsingus, kuid kategooria pole menüüs"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:353
-#, elixir-autogen, elixir-format
-msgid "Unrecognized CSV format"
-msgstr "Tundmatu CSV-vorming"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:279
+#: lib/phoenix_kit_web/components/annotation_composer.ex:281
 #, elixir-autogen, elixir-format
 msgid "Up to %{max} attachments"
 msgstr "Kuni %{max} manust"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:512
+#: lib/phoenix_kit_web/components/annotation_composer.ex:514
 #, elixir-autogen, elixir-format
 msgid "Up to %{max} files, max %{size}MB each"
 msgstr "Kuni %{max} faili, igaüks max %{size} MB"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:354
-#, elixir-autogen, elixir-format
-msgid "Update"
-msgstr "Uuenda"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:355
-#, elixir-autogen, elixir-format
-msgid "Update Category"
-msgstr "Uuenda kategooriat"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:356
-#, elixir-autogen, elixir-format
-msgid "Update Method"
-msgstr "Uuenda meetodit"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:357
-#, elixir-autogen, elixir-format
-msgid "Update Product"
-msgstr "Uuenda toodet"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:358
-#, elixir-autogen, elixir-format
-msgid "Update status for %{count} selected categories"
-msgstr "Uuenda %{count} valitud kategooria olekut"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:359
-#, elixir-autogen, elixir-format
-msgid "Update status for %{count} selected products"
-msgstr "Uuenda %{count} valitud toote olekut"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:360
-#, elixir-autogen, elixir-format
-msgid "Updated"
-msgstr "Uuendatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:361
-#, elixir-autogen, elixir-format
-msgid "Upload"
-msgstr "Laadi üles"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:362
-#, elixir-autogen, elixir-format
-msgid "Upload CSV File"
-msgstr "Laadi üles CSV-fail"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:342
+#: lib/phoenix_kit_web/components/annotation_composer.ex:344
 #, elixir-autogen, elixir-format
 msgid "Upload error: %{reason}"
 msgstr "Üleslaadimise viga: %{reason}"
 
-#: lib/phoenix_kit_web/components/annotation_composer.ex:316
+#: lib/phoenix_kit_web/components/annotation_composer.ex:318
 #, elixir-autogen, elixir-format
 msgid "Upload failed: %{reason}"
 msgstr "Üleslaadimine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:363
-#, elixir-autogen, elixir-format
-msgid "Used as category image when no Storage image is selected"
-msgstr "Kasutatakse kategooria pildina, kui salvestusmooduli pilti pole valitud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:365
-#, elixir-autogen, elixir-format
-msgid "Value '%{value}' added"
-msgstr "Väärtus '%{value}' lisatud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:366
-#, elixir-autogen, elixir-format
-msgid "Value '%{value}' added to '%{key}'"
-msgstr "Väärtus '%{value}' lisatud väljale '%{key}'"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:367
-#, elixir-autogen, elixir-format
-msgid "Value '%{value}' already exists"
-msgstr "Väärtus '%{value}' on juba olemas"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:368
-#, elixir-autogen, elixir-format
-msgid "Value '%{value}' already exists in '%{key}'"
-msgstr "Väärtus '%{value}' on juba olemas väljal '%{key}'"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:369
-#, elixir-autogen, elixir-format
-msgid "Variant Images"
-msgstr "Variandi pildid"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:370
-#, elixir-autogen, elixir-format
-msgid "Vendor"
-msgstr "Tarnija"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:372
-#, elixir-autogen, elixir-format
-msgid "View Details"
-msgstr "Vaata üksikasjad"
-
-#: lib/phoenix_kit_web/components/annotation_composer.ex:375
+#: lib/phoenix_kit_web/components/annotation_composer.ex:377
 #, elixir-autogen, elixir-format
 msgid "Write a note about this annotation..."
 msgstr "Kirjuta märkus selle annotatsiooni kohta..."
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:373
-#, elixir-autogen, elixir-format
-msgid "Your cost for profit calculation"
-msgstr "Teie kulu kasumi arvutamiseks"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:374
-#, elixir-autogen, elixir-format
-msgid "auto-generated if empty"
-msgstr "genereeritakse automaatselt, kui tühi"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "nt Peamine, Isiklik, Minu ettevõtte draiv"
 
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:375
-#, elixir-autogen, elixir-format
-msgid "e.g., Mounting Type"
-msgstr "nt Kinnitustüüp"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:376
-#, elixir-autogen, elixir-format
-msgid "e.g., cm"
-msgstr "nt cm"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:377
-#, elixir-autogen, elixir-format
-msgid "existing products"
-msgstr "olemasolevat toodet"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:378
-#, elixir-autogen, elixir-format
-msgid "failed rows"
-msgstr "vearida"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:379
-#, elixir-autogen, elixir-format
-msgid "filtered out"
-msgstr "filtreeritud"
-
-#: lib/phoenix_kit_web/ecommerce_gettext_manifest.ex:380
-#, elixir-autogen, elixir-format
-msgid "new products"
-msgstr "uued tooted"
-
-#: lib/phoenix_kit_web/components/media_browser.ex:2424
+#: lib/phoenix_kit_web/components/media_browser.ex:1997
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "pealkirjata"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:160
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Cancel upload"
 msgstr "Tühista üleslaadimine"
-
-#: lib/phoenix_kit_web/components/media_gallery.html.heex:72
-#, elixir-autogen, elixir-format
-msgid "Choose image"
-msgstr "Vali pilt"
-
-#: lib/phoenix_kit_web/components/media_gallery.html.heex:72
-#, elixir-autogen, elixir-format
-msgid "Choose images"
-msgstr "Vali pildid"
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Click on an image to select it"
 msgstr "Klõpsa pildil, et see valida"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:179
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Configure storage buckets to enable uploads"
 msgstr "Seadista salvestushoidlad, et lubada üleslaadimine"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:122
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Drag files here or click to browse"
 msgstr "Lohista failid siia või klõpsa sirvimiseks"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:220
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Images Only"
 msgstr "Ainult pildid"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:125
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Images, videos, or documents"
 msgstr "Pildid, videod või dokumendid"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:235
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "No media files found"
 msgstr "Meediafaile ei leitud"
 
-#: lib/phoenix_kit_web/components/media_gallery.html.heex:41
+#: lib/phoenix_kit_web/components/media_gallery.html.heex:64
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Preview"
 msgstr "Eelmine"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:199
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Search by filename..."
 msgstr "Otsi failinime järgi…"
@@ -9225,33 +7697,99 @@ msgstr "Vali meedia"
 msgid "Select one or more images"
 msgstr "Vali üks või mitu pilti"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:105
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Upload New Files"
 msgstr "Laadi üles uued failid"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:176
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Upload disabled"
 msgstr "Üleslaadimine on keelatud"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:237
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Upload files using the area above or adjust your search filters"
 msgstr "Laadi failid üles ülaltoodud alal või muuda otsingufiltreid"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:223
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Videos Only"
 msgstr "Ainult videod"
 
-#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:85
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Enne failide üleslaadimist tuleb seadistada vähemalt üks salvestushoidla."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:311
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:67
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:316
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:68
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr "Halduspaneel"
+
+#: lib/phoenix_kit_web/live/users/users.html.heex:126
+#, elixir-autogen, elixir-format
+msgid "Account type:"
+msgstr "Konto tüüp:"
+
+#: lib/phoenix_kit_web/components/core/sort_selector.ex:197
+#, elixir-autogen, elixir-format
+msgid "Ascending — click for descending"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/sort_selector.ex:198
+#, elixir-autogen, elixir-format
+msgid "Descending — click for ascending"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/sort_selector.ex:136
+#: lib/phoenix_kit_web/components/core/sort_selector.ex:137
+#, elixir-autogen, elixir-format
+msgid "Drag rows to reorder"
+msgstr "Lohistage ridu järjekorra muutmiseks"
+
+#: lib/phoenix_kit_web/components/media_gallery.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Featured"
+msgstr "Esiletõstetud"
+
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Post to add the note. Cancel to skip — you can edit or delete the annotation later via the toolbar."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/sort_selector.ex:128
+#, elixir-autogen, elixir-format
+msgid "Sort by"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Status:"
+msgstr "Olek:"
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:284
+#, elixir-autogen, elixir-format
+msgid "Controls how the primary language appears in URLs across the site — admin pages, public pages, sitemap, and redirects."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:294
+#, elixir-autogen, elixir-format
+msgid "Default Language Without Prefix"
+msgstr "Vaikekeel ilma prefiksita"
+
+#: lib/phoenix_kit_web/live/modules/languages.ex:89
+#, elixir-autogen, elixir-format
+msgid "Failed to update URL behavior setting"
+msgstr "URL-i käitumise seade uuendamine ebaõnnestus"
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:282
+#, elixir-autogen, elixir-format
+msgid "URL Behavior"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:297
+#, elixir-autogen, elixir-format
+msgid "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
+msgstr ""
