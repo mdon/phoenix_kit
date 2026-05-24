@@ -352,10 +352,15 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         </div>
         <div
           :for={item <- @items}
-          class={[
-            @card_class_fn.(item),
-            @on_reorder && "sortable-item"
-          ]}
+          class={
+            [
+              @card_class_fn.(item),
+              # min-w-0 lets the card shrink to its grid track instead of being
+              # forced wide by a long unbreakable token (email/username) inside.
+              "min-w-0",
+              @on_reorder && "sortable-item"
+            ]
+          }
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
           <%!-- Optional media region rendered ABOVE the card body. Slot owns
@@ -367,7 +372,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
           <%!-- Custom card body slot: REPLACES prescribed header+fields rendering.
                Consumer owns the inside of card-body. card_actions footer still
                applies below if also provided. --%>
-          <div :if={@card_body != []} class="card-body">
+          <div :if={@card_body != []} class="card-body min-w-0 break-words">
             {render_slot(@card_body, item)}
             <%!-- Footer row inside custom-body branch so spacing stays consistent --%>
             <div
@@ -387,7 +392,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             </div>
           </div>
           <%!-- Default card body: prescribed header + key/value fields + footer --%>
-          <div :if={@card_body == []} class="card-body gap-3 flex flex-col">
+          <div :if={@card_body == []} class="card-body gap-3 flex flex-col min-w-0 break-words">
             <%!-- Custom header (slot) or plain title string --%>
             <div :if={@card_header != []}>
               {render_slot(@card_header, item)}
@@ -398,8 +403,8 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             <%!-- Key-value fields --%>
             <div :if={@card_fields} class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm flex-1">
               <%= for field <- @card_fields.(item) do %>
-                <div class="text-base-content/60">{field.label}</div>
-                <div>{field.value}</div>
+                <div class="text-base-content/60 min-w-0">{field.label}</div>
+                <div class="min-w-0 break-words">{field.value}</div>
               <% end %>
             </div>
             <%!-- Footer row: drag handle (leftmost), action buttons

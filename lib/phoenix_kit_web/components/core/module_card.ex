@@ -75,7 +75,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
 
   def module_card(assigns) do
     ~H"""
-    <div class="card bg-base-100 shadow-xl">
+    <div class="card bg-base-100 shadow-xl min-w-0">
       <div class="card-body">
         <%!-- Header: Icon, Title, Description, Toggle --%>
         <div class="flex items-center">
@@ -86,7 +86,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
               {@icon}
             <% end %>
           </div>
-          <div class="flex-1">
+          <div class="flex-1 min-w-0 break-words">
             <h3 class="card-title text-xl">{@title}</h3>
             <p class="text-base-content/70">
               {@description}
@@ -123,7 +123,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
             {render_slot(@status_badges)}
           </div>
 
-          <div class="card-actions relative z-10 grow">
+          <div class="card-actions relative z-10 grow min-w-0">
             {render_slot(@action_buttons)}
           </div>
         </div>
