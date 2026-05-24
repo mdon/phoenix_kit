@@ -1686,14 +1686,22 @@ if (typeof window.Chart === "undefined") {
         const mode = el.dataset.bulkShow;
         const visible =
           mode === "has-selection" ? count > 0 :
-          mode === "no-selection" ? count === 0 : true;
+          mode === "no-selection" ? count === 0 :
+          mode === "has-multiple" ? count > 1 : true;
         el.style.display = visible ? "" : "none";
       });
 
-      this.el.querySelectorAll("[data-bulk-label-empty][data-bulk-label-selected]").forEach(function(el) {
+      // Label flip: requires at least the `selected` variant. The
+      // `empty` variant is optional — when absent, count=0 leaves the
+      // server-rendered initial text in place (which is fine, since
+      // a button without label-empty is also typically gated to hide
+      // at count=0 via data-bulk-show).
+      this.el.querySelectorAll("[data-bulk-label-selected]").forEach(function(el) {
+        const empty = el.dataset.bulkLabelEmpty;
         const label = count > 0
           ? el.dataset.bulkLabelSelected.replace("%{count}", String(count))
-          : el.dataset.bulkLabelEmpty;
+          : empty;
+        if (label === undefined) return;
         // Only swap the text node so we don't blow away icon children.
         let updated = false;
         for (const node of el.childNodes) {

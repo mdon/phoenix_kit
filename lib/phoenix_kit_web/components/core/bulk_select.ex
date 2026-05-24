@@ -162,38 +162,35 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   attr :noun_plural, :string, default: "items"
   attr :allow_delete, :boolean, default: true
 
+  attr :reorder_gate, :atom,
+    default: :always,
+    values: [:always, :multi],
+    doc:
+      "When `:always`, the Reorder button is visible at any selection count (label flips between 'Reorder all' at 0 and 'Reorder N selected' at N>0). When `:multi`, the button is hidden unless count > 1 — useful when the surrounding context doesn't have a meaningful 'reorder all' interpretation (e.g. the list is currently sorted by name, not the manual position field)."
+
+  slot :leading,
+    doc:
+      "Content rendered on the left of the toolbar before the action buttons. Common use: tuck a sort selector in here so the toolbar reads as one widget."
+
   def bulk_actions_toolbar(assigns) do
-    # `%{count}` is substituted by the BulkSelectScope JS hook at run
-    # time, not at render time. `gettext_noop` marks the strings for
-    # POT extraction without trying to bind `count` here (which would
-    # raise a "missing Gettext bindings" warning).
     assigns =
       assigns
       |> assign(:reorder_empty_label, gettext("Reorder all"))
       |> assign(:reorder_selected_label, gettext_noop("Reorder %{count} selected"))
-      |> assign(:selected_text_template, gettext_noop("%{count} selected"))
       |> assign(:delete_label, gettext("Delete"))
       |> assign(:clear_label, gettext("Clear"))
 
     ~H"""
-    <div class="flex items-center gap-3 bg-base-200 rounded-lg px-3 py-2 text-sm">
-      <%!-- Count text shows only when a selection exists. Empty
-           selection state has no left-side text — the action buttons
-           pin to the right via ml-auto on the action group. --%>
-      <span
-        data-bulk-show="has-selection"
-        data-bulk-text-template={@selected_text_template}
-        class="text-base-content/70"
-      >
-        0
-      </span>
+    <div class="flex flex-wrap items-center gap-3 bg-base-200 rounded-lg px-3 py-2 text-sm">
+      {render_slot(@leading)}
 
       <div class="flex items-center gap-2 ml-auto">
         <button
           type="button"
           class="btn btn-sm btn-ghost"
           data-bulk-action={@on_open_reorder}
-          data-bulk-label-empty={@reorder_empty_label}
+          data-bulk-show={if @reorder_gate == :multi, do: "has-multiple"}
+          data-bulk-label-empty={if @reorder_gate == :always, do: @reorder_empty_label}
           data-bulk-label-selected={@reorder_selected_label}
         >
           <.icon name="hero-arrows-up-down" class="w-4 h-4" /> {@reorder_empty_label}
