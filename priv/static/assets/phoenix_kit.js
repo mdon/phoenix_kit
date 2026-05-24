@@ -1695,13 +1695,19 @@ if (typeof window.Chart === "undefined") {
       });
 
       // Label flip: requires at least the `selected` variant. The
-      // `empty` variant is optional — when absent, count=0 leaves the
-      // server-rendered initial text in place (which is fine, since
-      // a button without label-empty is also typically gated to hide
-      // at count=0 via data-bulk-show).
+      // `empty` variant is optional — when absent, count <= 1 leaves
+      // the server-rendered initial text in place (which is fine,
+      // since a button without label-empty is also typically gated
+      // to hide at low counts via data-bulk-show).
+      //
+      // Threshold is `> 1`, not `> 0`: a one-row "Reorder selected"
+      // is a no-op (permuting a single row leaves it where it was),
+      // and "Delete 1 selected" reads identically to bare "Delete".
+      // Showing the empty label at count=1 keeps the button label
+      // honest about what's actually going to happen.
       this.el.querySelectorAll("[data-bulk-label-selected]").forEach(function(el) {
         const empty = el.dataset.bulkLabelEmpty;
-        const label = count > 0
+        const label = count > 1
           ? el.dataset.bulkLabelSelected.replace("%{count}", String(count))
           : empty;
         if (label === undefined) return;
