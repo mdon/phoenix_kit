@@ -171,18 +171,21 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
       assigns
       |> assign(:reorder_empty_label, gettext("Reorder all"))
       |> assign(:reorder_selected_label, gettext_noop("Reorder %{count} selected"))
-      |> assign(:no_selection_label, gettext("No selection"))
       |> assign(:selected_text_template, gettext_noop("%{count} selected"))
       |> assign(:delete_label, gettext("Delete"))
       |> assign(:clear_label, gettext("Clear"))
 
     ~H"""
     <div class="flex items-center gap-3 bg-base-200 rounded-lg px-3 py-2 text-sm">
-      <span class="text-base-content/70">
-        <span data-bulk-show="no-selection">{@no_selection_label}</span>
-        <span data-bulk-show="has-selection" data-bulk-text-template={@selected_text_template}>
-          0
-        </span>
+      <%!-- Count text shows only when a selection exists. Empty
+           selection state has no left-side text — the action buttons
+           pin to the right via ml-auto on the action group. --%>
+      <span
+        data-bulk-show="has-selection"
+        data-bulk-text-template={@selected_text_template}
+        class="text-base-content/70"
+      >
+        0
       </span>
 
       <div class="flex items-center gap-2 ml-auto">
