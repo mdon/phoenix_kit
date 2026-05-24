@@ -7,6 +7,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
   and can be customized by parent applications via config.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   require Logger
 
   alias PhoenixKit.Dashboard.{Group, Tab}
@@ -243,7 +245,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_authorization,
-        "Authorization",
+        gettext_noop("Authorization"),
         "hero-lock-closed",
         "authorization",
         912,

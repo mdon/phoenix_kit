@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
 
       socket =
         socket
-        |> assign(:page_title, "Activity")
+        |> assign(:page_title, gettext("Activity"))
         |> assign(:project_title, project_title)
         |> assign(:modules, Activity.list_modules())
         |> assign(:modes, Activity.list_modes())
@@ -41,7 +41,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Access denied")
+       |> put_flash(:error, gettext("Access denied"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -194,11 +194,23 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     diff = DateTime.diff(DateTime.utc_now(), datetime, :second)
 
     cond do
-      diff < 60 -> "just now"
-      diff < 3600 -> "#{div(diff, 60)}m ago"
-      diff < 86_400 -> "#{div(diff, 3600)}h ago"
-      diff < 604_800 -> "#{div(diff, 86_400)}d ago"
-      true -> Calendar.strftime(datetime, "%b %d, %Y")
+      diff < 60 ->
+        gettext("just now")
+
+      diff < 3600 ->
+        n = div(diff, 60)
+        ngettext("%{count}m ago", "%{count}m ago", n, count: n)
+
+      diff < 86_400 ->
+        n = div(diff, 3600)
+        ngettext("%{count}h ago", "%{count}h ago", n, count: n)
+
+      diff < 604_800 ->
+        n = div(diff, 86_400)
+        ngettext("%{count}d ago", "%{count}d ago", n, count: n)
+
+      true ->
+        Calendar.strftime(datetime, "%b %d, %Y")
     end
   end
 end

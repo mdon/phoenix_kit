@@ -411,6 +411,8 @@ msgid "Accept All"
 msgstr "Aceptar todo"
 
 #: lib/phoenix_kit/integrations/integrations.ex:964
+#: lib/phoenix_kit_web/live/activity/index.ex:44
+#: lib/phoenix_kit_web/live/activity/show.ex:43
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr ""
@@ -1284,10 +1286,12 @@ msgstr "Administre la configuración de cookies"
 #: lib/modules/storage/web/dimensions.html.heex:147
 #: lib/modules/storage/web/dimensions.html.heex:319
 #: lib/modules/storage/web/dimensions.html.heex:345
+#: lib/phoenix_kit_web/live/activity/index.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Mode"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/activity/index.html.heex:141
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Module"
@@ -1640,6 +1644,7 @@ msgstr ""
 msgid "Revoked %{label} from %{role_name}"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/activity/index.html.heex:50
 #: lib/phoenix_kit_web/live/users/roles.html.heex:163
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Role"
@@ -1931,6 +1936,7 @@ msgstr ""
 #: lib/modules/storage/web/health.html.heex:197
 #: lib/modules/storage/web/health.html.heex:220
 #: lib/phoenix_kit_web/components/media_browser.html.heex:836
+#: lib/phoenix_kit_web/live/activity/show.html.heex:109
 #: lib/phoenix_kit_web/live/settings/users.html.heex:374
 #: lib/phoenix_kit_web/live/settings/users.html.heex:417
 #: lib/phoenix_kit_web/live/settings/users.html.heex:617
@@ -2036,6 +2042,7 @@ msgstr ""
 msgid "Video"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/activity/index.html.heex:135
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:592
 #: lib/phoenix_kit_web/live/users/users.html.heex:380
 #: lib/phoenix_kit_web/live/users/users.html.heex:479
@@ -2132,6 +2139,7 @@ msgstr "Usuarios"
 msgid "Activate"
 msgstr "Activo"
 
+#: lib/phoenix_kit_web/live/activity/index.html.heex:105
 #: lib/phoenix_kit_web/live/users/users.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "All Types"
@@ -2264,6 +2272,9 @@ msgstr ""
 
 ## Statistics cards
 #: lib/phoenix_kit_web/components/core/badge.ex:160
+#: lib/phoenix_kit_web/live/activity/index.html.heex:30
+#: lib/phoenix_kit_web/live/activity/index.html.heex:212
+#: lib/phoenix_kit_web/live/activity/show.html.heex:80
 #: lib/phoenix_kit_web/live/users/roles.html.heex:97
 #: lib/phoenix_kit_web/live/users/roles.html.heex:119
 #, elixir-autogen, elixir-format, fuzzy
@@ -5893,6 +5904,7 @@ msgstr ""
 msgid "You may need to verify your phone number before creating API keys"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/activity/index.ex:198
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:704
 #, elixir-autogen, elixir-format
 msgid "just now"
@@ -6275,19 +6287,28 @@ msgid "%{count}s ago"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/time_display.ex:188
+#: lib/phoenix_kit_web/live/activity/index.ex:202
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{count}m ago"
-msgstr ""
+msgid_plural "%{count}m ago"
+msgstr[0] ""
+msgstr[1] ""
 
 #: lib/phoenix_kit_web/components/core/time_display.ex:189
+#: lib/phoenix_kit_web/live/activity/index.ex:206
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{count}h ago"
-msgstr ""
+msgid_plural "%{count}h ago"
+msgstr[0] ""
+msgstr[1] ""
 
 #: lib/phoenix_kit_web/components/core/time_display.ex:190
+#: lib/phoenix_kit_web/live/activity/index.ex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{count}d ago"
-msgstr ""
+msgid_plural "%{count}d ago"
+msgstr[0] ""
+msgstr[1] ""
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:23
 #, elixir-autogen
@@ -6804,6 +6825,8 @@ msgid "Configure Storage Buckets"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:838
+#: lib/phoenix_kit_web/live/activity/index.html.heex:58
+#: lib/phoenix_kit_web/live/activity/index.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr ""
@@ -7088,6 +7111,7 @@ msgid "Trash is empty."
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:171
+#: lib/phoenix_kit_web/live/activity/index.html.heex:102
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type:"
 msgstr ""
@@ -8147,4 +8171,165 @@ msgstr ""
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "reset emails"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "%{count} activity"
+msgid_plural "%{count} activities"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:91
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Action:"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.ex:31
+#: lib/phoenix_kit_web/live/activity/index.html.heex:4
+#: lib/phoenix_kit_web/live/activity/index.html.heex:12
+#: lib/phoenix_kit_web/live/activity/index.html.heex:143
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Activity"
+msgstr "Activo"
+
+#: lib/phoenix_kit_web/live/activity/show.ex:33
+#: lib/phoenix_kit_web/live/activity/show.html.heex:4
+#: lib/phoenix_kit_web/live/activity/show.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Activity Detail"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Activity ID"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.ex:24
+#, elixir-autogen, elixir-format
+msgid "Activity not found"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:29
+#: lib/phoenix_kit_web/live/activity/index.html.heex:144
+#, elixir-autogen, elixir-format
+msgid "Actor"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Actor (who did it)"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All Actions"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:83
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All Modes"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All Modules"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Business-level activity across the platform"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:120
+#: lib/phoenix_kit_web/live/activity/index.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "Clear filters"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Date & Time"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Details"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "ID"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:146
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Key"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Metadata"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:80
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mode:"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:69
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module:"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "No activities match the current filters"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "No activities recorded yet"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "No metadata"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "People"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:36
+#: lib/phoenix_kit_web/live/activity/index.html.heex:146
+#: lib/phoenix_kit_web/live/activity/show.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Subject"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Target"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Target (who was affected)"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/show.html.heex:147
+#, elixir-autogen, elixir-format
+msgid "Value"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/activity/index.html.heex:256
+#, elixir-autogen, elixir-format
+msgid "View details"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:248
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Authorization"
 msgstr ""
