@@ -534,6 +534,11 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     ~H"""
     <tr
       class={[
+        # `group` is a Tailwind marker so descendants can use
+        # `group-hover:*` selectors. Required by `<.drag_handle_cell>`'s
+        # hide-until-hover behavior; benign for rows that don't have any
+        # group-hover-styled children.
+        "group",
         if(@hover, do: "hover", else: ""),
         @class
       ]}
@@ -591,6 +596,67 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     <td class={@class} colspan={@colspan} rowspan={@rowspan} {@rest}>
       {render_slot(@inner_block)}
     </td>
+    """
+  end
+
+  @doc """
+  Drag-handle cell for table-view DnD reorder.
+
+  Renders a `<td>` containing the `hero-bars-3` grip icon, with the
+  classes the SortableGrid hook needs to find it (`.pk-drag-handle`)
+  plus the canonical hide-until-hover behavior used elsewhere in the
+  codebase (catalogue category rows, entities card view, etc.):
+
+    * Default: `opacity-0` — icon is invisible.
+    * Row hover: `group-hover:opacity-100` — icon fades in.
+
+  Requires the enclosing `<.table_default_row>` to carry the `group`
+  marker class — which it does by default, so consumers don't have
+  to wire anything beyond placing this cell + the matching
+  `<.drag_handle_header_cell>` in the header.
+
+  Pair this with a `<tbody phx-hook="SortableGrid">` setup (see the
+  `<.table_default>` moduledoc / phoenix_kit_projects reference call
+  sites). The cell only renders the affordance — the hook owns the
+  drag mechanics.
+  """
+  attr :class, :any, default: "w-8"
+  attr :title, :string, default: nil
+  attr :rest, :global
+
+  def drag_handle_cell(assigns) do
+    assigns = assign_new(assigns, :title, fn -> gettext("Drag to reorder") end)
+
+    ~H"""
+    <td
+      class={[
+        "pk-drag-handle cursor-grab active:cursor-grabbing",
+        "text-base-content/30 opacity-0 group-hover:opacity-100 transition-opacity",
+        @class
+      ]}
+      title={@title}
+      {@rest}
+    >
+      <.icon name="hero-bars-3" class="w-4 h-4" />
+    </td>
+    """
+  end
+
+  @doc """
+  Empty `<th>` sized to match the drag-handle column. Sits in the
+  header row alongside `<.bulk_select_header_cell>` and the regular
+  `<.table_default_header_cell>`s.
+
+  Separate component (rather than a bare `<.table_default_header_cell class="w-8" />`)
+  so the intent is obvious at the call site, and the width default
+  matches `<.drag_handle_cell>`'s without consumers having to keep
+  them in sync.
+  """
+  attr :class, :any, default: "w-8"
+
+  def drag_handle_header_cell(assigns) do
+    ~H"""
+    <th class={@class}></th>
     """
   end
 
