@@ -747,7 +747,9 @@
               <%= for stat <- ext.module.module_stats() do %>
                 <div>
                   <span class="text-base-content/70">
-                    {Gettext.gettext(PhoenixKitWeb.Gettext, stat.label)}:
+                    {if is_binary(stat.label),
+                      do: Gettext.gettext(PhoenixKitWeb.Gettext, stat.label),
+                      else: to_string(stat.label)}:
                   </span>
                   <span class="font-medium">{stat.value}</span>
                 </div>
