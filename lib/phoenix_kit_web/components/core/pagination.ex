@@ -227,6 +227,7 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         type="button"
         class="btn btn-sm"
         phx-click={@on_load_more}
+        phx-disable-with={gettext("Loading…")}
       >
         {gettext("Load more")}
       </button>
