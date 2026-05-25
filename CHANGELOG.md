@@ -1,3 +1,31 @@
+## 1.7.120 - 2026-05-24
+
+### Changed
+- Ecommerce admin i18n is now owned by the `phoenix_kit_ecommerce` module
+  instead of PhoenixKit core. The `PhoenixKitWeb.EcommerceGettextManifest` shim
+  that re-emitted ecommerce strings into core's POT for extraction is gone, and
+  ~1,750 ecommerce-only msgids are dropped from `default.pot` and every locale
+  catalog — ecommerce translations now live in the module's own gettext (PR #567).
+- Dependency bump: `etcher` 0.4.9 → 0.4.10.
+
+### Removed
+- `PhoenixKitWeb.EcommerceGettextManifest` — ecommerce translation extraction
+  moved into the `phoenix_kit_ecommerce` module (PR #567).
+
+### Fixed
+- Mobile horizontal overflow on card surfaces. `PhoenixKitWeb.Components.Core.ModuleCard`
+  and the `TableDefault` card views are now shrink-safe — `min-w-0` + `break-words`
+  on the flex/grid children keep a long unbreakable token (email, username) from
+  forcing a card wider than its grid track — and the module admin-links row wraps
+  via `flex-wrap` instead of overflowing (PR #567).
+
+### i18n
+- Completed `ru` / `et` translations for newly-extracted core strings
+  (sort-selector direction tooltips, "URL Behavior" language settings, annotation
+  toolbar hint), restoring both locales to 100%.
+- Fixed fuzzy msgids and `ru` / `et` mistranslations swept in by the ecommerce
+  i18n extract (PR #567).
+
 ## 1.7.119 - 2026-05-22
 
 ### Changed

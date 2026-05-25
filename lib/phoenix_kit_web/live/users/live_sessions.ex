@@ -50,7 +50,7 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
       |> assign(:search_query, "")
       # all, anonymous, authenticated
       |> assign(:filter_type, "all")
-      |> assign(:page_title, "Live Sessions")
+      |> assign(:page_title, gettext("Live Sessions"))
       |> assign(:project_title, project_title)
       |> assign(:sort, %{by: :connected_at, dir: :desc})
       |> assign(:auto_refresh, true)

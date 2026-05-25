@@ -1,22 +1,25 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Live Sessions - {@project_title} Admin"
+  page_title={gettext("Live Sessions") <> " - " <> @project_title <> " " <> gettext("Admin")}
   current_path={@url_path}
   project_title={@project_title}
 >
   <div class="container mx-auto px-4 py-8">
     <.admin_page_header back={PhoenixKit.Utils.Routes.path("/admin/users")}>
-      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">Live Sessions</h1>
+      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
+        {gettext("Live Sessions")}
+      </h1>
       <p class="text-sm text-base-content/60 mt-0.5">
-        Real-time monitoring of all active sessions with live updates.
-        Last updated: {Calendar.strftime(@last_updated, "%H:%M:%S")}
+        {gettext("Real-time monitoring of all active sessions with live updates.")} {gettext(
+          "Last updated:"
+        )} {Calendar.strftime(@last_updated, "%H:%M:%S")}
       </p>
       <:actions>
         <%!-- Live Indicator --%>
         <div class="flex items-center gap-2 px-3 py-1 bg-success/10 text-success rounded-full">
           <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-          <span class="text-xs font-medium">LIVE</span>
+          <span class="text-xs font-medium">{gettext("LIVE")}</span>
         </div>
         <%!-- Auto-refresh toggle --%>
         <button
@@ -27,9 +30,9 @@
           ]}
         >
           <%= if @auto_refresh do %>
-            <.icon name="hero-pause-circle" class="w-5 h-5" /> Auto-refresh ON
+            <.icon name="hero-pause-circle" class="w-5 h-5" /> {gettext("Auto-refresh ON")}
           <% else %>
-            <.icon name="hero-play-circle" class="w-5 h-5" /> Auto-refresh OFF
+            <.icon name="hero-play-circle" class="w-5 h-5" /> {gettext("Auto-refresh OFF")}
           <% end %>
         </button>
         <%!-- Manual refresh --%>
@@ -37,7 +40,7 @@
           phx-click="refresh_now"
           class="btn btn-sm btn-outline"
         >
-          <.icon name="hero-arrow-path" class="w-5 h-5" /> Refresh
+          <.icon name="hero-arrow-path" class="w-5 h-5" /> {gettext("Refresh")}
         </button>
       </:actions>
     </.admin_page_header>
@@ -49,8 +52,8 @@
         compact={true}
         rounded="xl"
         value={@presence_stats.total_sessions}
-        title="Total Sessions"
-        subtitle="Real-time connections"
+        title={gettext("Total Sessions")}
+        subtitle={gettext("Real-time connections")}
       >
         <:icon>
           <.icon name="hero-user-circle" class="w-5 h-5" />
@@ -62,8 +65,8 @@
         compact={true}
         rounded="xl"
         value={@presence_stats.anonymous_sessions}
-        title="Anonymous"
-        subtitle="Unregistered visitors"
+        title={gettext("Anonymous")}
+        subtitle={gettext("Unregistered visitors")}
       >
         <:icon>
           <.icon name="hero-user" class="w-5 h-5" />
@@ -75,8 +78,8 @@
         compact={true}
         rounded="xl"
         value={@presence_stats.authenticated_sessions}
-        title="Authenticated"
-        subtitle="Logged in users"
+        title={gettext("Authenticated")}
+        subtitle={gettext("Logged in users")}
       >
         <:icon>
           <.icon name="hero-check-circle" class="w-5 h-5" />
@@ -88,8 +91,8 @@
         compact={true}
         rounded="xl"
         value={@presence_stats.unique_anonymous_visitors}
-        title="Unique Visitors"
-        subtitle="Individual connections"
+        title={gettext("Unique Visitors")}
+        subtitle={gettext("Individual connections")}
       >
         <:icon>
           <.icon name="hero-user-group" class="w-5 h-5" />
@@ -106,13 +109,13 @@
       card_fields={
         fn session ->
           [
-            %{label: "IP Address", value: session.ip_address || "Unknown"},
-            %{label: "Current Page", value: session.current_page || "—"},
+            %{label: gettext("IP Address"), value: session.ip_address || gettext("Unknown")},
+            %{label: gettext("Current Page"), value: session.current_page || "—"},
             %{
-              label: "Connected",
+              label: gettext("Connected"),
               value: Calendar.strftime(session.connected_at, "%H:%M:%S %d/%m/%Y")
             },
-            %{label: "Status", value: "● Active"}
+            %{label: gettext("Status"), value: "● " <> gettext("Active")}
           ]
         end
       }
@@ -127,7 +130,7 @@
                 type="search"
                 name="search"
                 value={@search_query}
-                placeholder="Search by IP, User-Agent, email..."
+                placeholder={gettext("Search by IP, User-Agent, email...")}
                 class="grow"
                 phx-debounce="300"
               />
@@ -140,21 +143,21 @@
               phx-value-type="all"
               class={["tab", if(@filter_type == "all", do: "tab-active", else: "")]}
             >
-              All ({@total_sessions})
+              {gettext("All")} ({@total_sessions})
             </button>
             <button
               phx-click="filter_by"
               phx-value-type="anonymous"
               class={["tab", if(@filter_type == "anonymous", do: "tab-active", else: "")]}
             >
-              Anonymous ({@presence_stats.anonymous_sessions})
+              {gettext("Anonymous")} ({@presence_stats.anonymous_sessions})
             </button>
             <button
               phx-click="filter_by"
               phx-value-type="authenticated"
               class={["tab", if(@filter_type == "authenticated", do: "tab-active", else: "")]}
             >
-              Authenticated ({@presence_stats.authenticated_sessions})
+              {gettext("Authenticated")} ({@presence_stats.authenticated_sessions})
             </button>
           </div>
         </div>
@@ -173,7 +176,7 @@
               </div>
             </div>
             <div class="badge badge-success badge-sm h-auto shrink-0">
-              <.icon name="hero-shield-check" class="w-3 h-3 mr-1" /> Auth
+              <.icon name="hero-shield-check" class="w-3 h-3 mr-1" /> {gettext("Auth")}
             </div>
           <% else %>
             <div class="flex items-center gap-2 min-w-0">
@@ -181,26 +184,28 @@
                 ?
               </div>
               <div class="min-w-0">
-                <div class="font-medium text-sm">Anonymous User</div>
+                <div class="font-medium text-sm">{gettext("Anonymous User")}</div>
                 <div class="text-xs text-base-content/70 font-mono truncate">
                   {session.session_id}
                 </div>
               </div>
             </div>
             <div class="badge badge-warning badge-sm h-auto shrink-0">
-              <.icon name="hero-user" class="w-3 h-3 mr-1" /> Anon
+              <.icon name="hero-user" class="w-3 h-3 mr-1" /> {gettext("Anon")}
             </div>
           <% end %>
         </div>
       </:card_header>
       <.table_default_header>
         <.table_default_row>
-          <.sort_header_cell field={:type} sort={@sort}>Type</.sort_header_cell>
-          <.table_default_header_cell>User/Session</.table_default_header_cell>
-          <.table_default_header_cell>IP Address</.table_default_header_cell>
-          <.table_default_header_cell>Current Page</.table_default_header_cell>
-          <.sort_header_cell field={:connected_at} sort={@sort}>Connected</.sort_header_cell>
-          <.table_default_header_cell>Status</.table_default_header_cell>
+          <.sort_header_cell field={:type} sort={@sort}>{gettext("Type")}</.sort_header_cell>
+          <.table_default_header_cell>{gettext("User/Session")}</.table_default_header_cell>
+          <.table_default_header_cell>{gettext("IP Address")}</.table_default_header_cell>
+          <.table_default_header_cell>{gettext("Current Page")}</.table_default_header_cell>
+          <.sort_header_cell field={:connected_at} sort={@sort}>
+            {gettext("Connected")}
+          </.sort_header_cell>
+          <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
         </.table_default_row>
       </.table_default_header>
       <.table_default_body>
@@ -210,9 +215,11 @@
               <div class="text-base-content/50 mb-4">
                 <.icon name="hero-inbox" class="w-16 h-16 mx-auto" />
               </div>
-              <h3 class="text-lg font-medium text-base-content mb-2">No active sessions</h3>
+              <h3 class="text-lg font-medium text-base-content mb-2">
+                {gettext("No active sessions")}
+              </h3>
               <p class="text-base-content/70">
-                There are currently no active sessions to display.
+                {gettext("There are currently no active sessions to display.")}
               </p>
             </.table_default_cell>
           </.table_default_row>
@@ -223,11 +230,11 @@
                 <div class="flex items-center gap-2">
                   <%= if session.type == :authenticated do %>
                     <div class="badge badge-success badge-sm h-auto">
-                      <.icon name="hero-shield-check" class="w-3 h-3 mr-1" /> Auth
+                      <.icon name="hero-shield-check" class="w-3 h-3 mr-1" /> {gettext("Auth")}
                     </div>
                   <% else %>
                     <div class="badge badge-warning badge-sm h-auto">
-                      <.icon name="hero-user" class="w-3 h-3 mr-1" /> Anon
+                      <.icon name="hero-user" class="w-3 h-3 mr-1" /> {gettext("Anon")}
                     </div>
                   <% end %>
                 </div>
@@ -248,7 +255,7 @@
                       ?
                     </div>
                     <div>
-                      <div class="font-medium text-sm">Anonymous User</div>
+                      <div class="font-medium text-sm">{gettext("Anonymous User")}</div>
                       <div class="text-xs text-base-content/70 font-mono">
                         {session.session_id}
                       </div>
@@ -258,7 +265,7 @@
               </.table_default_cell>
               <.table_default_cell>
                 <code class="text-xs bg-base-200 px-2 py-1 rounded">
-                  {session.ip_address || "Unknown"}
+                  {session.ip_address || gettext("Unknown")}
                 </code>
               </.table_default_cell>
               <.table_default_cell>
@@ -276,7 +283,7 @@
               <.table_default_cell>
                 <div class="flex items-center gap-1">
                   <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                  <span class="text-xs text-success">Active</span>
+                  <span class="text-xs text-success">{gettext("Active")}</span>
                 </div>
               </.table_default_cell>
             </.table_default_row>

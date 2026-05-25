@@ -1,11 +1,12 @@
 <PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} - {@page_title}"
+  page_title={"#{@project_title} - #{@page_title}"}
+  current_path={assigns[:url_path] || "/users/register/magic-link"}
 >
-  <h1 class="text-2xl font-bold text-center mb-2">Register via Magic Link</h1>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Register via Magic Link")}</h1>
   <p class="text-center text-base-content/60 text-sm mb-6">
-    Enter your email to receive a registration link. No password required!
+    {gettext("Enter your email to receive a registration link. No password required!")}
   </p>
 
   <%= if @email_sent do %>
@@ -13,29 +14,31 @@
     <div class="alert alert-success">
       <PhoenixKitWeb.Components.Core.Icons.icon_check_circle_filled class="fill-current shrink-0 h-6 w-6" />
       <div>
-        <h3 class="font-bold">Email Sent!</h3>
-        <p class="text-sm">We've sent a registration link to {@email}</p>
+        <h3 class="font-bold">{gettext("Email Sent!")}</h3>
+        <p class="text-sm">
+          {gettext("We've sent a registration link to %{email}", email: @email)}
+        </p>
       </div>
     </div>
 
     <div class="bg-base-200 rounded-lg p-4 mt-4">
       <p class="text-sm text-base-content/80">
-        <strong>Next steps:</strong>
+        <strong>{gettext("Next steps:")}</strong>
       </p>
       <ol class="list-decimal list-inside text-sm text-base-content/70 mt-2 space-y-1">
-        <li>Check your email inbox</li>
-        <li>Click the registration link</li>
-        <li>Complete your profile</li>
+        <li>{gettext("Check your email inbox")}</li>
+        <li>{gettext("Click the registration link")}</li>
+        <li>{gettext("Complete your profile")}</li>
       </ol>
     </div>
 
     <div class="text-center mt-6">
-      <p class="text-sm text-base-content/60 mb-2">Didn't receive the email?</p>
+      <p class="text-sm text-base-content/60 mb-2">{gettext("Didn't receive the email?")}</p>
       <button
         phx-click={JS.push("send_magic_link", value: %{email: @email})}
         class="btn btn-sm btn-ghost"
       >
-        Resend Link
+        {gettext("Resend Link")}
       </button>
     </div>
   <% else %>
@@ -51,7 +54,9 @@
       <div>
         <label class="label" for="email">
           <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> Email Address
+            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> {gettext(
+              "Email Address"
+            )}
           </span>
         </label>
         <input
@@ -73,10 +78,10 @@
       >
         <%= if @loading do %>
           <span class="loading loading-spinner loading-sm"></span>
-          <span>Sending...</span>
+          <span>{gettext("Sending...")}</span>
         <% else %>
           <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
-          <span>Send Magic Link</span>
+          <span>{gettext("Send Magic Link")}</span>
           <span aria-hidden="true">→</span>
         <% end %>
       </button>
@@ -87,9 +92,13 @@
       <div class="flex items-start gap-2">
         <PhoenixKitWeb.Components.Core.Icons.icon_info class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5" />
         <div class="text-sm text-base-content/70">
-          <p class="font-semibold text-base-content mb-1">Passwordless Registration</p>
+          <p class="font-semibold text-base-content mb-1">
+            {gettext("Passwordless Registration")}
+          </p>
           <p>
-            We'll send you a secure link to complete your registration. The link expires in 30 minutes.
+            {gettext(
+              "We'll send you a secure link to complete your registration. The link expires in 30 minutes."
+            )}
           </p>
         </div>
       </div>
@@ -97,7 +106,7 @@
   <% end %>
 
   <%!-- Alternative options --%>
-  <div class="divider mt-6">Other options</div>
+  <div class="divider mt-6">{gettext("Other options")}</div>
 
   <div class="space-y-2">
     <.link
@@ -105,14 +114,14 @@
       class="btn btn-outline w-full"
     >
       <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-5 h-5 mr-2" />
-      Register with Password
+      {gettext("Register with Password")}
     </.link>
 
     <.link
       navigate={Routes.path("/users/log-in")}
       class="btn btn-ghost w-full"
     >
-      Already have an account? Sign in
+      {gettext("Already have an account? Sign in")}
     </.link>
   </div>
 </PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper>

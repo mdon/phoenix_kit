@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Activity Detail"
+  page_title={gettext("Activity Detail")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
@@ -9,7 +9,7 @@
   <div class="container flex flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={Routes.path("/admin/activity")}
-      title="Activity Detail"
+      title={gettext("Activity Detail")}
       subtitle={@entry.action}
     />
 
@@ -32,13 +32,13 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <%!-- Activity UUID --%>
             <div>
-              <div class="text-xs text-base-content/50 mb-1">Activity ID</div>
+              <div class="text-xs text-base-content/50 mb-1">{gettext("Activity ID")}</div>
               <code class="text-sm break-all">{@entry.uuid}</code>
             </div>
 
             <%!-- Timestamp --%>
             <div>
-              <div class="text-xs text-base-content/50 mb-1">Date & Time</div>
+              <div class="text-xs text-base-content/50 mb-1">{gettext("Date & Time")}</div>
               <div class="text-sm">
                 {Calendar.strftime(@entry.inserted_at, "%B %d, %Y at %H:%M:%S UTC")}
               </div>
@@ -50,12 +50,14 @@
       <%!-- People --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h3 class="font-semibold text-lg mb-4">People</h3>
+          <h3 class="font-semibold text-lg mb-4">{gettext("People")}</h3>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <%!-- Actor --%>
             <div>
-              <div class="text-xs text-base-content/50 mb-1">Actor (who did it)</div>
+              <div class="text-xs text-base-content/50 mb-1">
+                {gettext("Actor (who did it)")}
+              </div>
               <%= if @entry.actor do %>
                 <div class="flex items-center gap-2">
                   <span class="font-semibold">{@entry.actor.email}</span>
@@ -75,13 +77,15 @@
                   {to_string(@entry.actor_uuid)}
                 </div>
               <% else %>
-                <span class="text-base-content/50">System</span>
+                <span class="text-base-content/50">{gettext("System")}</span>
               <% end %>
             </div>
 
             <%!-- Target --%>
             <div>
-              <div class="text-xs text-base-content/50 mb-1">Target (who was affected)</div>
+              <div class="text-xs text-base-content/50 mb-1">
+                {gettext("Target (who was affected)")}
+              </div>
               <%= if @entry.target do %>
                 <div class="font-semibold">{@entry.target.email}</div>
                 <div class="text-xs text-base-content/40 mt-0.5">
@@ -98,11 +102,11 @@
       <%!-- Subject --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h3 class="font-semibold text-lg mb-4">Subject</h3>
+          <h3 class="font-semibold text-lg mb-4">{gettext("Subject")}</h3>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <div class="text-xs text-base-content/50 mb-1">Type</div>
+              <div class="text-xs text-base-content/50 mb-1">{gettext("Type")}</div>
               <%= if @entry.resource_type do %>
                 <span class="badge badge-ghost">{@entry.resource_type}</span>
               <% else %>
@@ -111,7 +115,7 @@
             </div>
 
             <div>
-              <div class="text-xs text-base-content/50 mb-1">ID</div>
+              <div class="text-xs text-base-content/50 mb-1">{gettext("ID")}</div>
               <%= if @entry.resource_uuid do %>
                 <div>
                   <%= if @resource_user do %>
@@ -132,15 +136,15 @@
       <%!-- Metadata --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h3 class="font-semibold text-lg mb-4">Metadata</h3>
+          <h3 class="font-semibold text-lg mb-4">{gettext("Metadata")}</h3>
 
           <%= if @entry.metadata && map_size(@entry.metadata) > 0 do %>
             <div class="overflow-x-auto">
               <table class="table table-sm">
                 <thead>
                   <tr>
-                    <th class="w-1/3">Key</th>
-                    <th>Value</th>
+                    <th class="w-1/3">{gettext("Key")}</th>
+                    <th>{gettext("Value")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -155,7 +159,7 @@
             </div>
           <% else %>
             <div class="text-center py-4 text-base-content/50">
-              No metadata
+              {gettext("No metadata")}
             </div>
           <% end %>
         </div>

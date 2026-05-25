@@ -7,6 +7,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
   and can be customized by parent applications via config.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   require Logger
 
   alias PhoenixKit.Dashboard.{Group, Tab}
@@ -59,7 +61,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Dashboard
       %Tab{
         id: :admin_dashboard,
-        label: "Dashboard",
+        label: gettext_noop("Dashboard"),
         icon: "hero-home",
         path: "",
         priority: 100,
@@ -72,7 +74,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Users parent
       %Tab{
         id: :admin_users,
-        label: "Users",
+        label: gettext_noop("Users"),
         icon: "hero-users",
         path: "users",
         priority: 200,
@@ -87,7 +89,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Users subtabs
       admin_subtab(
         :admin_users_manage,
-        "Manage Users",
+        gettext_noop("Manage Users"),
         "hero-users",
         "users",
         210,
@@ -97,7 +99,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_users_live_sessions,
-        "Live Sessions",
+        gettext_noop("Live Sessions"),
         "hero-eye",
         "users/live_sessions",
         220,
@@ -106,7 +108,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_users_sessions,
-        "Sessions",
+        gettext_noop("Sessions"),
         "hero-computer-desktop",
         "users/sessions",
         230,
@@ -115,7 +117,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_users_roles,
-        "Roles",
+        gettext_noop("Roles"),
         "hero-shield-check",
         "users/roles",
         240,
@@ -124,7 +126,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_users_permissions,
-        "Permissions",
+        gettext_noop("Permissions"),
         "hero-key",
         "users/permissions",
         250,
@@ -133,7 +135,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_users_referral_codes,
-        "Referral Codes",
+        gettext_noop("Referral Codes"),
         "hero-ticket",
         "users/referral-codes",
         260,
@@ -143,7 +145,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Activity
       %Tab{
         id: :admin_activity,
-        label: "Activity",
+        label: gettext_noop("Activity"),
         icon: "hero-bell-alert",
         path: "activity",
         priority: 250,
@@ -156,7 +158,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Media
       %Tab{
         id: :admin_media,
-        label: "Media",
+        label: gettext_noop("Media"),
         icon: "hero-photo",
         path: "media",
         priority: 300,
@@ -182,7 +184,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         Tab.resolve_path(
           %Tab{
             id: :admin_modules_page,
-            label: "Modules",
+            label: gettext_noop("Modules"),
             icon: "hero-puzzle-piece",
             path: "modules",
             priority: 630,
@@ -214,7 +216,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       Tab.resolve_path(
         %Tab{
           id: :admin_settings,
-          label: "Settings",
+          label: gettext_noop("Settings"),
           icon: "hero-cog-6-tooth",
           path: "settings",
           priority: 910,
@@ -233,7 +235,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
     subtabs = [
       admin_subtab(
         :admin_settings_general,
-        "General",
+        gettext_noop("General"),
         "hero-cog-6-tooth",
         "",
         911,
@@ -243,7 +245,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_authorization,
-        "Authorization",
+        gettext_noop("Authorization"),
         "hero-lock-closed",
         "authorization",
         912,
@@ -252,7 +254,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_organization,
-        "Organization",
+        gettext_noop("Organization"),
         "hero-building-office",
         "organization",
         913,
@@ -261,7 +263,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_users,
-        "Users",
+        gettext_noop("Users"),
         "hero-users",
         "users",
         914,
@@ -270,7 +272,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_integrations,
-        "Integrations",
+        gettext_noop("Integrations"),
         "hero-link",
         "integrations",
         915,
@@ -279,7 +281,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       %Tab{
         id: :admin_settings_media,
-        label: "Media",
+        label: gettext_noop("Media"),
         icon: "hero-photo",
         path: "media",
         priority: 933,
@@ -293,7 +295,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       },
       admin_subtab(
         :admin_settings_media_dimensions,
-        "Dimensions",
+        gettext_noop("Dimensions"),
         "hero-arrows-pointing-out",
         "media/dimensions",
         934,
@@ -302,7 +304,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_media_health,
-        "Health",
+        gettext_noop("Health"),
         "hero-heart",
         "media/health",
         935,
