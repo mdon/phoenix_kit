@@ -1984,11 +1984,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Get the default language
     default_base = Routes.get_default_admin_locale()
 
-    replacement_segment =
-      if prefixless_primary?(), do: "/", else: "/#{default_base}/"
-
-    replacement_suffix =
-      if prefixless_primary?(), do: "", else: "/#{default_base}"
+    # Single read of the setting — the two replacement variants always
+    # flip together (prefixless ↔ prefixed), so evaluating the flag
+    # twice would just risk torn reads if a concurrent setting flip
+    # landed between the two calls.
+    {replacement_segment, replacement_suffix} =
+      if prefixless_primary?(),
+        do: {"/", ""},
+        else: {"/#{default_base}/", "/#{default_base}"}
 
     corrected_path =
       conn.request_path

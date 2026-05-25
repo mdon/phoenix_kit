@@ -4,7 +4,7 @@ defmodule PhoenixKit.Modules.Sitemap.LocalePath do
 
   Every sitemap source (`publishing`, `static`, `posts`, ...) decides
   whether a URL entry should carry a language prefix using the same
-  three rules:
+  four rules:
 
     1. No language supplied → no prefix.
     2. Single-language mode (Languages module disabled or only one
