@@ -4624,7 +4624,7 @@ msgid "Failed to accept invitation. Please try again."
 msgstr "Не удалось принять приглашение. Попробуйте ещё раз."
 
 #: lib/phoenix_kit_web/users/user_form.ex:312
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to add member"
 msgstr "Не удалось добавить участника"
 
@@ -4634,7 +4634,7 @@ msgid "Failed to build authorization URL"
 msgstr "Не удалось создать URL авторизации"
 
 #: lib/phoenix_kit_web/users/user_form.ex:378
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to cancel invitation"
 msgstr "Не удалось отменить приглашение"
 
@@ -4676,9 +4676,9 @@ msgid "Failed to save schedule"
 msgstr "Не удалось сохранить расписание"
 
 #: lib/phoenix_kit_web/users/user_form.ex:361
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to send invitation"
-msgstr "Не удалось сохранить настройки"
+msgstr "Не удалось отправить приглашение"
 
 #: lib/modules/maintenance/settings.ex:144
 #, elixir-autogen, elixir-format
@@ -5196,7 +5196,7 @@ msgid "Organization Name"
 msgstr "Название организации"
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Name *"
 msgstr "Название организации *"
 
@@ -5365,7 +5365,7 @@ msgid "Security check failed. Please try connecting again."
 msgstr "Проверка безопасности не пройдена. Попробуйте подключиться снова."
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:710
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select a user to add..."
 msgstr "Выберите пользователя для добавления..."
 

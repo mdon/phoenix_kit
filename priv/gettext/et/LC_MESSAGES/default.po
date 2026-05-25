@@ -4637,7 +4637,7 @@ msgid "Failed to accept invitation. Please try again."
 msgstr "Kutse vastuvõtmine ebaõnnestus. Palun proovi uuesti."
 
 #: lib/phoenix_kit_web/users/user_form.ex:312
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to add member"
 msgstr "Liikme lisamine ebaõnnestus"
 
@@ -4647,7 +4647,7 @@ msgid "Failed to build authorization URL"
 msgstr "Volitamise URL-i loomine ebaõnnestus"
 
 #: lib/phoenix_kit_web/users/user_form.ex:378
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to cancel invitation"
 msgstr "Kutse tühistamine ebaõnnestus"
 
@@ -4689,7 +4689,7 @@ msgid "Failed to save schedule"
 msgstr "Ajakava salvestamine ebaõnnestus"
 
 #: lib/phoenix_kit_web/users/user_form.ex:361
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to send invitation"
 msgstr "Kutse saatmine ebaõnnestus"
 
@@ -5209,7 +5209,7 @@ msgid "Organization Name"
 msgstr "Organisatsiooni nimi"
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Name *"
 msgstr "Organisatsiooni nimi *"
 
@@ -5378,7 +5378,7 @@ msgid "Security check failed. Please try connecting again."
 msgstr "Turvaline kontroll ebaõnnestus. Palun proovi uuesti ühendada."
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:710
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select a user to add..."
 msgstr "Vali lisatav kasutaja..."
 
