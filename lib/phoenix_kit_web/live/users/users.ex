@@ -65,7 +65,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:all_roles, [])
       |> assign(:confirmation_modal, %{show: false})
       |> assign(:show_column_modal, false)
-      |> assign(:page_title, "Users")
+      |> assign(:page_title, gettext("Users"))
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
       |> assign(:selected_columns, valid_columns)
@@ -147,7 +147,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
     # Prevent self-modification for critical operations
     if current_user.uuid == user.uuid do
-      socket = put_flash(socket, :error, "Cannot modify your own roles")
+      socket = put_flash(socket, :error, gettext("Cannot modify your own roles"))
       {:noreply, socket}
     else
       # Get fresh user with preloaded roles to ensure accurate state
@@ -196,7 +196,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
         socket =
           socket
-          |> put_flash(:info, "User roles updated successfully")
+          |> put_flash(:info, gettext("User roles updated successfully"))
           |> assign(:show_role_modal, false)
           |> assign(:managing_user, nil)
           |> assign(:user_roles, [])
@@ -209,9 +209,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       {:error, reason} ->
         error_msg =
           case reason do
-            :cannot_remove_last_owner -> "Cannot remove the last system owner"
-            :owner_role_protected -> "Owner role cannot be assigned manually"
-            _ -> "Failed to update user roles"
+            :cannot_remove_last_owner -> gettext("Cannot remove the last system owner")
+            :owner_role_protected -> gettext("Owner role cannot be assigned manually")
+            _ -> gettext("Failed to update user roles")
           end
 
         # Refresh the modal data on error to show current state
@@ -238,7 +238,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
     # Prevent self-modification
     if current_user.uuid == user.uuid do
-      socket = put_flash(socket, :error, "Cannot modify your own roles")
+      socket = put_flash(socket, :error, gettext("Cannot modify your own roles"))
       {:noreply, socket}
     else
       handle_role_toggle_result(toggle_user_role(user, role_name), role_name, socket)
@@ -255,10 +255,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
     confirmation_modal = %{
       show: true,
-      title: "Confirm Status Change",
+      title: gettext("Confirm Status Change"),
       message:
-        "Are you sure you want to #{if is_active_bool, do: "deactivate", else: "activate"} this user?",
-      button_text: if(is_active_bool, do: "Deactivate", else: "Activate"),
+        if(is_active_bool,
+          do: gettext("Are you sure you want to deactivate this user?"),
+          else: gettext("Are you sure you want to activate this user?")
+        ),
+      button_text: if(is_active_bool, do: gettext("Deactivate"), else: gettext("Activate")),
       action: "toggle_user_status",
       user_uuid: user_uuid
     }
@@ -275,10 +278,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
     confirmation_modal = %{
       show: true,
-      title: "Confirm Email Status Change",
+      title: gettext("Confirm Email Status Change"),
       message:
-        "Are you sure you want to #{if is_confirmed_bool, do: "unconfirm", else: "confirm"} this user's email?",
-      button_text: if(is_confirmed_bool, do: "Unconfirm", else: "Confirm"),
+        if(is_confirmed_bool,
+          do: gettext("Are you sure you want to unconfirm this user's email?"),
+          else: gettext("Are you sure you want to confirm this user's email?")
+        ),
+      button_text: if(is_confirmed_bool, do: gettext("Unconfirm"), else: gettext("Confirm")),
       action: "toggle_user_confirmation",
       user_uuid: user_uuid
     }
@@ -324,10 +330,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       true ->
         confirmation_modal = %{
           show: true,
-          title: "Delete User",
+          title: gettext("Delete User"),
           message:
-            "Are you sure you want to permanently delete #{user.email}? This action cannot be undone.",
-          button_text: "Delete",
+            gettext(
+              "Are you sure you want to permanently delete %{email}? This action cannot be undone.",
+              email: user.email
+            ),
+          button_text: gettext("Delete"),
           action: "delete_user",
           user_uuid: user_uuid
         }
@@ -338,13 +347,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         error_msg =
           cond do
             user.uuid == current_user.uuid ->
-              "Cannot delete your own account"
+              gettext("Cannot delete your own account")
 
             Roles.user_has_role_owner?(user) ->
-              "Cannot delete the last system owner"
+              gettext("Cannot delete the last system owner")
 
             true ->
-              "Cannot delete this user"
+              gettext("Cannot delete this user")
           end
 
         {:noreply, put_flash(socket, :error, error_msg)}
@@ -511,14 +520,14 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         ordered_columns = TableColumns.get_user_table_columns()
 
         socket
-        |> put_flash(:info, "Table columns updated successfully")
+        |> put_flash(:info, gettext("Table columns updated successfully"))
         |> assign(:selected_columns, ordered_columns)
         |> assign(:temp_selected_columns, nil)
         |> assign(:show_column_modal, false)
 
       {:error, _reason} ->
         socket
-        |> put_flash(:error, "Failed to update table columns")
+        |> put_flash(:error, gettext("Failed to update table columns"))
         |> assign(:show_column_modal, false)
     end
   end
@@ -544,7 +553,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     user = Auth.get_user!(user_uuid)
 
     if current_user.uuid == user.uuid do
-      socket = put_flash(socket, :error, "Cannot modify your own status")
+      socket = put_flash(socket, :error, gettext("Cannot modify your own status"))
       {:noreply, socket}
     else
       toggle_user_status_safely(socket, user)
@@ -567,16 +576,16 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     case Auth.delete_user(user, opts) do
       {:ok, _result} ->
         # User list will be updated via PubSub broadcast
-        {:noreply, put_flash(socket, :info, "User deleted successfully")}
+        {:noreply, put_flash(socket, :info, gettext("User deleted successfully"))}
 
       {:error, :cannot_delete_self} ->
-        {:noreply, put_flash(socket, :error, "Cannot delete your own account")}
+        {:noreply, put_flash(socket, :error, gettext("Cannot delete your own account"))}
 
       {:error, :cannot_delete_last_owner} ->
-        {:noreply, put_flash(socket, :error, "Cannot delete the last system owner")}
+        {:noreply, put_flash(socket, :error, gettext("Cannot delete the last system owner"))}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete user")}
+        {:noreply, put_flash(socket, :error, gettext("Failed to delete user"))}
     end
   end
 
@@ -585,7 +594,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     user = Auth.get_user!(user_uuid)
 
     if current_user.uuid == user.uuid do
-      socket = put_flash(socket, :error, "Cannot modify your own confirmation status")
+      socket = put_flash(socket, :error, gettext("Cannot modify your own confirmation status"))
       {:noreply, socket}
     else
       toggle_user_confirmation_safely(socket, user)
@@ -611,20 +620,25 @@ defmodule PhoenixKitWeb.Live.Users.Users do
           metadata: %{"status" => status_text, "actor_role" => "admin"}
         })
 
+        flash_msg =
+          if new_status,
+            do: gettext("User activated successfully"),
+            else: gettext("User deactivated successfully")
+
         socket =
           socket
-          |> put_flash(:info, "User #{status_text} successfully")
+          |> put_flash(:info, flash_msg)
           |> load_users()
           |> load_stats()
 
         {:noreply, socket}
 
       {:error, :cannot_deactivate_last_owner} ->
-        socket = put_flash(socket, :error, "Cannot deactivate the last system owner")
+        socket = put_flash(socket, :error, gettext("Cannot deactivate the last system owner"))
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update user status")
+        socket = put_flash(socket, :error, gettext("Failed to update user status"))
         {:noreply, socket}
     end
   end
@@ -634,8 +648,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
     case Auth.toggle_user_confirmation(user) do
       {:ok, updated_user} ->
-        status_text = if updated_user.confirmed_at, do: "confirmed", else: "unconfirmed"
-
         action =
           if updated_user.confirmed_at,
             do: "user.email_confirmed",
@@ -652,16 +664,21 @@ defmodule PhoenixKitWeb.Live.Users.Users do
           metadata: %{"method" => "manual", "actor_role" => "admin"}
         })
 
+        email_flash_msg =
+          if updated_user.confirmed_at,
+            do: gettext("User email confirmed successfully"),
+            else: gettext("User email unconfirmed successfully")
+
         socket =
           socket
-          |> put_flash(:info, "User email #{status_text} successfully")
+          |> put_flash(:info, email_flash_msg)
           |> load_users()
           |> load_stats()
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update user confirmation status")
+        socket = put_flash(socket, :error, gettext("Failed to update user confirmation status"))
         {:noreply, socket}
     end
   end
@@ -760,11 +777,14 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp handle_role_toggle_result(result, role_name, socket) do
     case result do
       {:ok, action} ->
-        action_text = if action == :added, do: "added to", else: "removed from"
+        role_flash_msg =
+          if action == :added,
+            do: gettext("Role %{role} added to user successfully", role: role_name),
+            else: gettext("Role %{role} removed from user successfully", role: role_name)
 
         socket =
           socket
-          |> put_flash(:info, "Role #{role_name} #{action_text} user successfully")
+          |> put_flash(:info, role_flash_msg)
           |> load_users()
           |> load_stats()
 
@@ -779,10 +799,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   defp format_role_error_message(reason) do
     case reason do
-      :cannot_remove_last_owner -> "Cannot remove the last system owner"
-      :owner_role_protected -> "Owner role cannot be assigned manually"
-      :role_not_found -> "Role not found"
-      _ -> "Failed to update user role"
+      :cannot_remove_last_owner -> gettext("Cannot remove the last system owner")
+      :owner_role_protected -> gettext("Owner role cannot be assigned manually")
+      :role_not_found -> gettext("Role not found")
+      _ -> gettext("Failed to update user role")
     end
   end
 
@@ -832,12 +852,12 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   defp card_roles(user) do
     roles = get_user_roles(user)
-    if Enum.empty?(roles), do: "No roles", else: Enum.join(roles, ", ")
+    if Enum.empty?(roles), do: gettext("No roles"), else: Enum.join(roles, ", ")
   end
 
   defp card_status(user) do
-    confirmation = if user.confirmed_at, do: "Confirmed", else: "Pending"
-    active = if user.is_active, do: "Active", else: "Inactive"
+    confirmation = if user.confirmed_at, do: gettext("Confirmed"), else: gettext("Pending")
+    active = if user.is_active, do: gettext("Active"), else: gettext("Inactive")
     "#{confirmation} / #{active}"
   end
 
@@ -849,7 +869,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     "#{date} #{time}"
   end
 
-  defp card_confirmed_at(nil, _current_user, _date_time_settings), do: "Never"
+  defp card_confirmed_at(nil, _current_user, _date_time_settings), do: gettext("Never")
 
   defp card_confirmed_at(dt, current_user, date_time_settings) do
     date = UtilsDate.format_date_with_user_timezone_cached(dt, current_user, date_time_settings)
@@ -964,7 +984,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
          _current_user,
          _date_time_settings
        ) do
-    if user.is_active, do: "Active", else: "Inactive"
+    if user.is_active, do: gettext("Active"), else: gettext("Inactive")
   end
 
   defp render_cell_by_type(
@@ -1081,10 +1101,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_custom_field_value(value, "checkbox"), do: format_checkbox_value(value)
   defp format_custom_field_value(value, _), do: format_default_value(value)
 
-  defp format_boolean_value(true), do: "Yes"
-  defp format_boolean_value(false), do: "No"
-  defp format_boolean_value("true"), do: "Yes"
-  defp format_boolean_value("false"), do: "No"
+  defp format_boolean_value(true), do: gettext("Yes")
+  defp format_boolean_value(false), do: gettext("No")
+  defp format_boolean_value("true"), do: gettext("Yes")
+  defp format_boolean_value("false"), do: gettext("No")
   defp format_boolean_value(_), do: "-"
 
   defp format_number_value(value) when is_number(value) or is_binary(value),
@@ -1108,10 +1128,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   defp format_datetime_value(_), do: "-"
 
-  defp format_checkbox_value(true), do: "Yes"
-  defp format_checkbox_value(false), do: "No"
-  defp format_checkbox_value("true"), do: "Yes"
-  defp format_checkbox_value("false"), do: "No"
+  defp format_checkbox_value(true), do: gettext("Yes")
+  defp format_checkbox_value(false), do: gettext("No")
+  defp format_checkbox_value("true"), do: gettext("Yes")
+  defp format_checkbox_value("false"), do: gettext("No")
 
   defp format_checkbox_value(list) when is_list(list),
     do: truncate_text(Enum.join(list, ", "), @max_cell_length)
@@ -1197,7 +1217,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:users, users)
       |> assign(:total_count, socket.assigns.total_count - 1)
       |> load_stats()
-      |> put_flash(:info, "User deleted successfully")
+      |> put_flash(:info, gettext("User deleted successfully"))
 
     {:noreply, socket}
   end
