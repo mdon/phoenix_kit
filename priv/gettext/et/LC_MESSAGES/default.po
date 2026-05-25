@@ -7782,12 +7782,12 @@ msgstr "Konto tüüp:"
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:197
 #, elixir-autogen, elixir-format
 msgid "Ascending — click for descending"
-msgstr ""
+msgstr "Kasvav järjestus — klõpsa kahanevaks"
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:198
 #, elixir-autogen, elixir-format
 msgid "Descending — click for ascending"
-msgstr ""
+msgstr "Kahanev järjestus — klõpsa kasvavaks"
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:136
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:137
@@ -7803,12 +7803,12 @@ msgstr "Esiletõstetud"
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Post to add the note. Cancel to skip — you can edit or delete the annotation later via the toolbar."
-msgstr ""
+msgstr "Klõpsa «Postitus», et märkus lisada. «Tühista» — jäta vahele. Annotatsiooni saab hiljem tööriistaribal muuta või kustutada."
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:128
 #, elixir-autogen, elixir-format
 msgid "Sort by"
-msgstr ""
+msgstr "Sorteeri"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:158
 #, elixir-autogen, elixir-format
@@ -7818,7 +7818,7 @@ msgstr "Olek:"
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Controls how the primary language appears in URLs across the site — admin pages, public pages, sitemap, and redirects."
-msgstr ""
+msgstr "Määrab, kuidas põhikeel kuvatakse URL-ides kogu saidil — halduslehtedel, avalikel lehtedel, saidikaval ja ümbersuunamistel."
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:294
 #, elixir-autogen, elixir-format
@@ -7833,12 +7833,12 @@ msgstr "URL-i käitumise seade uuendamine ebaõnnestus"
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "URL Behavior"
-msgstr ""
+msgstr "URL-i käitumine"
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
-msgstr ""
+msgstr "Kui sisse lülitatud, eemaldab põhikeel oma keelesegmendi igast URL-ist (nt /en/admin/users asemel /admin/users, /en/blog/post asemel /blog/post). Teised keeled säilitavad alati oma prefiksi."
 
 #: lib/phoenix_kit_web/users/confirmation.html.heex:10
 #, elixir-autogen, elixir-format

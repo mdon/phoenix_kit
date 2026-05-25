@@ -7791,12 +7791,12 @@ msgstr "Тип аккаунта:"
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:197
 #, elixir-autogen, elixir-format
 msgid "Ascending — click for descending"
-msgstr ""
+msgstr "По возрастанию — нажмите для сортировки по убыванию"
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:198
 #, elixir-autogen, elixir-format
 msgid "Descending — click for ascending"
-msgstr ""
+msgstr "По убыванию — нажмите для сортировки по возрастанию"
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:136
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:137
@@ -7812,12 +7812,12 @@ msgstr "Избранное"
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Post to add the note. Cancel to skip — you can edit or delete the annotation later via the toolbar."
-msgstr ""
+msgstr "Нажмите «Публикация», чтобы добавить заметку. «Отмена» — чтобы пропустить. Аннотацию можно изменить или удалить позже через панель инструментов."
 
 #: lib/phoenix_kit_web/components/core/sort_selector.ex:128
 #, elixir-autogen, elixir-format
 msgid "Sort by"
-msgstr ""
+msgstr "Сортировать по"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:158
 #, elixir-autogen, elixir-format
@@ -7827,7 +7827,7 @@ msgstr "Статус:"
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Controls how the primary language appears in URLs across the site — admin pages, public pages, sitemap, and redirects."
-msgstr ""
+msgstr "Определяет, как основной язык отображается в URL-адресах по всему сайту — на страницах администрирования, публичных страницах, в карте сайта и при перенаправлениях."
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:294
 #, elixir-autogen, elixir-format
@@ -7842,12 +7842,12 @@ msgstr "Не удалось обновить настройку поведени
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "URL Behavior"
-msgstr ""
+msgstr "Поведение URL"
 
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
-msgstr ""
+msgstr "Когда включено, основной язык убирает свой языковой сегмент из всех URL-адресов (например, /admin/users вместо /en/admin/users, /blog/post вместо /en/blog/post). Остальные языки всегда сохраняют свой префикс."
 
 #: lib/phoenix_kit_web/users/confirmation.html.heex:10
 #, elixir-autogen, elixir-format
