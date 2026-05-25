@@ -235,7 +235,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
     subtabs = [
       admin_subtab(
         :admin_settings_general,
-        "General",
+        gettext_noop("General"),
         "hero-cog-6-tooth",
         "",
         911,

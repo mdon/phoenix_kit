@@ -8580,3 +8580,8 @@ msgstr "Связи пользователей"
 #, elixir-autogen, elixir-format
 msgid "User connections module for PhoenixKit — follows, mutual connections, and blocking"
 msgstr "Модуль связей пользователей для PhoenixKit — подписки, взаимные связи и блокировки"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:238
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr "Общие"
