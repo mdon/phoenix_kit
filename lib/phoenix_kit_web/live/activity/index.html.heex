@@ -57,7 +57,7 @@
               %{
                 label: gettext("Date"),
                 value:
-                  "#{Calendar.strftime(entry.inserted_at, "%b %d, %Y %H:%M")} (#{format_time_ago(entry.inserted_at)})"
+                  "#{UtilsDate.format_date_with_user_format(entry.inserted_at)} #{UtilsDate.format_time_with_user_format(entry.inserted_at)}"
               }
             ]
         end
@@ -244,9 +244,9 @@
               <% end %>
             </.table_default_cell>
             <.table_default_cell class="text-xs text-base-content/60">
-              <div>{Calendar.strftime(entry.inserted_at, "%b %d, %Y")}</div>
+              <div>{UtilsDate.format_date_with_user_format(entry.inserted_at)}</div>
               <div class="text-base-content/40">
-                {Calendar.strftime(entry.inserted_at, "%H:%M:%S")}
+                {UtilsDate.format_time_with_user_format(entry.inserted_at)}
               </div>
             </.table_default_cell>
             <.table_default_cell>

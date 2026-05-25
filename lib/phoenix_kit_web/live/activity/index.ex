@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Values
 
@@ -187,30 +188,6 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> case do
       [] -> nil
       entries -> Enum.map_join(entries, ", ", fn {k, v} -> "#{k}: #{v}" end)
-    end
-  end
-
-  defp format_time_ago(datetime) do
-    diff = DateTime.diff(DateTime.utc_now(), datetime, :second)
-
-    cond do
-      diff < 60 ->
-        gettext("just now")
-
-      diff < 3600 ->
-        n = div(diff, 60)
-        ngettext("%{count}m ago", "%{count}m ago", n, count: n)
-
-      diff < 86_400 ->
-        n = div(diff, 3600)
-        ngettext("%{count}h ago", "%{count}h ago", n, count: n)
-
-      diff < 604_800 ->
-        n = div(diff, 86_400)
-        ngettext("%{count}d ago", "%{count}d ago", n, count: n)
-
-      true ->
-        Calendar.strftime(datetime, "%b %d, %Y")
     end
   end
 end
