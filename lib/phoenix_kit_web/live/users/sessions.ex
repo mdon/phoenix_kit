@@ -12,7 +12,6 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
   Only accessible to users with Owner or Admin roles.
   """
   use PhoenixKitWeb, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings

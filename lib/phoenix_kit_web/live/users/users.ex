@@ -5,7 +5,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   Provides comprehensive user management including listing, search, role assignment, and status updates.
   """
   use PhoenixKitWeb, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings

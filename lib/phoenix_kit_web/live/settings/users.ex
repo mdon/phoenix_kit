@@ -8,7 +8,6 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   - Custom user fields management
   """
   use PhoenixKitWeb, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.CustomFields

@@ -8,7 +8,6 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   - Notes tab: Admin notes about the user
   """
   use PhoenixKitWeb, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   @compile {:no_warn_undefined, PhoenixKitUserConnections}
 
