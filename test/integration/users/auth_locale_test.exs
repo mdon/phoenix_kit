@@ -34,7 +34,11 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     Settings.update_json_setting("languages_config", config)
 
     on_exit(fn ->
-      Settings.update_boolean_setting("default_language_no_prefix", false)
+      # Use the typed setter (mirrors the `setup` block in the
+      # `setting ON` describe further down) so any future cache /
+      # invalidation logic Languages.set_* wires up runs in cleanup
+      # too — the raw Settings call would skip it.
+      Languages.set_default_language_no_prefix(false)
       Settings.update_setting("languages_enabled", "false")
     end)
 
