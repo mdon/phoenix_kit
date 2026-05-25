@@ -353,7 +353,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
-  defp format_timezone(nil), do: "Not set"
+  defp format_timezone(nil), do: gettext("Not set")
 
   defp format_timezone(offset) when is_binary(offset) do
     case Integer.parse(offset) do

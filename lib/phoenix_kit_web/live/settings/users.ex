@@ -33,7 +33,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
 
     socket =
       socket
-      |> assign(:page_title, "User Settings")
+      |> assign(:page_title, gettext("User Settings"))
       |> assign(:settings, merged_settings)
       |> assign(:saved_settings, merged_settings)
       |> assign(:setting_options, setting_options)
@@ -82,7 +82,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
           |> assign(:saved_settings, updated_settings)
           |> assign(:changeset, changeset)
           |> assign(:saving, false)
-          |> put_flash(:info, "User settings updated successfully")
+          |> put_flash(:info, gettext("User settings updated successfully"))
 
         {:noreply, socket}
 
@@ -169,7 +169,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
           |> assign(:field_form_type, "text")
           |> assign(:field_form_options, [])
           |> assign(:new_option_value, "")
-          |> put_flash(:info, "Custom field saved successfully")
+          |> put_flash(:info, gettext("Custom field saved successfully"))
 
         {:noreply, socket}
 
@@ -182,7 +182,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
         error_msg =
           case changeset do
             %Ecto.Changeset{} -> format_error_message(changeset)
-            _ -> "Failed to save custom field"
+            _ -> gettext("Failed to save custom field")
           end
 
         socket = put_flash(socket, :error, error_msg)
@@ -249,12 +249,12 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
         socket =
           socket
           |> assign(:field_definitions, field_definitions)
-          |> put_flash(:info, "Custom field deleted successfully")
+          |> put_flash(:info, gettext("Custom field deleted successfully"))
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to delete custom field")
+        socket = put_flash(socket, :error, gettext("Failed to delete custom field"))
         {:noreply, socket}
     end
   end
@@ -275,19 +275,19 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
             |> put_flash(
               :info,
               if(new_enabled,
-                do: "Field '#{field["label"]}' enabled",
-                else: "Field '#{field["label"]}' disabled"
+                do: gettext("Field '%{label}' enabled", label: field["label"]),
+                else: gettext("Field '%{label}' disabled", label: field["label"])
               )
             )
 
           {:noreply, socket}
 
         {:error, _changeset} ->
-          socket = put_flash(socket, :error, "Failed to update field")
+          socket = put_flash(socket, :error, gettext("Failed to update field"))
           {:noreply, socket}
       end
     else
-      {:noreply, put_flash(socket, :error, "Field not found")}
+      {:noreply, put_flash(socket, :error, gettext("Field not found"))}
     end
   end
 
