@@ -89,13 +89,13 @@
           <%= if @revoke_type == :user_all and @selected_user do %>
             <h3 class="font-bold text-lg mb-4">{gettext("Revoke All User Sessions")}</h3>
             <p class="mb-4">
-              {gettext("Are you sure you want to revoke")}
-              <strong>
-                {ngettext("all %{count} session", "all %{count} sessions", @user_sessions_count,
-                  count: @user_sessions_count
-                )}
-              </strong>
-              {gettext("for user")} <strong>{@selected_user.email}</strong>?
+              {ngettext(
+                "Are you sure you want to revoke all %{count} session for user %{email}?",
+                "Are you sure you want to revoke all %{count} sessions for user %{email}?",
+                @user_sessions_count,
+                count: @user_sessions_count,
+                email: @selected_user.email
+              )}
             </p>
             <div class="alert alert-warning">
               <.icon name="hero-exclamation-triangle" class="stroke-current shrink-0 h-6 w-6" />
