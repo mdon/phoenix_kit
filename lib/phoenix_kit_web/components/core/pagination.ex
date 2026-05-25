@@ -3,9 +3,22 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   Pagination components for list views in PhoenixKit.
 
   Provides pagination controls and information display following daisyUI design patterns.
+
+  Two flavours:
+
+    * Page-numbered (`<.pagination>`, `<.pagination_controls>`,
+      `<.pagination_info>`) — URL-param driven, suits standalone admin
+      pages with deep-linkable state.
+
+    * Load-more (`<.load_more>`) — click-driven LV event that grows
+      the loaded set in place. Suits embeddable LVs (no URL routing),
+      lists with DnD reorder (rows append, don't replace), and lists
+      with client-side bulk-select (selection persists across loads
+      because rows stay in the DOM).
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   @doc """
   Displays pagination controls with page numbers and navigation buttons.
@@ -159,6 +172,65 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         </div>
       </div>
     <% end %>
+    """
+  end
+
+  @doc """
+  Load-more footer for incrementally-loaded lists.
+
+  Renders a centered "Showing N of M %{noun}" line and a "Load more"
+  button (hidden when `loaded >= total`). Clicking the button emits
+  the LV event named in `on_load_more`.
+
+  Suited for embeddable LVs where URL-param pagination isn't an
+  option, lists with DnD reorder (rows append rather than navigate
+  away), and lists with client-side bulk-select (selection persists
+  because the DOM grows, it doesn't get replaced).
+
+  ## Attributes
+
+  - `loaded` — number of rows currently rendered (required)
+  - `total` — total rows matching the current filter/sort (required)
+  - `on_load_more` — LV event name pushed on button click
+    (default `"load_more"`)
+  - `noun_plural` — used in the "Showing N of M %{noun}" line
+    (default `"items"`)
+  - `class` — additional classes on the outer wrapper
+
+  ## Example
+
+      <.load_more
+        loaded={length(@projects)}
+        total={@total_count}
+        on_load_more="load_more"
+        noun_plural={gettext("projects")}
+      />
+  """
+  attr :loaded, :integer, required: true
+  attr :total, :integer, required: true
+  attr :on_load_more, :string, default: "load_more"
+  attr :noun_plural, :string, default: "items"
+  attr :class, :string, default: ""
+
+  def load_more(assigns) do
+    ~H"""
+    <div :if={@total > 0} class={["flex flex-col items-center gap-2 p-4", @class]}>
+      <p class="text-sm text-base-content/60">
+        {gettext("Showing %{loaded} of %{total} %{noun}",
+          loaded: @loaded,
+          total: @total,
+          noun: @noun_plural
+        )}
+      </p>
+      <button
+        :if={@loaded < @total}
+        type="button"
+        class="btn btn-sm"
+        phx-click={@on_load_more}
+      >
+        {gettext("Load more")}
+      </button>
+    </div>
     """
   end
 
