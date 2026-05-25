@@ -11,10 +11,9 @@
         {gettext("Live Sessions")}
       </h1>
       <p class="text-sm text-base-content/60 mt-0.5">
-        {gettext("Real-time monitoring of all active sessions with live updates.")} Last updated: {Calendar.strftime(
-          @last_updated,
-          "%H:%M:%S"
-        )}
+        {gettext("Real-time monitoring of all active sessions with live updates.")} {gettext(
+          "Last updated:"
+        )} {Calendar.strftime(@last_updated, "%H:%M:%S")}
       </p>
       <:actions>
         <%!-- Live Indicator --%>
