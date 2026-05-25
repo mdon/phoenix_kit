@@ -59,7 +59,7 @@ defmodule PhoenixKitWeb.Components.Core.ReorderModal do
 
   def reorder_modal(assigns) do
     ~H"""
-    <.modal show={@show} on_close={@on_close} id={@id} max_width="md">
+    <.modal show={@show} on_close={@on_close} id={@id} max_width="md" keep_in_dom>
       <:title>
         <.icon name="hero-arrows-up-down" class="w-5 h-5 text-primary" />
         {gettext("Reorder")}

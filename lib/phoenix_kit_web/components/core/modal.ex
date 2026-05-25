@@ -83,6 +83,11 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   attr :backdrop_class, :string, default: ""
   attr :closeable, :boolean, default: true
 
+  attr :keep_in_dom, :boolean,
+    default: false,
+    doc:
+      "When `true`, the `<dialog>` element is rendered into the DOM regardless of `@show`. Visibility is driven by the `PkDialog` hook (showModal/close) via the `data-show` attribute. Suits modals whose inner content doesn't depend on context-conditional assigns (e.g. a strategy picker with a fixed list) and that benefit from instant client-side open — a trigger button can call `dialog.showModal()` locally without waiting for the server round-trip. Default is conditional rendering for backwards compat with consumers whose inner block crashes when `@show` is false (e.g. forms reading from a `nil` `@form`)."
+
   slot :title
   slot :inner_block, required: true
   slot :actions
@@ -100,11 +105,12 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
       end)
 
     ~H"""
-    <%= if @show do %>
+    <%= if @show or @keep_in_dom do %>
       <dialog
         id={@resolved_id}
         class="modal"
         phx-hook="PkDialog"
+        data-show={to_string(@show)}
         data-close-event={@on_close}
         data-closeable={to_string(@closeable)}
         role="dialog"

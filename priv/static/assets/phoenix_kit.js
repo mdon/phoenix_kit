@@ -1655,6 +1655,20 @@ if (typeof window.Chart === "undefined") {
       e.preventDefault();
       const event = btn.dataset.bulkAction;
       if (!event) return;
+
+      // If the button is paired with a kept-in-DOM dialog, open it
+      // locally BEFORE pushing the event. The server still gets the
+      // payload + flips its `@show_*_modal` assign for state sync,
+      // but the user sees the modal instantly instead of waiting
+      // for the round-trip.
+      const dialogId = btn.dataset.bulkOpensDialog;
+      if (dialogId) {
+        const dialog = document.getElementById(dialogId);
+        if (dialog && !dialog.open && typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      }
+
       this.pushEventTo(this.el, event, { uuids: Array.from(this.selected) });
     },
     _clearAll() {
@@ -1760,6 +1774,24 @@ if (typeof window.Chart === "undefined") {
       const ev = this.el.dataset.closeEvent;
       if (ev) this.pushEventTo(this.el, ev, {});
     },
+    _sync() {
+      // `data-show` drives visibility for keep_in_dom modals. Conditional
+      // modals (rendered only when @show=true) get the same attribute
+      // value, so this works for both paths.
+      // Absent attribute defaults to "true" so a consumer that doesn't
+      // set data-show (legacy callers) keeps the original mount-opens
+      // behavior.
+      const wantOpen = this.el.dataset.show !== "false";
+      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+        this.el.showModal();
+        this._opened = true;
+        this._onOpened();
+      } else if (!wantOpen && this.el.open) {
+        // close() fires 'close' which the _onClose handler converts
+        // into a refcount decrement.
+        this.el.close();
+      }
+    },
     mounted() {
       const self = this;
       // `_opened` tracks whether we've incremented the global refcount,
@@ -1770,12 +1802,6 @@ if (typeof window.Chart === "undefined") {
       // if LV didn't process the on_close event, that could be forever.
       this._opened = false;
       this._closeFromLV = false;
-
-      if (typeof this.el.showModal === "function" && !this.el.open) {
-        this.el.showModal();
-        this._opened = true;
-        this._onOpened();
-      }
 
       self._onCancel = function(e) {
         if (!self._isCloseable()) e.preventDefault();
@@ -1801,6 +1827,11 @@ if (typeof window.Chart === "undefined") {
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);
       this.el.addEventListener("click", self._onClick);
+
+      this._sync();
+    },
+    updated() {
+      this._sync();
     },
     destroyed() {
       // LV is removing the element. Tell _onClose not to echo a close

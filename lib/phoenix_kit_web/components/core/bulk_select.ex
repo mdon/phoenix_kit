@@ -168,6 +168,11 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
     doc:
       "When `:always`, the Reorder button is always visible — label is 'Reorder all' when 0–1 rows are selected, 'Reorder N selected' when 2+. (A one-row reorder is a no-op, so we keep the 'Reorder all' label there; the consumer LV normalises 1-uuid scopes to :all when applying.) When `:multi`, hidden unless count > 1 — useful when the surrounding context has no meaningful 'reorder all' interpretation (e.g. the list is currently sorted by name, not the manual position field)."
 
+  attr :reorder_dialog_id, :string,
+    default: nil,
+    doc:
+      "Optional id of a kept-in-DOM reorder modal (e.g. `\"reorder-modal\"`). When set, the Reorder button opens that dialog locally via the BulkSelectScope hook BEFORE pushing `on_open_reorder`, so the modal appears instantly without waiting for the LV round-trip. Pair with `<.reorder_modal>` (which sets `keep_in_dom={true}` on its inner `<.modal>`). Omit to fall back to the round-trip-open flow used by conditionally-rendered modals."
+
   slot :leading,
     doc:
       "Content rendered on the left of the toolbar before the action buttons. Common use: tuck a sort selector in here so the toolbar reads as one widget."
@@ -195,6 +200,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
           type="button"
           class="btn btn-sm btn-ghost"
           data-bulk-action={@on_open_reorder}
+          data-bulk-opens-dialog={@reorder_dialog_id}
           data-bulk-show={if @reorder_gate == :multi, do: "has-multiple"}
           data-bulk-label-empty={if @reorder_gate == :always, do: @reorder_empty_label}
           data-bulk-label-selected={@reorder_selected_label}
