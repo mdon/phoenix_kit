@@ -9235,3 +9235,8 @@ msgstr "вы"
 #, elixir-autogen, elixir-format
 msgid "« Previous"
 msgstr "Предыдущий (←)"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:92
+#, elixir-autogen, elixir-format
+msgid "Manage Users"
+msgstr "Список пользователей"

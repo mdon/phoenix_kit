@@ -89,7 +89,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # Users subtabs
       admin_subtab(
         :admin_users_manage,
-        "Manage Users",
+        gettext_noop("Manage Users"),
         "hero-users",
         "users",
         210,
