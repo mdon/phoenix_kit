@@ -542,7 +542,7 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
       refute html =~ ~s(disabled="")
     end
 
-    test "Add button is disabled when selection equals max_count" do
+    test "Add tile is omitted when selection equals max_count" do
       uuid = "01900000-0000-7000-8000-000000000001"
 
       html =
@@ -555,12 +555,13 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
           })
         )
 
-      # Phoenix renders boolean true attr as bare `disabled` (no ="")
-      assert html =~ "cursor-not-allowed"
-      assert html =~ " disabled"
+      # The :add_button slot is conditional on `selection_at_limit?/3`
+      # so the entire trigger button is dropped (no disabled-state
+      # rendering). See media_gallery.html.heex line 71.
+      refute html =~ "open-picker-test-gallery"
     end
 
-    test "Add button is disabled in :single mode with one item" do
+    test "Add tile is omitted in :single mode with one item" do
       uuid = "01900000-0000-7000-8000-000000000001"
 
       html =
@@ -573,8 +574,7 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
           })
         )
 
-      assert html =~ "cursor-not-allowed"
-      assert html =~ " disabled"
+      refute html =~ "open-picker-test-gallery"
     end
 
     test "Add button is enabled in :single mode with empty selection" do

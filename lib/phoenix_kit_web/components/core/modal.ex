@@ -83,21 +83,39 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   attr :backdrop_class, :string, default: ""
   attr :closeable, :boolean, default: true
 
+  attr :keep_in_dom, :boolean,
+    default: false,
+    doc:
+      "When `true`, the `<dialog>` element is rendered into the DOM regardless of `@show`. Visibility is driven by the `PkDialog` hook (showModal/close) via the `data-show` attribute. Suits modals whose inner content doesn't depend on context-conditional assigns (e.g. a strategy picker with a fixed list) and that benefit from instant client-side open — a trigger button can call `dialog.showModal()` locally without waiting for the server round-trip. Default is conditional rendering for backwards compat with consumers whose inner block crashes when `@show` is false (e.g. forms reading from a `nil` `@form`). **ID collision risk:** kept-in-DOM modals persist across LV renders, so an auto-derived id (from `on_close`) is far more likely to collide with a sibling modal sharing the same close event. Pass an explicit `id=` when using `keep_in_dom` to be safe."
+
   slot :title
   slot :inner_block, required: true
   slot :actions
 
   def modal(assigns) do
+    # `phx-hook` requires a unique id on the element. Derive one from the
+    # on_close event name when the consumer hasn't passed an explicit id —
+    # different modals on the same page typically wire different on_close
+    # events, so this stays stable AND unique. Two modals sharing the same
+    # on_close would collide, which is rare enough to let the consumer hit
+    # and fix by passing an explicit id.
+    assigns =
+      assign_new(assigns, :resolved_id, fn ->
+        assigns[:id] || "pk-modal-#{assigns.on_close}"
+      end)
+
     ~H"""
-    <%= if @show do %>
-      <div
-        id={@id}
-        class="modal modal-open"
+    <%= if @show or @keep_in_dom do %>
+      <dialog
+        id={@resolved_id}
+        class="modal"
+        phx-hook="PkDialog"
+        data-show={to_string(@show)}
+        data-close-event={@on_close}
+        data-closeable={to_string(@closeable)}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={@id && "#{@id}-title"}
-        phx-window-keydown={@closeable && @on_close}
-        phx-key={@closeable && "Escape"}
+        aria-labelledby={"#{@resolved_id}-title"}
       >
         <div class={[
           "modal-box flex flex-col",
@@ -107,7 +125,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
           <%!-- Title --%>
           <%= if @title != [] do %>
             <h3
-              id={@id && "#{@id}-title"}
+              id={"#{@resolved_id}-title"}
               class="font-bold text-lg mb-4 flex items-center gap-2 flex-shrink-0"
             >
               {render_slot(@title)}
@@ -129,15 +147,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
             </div>
           <% end %>
         </div>
-
-        <%!-- Backdrop --%>
-        <div
-          class={["modal-backdrop bg-base-content/50", @backdrop_class]}
-          phx-click={@closeable && @on_close}
-          aria-hidden="true"
-        >
-        </div>
-      </div>
+      </dialog>
     <% end %>
     """
   end
