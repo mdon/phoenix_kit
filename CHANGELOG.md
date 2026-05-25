@@ -1,3 +1,76 @@
+## 1.7.121 - 2026-05-25
+
+### Added
+- Core list-UI toolkit for admin tables, all in
+  `lib/phoenix_kit_web/components/core/` (PR #568):
+  - `BulkSelect` — `<.bulk_select_scope>` + `<.bulk_select_header_cell>` +
+    `<.bulk_select_cell>` + `<.bulk_actions_toolbar>`. Selection lives
+    client-side via the `BulkSelectScope` JS hook (per-checkbox toggles feel
+    instant — no LV round-trip); the server only receives the selected uuids
+    at action time as `%{"uuids" => [...]}`. The selection survives LV
+    re-renders (reorder / load_more / sort).
+  - `Sortable` — `<.sortable_tbody>` + `<.sortable_row>` wrap the
+    `SortableGrid` hook wiring; `enabled={false}` cleanly omits the hook so
+    drag turns off when sorting by a non-position field. Pair with
+    `<.drag_handle_cell>` / `<.drag_handle_header_cell>` on `<.table_default>`.
+  - `<.reorder_modal>` — strategy-picker dialog for bulk reorder; the consumer
+    LV owns the strategy whitelist.
+  - `<.load_more>` pagination footer (in `core/pagination.ex`) for embeddable /
+    DnD-aware lists where rows append rather than navigate away.
+- `<.modal keep_in_dom>` mode — renders the `<dialog>` regardless of `@show`
+  and flips visibility via `data-show` + the `PkDialog` hook, enabling instant
+  client-side open without a server round-trip (PR #568).
+- `PhoenixKit.boot/1` hook so late-loaded modules can register after app start
+  (PR #569).
+
+### Changed
+- `<.modal>` now renders a native `<dialog>` in the browser top layer
+  (`PkDialog` hook + `showModal()`) instead of `<div class="modal">`. It is
+  immune to ancestor stacking contexts / z-index and covers the full visual
+  viewport (PR #568).
+- `<.sort_selector>` is now race-free: the field select sends only `sort_by`
+  and the direction arrow sends only `sort_dir`; the LV handler derives the
+  missing half from assigns. Manual-order mode hides the direction toggle
+  entirely (PR #568).
+- `<.table_default>` rows carry a named `group/row` Tailwind marker (not a bare
+  `group`) so the drag-handle hide-until-hover reveal stays keyed to row hover
+  without clobbering unnamed `group-hover:` utilities nested in cells (PR #568).
+- Activity feed renders dates with locale-aware formatting (PR #569).
+- `redirect_invalid_locale/2` reads `prefixless_primary?()` once instead of
+  twice, removing a torn-read window on a concurrent setting flip
+  (PR #554 follow-up).
+- Annotation storage adapter no longer accepts `:creator_uuid` from event
+  payloads — authorship is resolved server-side from the actor, so a forged
+  payload can't claim it (PR #550 follow-up).
+
+### Fixed
+- PkDialog top-layer leak: a `<dialog>` opened via `showModal()` stayed in the
+  top layer (still capturing all clicks) after Phoenix LV's DOM patcher
+  stripped the browser-added `open` attribute on re-render, while CSS rendered
+  it `display: none` — visually closed but blocking the rest of the page.
+  `PkDialog` now uses the `:modal` pseudo-class as the truth source and
+  restores the stripped attribute before `close()` (PR #568).
+- The "Reorder N selected" bulk-toolbar label was rendered untranslated: it
+  used `gettext_noop/1` (extraction-only) and the JS hook does no translation,
+  so it stayed English in every non-default locale. Now translated at render
+  time while preserving the `%{count}` placeholder for client-side interpolation
+  (PR #568 post-merge review).
+- `<.drag_handle_cell>`'s default title now renders (the `default: nil` attr was
+  shadowing `assign_new`) (PR #568).
+- Registration and magic-link registration fieldsets unified to
+  `class="fieldset min-w-0"` (dropped redundant `w-full`) (PR #559 follow-up).
+- Combined the split revoke-all-sessions confirmation sentence into one
+  translatable string (PR #569).
+- Guard `stat.label` against non-binary values in the modules overview
+  (PR #569).
+
+### i18n
+- Broad i18n coverage sweep across the user-facing admin pages — Users
+  management, Session management, Live Sessions, User Settings, the General
+  settings sidebar tab, and the Modules overview — with ru/et catalogs brought
+  back to 100% and fuzzy msgids / mistranslations corrected (PR #569).
+- Translate the stranded "Last updated:" label in Live Sessions (PR #569).
+
 ## 1.7.120 - 2026-05-24
 
 ### Changed

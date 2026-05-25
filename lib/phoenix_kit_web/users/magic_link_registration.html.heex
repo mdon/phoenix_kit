@@ -2,10 +2,11 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
+  current_path={assigns[:url_path] || "/users/register"}
 >
-  <h1 class="text-2xl font-bold text-center mb-2">Complete Your Registration</h1>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Complete Your Registration")}</h1>
   <p class="text-center text-base-content/60 text-sm mb-6">
-    Email: <strong>{@email}</strong>
+    {gettext("Email:")} <strong>{@email}</strong>
   </p>
 
   <.form
@@ -21,20 +22,20 @@
     <input type="hidden" name="user[email]" value={@email} />
 
     <fieldset class="fieldset min-w-0">
-      <legend class="fieldset-legend sr-only">Account Information</legend>
+      <legend class="fieldset-legend sr-only">{gettext("Account Information")}</legend>
 
       <%!-- Username Field --%>
       <div phx-feedback-for="user[username]">
         <label class="label" for="user_username">
           <span class="label-text flex items-center">
             <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
-            Username
+            {gettext("Username")}
           </span>
         </label>
         <.input
           field={@form[:username]}
           type="text"
-          placeholder="Choose a unique username"
+          placeholder={gettext("Choose a unique username")}
           autocomplete="username"
           class="transition-colors focus:input-primary"
         />
@@ -44,13 +45,15 @@
       <div phx-feedback-for="user[password]">
         <label class="label" for="user_password">
           <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> Password
+            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> {gettext(
+              "Password"
+            )}
           </span>
         </label>
         <.input
           field={@form[:password]}
           type="password"
-          placeholder="Choose a secure password"
+          placeholder={gettext("Choose a secure password")}
           autocomplete="new-password"
           class="transition-colors focus:input-primary"
           required
@@ -60,12 +63,12 @@
       <%!-- First Name Field (optional) --%>
       <div phx-feedback-for="user[first_name]">
         <label class="label" for="user_first_name">
-          <span class="label-text">First Name</span>
+          <span class="label-text">{gettext("First Name")}</span>
         </label>
         <.input
           field={@form[:first_name]}
           type="text"
-          placeholder="Your first name (optional)"
+          placeholder={gettext("Your first name (optional)")}
           autocomplete="given-name"
           class="transition-colors focus:input-primary"
         />
@@ -74,12 +77,12 @@
       <%!-- Last Name Field (optional) --%>
       <div phx-feedback-for="user[last_name]">
         <label class="label" for="user_last_name">
-          <span class="label-text">Last Name</span>
+          <span class="label-text">{gettext("Last Name")}</span>
         </label>
         <.input
           field={@form[:last_name]}
           type="text"
-          placeholder="Your last name (optional)"
+          placeholder={gettext("Your last name (optional)")}
           autocomplete="family-name"
           class="transition-colors focus:input-primary"
         />
@@ -89,7 +92,8 @@
       <%= if @referral_codes_enabled do %>
         <div phx-feedback-for="referral_code">
           <.label for="referral_code">
-            Referral Code<%= if @referral_codes_required do %>
+            {gettext("Referral Code")}
+            <%= if @referral_codes_required do %>
               *
             <% end %>
           </.label>
@@ -103,7 +107,7 @@
                  (@check_errors && @referral_codes_required &&
                     (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
             ]}
-            placeholder="Enter your referral code"
+            placeholder={gettext("Enter your referral code")}
             value={@referral_code || ""}
             required={@referral_codes_required}
           />
@@ -118,7 +122,7 @@
         class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
       >
         <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-5 h-5 mr-2" />
-        Complete Registration <span aria-hidden="true">→</span>
+        {gettext("Complete Registration")} <span aria-hidden="true">→</span>
       </button>
     </fieldset>
   </.form>

@@ -181,7 +181,14 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
     assigns =
       assigns
       |> assign(:reorder_empty_label, gettext("Reorder all"))
-      |> assign(:reorder_selected_label, gettext_noop("Reorder %{count} selected"))
+      # Translate at render time while keeping the `%{count}` placeholder
+      # intact for the BulkSelectScope hook to interpolate client-side.
+      # `gettext_noop/1` would only mark the string for extraction and
+      # return the English msgid unchanged — the hook does no translation,
+      # so the label rendered untranslated in every non-default locale.
+      # Interpolating `count: "%{count}"` substitutes the placeholder with
+      # itself, yielding the translated template the hook expects.
+      |> assign(:reorder_selected_label, gettext("Reorder %{count} selected", count: "%{count}"))
       |> assign(:delete_label, gettext("Delete"))
       |> assign(:clear_label, gettext("Clear"))
 

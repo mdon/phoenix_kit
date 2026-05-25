@@ -21,7 +21,7 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
         nil ->
           {:ok,
            socket
-           |> put_flash(:error, "Activity not found")
+           |> put_flash(:error, gettext("Activity not found"))
            |> push_navigate(to: Routes.path("/admin/activity"))}
 
         entry ->
@@ -30,7 +30,7 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
 
           socket =
             socket
-            |> assign(:page_title, "Activity Detail")
+            |> assign(:page_title, gettext("Activity Detail"))
             |> assign(:project_title, project_title)
             |> assign(:entry, entry)
             |> assign(:resource_user, resource_user)
@@ -40,7 +40,7 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Access denied")
+       |> put_flash(:error, gettext("Access denied"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end

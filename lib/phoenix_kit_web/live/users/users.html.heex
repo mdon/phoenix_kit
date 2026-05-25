@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="User Management"
+  page_title={gettext("User Management")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -9,8 +9,8 @@
   <div class="container flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={PhoenixKit.Utils.Routes.path("/admin")}
-      title="User Management"
-      subtitle="Manage user accounts and roles"
+      title={gettext("User Management")}
+      subtitle={gettext("Manage user accounts and roles")}
     />
 
     <%!-- Role Management Modal --%>
@@ -31,7 +31,9 @@
                       "label justify-start gap-3",
                       owner_role? && "cursor-not-allowed opacity-70"
                     ]}
-                    title={if owner_role?, do: "Owner role cannot be modified", else: nil}
+                    title={
+                      if owner_role?, do: gettext("Owner role cannot be modified"), else: nil
+                    }
                   >
                     <input
                       type="checkbox"
@@ -44,7 +46,9 @@
                     <div class="flex flex-wrap items-center gap-2">
                       <.role_badge role={role} size={:sm} />
                       <%= if role.is_system_role do %>
-                        <span class="badge badge-outline badge-xs h-auto">System</span>
+                        <span class="badge badge-outline badge-xs h-auto">
+                          {gettext("System")}
+                        </span>
                       <% end %>
                       <%= if role.description do %>
                         <span class="text-sm text-base-content/70">- {role.description}</span>
@@ -57,16 +61,16 @@
 
             <%= if Enum.empty?(@all_roles) do %>
               <div class="text-center py-8 text-base-content/70">
-                <p>No roles available. Create roles first in Role Management.</p>
+                <p>{gettext("No roles available. Create roles first in Role Management.")}</p>
               </div>
             <% end %>
 
             <div class="modal-action">
               <button type="submit" class="btn btn-primary">
-                Update Roles
+                {gettext("Update Roles")}
               </button>
               <button type="button" phx-click="hide_role_management" class="btn btn-outline">
-                Cancel
+                {gettext("Cancel")}
               </button>
             </div>
           </form>
@@ -102,7 +106,7 @@
                 type="search"
                 name="search"
                 value={@search_query}
-                placeholder="Search by email, username, or name..."
+                placeholder={gettext("Search by email, username, or name...")}
                 class="grow"
                 phx-debounce="300"
               />
@@ -111,13 +115,19 @@
         </:toolbar_title>
         <:toolbar_actions>
           <%!-- Role Filter --%>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">Role:</span>
+          <span class="text-sm text-base-content/70 whitespace-nowrap">{gettext("Role:")}</span>
           <form phx-change="filter_by_role" class="contents">
             <select name="role" class="select select-sm w-36 min-w-0">
-              <option value="all" selected={@filter_role == "all"}>All Users</option>
-              <option value="Owner" selected={@filter_role == "Owner"}>Owners Only</option>
-              <option value="Admin" selected={@filter_role == "Admin"}>Admins Only</option>
-              <option value="User" selected={@filter_role == "User"}>Regular Users</option>
+              <option value="all" selected={@filter_role == "all"}>{gettext("All Users")}</option>
+              <option value="Owner" selected={@filter_role == "Owner"}>
+                {gettext("Owners Only")}
+              </option>
+              <option value="Admin" selected={@filter_role == "Admin"}>
+                {gettext("Admins Only")}
+              </option>
+              <option value="User" selected={@filter_role == "User"}>
+                {gettext("Regular Users")}
+              </option>
             </select>
           </form>
           <%!-- Account Type Filter --%>
@@ -154,7 +164,9 @@
             navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
             class="btn btn-sm btn-primary"
           >
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" /> Add New User
+            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" /> {gettext(
+              "Add New User"
+            )}
           </.link>
         </:toolbar_actions>
         <:card_header :let={user}>
@@ -164,7 +176,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <span class="font-medium text-sm truncate">{user.email}</span>
                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                  <span class="badge badge-info badge-xs h-auto">you</span>
+                  <span class="badge badge-info badge-xs h-auto">{gettext("you")}</span>
                 <% end %>
                 <%= if User.full_name(user) && User.full_name(user) != "" do %>
                   <span class="text-sm text-base-content/60">{User.full_name(user)}</span>
@@ -197,21 +209,21 @@
                 <div class="text-center py-12">
                   <PhoenixKitWeb.Components.Core.Icons.icon_users_multiple class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
                   <h3 class="text-lg font-medium text-base-content mb-2">
-                    No users found
+                    {gettext("No users found")}
                   </h3>
                   <% filters_active? =
                     @search_query != "" or @filter_role != "all" or
                       @filter_account_type != "all" %>
                   <p class="text-base-content/70 mb-4">
                     <%= if filters_active? do %>
-                      Try adjusting your search or filter criteria.
+                      {gettext("Try adjusting your search or filter criteria.")}
                     <% else %>
-                      No users are registered yet.
+                      {gettext("No users are registered yet.")}
                     <% end %>
                   </p>
                   <%= if filters_active? do %>
                     <button class="btn btn-outline btn-sm" phx-click="clear_filters">
-                      Clear Filters
+                      {gettext("Clear Filters")}
                     </button>
                   <% end %>
                 </div>
@@ -236,7 +248,9 @@
                               <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-medium link link-hover">{user.email}</span>
                                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                                  <span class="badge badge-info badge-xs h-auto">you</span>
+                                  <span class="badge badge-info badge-xs h-auto">
+                                    {gettext("you")}
+                                  </span>
                                 <% end %>
                                 <%= if @org_accounts_enabled && user.account_type == "organization" do %>
                                   <span class="badge badge-primary badge-xs h-auto">
@@ -274,15 +288,21 @@
                               />
                             <% end %>
                             <%= if Enum.empty?(user_roles) do %>
-                              <span class="badge badge-ghost badge-sm h-auto">No roles</span>
+                              <span class="badge badge-ghost badge-sm h-auto">
+                                {gettext("No roles")}
+                              </span>
                             <% end %>
                           </div>
                         <% column_id == "status" -> %>
                           <div class="flex flex-col gap-1">
                             <%= if user.confirmed_at do %>
-                              <span class="badge badge-success badge-sm h-auto">Confirmed</span>
+                              <span class="badge badge-success badge-sm h-auto">
+                                {gettext("Confirmed")}
+                              </span>
                             <% else %>
-                              <span class="badge badge-warning badge-sm h-auto">Pending</span>
+                              <span class="badge badge-warning badge-sm h-auto">
+                                {gettext("Pending")}
+                              </span>
                             <% end %>
                             <%= if user.is_active do %>
                               <span class="badge badge-outline badge-xs h-auto">
@@ -339,7 +359,9 @@
                                   </div>
                                 <% end %>
                               <% else %>
-                                <div class="text-xs text-base-content/50">No data</div>
+                                <div class="text-xs text-base-content/50">
+                                  {gettext("No data")}
+                                </div>
                               <% end %>
                             </div>
                           </div>
@@ -362,7 +384,7 @@
                                   )}
                                 </div>
                               <% else %>
-                                <div>Never</div>
+                                <div>{gettext("Never")}</div>
                               <% end %>
                             </div>
                           </div>
@@ -447,7 +469,11 @@
                                 <.table_row_menu_button
                                   phx-click="request_delete_user"
                                   phx-value-user_uuid={user.uuid}
-                                  data-confirm="Are you sure you want to delete this user? This action cannot be undone."
+                                  data-confirm={
+                                    gettext(
+                                      "Are you sure you want to delete this user? This action cannot be undone."
+                                    )
+                                  }
                                   icon="hero-trash"
                                   label={gettext("Delete")}
                                   variant="error"
@@ -524,7 +550,11 @@
                 <.table_row_menu_button
                   phx-click="request_delete_user"
                   phx-value-user_uuid={user.uuid}
-                  data-confirm="Are you sure you want to delete this user? This action cannot be undone."
+                  data-confirm={
+                    gettext(
+                      "Are you sure you want to delete this user? This action cannot be undone."
+                    )
+                  }
                   icon="hero-trash"
                   label={gettext("Delete")}
                   variant="error"
@@ -555,7 +585,7 @@
 
     <%!-- Enhanced Stats --%>
     <div class="mt-8">
-      <h3 class="text-lg font-semibold text-base-content mb-6">User Statistics</h3>
+      <h3 class="text-lg font-semibold text-base-content mb-6">{gettext("User Statistics")}</h3>
 
       <%!-- Main Role Stats --%>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -563,8 +593,8 @@
           compact={true}
           rounded="xl"
           value={@total_users}
-          title="Total Users"
-          subtitle="All registered accounts"
+          title={gettext("Total Users")}
+          subtitle={gettext("All registered accounts")}
         >
           <:icon>
             <.icon name="hero-users" class="w-5 h-5" />
@@ -575,8 +605,8 @@
           compact={true}
           rounded="xl"
           value={@total_owners}
-          title="System Owners"
-          subtitle="Complete system authority"
+          title={gettext("System Owners")}
+          subtitle={gettext("Complete system authority")}
         >
           <:icon>
             <.icon name="hero-shield-check" class="w-5 h-5" />
@@ -587,8 +617,8 @@
           compact={true}
           rounded="xl"
           value={@total_admins}
-          title="Administrators"
-          subtitle="Management privileges"
+          title={gettext("Administrators")}
+          subtitle={gettext("Management privileges")}
         >
           <:icon>
             <.icon name="hero-star" class="w-5 h-5" />
@@ -599,8 +629,8 @@
           compact={true}
           rounded="xl"
           value={@total_regular_users}
-          title="Regular Users"
-          subtitle="Standard access level"
+          title={gettext("Regular Users")}
+          subtitle={gettext("Standard access level")}
         >
           <:icon>
             <.icon name="hero-user" class="w-5 h-5" />
@@ -615,8 +645,8 @@
           compact={true}
           rounded="2xl"
           value={@active_users}
-          title="Active Users"
-          subtitle="Currently online"
+          title={gettext("Active Users")}
+          subtitle={gettext("Currently online")}
         >
           <:icon>
             <.icon name="hero-check-circle-solid" class="w-5 h-5" />
@@ -628,8 +658,8 @@
           compact={true}
           rounded="2xl"
           value={@inactive_users}
-          title="Inactive Users"
-          subtitle="Disabled accounts"
+          title={gettext("Inactive Users")}
+          subtitle={gettext("Disabled accounts")}
         >
           <:icon>
             <.icon name="hero-x-circle-solid" class="w-5 h-5" />
@@ -641,8 +671,8 @@
           compact={true}
           rounded="2xl"
           value={@confirmed_users}
-          title="Email Confirmed"
-          subtitle="Verified emails"
+          title={gettext("Email Confirmed")}
+          subtitle={gettext("Verified emails")}
         >
           <:icon>
             <.icon name="hero-envelope" class="w-5 h-5" />
@@ -654,8 +684,8 @@
           compact={true}
           rounded="2xl"
           value={@pending_users}
-          title="Pending Email"
-          subtitle="Awaiting confirmation"
+          title={gettext("Pending Email")}
+          subtitle={gettext("Awaiting confirmation")}
         >
           <:icon>
             <.icon name="hero-information-circle-solid" class="w-5 h-5" />
@@ -668,9 +698,11 @@
     <%= if @show_column_modal do %>
       <div class="modal modal-open" id="column-modal">
         <div class="modal-box max-w-5xl max-h-[90vh] overflow-hidden">
-          <h3 class="font-bold text-xl mb-4">Customize Table Columns</h3>
+          <h3 class="font-bold text-xl mb-4">{gettext("Customize Table Columns")}</h3>
           <p class="text-base-content/70 mb-6">
-            Drag to reorder selected columns above, or add new columns from the options below. Actions column is always included.
+            {gettext(
+              "Drag to reorder selected columns above, or add new columns from the options below. Actions column is always included."
+            )}
           </p>
 
           <form phx-submit="update_table_columns" id="column-form">
@@ -687,10 +719,10 @@
               <div class="flex-1">
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
-                    Selected Columns
+                    {gettext("Selected Columns")}
                   </h4>
                   <span class="text-xs text-base-content/60">
-                    Drag to reorder
+                    {gettext("Drag to reorder")}
                   </span>
                 </div>
                 <.draggable_list
@@ -720,7 +752,7 @@
                       class="btn btn-ghost btn-xs btn-circle text-error/60 hover:text-error hover:bg-error/10"
                       phx-click="remove_column"
                       phx-value-column_id={column_id}
-                      title="Remove column"
+                      title={gettext("Remove column")}
                     >
                       <.icon name="hero-x-mark" class="h-4 w-4" />
                     </button>
@@ -731,8 +763,8 @@
                 <%= if length(Enum.reject(@temp_selected_columns || @selected_columns, &(&1 == "actions"))) == 0 do %>
                   <div class="text-center py-12 text-base-content/40 border-2 border-dashed border-base-300 rounded-lg mt-2">
                     <.icon name="hero-clipboard-document-list" class="h-12 w-12 mx-auto mb-3" />
-                    <p class="text-sm">No columns selected yet</p>
-                    <p class="text-xs mt-1">Add columns from the options below</p>
+                    <p class="text-sm">{gettext("No columns selected yet")}</p>
+                    <p class="text-xs mt-1">{gettext("Add columns from the options below")}</p>
                   </div>
                 <% end %>
               </div>
@@ -741,10 +773,10 @@
               <div class="flex-1">
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
-                    Available Fields
+                    {gettext("Available Fields")}
                   </h4>
                   <span class="text-xs text-base-content/60">
-                    Click to add
+                    {gettext("Click to add")}
                   </span>
                 </div>
                 <div class="max-h-[400px] overflow-y-auto border border-base-200 rounded-lg bg-base-100">
@@ -752,7 +784,7 @@
                   <%= if map_size(@available_columns.standard) > 0 do %>
                     <div class="p-3">
                       <h5 class="text-xs font-semibold text-base-content/60 mb-2 uppercase tracking-wide">
-                        Standard Fields
+                        {gettext("Standard Fields")}
                       </h5>
                       <div class="space-y-1">
                         <%= for {column_id, column_meta} <- @available_columns.standard do %>
@@ -802,7 +834,7 @@
                   <%= if map_size(@available_columns.custom) > 0 do %>
                     <div class="p-3">
                       <h5 class="text-xs font-semibold text-base-content/60 mb-2 uppercase tracking-wide">
-                        Custom Fields
+                        {gettext("Custom Fields")}
                       </h5>
                       <div class="space-y-1">
                         <%= for {column_id, column_meta} <- @available_columns.custom do %>
@@ -846,7 +878,7 @@
                   <%!-- No Available Fields Message --%>
                   <%= if get_available_fields_count(@available_columns, @temp_selected_columns || @selected_columns) == 0 do %>
                     <div class="text-center py-8 text-base-content/40">
-                      <p class="text-sm">All fields are already selected</p>
+                      <p class="text-sm">{gettext("All fields are already selected")}</p>
                     </div>
                   <% end %>
                 </div>
@@ -855,13 +887,13 @@
 
             <div class="modal-action">
               <button type="submit" class="btn btn-primary">
-                Apply Changes
+                {gettext("Apply Changes")}
               </button>
               <button type="button" class="btn btn-outline" phx-click="reset_to_defaults">
-                Default
+                {gettext("Default")}
               </button>
               <button type="button" class="btn btn-ghost" phx-click="hide_column_modal">
-                Cancel
+                {gettext("Cancel")}
               </button>
             </div>
           </form>
@@ -878,7 +910,7 @@
           <p class="py-4">{@confirmation_modal.message}</p>
           <div class="modal-action">
             <button class="btn btn-ghost" phx-click="cancel_confirmation">
-              Cancel
+              {gettext("Cancel")}
             </button>
             <button
               class="btn btn-primary"

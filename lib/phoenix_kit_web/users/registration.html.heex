@@ -1,17 +1,23 @@
 <PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={"#{@project_title} - Create account"}
+  page_title={"#{@project_title} - #{gettext("Create account")}"}
+  current_path={assigns[:url_path] || "/users/register"}
+  dev_mailbox_message={gettext("confirmation emails")}
 >
-  <h1 class="text-2xl font-bold text-center mb-6">{@project_title} Create account</h1>
+  <h1 class="text-2xl font-bold text-center mb-6">
+    {@project_title} {gettext("Create account")}
+  </h1>
 
   <%!-- Invitation banner: shown when user arrives via org invitation link --%>
   <%= if @pending_invitation do %>
     <div class="alert alert-info mb-4">
       <.icon name="hero-building-office-2" class="w-5 h-5 shrink-0" />
       <span>
-        You've been invited to join <strong>{@pending_invitation.organization.organization_name}</strong>.
-        Create an account to accept the invitation.
+        {gettext(
+          "You've been invited to join %{organization}. Create an account to accept the invitation.",
+          organization: @pending_invitation.organization.organization_name
+        )}
       </span>
     </div>
   <% end %>
@@ -26,18 +32,20 @@
     method="post"
   >
     <fieldset class="fieldset min-w-0">
-      <legend class="fieldset-legend sr-only">Account Information</legend>
+      <legend class="fieldset-legend sr-only">{gettext("Account Information")}</legend>
 
       <div phx-feedback-for="user[email]">
         <label class="label" for="user_email">
           <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> Email
+            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> {gettext(
+              "Email"
+            )}
           </span>
         </label>
         <.input
           field={@form[:email]}
           type="email"
-          placeholder="Enter your email address"
+          placeholder={gettext("Enter your email address")}
           autocomplete="email"
           class="transition-colors focus:input-primary"
           required
@@ -50,18 +58,18 @@
           <label class="label" for="user_username">
             <span class="label-text flex items-center">
               <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
-              Username
+              {gettext("Username")}
             </span>
           </label>
           <.input
             field={@form[:username]}
             type="text"
-            placeholder="Choose a unique username (optional)"
+            placeholder={gettext("Choose a unique username (optional)")}
             autocomplete="username"
             class="transition-colors focus:input-primary"
           />
           <div class="text-xs text-base-content/60 mt-1">
-            If not provided, we'll generate one from your email
+            {gettext("If not provided, we'll generate one from your email")}
           </div>
         </div>
       <% end %>
@@ -70,7 +78,8 @@
       <%= if @referral_codes_enabled do %>
         <div phx-feedback-for="referral_code">
           <.label for="referral_code">
-            Referral Code<%= if @referral_codes_required do %>
+            {gettext("Referral Code")}
+            <%= if @referral_codes_required do %>
               *
             <% end %>
           </.label>
@@ -84,7 +93,7 @@
                  (@check_errors && @referral_codes_required &&
                     (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
             ]}
-            placeholder="Enter your referral code"
+            placeholder={gettext("Enter your referral code")}
             value={@referral_code || ""}
             required={@referral_codes_required}
           />
@@ -137,7 +146,7 @@
             <.input
               field={@form[:organization_name]}
               type="text"
-              placeholder="Enter organization name"
+              placeholder={gettext("Enter organization name")}
               required
             />
           </div>
@@ -147,13 +156,15 @@
       <div phx-feedback-for="user[password]">
         <label class="label" for="user_password">
           <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> Password
+            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> {gettext(
+              "Password"
+            )}
           </span>
         </label>
         <.input
           field={@form[:password]}
           type="password"
-          placeholder="Choose a secure password"
+          placeholder={gettext("Choose a secure password")}
           autocomplete="new-password"
           class="transition-colors focus:input-primary"
           required
@@ -164,7 +175,9 @@
         type="submit"
         class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
       >
-        <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-5 h-5 mr-2" /> Create account
+        <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-5 h-5 mr-2" /> {gettext(
+          "Create account"
+        )}
         <span aria-hidden="true">→</span>
       </button>
     </fieldset>
@@ -179,7 +192,7 @@
           <div class="w-full border-t border-base-300" />
         </div>
         <div class="relative flex justify-center text-sm">
-          <span class="px-2 bg-base-100 text-base-content/60">Or continue with</span>
+          <span class="px-2 bg-base-100 text-base-content/60">{gettext("Or continue with")}</span>
         </div>
       </div>
 
@@ -191,7 +204,7 @@
             class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
-            Register with Magic Link
+            {gettext("Register with Magic Link")}
           </.link>
         <% end %>
         <%!-- OAuth authentication --%>
@@ -202,15 +215,12 @@
 
   <%!-- Login link --%>
   <div class="text-center mt-4 text-sm">
-    <span>Already have an account? </span>
+    <span>{gettext("Already have an account?")}</span>
     <.link
       navigate={Routes.path("/users/log-in")}
       class="font-semibold text-primary hover:underline"
     >
-      Sign in
+      {gettext("Sign in")}
     </.link>
   </div>
-
-  <%!-- Development Mode Notice --%>
-  <.dev_mailbox_notice />
 </PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper>
