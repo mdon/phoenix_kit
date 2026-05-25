@@ -497,7 +497,7 @@ PhoenixKit.Modules.AI.disable_system()
 ```
 
 **Important**: Attempting to use a disabled module's API functions or admin pages will result in errors or redirects. Always enable modules before:
-- Calling their API functions (e.g., `PhoenixKit.Modules.AI.ask/3`)
+- Calling their API functions (e.g., `PhoenixKitAI.ask_with_prompt/4`)
 - Visiting their admin pages (e.g., `/{prefix}/admin/ai/endpoints`)
 
 ### Built-in Admin Interface
