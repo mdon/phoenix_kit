@@ -91,7 +91,12 @@ defmodule PhoenixKitWeb.Components.Core.ReorderModal do
         <button type="button" class="btn btn-ghost" phx-click={@on_close}>
           {gettext("Cancel")}
         </button>
-        <button type="submit" form={"#{@id}-form"} class="btn btn-primary">
+        <button
+          type="submit"
+          form={"#{@id}-form"}
+          class="btn btn-primary"
+          phx-disable-with={gettext("Applying…")}
+        >
           {gettext("Apply")}
         </button>
       </:actions>
