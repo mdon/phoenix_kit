@@ -1594,14 +1594,33 @@ if (typeof window.Chart === "undefined") {
       this._sync();
     },
     updated() {
-      // LV may have re-rendered the row set (filter, reload, delete).
-      // Re-derive from whatever's actually in the DOM now — that's
-      // the source of truth.
-      this._readFromDom();
+      // LV may have re-rendered the row set (filter, reload, delete,
+      // reorder, apply_reorder, load_more). The server always renders
+      // checkboxes unchecked — selection lives in this hook's in-
+      // memory Set, NOT in the markup. So we restore from the Set
+      // against whatever rows are in the DOM now, and prune uuids
+      // whose rows are no longer present (filtered, deleted).
+      //
+      // Always assign `checked` explicitly (true OR false) — never
+      // skip the false case. Morphdom can reuse input nodes whose
+      // `dataset.uuid` changed (row swapped under the same node), and
+      // a stale `checked=true` left over from that reuse would render
+      // a phantom selection that this.selected doesn't actually own.
+      const surviving = new Set();
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach((r) => {
+        const uuid = r.dataset.uuid;
+        const want = !!(uuid && this.selected.has(uuid));
+        r.checked = want;
+        if (want) surviving.add(uuid);
+      });
+      this.selected = surviving;
       this._wire();
       this._sync();
     },
     _readFromDom() {
+      // Initial mount: read whatever is already checked in the markup.
+      // Used only by mounted(); updated() restores from the in-memory
+      // Set instead so selection survives LV re-renders.
       this.selected.clear();
       this.el.querySelectorAll('[data-bulk-role="row"]').forEach((r) => {
         if (r.checked && r.dataset.uuid) this.selected.add(r.dataset.uuid);
@@ -1739,6 +1758,23 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // Returns true if the given <dialog> is in the browser's top layer
+  // (was opened via showModal()). Uses the `:modal` pseudo-class as
+  // the truth source, with a graceful fallback to the `open`
+  // attribute for older engines that lack `:modal` support.
+  function isDialogOpenInBrowser(el) {
+    if (!el || typeof el.matches !== "function") return false;
+    try {
+      return el.matches(":modal");
+    } catch (_e) {
+      // `matches()` throws SyntaxError on the `:modal` selector when
+      // the engine doesn't recognise it (pre-2022 browsers). The
+      // fallback loses fidelity to morphdom-strip cases but is the
+      // best we can do without the pseudo-class.
+      return !!el.open;
+    }
+  }
+
   window.PhoenixKitHooks.PkDialog = {
     _onOpened() {
       // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`
@@ -1782,13 +1818,58 @@ if (typeof window.Chart === "undefined") {
       // set data-show (legacy callers) keeps the original mount-opens
       // behavior.
       const wantOpen = this.el.dataset.show !== "false";
-      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+      // `:modal` matches whenever the dialog is in the browser's top
+      // layer (showModal was called). This is the truth source — `el.open`
+      // is just the reflected attribute, which Phoenix LV's DOM patcher
+      // strips on re-render if it wasn't in the server template (the
+      // browser added it via showModal(), the server didn't). Using
+      // `:modal` keeps state in sync even after that attribute gets
+      // stripped on a patch.
+      //
+      // `:modal` is a relatively new CSS pseudo-class (Chrome 105+,
+      // Safari 15.6+, Firefox 117+). On browsers that have `matches()`
+      // but not `:modal` it throws SyntaxError, which would break the
+      // hook entirely — fall back to the `open` attribute so older
+      // engines degrade to the pre-fix behavior rather than crash.
+      const isOpenForBrowser = isDialogOpenInBrowser(this.el);
+      if (
+        wantOpen &&
+        !isOpenForBrowser &&
+        typeof this.el.showModal === "function"
+      ) {
         this.el.showModal();
-        this._opened = true;
-        this._onOpened();
-      } else if (!wantOpen && this.el.open) {
-        // close() fires 'close' which the _onClose handler converts
-        // into a refcount decrement.
+        if (!this._opened) {
+          this._opened = true;
+          this._onOpened();
+        }
+      } else if (wantOpen && isOpenForBrowser) {
+        // Dialog is in the top layer but the `open` attribute may have
+        // been stripped by Phoenix LV's DOM patch (the server template
+        // doesn't include `open=""` — the browser added it when
+        // showModal() ran). CSS treats `dialog:not([open])` as
+        // `display: none`, so the dialog becomes invisible AND
+        // uninteractable while still blocking clicks elsewhere from
+        // the top layer. Restore the attribute so the dialog renders.
+        if (!this.el.open) {
+          this.el.setAttribute("open", "");
+        }
+        // Also track that the dialog is open (it may have been opened
+        // externally — e.g. BulkSelectScope — before this hook saw it).
+        if (!this._opened) {
+          this._opened = true;
+          this._onOpened();
+        }
+      } else if (!wantOpen && isOpenForBrowser) {
+        // LV-driven close. If morphdom stripped the `open` attr after
+        // the external showModal, restore it so close() can actually
+        // release the top layer (close() needs `open` to fire 'close'
+        // and detach from the top layer on every UA).
+        if (!this.el.open) {
+          this.el.setAttribute("open", "");
+        }
+        // Mark the close as LV-initiated so _onClose skips the echo
+        // push (LV already knows data-show=false).
+        this._closeFromLV = true;
         this.el.close();
       }
     },
@@ -1816,6 +1897,10 @@ if (typeof window.Chart === "undefined") {
           self._opened = false;
         }
         if (!self._closeFromLV) self._pushClose();
+        // Reset the LV-initiated flag now that the close event has
+        // been fully processed. The next user-initiated close (Esc,
+        // backdrop) will fall through to the echo push as intended.
+        self._closeFromLV = false;
       };
       // Backdrop click: a click event whose target is the <dialog> itself
       // (rather than a descendant) means the user clicked outside the
@@ -1842,7 +1927,16 @@ if (typeof window.Chart === "undefined") {
       // when destroyed runs, close() may not fire 'close' on every UA —
       // so always decrement defensively. _opened gates so we never
       // double-decrement (whoever runs first wins).
-      if (this.el.open) this.el.close();
+      //
+      // Use the same "is the browser holding this dialog open?"
+      // predicate as `_sync()` — `el.open` alone is unreliable when
+      // morphdom stripped the attribute earlier. Restore `open`
+      // first if needed so `close()` can release the top layer
+      // cleanly.
+      if (isDialogOpenInBrowser(this.el)) {
+        if (!this.el.open) this.el.setAttribute("open", "");
+        this.el.close();
+      }
       if (this._opened) {
         this._onClosed();
         this._opened = false;

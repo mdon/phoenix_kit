@@ -533,15 +533,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   def table_default_row(assigns) do
     ~H"""
     <tr
-      class={[
-        # `group` is a Tailwind marker so descendants can use
-        # `group-hover:*` selectors. Required by `<.drag_handle_cell>`'s
-        # hide-until-hover behavior; benign for rows that don't have any
-        # group-hover-styled children.
-        "group",
-        if(@hover, do: "hover", else: ""),
-        @class
-      ]}
+      class={
+        [
+          # `group` is a Tailwind marker so descendants can use
+          # `group-hover:*` selectors. Required by `<.drag_handle_cell>`'s
+          # hide-until-hover behavior; benign for rows that don't have any
+          # group-hover-styled children.
+          "group",
+          if(@hover, do: "hover", else: ""),
+          @class
+        ]
+      }
       {@rest}
     >
       {render_slot(@inner_block)}
@@ -625,7 +627,11 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :rest, :global
 
   def drag_handle_cell(assigns) do
-    assigns = assign_new(assigns, :title, fn -> gettext("Drag to reorder") end)
+    # `attr :title, default: nil` puts `:title => nil` in assigns, so
+    # `assign_new` would be a no-op. Resolve the default explicitly so
+    # callers can pass `title={nil}` (or omit it) and still get the
+    # gettext'd default for accessibility.
+    assigns = assign(assigns, :title, assigns.title || gettext("Drag to reorder"))
 
     ~H"""
     <td

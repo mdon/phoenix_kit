@@ -86,7 +86,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   attr :keep_in_dom, :boolean,
     default: false,
     doc:
-      "When `true`, the `<dialog>` element is rendered into the DOM regardless of `@show`. Visibility is driven by the `PkDialog` hook (showModal/close) via the `data-show` attribute. Suits modals whose inner content doesn't depend on context-conditional assigns (e.g. a strategy picker with a fixed list) and that benefit from instant client-side open — a trigger button can call `dialog.showModal()` locally without waiting for the server round-trip. Default is conditional rendering for backwards compat with consumers whose inner block crashes when `@show` is false (e.g. forms reading from a `nil` `@form`)."
+      "When `true`, the `<dialog>` element is rendered into the DOM regardless of `@show`. Visibility is driven by the `PkDialog` hook (showModal/close) via the `data-show` attribute. Suits modals whose inner content doesn't depend on context-conditional assigns (e.g. a strategy picker with a fixed list) and that benefit from instant client-side open — a trigger button can call `dialog.showModal()` locally without waiting for the server round-trip. Default is conditional rendering for backwards compat with consumers whose inner block crashes when `@show` is false (e.g. forms reading from a `nil` `@form`). **ID collision risk:** kept-in-DOM modals persist across LV renders, so an auto-derived id (from `on_close`) is far more likely to collide with a sibling modal sharing the same close event. Pass an explicit `id=` when using `keep_in_dom` to be safe."
 
   slot :title
   slot :inner_block, required: true

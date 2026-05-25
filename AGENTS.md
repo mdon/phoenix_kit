@@ -119,6 +119,22 @@ A corrupted JSONB `provider`/`name` cannot leak into a new key — no public wri
 - `<.input>` also has `wrapper_class` → goes to the outer `<div phx-feedback-for>`. (Aligned with Phoenix 1.7 generator: `class` → input element, not wrapper.)
 - Prefer FormField binding: `<.input field={@form[:email]} type="email" label="Email" />`. Raw `name=`/`value=` still works for dynamic field names.
 
+## Core List-UI Components
+
+The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, strategy reorder, load-more pagination. All live in `lib/phoenix_kit_web/components/core/`. Reference call sites: `phoenix_kit_projects`' `projects_live.ex` / `tasks_live.ex` / `templates_live.ex`.
+
+**Sortable** — `<.sortable_tbody enabled={…} event="reorder_x" id="…">` + `<.sortable_row item_id={uuid}>`. Replaces the bespoke `<tbody phx-hook="SortableGrid" data-sortable-* …>` boilerplate. `enabled={false}` omits the hook so DnD turns off cleanly when sort_by ≠ position. Pair with `<.drag_handle_cell>` + `<.drag_handle_header_cell>` (in `table_default.ex`) — those render the grip icon and the `.pk-drag-handle` selector the SortableGrid hook reads. Rows inherit a `group` Tailwind marker so the handle can hide-until-row-hover via `group-hover:`.
+
+**BulkSelect** — `<.bulk_select_scope id="…" total_count={…}>` wraps the table and attaches the `BulkSelectScope` JS hook (in `priv/static/assets/phoenix_kit.js`). Selection lives client-side; the hook reads it at action-button-click time and pushes `%{"uuids" => […]}` to the LV. Three children: `<.bulk_select_header_cell>` (tri-state checkbox), `<.bulk_select_cell value={uuid}>` (per-row), and `<.bulk_actions_toolbar on_open_reorder="…" on_bulk_delete={…} reorder_dialog_id={…}>` (the floating toolbar with Reorder / Delete / Clear). Optional `reorder_dialog_id` wires instant client-side dialog open (skip the LV round-trip) when paired with a kept-in-DOM `<.reorder_modal>`. Consumer LVs collapse 0–1 captured uuids to `:all` in `open_reorder_modal` — a single-row "reorder" is a no-op and the bulk-toolbar label reads "Reorder all" in that state.
+
+**ReorderModal** — `<.reorder_modal show on_close on_apply selected_count total_count strategies={[{value, label}…]} noun_singular noun_plural>` renders a strategy-picker dialog. Wraps `<.modal keep_in_dom={true}>` so the toolbar's `data-bulk-opens-dialog` can open it locally. The consumer LV owns the strategy whitelist (use a hardcoded `%{"name_asc" => :name_asc, …}` map for string→atom — never `String.to_existing_atom` on attacker input). Apply button carries `phx-disable-with` automatically.
+
+**Modal — `keep_in_dom` mode** — `<.modal keep_in_dom>` renders the `<dialog>` regardless of `@show`; visibility flips via `data-show` and the `PkDialog` hook calls `showModal()/close()`. Suits modals whose inner block is static (strategy picker, confirmation with fixed copy). Default conditional render is preserved for forms whose `@form` is `nil` until opened. **Pass an explicit `id=` when using `keep_in_dom`** — the auto-derived id (`pk-modal-<on_close>`) collides if two kept-in-DOM modals share the same close-event name.
+
+**SortSelector** — `<.sort_selector sort_by sort_dir options manual_field>` is the field-picker `<.select>` + direction-toggle button used in toolbars. Race-free by design: the select sends only `sort_by`, the arrow sends only `sort_dir`; the LV handler derives the missing half from `socket.assigns`. `manual_field={:position}` hides the direction toggle when the manual-order field is active (direction is meaningless when each row has a user-specified position).
+
+**Pagination — `<.load_more>`** — `<.load_more loaded={length(@items)} total={@total_count} on_load_more="load_more" noun_plural="…">` renders a status line + Load more button. Hides entirely at `total=0`; button hides at `loaded>=total`. Suits embeddable LVs (no URL state) and DnD-aware lists where rows append (don't replace) on each click — selection persists across loads because rows stay in the DOM. Page-numbered `<.pagination>` is the alternative for standalone admin pages with deep-linkable state.
+
 ## Multilang Form Components
 
 `PhoenixKitWeb.Components.MultilangForm` — `<.multilang_tabs>`, `<.multilang_fields_wrapper>`, `<.translatable_field>`, plus helpers `mount_multilang/1`, `handle_switch_language/2`, `merge_translatable_params/4`. Forms `import` it and call `mount_multilang(socket)` in `mount/3`.
@@ -392,11 +408,11 @@ Workspace-tracked items not ready for inline `# TODO` in `lib/`.
 
 ### Component test coverage for `phoenix_kit_web/components/core/`
 
-`test/phoenix_kit_web/components/core/` doesn't exist yet. Components needing `Phoenix.LiveViewTest`-style coverage:
+Partial coverage exists in `test/phoenix_kit_web/components/core/` — written for the modal-to-native-dialog sweep. Remaining gaps:
 
 - `<.draggable_list>` — three-axis coverage: (a) `:draggable=false` → no SortableJS hook, no `cursor-grab`; (b) `:draggable=true, :sortable_handle=nil` → SortableJS hook + full-item `cursor-grab`; (c) `:draggable=true, :sortable_handle=".pk-drag-handle"` → SortableJS hook + `data-sortable-handle` attribute set, **no** `cursor-grab` on the item wrapper (caller's responsibility). All three branches need rendered-HTML asserts.
-- `<.table_default>` — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Both branches need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
+- `<.table_default>` card-view branch — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
 - `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch.
-- `<.flash>`, `<.modal>` if complexity has grown.
+- `<.flash>` if complexity has grown.
 
-Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Out of scope for that PR; fold into a future component-coverage sweep.
+Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle). Fold the rest into a future component-coverage sweep.
