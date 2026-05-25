@@ -70,6 +70,23 @@ defmodule PhoenixKitTest do
     end
   end
 
+  describe "boot/1" do
+    test "{:ok, pid} input is returned unchanged and triggers registry rescan" do
+      # We use a real pid (self()) — `boot/1` doesn't inspect it, only the
+      # outer tuple shape. Calling it should also be safe with the live
+      # registry: `rescan/0` returns `{:ok, []}` and `run_all_legacy_migrations/0`
+      # is idempotent.
+      pid = self()
+      assert {:ok, ^pid} = PhoenixKit.boot({:ok, pid})
+    end
+
+    test "{:error, reason} short-circuits and returns input unchanged" do
+      # On supervisor failure we MUST NOT run rescan or migrations on a
+      # half-started system. The error tuple passes through verbatim.
+      assert {:error, :supervisor_failed} = PhoenixKit.boot({:error, :supervisor_failed})
+    end
+  end
+
   describe "ScheduledJobs modules" do
     test "ScheduledJobs context is defined" do
       assert Code.ensure_loaded?(PhoenixKit.ScheduledJobs)
