@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
@@ -61,7 +62,10 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
   attr :show_toggle, :boolean, default: true, doc: "Whether to show the toggle switch"
   attr :toggle_disabled, :boolean, default: false, doc: "Whether the toggle is disabled"
   attr :toggle_hint, :string, default: nil, doc: "Hint text shown under the toggle when disabled"
-  attr :stats_title, :string, default: "Current Configuration", doc: "Title for the stats section"
+
+  attr :stats_title, :string,
+    default: nil,
+    doc: "Title for the stats section. Defaults to translated \"Current Configuration\"."
 
   slot(:status_badges, required: true, doc: "Status badges to display (left side of actions row)")
 
@@ -123,7 +127,7 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
             {render_slot(@status_badges)}
           </div>
 
-          <div class="card-actions relative z-10 grow min-w-0">
+          <div class="card-actions relative z-10 grow min-w-0 [&_.btn]:whitespace-normal [&_.btn]:text-left [&_.btn]:h-auto [&_.btn]:min-h-fit [&_.btn]:py-2 [&_.btn]:leading-tight">
             {render_slot(@action_buttons)}
           </div>
         </div>
@@ -131,7 +135,9 @@ defmodule PhoenixKitWeb.Components.Core.ModuleCard do
         <%!-- Optional Stats Section --%>
         <%= if @enabled && @stats != [] do %>
           <div class="bg-base-200 rounded-lg p-3 mt-4">
-            <h4 class="text-sm font-medium text-base-content mb-2">{@stats_title}</h4>
+            <h4 class="text-sm font-medium text-base-content mb-2">
+              {@stats_title || gettext("Current Configuration")}
+            </h4>
             {render_slot(@stats)}
           </div>
         <% end %>

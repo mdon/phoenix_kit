@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} Modules"
+  page_title={"#{@project_title} #{gettext("Modules")}"}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -668,8 +668,8 @@
       <%!-- External Modules (auto-discovered) --%>
       <%= for ext <- @external_modules, ext.key in @accessible_modules do %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title={ext.name}
-          description={ext.description}
+          title={Gettext.gettext(PhoenixKitWeb.Gettext, ext.name)}
+          description={Gettext.gettext(PhoenixKitWeb.Gettext, ext.description)}
           icon={ext.icon}
           enabled={ext.enabled}
           toggle_event="toggle_module"
@@ -742,18 +742,17 @@
             </div>
           </:action_buttons>
 
-          <:stats>
-            <%!-- Render stats from module_stats callback if available --%>
-            <%= if function_exported?(ext.module, :module_stats, 0) do %>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <%= for stat <- ext.module.module_stats() do %>
-                  <div>
-                    <span class="text-base-content/70">{stat.label}:</span>
-                    <span class="font-medium">{stat.value}</span>
-                  </div>
-                <% end %>
-              </div>
-            <% end %>
+          <:stats :if={function_exported?(ext.module, :module_stats, 0)}>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <%= for stat <- ext.module.module_stats() do %>
+                <div>
+                  <span class="text-base-content/70">
+                    {Gettext.gettext(PhoenixKitWeb.Gettext, stat.label)}:
+                  </span>
+                  <span class="font-medium">{stat.value}</span>
+                </div>
+              <% end %>
+            </div>
           </:stats>
         </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
       <% end %>
@@ -772,8 +771,12 @@
                 <div class="flex items-center gap-3">
                   <.icon name={pkg.icon} class="w-8 h-8 opacity-60" />
                   <div class="flex-1">
-                    <h3 class="card-title text-base-content/70">{pkg.name}</h3>
-                    <p class="text-sm text-base-content/50">{pkg.description}</p>
+                    <h3 class="card-title text-base-content/70">
+                      {Gettext.gettext(PhoenixKitWeb.Gettext, pkg.name)}
+                    </h3>
+                    <p class="text-sm text-base-content/50">
+                      {Gettext.gettext(PhoenixKitWeb.Gettext, pkg.description)}
+                    </p>
                   </div>
                 </div>
 

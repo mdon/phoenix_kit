@@ -1243,12 +1243,12 @@ msgstr ""
 msgid "Legal Settings"
 msgstr "Configuración legal"
 
-#: lib/phoenix_kit_web/live/modules.ex:239
+#: lib/phoenix_kit_web/live/modules.ex:335
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.ex:240
+#: lib/phoenix_kit_web/live/modules.ex:336
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr ""
@@ -1511,7 +1511,7 @@ msgstr ""
 msgid "PhoenixKit Version"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.ex:226
+#: lib/phoenix_kit_web/live/modules.ex:322
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr ""
@@ -2199,7 +2199,7 @@ msgstr "Habilitado"
 msgid "Expires"
 msgstr "Sesiones Expiradas"
 
-#: lib/phoenix_kit_web/live/modules.ex:257
+#: lib/phoenix_kit_web/live/modules.ex:353
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr ""
@@ -3019,6 +3019,7 @@ msgid "Leave empty to preserve original format, or specify jpg/png/webp/mp4"
 msgstr ""
 
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:73
+#: lib/phoenix_kit_web/live/modules.ex:110
 #, elixir-autogen, elixir-format
 msgid "Legal"
 msgstr "Información legal"
@@ -4777,6 +4778,7 @@ msgstr ""
 
 #: lib/modules/storage/web/health.html.heex:199
 #: lib/modules/storage/web/health.html.heex:221
+#: lib/phoenix_kit_web/live/modules.ex:111
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Locations"
 msgstr ""
@@ -5930,7 +5932,7 @@ msgstr ""
 msgid "Activate maintenance mode in settings to block non-admin users"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:795
+#: lib/phoenix_kit_web/live/modules.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "Add to mix.exs"
 msgstr ""
@@ -5950,7 +5952,7 @@ msgstr ""
 msgid "Available"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:766
+#: lib/phoenix_kit_web/live/modules.html.heex:765
 #, elixir-autogen, elixir-format
 msgid "Available Packages"
 msgstr ""
@@ -5966,6 +5968,7 @@ msgid "Body Saved"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:209
+#: lib/phoenix_kit_web/live/modules.ex:102
 #: lib/phoenix_kit_web/live/modules.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Comments"
@@ -5981,6 +5984,7 @@ msgstr ""
 msgid "Core System"
 msgstr "Sistema de Roles"
 
+#: lib/phoenix_kit_web/live/modules.ex:103
 #: lib/phoenix_kit_web/live/modules.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Customer Support"
@@ -6001,7 +6005,7 @@ msgstr ""
 msgid "Distributed file storage system with multi-location redundancy and automatic failover"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:813
+#: lib/phoenix_kit_web/live/modules.html.heex:816
 #, elixir-autogen, elixir-format
 msgid "Each module can be enabled or disabled using the toggle switches above. Click \"Configure\" to access detailed settings for each module on dedicated pages."
 msgstr ""
@@ -6132,11 +6136,12 @@ msgstr ""
 msgid "Message"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:811
+#: lib/phoenix_kit_web/live/modules.html.heex:814
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Module Management"
 msgstr "Gestión de roles"
 
+#: lib/phoenix_kit_web/live/modules.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Modules"
@@ -6152,7 +6157,7 @@ msgstr ""
 msgid "Noindex"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:783
+#: lib/phoenix_kit_web/live/modules.html.heex:786
 #, elixir-autogen, elixir-format
 msgid "Not installed"
 msgstr ""
@@ -6475,18 +6480,21 @@ msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:117
 #: lib/modules/sitemap/web/settings.html.heex:201
+#: lib/phoenix_kit_web/live/modules.ex:115
 #, elixir-autogen, fuzzy
 msgid "Publishing"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:122
 #: lib/modules/sitemap/web/settings.html.heex:259
+#: lib/phoenix_kit_web/live/modules.ex:108
 #, elixir-autogen
 msgid "Entities"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:127
 #: lib/modules/sitemap/web/settings.html.heex:307
+#: lib/phoenix_kit_web/live/modules.ex:113
 #, elixir-autogen
 msgid "Posts"
 msgstr ""
@@ -8332,4 +8340,219 @@ msgstr ""
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:248
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Authorization"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:98
+#, elixir-autogen, elixir-format
+msgid "AI"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:124
+#, elixir-autogen, elixir-format
+msgid "AI endpoints, prompts, and usage tracking"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:125
+#, elixir-autogen, elixir-format
+msgid "AI module for PhoenixKit — endpoints, prompts, completions, and usage tracking"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:120
+#, elixir-autogen, elixir-format
+msgid "Ai"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:99
+#, elixir-autogen, elixir-format
+msgid "Billing"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:128
+#, elixir-autogen, elixir-format
+msgid "Billing module for PhoenixKit — payments, subscriptions, invoices"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:129
+#, elixir-autogen, elixir-format
+msgid "Blog posts, categories, and content publishing"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:100
+#, elixir-autogen, elixir-format
+msgid "CRM"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:137
+#, elixir-autogen, elixir-format
+msgid "CRM module for PhoenixKit — organization accounts, role-scoped user views, and per-user column configuration."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:101
+#, elixir-autogen, elixir-format
+msgid "Catalogue"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:130
+#, elixir-autogen, elixir-format
+msgid "Catalogue module for PhoenixKit — manufacturers, suppliers, and product catalogues."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:133
+#, elixir-autogen, elixir-format
+msgid "Comment moderation, threading, and reactions across all content types"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:134
+#, elixir-autogen, elixir-format
+msgid "Comments module for PhoenixKit — polymorphic threading, likes/dislikes, and moderation"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:121
+#, elixir-autogen, elixir-format
+msgid "Crm"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/module_card.ex:139
+#, elixir-autogen, elixir-format
+msgid "Current Configuration"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:140
+#, elixir-autogen, elixir-format
+msgid "Customer support ticketing module for PhoenixKit"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:141
+#, elixir-autogen, elixir-format
+msgid "Database-backed CMS pages and multi-language content"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:104
+#, elixir-autogen, elixir-format
+msgid "Document Creator"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:142
+#, elixir-autogen, elixir-format
+msgid "Document Creator module for PhoenixKit — document templates and PDF generation via Google Docs"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:105
+#, elixir-autogen, elixir-format
+msgid "E-Commerce"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:145
+#, elixir-autogen, elixir-format
+msgid "E-commerce module for PhoenixKit — products, categories, cart, checkout"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:106
+#, elixir-autogen, elixir-format
+msgid "Ecommerce"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:146
+#, elixir-autogen, elixir-format
+msgid "Email tracking, analytics, and AWS SES integration for PhoenixKit"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:107
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Emails"
+msgstr "Correo Electrónico"
+
+#: lib/phoenix_kit_web/live/modules.ex:147
+#, elixir-autogen, elixir-format
+msgid "Entities module for PhoenixKit — dynamic content types with flexible field schemas"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:178
+#, elixir-autogen, elixir-format, fuzzy
+msgid "External module"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:109
+#, elixir-autogen, elixir-format
+msgid "Hello World"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:150
+#, elixir-autogen, elixir-format
+msgid "Hello World demo module for PhoenixKit — use as a template for your own plugins"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:153
+#, elixir-autogen, elixir-format
+msgid "Legal compliance module for PhoenixKit — GDPR/CCPA legal pages, cookie consent, consent logging"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:156
+#, elixir-autogen, elixir-format
+msgid "Locations module for PhoenixKit — manage physical locations with custom types."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:112
+#, elixir-autogen, elixir-format
+msgid "Newsletters"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:159
+#, elixir-autogen, elixir-format
+msgid "Newsletters module for PhoenixKit — email broadcasts and subscription management"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:162
+#, elixir-autogen, elixir-format
+msgid "Peer-to-peer data sync module for PhoenixKit"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:163
+#, elixir-autogen, elixir-format
+msgid "Peer-to-peer data synchronization and replication"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:164
+#, elixir-autogen, elixir-format
+msgid "Posts module for PhoenixKit — blog posts, tags, groups, likes, media, and scheduling"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:114
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Projects"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:167
+#, elixir-autogen, elixir-format
+msgid "Projects module for PhoenixKit — projects, reusable tasks, assignments, and dependencies."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:170
+#, elixir-autogen, elixir-format
+msgid "Publishing module for PhoenixKit — database-backed CMS with multi-language support"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:116
+#, elixir-autogen, elixir-format
+msgid "Staff"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:173
+#, elixir-autogen, elixir-format
+msgid "Staff module for PhoenixKit — departments, teams, and people."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:117
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sync"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "User Connections"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules.ex:174
+#, elixir-autogen, elixir-format
+msgid "User connections module for PhoenixKit — follows, mutual connections, and blocking"
 msgstr ""
