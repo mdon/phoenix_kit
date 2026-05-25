@@ -970,7 +970,7 @@ msgstr "Описание"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:173
 #: lib/phoenix_kit_web/live/settings/users.html.heex:384
 #: lib/phoenix_kit_web/live/settings/users.html.heex:456
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Disabled"
 msgstr "Отключено"
 
@@ -1647,9 +1647,9 @@ msgid "Published"
 msgstr "Опубликовано"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:268
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registered"
-msgstr "Зарегистрированные аккаунты"
+msgstr "Зарегистрирован"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:290
 #, elixir-autogen, elixir-format
@@ -1729,7 +1729,7 @@ msgstr "Роль \"%{role_name}\" удалена"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:4
 #: lib/phoenix_kit_web/live/users/roles.html.heex:12
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Role Management"
 msgstr "Управление ролями"
 
@@ -1805,9 +1805,9 @@ msgid "Save Company Info"
 msgstr "Сохранить информацию о компании"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:444
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Save Permissions"
-msgstr "Активные сессии"
+msgstr "Сохранить разрешения"
 
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:90
 #, elixir-autogen, elixir-format
@@ -1951,9 +1951,9 @@ msgstr "Системная роль"
 
 ## Statistics cards
 #: lib/phoenix_kit_web/live/users/roles.html.heex:274
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "System Roles"
-msgstr "Владельцы системы"
+msgstr "Системные роли"
 
 #: lib/phoenix_kit_web/live/users/roles.ex:359
 #, elixir-autogen, elixir-format
@@ -1994,9 +1994,9 @@ msgstr "Часовой пояс"
 #: lib/phoenix_kit_web/live/modules.html.heex:260
 #: lib/phoenix_kit_web/live/modules.html.heex:332
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:181
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Total"
-msgstr "Всего пользователей"
+msgstr "Итого"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:300
 #, elixir-autogen, elixir-format
@@ -2208,16 +2208,16 @@ msgstr "изменено"
 
 ## Navigation menu items
 #: lib/phoenix_kit_web/live/users/roles.html.heex:201
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "users"
-msgstr "Пользователи"
+msgstr "пользователей"
 
 #: lib/phoenix_kit_web/live/users/users.ex:264
 #: lib/phoenix_kit_web/live/users/users.html.heex:463
 #: lib/phoenix_kit_web/live/users/users.html.heex:545
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Activate"
-msgstr "Активно"
+msgstr "Активировать"
 
 #: lib/phoenix_kit_web/live/activity/index.html.heex:105
 #: lib/phoenix_kit_web/live/users/users.html.heex:145
@@ -2251,7 +2251,7 @@ msgstr "Удалить бакет"
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:130
 #: lib/phoenix_kit_web/live/settings/users.html.heex:477
 #: lib/phoenix_kit_web/live/settings/users.html.heex:521
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Disable"
 msgstr "Отключить"
 
@@ -2269,9 +2269,9 @@ msgstr "Изменить бакет"
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:654
 #: lib/phoenix_kit_web/live/settings/users.html.heex:478
 #: lib/phoenix_kit_web/live/settings/users.html.heex:523
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enable"
-msgstr "Включено"
+msgstr "Включить"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:138
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:230
@@ -2464,12 +2464,12 @@ msgstr "Добавить бакет"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:410
 #: lib/phoenix_kit_web/live/settings/users.html.heex:574
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add Custom Field"
 msgstr "Добавить пользовательское поле"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:358
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add First Field"
 msgstr "Добавить первое поле"
 
@@ -2506,9 +2506,9 @@ msgstr "Панель управления"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:392
 #: lib/phoenix_kit_web/live/settings/users.html.heex:466
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Admin Only"
-msgstr "Только администратор"
+msgstr "Только для администраторов"
 
 #: lib/modules/storage/web/settings.html.heex:533
 #, elixir-autogen, elixir-format
@@ -2841,9 +2841,9 @@ msgid "Currently in use"
 msgstr "В настоящее время онлайн"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:333
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Custom User Fields"
-msgstr "Пользовательские поля пользователя"
+msgstr "Пользовательские поля"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:377
 #, elixir-autogen, elixir-format
@@ -2881,9 +2881,9 @@ msgid "Distribute files across multiple remote servers and datacenters"
 msgstr "Распределяйте файлы по нескольким удалённым серверам и датацентрам"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:573
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Edit Custom Field"
-msgstr "Изменить пользовательское поле"
+msgstr "Редактировать пользовательское поле"
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:242
 #, elixir-autogen, elixir-format
@@ -2951,12 +2951,12 @@ msgid "Facebook Sign-In"
 msgstr "Вход через Facebook"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:416
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Field"
 msgstr "Поле"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:581
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Field Key"
 msgstr "Ключ поля"
 
@@ -3334,13 +3334,13 @@ msgid "Redundancy Copies"
 msgstr "Копии резервирования"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:70
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration Settings"
 msgstr "Настройки регистрации"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:138
 #: lib/phoenix_kit_web/live/settings/users.html.heex:163
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration:"
 msgstr "Регистрация:"
 
@@ -3355,7 +3355,7 @@ msgid "Remote Servers"
 msgstr "Удалённые серверы"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:647
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Required field"
 msgstr "Обязательное поле"
 
@@ -3390,7 +3390,7 @@ msgstr "Директива robots"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:126
 #: lib/phoenix_kit_web/live/users/roles.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Role actions"
 msgstr "Действия с ролью"
 
@@ -3415,7 +3415,7 @@ msgid "Save Authorization Settings"
 msgstr "Сохранить настройки авторизации"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:561
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Save User Settings"
 msgstr "Сохранить настройки пользователей"
 
@@ -3436,7 +3436,7 @@ msgstr "Сохранить настройки пользователей"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:237
 #: lib/phoenix_kit_web/live/settings/users.html.heex:296
 #: lib/phoenix_kit_web/live/settings/users.html.heex:302
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Saved:"
 msgstr "Сохранено:"
 
@@ -3488,7 +3488,7 @@ msgstr "Выберите провайдера..."
 #: lib/phoenix_kit_web/live/settings.html.heex:437
 #: lib/phoenix_kit_web/live/settings/users.html.heex:225
 #: lib/phoenix_kit_web/live/settings/users.html.heex:290
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Selected:"
 msgstr "Выбрано:"
 
@@ -3865,7 +3865,7 @@ msgid "mode"
 msgstr "режим"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:687
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "option(s)"
 msgstr "вариант(ов)"
 
@@ -4202,7 +4202,7 @@ msgid "Are you sure you want to disconnect?"
 msgstr "Вы уверены, что хотите отключиться?"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:603
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove this member?"
 msgstr "Вы уверены, что хотите удалить этого участника?"
 
@@ -4395,7 +4395,7 @@ msgstr "Подключайте внешние сервисы для исполь
 #: lib/phoenix_kit_web/live/settings/integrations.ex:165
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:116
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:207
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Connected"
 msgstr "Подключено"
 
@@ -5641,9 +5641,9 @@ msgid "invited you to join their organization."
 msgstr "пригласил вас вступить в их организацию."
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:107
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "roles"
-msgstr "Роли"
+msgstr "ролей"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:723
 #, elixir-autogen, elixir-format

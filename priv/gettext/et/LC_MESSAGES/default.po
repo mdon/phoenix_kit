@@ -2469,12 +2469,12 @@ msgstr "Lisa bucket"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:410
 #: lib/phoenix_kit_web/live/settings/users.html.heex:574
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add Custom Field"
 msgstr "Lisa kohandatud väli"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:358
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add First Field"
 msgstr "Lisa esimene väli"
 
@@ -2519,7 +2519,7 @@ msgstr "Administraatori armatuurlaud"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:392
 #: lib/phoenix_kit_web/live/settings/users.html.heex:466
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Admin Only"
 msgstr "Ainult administraatorile"
 
@@ -2854,7 +2854,7 @@ msgid "Currently in use"
 msgstr "Praegu kasutusel"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:333
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Custom User Fields"
 msgstr "Kohandatud kasutajaväljad"
 
@@ -2894,7 +2894,7 @@ msgid "Distribute files across multiple remote servers and datacenters"
 msgstr "Jaota failid mitme kaugserveri ja andmekeskuse vahel"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:573
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Edit Custom Field"
 msgstr "Muuda kohandatud välja"
 
@@ -2964,12 +2964,12 @@ msgid "Facebook Sign-In"
 msgstr "Facebook sisselogimine"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:416
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Field"
 msgstr "Väli"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:581
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Field Key"
 msgstr "Välja võti"
 
@@ -3347,13 +3347,13 @@ msgid "Redundancy Copies"
 msgstr "Redundantsuse koopiad"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:70
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration Settings"
 msgstr "Registreerimise seaded"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:138
 #: lib/phoenix_kit_web/live/settings/users.html.heex:163
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration:"
 msgstr "Registreerimine:"
 
@@ -3368,7 +3368,7 @@ msgid "Remote Servers"
 msgstr "Kaugserverid"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:647
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Required field"
 msgstr "Kohustuslik väli"
 
@@ -3403,7 +3403,7 @@ msgstr "Robotite direktiiv"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:126
 #: lib/phoenix_kit_web/live/users/roles.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Role actions"
 msgstr "Rolli tegevused"
 
@@ -3428,7 +3428,7 @@ msgid "Save Authorization Settings"
 msgstr "Salvesta volitamise seaded"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:561
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Save User Settings"
 msgstr "Salvesta kasutaja seaded"
 
@@ -3449,7 +3449,7 @@ msgstr "Salvesta kasutaja seaded"
 #: lib/phoenix_kit_web/live/settings/users.html.heex:237
 #: lib/phoenix_kit_web/live/settings/users.html.heex:296
 #: lib/phoenix_kit_web/live/settings/users.html.heex:302
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Saved:"
 msgstr "Salvestatud:"
 
@@ -3501,7 +3501,7 @@ msgstr "Vali teenusepakkuja..."
 #: lib/phoenix_kit_web/live/settings.html.heex:437
 #: lib/phoenix_kit_web/live/settings/users.html.heex:225
 #: lib/phoenix_kit_web/live/settings/users.html.heex:290
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Selected:"
 msgstr "Valitud:"
 
@@ -3878,7 +3878,7 @@ msgid "mode"
 msgstr "režiim"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:687
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "option(s)"
 msgstr "valik(ud)"
 
@@ -4215,7 +4215,7 @@ msgid "Are you sure you want to disconnect?"
 msgstr "Kas oled kindel, et soovid lahti ühendada?"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:603
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove this member?"
 msgstr "Kas oled kindel, et soovid selle liikme eemaldada?"
 
@@ -4408,7 +4408,7 @@ msgstr "Ühenda välised teenused kasutamiseks kõigis moodulites"
 #: lib/phoenix_kit_web/live/settings/integrations.ex:165
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:116
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:207
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Connected"
 msgstr "Ühendatud"
 
@@ -5654,7 +5654,7 @@ msgid "invited you to join their organization."
 msgstr "kutsus teid oma organisatsiooniga liituma."
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:107
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "roles"
 msgstr "rolli"
 
