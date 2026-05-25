@@ -8,7 +8,6 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   - Notes tab: Admin notes about the user
   """
   use PhoenixKitWeb, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   @compile {:no_warn_undefined, PhoenixKitUserConnections}
 
@@ -353,7 +352,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
-  defp format_timezone(nil), do: "Not set"
+  defp format_timezone(nil), do: gettext("Not set")
 
   defp format_timezone(offset) when is_binary(offset) do
     case Integer.parse(offset) do

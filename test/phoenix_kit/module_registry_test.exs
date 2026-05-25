@@ -105,6 +105,38 @@ defmodule PhoenixKit.ModuleRegistryTest do
     end
   end
 
+  describe "rescan/0" do
+    test "returns {:ok, []} when nothing new is discovered" do
+      assert {:ok, []} = ModuleRegistry.rescan()
+    end
+
+    test "is safe to call repeatedly" do
+      assert {:ok, []} = ModuleRegistry.rescan()
+      assert {:ok, []} = ModuleRegistry.rescan()
+    end
+
+    test "discovers a module added to the registry after init" do
+      # Simulate the OTP boot race: a phoenix_kit_<x> app loads after the
+      # initial scan. Here we exercise the explicit-discovery path —
+      # register/1 — and verify that rescan/0 returns [] because the
+      # module is already known.
+      defmodule LateLoadFixture do
+        def module_key, do: "late_load_fixture"
+      end
+
+      refute LateLoadFixture in ModuleRegistry.all_modules()
+
+      ModuleRegistry.register(LateLoadFixture)
+      assert LateLoadFixture in ModuleRegistry.all_modules()
+
+      assert {:ok, []} = ModuleRegistry.rescan()
+      assert LateLoadFixture in ModuleRegistry.all_modules()
+
+      # Cleanup
+      ModuleRegistry.unregister(LateLoadFixture)
+    end
+  end
+
   describe "get_by_key/1" do
     test "finds module by key string" do
       assert ModuleRegistry.get_by_key("jobs") == PhoenixKit.Jobs

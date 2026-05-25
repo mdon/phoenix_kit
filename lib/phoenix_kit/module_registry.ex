@@ -64,6 +64,28 @@ defmodule PhoenixKit.ModuleRegistry do
     GenServer.call(__MODULE__, {:unregister, module})
   end
 
+  @doc """
+  Rescan beam files and absorb any external modules that weren't known
+  at registry init.
+
+  Returns `{:ok, new_modules}` — the freshly-absorbed module atoms (often
+  `[]` after the first call). Safe to call repeatedly.
+
+  Intended use: parent app calls this from `Application.start/2` after
+  `Supervisor.start_link/2` so late-loading `:phoenix_kit_<x>` deps
+  whose beams are only available after PhoenixKit's own supervision tree
+  is up get picked up deterministically — without timer-based polling.
+  `mix phoenix_kit.install` and `mix phoenix_kit.update` wire this call
+  in automatically; existing apps can call it manually.
+
+  Also useful in dev for hot-reload recovery after recompiling a module
+  package, or in tests that dynamically load fixture modules.
+  """
+  @spec rescan() :: {:ok, [module()]}
+  def rescan do
+    GenServer.call(__MODULE__, :rescan)
+  end
+
   @doc "Returns all registered module atoms."
   @spec all_modules() :: [module()]
   def all_modules do
@@ -340,11 +362,31 @@ defmodule PhoenixKit.ModuleRegistry do
     end
   end
 
-  @impl true
   def handle_call({:unregister, module}, _from, %{modules: modules} = state) do
     updated = List.delete(modules, module)
     :persistent_term.put(@pterm_key, updated)
     {:reply, :ok, %{state | modules: updated}}
+  end
+
+  def handle_call(:rescan, _from, %{modules: known} = state) do
+    current = load_modules()
+
+    case current -- known do
+      [] ->
+        {:reply, {:ok, []}, state}
+
+      new_modules ->
+        Enum.each(new_modules, &validate_module(&1, known))
+        updated = known ++ new_modules
+        :persistent_term.put(@pterm_key, updated)
+
+        Logger.info(
+          "[ModuleRegistry] Late-discovered #{length(new_modules)} module(s): " <>
+            inspect(new_modules)
+        )
+
+        {:reply, {:ok, new_modules}, %{state | modules: updated}}
+    end
   end
 
   # ============================================================================

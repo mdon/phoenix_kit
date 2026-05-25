@@ -86,6 +86,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       ApplicationSupervisor,
       AssetRebuild,
       BasicConfiguration,
+      BootHook,
       Common,
       CssIntegration,
       DbConnectionCheck,
@@ -136,6 +137,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         igniter
         |> BasicConfiguration.add_basic_config()
         |> ApplicationSupervisor.add_supervisor()
+        |> BootHook.add_boot_hook()
         |> perform_igniter_update(opts)
       end
     end

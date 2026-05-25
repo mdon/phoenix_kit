@@ -84,6 +84,102 @@ defmodule PhoenixKitWeb.Live.Modules do
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   # ============================================================================
+  # Gettext registration — module names and descriptions are loaded dynamically
+  # from each module's module_name/0 and permission_metadata/0 callbacks (or
+  # from Hex.pm metadata for not-installed packages), so the strings are not
+  # visible to `mix gettext.extract`. We register every known string here via
+  # gettext_noop/1 so translators can localize the Modules overview page.
+  # ============================================================================
+  @compile {:no_warn_undefined, :_register_module_translations}
+  @doc false
+  def _register_module_translations do
+    # Installed module names (module_name/0 results)
+    [
+      gettext_noop("AI"),
+      gettext_noop("Billing"),
+      gettext_noop("CRM"),
+      gettext_noop("Catalogue"),
+      gettext_noop("Comments"),
+      gettext_noop("Customer Support"),
+      gettext_noop("Document Creator"),
+      gettext_noop("E-Commerce"),
+      gettext_noop("Ecommerce"),
+      gettext_noop("Emails"),
+      gettext_noop("Entities"),
+      gettext_noop("Hello World"),
+      gettext_noop("Legal"),
+      gettext_noop("Locations"),
+      gettext_noop("Newsletters"),
+      gettext_noop("Posts"),
+      gettext_noop("Projects"),
+      gettext_noop("Publishing"),
+      gettext_noop("Staff"),
+      gettext_noop("Sync"),
+      gettext_noop("User Connections"),
+      # Hex humanize variants (used by Available Packages section)
+      gettext_noop("Ai"),
+      gettext_noop("Crm"),
+      # Module descriptions (from module_name + permission_metadata.description
+      # of installed externals AND Hex metadata for not-installed packages)
+      gettext_noop("AI endpoints, prompts, and usage tracking"),
+      gettext_noop(
+        "AI module for PhoenixKit — endpoints, prompts, completions, and usage tracking"
+      ),
+      gettext_noop("Billing module for PhoenixKit — payments, subscriptions, invoices"),
+      gettext_noop("Blog posts, categories, and content publishing"),
+      gettext_noop(
+        "Catalogue module for PhoenixKit — manufacturers, suppliers, and product catalogues."
+      ),
+      gettext_noop("Comment moderation, threading, and reactions across all content types"),
+      gettext_noop(
+        "Comments module for PhoenixKit — polymorphic threading, likes/dislikes, and moderation"
+      ),
+      gettext_noop(
+        "CRM module for PhoenixKit — organization accounts, role-scoped user views, and per-user column configuration."
+      ),
+      gettext_noop("Customer support ticketing module for PhoenixKit"),
+      gettext_noop("Database-backed CMS pages and multi-language content"),
+      gettext_noop(
+        "Document Creator module for PhoenixKit — document templates and PDF generation via Google Docs"
+      ),
+      gettext_noop("E-commerce module for PhoenixKit — products, categories, cart, checkout"),
+      gettext_noop("Email tracking, analytics, and AWS SES integration for PhoenixKit"),
+      gettext_noop(
+        "Entities module for PhoenixKit — dynamic content types with flexible field schemas"
+      ),
+      gettext_noop(
+        "Hello World demo module for PhoenixKit — use as a template for your own plugins"
+      ),
+      gettext_noop(
+        "Legal compliance module for PhoenixKit — GDPR/CCPA legal pages, cookie consent, consent logging"
+      ),
+      gettext_noop(
+        "Locations module for PhoenixKit — manage physical locations with custom types."
+      ),
+      gettext_noop(
+        "Newsletters module for PhoenixKit — email broadcasts and subscription management"
+      ),
+      gettext_noop("Peer-to-peer data sync module for PhoenixKit"),
+      gettext_noop("Peer-to-peer data synchronization and replication"),
+      gettext_noop(
+        "Posts module for PhoenixKit — blog posts, tags, groups, likes, media, and scheduling"
+      ),
+      gettext_noop(
+        "Projects module for PhoenixKit — projects, reusable tasks, assignments, and dependencies."
+      ),
+      gettext_noop(
+        "Publishing module for PhoenixKit — database-backed CMS with multi-language support"
+      ),
+      gettext_noop("Staff module for PhoenixKit — departments, teams, and people."),
+      gettext_noop(
+        "User connections module for PhoenixKit — follows, mutual connections, and blocking"
+      ),
+      # External module description fallback used when permission_metadata is missing
+      gettext_noop("External module")
+    ]
+  end
+
+  # ============================================================================
   # Helpers (used in template)
   # ============================================================================
 
