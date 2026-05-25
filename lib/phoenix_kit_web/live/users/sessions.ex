@@ -40,7 +40,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
       |> assign(:per_page, @per_page)
       |> assign(:search_query, "")
       |> assign(:filter_user_status, "all")
-      |> assign(:page_title, "Sessions")
+      |> assign(:page_title, gettext("Sessions"))
       |> assign(:project_title, project_title)
       |> assign(:current_locale, locale)
       |> assign(:show_revoke_modal, false)
@@ -133,7 +133,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
         handle_user_sessions_revoke(socket)
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Invalid revoke operation")}
+        {:noreply, put_flash(socket, :error, gettext("Invalid revoke operation"))}
     end
   end
 
@@ -142,7 +142,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
       socket
       |> load_sessions()
       |> load_stats()
-      |> put_flash(:info, "Sessions refreshed successfully")
+      |> put_flash(:info, gettext("Sessions refreshed successfully"))
 
     {:noreply, socket}
   end
@@ -154,7 +154,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
       :ok ->
         socket =
           socket
-          |> put_flash(:info, "Session revoked successfully")
+          |> put_flash(:info, gettext("Session revoked successfully"))
           |> assign(:show_revoke_modal, false)
           |> assign(:selected_session, nil)
           |> assign(:revoke_type, nil)
@@ -166,7 +166,7 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
       {:error, :not_found} ->
         socket =
           socket
-          |> put_flash(:error, "Session not found or already expired")
+          |> put_flash(:error, gettext("Session not found or already expired"))
           |> assign(:show_revoke_modal, false)
           |> load_sessions()
 
@@ -181,7 +181,15 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
 
     socket =
       socket
-      |> put_flash(:info, "#{revoked_count} session(s) revoked for user #{user.email}")
+      |> put_flash(
+        :info,
+        ngettext(
+          "1 session revoked for %{email}",
+          "%{count} sessions revoked for %{email}",
+          revoked_count,
+          email: user.email
+        )
+      )
       |> assign(:show_revoke_modal, false)
       |> assign(:selected_user, nil)
       |> assign(:revoke_type, nil)
