@@ -19,6 +19,7 @@ msgstr ""
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
 ## Dashboard page translations
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:11
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -41,6 +42,8 @@ msgid "System Information"
 msgstr "Süsteemi teave"
 
 ## Navigation menu items
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:77
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:266
 #: lib/phoenix_kit_web/live/dashboard.html.heex:29
 #: lib/phoenix_kit_web/live/users/roles.html.heex:99
 #: lib/phoenix_kit_web/live/users/roles.html.heex:166
@@ -54,6 +57,7 @@ msgstr "Kasutajad"
 msgid "User management"
 msgstr "Kasutajate haldamine"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:120
 #: lib/phoenix_kit_web/live/dashboard.html.heex:44
 #: lib/phoenix_kit_web/live/users/roles.ex:47
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:135
@@ -68,6 +72,7 @@ msgstr "Rollid"
 msgid "Role management"
 msgstr "Rollide haldamine"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:111
 #: lib/phoenix_kit_web/live/dashboard.html.heex:59
 #: lib/phoenix_kit_web/live/users/sessions.ex:43
 #, elixir-autogen
@@ -1561,6 +1566,7 @@ msgstr "Ootel"
 msgid "Permission denied"
 msgstr "Luba keelatud"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:129
 #: lib/phoenix_kit_web/live/users/permissions_matrix.ex:29
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:4
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:12
@@ -1850,6 +1856,7 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:219
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:244
 #: lib/phoenix_kit_web/live/modules.html.heex:316
@@ -3669,7 +3676,7 @@ msgstr "Sisesta valik ja vajuta Enter või klõpsa Lisa"
 ## Navigation menu items
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:225
 #: lib/phoenix_kit_web/users/user_form.html.heex:739
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User"
 msgstr "Kasutaja"
 
@@ -4661,7 +4668,7 @@ msgstr "Ühenduse eemaldamine ebaõnnestus"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:254
 #: lib/phoenix_kit_web/users/user_form.ex:336
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to remove member"
 msgstr "Liikme eemaldamine ebaõnnestus"
 
@@ -4802,6 +4809,7 @@ msgid "Header Text"
 msgstr "Pealkirja tekst"
 
 #: lib/modules/storage/web/health.html.heex:51
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:307
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Seisund"
@@ -4821,9 +4829,10 @@ msgstr "Kui meediamoodul ei tööta õigesti, kasuta seda konfiguratsiooni läht
 msgid "Integration deleted"
 msgstr "Integratsioon kustutatud"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:275
 #: lib/phoenix_kit_web/live/settings/integrations.ex:25
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:12
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "Integratsioonid"
 
@@ -5174,6 +5183,7 @@ msgstr "OpenRouter"
 msgid "Org"
 msgstr "Org"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:257
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:125
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:149
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:179
@@ -5182,19 +5192,19 @@ msgstr "Org"
 #: lib/phoenix_kit_web/users/registration.html.heex:131
 #: lib/phoenix_kit_web/users/user_form.html.heex:197
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "Organisatsioon"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:541
 #: lib/phoenix_kit_web/users/user_form.html.heex:695
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Members"
 msgstr "Organisatsiooni liikmed"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:185
 #: lib/phoenix_kit_web/users/registration.html.heex:141
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Name"
 msgstr "Organisatsiooni nimi"
 
@@ -5227,7 +5237,7 @@ msgstr "Kasutajapõhine postkast, mida juhib tegevusvoog"
 #: lib/phoenix_kit_web/live/users/users.html.heex:148
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:187
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Person"
 msgstr "Isik"
 
@@ -6243,9 +6253,10 @@ msgstr "Sõnum"
 msgid "Module Management"
 msgstr "Moodulite haldamine"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:187
 #: lib/phoenix_kit_web/live/modules.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:12
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "Moodulid"
 
@@ -6284,6 +6295,7 @@ msgstr "Avatud"
 msgid "Overview"
 msgstr "Ülevaade"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:138
 #: lib/phoenix_kit_web/live/modules.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Referral Codes"
@@ -6360,6 +6372,8 @@ msgstr "moodul peab olema lubatud. Mõned funktsioonid ei pruugi korralikult tö
 msgid "requires the"
 msgstr "nõuab, et"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:284
 #: lib/phoenix_kit_web/live/users/media.ex:39
 #: lib/phoenix_kit_web/live/users/media.html.heex:4
 #: lib/phoenix_kit_web/live/users/media.html.heex:12
@@ -8296,6 +8310,7 @@ msgstr[1] "%{count} sündmust"
 msgid "Action:"
 msgstr "Toiming:"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
 #: lib/phoenix_kit_web/live/activity/index.ex:31
 #: lib/phoenix_kit_web/live/activity/index.html.heex:4
 #: lib/phoenix_kit_web/live/activity/index.html.heex:12
@@ -8947,6 +8962,7 @@ msgstr "Vigane tühistamistehe"
 msgid "LIVE"
 msgstr "LIVE"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
 #: lib/phoenix_kit_web/live/users/live_sessions.ex:54
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:4
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:11
@@ -9228,3 +9244,8 @@ msgstr "Eelmine (←)"
 #, elixir-autogen, elixir-format
 msgid "Manage Users"
 msgstr "Halda kasutajaid"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:298
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr "Dimensioonipresetid"

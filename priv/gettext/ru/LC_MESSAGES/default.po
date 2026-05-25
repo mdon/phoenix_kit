@@ -11,6 +11,7 @@ msgstr ""
 "Language: ru\n"
 
 ## Dashboard page translations
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:11
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -33,6 +34,8 @@ msgid "System Information"
 msgstr "Системная информация"
 
 ## Navigation menu items
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:77
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:266
 #: lib/phoenix_kit_web/live/dashboard.html.heex:29
 #: lib/phoenix_kit_web/live/users/roles.html.heex:99
 #: lib/phoenix_kit_web/live/users/roles.html.heex:166
@@ -46,6 +49,7 @@ msgstr "Пользователи"
 msgid "User management"
 msgstr "Управление пользователями"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:120
 #: lib/phoenix_kit_web/live/dashboard.html.heex:44
 #: lib/phoenix_kit_web/live/users/roles.ex:47
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:135
@@ -60,6 +64,7 @@ msgstr "Роли"
 msgid "Role management"
 msgstr "Управление ролями"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:111
 #: lib/phoenix_kit_web/live/dashboard.html.heex:59
 #: lib/phoenix_kit_web/live/users/sessions.ex:43
 #, elixir-autogen
@@ -1235,7 +1240,7 @@ msgstr "Изображение"
 #: lib/phoenix_kit_web/live/users/users.ex:987
 #: lib/phoenix_kit_web/live/users/users.html.heex:313
 #: lib/phoenix_kit_web/users/user_form.html.heex:769
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Inactive"
 msgstr "Неактивен"
 
@@ -1553,6 +1558,7 @@ msgstr "Ожидает"
 msgid "Permission denied"
 msgstr "Доступ запрещён"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:129
 #: lib/phoenix_kit_web/live/users/permissions_matrix.ex:29
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:4
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:12
@@ -1842,6 +1848,7 @@ msgstr "Выберите, к каким разделам и модулям эт�
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:219
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:244
 #: lib/phoenix_kit_web/live/modules.html.heex:316
@@ -2093,9 +2100,9 @@ msgstr "Роли, определённые пользователем"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:209
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:32
 #: lib/phoenix_kit_web/users/registration.html.heex:61
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Username"
-msgstr "Управление пользователями"
+msgstr "Имя пользователя"
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:154
 #, elixir-autogen, elixir-format
@@ -2276,9 +2283,9 @@ msgstr "Включить"
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:138
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:230
 #: lib/phoenix_kit_web/users/user_form.html.heex:821
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Expires"
-msgstr "Истекшие сессии"
+msgstr "Истекает"
 
 #: lib/phoenix_kit_web/live/modules.ex:353
 #, elixir-autogen, elixir-format
@@ -3656,9 +3663,9 @@ msgstr "Введите вариант и нажмите Enter или кнопк�
 ## Navigation menu items
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:225
 #: lib/phoenix_kit_web/users/user_form.html.heex:739
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User"
-msgstr "Пользователи"
+msgstr "Пользователь"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:388
 #: lib/phoenix_kit_web/live/settings/users.html.heex:423
@@ -4648,7 +4655,7 @@ msgstr "Не удалось удалить соединение"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:254
 #: lib/phoenix_kit_web/users/user_form.ex:336
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to remove member"
 msgstr "Не удалось удалить участника"
 
@@ -4789,6 +4796,7 @@ msgid "Header Text"
 msgstr "Текст заголовка"
 
 #: lib/modules/storage/web/health.html.heex:51
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:307
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Состояние"
@@ -4808,9 +4816,10 @@ msgstr "Если ваш медиамодуль работает некоррек
 msgid "Integration deleted"
 msgstr "Интеграция удалена"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:275
 #: lib/phoenix_kit_web/live/settings/integrations.ex:25
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:12
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "Интеграции"
 
@@ -5161,6 +5170,7 @@ msgstr "OpenRouter"
 msgid "Org"
 msgstr "Орг."
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:257
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:125
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:149
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:179
@@ -5169,19 +5179,19 @@ msgstr "Орг."
 #: lib/phoenix_kit_web/users/registration.html.heex:131
 #: lib/phoenix_kit_web/users/user_form.html.heex:197
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "Организация"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:541
 #: lib/phoenix_kit_web/users/user_form.html.heex:695
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Members"
 msgstr "Участники организации"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:185
 #: lib/phoenix_kit_web/users/registration.html.heex:141
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Organization Name"
 msgstr "Название организации"
 
@@ -5214,7 +5224,7 @@ msgstr "Персональный почтовый ящик, управляемы
 #: lib/phoenix_kit_web/live/users/users.html.heex:148
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:187
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Person"
 msgstr "Физическое лицо"
 
@@ -6230,9 +6240,10 @@ msgstr "Сообщение"
 msgid "Module Management"
 msgstr "Управление модулями"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:187
 #: lib/phoenix_kit_web/live/modules.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:12
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "Модули"
 
@@ -6271,6 +6282,7 @@ msgstr "Открытых"
 msgid "Overview"
 msgstr "Обзор"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:138
 #: lib/phoenix_kit_web/live/modules.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Referral Codes"
@@ -6347,6 +6359,8 @@ msgstr "должен быть включён. Некоторые функции 
 msgid "requires the"
 msgstr "требует, чтобы модуль"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:284
 #: lib/phoenix_kit_web/live/users/media.ex:39
 #: lib/phoenix_kit_web/live/users/media.html.heex:4
 #: lib/phoenix_kit_web/live/users/media.html.heex:12
@@ -8306,6 +8320,7 @@ msgstr[2] "%{count} событий"
 msgid "Action:"
 msgstr "Действие:"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
 #: lib/phoenix_kit_web/live/activity/index.ex:31
 #: lib/phoenix_kit_web/live/activity/index.html.heex:4
 #: lib/phoenix_kit_web/live/activity/index.html.heex:12
@@ -8958,6 +8973,7 @@ msgstr "Недопустимая операция отзыва"
 msgid "LIVE"
 msgstr "LIVE"
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
 #: lib/phoenix_kit_web/live/users/live_sessions.ex:54
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:4
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:11
@@ -9240,3 +9256,8 @@ msgstr "Предыдущий (←)"
 #, elixir-autogen, elixir-format
 msgid "Manage Users"
 msgstr "Список пользователей"
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:298
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
+msgstr "Пресеты размеров"

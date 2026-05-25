@@ -7,6 +7,7 @@
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
 ## Dashboard page translations
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:11
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -29,6 +30,8 @@ msgid "System Information"
 msgstr ""
 
 ## Navigation menu items
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:77
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:266
 #: lib/phoenix_kit_web/live/dashboard.html.heex:29
 #: lib/phoenix_kit_web/live/users/roles.html.heex:99
 #: lib/phoenix_kit_web/live/users/roles.html.heex:166
@@ -42,6 +45,7 @@ msgstr ""
 msgid "User management"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:120
 #: lib/phoenix_kit_web/live/dashboard.html.heex:44
 #: lib/phoenix_kit_web/live/users/roles.ex:47
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:135
@@ -56,6 +60,7 @@ msgstr ""
 msgid "Role management"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:111
 #: lib/phoenix_kit_web/live/dashboard.html.heex:59
 #: lib/phoenix_kit_web/live/users/sessions.ex:43
 #, elixir-autogen
@@ -1549,6 +1554,7 @@ msgstr ""
 msgid "Permission denied"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:129
 #: lib/phoenix_kit_web/live/users/permissions_matrix.ex:29
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:4
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:12
@@ -1838,6 +1844,7 @@ msgstr ""
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:219
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:244
 #: lib/phoenix_kit_web/live/modules.html.heex:316
@@ -4779,6 +4786,7 @@ msgid "Header Text"
 msgstr ""
 
 #: lib/modules/storage/web/health.html.heex:51
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:307
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr ""
@@ -4798,6 +4806,7 @@ msgstr ""
 msgid "Integration deleted"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:275
 #: lib/phoenix_kit_web/live/settings/integrations.ex:25
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:12
 #, elixir-autogen, elixir-format
@@ -5151,6 +5160,7 @@ msgstr ""
 msgid "Org"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:257
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:125
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:149
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:179
@@ -6220,6 +6230,7 @@ msgstr ""
 msgid "Module Management"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:187
 #: lib/phoenix_kit_web/live/modules.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:12
 #, elixir-autogen, elixir-format
@@ -6261,6 +6272,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:138
 #: lib/phoenix_kit_web/live/modules.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Referral Codes"
@@ -6337,6 +6349,8 @@ msgstr ""
 msgid "requires the"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:284
 #: lib/phoenix_kit_web/live/users/media.ex:39
 #: lib/phoenix_kit_web/live/users/media.html.heex:4
 #: lib/phoenix_kit_web/live/users/media.html.heex:12
@@ -8273,6 +8287,7 @@ msgstr[1] ""
 msgid "Action:"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
 #: lib/phoenix_kit_web/live/activity/index.ex:31
 #: lib/phoenix_kit_web/live/activity/index.html.heex:4
 #: lib/phoenix_kit_web/live/activity/index.html.heex:12
@@ -8924,6 +8939,7 @@ msgstr ""
 msgid "LIVE"
 msgstr ""
 
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:102
 #: lib/phoenix_kit_web/live/users/live_sessions.ex:54
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:4
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:11
@@ -9203,4 +9219,9 @@ msgstr ""
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:92
 #, elixir-autogen, elixir-format
 msgid "Manage Users"
+msgstr ""
+
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:298
+#, elixir-autogen, elixir-format
+msgid "Dimensions"
 msgstr ""
