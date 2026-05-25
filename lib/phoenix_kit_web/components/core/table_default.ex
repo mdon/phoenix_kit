@@ -535,11 +535,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     <tr
       class={
         [
-          # `group` is a Tailwind marker so descendants can use
-          # `group-hover:*` selectors. Required by `<.drag_handle_cell>`'s
-          # hide-until-hover behavior; benign for rows that don't have any
-          # group-hover-styled children.
-          "group",
+          # `group/row` is a NAMED Tailwind group marker so descendants can
+          # use `group-hover/row:*` selectors keyed specifically to row hover.
+          # Required by `<.drag_handle_cell>`'s hide-until-hover behavior.
+          # Named (not bare `group`) on purpose: a bare row-level group would
+          # also satisfy any descendant's unnamed `group-hover:` (e.g. the
+          # sortable header chevron's `group-hover:opacity-70`), brightening
+          # it on row hover instead of only on its own local-group hover.
+          "group/row",
           if(@hover, do: "hover", else: ""),
           @class
         ]
@@ -610,12 +613,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   codebase (catalogue category rows, entities card view, etc.):
 
     * Default: `opacity-0` — icon is invisible.
-    * Row hover: `group-hover:opacity-100` — icon fades in.
+    * Row hover: `group-hover/row:opacity-100` — icon fades in.
 
-  Requires the enclosing `<.table_default_row>` to carry the `group`
+  Requires the enclosing `<.table_default_row>` to carry the `group/row`
   marker class — which it does by default, so consumers don't have
   to wire anything beyond placing this cell + the matching
-  `<.drag_handle_header_cell>` in the header.
+  `<.drag_handle_header_cell>` in the header. The named group keeps the
+  reveal keyed to row hover without clobbering any unnamed `group-hover:`
+  utilities a consumer nests inside a cell.
 
   Pair this with a `<tbody phx-hook="SortableGrid">` setup (see the
   `<.table_default>` moduledoc / phoenix_kit_projects reference call
@@ -637,7 +642,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     <td
       class={[
         "pk-drag-handle cursor-grab active:cursor-grabbing",
-        "text-base-content/30 opacity-0 group-hover:opacity-100 transition-opacity",
+        "text-base-content/30 opacity-0 group-hover/row:opacity-100 transition-opacity",
         @class
       ]}
       title={@title}

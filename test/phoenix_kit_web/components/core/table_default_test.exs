@@ -259,7 +259,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
   # ── table_default_row/1 ───────────────────────────────────────────
 
   describe "table_default_row/1" do
-    test "carries the `group` Tailwind marker for group-hover children" do
+    test "carries the `group/row` Tailwind marker for group-hover children" do
       assigns = %{}
 
       result =
@@ -270,13 +270,15 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
         """)
 
       assert result =~ "<tr"
-      # `group` is what makes `<.drag_handle_cell>`'s opacity-0 +
-      # group-hover:opacity-100 reveal-on-hover work. Removing it from
-      # the row class set would silently kill the drag-handle UX.
-      assert result =~ "group"
+      # `group/row` is what makes `<.drag_handle_cell>`'s opacity-0 +
+      # group-hover/row:opacity-100 reveal-on-hover work. Named (not bare
+      # `group`) so it doesn't clobber unnamed `group-hover:` utilities a
+      # consumer nests inside a cell. Removing it would silently kill the
+      # drag-handle UX.
+      assert result =~ "group/row"
     end
 
-    test "consumer class composes alongside `group`" do
+    test "consumer class composes alongside `group/row`" do
       assigns = %{}
 
       result =
@@ -286,7 +288,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
         </.table_default_row>
         """)
 
-      assert result =~ "group"
+      assert result =~ "group/row"
       assert result =~ "my-extra"
     end
 
@@ -300,9 +302,9 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
         </.table_default_row>
         """)
 
-      # Should still have `group`, but the daisyUI `hover` class is gone.
-      assert result =~ "group"
-      refute result =~ ~s(class="group hover)
+      # Should still have `group/row`, but the daisyUI `hover` class is gone.
+      assert result =~ "group/row"
+      refute result =~ ~s(class="group/row hover)
     end
   end
 
@@ -321,10 +323,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       # SortableJS hook reads this selector for the drag handle.
       assert result =~ "pk-drag-handle"
       assert result =~ "cursor-grab"
-      # Hide-until-hover: parent row has `group`, this cell has
-      # `opacity-0 group-hover:opacity-100`.
+      # Hide-until-hover: parent row has `group/row`, this cell has
+      # `opacity-0 group-hover/row:opacity-100`.
       assert result =~ "opacity-0"
-      assert result =~ "group-hover:opacity-100"
+      assert result =~ "group-hover/row:opacity-100"
       # Default heroicon for the handle.
       assert result =~ "hero-bars-3"
     end
