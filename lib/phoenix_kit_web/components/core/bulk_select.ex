@@ -185,6 +185,12 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
       {render_slot(@leading)}
 
       <div class="flex items-center gap-2 ml-auto">
+        <%!-- Elements that hide-on-zero-selection carry an inline
+             `display: none` from the server so they don't flash
+             visible during the gap between first paint and the
+             BulkSelectScope hook's first _sync(). The hook
+             overrides this inline style when count crosses the
+             threshold. --%>
         <button
           type="button"
           class="btn btn-sm btn-ghost"
@@ -192,6 +198,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
           data-bulk-show={if @reorder_gate == :multi, do: "has-multiple"}
           data-bulk-label-empty={if @reorder_gate == :always, do: @reorder_empty_label}
           data-bulk-label-selected={@reorder_selected_label}
+          style={if @reorder_gate == :multi, do: "display: none;"}
         >
           <.icon name="hero-arrows-up-down" class="w-4 h-4" /> {@reorder_empty_label}
         </button>
@@ -202,6 +209,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
           class="btn btn-sm btn-ghost text-error"
           data-bulk-action={@on_bulk_delete}
           data-bulk-show="has-selection"
+          style="display: none;"
         >
           <.icon name="hero-trash" class="w-4 h-4" /> {@delete_label}
         </button>
@@ -211,6 +219,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
           class="btn btn-sm btn-ghost"
           data-bulk-clear="true"
           data-bulk-show="has-selection"
+          style="display: none;"
         >
           {@clear_label}
         </button>
