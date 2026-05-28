@@ -64,6 +64,19 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     {:ok, rollback_annotation_compose(socket, assigns[:annotation_uuid])}
   end
 
+  # Inline title edit posted from the sidebar's CommentsComponent.
+  # The payload uses the comments package's generic decoration
+  # vocabulary (`metadata_key`, `metadata_value`, `label`); we
+  # translate to annotation-domain terms here. Same wire as
+  # `finalize_annotation_compose/3` minus the composer-specific
+  # bookkeeping: write → reload annotations → rebuild canvas →
+  # push patch-shape so the tooltip reflects the new title →
+  # CommentsComponent's next render picks up the fresh
+  # `comment_decorations` via the heex helper.
+  def update(%{action: :annotation_title_updated} = assigns, socket) do
+    {:ok, apply_annotation_title_update(socket, assigns[:metadata_value], assigns[:label])}
+  end
+
   def update(assigns, socket) do
     file = assigns[:file]
 
@@ -439,6 +452,86 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       file -> assign(socket, :viewer_canvas, build_viewer_canvas(file, annotations))
     end
   end
+
+  # Apply a title edit that came from the comments sidebar
+  # (CommentsComponent's inline-edit). Writes the annotation row,
+  # reloads `viewer_annotations` so the heex re-derives
+  # `build_annotation_titles/1` for the comments component on the
+  # next render, and pushes `etcher:patch-shape` so the shape
+  # tooltip refreshes. No flash, no `composing_annotation_uuid`
+  # reset — the user is not interacting with the composer here.
+  defp apply_annotation_title_update(socket, annotation_uuid, title)
+       when is_binary(annotation_uuid) do
+    file_uuid =
+      case socket.assigns[:file] do
+        %{file_uuid: uuid} -> uuid
+        _ -> nil
+      end
+
+    title_val =
+      case title do
+        nil -> nil
+        str when is_binary(str) -> if String.trim(str) == "", do: nil, else: str
+        _ -> nil
+      end
+
+    _ = PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val})
+
+    fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
+
+    socket =
+      socket
+      |> assign(:viewer_annotations, fresh)
+      |> rebuild_viewer_canvas(fresh)
+
+    case file_uuid && Enum.find(fresh, fn a -> a.uuid == annotation_uuid end) do
+      %{} = ann ->
+        Phoenix.LiveView.push_event(socket, "etcher:patch-shape", %{
+          fresco_id: "media-zoom-" <> file_uuid,
+          uuid: ann.uuid,
+          metadata: ann.metadata
+        })
+
+      _ ->
+        socket
+    end
+  end
+
+  defp apply_annotation_title_update(socket, _, _), do: socket
+
+  # Build the `comment_decorations` registry that CommentsComponent
+  # uses to render external labels above comments. The comments
+  # package speaks a generic `%{metadata_key => %{value => entry}}`
+  # vocabulary; we package annotation titles under the
+  # `"annotation_uuid"` metadata key (matching the back-reference
+  # comments already store via `metadata["annotation_uuid"]`).
+  #
+  # Source for the label: `load_annotations_for/1` projects the
+  # schema's `title` column into `metadata["title"]` (so Etcher's
+  # JS tooltip can read it as a single map). We read from the same
+  # place rather than bolt a top-level field onto the curated
+  # annotation map. Only entries with non-empty titles are
+  # included; an annotation without a title contributes nothing
+  # (and the comment renders without a label block).
+  defp build_comment_decorations(annotations) when is_list(annotations) do
+    entries =
+      Enum.reduce(annotations, %{}, fn a, acc ->
+        title = a |> Map.get(:metadata, %{}) |> Map.get("title")
+
+        if is_binary(title) and title != "" do
+          Map.put(acc, to_string(a.uuid), %{
+            label: title,
+            on_save: :annotation_title_updated
+          })
+        else
+          acc
+        end
+      end)
+
+    if map_size(entries) == 0, do: %{}, else: %{"annotation_uuid" => entries}
+  end
+
+  defp build_comment_decorations(_), do: %{}
 
   # Cancel path: drop the just-drawn shape so the canvas doesn't
   # carry an untitled placeholder. The `etcher:delete-shape` JS

@@ -369,6 +369,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
           placeholder="Optional title (shows on the shape)"
           maxlength="200"
           class="input input-bordered input-sm w-full text-sm"
+          phx-mounted={Phoenix.LiveView.JS.focus()}
           phx-debounce="500"
         />
 
@@ -377,7 +378,6 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
           placeholder={gettext("Write a note about this annotation...")}
           rows="3"
           class="textarea textarea-bordered w-full text-sm"
-          phx-mounted={Phoenix.LiveView.JS.focus()}
           phx-debounce="500"
         ><%= @new_comment %></textarea>
 

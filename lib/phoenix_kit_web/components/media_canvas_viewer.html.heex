@@ -207,6 +207,9 @@
             current_user={@current_user}
             show_likes={true}
             title={gettext("Comments")}
+            comment_decorations={build_comment_decorations(@viewer_annotations)}
+            parent_module={PhoenixKitWeb.Components.MediaCanvasViewer}
+            parent_id={@id}
           />
         </div>
       <% end %>
