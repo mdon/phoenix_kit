@@ -314,11 +314,4 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   defp format_file_size(bytes), do: Format.bytes(bytes, base: 1000, decimals: 2)
-
-  # Get icon for file type
-  defp file_icon("image"), do: "hero-photo"
-  defp file_icon("video"), do: "hero-play-circle"
-  defp file_icon("pdf"), do: "hero-document-text"
-  defp file_icon("document"), do: "hero-document"
-  defp file_icon(_), do: "hero-document-arrow-down"
 end

@@ -32,6 +32,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       host). Currently unused by this component, but kept on the
       assigns map so future cross-component send_updates have a
       target without re-plumbing the API.
+
+  ## Optional assigns
+
+    * `:viewer_only` (default `false`) — render only the canvas /
+      composer column; suppresses the close button and the sidebar
+      (filename + Download + metadata + comments). Used by
+      standalone-page hosts like `MediaDetail` that have their own
+      surrounding chrome (admin actions, metadata editor, file
+      details).
   """
 
   use PhoenixKitWeb, :live_component
@@ -52,7 +61,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      socket
      |> assign(:viewer_canvas, nil)
      |> assign(:viewer_annotations, [])
-     |> assign(:composing_annotation_uuid, nil)}
+     |> assign(:composing_annotation_uuid, nil)
+     |> assign(:viewer_only, false)}
   end
 
   @impl true
@@ -88,6 +98,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:parent_id, assigns[:parent_id])
       |> assign(:has_prev, assigns[:has_prev] || false)
       |> assign(:has_next, assigns[:has_next] || false)
+      |> assign(:viewer_only, assigns[:viewer_only] || false)
 
     # First mount (or file changed via re-mount): hydrate annotations
     # + canvas. Because the id encodes the file uuid, the parent's
