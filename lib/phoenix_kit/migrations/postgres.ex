@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V122 - Location spaces + staff translations + staff Person.name ⚡ LATEST
+  ### V123 - Catalogue folders ⚡ LATEST
+  - Creates `phoenix_kit_cat_folders` (self-nesting via `parent_uuid`,
+    `position`/`status`/`data`) — a dedicated folder layer for organizing
+    catalogues, unrelated to the media-folder system.
+  - Adds nullable `folder_uuid` FK to `phoenix_kit_cat_catalogues`
+    (`ON DELETE SET NULL`; NULL = unfiled / root).
+
+  ### V122 - Location spaces + staff translations + staff Person.name
   - Creates `phoenix_kit_location_spaces` for the per-Location nested
     tree of spaces. Required `location_uuid` FK (cascade) and optional
     `parent_uuid` self-ref FK (cascade); arbitrary depth.
@@ -1042,7 +1049,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 122
+  @current_version 123
   @default_prefix "public"
 
   @doc false
