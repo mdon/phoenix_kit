@@ -37,6 +37,7 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
       add(
         :location_uuid,
         references(:phoenix_kit_locations,
+          column: :uuid,
           type: :uuid,
           on_delete: :delete_all,
           prefix: prefix
@@ -47,6 +48,7 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
       add(
         :parent_uuid,
         references(:phoenix_kit_location_spaces,
+          column: :uuid,
           type: :uuid,
           on_delete: :delete_all,
           prefix: prefix

@@ -529,7 +529,18 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V121 - Line annotation kind ⚡ LATEST
+  ### V122 - Location spaces (rooms/floors/zones) ⚡ LATEST
+  - Creates `phoenix_kit_location_spaces` for the per-Location nested
+    tree of spaces. Required `location_uuid` FK (cascade) and optional
+    `parent_uuid` self-ref FK (cascade); arbitrary depth.
+  - `kind` is a CHECK-constrained enum (floor / room / hall / suite /
+    section / zone / aisle / shelf / corner) mirroring the consumer's
+    `PhoenixKitLocations.Schemas.Space @kinds`.
+  - The "child belongs to same Location as parent" cross-row invariant
+    is enforced in the consumer context; a composite FK would be
+    heavier than the surface justifies.
+
+  ### V121 - Line annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
   - Etcher gains a simple two-endpoint line tool alongside `dimension`
     (same geometry, no arrows, no inline numeric label). Title +
@@ -1019,7 +1030,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 121
+  @current_version 122
   @default_prefix "public"
 
   @doc false
