@@ -529,7 +529,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V122 - Location spaces (rooms/floors/zones) ⚡ LATEST
+  ### V122 - Location spaces + staff translations + staff Person.name ⚡ LATEST
   - Creates `phoenix_kit_location_spaces` for the per-Location nested
     tree of spaces. Required `location_uuid` FK (cascade) and optional
     `parent_uuid` self-ref FK (cascade); arbitrary depth.
@@ -539,6 +539,18 @@ defmodule PhoenixKit.Migrations.Postgres do
   - The "child belongs to same Location as parent" cross-row invariant
     is enforced in the consumer context; a composite FK would be
     heavier than the surface justifies.
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_staff_departments`, `phoenix_kit_staff_teams`, and
+    `phoenix_kit_staff_people` (mirrors the projects V112 settings-
+    translations shape: primary stays in dedicated columns, JSONB
+    holds non-primary overrides). Translatable fields by schema:
+    * Department: `name`, `description`
+    * Team: `name`, `description`
+    * Person: `job_title`, `bio`, `skills`, `notes`
+  - Adds a single nullable `name VARCHAR` to `phoenix_kit_staff_people`
+    for the staff person's full display name — consistent with every
+    other consumer schema in the staff plugin (Department / Team / Space
+    / Location all use a single `name`).
 
   ### V121 - Line annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
