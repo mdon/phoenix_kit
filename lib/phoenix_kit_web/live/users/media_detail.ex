@@ -21,6 +21,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.MediaCanvasViewer
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -45,6 +46,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       |> assign(:file_uuid, file_uuid)
       |> assign(:show_delete_modal, false)
       |> load_file_data(file_uuid)
+      |> assign(:viewer_annotations, MediaCanvasViewer.load_annotations_for(file_uuid))
 
     {:ok, socket}
   end

@@ -354,7 +354,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
-  defp load_annotations_for(file_uuid) do
+  @doc """
+  Loads annotations for a file into the curated map shape this component
+  uses internally (uuid / kind / geometry / style / metadata with
+  comment_* + title injected). Public so standalone-page hosts like
+  `MediaDetail` can build their own decoration registry off the same
+  shape without re-querying the schema by hand.
+  """
+  def load_annotations_for(file_uuid) do
     file_uuid
     |> Annotations.list_for_file_with_previews()
     |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
@@ -510,21 +517,27 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp apply_annotation_title_update(socket, _, _), do: socket
 
-  # Build the `comment_decorations` registry that CommentsComponent
-  # uses to render external labels above comments. The comments
-  # package speaks a generic `%{metadata_key => %{value => entry}}`
-  # vocabulary; we package annotation titles under the
-  # `"annotation_uuid"` metadata key (matching the back-reference
-  # comments already store via `metadata["annotation_uuid"]`).
-  #
-  # Source for the label: `load_annotations_for/1` projects the
-  # schema's `title` column into `metadata["title"]` (so Etcher's
-  # JS tooltip can read it as a single map). We read from the same
-  # place rather than bolt a top-level field onto the curated
-  # annotation map. Only entries with non-empty titles are
-  # included; an annotation without a title contributes nothing
-  # (and the comment renders without a label block).
-  defp build_comment_decorations(annotations) when is_list(annotations) do
+  @doc """
+  Build the `comment_decorations` registry that `CommentsComponent`
+  uses to render external labels above comments. The comments
+  package speaks a generic `%{metadata_key => %{value => entry}}`
+  vocabulary; we package annotation titles under the
+  `"annotation_uuid"` metadata key (matching the back-reference
+  comments already store via `metadata["annotation_uuid"]`).
+
+  Source for the label: `load_annotations_for/1` projects the
+  schema's `title` column into `metadata["title"]` (so Etcher's
+  JS tooltip can read it as a single map). We read from the same
+  place rather than bolt a top-level field onto the curated
+  annotation map. Only entries with non-empty titles are
+  included; an annotation without a title contributes nothing
+  (and the comment renders without a label block).
+
+  Public so standalone-page hosts (`MediaDetail`) can build the
+  same registry against the annotations they loaded via
+  `load_annotations_for/1`.
+  """
+  def build_comment_decorations(annotations) when is_list(annotations) do
     entries =
       Enum.reduce(annotations, %{}, fn a, acc ->
         title = a |> Map.get(:metadata, %{}) |> Map.get("title")
@@ -542,7 +555,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     if map_size(entries) == 0, do: %{}, else: %{"annotation_uuid" => entries}
   end
 
-  defp build_comment_decorations(_), do: %{}
+  def build_comment_decorations(_), do: %{}
 
   # Cancel path: drop the just-drawn shape so the canvas doesn't
   # carry an untitled placeholder. The `etcher:delete-shape` JS
@@ -618,8 +631,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
 
+  @doc """
+  Runtime check for whether the optional `phoenix_kit_comments` package
+  is installed AND enabled. Public so standalone-page hosts can gate
+  their own embed of `CommentsComponent` the same way the sidebar does.
+  """
   @dialyzer {:nowarn_function, comments_enabled?: 0}
-  defp comments_enabled? do
+  def comments_enabled? do
     Code.ensure_loaded?(PhoenixKitComments) and PhoenixKitComments.enabled?()
   rescue
     _ -> false

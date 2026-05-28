@@ -253,6 +253,36 @@
             </div>
           </div>
 
+          <%!-- Comments Card — mirrors MediaCanvasViewer's sidebar embed. --%>
+          <%!-- `parent_module` / `parent_id` route inline annotation-title  --%>
+          <%!-- edits back to the embedded MediaCanvasViewer LiveComponent   --%>
+          <%!-- (already wired to handle `:annotation_title_updated`),       --%>
+          <%!-- which writes the row, reloads its viewer_annotations, and    --%>
+          <%!-- pushes etcher:patch-shape so the canvas tooltip refreshes.   --%>
+          <%!-- MediaDetail's own @viewer_annotations stays as the           --%>
+          <%!-- decoration source until next page load — acceptable since    --%>
+          <%!-- the canvas remains the primary surface for annotations.      --%>
+          <%= if MediaCanvasViewer.comments_enabled?() and assigns[:phoenix_kit_current_user] do %>
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body p-4 leaf-comments-compact">
+                <.live_component
+                  module={PhoenixKitComments.Web.CommentsComponent}
+                  id={"media-detail-comments-" <> @file_data.file_uuid}
+                  resource_type="file"
+                  resource_uuid={@file_data.file_uuid}
+                  current_user={assigns[:phoenix_kit_current_user]}
+                  show_likes={true}
+                  title={gettext("Comments")}
+                  comment_decorations={
+                    MediaCanvasViewer.build_comment_decorations(@viewer_annotations)
+                  }
+                  parent_module={MediaCanvasViewer}
+                  parent_id={"media-detail-canvas-" <> @file_data.file_uuid}
+                />
+              </div>
+            </div>
+          <% end %>
+
           <%!-- Storage Locations Card --%>
           <%= if not Enum.empty?(@file_data.locations) do %>
             <div class="card bg-base-100 shadow-xl">
