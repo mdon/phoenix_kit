@@ -123,17 +123,24 @@ defmodule PhoenixKit.MixProject do
       # OpenSeadragon and replaced the wrapped-OSD viewer with a
       # hand-rolled CSS-transform engine; it also added <Fresco.canvas>
       # (the layered scene with `extensions.etcher` for annotation data).
+      # Fresco 0.6 extracted `<Fresco.scroll_strip>` to a separate
+      # `fresco_strip` package — PhoenixKit doesn't use scroll_strip
+      # so no companion dep needed.
       # Etcher 0.3 dropped its Ecto storage adapter and now persists
       # annotations inside the canvas's extensions map — single bulk
-      # `etcher:annotations-changed` event, client-side UUIDv7. JS hooks
-      # ship in each lib's `priv/static/`; parent apps either import them
-      # directly in `app.js` or rely on the lazy-load wrappers in
-      # phoenix_kit.js (jsdelivr-pinned to the matching version).
+      # `etcher:annotations-changed` event, client-side UUIDv7. Etcher
+      # 0.5 added the public `revealShape` Promise + `shapeAt`
+      # hit-test API (deep-link / custom tap-zone integrations);
+      # PhoenixKit doesn't call those yet so the bump is pure
+      # additive. JS hooks ship in each lib's `priv/static/`; parent
+      # apps either import them directly in `app.js` or rely on the
+      # lazy-load wrappers in phoenix_kit.js (jsdelivr-pinned to the
+      # matching version).
       # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
       # (residual TODO; resurrect when a Tessera 0.5 ships).
-      {:fresco, "~> 0.5"},
+      {:fresco, "~> 0.6"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.3"},
+      {:etcher, "~> 0.5"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
