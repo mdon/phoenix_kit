@@ -56,8 +56,6 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
   use PhoenixKitWeb, :html
 
-  alias Phoenix.LiveView.JS
-
   # ──────────────────────────────────────────────────────────────
   # Top-level component
   # ──────────────────────────────────────────────────────────────
@@ -315,9 +313,10 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <input
               type="text"
               name="name"
+              id={"rename-folder-#{@node.folder.uuid}"}
               value={@renaming_text}
               class="bg-base-100 text-sm rounded px-1.5 py-0 flex-1 min-w-0 border border-primary/60 focus:outline-none focus:border-primary"
-              phx-mounted={JS.focus()}
+              phx-hook="SelectOnMount"
               required
               phx-keydown="cancel_rename_folder"
               phx-key="Escape"

@@ -1,3 +1,35 @@
+## 1.7.122 - 2026-05-28
+
+### Fixed
+- `pagination_info` drops the redundant `of N` suffix when the result set
+  fits on one page (`total_count <= per_page`) — e.g. "Showing 1 to 4
+  results" instead of "Showing 1 to 4 of 4 results". The media browser
+  toolbar reads cleaner; multi-page views are unchanged.
+- New folder creation at the root of a scoped media browser no longer fails
+  silently when a trashed "untitled" folder still occupies the unique
+  index slot. V122 restricts `phoenix_kit_media_folders_name_parent_idx`
+  to `WHERE trashed_at IS NULL`, so trashed folders no longer reserve
+  names from the user's perspective.
+- `MediaBrowser.Embed` now forwards `{:leaf_changed, _}` events from
+  sidebar comment Leaf editors to `PhoenixKitComments.Web.CommentsComponent`
+  via runtime `Code.ensure_loaded?` + `apply/3` (sibling deps with no
+  compile-order guarantee). Without this, typed content in those editors
+  never reached the server. User-defined `:leaf_changed` clauses still win
+  because the injected clause is appended last.
+
+### Changed
+- The inline rename input for the auto-created "untitled" folder now
+  selects all of its value on mount instead of just focusing — type
+  immediately replaces the placeholder name without reaching for the
+  mouse. Implemented via a new tiny `SelectOnMount` JS hook in
+  `phoenix_kit.js` (reusable for any "type-to-replace" inline edit).
+
+### Migrations
+- **V122** — `phoenix_kit_media_folders_name_parent_idx` is now a partial
+  unique index `WHERE trashed_at IS NULL`. Active siblings are the only
+  rows the constraint sees, matching what `Storage.list_folders/2`
+  returns.
+
 ## 1.7.121 - 2026-05-25
 
 ### Added

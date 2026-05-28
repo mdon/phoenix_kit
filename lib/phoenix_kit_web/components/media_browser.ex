@@ -1997,7 +1997,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # quick folder creation. Looks at sibling folders in the same parent
   # and picks the first non-conflicting name. Gaps fill before
   # extending — if "untitled" and "untitled 5" exist, we create
-  # "untitled 1".
+  # "untitled 1". Active siblings only: the V122 partial index makes
+  # trashed siblings invisible to the unique constraint, so
+  # `list_folders/2`'s active-only view matches what the DB will
+  # accept.
   defp next_untitled_name(parent_uuid, scope) do
     base = gettext("untitled")
 

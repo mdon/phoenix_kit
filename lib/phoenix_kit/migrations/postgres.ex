@@ -529,7 +529,17 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V121 - Line annotation kind ⚡ LATEST
+  ### V122 - Partial unique index on media folder names ⚡ LATEST
+  - Restricts `phoenix_kit_media_folders_name_parent_idx` to
+    `WHERE trashed_at IS NULL`. Previously a trashed "untitled"
+    folder still reserved its slot in the index, blocking re-creation
+    of the same name in the same parent — surfacing as a confusing
+    auto-numbering jump or a "Failed to create folder" error after
+    the user had emptied the visible parent by sending its children
+    to trash. Active-only siblings are now an accurate predictor of
+    what the constraint accepts.
+
+  ### V121 - Line annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
   - Etcher gains a simple two-endpoint line tool alongside `dimension`
     (same geometry, no arrows, no inline numeric label). Title +
@@ -1019,7 +1029,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 121
+  @current_version 122
   @default_prefix "public"
 
   @doc false

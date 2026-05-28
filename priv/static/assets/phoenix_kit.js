@@ -1391,6 +1391,21 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // SelectOnMount
+  //
+  // Focuses an input and selects all of its current value on mount. Use
+  // for inline-rename inputs and similar type-to-replace flows where
+  // JS.focus() alone leaves the cursor at the end and forces the user
+  // to reach for the mouse / select-all shortcut before retyping.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.SelectOnMount = {
+    mounted() {
+      this.el.focus();
+      this.el.select();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
   // Positions the MediaBrowser's floating annotation-composer popover
