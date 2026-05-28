@@ -258,6 +258,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       mime_type: file.mime_type,
       size: file.size || 0,
       status: file.status,
+      # Source intrinsic dimensions — drive the Fresco canvas aspect so
+      # the embedded MediaCanvasViewer renders the image at its real
+      # ratio (instead of `build_viewer_canvas/2`'s 1000×1000 fallback,
+      # which fits a square canvas in a wide container with dotted
+      # background on the sides).
+      width: file.width,
+      height: file.height,
       urls: urls,
       variant_dimensions: variant_dimensions,
       title: title,
