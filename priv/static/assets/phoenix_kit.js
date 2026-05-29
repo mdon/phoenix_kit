@@ -2436,19 +2436,33 @@ if (typeof window.Chart === "undefined") {
   // unrelated LV diff that happens to touch the sentinel (flash, PubSub row
   // update, sibling assign) won't spuriously trigger another load. A single
   // in-flight guard (`loading`) prevents stacking multiple pushes before the
-  // server responds; it clears on the next cursor change. Together these keep
-  // the observer firing while the sentinel stays on screen (tall viewports /
-  // Page-Down) without over-fetching.
+  // server responds; the cursor change clears it on the happy path.
+  //
+  // The guard also has a timeout watchdog: if a load resolves WITHOUT
+  // advancing the cursor (an empty/no-op page, a stale `total`, or a
+  // replace-in-place list where `loaded` stays constant), the cursor-change
+  // path never clears the guard. The watchdog releases it after a short
+  // window so auto-load can never wedge permanently — worst case is a brief
+  // stall, after which the next scroll (or the manual button) recovers.
   // ---------------------------------------------------------------------------
 
   window.PhoenixKitHooks.InfiniteScroll = {
     loadMoreEvent() {
       return this.el.dataset.loadMoreEvent || "load_more";
     },
+    clearGuard() {
+      this.loading = false;
+      clearTimeout(this.loadTimer);
+    },
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
       this.pushEvent(this.loadMoreEvent(), {});
+      // Watchdog: release the guard even if the cursor never advances, so a
+      // no-op load can't wedge the sentinel. The cursor-change path in
+      // updated() clears it sooner on the normal (page-grew) path.
+      clearTimeout(this.loadTimer);
+      this.loadTimer = setTimeout(() => { this.loading = false; }, 2000);
     },
     mounted() {
       this.intersecting = false;
@@ -2471,13 +2485,14 @@ if (typeof window.Chart === "undefined") {
       // the previous load resolved, so clear the in-flight guard.
       if (this.el.dataset.cursor !== this.lastCursor) {
         this.lastCursor = this.el.dataset.cursor;
-        this.loading = false;
+        this.clearGuard();
         if (this.intersecting) {
           this.maybeLoad();
         }
       }
     },
     destroyed() {
+      clearTimeout(this.loadTimer);
       if (this.observer) this.observer.disconnect();
     }
   };

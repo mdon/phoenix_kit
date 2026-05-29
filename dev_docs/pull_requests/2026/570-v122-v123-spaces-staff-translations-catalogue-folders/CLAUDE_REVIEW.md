@@ -15,6 +15,15 @@ All three findings below were fixed in the working tree after the review (this b
 
 The "Verified correct" items needed no change. Original findings preserved below for the record.
 
+### Second-pass hardening (`/code-review` follow-up, 2026-05-29)
+
+A recall-biased multi-angle review of the InfiniteScroll fix above surfaced a wedge the cursor-only guard introduced:
+
+- **CONFIRMED — guard could wedge on a no-op load** — fixed. Clearing `loading` *only* on a `data-cursor` change meant a load that resolved without advancing the cursor (empty/no-op page, stale `total`, or a replace-in-place list where `@loaded` stays constant) left the guard stuck `true` forever, permanently disabling auto-scroll (manual button still worked). Added a 2s timeout watchdog in `maybeLoad()` (`clearGuard()` helper, cleared on cursor change and `destroyed()`) so the guard can never wedge — worst case is a brief stall, then the next scroll/manual click recovers. This avoids depending on `pushEvent` reply-callback semantics (which would need consumer handlers to return `{:reply, …}`).
+- **PLAUSIBLE — `resolve_cursor/1` nil crash + wasted compute** — fixed. It ran on every `load_more` render (even non-infinite) and `Integer.to_string(nil)` would raise if `@loaded` were nil. Now computed only when `@infinite`, with `is_integer`/`is_binary` guards and a `""` fallback. Replaced the misused `assign_new` (the key never pre-exists) with a plain conditional `assign`.
+
+Left as-is (documented, low severity): manual button bypasses the in-flight guard (benign double-load on append lists); `updated()` may over-fetch one page via stale `intersecting` (bounded, partly intended chaining); `normalize_annotation_title/1` overlaps `Utils.Values.presence/1` but intentionally does **not** trim (swapping would silently change title semantics); failed inline-title write still reloads (rare error path); render-time `ArgumentError` for `infinite`-without-`id` (acceptable fail-fast).
+
 ## Verdict
 
 Solid, well-documented PR. Both migrations are correctly wired (auto-dispatch via `Module.concat([__MODULE__, "V122"])` keyed on the zero-padded version — no manual registration needed) and genuinely idempotent. All tables the migrations `ALTER` are created unconditionally in earlier **core** migrations (staff → V100/V101, locations → V91, catalogue → V87/V96), so V122/V123 will never hit a missing-table error on any host at that version. The `down/1` chains reverse cleanly in rollback order (`123 → 122 → 121`).

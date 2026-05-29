@@ -246,7 +246,13 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
             "<.load_more infinite> requires an `id` (the InfiniteScroll JS hook needs it)"
     end
 
-    assigns = assign_new(assigns, :effective_cursor, fn -> resolve_cursor(assigns) end)
+    # Only the infinite variant renders data-cursor; skip the work otherwise.
+    assigns =
+      assign(
+        assigns,
+        :effective_cursor,
+        if(assigns.infinite, do: resolve_cursor(assigns), else: "")
+      )
 
     ~H"""
     <div
@@ -282,8 +288,9 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   # Per-page marker the InfiniteScroll hook watches. An explicit `cursor`
   # wins; otherwise fall back to `loaded`, which already changes per page so
   # callers don't have to thread a cursor through just to drive auto-load.
-  defp resolve_cursor(%{cursor: cursor}) when cursor != "", do: cursor
-  defp resolve_cursor(%{loaded: loaded}), do: Integer.to_string(loaded)
+  defp resolve_cursor(%{cursor: cursor}) when is_binary(cursor) and cursor != "", do: cursor
+  defp resolve_cursor(%{loaded: loaded}) when is_integer(loaded), do: Integer.to_string(loaded)
+  defp resolve_cursor(_), do: ""
 
   # Calculate visible page range (current page ± 2)
   defp pagination_range(current_page, total_pages) do
