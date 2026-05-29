@@ -196,6 +196,14 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   - `noun_plural` — used in the "Showing N of M %{noun}" line
     (default `"items"`)
   - `class` — additional classes on the outer wrapper
+  - `infinite` — when `true`, the footer also auto-loads on scroll via
+    the `InfiniteScroll` hook (the manual button stays as a fallback).
+    Requires `id`. (default `false`)
+  - `id` — DOM id, **required when `infinite`** (the JS hook needs it)
+  - `cursor` — an opaque per-page marker (e.g. `"items-<offset>"`) that
+    changes on each load so the LV patch re-triggers the hook's
+    `updated()` and it can keep firing while still on screen. Only used
+    when `infinite`.
 
   ## Example
 
@@ -205,16 +213,35 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         on_load_more="load_more"
         noun_plural={gettext("projects")}
       />
+
+      <%!-- Auto-load on scroll + manual fallback --%>
+      <.load_more
+        id="items-load-more"
+        loaded={length(@items)}
+        total={@total}
+        infinite
+        cursor={"items-\#{@offset}"}
+      />
   """
   attr :loaded, :integer, required: true
   attr :total, :integer, required: true
   attr :on_load_more, :string, default: "load_more"
   attr :noun_plural, :string, default: "items"
   attr :class, :string, default: ""
+  attr :id, :string, default: nil
+  attr :infinite, :boolean, default: false
+  attr :cursor, :string, default: ""
 
   def load_more(assigns) do
     ~H"""
-    <div :if={@total > 0} class={["flex flex-col items-center gap-2 p-4", @class]}>
+    <div
+      :if={@total > 0}
+      id={@id}
+      phx-hook={if @infinite and @loaded < @total, do: "InfiniteScroll"}
+      data-load-more-event={@on_load_more}
+      data-cursor={@infinite && @cursor}
+      class={["flex flex-col items-center gap-2 p-4", @class]}
+    >
       <p class="text-sm text-base-content/60">
         {gettext("Showing %{loaded} of %{total} %{noun}",
           loaded: @loaded,

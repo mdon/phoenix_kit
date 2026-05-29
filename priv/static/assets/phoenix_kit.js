@@ -2410,6 +2410,43 @@ if (typeof window.Chart === "undefined") {
   };
 
 
+  // ---------------------------------------------------------------------------
+  // InfiniteScroll — fires a "load more" LV event when the sentinel scrolls
+  // into view. Pair with the core `<.load_more infinite>` component, which
+  // renders this hook plus a manual fallback button. The event name is read
+  // from `data-load-more-event` (default "load_more"); `data-cursor` changes
+  // per page so the LV patch re-triggers `updated()` and the observer keeps
+  // firing while the sentinel stays on screen (tall viewports / Page-Down).
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.InfiniteScroll = {
+    loadMoreEvent() {
+      return this.el.dataset.loadMoreEvent || "load_more";
+    },
+    mounted() {
+      this.intersecting = false;
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          this.intersecting = entries[0].isIntersecting;
+          if (this.intersecting) {
+            this.pushEvent(this.loadMoreEvent(), {});
+          }
+        },
+        { rootMargin: "200px" }
+      );
+      this.observer.observe(this.el);
+    },
+    updated() {
+      if (this.intersecting) {
+        this.pushEvent(this.loadMoreEvent(), {});
+      }
+    },
+    destroyed() {
+      if (this.observer) this.observer.disconnect();
+    }
+  };
+
+
   // ============================================================================
   // 4. FLASH AUTO-DISMISS HOOK
   // ============================================================================
