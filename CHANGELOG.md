@@ -1,4 +1,31 @@
-## 1.7.124 - 2026-05-29
+## 1.7.125 - 2026-05-29
+
+### Fixed
+- `<.load_more infinite>` no longer over-fetches or wedges. The
+  `InfiniteScroll` JS hook now re-fires only when its `data-cursor`
+  changes (not on every unrelated LiveView diff), guards against stacked
+  in-flight pushes, and carries a 2s watchdog so a load that resolves
+  without advancing the cursor (empty/no-op page, stale `total`, or a
+  replace-in-place list with a constant `loaded`) can never permanently
+  disable auto-scroll — worst case is a brief stall that the next scroll
+  or the manual button recovers.
+- `MediaBrowser.Embed`'s injected `:leaf_changed` forwarder no longer
+  crashes the host LiveView if `PhoenixKitComments.Web.CommentsComponent.forward_leaf_event/2`
+  returns an unexpected value — an `other ->` branch logs a warning and
+  degrades to `{:noreply, socket}`.
+- Inline annotation-title edits from the comments sidebar now log a
+  `Logger.warning` when the underlying `Annotations.update/2` write fails
+  (previously the error was discarded, making a failed write
+  indistinguishable from a no-op). UX is unchanged — still no flash.
+
+### Changed
+- `<.load_more>`: in `infinite` mode, `data-cursor` defaults to `@loaded`
+  (so most callers can omit `cursor`), and the component raises a clear
+  `ArgumentError` when `infinite` is set without an `id`. `resolve_cursor/1`
+  is now nil/type-safe and computed only for the infinite variant.
+- Bump the lazy-load `etcher` CDN pin in `phoenix_kit.js` `v0.5.2 → v0.5.3`
+  to match the resolved `etcher` hex dependency.
+
 
 ### Merged
 - Merged upstream `dev`, which added **V122** (`phoenix_kit_location_spaces`
