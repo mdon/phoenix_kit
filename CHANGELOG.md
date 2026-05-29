@@ -1,3 +1,28 @@
+## 1.7.123 - 2026-05-29
+
+### Added
+- `/admin/media/:file_uuid` (MediaDetail) now renders the image through
+  the Fresco canvas + Etcher annotation layer instead of a plain
+  `<img>`, reaching parity with the in-place modal: draw / edit / delete
+  annotations, the composer popover, and persistence all work on the
+  standalone page. Implemented via a new `viewer_only` mode on
+  `MediaCanvasViewer` that suppresses its close button + sidebar so a
+  page host can supply its own chrome.
+- A comments thread (annotation-aware) on MediaDetail, above the Storage
+  Locations card — mirrors the modal sidebar's embed. Promotes
+  `MediaCanvasViewer.load_annotations_for/1`,
+  `build_comment_decorations/1`, and `comments_enabled?/0` to public so
+  page hosts reuse them.
+
+### Changed
+- Bump leaf 0.2.20 → 0.2.21 (hex dep + `phoenix_kit.js` CDN pin).
+
+### Fixed
+- MediaDetail's embedded canvas now receives the file's intrinsic
+  `width` / `height`, so the Fresco canvas matches the source image
+  aspect instead of falling back to a 1000×1000 square (which letterboxed
+  the image and stranded annotations on the dotted background).
+
 ## 1.7.122 - 2026-05-28
 
 ### Fixed
