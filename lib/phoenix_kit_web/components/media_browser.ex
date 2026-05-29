@@ -481,8 +481,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Finder/Explorer-style instant folder creation. Click the "+" button
   # in any toolbar and a folder appears named "untitled" (or
-  # "untitled 1", "untitled 2", ... if that's taken). User can rename
-  # via the kebab → Rename action afterward.
+  # "untitled 1", "untitled 2", ... if that's taken). The new folder
+  # immediately opens inline rename in the sidebar.
   def handle_event("create_untitled_folder", _params, socket) do
     cond do
       socket.assigns[:filter_trash] ->
@@ -502,10 +502,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
                %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid},
                scope
              ) do
-          {:ok, _folder} ->
+          {:ok, folder} ->
             {:noreply,
              socket
              |> reload_folder_lists()
+             |> expand_sidebar_folder(parent_uuid)
+             |> assign(:sidebar_collapsed, false)
+             |> assign(:renaming_folder, folder.uuid)
+             |> assign(:renaming_source, "sidebar")
+             |> assign(:renaming_text, name)
              |> put_flash(:info, gettext("Folder \"%{name}\" created", name: name))}
 
           {:error, :out_of_scope} ->
@@ -1992,7 +1997,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # quick folder creation. Looks at sibling folders in the same parent
   # and picks the first non-conflicting name. Gaps fill before
   # extending — if "untitled" and "untitled 5" exist, we create
-  # "untitled 1".
+  # "untitled 1". Active siblings only: the V122 partial index makes
+  # trashed siblings invisible to the unique constraint, so
+  # `list_folders/2`'s active-only view matches what the DB will
+  # accept.
   defp next_untitled_name(parent_uuid, scope) do
     base = gettext("untitled")
 
@@ -2059,6 +2067,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     ancestor_uuids = Enum.map(breadcrumbs, & &1.uuid)
     expanded = Enum.reduce(ancestor_uuids, socket.assigns.expanded_folders, &MapSet.put(&2, &1))
     assign(socket, :expanded_folders, expanded)
+  end
+
+  defp expand_sidebar_folder(socket, nil), do: socket
+
+  defp expand_sidebar_folder(socket, folder_uuid) do
+    assign(socket, :expanded_folders, MapSet.put(socket.assigns.expanded_folders, folder_uuid))
   end
 
   defp push_tree_state(socket) do

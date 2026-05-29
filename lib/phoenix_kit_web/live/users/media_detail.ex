@@ -21,6 +21,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.MediaCanvasViewer
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -45,6 +46,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       |> assign(:file_uuid, file_uuid)
       |> assign(:show_delete_modal, false)
       |> load_file_data(file_uuid)
+      |> assign(:viewer_annotations, MediaCanvasViewer.load_annotations_for(file_uuid))
 
     {:ok, socket}
   end
@@ -258,6 +260,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       mime_type: file.mime_type,
       size: file.size || 0,
       status: file.status,
+      # Source intrinsic dimensions — drive the Fresco canvas aspect so
+      # the embedded MediaCanvasViewer renders the image at its real
+      # ratio (instead of `build_viewer_canvas/2`'s 1000×1000 fallback,
+      # which fits a square canvas in a wide container with dotted
+      # background on the sides).
+      width: file.width,
+      height: file.height,
       urls: urls,
       variant_dimensions: variant_dimensions,
       title: title,
@@ -314,11 +323,4 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   defp format_file_size(bytes), do: Format.bytes(bytes, base: 1000, decimals: 2)
-
-  # Get icon for file type
-  defp file_icon("image"), do: "hero-photo"
-  defp file_icon("video"), do: "hero-play-circle"
-  defp file_icon("pdf"), do: "hero-document-text"
-  defp file_icon("document"), do: "hero-document"
-  defp file_icon(_), do: "hero-document-arrow-down"
 end

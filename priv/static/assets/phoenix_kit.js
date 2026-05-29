@@ -1391,6 +1391,21 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // SelectOnMount
+  //
+  // Focuses an input and selects all of its current value on mount. Use
+  // for inline-rename inputs and similar type-to-replace flows where
+  // JS.focus() alone leaves the cursor at the end and forces the user
+  // to reach for the mouse / select-all shortcut before retyping.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.SelectOnMount = {
+    mounted() {
+      this.el.focus();
+      this.el.select();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
   // Positions the MediaBrowser's floating annotation-composer popover
@@ -3061,7 +3076,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.13/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.21/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -3130,7 +3145,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.6.3/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -3275,7 +3290,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.5.2/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 

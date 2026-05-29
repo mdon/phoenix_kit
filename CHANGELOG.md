@@ -1,3 +1,75 @@
+## 1.7.124 - 2026-05-29
+
+### Merged
+- Merged upstream `dev`, which added **V122** (`phoenix_kit_location_spaces`
+  + staff `translations` JSONB + staff `Person.name`) and **V123**
+  (catalogue folders: `phoenix_kit_cat_folders` + `cat_catalogues.folder_uuid`),
+  plus the `<.load_more>` infinite-scroll option.
+
+### Migrations
+- **V124** — the media-folder partial unique index (previously authored
+  as V122 on this fork) is **renumbered to V124** because upstream
+  claimed V122/V123. Content is unchanged: restricts
+  `phoenix_kit_media_folders_name_parent_idx` to `WHERE trashed_at IS NULL`.
+  `@current_version` is now 124.
+
+## 1.7.123 - 2026-05-29
+
+### Added
+- `/admin/media/:file_uuid` (MediaDetail) now renders the image through
+  the Fresco canvas + Etcher annotation layer instead of a plain
+  `<img>`, reaching parity with the in-place modal: draw / edit / delete
+  annotations, the composer popover, and persistence all work on the
+  standalone page. Implemented via a new `viewer_only` mode on
+  `MediaCanvasViewer` that suppresses its close button + sidebar so a
+  page host can supply its own chrome.
+- A comments thread (annotation-aware) on MediaDetail, above the Storage
+  Locations card — mirrors the modal sidebar's embed. Promotes
+  `MediaCanvasViewer.load_annotations_for/1`,
+  `build_comment_decorations/1`, and `comments_enabled?/0` to public so
+  page hosts reuse them.
+
+### Changed
+- Bump leaf 0.2.20 → 0.2.21 (hex dep + `phoenix_kit.js` CDN pin).
+
+### Fixed
+- MediaDetail's embedded canvas now receives the file's intrinsic
+  `width` / `height`, so the Fresco canvas matches the source image
+  aspect instead of falling back to a 1000×1000 square (which letterboxed
+  the image and stranded annotations on the dotted background).
+
+## 1.7.122 - 2026-05-28
+
+### Fixed
+- `pagination_info` drops the redundant `of N` suffix when the result set
+  fits on one page (`total_count <= per_page`) — e.g. "Showing 1 to 4
+  results" instead of "Showing 1 to 4 of 4 results". The media browser
+  toolbar reads cleaner; multi-page views are unchanged.
+- New folder creation at the root of a scoped media browser no longer fails
+  silently when a trashed "untitled" folder still occupies the unique
+  index slot. V124 restricts `phoenix_kit_media_folders_name_parent_idx`
+  to `WHERE trashed_at IS NULL`, so trashed folders no longer reserve
+  names from the user's perspective.
+- `MediaBrowser.Embed` now forwards `{:leaf_changed, _}` events from
+  sidebar comment Leaf editors to `PhoenixKitComments.Web.CommentsComponent`
+  via runtime `Code.ensure_loaded?` + `apply/3` (sibling deps with no
+  compile-order guarantee). Without this, typed content in those editors
+  never reached the server. User-defined `:leaf_changed` clauses still win
+  because the injected clause is appended last.
+
+### Changed
+- The inline rename input for the auto-created "untitled" folder now
+  selects all of its value on mount instead of just focusing — type
+  immediately replaces the placeholder name without reaching for the
+  mouse. Implemented via a new tiny `SelectOnMount` JS hook in
+  `phoenix_kit.js` (reusable for any "type-to-replace" inline edit).
+
+### Migrations
+- **V124** — `phoenix_kit_media_folders_name_parent_idx` is now a partial
+  unique index `WHERE trashed_at IS NULL`. Active siblings are the only
+  rows the constraint sees, matching what `Storage.list_folders/2`
+  returns. (Renumbered from V122 after the upstream merge — see 1.7.124.)
+
 ## 1.7.121 - 2026-05-25
 
 ### Added

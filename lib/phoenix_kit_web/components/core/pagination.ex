@@ -87,6 +87,8 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
       />
 
       # Renders: "Showing 1 to 25 of 100 results"
+      # Single-page result drops the redundant " of N" — e.g. with
+      # total_count=4 and per_page=25: "Showing 1 to 4 results".
   """
   attr :page, :integer, required: true
   attr :per_page, :integer, required: true
@@ -96,7 +98,11 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   def pagination_info(assigns) do
     ~H"""
     <div class={["text-sm text-base-content/70", @class]}>
-      Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+      <%= if @total_count > @per_page do %>
+        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+      <% else %>
+        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
+      <% end %>
     </div>
     """
   end

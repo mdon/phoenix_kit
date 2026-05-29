@@ -38,8 +38,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   * Fallback `handle_info({MediaBrowser, _, _}, socket)` — forwards to
     `MediaBrowser.handle_parent_info/2` for component registration and
     upload piping.
+  * Fallback `handle_info({:leaf_changed, _}, socket)` — routes
+    Leaf editor content updates from the sidebar comments (when
+    PhoenixKitComments is installed) to
+    `PhoenixKitComments.Web.CommentsComponent.forward_leaf_event/2`.
+    Without this, comment Leaf editors render but the typed
+    content never reaches the server. The clause only injects
+    when `PhoenixKitComments.Web.CommentsComponent` is loaded —
+    otherwise it's compiled away. User-defined `:leaf_changed`
+    clauses (e.g. for a post-content editor on the same page)
+    still win because they are defined first.
 
-  Both fallbacks are injected via `@before_compile`, so user clauses
+  All fallbacks are injected via `@before_compile`, so user clauses
   declared earlier in the module match before them.
   """
 
@@ -59,6 +69,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   defmacro __before_compile__(_env) do
     # Fully-qualified references on purpose: this code is injected into the
     # caller's module, where aliasing from Embed wouldn't be in scope.
+    #
+    # The leaf-forwarder is always injected (not gated at MACRO-compile
+    # time on Code.ensure_loaded?) because phoenix_kit_comments may not be
+    # loaded yet when phoenix_kit compiles — they're sibling deps with no
+    # compile-order guarantee. Runtime `Code.ensure_loaded?` inside the
+    # clause does the right thing: when the comments package is installed,
+    # the event is forwarded; when it isn't, the clause is a no-op.
     quote do
       def handle_event("validate", _params, socket), do: {:noreply, socket}
 
@@ -69,6 +86,25 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
           ) do
         # credo:disable-for-next-line Credo.Check.Design.AliasUsage
         PhoenixKitWeb.Components.MediaBrowser.handle_parent_info(msg, socket)
+      end
+
+      def handle_info({:leaf_changed, _} = msg, socket) do
+        # credo:disable-for-next-line Credo.Check.Design.AliasUsage
+        mod = PhoenixKitComments.Web.CommentsComponent
+
+        if Code.ensure_loaded?(mod) and function_exported?(mod, :forward_leaf_event, 2) do
+          # `apply/3` (instead of `mod.forward_leaf_event(...)`) so the
+          # call doesn't compile-time-bind to a module that may not be
+          # available — phoenix_kit_comments is an optional sibling
+          # dep with no compile-order guarantee.
+          # credo:disable-for-next-line Credo.Check.Refactor.Apply
+          case apply(mod, :forward_leaf_event, [msg, socket]) do
+            {:noreply, _} = result -> result
+            :pass -> {:noreply, socket}
+          end
+        else
+          {:noreply, socket}
+        end
       end
     end
   end

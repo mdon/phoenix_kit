@@ -529,7 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V123 - Catalogue folders ⚡ LATEST
+  ### V124 - Partial unique index on media folder names ⚡ LATEST
+  - Restricts `phoenix_kit_media_folders_name_parent_idx` to
+    `WHERE trashed_at IS NULL`. Previously a trashed "untitled"
+    folder still reserved its slot in the index, blocking re-creation
+    of the same name in the same parent — surfacing as a confusing
+    auto-numbering jump or a "Failed to create folder" error after
+    the user had emptied the visible parent by sending its children
+    to trash. Active-only siblings are now an accurate predictor of
+    what the constraint accepts.
+  - (Renumbered from a pre-merge V122; upstream took V122/V123 for
+    location spaces + catalogue folders.)
+
+  ### V123 - Catalogue folders
   - Creates `phoenix_kit_cat_folders` (self-nesting via `parent_uuid`,
     `position`/`status`/`data`) — a dedicated folder layer for organizing
     catalogues, unrelated to the media-folder system.
@@ -1049,7 +1061,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 123
+  @current_version 124
   @default_prefix "public"
 
   @doc false
