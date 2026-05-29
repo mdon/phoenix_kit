@@ -90,6 +90,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Common,
       CssIntegration,
       DbConnectionCheck,
+      EndpointIntegration,
       IgniterHelpers,
       JsIntegration,
       ObanConfig,
@@ -138,6 +139,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         |> BasicConfiguration.add_basic_config()
         |> ApplicationSupervisor.add_supervisor()
         |> BootHook.add_boot_hook()
+        |> EndpointIntegration.add_pdfjs_static_mount()
         |> perform_igniter_update(opts)
       end
     end

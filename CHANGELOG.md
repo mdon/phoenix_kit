@@ -1,3 +1,18 @@
+## 1.7.124 - 2026-05-29
+
+### Merged
+- Merged upstream `dev`, which added **V122** (`phoenix_kit_location_spaces`
+  + staff `translations` JSONB + staff `Person.name`) and **V123**
+  (catalogue folders: `phoenix_kit_cat_folders` + `cat_catalogues.folder_uuid`),
+  plus the `<.load_more>` infinite-scroll option.
+
+### Migrations
+- **V124** — the media-folder partial unique index (previously authored
+  as V122 on this fork) is **renumbered to V124** because upstream
+  claimed V122/V123. Content is unchanged: restricts
+  `phoenix_kit_media_folders_name_parent_idx` to `WHERE trashed_at IS NULL`.
+  `@current_version` is now 124.
+
 ## 1.7.123 - 2026-05-29
 
 ### Added
@@ -32,7 +47,7 @@
   toolbar reads cleaner; multi-page views are unchanged.
 - New folder creation at the root of a scoped media browser no longer fails
   silently when a trashed "untitled" folder still occupies the unique
-  index slot. V122 restricts `phoenix_kit_media_folders_name_parent_idx`
+  index slot. V124 restricts `phoenix_kit_media_folders_name_parent_idx`
   to `WHERE trashed_at IS NULL`, so trashed folders no longer reserve
   names from the user's perspective.
 - `MediaBrowser.Embed` now forwards `{:leaf_changed, _}` events from
@@ -50,10 +65,10 @@
   `phoenix_kit.js` (reusable for any "type-to-replace" inline edit).
 
 ### Migrations
-- **V122** — `phoenix_kit_media_folders_name_parent_idx` is now a partial
+- **V124** — `phoenix_kit_media_folders_name_parent_idx` is now a partial
   unique index `WHERE trashed_at IS NULL`. Active siblings are the only
   rows the constraint sees, matching what `Storage.list_folders/2`
-  returns.
+  returns. (Renumbered from V122 after the upstream merge — see 1.7.124.)
 
 ## 1.7.121 - 2026-05-25
 

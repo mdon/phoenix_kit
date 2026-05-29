@@ -529,7 +529,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V122 - Partial unique index on media folder names ⚡ LATEST
+  ### V124 - Partial unique index on media folder names ⚡ LATEST
   - Restricts `phoenix_kit_media_folders_name_parent_idx` to
     `WHERE trashed_at IS NULL`. Previously a trashed "untitled"
     folder still reserved its slot in the index, blocking re-creation
@@ -538,6 +538,38 @@ defmodule PhoenixKit.Migrations.Postgres do
     the user had emptied the visible parent by sending its children
     to trash. Active-only siblings are now an accurate predictor of
     what the constraint accepts.
+  - (Renumbered from a pre-merge V122; upstream took V122/V123 for
+    location spaces + catalogue folders.)
+
+  ### V123 - Catalogue folders
+  - Creates `phoenix_kit_cat_folders` (self-nesting via `parent_uuid`,
+    `position`/`status`/`data`) — a dedicated folder layer for organizing
+    catalogues, unrelated to the media-folder system.
+  - Adds nullable `folder_uuid` FK to `phoenix_kit_cat_catalogues`
+    (`ON DELETE SET NULL`; NULL = unfiled / root).
+
+  ### V122 - Location spaces + staff translations + staff Person.name
+  - Creates `phoenix_kit_location_spaces` for the per-Location nested
+    tree of spaces. Required `location_uuid` FK (cascade) and optional
+    `parent_uuid` self-ref FK (cascade); arbitrary depth.
+  - `kind` is a CHECK-constrained enum (floor / room / hall / suite /
+    section / zone / aisle / shelf / corner) mirroring the consumer's
+    `PhoenixKitLocations.Schemas.Space @kinds`.
+  - The "child belongs to same Location as parent" cross-row invariant
+    is enforced in the consumer context; a composite FK would be
+    heavier than the surface justifies.
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_staff_departments`, `phoenix_kit_staff_teams`, and
+    `phoenix_kit_staff_people` (mirrors the projects V112 settings-
+    translations shape: primary stays in dedicated columns, JSONB
+    holds non-primary overrides). Translatable fields by schema:
+    * Department: `name`, `description`
+    * Team: `name`, `description`
+    * Person: `job_title`, `bio`, `skills`, `notes`
+  - Adds a single nullable `name VARCHAR` to `phoenix_kit_staff_people`
+    for the staff person's full display name — consistent with every
+    other consumer schema in the staff plugin (Department / Team / Space
+    / Location all use a single `name`).
 
   ### V121 - Line annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
@@ -1029,7 +1061,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 122
+  @current_version 124
   @default_prefix "public"
 
   @doc false
