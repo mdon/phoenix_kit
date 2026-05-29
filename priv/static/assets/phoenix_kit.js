@@ -2414,22 +2414,36 @@ if (typeof window.Chart === "undefined") {
   // InfiniteScroll — fires a "load more" LV event when the sentinel scrolls
   // into view. Pair with the core `<.load_more infinite>` component, which
   // renders this hook plus a manual fallback button. The event name is read
-  // from `data-load-more-event` (default "load_more"); `data-cursor` changes
-  // per page so the LV patch re-triggers `updated()` and the observer keeps
-  // firing while the sentinel stays on screen (tall viewports / Page-Down).
+  // from `data-load-more-event` (default "load_more").
+  //
+  // `data-cursor` is an opaque per-page marker that changes whenever a new
+  // page lands. `updated()` only re-fires when it actually changes — so an
+  // unrelated LV diff that happens to touch the sentinel (flash, PubSub row
+  // update, sibling assign) won't spuriously trigger another load. A single
+  // in-flight guard (`loading`) prevents stacking multiple pushes before the
+  // server responds; it clears on the next cursor change. Together these keep
+  // the observer firing while the sentinel stays on screen (tall viewports /
+  // Page-Down) without over-fetching.
   // ---------------------------------------------------------------------------
 
   window.PhoenixKitHooks.InfiniteScroll = {
     loadMoreEvent() {
       return this.el.dataset.loadMoreEvent || "load_more";
     },
+    maybeLoad() {
+      if (this.loading) return;
+      this.loading = true;
+      this.pushEvent(this.loadMoreEvent(), {});
+    },
     mounted() {
       this.intersecting = false;
+      this.loading = false;
+      this.lastCursor = this.el.dataset.cursor;
       this.observer = new IntersectionObserver(
         (entries) => {
           this.intersecting = entries[0].isIntersecting;
           if (this.intersecting) {
-            this.pushEvent(this.loadMoreEvent(), {});
+            this.maybeLoad();
           }
         },
         { rootMargin: "200px" }
@@ -2437,8 +2451,15 @@ if (typeof window.Chart === "undefined") {
       this.observer.observe(this.el);
     },
     updated() {
-      if (this.intersecting) {
-        this.pushEvent(this.loadMoreEvent(), {});
+      // Only react to a genuinely new page (cursor changed), not to every
+      // diff that happens to touch this element. The cursor change also means
+      // the previous load resolved, so clear the in-flight guard.
+      if (this.el.dataset.cursor !== this.lastCursor) {
+        this.lastCursor = this.el.dataset.cursor;
+        this.loading = false;
+        if (this.intersecting) {
+          this.maybeLoad();
+        }
       }
     },
     destroyed() {

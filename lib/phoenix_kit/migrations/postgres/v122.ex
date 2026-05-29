@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Migrations.Postgres.V122 do
   @moduledoc """
-  V122: Two unrelated additions bundled together because they shipped
+  V122: Three unrelated additions bundled together because they shipped
   in the same release cycle.
 
   ## 1. `phoenix_kit_location_spaces` — nested floors / rooms / zones
@@ -97,13 +97,9 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
       timestamps(type: :utc_datetime)
     end
 
-    create_if_not_exists(
-      index(:phoenix_kit_location_spaces, [:location_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_location_spaces, [:location_uuid], prefix: prefix))
 
-    create_if_not_exists(
-      index(:phoenix_kit_location_spaces, [:parent_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_location_spaces, [:parent_uuid], prefix: prefix))
 
     # Sibling-ordering query: list spaces under (location, parent) by position.
     create_if_not_exists(
@@ -153,9 +149,7 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
     )
 
     # ── Person.name ─────────────────────────────────────────────────
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_staff_people ADD COLUMN IF NOT EXISTS name VARCHAR"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_staff_people ADD COLUMN IF NOT EXISTS name VARCHAR")
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '122'")
   end

@@ -201,9 +201,11 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
     Requires `id`. (default `false`)
   - `id` — DOM id, **required when `infinite`** (the JS hook needs it)
   - `cursor` — an opaque per-page marker (e.g. `"items-<offset>"`) that
-    changes on each load so the LV patch re-triggers the hook's
-    `updated()` and it can keep firing while still on screen. Only used
-    when `infinite`.
+    changes on each load. The `InfiniteScroll` hook re-fires only when it
+    changes, so it both keeps firing while still on screen and ignores
+    unrelated diffs. Only used when `infinite`. Defaults to `@loaded`
+    (which already changes per page), so most callers can omit it; pass
+    an explicit value only when `@loaded` is not a faithful page marker.
 
   ## Example
 
@@ -233,13 +235,20 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   attr :cursor, :string, default: ""
 
   def load_more(assigns) do
+    if assigns.infinite and is_nil(assigns.id) do
+      raise ArgumentError,
+            "<.load_more infinite> requires an `id` (the InfiniteScroll JS hook needs it)"
+    end
+
+    assigns = assign_new(assigns, :effective_cursor, fn -> resolve_cursor(assigns) end)
+
     ~H"""
     <div
       :if={@total > 0}
       id={@id}
       phx-hook={if @infinite and @loaded < @total, do: "InfiniteScroll"}
       data-load-more-event={@on_load_more}
-      data-cursor={@infinite && @cursor}
+      data-cursor={@infinite && @effective_cursor}
       class={["flex flex-col items-center gap-2 p-4", @class]}
     >
       <p class="text-sm text-base-content/60">
@@ -263,6 +272,12 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   end
 
   # Private helper functions
+
+  # Per-page marker the InfiniteScroll hook watches. An explicit `cursor`
+  # wins; otherwise fall back to `loaded`, which already changes per page so
+  # callers don't have to thread a cursor through just to drive auto-load.
+  defp resolve_cursor(%{cursor: cursor}) when cursor != "", do: cursor
+  defp resolve_cursor(%{loaded: loaded}), do: Integer.to_string(loaded)
 
   # Calculate visible page range (current page ± 2)
   defp pagination_range(current_page, total_pages) do
