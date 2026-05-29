@@ -6,11 +6,7 @@
 
 We are actively building PhoenixKit, a foundation for building your Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, internal tools, AI-powered apps, community platforms, and more. Our goal is to eliminate the need to reinvent the wheel every time you start a new project.
 
-**🚧 Early Access - We Need Your Feedback!**
-
-PhoenixKit is under heavy development and we're looking for early adopters to test, provide feedback, and help shape the future of this toolkit. If you're building with Phoenix and want to skip the boilerplate setup, we'd love to have you try it out and share your experience.
-
-With PhoenixKit, you will be able to create Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common patterns.
+With PhoenixKit, you are able to create Elixir/Phoenix apps much faster and focus on your unique business logic instead of reimplementing common patterns.
 
 ## 📖 Documentation
 
@@ -497,7 +493,7 @@ PhoenixKit.Modules.AI.disable_system()
 ```
 
 **Important**: Attempting to use a disabled module's API functions or admin pages will result in errors or redirects. Always enable modules before:
-- Calling their API functions (e.g., `PhoenixKit.Modules.AI.ask/3`)
+- Calling their API functions (e.g., `PhoenixKitAI.ask_with_prompt/4`)
 - Visiting their admin pages (e.g., `/{prefix}/admin/ai/endpoints`)
 
 ### Built-in Admin Interface

@@ -87,6 +87,8 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
       />
 
       # Renders: "Showing 1 to 25 of 100 results"
+      # Single-page result drops the redundant " of N" — e.g. with
+      # total_count=4 and per_page=25: "Showing 1 to 4 results".
   """
   attr :page, :integer, required: true
   attr :per_page, :integer, required: true
@@ -96,7 +98,11 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   def pagination_info(assigns) do
     ~H"""
     <div class={["text-sm text-base-content/70", @class]}>
-      Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+      <%= if @total_count > @per_page do %>
+        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+      <% else %>
+        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
+      <% end %>
     </div>
     """
   end
@@ -196,6 +202,16 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   - `noun_plural` — used in the "Showing N of M %{noun}" line
     (default `"items"`)
   - `class` — additional classes on the outer wrapper
+  - `infinite` — when `true`, the footer also auto-loads on scroll via
+    the `InfiniteScroll` hook (the manual button stays as a fallback).
+    Requires `id`. (default `false`)
+  - `id` — DOM id, **required when `infinite`** (the JS hook needs it)
+  - `cursor` — an opaque per-page marker (e.g. `"items-<offset>"`) that
+    changes on each load. The `InfiniteScroll` hook re-fires only when it
+    changes, so it both keeps firing while still on screen and ignores
+    unrelated diffs. Only used when `infinite`. Defaults to `@loaded`
+    (which already changes per page), so most callers can omit it; pass
+    an explicit value only when `@loaded` is not a faithful page marker.
 
   ## Example
 
@@ -205,16 +221,48 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         on_load_more="load_more"
         noun_plural={gettext("projects")}
       />
+
+      <%!-- Auto-load on scroll + manual fallback --%>
+      <.load_more
+        id="items-load-more"
+        loaded={length(@items)}
+        total={@total}
+        infinite
+        cursor={"items-\#{@offset}"}
+      />
   """
   attr :loaded, :integer, required: true
   attr :total, :integer, required: true
   attr :on_load_more, :string, default: "load_more"
   attr :noun_plural, :string, default: "items"
   attr :class, :string, default: ""
+  attr :id, :string, default: nil
+  attr :infinite, :boolean, default: false
+  attr :cursor, :string, default: ""
 
   def load_more(assigns) do
+    if assigns.infinite and is_nil(assigns.id) do
+      raise ArgumentError,
+            "<.load_more infinite> requires an `id` (the InfiniteScroll JS hook needs it)"
+    end
+
+    # Only the infinite variant renders data-cursor; skip the work otherwise.
+    assigns =
+      assign(
+        assigns,
+        :effective_cursor,
+        if(assigns.infinite, do: resolve_cursor(assigns), else: "")
+      )
+
     ~H"""
-    <div :if={@total > 0} class={["flex flex-col items-center gap-2 p-4", @class]}>
+    <div
+      :if={@total > 0}
+      id={@id}
+      phx-hook={if @infinite and @loaded < @total, do: "InfiniteScroll"}
+      data-load-more-event={@on_load_more}
+      data-cursor={@infinite && @effective_cursor}
+      class={["flex flex-col items-center gap-2 p-4", @class]}
+    >
       <p class="text-sm text-base-content/60">
         {gettext("Showing %{loaded} of %{total} %{noun}",
           loaded: @loaded,
@@ -236,6 +284,13 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   end
 
   # Private helper functions
+
+  # Per-page marker the InfiniteScroll hook watches. An explicit `cursor`
+  # wins; otherwise fall back to `loaded`, which already changes per page so
+  # callers don't have to thread a cursor through just to drive auto-load.
+  defp resolve_cursor(%{cursor: cursor}) when is_binary(cursor) and cursor != "", do: cursor
+  defp resolve_cursor(%{loaded: loaded}) when is_integer(loaded), do: Integer.to_string(loaded)
+  defp resolve_cursor(_), do: ""
 
   # Calculate visible page range (current page ± 2)
   defp pagination_range(current_page, total_pages) do

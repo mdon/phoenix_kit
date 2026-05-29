@@ -1391,6 +1391,21 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // SelectOnMount
+  //
+  // Focuses an input and selects all of its current value on mount. Use
+  // for inline-rename inputs and similar type-to-replace flows where
+  // JS.focus() alone leaves the cursor at the end and forces the user
+  // to reach for the mouse / select-all shortcut before retyping.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.SelectOnMount = {
+    mounted() {
+      this.el.focus();
+      this.el.select();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
   // Positions the MediaBrowser's floating annotation-composer popover
@@ -2410,6 +2425,79 @@ if (typeof window.Chart === "undefined") {
   };
 
 
+  // ---------------------------------------------------------------------------
+  // InfiniteScroll — fires a "load more" LV event when the sentinel scrolls
+  // into view. Pair with the core `<.load_more infinite>` component, which
+  // renders this hook plus a manual fallback button. The event name is read
+  // from `data-load-more-event` (default "load_more").
+  //
+  // `data-cursor` is an opaque per-page marker that changes whenever a new
+  // page lands. `updated()` only re-fires when it actually changes — so an
+  // unrelated LV diff that happens to touch the sentinel (flash, PubSub row
+  // update, sibling assign) won't spuriously trigger another load. A single
+  // in-flight guard (`loading`) prevents stacking multiple pushes before the
+  // server responds; the cursor change clears it on the happy path.
+  //
+  // The guard also has a timeout watchdog: if a load resolves WITHOUT
+  // advancing the cursor (an empty/no-op page, a stale `total`, or a
+  // replace-in-place list where `loaded` stays constant), the cursor-change
+  // path never clears the guard. The watchdog releases it after a short
+  // window so auto-load can never wedge permanently — worst case is a brief
+  // stall, after which the next scroll (or the manual button) recovers.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.InfiniteScroll = {
+    loadMoreEvent() {
+      return this.el.dataset.loadMoreEvent || "load_more";
+    },
+    clearGuard() {
+      this.loading = false;
+      clearTimeout(this.loadTimer);
+    },
+    maybeLoad() {
+      if (this.loading) return;
+      this.loading = true;
+      this.pushEvent(this.loadMoreEvent(), {});
+      // Watchdog: release the guard even if the cursor never advances, so a
+      // no-op load can't wedge the sentinel. The cursor-change path in
+      // updated() clears it sooner on the normal (page-grew) path.
+      clearTimeout(this.loadTimer);
+      this.loadTimer = setTimeout(() => { this.loading = false; }, 2000);
+    },
+    mounted() {
+      this.intersecting = false;
+      this.loading = false;
+      this.lastCursor = this.el.dataset.cursor;
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          this.intersecting = entries[0].isIntersecting;
+          if (this.intersecting) {
+            this.maybeLoad();
+          }
+        },
+        { rootMargin: "200px" }
+      );
+      this.observer.observe(this.el);
+    },
+    updated() {
+      // Only react to a genuinely new page (cursor changed), not to every
+      // diff that happens to touch this element. The cursor change also means
+      // the previous load resolved, so clear the in-flight guard.
+      if (this.el.dataset.cursor !== this.lastCursor) {
+        this.lastCursor = this.el.dataset.cursor;
+        this.clearGuard();
+        if (this.intersecting) {
+          this.maybeLoad();
+        }
+      }
+    },
+    destroyed() {
+      clearTimeout(this.loadTimer);
+      if (this.observer) this.observer.disconnect();
+    }
+  };
+
+
   // ============================================================================
   // 4. FLASH AUTO-DISMISS HOOK
   // ============================================================================
@@ -3003,7 +3091,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.13/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.21/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -3072,7 +3160,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.6.3/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -3217,7 +3305,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.5.3/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
