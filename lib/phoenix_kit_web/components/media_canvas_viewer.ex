@@ -486,25 +486,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         _ -> nil
       end
 
-    title_val =
-      case title do
-        nil -> nil
-        str when is_binary(str) -> if String.trim(str) == "", do: nil, else: str
-        _ -> nil
-      end
-
-    case PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val}) do
-      {:ok, _} ->
-        :ok
-
-      {:error, reason} ->
-        # Inline title edits intentionally show no flash (see above), but a
-        # failed write would otherwise be indistinguishable from a no-op —
-        # log it so the failure is diagnosable.
-        Logger.warning(
-          "Failed to update annotation #{annotation_uuid} title from comments sidebar: #{inspect(reason)}"
-        )
-    end
+    persist_annotation_title(annotation_uuid, normalize_annotation_title(title))
 
     fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
 
@@ -527,6 +509,28 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   end
 
   defp apply_annotation_title_update(socket, _, _), do: socket
+
+  # Blank/whitespace-only titles collapse to nil (clears the column).
+  defp normalize_annotation_title(str) when is_binary(str) do
+    if String.trim(str) == "", do: nil, else: str
+  end
+
+  defp normalize_annotation_title(_), do: nil
+
+  # Inline title edits intentionally show no flash (see above), but a failed
+  # write would otherwise be indistinguishable from a no-op — log it so the
+  # failure is diagnosable.
+  defp persist_annotation_title(annotation_uuid, title_val) do
+    case PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val}) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to update annotation #{annotation_uuid} title from comments sidebar: #{inspect(reason)}"
+        )
+    end
+  end
 
   @doc """
   Build the `comment_decorations` registry that `CommentsComponent`
