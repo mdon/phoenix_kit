@@ -4,11 +4,13 @@
 **State:** MERGED into `dev` (2026-05-29, merge `c89535c3`). Post-merge review.
 **Scope:** V124 migration (partial media-folder name index), fresco/etcher/leaf dep bumps, embed `:leaf_changed` forwarding, `MediaCanvasViewer` `viewer_only` mode + annotation-title decorations, `MediaDetail` rebuilt on the canvas viewer, instant-rename UX, sidebar layout/scroll fixes.
 
-## Status — fix applied post-review (2026-05-29)
+## Status — fixes applied post-review (2026-05-29)
 
 - **NITPICK (etcher JS pin lags hex)** — **fixed.** `priv/static/assets/phoenix_kit.js` etcher lazy-load CDN pin bumped `v0.5.2 → v0.5.3` to match the resolved hex dep (`etcher 0.5.3`) and the mix.exs comment's stated intent ("jsdelivr-pinned to the matching version"). Verified the `v0.5.3` tag serves (`HTTP 200`). leaf (`0.2.21`) and fresco (`0.6.3`) were already in lockstep between hex and CDN.
+- **NITPICK (`forward_leaf_event/2` no catch-all)** — **fixed.** `embed.ex` now has an `other ->` branch that logs a `Logger.warning` and returns `{:noreply, socket}` instead of raising `CaseClauseError` and taking down the host LiveView on a comments-package contract drift. `require Logger` added to the injected quote.
+- **NITPICK (silent inline-title write failure)** — **fixed.** `MediaCanvasViewer.apply_annotation_title_update/3` now matches on `PhoenixKit.Annotations.update/2` and emits a `Logger.warning` on `{:error, _}` (UX unchanged — still no flash, per the inline-edit design).
 
-Everything else below is left as-is — the remaining findings are either pre-existing patterns I judged too risky to refactor blind (no runnable LV tests here) or intentional design choices worth recording, not fixing.
+The remaining finding (DB-in-mount) is left as-is — a pre-existing module-wide pattern I judged too risky to refactor blind (no runnable LV tests here).
 
 ## Verdict
 
@@ -52,7 +54,7 @@ case apply(mod, :forward_leaf_event, [msg, socket]) do
 end
 ```
 
-If a future `phoenix_kit_comments` returns anything other than `{:noreply, _}` or `:pass`, this raises `CaseClauseError` and takes down the host LiveView. Since this is an optional cross-package contract, a defensive `other -> {:noreply, socket}` (or a logged warning) would degrade more gracefully. Left as-is because the strict match is arguably intentional (fail loud on contract drift) — flagging for the author's call.
+If a future `phoenix_kit_comments` returns anything other than `{:noreply, _}` or `:pass`, this raises `CaseClauseError` and takes down the host LiveView. Since this is an optional cross-package contract, a defensive fallback degrades more gracefully. **Fixed** — added an `other ->` branch that logs and returns `{:noreply, socket}`.
 
 ## NITPICK — inline title update swallows write failures
 
@@ -63,4 +65,4 @@ _ = PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val})
 fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
 ```
 
-An `{:error, changeset}` from `update/2` is discarded; the subsequent reload silently shows the unchanged title with no feedback. The "no flash" choice is deliberate for an inline edit, but a failed write currently looks identical to a no-op. Consider at least a `Logger.warning` on the error branch so failures are diagnosable.
+An `{:error, changeset}` from `update/2` is discarded; the subsequent reload silently shows the unchanged title with no feedback. The "no flash" choice is deliberate for an inline edit, but a failed write currently looks identical to a no-op. **Fixed** — now matches on `update/2` and emits a `Logger.warning` on `{:error, _}`; UX (no flash) unchanged.

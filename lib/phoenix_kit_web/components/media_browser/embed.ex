@@ -77,6 +77,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     # clause does the right thing: when the comments package is installed,
     # the event is forwarded; when it isn't, the clause is a no-op.
     quote do
+      require Logger
+
       def handle_event("validate", _params, socket), do: {:noreply, socket}
 
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
@@ -99,8 +101,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
           # dep with no compile-order guarantee.
           # credo:disable-for-next-line Credo.Check.Refactor.Apply
           case apply(mod, :forward_leaf_event, [msg, socket]) do
-            {:noreply, _} = result -> result
-            :pass -> {:noreply, socket}
+            {:noreply, _} = result ->
+              result
+
+            :pass ->
+              {:noreply, socket}
+
+            other ->
+              # Optional cross-package contract: forward_leaf_event/2 is
+              # expected to return {:noreply, socket} or :pass. Anything
+              # else shouldn't crash the host LiveView — degrade gracefully
+              # and log so a contract drift in phoenix_kit_comments is
+              # diagnosable.
+              Logger.warning(
+                "PhoenixKitComments.Web.CommentsComponent.forward_leaf_event/2 " <>
+                  "returned an unexpected value (#{inspect(other)}); ignoring."
+              )
+
+              {:noreply, socket}
           end
         else
           {:noreply, socket}

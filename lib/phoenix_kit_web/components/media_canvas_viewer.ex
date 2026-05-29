@@ -493,7 +493,18 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         _ -> nil
       end
 
-    _ = PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val})
+    case PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val}) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        # Inline title edits intentionally show no flash (see above), but a
+        # failed write would otherwise be indistinguishable from a no-op —
+        # log it so the failure is diagnosable.
+        Logger.warning(
+          "Failed to update annotation #{annotation_uuid} title from comments sidebar: #{inspect(reason)}"
+        )
+    end
 
     fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
 
