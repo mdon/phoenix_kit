@@ -28,11 +28,34 @@
   when (and only when) the host defines none — a host with its own keeps
   it. (Note: changing the macro requires recompiling the host;
   `mix deps.compile phoenix_kit --force` in a parent app after updating.)
+  The `:handle_params` hook only re-syncs the component when the parsed
+  folder / search / page / view actually changed, so unrelated host
+  navigation on a multi-purpose page doesn't trigger a needless reload.
+- Installer: the `catalogue_pdf` Oban queue (concurrency 2) is now added
+  to the host Oban config on `mix phoenix_kit.install` /
+  `mix phoenix_kit.update` (and to the fresh-install default queues).
+  `phoenix_kit_catalogue` enqueues a `:catalogue_pdf` job per uploaded PDF
+  (`pdfinfo` + `pdftotext` text extraction); Oban only runs listed queues,
+  so without this entry the jobs sat `available` forever — uploads looked
+  fine but text search silently never worked. Added unconditionally (an
+  idle queue costs nothing) so a host that later adds the catalogue module
+  is already wired.
 
 ### Changed
 - `/admin/media` (`Live.Users.Media`) now uses `url_sync` instead of its
   bespoke `handle_params`/`handle_info`/`initial_params` plumbing —
   behavior unchanged, ~45 lines lighter.
+- MediaBrowser Move modal: the destination picker is now a collapsible
+  directory tree (chevron expand/collapse + colored folder icons),
+  matching the left-sidebar experience, instead of a flat fully-expanded
+  dump of every folder in the project. It **opens seeded from the
+  sidebar's current expansion** (`expanded_folders`), so the picker shows
+  the same open directories you already see on the left, then tracks its
+  own `move_expanded` independently (drilling in the picker doesn't move
+  the sidebar). The picker is a plain full-width `<ul>` (not a daisyUI
+  `menu`, which laid the custom tree rows out horizontally and spilled
+  past the box); names truncate and horizontal overflow is clipped so it
+  fits the modal.
 
 ### Fixed
 - MediaBrowser: the grid/list view toggle and the item count no longer
@@ -46,18 +69,19 @@
   which already hide with an empty selection). The `show_move_modal`
   handler is guarded too, so it can't open an empty modal.
 
-### Changed
-- MediaBrowser Move modal: the destination picker is now a collapsible
-  directory tree (chevron expand/collapse + colored folder icons),
-  matching the left-sidebar experience, instead of a flat fully-expanded
-  dump of every folder in the project. It **opens seeded from the
-  sidebar's current expansion** (`expanded_folders`), so the picker shows
-  the same open directories you already see on the left, then tracks its
-  own `move_expanded` independently (drilling in the picker doesn't move
-  the sidebar). The picker is a plain full-width `<ul>` (not a daisyUI
-  `menu`, which laid the custom tree rows out horizontally and spilled
-  past the box); names truncate and horizontal overflow is clipped so it
-  fits the modal.
+### Migrations
+- **V125** — project workflow statuses (entities-backed, cement-at-start).
+  New `phoenix_kit_project_statuses` table (the cemented per-project status
+  snapshot: `project_uuid` FK `ON DELETE CASCADE`, `label` / `slug` /
+  `position`, `data` + `translations` JSONB, `source_entity_data_uuid`
+  provenance with no FK; index on `(project_uuid)`, unique on
+  `(project_uuid, slug)`). New columns on `phoenix_kit_projects`:
+  `status_entity_uuid` (FK → `phoenix_kit_entities` `ON DELETE SET NULL`),
+  `current_status_slug`, a generic `settings` JSONB, and a free-form
+  `external_id VARCHAR(255)` for tying a project to an external system
+  (not unique, not an FK; partial-indexed `WHERE NOT NULL`, set
+  programmatically). Idempotent; `down/0` reverses to 124.
+  `@current_version` is now 125.
 
 ## 1.7.125 - 2026-05-29
 
