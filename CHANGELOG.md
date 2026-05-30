@@ -41,6 +41,10 @@
   shown whenever there are files, folders, or you're inside a folder.
 - `<.pagination_info>` renders "No results" at `total_count == 0` instead
   of the nonsensical "Showing 1 to 0 results".
+- MediaBrowser: the bulk **Move** button is disabled in Select Mode until
+  at least one item is selected (matching the Download/Delete actions,
+  which already hide with an empty selection). The `show_move_modal`
+  handler is guarded too, so it can't open an empty modal.
 
 ## 1.7.125 - 2026-05-29
 

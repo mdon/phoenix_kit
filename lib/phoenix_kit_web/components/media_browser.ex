@@ -1040,7 +1040,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("show_move_modal", _params, socket) do
-    {:noreply, assign(socket, :show_move_modal, true)}
+    # Bulk move only opens when something is selected. The Move button is
+    # disabled with an empty selection; this guards the handler too so a
+    # stray event can't pop an empty modal.
+    if MapSet.size(socket.assigns.selected_files) +
+         MapSet.size(socket.assigns.selected_folders) > 0 do
+      {:noreply, assign(socket, :show_move_modal, true)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_move_modal", _params, socket) do

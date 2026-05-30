@@ -246,6 +246,10 @@
                     <button
                       phx-click="show_move_modal"
                       phx-target={@myself}
+                      disabled={
+                        MapSet.size(@selected_files) + MapSet.size(@selected_folders) == 0
+                      }
+                      title={gettext("Select items to move")}
                       class="btn btn-sm btn-primary gap-1"
                     >
                       <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext("Move")}
