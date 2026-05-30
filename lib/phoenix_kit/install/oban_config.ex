@@ -17,6 +17,7 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_sitemap_queue: 2}
   @dialyzer {:nowarn_function, ensure_shop_imports_queue: 2}
   @dialyzer {:nowarn_function, ensure_newsletters_delivery_queue: 2}
+  @dialyzer {:nowarn_function, ensure_catalogue_pdf_queue: 2}
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
   @dialyzer {:nowarn_function, add_cron_plugin_to_plugins: 2}
@@ -118,7 +119,8 @@ defmodule PhoenixKit.Install.ObanConfig do
         posts: 10,             # Posts scheduled publishing
         scheduled_jobs: 1,     # Scheduled jobs cron
         sitemap: 5,            # Sitemap generation
-        newsletters_delivery: 10  # Newsletters broadcast deliveries
+        newsletters_delivery: 10, # Newsletters broadcast deliveries
+        catalogue_pdf: 2       # phoenix_kit_catalogue PDF text extraction
       ],
       plugins: [
         # Pruner: delete completed/discarded jobs after 30 days
@@ -175,6 +177,7 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> ensure_sitemap_queue(app_name)
       |> ensure_shop_imports_queue(app_name)
       |> ensure_newsletters_delivery_queue(app_name)
+      |> ensure_catalogue_pdf_queue(app_name)
       |> ensure_cron_plugin(app_name)
       |> ensure_pruner_max_age(app_name)
 
@@ -361,6 +364,54 @@ defmodule PhoenixKit.Install.ObanConfig do
           )
 
           Mix.shell().error("     Please manually add: newsletters_delivery: 10")
+          content
+      end
+    end
+  end
+
+  # Ensure catalogue_pdf queue exists in the queues list.
+  #
+  # phoenix_kit_catalogue's PDF library enqueues a `:catalogue_pdf` job
+  # per uploaded PDF (pdfinfo + pdftotext text extraction). Oban only
+  # processes queues listed here, so without this entry every upload's
+  # job sits `available` forever — uploads look fine but text search
+  # never works. Added unconditionally (an idle queue costs nothing) so
+  # a host that later adds the catalogue module is already wired.
+  defp ensure_catalogue_pdf_queue(content, app_name) do
+    if Regex.match?(~r/catalogue_pdf:\s*\d+/, content) do
+      Mix.shell().info("  ℹ️  catalogue_pdf queue already configured")
+      content
+    else
+      Mix.shell().info("  ➕ Adding catalogue_pdf queue to Oban configuration...")
+
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban.*?queues:\s*\[)(.*?)(\n\s*\])/ms,
+             content,
+             capture: :all
+           ) do
+        [full_match, before_queues, queues_content, after_queues] ->
+          Mix.shell().info("  ✓ Found queues block, adding catalogue_pdf queue")
+
+          trimmed_content = String.trim_trailing(queues_content)
+          has_trailing_comma = String.ends_with?(trimmed_content, ",")
+
+          new_queue_entry =
+            if has_trailing_comma do
+              "\n    catalogue_pdf: 2"
+            else
+              ",\n    catalogue_pdf: 2"
+            end
+
+          updated_queues = before_queues <> queues_content <> new_queue_entry <> after_queues
+
+          String.replace(content, full_match, updated_queues, global: false)
+
+        nil ->
+          Mix.shell().error(
+            "  ⚠️  Could not parse queues block for :#{app_name} - skipping catalogue_pdf queue update"
+          )
+
+          Mix.shell().error("     Please manually add: catalogue_pdf: 2")
           content
       end
     end
