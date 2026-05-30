@@ -529,7 +529,25 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V124 - Partial unique index on media folder names ⚡ LATEST
+  ### V125 - Project workflow statuses (entities-backed, cement-at-start) ⚡ LATEST
+  - Adds `status_entity_uuid` (FK `phoenix_kit_entities(uuid) ON DELETE SET NULL`),
+    `current_status_slug`, and a generic `settings` JSONB (first key:
+    `use_status_translations`) to `phoenix_kit_projects` — the catalog list a
+    project/template draws workflow statuses from, the selected status
+    (addressed by stable slug), and per-project preferences. NULL entity =
+    the shared default list.
+  - Creates `phoenix_kit_project_statuses` (the cemented per-project copy:
+    `project_uuid` FK cascade, `label`/`slug`/`position`, `data` JSONB
+    (per-status attrs e.g. colour) + `translations` JSONB (label i18n,
+    workspace shape), provenance `source_entity_data_uuid` with no FK).
+    Populated when a project starts so running projects use a frozen,
+    independently-editable status set.
+  - Partial index on `(status_entity_uuid) WHERE NOT NULL`; unique
+    `(project_uuid, slug)` on the cemented table.
+  - Orthogonal to `derived_status/2` + `archived_at`; the legacy `status`
+    string column is untouched.
+
+  ### V124 - Partial unique index on media folder names
   - Restricts `phoenix_kit_media_folders_name_parent_idx` to
     `WHERE trashed_at IS NULL`. Previously a trashed "untitled"
     folder still reserved its slot in the index, blocking re-creation
@@ -1061,7 +1079,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 124
+  @current_version 125
   @default_prefix "public"
 
   @doc false
