@@ -1,3 +1,88 @@
+## 1.7.126 - 2026-05-30
+
+### Added
+- `MediaBrowser.Embed` gains an opt-in `url_sync` option so any embedding
+  LiveView gets shareable, deep-linkable folder URLs with one line:
+
+      use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: true
+      # or, for a non-default component id / multiple browsers:
+      use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "my-browser"]
+
+  It provides the full controlled-mode round-trip the host previously had
+  to hand-write (~50 lines), via LiveView lifecycle hooks attached in
+  `on_mount` (not injected `handle_params`/`handle_info` clauses) so it
+  **composes with a host that already defines its own** — e.g. an
+  `…/orders/:id/edit/files` page that loads the order in its own
+  `handle_params`. `on_mount` parses `:initial_params` from the URL, a
+  `:handle_params` hook feeds them to the component, and a `:handle_info`
+  hook intercepts the component's `{:navigate, …}` and `push_patch`es
+  folder / search / page / view onto the current path (every existing
+  segment — locale, parent ids, sub-tab — preserved). Folder is tracked
+  by uuid (stable across renames; unknown/out-of-scope falls back to
+  root); base path is taken from the live URL so router prefixes are
+  respected. Reusable `parse_nav_params/1` + `build_nav_query/1` helpers
+  are public. The host template passes `on_navigate={:navigate}` +
+  `initial_params={@initial_params}`. A `push_patch` issued from a
+  `handle_info` hook makes LiveView call `view.handle_params/3`
+  unconditionally, so the macro injects a trivial `handle_params/3` stub
+  when (and only when) the host defines none — a host with its own keeps
+  it. (Note: changing the macro requires recompiling the host;
+  `mix deps.compile phoenix_kit --force` in a parent app after updating.)
+  The `:handle_params` hook only re-syncs the component when the parsed
+  folder / search / page / view actually changed, so unrelated host
+  navigation on a multi-purpose page doesn't trigger a needless reload.
+- Installer: the `catalogue_pdf` Oban queue (concurrency 2) is now added
+  to the host Oban config on `mix phoenix_kit.install` /
+  `mix phoenix_kit.update` (and to the fresh-install default queues).
+  `phoenix_kit_catalogue` enqueues a `:catalogue_pdf` job per uploaded PDF
+  (`pdfinfo` + `pdftotext` text extraction); Oban only runs listed queues,
+  so without this entry the jobs sat `available` forever — uploads looked
+  fine but text search silently never worked. Added unconditionally (an
+  idle queue costs nothing) so a host that later adds the catalogue module
+  is already wired.
+
+### Changed
+- `/admin/media` (`Live.Users.Media`) now uses `url_sync` instead of its
+  bespoke `handle_params`/`handle_info`/`initial_params` plumbing —
+  behavior unchanged, ~45 lines lighter.
+- MediaBrowser Move modal: the destination picker is now a collapsible
+  directory tree (chevron expand/collapse + colored folder icons),
+  matching the left-sidebar experience, instead of a flat fully-expanded
+  dump of every folder in the project. It **opens seeded from the
+  sidebar's current expansion** (`expanded_folders`), so the picker shows
+  the same open directories you already see on the left, then tracks its
+  own `move_expanded` independently (drilling in the picker doesn't move
+  the sidebar). The picker is a plain full-width `<ul>` (not a daisyUI
+  `menu`, which laid the custom tree rows out horizontally and spilled
+  past the box); names truncate and horizontal overflow is clipped so it
+  fits the modal.
+
+### Fixed
+- MediaBrowser: the grid/list view toggle and the item count no longer
+  vanish in an empty folder (or a folder that has subfolders but no
+  files). They were gated on `@total_count > 0` (file count only); now
+  shown whenever there are files, folders, or you're inside a folder.
+- `<.pagination_info>` renders "No results" at `total_count == 0` instead
+  of the nonsensical "Showing 1 to 0 results".
+- MediaBrowser: the bulk **Move** button is disabled in Select Mode until
+  at least one item is selected (matching the Download/Delete actions,
+  which already hide with an empty selection). The `show_move_modal`
+  handler is guarded too, so it can't open an empty modal.
+
+### Migrations
+- **V125** — project workflow statuses (entities-backed, cement-at-start).
+  New `phoenix_kit_project_statuses` table (the cemented per-project status
+  snapshot: `project_uuid` FK `ON DELETE CASCADE`, `label` / `slug` /
+  `position`, `data` + `translations` JSONB, `source_entity_data_uuid`
+  provenance with no FK; index on `(project_uuid)`, unique on
+  `(project_uuid, slug)`). New columns on `phoenix_kit_projects`:
+  `status_entity_uuid` (FK → `phoenix_kit_entities` `ON DELETE SET NULL`),
+  `current_status_slug`, a generic `settings` JSONB, and a free-form
+  `external_id VARCHAR(255)` for tying a project to an external system
+  (not unique, not an FK; partial-indexed `WHERE NOT NULL`, set
+  programmatically). Idempotent; `down/0` reverses to 124.
+  `@current_version` is now 125.
+
 ## 1.7.125 - 2026-05-29
 
 ### Fixed

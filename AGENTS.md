@@ -272,6 +272,21 @@ end
 - `on_navigate={:navigate}` — controlled mode; component emits `{MediaBrowser, id, {:navigate, params}}` so parent can `push_patch`. Parent feeds URL params back via `send_update(..., nav_params: ...)`. Reference: `lib/phoenix_kit_web/live/users/media.ex`.
 - `initial_params` — apply URL params on first render (avoid root-view flash)
 
+**URL sync (shareable folder deep links)** — added 1.7.126. Don't hand-write the controlled-mode round-trip; opt in via the Embed macro and it's automatic — folder/search/page/view land in the URL as `?folder=<uuid>&q=&page=&view=`, so a reload or a shared link reopens that folder. Folder tracked by uuid (rename-stable; unknown/out-of-scope → root). The `push_patch` only appends the query to the **current** path, so every existing segment (locale, parent resource ids, sub-tab — e.g. `/en/admin/orders/:id/edit/files`) is preserved.
+
+```elixir
+use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: true
+# non-default component id / multiple browsers:
+use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "my-browser"]
+```
+```heex
+<.live_component module={PhoenixKitWeb.Components.MediaBrowser}
+  id="my-browser" on_navigate={:navigate} initial_params={@initial_params}
+  parent_uploads={@uploads} />
+```
+
+Implemented with LiveView lifecycle hooks (`attach_hook(:handle_params)` + `attach_hook(:handle_info)` in `on_mount`), **not** injected clauses — so it composes with a host LiveView that already defines its own `handle_params`/`handle_info` (e.g. a resource-edit page that loads its record in `handle_params`). No clash, nothing to reconcile. Public helpers `MediaBrowser.Embed.parse_nav_params/1` + `build_nav_query/1` for hosts that want a custom round-trip. `/admin/media` (`Live.Users.Media`) is the reference call site. Single-browser-per-page assumed (query keys aren't namespaced per component).
+
 **Selection actions:** `…` dropdown in header → Download (staggered `<a download>` clicks via `MediaDragDrop` hook in `priv/static/assets/phoenix_kit.js`) + Delete (move to trash, or permanently if trash view active).
 
 **Manual wiring** (if not using Embed) — Embed's `@before_compile` injection ensures user-defined clauses match first:
