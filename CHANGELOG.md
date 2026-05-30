@@ -50,8 +50,11 @@
 - MediaBrowser Move modal: the destination picker is now a collapsible
   directory tree (chevron expand/collapse + colored folder icons),
   matching the left-sidebar experience, instead of a flat fully-expanded
-  dump of every folder in the project. Drives a separate `move_expanded`
-  state so it doesn't disturb the sidebar's expansion.
+  dump of every folder in the project. It **opens seeded from the
+  sidebar's current expansion** (`expanded_folders`), so the picker shows
+  the same open directories you already see on the left, then tracks its
+  own `move_expanded` independently (drilling in the picker doesn't move
+  the sidebar).
 
 ## 1.7.125 - 2026-05-29
 

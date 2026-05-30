@@ -1089,7 +1089,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # stray event can't pop an empty modal.
     if MapSet.size(socket.assigns.selected_files) +
          MapSet.size(socket.assigns.selected_folders) > 0 do
-      {:noreply, assign(socket, :show_move_modal, true)}
+      {:noreply, open_move_modal(socket)}
     else
       {:noreply, socket}
     end
@@ -1135,7 +1135,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:selected_files, MapSet.new([file_uuid]))
      |> assign(:selected_folders, MapSet.new())
-     |> assign(:show_move_modal, true)}
+     |> open_move_modal()}
   end
 
   # Single-folder move from kebab — symmetric to `prepare_move_file`.
@@ -1144,7 +1144,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new([folder_uuid]))
-     |> assign(:show_move_modal, true)}
+     |> open_move_modal()}
   end
 
   def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
@@ -1682,6 +1682,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:total_count, total_count)
     |> assign(:total_pages, ceil(total_count / per_page))
     |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+  end
+
+  # Open the move modal, seeding its directory tree's expansion from the
+  # sidebar's current `:expanded_folders` so the picker opens showing the
+  # same expanded directories the user already sees on the left. The
+  # modal then tracks its own `:move_expanded` independently, so drilling
+  # in the picker doesn't move the sidebar.
+  defp open_move_modal(socket) do
+    socket
+    |> assign(:show_move_modal, true)
+    |> assign(:move_expanded, socket.assigns.expanded_folders)
   end
 
   defp current_folder_uuid(socket) do
