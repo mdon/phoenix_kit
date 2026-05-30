@@ -1232,15 +1232,25 @@
               MapSet.size(@selected_files) + MapSet.size(@selected_folders)
             )}
           </h3>
-          <ul class="menu bg-base-200 rounded-lg max-h-64 overflow-y-auto">
+          <%!--
+            Plain <ul> (not daisyUI `menu`, which laid the custom tree rows
+            out horizontally and overflowed the box). Full width, vertical
+            scroll, horizontal clipped — folder names truncate rather than
+            spill past the box edge.
+          --%>
+          <ul class="bg-base-200 rounded-lg max-h-64 w-full overflow-y-auto overflow-x-hidden p-2 space-y-0.5">
             <li>
               <button
                 phx-click="move_selected_to_folder"
                 phx-target={@myself}
                 phx-value-folder_uuid=""
-                class={if @current_folder == nil, do: "active", else: ""}
+                class={[
+                  "flex items-center gap-1.5 w-full min-w-0 text-left rounded-lg px-1 py-1 hover:bg-base-300 transition-colors",
+                  @current_folder == nil && "font-semibold"
+                ]}
               >
-                <.icon name="hero-home" class="w-4 h-4" /> {@scope_folder_name}
+                <.icon name="hero-home" class="w-4 h-4 shrink-0" />
+                <span class="truncate">{@scope_folder_name}</span>
               </button>
             </li>
             <%= for node <- @folder_tree do %>

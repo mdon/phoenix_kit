@@ -54,7 +54,10 @@
   sidebar's current expansion** (`expanded_folders`), so the picker shows
   the same open directories you already see on the left, then tracks its
   own `move_expanded` independently (drilling in the picker doesn't move
-  the sidebar).
+  the sidebar). The picker is a plain full-width `<ul>` (not a daisyUI
+  `menu`, which laid the custom tree rows out horizontally and spilled
+  past the box); names truncate and horizontal overflow is clipped so it
+  fits the modal.
 
 ## 1.7.125 - 2026-05-29
 

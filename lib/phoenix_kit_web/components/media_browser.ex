@@ -475,15 +475,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
 
     ~H"""
-    <li>
-      <div class="flex items-center gap-0.5">
+    <li class="min-w-0">
+      <div class="flex items-center gap-0.5 w-full min-w-0 rounded-lg hover:bg-base-300 transition-colors">
         <%= if @has_children do %>
           <button
             type="button"
             phx-click="toggle_move_folder"
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
+            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 shrink-0"
           >
             <.icon
               name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
@@ -497,7 +497,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           phx-click="move_selected_to_folder"
           phx-target={@myself}
           phx-value-folder_uuid={@node.folder.uuid}
-          class="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+          class="flex items-center gap-1.5 flex-1 min-w-0 text-left px-1 py-1"
         >
           <span style={folder_icon_style(@node.folder.color)}>
             <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
@@ -507,7 +507,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       </div>
       <%= if @has_children and @is_expanded do %>
         <ul
-          class="ml-3 border-l-2 pl-1.5"
+          class="ml-3 border-l-2 pl-1.5 min-w-0"
           style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
         >
           <%= for child <- @node.children do %>
