@@ -54,6 +54,19 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
   slug-addressable (matching `current_status_slug`); index on `(project_uuid)`
   for list reads.
 
+  ## 3. External identifier on `phoenix_kit_projects`
+
+  A single nullable column lets a project be tied to a record in some external
+  system, with no UI of its own (set programmatically):
+
+    * `external_id VARCHAR(255)` — an arbitrary external reference. Deliberately
+      a free-form string so it can hold a numeric id, a UUID, or a slug from
+      whatever the project is being linked to. Not unique (several projects may
+      reference the same external thing) and not a foreign key (the target lives
+      outside this database). A partial index on
+      `(external_id) WHERE external_id IS NOT NULL` backs lookup-by-external-id
+      without indexing the common NULL case.
+
   Idempotent: re-running is a no-op once the table + columns are in the
   post-V125 shape.
   """
@@ -70,7 +83,9 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
     add_status_entity_uuid_fk(p, schema)
     add_current_status_slug_column(p, schema)
     add_project_settings_column(p, schema)
+    add_external_id_column(p, schema)
     create_status_entity_index(p, schema)
+    create_external_id_index(p, schema)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '125'")
   end
@@ -79,6 +94,7 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_projects_external_id_idx")
     execute("DROP INDEX IF EXISTS #{p}phoenix_kit_projects_status_entity_idx")
 
     execute("""
@@ -86,6 +102,7 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
       DROP CONSTRAINT IF EXISTS phoenix_kit_projects_status_entity_uuid_fkey
     """)
 
+    execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS external_id")
     execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS settings")
     execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS current_status_slug")
     execute("ALTER TABLE #{p}phoenix_kit_projects DROP COLUMN IF EXISTS status_entity_uuid")
@@ -187,6 +204,25 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
     """)
   end
 
+  # Free-form external reference (no UI). A nullable string so it can carry a
+  # numeric id, a UUID, or a slug from whatever system the project is linked to.
+  defp add_external_id_column(p, schema) do
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT FROM information_schema.columns
+        WHERE table_schema = '#{schema}'
+          AND table_name = 'phoenix_kit_projects'
+          AND column_name = 'external_id'
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_projects
+          ADD COLUMN external_id VARCHAR(255);
+      END IF;
+    END $$;
+    """)
+  end
+
   defp add_current_status_slug_column(p, schema) do
     execute("""
     DO $$
@@ -220,6 +256,27 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
         CREATE INDEX phoenix_kit_projects_status_entity_idx
           ON #{p}phoenix_kit_projects (status_entity_uuid)
           WHERE status_entity_uuid IS NOT NULL;
+      END IF;
+    END $$;
+    """)
+  end
+
+  # Partial index over projects carrying an external reference — backs
+  # lookup-by-external-id without indexing the common NULL case. Non-unique:
+  # several projects may legitimately point at the same external record.
+  defp create_external_id_index(p, schema) do
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT FROM pg_indexes
+        WHERE schemaname = '#{schema}'
+          AND tablename = 'phoenix_kit_projects'
+          AND indexname = 'phoenix_kit_projects_external_id_idx'
+      ) THEN
+        CREATE INDEX phoenix_kit_projects_external_id_idx
+          ON #{p}phoenix_kit_projects (external_id)
+          WHERE external_id IS NOT NULL;
       END IF;
     END $$;
     """)

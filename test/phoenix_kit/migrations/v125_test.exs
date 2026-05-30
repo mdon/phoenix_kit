@@ -20,6 +20,8 @@ defmodule PhoenixKit.Migrations.Postgres.V125Test do
      `phoenix_kit_projects`.
   3. Partial index `phoenix_kit_projects_status_entity_idx` on
      `(status_entity_uuid) WHERE status_entity_uuid IS NOT NULL`.
+  4. `external_id` (nullable varchar) on `phoenix_kit_projects` plus its
+     partial index `phoenix_kit_projects_external_id_idx`.
   """
 
   use PhoenixKit.DataCase, async: false
@@ -152,6 +154,22 @@ defmodule PhoenixKit.Migrations.Postgres.V125Test do
         )
 
       assert indexdef =~ "status_entity_uuid IS NOT NULL"
+    end
+
+    test "external_id is a nullable varchar" do
+      assert %{type: "character varying", nullable: "YES"} =
+               column("phoenix_kit_projects", "external_id")
+    end
+
+    test "partial index on external_id exists and is predicated on NOT NULL" do
+      assert index_exists?("phoenix_kit_projects_external_id_idx")
+
+      %{rows: [[indexdef]]} =
+        Repo.query!(
+          "SELECT indexdef FROM pg_indexes WHERE indexname = 'phoenix_kit_projects_external_id_idx'"
+        )
+
+      assert indexdef =~ "external_id IS NOT NULL"
     end
   end
 end
