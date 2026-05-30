@@ -113,21 +113,25 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     {:cont, MediaBrowser.setup_uploads(socket)}
   end
 
-  # `{:embed, false}` — same as :default. `{:embed, %{...}}` — url_sync on:
-  # parse the URL params into :initial_params so the component opens the
-  # shared folder on first render (controlled mode reads @initial_params).
-  def on_mount({:embed, false}, _params, _session, socket) do
-    {:cont, MediaBrowser.setup_uploads(socket)}
-  end
-
+  # `{:embed, %{...}}` — url_sync on: parse the URL params into
+  # :initial_params so the component opens the shared folder on first render
+  # (controlled mode reads @initial_params), and seed the nav baseline so the
+  # :handle_params hook can skip redundant send_updates (see below). The
+  # no-url_sync path uses `:default` above — `__using__` never emits
+  # `{:embed, false}`, so there is no clause for it.
   def on_mount({:embed, %{id: component_id}}, params, _session, socket) do
     # `:initial_params` gives the component the right folder on the very
     # first (even static) render — avoids a flash of root before the
-    # handle_params hook fires on connect.
+    # handle_params hook fires on connect. `:__phoenix_kit_mb_nav__` records
+    # the params already reflected in the component so the hook can skip a
+    # send_update when the next handle_params carries the same nav.
+    nav = parse_nav_params(params)
+
     socket =
       socket
       |> MediaBrowser.setup_uploads()
-      |> Phoenix.Component.assign(:initial_params, parse_nav_params(params))
+      |> Phoenix.Component.assign(:initial_params, nav)
+      |> Phoenix.Component.assign(:__phoenix_kit_mb_nav__, nav)
       |> attach_url_sync_hooks(component_id)
 
     {:cont, socket}
@@ -141,20 +145,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   # hook intercepts the component's {:navigate, …} and push_patches the
   # new query onto that same path (preserving every path segment — locale,
   # parent resource ids, sub-tab), {:halt}ing so it doesn't fall through.
+  #
+  # The :handle_params hook fires on *every* navigation in the host LiveView,
+  # not just media-browser ones, so it only send_updates when the parsed nav
+  # actually changed — otherwise an unrelated host push_patch would make the
+  # component re-run its folder/file/orphan/trash queries for no reason.
   defp attach_url_sync_hooks(socket, component_id) do
     socket
     |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_params, :handle_params, fn
       params, uri, socket ->
         socket = Phoenix.Component.assign(socket, :__phoenix_kit_mb_path__, URI.parse(uri).path)
+        nav = parse_nav_params(params)
 
-        if Phoenix.LiveView.connected?(socket) do
-          Phoenix.LiveView.send_update(MediaBrowser,
-            id: component_id,
-            nav_params: parse_nav_params(params)
-          )
+        if Phoenix.LiveView.connected?(socket) and nav != socket.assigns[:__phoenix_kit_mb_nav__] do
+          Phoenix.LiveView.send_update(MediaBrowser, id: component_id, nav_params: nav)
+          {:cont, Phoenix.Component.assign(socket, :__phoenix_kit_mb_nav__, nav)}
+        else
+          {:cont, socket}
         end
-
-        {:cont, socket}
     end)
     |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_info, :handle_info, fn
       {MediaBrowser, ^component_id, {:navigate, nav}}, socket ->

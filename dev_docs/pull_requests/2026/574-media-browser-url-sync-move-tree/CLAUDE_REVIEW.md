@@ -41,3 +41,23 @@ In `move_folder_option`, the chevron uses `phx-value-folder-uuid` (→ param `"f
 ## Design note (not a bug) — URL is the single source of truth, single-browser-per-page
 
 The `:handle_params` hook `send_update`s `nav_params` on **every** `handle_params` (gated only on `connected?`). On a multi-purpose host page, any host `push_patch` that drops the `folder`/`q`/`page` query keys will reset the browser to root — inherent to URL-owned state, and **identical to the pre-PR `media.ex` behavior** (so no regression). Already documented: query keys aren't namespaced, so only one url-synced browser per page. Worth keeping in mind for hosts that patch their own URL for unrelated reasons — they should preserve the media query string. Also: the `{:navigate}` hook falls back to base `"/"` if it somehow fires before the first `handle_params` sets `:__phoenix_kit_mb_path__`; not reachable in practice (connected mount runs `handle_params` before any user interaction).
+
+---
+
+## Second pass — `/code-review` high effort (2026-05-30)
+
+A recall-biased 7-angle pass (3 correctness + 3 cleanup + 1 altitude, ≤6 candidates each → verify). Two high-profile candidates were raised and **refuted** by grounding in the code, worth recording so they aren't re-raised:
+
+- **REFUTED — `phx-value-folder-uuid` → handler key mismatch.** A finder claimed LiveView lowercases/underscores `phx-value-folder-uuid` into `"folder_uuid"`, so `toggle_move_folder`'s `%{"folder-uuid" => uuid}` clause wouldn't match and the chevron would be dead. False: LiveView keeps the literal attribute suffix as the param key (dashes preserved). The codebase relies on this throughout — `start_rename_folder`, `toggle_folder_expand` (the sidebar twin this PR mirrors, `media_browser.ex:969`), `toggle_select_folder`, etc. all use `phx-value-folder-uuid` ↔ `%{"folder-uuid" => …}`. The toggle works.
+- **REFUTED — base-path regression (`URI.parse(uri).path` vs old `Routes.path("/admin/media")`).** The hook builds the `push_patch` target from the live URL's path, which already includes any router/locale prefix and every parent segment — so it's equal-or-better than the old hardcoded `Routes.path/1` (which couldn't know the locale segment). Not a regression; it's why url_sync composes onto `…/orders/:id/edit/files`.
+
+### Findings applied (fixed on branch `fix/media-browser-url-sync-followups`)
+
+- **IMPROVEMENT - MEDIUM (efficiency) — hook re-queried on every host navigation.** `embed.ex` The `:handle_params` hook `send_update`d `nav_params` on every connected `handle_params`, and `MediaBrowser.update/2` → `apply_nav_params/2` (`media_browser.ex:187`) runs four Storage queries (`resolve_folder`→`list_folders` + breadcrumbs, `load_nav_files`, `count_orphaned_files`, `full_trash_count`) with no "did nav change" guard. On a multi-purpose host that `push_patch`es for its own reasons, every such patch re-queried the whole browser even though folder/q/page/view were unchanged. **Fixed:** `on_mount` now seeds a `:__phoenix_kit_mb_nav__` baseline and the hook only `send_update`s when the freshly-parsed nav differs — so unrelated host patches (and the redundant connect-time re-sync) are skipped, while real folder navigation still flows through. Benign on `/admin/media` (it only navigates via the browser), but a real waste for generalized hosts.
+- **NITPICK (dead code) — unreachable `on_mount({:embed, false}, …)` clause.** `__using__` maps `url_sync` to `false` → `:default` or a `%{id:}` map → `{:embed, %{id:}}`; it never emits `{:embed, false}`, so the clause could not be dispatched. **Fixed:** removed; comment updated to state the no-url_sync path uses `:default`.
+
+### Findings left as-is (recorded, not fixed)
+
+- **IMPROVEMENT - MEDIUM (reuse) — Move-modal tree duplicates the sidebar tree.** `move_folder_option/1` (chevron, colored folder icon, recursion, border-color) re-implements `FolderExplorer`'s tree-row UX, and `toggle_move_folder` duplicates `toggle_folder_expand` (`media_browser.ex:969`). Not fixed here: extracting a shared tree-row component is a larger refactor than these two follow-up fixes warrant, and `FolderExplorer` currently bundles sidebar-only chrome (root / trash / new-folder rows). Tracked as a future component-extraction candidate; future tree-interaction changes (keyboard nav, icon states) need dual maintenance until then.
+
+No correctness bugs found in either pass; the fixes above are perf + cleanup. Verdict unchanged: ship-clean.
