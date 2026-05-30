@@ -8,16 +8,21 @@
       # or, for a non-default component id / multiple browsers:
       use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "my-browser"]
 
-  It injects the full controlled-mode round-trip the host previously had
-  to hand-write (~50 lines): `on_mount` parses `:initial_params` from the
-  URL, `handle_params/3` feeds them to the component, and a
-  `{:navigate} → push_patch` `handle_info` reflects folder / search /
-  page / view changes back into the address bar. Folder is tracked by
-  uuid (stable across renames; unknown/out-of-scope falls back to root);
-  base path is taken from the live URL so router prefixes are respected.
-  Reusable `parse_nav_params/1` + `build_nav_query/1` helpers are public
-  for hosts that need a custom `handle_params`. The host template still
-  passes `on_navigate={:navigate}` + `initial_params={@initial_params}`.
+  It provides the full controlled-mode round-trip the host previously had
+  to hand-write (~50 lines), via LiveView lifecycle hooks attached in
+  `on_mount` (not injected `handle_params`/`handle_info` clauses) so it
+  **composes with a host that already defines its own** — e.g. an
+  `…/orders/:id/edit/files` page that loads the order in its own
+  `handle_params`. `on_mount` parses `:initial_params` from the URL, a
+  `:handle_params` hook feeds them to the component, and a `:handle_info`
+  hook intercepts the component's `{:navigate, …}` and `push_patch`es
+  folder / search / page / view onto the current path (every existing
+  segment — locale, parent ids, sub-tab — preserved). Folder is tracked
+  by uuid (stable across renames; unknown/out-of-scope falls back to
+  root); base path is taken from the live URL so router prefixes are
+  respected. Reusable `parse_nav_params/1` + `build_nav_query/1` helpers
+  are public. The host template passes `on_navigate={:navigate}` +
+  `initial_params={@initial_params}`.
 
 ### Changed
 - `/admin/media` (`Live.Users.Media`) now uses `url_sync` instead of its

@@ -59,15 +59,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   uuid falls back to root. The base path is taken from the live URL, so
   any router prefix is respected.
 
+  URL sync is implemented with LiveView lifecycle hooks
+  (`attach_hook(:handle_params)` + `attach_hook(:handle_info)` in
+  `on_mount`), **not** injected `handle_params/3` clauses — so it composes
+  cleanly with a host LiveView that already defines its own
+  `handle_params` / `handle_info` (e.g. an `…/orders/:id/edit/files`
+  page that loads the order in its own `handle_params`). Nothing to
+  reconcile; both run. The `push_patch` only appends the query string to
+  the *current* path, so every existing segment (locale, parent resource
+  ids, sub-tab) is preserved.
+
   Single-browser-per-page is assumed: the query keys (`folder`, `q`,
   `page`, `orphaned`, `view`) are not namespaced per component, so two
   url-synced browsers on one page would fight over them. Give only one
   the `url_sync` option in that case.
-
-  Note: `url_sync` injects `handle_params/3`. Don't also define your own
-  `handle_params/3` on a url-synced LiveView — call
-  `MediaBrowser.Embed.parse_nav_params/1` from yours instead and pass the
-  result to the component via `send_update(.., nav_params: ...)`.
 
   ## What gets injected
 
@@ -77,9 +82,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   * Fallback `handle_event("validate", _, socket)` — absorbs the upload
     channel's `phx-change` events. User-defined clauses with other event
     names still win because they are defined first.
-  * With `url_sync`: `handle_params/3` (feeds URL params to the component)
-    and a `handle_info({MediaBrowser, id, {:navigate, _}}, socket)` clause
-    that `push_patch`es — injected before the generic fallback so it wins.
+  * With `url_sync`: a `:handle_params` hook (feeds URL params to the
+    component + captures the live path) and a `:handle_info` hook that
+    intercepts `{MediaBrowser, id, {:navigate, _}}` and `push_patch`es,
+    both attached in `on_mount` so they compose with the host's own
+    handlers.
   * Fallback `handle_info({MediaBrowser, _, _}, socket)` — forwards to
     `MediaBrowser.handle_parent_info/2` for component registration and
     upload piping.
@@ -113,13 +120,52 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     {:cont, MediaBrowser.setup_uploads(socket)}
   end
 
-  def on_mount({:embed, %{}}, params, _session, socket) do
+  def on_mount({:embed, %{id: component_id}}, params, _session, socket) do
+    # `:initial_params` gives the component the right folder on the very
+    # first (even static) render — avoids a flash of root before the
+    # handle_params hook fires on connect.
     socket =
       socket
       |> MediaBrowser.setup_uploads()
       |> Phoenix.Component.assign(:initial_params, parse_nav_params(params))
+      |> attach_url_sync_hooks(component_id)
 
     {:cont, socket}
+  end
+
+  # URL-sync via lifecycle hooks rather than injected handle_params /
+  # handle_info clauses, so it composes with a host LiveView that already
+  # defines its own (e.g. an `…/orders/:id/edit/files` page that loads the
+  # order in its own handle_params). The :handle_params hook feeds URL
+  # params to the component and captures the live path; the :handle_info
+  # hook intercepts the component's {:navigate, …} and push_patches the
+  # new query onto that same path (preserving every path segment — locale,
+  # parent resource ids, sub-tab), {:halt}ing so it doesn't fall through.
+  defp attach_url_sync_hooks(socket, component_id) do
+    socket
+    |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_params, :handle_params, fn
+      params, uri, socket ->
+        socket = Phoenix.Component.assign(socket, :__phoenix_kit_mb_path__, URI.parse(uri).path)
+
+        if Phoenix.LiveView.connected?(socket) do
+          Phoenix.LiveView.send_update(MediaBrowser,
+            id: component_id,
+            nav_params: parse_nav_params(params)
+          )
+        end
+
+        {:cont, socket}
+    end)
+    |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_info, :handle_info, fn
+      {MediaBrowser, ^component_id, {:navigate, nav}}, socket ->
+        qs = build_nav_query(nav)
+        base = socket.assigns[:__phoenix_kit_mb_path__] || "/"
+        url = if qs == %{}, do: base, else: base <> "?" <> URI.encode_query(qs)
+        {:halt, Phoenix.LiveView.push_patch(socket, to: url)}
+
+      _msg, socket ->
+        {:cont, socket}
+    end)
   end
 
   # ── Shared URL <-> nav-params helpers (public so a host with its own
@@ -178,56 +224,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     on_mount_arg = if sync, do: {:embed, sync}, else: :default
 
     quote do
-      @phoenix_kit_mb_url_sync unquote(Macro.escape(sync))
       on_mount({PhoenixKitWeb.Components.MediaBrowser.Embed, unquote(Macro.escape(on_mount_arg))})
       @before_compile PhoenixKitWeb.Components.MediaBrowser.Embed
     end
   end
 
-  # URL-sync clauses (only when enabled). The {:navigate} handle_info must
-  # precede the generic {MediaBrowser, _, _} fallback or the fallback's
-  # handle_parent_info would swallow it. Extracted from __before_compile__
-  # to keep that macro's complexity down. Fully-qualified refs on purpose:
-  # this is injected into the caller's module.
-  defp url_sync_clauses(false), do: quote(do: nil)
-
-  defp url_sync_clauses(%{id: component_id}) do
-    quote do
-      def handle_params(params, uri, socket) do
-        socket =
-          Phoenix.Component.assign(socket, :__phoenix_kit_mb_path__, URI.parse(uri).path)
-
-        if Phoenix.LiveView.connected?(socket) do
-          # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-          nav = PhoenixKitWeb.Components.MediaBrowser.Embed.parse_nav_params(params)
-          # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-          Phoenix.LiveView.send_update(PhoenixKitWeb.Components.MediaBrowser,
-            id: unquote(component_id),
-            nav_params: nav
-          )
-        end
-
-        {:noreply, socket}
-      end
-
-      # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-      def handle_info(
-            {PhoenixKitWeb.Components.MediaBrowser, unquote(component_id), {:navigate, nav}},
-            socket
-          ) do
-        # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-        qs = PhoenixKitWeb.Components.MediaBrowser.Embed.build_nav_query(nav)
-        base = socket.assigns[:__phoenix_kit_mb_path__] || "/"
-        url = if qs == %{}, do: base, else: base <> "?" <> URI.encode_query(qs)
-        {:noreply, Phoenix.LiveView.push_patch(socket, to: url)}
-      end
-    end
-  end
-
-  defmacro __before_compile__(env) do
-    sync = Module.get_attribute(env.module, :phoenix_kit_mb_url_sync, false)
-    url_sync_quoted = url_sync_clauses(sync)
-
+  defmacro __before_compile__(_env) do
     # Fully-qualified references on purpose: this code is injected into the
     # caller's module, where aliasing from Embed wouldn't be in scope.
     #
@@ -241,8 +243,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
       require Logger
 
       def handle_event("validate", _params, socket), do: {:noreply, socket}
-
-      unquote(url_sync_quoted)
 
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       def handle_info(
