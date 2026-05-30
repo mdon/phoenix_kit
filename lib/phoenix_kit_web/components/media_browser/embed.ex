@@ -224,12 +224,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     on_mount_arg = if sync, do: {:embed, sync}, else: :default
 
     quote do
+      @phoenix_kit_mb_url_sync unquote(sync != false)
       on_mount({PhoenixKitWeb.Components.MediaBrowser.Embed, unquote(Macro.escape(on_mount_arg))})
       @before_compile PhoenixKitWeb.Components.MediaBrowser.Embed
     end
   end
 
-  defmacro __before_compile__(_env) do
+  defmacro __before_compile__(env) do
+    # `url_sync` push_patches from the :handle_info hook. LiveView routes a
+    # push_patch issued inside handle_info through
+    # `sync_handle_params_with_live_redirect`, which calls
+    # `call_handle_params!/4` with `exported?` defaulting to TRUE — i.e. it
+    # invokes `view.handle_params/3` unconditionally. The :handle_params
+    # hook already did the real work, but if the host LiveView defines no
+    # handle_params/3 of its own that call blows up
+    # (UndefinedFunctionError). Inject a trivial stub in exactly that case;
+    # a host that defines its own keeps it (the hook composes alongside).
+    stub_handle_params? =
+      Module.get_attribute(env.module, :phoenix_kit_mb_url_sync, false) and
+        not Module.defines?(env.module, {:handle_params, 3})
+
+    handle_params_stub =
+      if stub_handle_params? do
+        quote do
+          def handle_params(_params, _uri, socket), do: {:noreply, socket}
+        end
+      else
+        quote do
+        end
+      end
+
     # Fully-qualified references on purpose: this code is injected into the
     # caller's module, where aliasing from Embed wouldn't be in scope.
     #
@@ -243,6 +267,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
       require Logger
 
       def handle_event("validate", _params, socket), do: {:noreply, socket}
+
+      unquote(handle_params_stub)
 
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       def handle_info(

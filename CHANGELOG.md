@@ -22,7 +22,12 @@
   root); base path is taken from the live URL so router prefixes are
   respected. Reusable `parse_nav_params/1` + `build_nav_query/1` helpers
   are public. The host template passes `on_navigate={:navigate}` +
-  `initial_params={@initial_params}`.
+  `initial_params={@initial_params}`. A `push_patch` issued from a
+  `handle_info` hook makes LiveView call `view.handle_params/3`
+  unconditionally, so the macro injects a trivial `handle_params/3` stub
+  when (and only when) the host defines none — a host with its own keeps
+  it. (Note: changing the macro requires recompiling the host;
+  `mix deps.compile phoenix_kit --force` in a parent app after updating.)
 
 ### Changed
 - `/admin/media` (`Live.Users.Media`) now uses `url_sync` instead of its
