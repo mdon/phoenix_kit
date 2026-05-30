@@ -34,6 +34,14 @@
   bespoke `handle_params`/`handle_info`/`initial_params` plumbing —
   behavior unchanged, ~45 lines lighter.
 
+### Fixed
+- MediaBrowser: the grid/list view toggle and the item count no longer
+  vanish in an empty folder (or a folder that has subfolders but no
+  files). They were gated on `@total_count > 0` (file count only); now
+  shown whenever there are files, folders, or you're inside a folder.
+- `<.pagination_info>` renders "No results" at `total_count == 0` instead
+  of the nonsensical "Showing 1 to 0 results".
+
 ## 1.7.125 - 2026-05-29
 
 ### Fixed

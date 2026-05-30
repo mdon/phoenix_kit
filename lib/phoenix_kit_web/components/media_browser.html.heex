@@ -432,7 +432,14 @@
                   </div>
                 <% end %>
                 <div class="flex items-center gap-2">
-                  <%= if @total_count > 0 do %>
+                  <%!--
+                    Show the grid/list toggle + count whenever we're in a
+                    browseable view — there are files, there are folders, or
+                    we're inside a folder (even an empty one). Gating on
+                    `@total_count > 0` alone hid the toggle and count in an
+                    empty folder and in folders-with-no-files.
+                  --%>
+                  <%= if @total_count > 0 or @folders != [] or not is_nil(@current_folder) do %>
                     <div class="join">
                       <button
                         phx-click="set_view_mode"

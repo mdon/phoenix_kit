@@ -98,10 +98,13 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   def pagination_info(assigns) do
     ~H"""
     <div class={["text-sm text-base-content/70", @class]}>
-      <%= if @total_count > @per_page do %>
-        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
-      <% else %>
-        Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
+      <%= cond do %>
+        <% @total_count == 0 -> %>
+          No results
+        <% @total_count > @per_page -> %>
+          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+        <% true -> %>
+          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
       <% end %>
     </div>
     """
