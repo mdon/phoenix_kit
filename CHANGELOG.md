@@ -46,6 +46,13 @@
   which already hide with an empty selection). The `show_move_modal`
   handler is guarded too, so it can't open an empty modal.
 
+### Changed
+- MediaBrowser Move modal: the destination picker is now a collapsible
+  directory tree (chevron expand/collapse + colored folder icons),
+  matching the left-sidebar experience, instead of a flat fully-expanded
+  dump of every folder in the project. Drives a separate `move_expanded`
+  state so it doesn't disturb the sidebar's expansion.
+
 ## 1.7.125 - 2026-05-29
 
 ### Fixed

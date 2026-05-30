@@ -296,6 +296,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:selected_files, MapSet.new())
     |> assign(:selected_folders, MapSet.new())
     |> assign(:show_move_modal, false)
+    # Expand state for the Move modal's directory tree (separate from the
+    # sidebar's :expanded_folders so drilling one doesn't move the other).
+    # Starts collapsed → top-level folders only, drill in via the chevrons.
+    |> assign(:move_expanded, MapSet.new())
     |> assign(:current_page, 1)
     |> assign(:per_page, 50)
     |> then(fn s ->
@@ -453,23 +457,63 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Function components
   # ──────────────────────────────────────────────────────────────
 
+  # Move-target picker row. Renders as a collapsible directory tree —
+  # the same experience as the left sidebar (`FolderExplorer`): a chevron
+  # expands/collapses children (children only render when expanded), a
+  # colored folder icon, and clicking the name selects that folder as the
+  # move destination. `move_expanded` (a MapSet of expanded folder uuids,
+  # threaded through the recursion) drives the collapse state, kept
+  # separate from the sidebar's `expanded_folders` so the two don't fight.
   attr :node, :map, required: true
-  attr :depth, :integer, default: 0
+  attr :move_expanded, :any, required: true
   attr :myself, :any, required: true
 
   def move_folder_option(assigns) do
+    assigns =
+      assigns
+      |> assign(:has_children, assigns.node.children != [])
+      |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
+
     ~H"""
     <li>
-      <button
-        phx-click="move_selected_to_folder"
-        phx-target={@myself}
-        phx-value-folder_uuid={@node.folder.uuid}
-        style={"padding-left: #{(@depth + 1) * 16}px"}
-      >
-        <.icon name="hero-folder" class="w-4 h-4" /> {@node.folder.name}
-      </button>
-      <%= for child <- @node.children do %>
-        <.move_folder_option node={child} depth={@depth + 1} myself={@myself} />
+      <div class="flex items-center gap-0.5">
+        <%= if @has_children do %>
+          <button
+            type="button"
+            phx-click="toggle_move_folder"
+            phx-target={@myself}
+            phx-value-folder-uuid={@node.folder.uuid}
+            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
+          >
+            <.icon
+              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
+              class="w-4 h-4 text-base-content/40"
+            />
+          </button>
+        <% else %>
+          <span class="w-5 shrink-0"></span>
+        <% end %>
+        <button
+          phx-click="move_selected_to_folder"
+          phx-target={@myself}
+          phx-value-folder_uuid={@node.folder.uuid}
+          class="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+        >
+          <span style={folder_icon_style(@node.folder.color)}>
+            <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
+          </span>
+          <span class="truncate">{@node.folder.name}</span>
+        </button>
+      </div>
+      <%= if @has_children and @is_expanded do %>
+        <ul
+          class="ml-3 border-l-2 pl-1.5"
+          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
+        >
+          <%= for child <- @node.children do %>
+            <.move_folder_option node={child} move_expanded={@move_expanded} myself={@myself} />
+          <% end %>
+        </ul>
       <% end %>
     </li>
     """
@@ -1049,6 +1093,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       {:noreply, socket}
     end
+  end
+
+  # Expand/collapse a folder in the Move modal's directory tree.
+  def handle_event("toggle_move_folder", %{"folder-uuid" => uuid}, socket) do
+    expanded = socket.assigns.move_expanded
+
+    expanded =
+      if MapSet.member?(expanded, uuid),
+        do: MapSet.delete(expanded, uuid),
+        else: MapSet.put(expanded, uuid)
+
+    {:noreply, assign(socket, :move_expanded, expanded)}
   end
 
   def handle_event("close_move_modal", _params, socket) do

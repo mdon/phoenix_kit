@@ -1244,7 +1244,7 @@
               </button>
             </li>
             <%= for node <- @folder_tree do %>
-              <.move_folder_option node={node} depth={0} myself={@myself} />
+              <.move_folder_option node={node} move_expanded={@move_expanded} myself={@myself} />
             <% end %>
           </ul>
           <div class="modal-action">
