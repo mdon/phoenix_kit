@@ -383,6 +383,18 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               <span>Log Out</span>
             </.link>
           </li>
+          <%= if @multi_session_allowed? and length(@accounts) > 1 do %>
+            <li>
+              <.link
+                href={Routes.locale_aware_path(assigns, "/users/log-out") <> "?all=1"}
+                method="delete"
+                class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
+              >
+                <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
+                <span>Log out all accounts</span>
+              </.link>
+            </li>
+          <% end %>
         </ul>
       </div>
 
