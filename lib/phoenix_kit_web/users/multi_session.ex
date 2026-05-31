@@ -13,10 +13,13 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   return a `Plug.Conn`.
   """
 
+  import Plug.Conn
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
 
+  @stack_key :pk_session_accounts
   @max_accounts 5
 
   @doc "Maximum number of accounts allowed in one stack."
@@ -92,4 +95,154 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       true -> "User"
     end
   end
+
+  @doc """
+  Validates credentials and appends a real session for that user to the stack,
+  making it the active account. The new account may be any role; the gate is
+  enforced by the caller (controller) against the root account.
+  """
+  def add_account(conn, email_or_username, password) do
+    session = get_session(conn)
+    stack = stack_tokens(session)
+
+    cond do
+      length(stack) >= @max_accounts ->
+        {:error, :stack_full}
+
+      true ->
+        case Auth.get_user_by_email_or_username_and_password(email_or_username, password) do
+          {:ok, %Auth.User{is_active: true} = user} ->
+            token = Auth.generate_user_session_token(user)
+
+            conn =
+              conn
+              |> put_session(@stack_key, stack ++ [token])
+              |> put_active_token(token)
+
+            log_event("session.account_added", root_user(session), user)
+            {:ok, conn}
+
+          {:ok, %Auth.User{}} ->
+            {:error, :inactive}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc "Activates a token already present in the stack, identified by `ref`."
+  def switch_to(conn, ref) do
+    session = get_session(conn)
+    stack = stack_tokens(session)
+
+    case find_token_by_ref(stack, ref) do
+      nil ->
+        {:error, :not_in_stack}
+
+      token ->
+        user = Auth.get_user_by_session_token(token)
+        conn = put_active_token(conn, token)
+        log_event("session.switched", root_user(session), user)
+        {:ok, conn, user}
+    end
+  end
+
+  @doc "Removes a non-root token from the stack and deletes it from the DB."
+  def remove_account(conn, ref) do
+    session = get_session(conn)
+    stack = stack_tokens(session)
+    [root_token | _] = stack
+
+    case find_token_by_ref(stack, ref) do
+      nil ->
+        {:error, :not_in_stack}
+
+      ^root_token ->
+        {:error, :cannot_remove_root}
+
+      token ->
+        Auth.delete_user_session_token(token)
+        new_stack = List.delete(stack, token)
+        conn = put_session(conn, @stack_key, new_stack)
+
+        conn =
+          if session["user_token"] == token,
+            do: put_active_token(conn, root_token),
+            else: conn
+
+        {:ok, conn}
+    end
+  end
+
+  @doc """
+  Logs out the active account. When a non-root account is active, deletes it and
+  switches back to root (`{:switched, conn, root_user}`). When the root account is
+  active, signals a full logout (`{:full, conn}`) for the caller to run.
+  """
+  def log_out_active(conn) do
+    session = get_session(conn)
+    stack = stack_tokens(session)
+    [root_token | _] = stack
+    active = session["user_token"]
+
+    if active == root_token or length(stack) <= 1 do
+      {:full, conn}
+    else
+      Auth.delete_user_session_token(active)
+      new_stack = List.delete(stack, active)
+      root_user = Auth.get_user_by_session_token(root_token)
+
+      conn =
+        conn
+        |> put_session(@stack_key, new_stack)
+        |> put_active_token(root_token)
+
+      {:switched, conn, root_user}
+    end
+  end
+
+  @doc "Deletes every stack token from the DB (used by 'Log out all')."
+  def delete_all_stack_tokens(conn) do
+    conn |> get_session() |> stack_tokens() |> Enum.each(&Auth.delete_user_session_token/1)
+    conn
+  end
+
+  # --- internal ---
+
+  defp put_active_token(conn, token) do
+    conn
+    |> put_session(:user_token, token)
+    |> put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
+  end
+
+  defp find_token_by_ref(stack, ref) do
+    Enum.find(stack, fn token ->
+      match?(%{uuid: ^ref}, Auth.get_session_token_record(token))
+    end)
+  end
+
+  defp root_user(session) do
+    case stack_tokens(session) do
+      [root_token | _] -> Auth.get_user_by_session_token(root_token)
+      _ -> nil
+    end
+  end
+
+  defp log_event(action, %Auth.User{} = actor, %Auth.User{} = target) do
+    PhoenixKit.Activity.log(%{
+      action: action,
+      module: "users",
+      mode: "auto",
+      actor_uuid: actor.uuid,
+      resource_type: "user",
+      resource_uuid: target.uuid,
+      target_uuid: target.uuid,
+      metadata: %{"email" => target.email, "actor_role" => "admin"}
+    })
+  rescue
+    _ -> :ok
+  end
+
+  defp log_event(_action, _actor, _target), do: :ok
 end
