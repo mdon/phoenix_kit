@@ -250,6 +250,38 @@
             </div>
           </div>
 
+          <%!-- Multiple Sessions (account switcher) --%>
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text text-base font-medium">
+                {gettext("Multiple Sessions")}
+              </span>
+              <span class="label-text-alt text-sm text-base-content/60">
+                {gettext("Owner/Admin account switcher for testing under different roles")}
+              </span>
+            </label>
+            <div class="flex items-center gap-3">
+              <input type="hidden" name="settings[multi_session_enabled]" value="false" />
+              <input
+                name="settings[multi_session_enabled]"
+                type="checkbox"
+                value="true"
+                checked={@settings["multi_session_enabled"] == "true"}
+                class="checkbox checkbox-primary"
+              />
+              <span class="label-text">
+                {gettext("Enable the multi-account switcher in the header")}
+              </span>
+            </div>
+            <div class="label">
+              <span class="label-text-alt text-xs text-base-content/50">
+                {gettext(
+                  "When on, an Owner/Admin can add other accounts (with their password) and switch between them from the user menu."
+                )}
+              </span>
+            </div>
+          </div>
+
           <%!-- Site Address URL Setting --%>
           <div class="form-control w-full">
             <label class="label">
