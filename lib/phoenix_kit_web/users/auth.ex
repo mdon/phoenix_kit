@@ -2042,6 +2042,9 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
+  @doc false
+  def broadcast_disconnect_for_socket(live_socket_id), do: broadcast_disconnect(live_socket_id)
+
   defp broadcast_disconnect(live_socket_id) do
     case get_endpoint() do
       {:ok, endpoint} ->

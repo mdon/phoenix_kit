@@ -109,5 +109,98 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       refute get_session(conn)["user_token"]
       assert Enum.all?(tokens, &is_nil(Auth.get_user_by_session_token(&1)))
     end
+
+    test "set_active_account is forbidden for a plain user", %{conn: _conn} do
+      plain = make(nil)
+      other = make(nil)
+      conn = login(build_conn(), plain)
+      {:ok, conn} = MultiSession.add_account(conn, other.email, "ValidPassword123!")
+      conn = Phoenix.Controller.fetch_flash(conn)
+
+      [_, second | _] = MultiSession.list_accounts(get_session(conn))
+
+      conn =
+        put(conn, Routes.path("/users/session/active"), %{
+          "ref" => second.ref
+        })
+
+      assert conn.status == 403 or redirected_to(conn) =~ "/"
+    end
+
+    test "set_active_account is forbidden when multi_session setting is off", %{conn: conn} do
+      Settings.update_boolean_setting("multi_session_enabled", false)
+      [root | _] = MultiSession.list_accounts(get_session(conn))
+
+      conn =
+        put(conn, Routes.path("/users/session/active"), %{
+          "ref" => root.ref
+        })
+
+      assert conn.status == 403 or redirected_to(conn) =~ "/"
+    end
+
+    test "remove_account is forbidden for a plain user", %{conn: _conn} do
+      plain = make(nil)
+      other = make(nil)
+      conn = login(build_conn(), plain)
+      {:ok, conn} = MultiSession.add_account(conn, other.email, "ValidPassword123!")
+      conn = Phoenix.Controller.fetch_flash(conn)
+
+      [_, second | _] = MultiSession.list_accounts(get_session(conn))
+
+      conn =
+        delete(conn, Routes.path("/users/session/accounts/#{second.ref}"))
+
+      assert conn.status == 403 or redirected_to(conn) =~ "/"
+    end
+
+    test "remove_account is forbidden when multi_session setting is off", %{conn: conn} do
+      Settings.update_boolean_setting("multi_session_enabled", false)
+      [_, second | _] = MultiSession.list_accounts(get_session(conn))
+
+      conn =
+        delete(conn, Routes.path("/users/session/accounts/#{second.ref}"))
+
+      assert conn.status == 403 or redirected_to(conn) =~ "/"
+    end
+  end
+
+  describe "return_to open-redirect guard" do
+    setup %{conn: conn} do
+      owner = make("Owner")
+      conn = login(conn, owner)
+      other = make(nil)
+      %{conn: Phoenix.Controller.fetch_flash(conn), owner: owner, other: other}
+    end
+
+    test "protocol-relative redirect is rejected (falls back to /)", %{conn: conn, other: other} do
+      conn =
+        post(conn, Routes.path("/users/session/accounts"), %{
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
+          "return_to" => "//evil.com"
+        })
+
+      assert redirected_to(conn) == Routes.path("/")
+    end
+
+    test "absolute URL redirect is rejected (falls back to /)", %{conn: conn, other: other} do
+      conn =
+        post(conn, Routes.path("/users/session/accounts"), %{
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
+          "return_to" => "https://evil.com/steal"
+        })
+
+      assert redirected_to(conn) == Routes.path("/")
+    end
+
+    test "a safe relative path is accepted", %{conn: conn, other: other} do
+      conn =
+        post(conn, Routes.path("/users/session/accounts"), %{
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
+          "return_to" => "/admin/dashboard"
+        })
+
+      assert redirected_to(conn) == "/admin/dashboard"
+    end
   end
 end

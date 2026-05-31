@@ -90,7 +90,7 @@ defmodule PhoenixKitWeb.Users.Session do
     case MultiSession.log_out_active(conn) do
       {:switched, conn, user} ->
         conn
-        |> put_flash(:info, "Logged out. Now signed in as #{user.email}.")
+        |> put_flash(:info, gettext("Logged out. Now signed in as %{email}.", email: user.email))
         |> redirect(to: Routes.path("/"))
 
       {:full, conn} ->
@@ -136,9 +136,12 @@ defmodule PhoenixKitWeb.Users.Session do
 
   defp maybe_store_return_to_from_params(conn, _params), do: conn
 
-  # Support GET logout for direct URL access
+  # Support GET logout for direct URL access.
+  # Mirrors the DELETE path: drain all stack tokens before delegating so no
+  # secondary-account tokens are left valid in the DB.
   def get_logout(conn, _params) do
     conn
+    |> MultiSession.delete_all_stack_tokens()
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()
   end
@@ -156,6 +159,11 @@ defmodule PhoenixKitWeb.Users.Session do
           |> put_flash(:error, "Maximum number of accounts reached.")
           |> redirect_back(params)
 
+        {:error, :already_in_stack} ->
+          conn
+          |> put_flash(:error, "That account is already in your session.")
+          |> redirect_back(params)
+
         {:error, _reason} ->
           conn
           |> put_flash(:error, "Invalid email/username or password.")
@@ -168,7 +176,9 @@ defmodule PhoenixKitWeb.Users.Session do
     with_gate(conn, params, fn conn ->
       case MultiSession.switch_to(conn, ref) do
         {:ok, conn, user} ->
-          conn |> put_flash(:info, "Switched to #{user.email}.") |> redirect_back(params)
+          conn
+          |> put_flash(:info, gettext("Switched to %{email}.", email: user.email))
+          |> redirect_back(params)
 
         {:error, _reason} ->
           conn |> put_flash(:error, "Could not switch account.") |> redirect_back(params)

@@ -164,8 +164,8 @@ defmodule PhoenixKit.Settings do
       "oauth_facebook_app_secret" => "",
       # Notifications
       "notifications_enabled" => "true",
-      # Multi-session switcher
-      "multi_session_enabled" => "true"
+      # Multi-session switcher (opt-in; disabled by default)
+      "multi_session_enabled" => "false"
     }
   end
 

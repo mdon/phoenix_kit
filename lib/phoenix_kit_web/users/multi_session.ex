@@ -42,7 +42,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   when a low-privilege account is active.
   """
   def gate_allowed?(session) when is_map(session) do
-    Settings.get_boolean_setting("multi_session_enabled", true) and root_owner_or_admin?(session)
+    Settings.get_boolean_setting("multi_session_enabled", false) and root_owner_or_admin?(session)
   end
 
   defp root_owner_or_admin?(session) do
@@ -100,6 +100,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   Validates credentials and appends a real session for that user to the stack,
   making it the active account. The new account may be any role; the gate is
   enforced by the caller (controller) against the root account.
+
+  Returns `{:error, :already_in_stack}` if the user is already present.
   """
   def add_account(conn, email_or_username, password) do
     session = get_session(conn)
@@ -110,15 +112,19 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     else
       case Auth.get_user_by_email_or_username_and_password(email_or_username, password) do
         {:ok, %Auth.User{is_active: true} = user} ->
-          token = Auth.generate_user_session_token(user)
+          if already_in_stack?(stack, user) do
+            {:error, :already_in_stack}
+          else
+            token = Auth.generate_user_session_token(user)
 
-          conn =
-            conn
-            |> put_session(@stack_key, stack ++ [token])
-            |> put_active_token(token)
+            conn =
+              conn
+              |> put_session(@stack_key, stack ++ [token])
+              |> renew_and_put_active_token(token)
 
-          log_event("session.account_added", root_user(session), user)
-          {:ok, conn}
+            log_event("session.account_added", root_user(session), user)
+            {:ok, conn}
+          end
 
         {:ok, %Auth.User{}} ->
           {:error, :inactive}
@@ -139,10 +145,15 @@ defmodule PhoenixKitWeb.Users.MultiSession do
         {:error, :not_in_stack}
 
       token ->
-        user = Auth.get_user_by_session_token(token)
-        conn = put_active_token(conn, token)
-        log_event("session.switched", root_user(session), user)
-        {:ok, conn, user}
+        case Auth.ensure_active_user(Auth.get_user_by_session_token(token)) do
+          nil ->
+            {:error, :inactive}
+
+          user ->
+            conn = renew_and_put_active_token(conn, token)
+            log_event("session.switched", root_user(session), user)
+            {:ok, conn, user}
+        end
     end
   end
 
@@ -187,6 +198,10 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     if active == root_token or length(stack) <= 1 do
       {:full, conn}
     else
+      if live_socket_id = session["live_socket_id"] do
+        PhoenixKitWeb.Users.Auth.broadcast_disconnect_for_socket(live_socket_id)
+      end
+
       Auth.delete_user_session_token(active)
       new_stack = List.delete(stack, active)
       root_user = Auth.get_user_by_session_token(root_token)
@@ -208,10 +223,31 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   # --- internal ---
 
+  # Used for account-switching operations (add/switch): rotates the session ID
+  # and drops the CSRF token to prevent session fixation attacks, while
+  # preserving all existing session data (configure_session(renew: true) only
+  # rotates the id — it does not clear conn.private[:plug_session]).
+  defp renew_and_put_active_token(conn, token) do
+    Plug.CSRFProtection.delete_csrf_token()
+
+    conn
+    |> configure_session(renew: true)
+    |> put_active_token(token)
+  end
+
   defp put_active_token(conn, token) do
     conn
     |> put_session(:user_token, token)
     |> put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
+  end
+
+  defp already_in_stack?(stack, %Auth.User{} = user) do
+    Enum.any?(stack, fn token ->
+      case Auth.get_user_by_session_token(token) do
+        %Auth.User{uuid: uuid} -> uuid == user.uuid
+        _ -> false
+      end
+    end)
   end
 
   defp find_token_by_ref(stack, ref) do
