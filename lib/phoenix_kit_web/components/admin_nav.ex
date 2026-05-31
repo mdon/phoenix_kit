@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
@@ -433,6 +434,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                 <button type="submit" class="btn btn-primary">Add account</button>
               </div>
             </.form>
+            <.add_account_oauth_buttons current_path={@current_path} />
           </div>
           <label class="modal-backdrop" for="pk-add-account-modal">Close</label>
         </div>
@@ -700,5 +702,87 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   defp generate_language_switch_url(current_path, new_locale) do
     base_code = DialectMapper.extract_base(new_locale)
     build_locale_url(current_path, base_code)
+  end
+
+  # OAuth buttons for the "Add account" modal.
+  # Uses the same provider availability checks as the main login page —
+  # a provider button only appears when it is enabled in General Settings.
+  # Each link targets /users/auth/:provider with add_account=1 so the OAuth
+  # callback knows to append the result to the multi-session stack.
+  attr :current_path, :string, default: "/"
+
+  defp add_account_oauth_buttons(assigns) do
+    google_enabled = OAuthAvailability.provider_enabled?(:google)
+    apple_enabled = OAuthAvailability.provider_enabled?(:apple)
+    github_enabled = OAuthAvailability.provider_enabled?(:github)
+    facebook_enabled = OAuthAvailability.provider_enabled?(:facebook)
+
+    any_enabled = google_enabled or apple_enabled or github_enabled or facebook_enabled
+
+    assigns =
+      assigns
+      |> assign(:google_enabled, google_enabled)
+      |> assign(:apple_enabled, apple_enabled)
+      |> assign(:github_enabled, github_enabled)
+      |> assign(:facebook_enabled, facebook_enabled)
+      |> assign(:any_enabled, any_enabled)
+
+    ~H"""
+    <%= if @any_enabled do %>
+      <div class="mt-4">
+        <div class="divider text-base-content/60 text-xs">Or add via</div>
+        <div class="space-y-2">
+          <%= if @google_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/google", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_google class="w-5 h-5" />
+              <span>Add Google account</span>
+            </.link>
+          <% end %>
+          <%= if @apple_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/apple", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_apple class="w-5 h-5" />
+              <span>Add Apple account</span>
+            </.link>
+          <% end %>
+          <%= if @github_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/github", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_github class="w-5 h-5" />
+              <span>Add GitHub account</span>
+            </.link>
+          <% end %>
+          <%= if @facebook_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/facebook", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="w-5 h-5" />
+              <span>Add Facebook account</span>
+            </.link>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    """
   end
 end
