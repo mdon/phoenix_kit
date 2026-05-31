@@ -63,10 +63,20 @@ defmodule PhoenixKit.Users.Auth.Scope do
           user: User.t() | nil,
           authenticated?: boolean(),
           cached_roles: [String.t()] | nil,
-          cached_permissions: MapSet.t() | nil
+          cached_permissions: MapSet.t() | nil,
+          multi_session_accounts: list(),
+          multi_session_allowed?: boolean()
         }
 
-  defstruct user: nil, authenticated?: false, cached_roles: nil, cached_permissions: nil
+  # `multi_session_*` are transient, request-scoped UI fields populated by the
+  # scope-mounting hook/plug (which have the Plug session) for the header
+  # account switcher; they are NOT loaded by `for_user/1` and default empty.
+  defstruct user: nil,
+            authenticated?: false,
+            cached_roles: nil,
+            cached_permissions: nil,
+            multi_session_accounts: [],
+            multi_session_allowed?: false
 
   @doc """
   Creates a new scope for the given user.

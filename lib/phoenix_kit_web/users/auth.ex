@@ -329,21 +329,17 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Check if user is active using centralized function
     active_user = Auth.ensure_active_user(user)
 
-    scope = Scope.for_user(active_user)
-
     session = get_session(conn)
+
+    scope = %{
+      Scope.for_user(active_user)
+      | multi_session_accounts: MultiSession.list_accounts(session),
+        multi_session_allowed?: MultiSession.gate_allowed?(session)
+    }
 
     conn
     |> assign(:phoenix_kit_current_user, active_user)
     |> assign(:phoenix_kit_current_scope, scope)
-    |> assign(
-      :phoenix_kit_session_accounts,
-      MultiSession.list_accounts(session)
-    )
-    |> assign(
-      :phoenix_kit_multi_session_allowed?,
-      MultiSession.gate_allowed?(session)
-    )
   end
 
   defp ensure_user_token(conn) do
@@ -811,7 +807,12 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_attach_scope_refresh_hook()
 
     user = socket.assigns.phoenix_kit_current_user
-    scope = Scope.for_user(user)
+
+    scope = %{
+      Scope.for_user(user)
+      | multi_session_accounts: MultiSession.list_accounts(session),
+        multi_session_allowed?: MultiSession.gate_allowed?(session)
+    }
 
     # Locale is URL-driven: the URL's `:locale` segment wins; absent
     # that, we fall straight to the default. The previous session-locale
@@ -848,14 +849,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
     |> Phoenix.Component.assign(:current_locale, current_locale)
     |> Phoenix.Component.assign(:current_locale_base, current_locale_base)
-    |> Phoenix.Component.assign(
-      :phoenix_kit_session_accounts,
-      MultiSession.list_accounts(session)
-    )
-    |> Phoenix.Component.assign(
-      :phoenix_kit_multi_session_allowed?,
-      MultiSession.gate_allowed?(session)
-    )
     # Fold the maintenance check into the shared scope mount so any new
     # live_session that uses a scope-mounting hook can't forget it.
     |> check_maintenance_mode()
