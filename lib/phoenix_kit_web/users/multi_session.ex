@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Users.MultiSession do
   @moduledoc """
-  Multi-account session switching for Owner/Admin testing.
+  Multi-account session switching.
 
   The Plug session holds an ordered stack of raw session tokens under
   `:pk_session_accounts`. `hd/1` of the stack is the ROOT account (the original
@@ -9,8 +9,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   Read helpers (`gate_allowed?/1`, `list_accounts/1`) take the string-keyed session
   map (works from both the plug and the LiveView on_mount). Conn-mutating ops
-  (`add_account/3`, `switch_to/2`, `remove_account/2`, logout helpers) take and
-  return a `Plug.Conn`.
+  (`add_account/3`, `add_authenticated_user/2`, `switch_to/2`, `remove_account/2`,
+  logout helpers) take and return a `Plug.Conn`.
   """
 
   import Plug.Conn
@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Role
 
   @stack_key :pk_session_accounts
   @max_accounts 5
@@ -37,19 +38,20 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   end
 
   @doc """
-  True when the ROOT account is an Owner/Admin AND the `multi_session_enabled`
-  setting is on. Evaluated against the root so the switcher stays visible even
-  when a low-privilege account is active.
+  True when the root session belongs to ANY authenticated user AND the
+  `multi_session_enabled` setting is on. Evaluated against the root so the
+  switcher stays visible even when a secondary account is active.
+
+  Anonymous (no root token / no valid user) always returns false.
   """
   def gate_allowed?(session) when is_map(session) do
-    Settings.get_boolean_setting("multi_session_enabled", false) and root_owner_or_admin?(session)
+    Settings.get_boolean_setting("multi_session_enabled", false) and root_authenticated?(session)
   end
 
-  defp root_owner_or_admin?(session) do
+  defp root_authenticated?(session) do
     with [root_token | _] <- stack_tokens(session),
-         %Auth.User{} = user <- Auth.get_user_by_session_token(root_token) do
-      scope = Scope.for_user(user)
-      Scope.owner?(scope) or Scope.admin?(scope)
+         %Auth.User{} <- Auth.get_user_by_session_token(root_token) do
+      true
     else
       _ -> false
     end
@@ -86,13 +88,26 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     end)
   end
 
+  # Returns the user's most descriptive display role name.
+  # Priority: Owner > Admin > first custom (non-"User") role > "User".
+  # This correctly labels custom roles (e.g. "Manager") instead of
+  # bucketing all permission-holders as "Admin".
   defp role_label(user) do
     scope = Scope.for_user(user)
+    roles = Scope.user_roles(scope)
+    system = Role.system_roles()
 
     cond do
-      Scope.owner?(scope) -> "Owner"
-      Scope.admin?(scope) -> "Admin"
-      true -> "User"
+      system.owner in roles ->
+        system.owner
+
+      system.admin in roles ->
+        system.admin
+
+      true ->
+        # Pick the first role that isn't the plain "User" baseline.
+        # Falls back to "User" (or the system.user name) when no custom role exists.
+        Enum.find(roles, system.user, fn r -> r != system.user end)
     end
   end
 
@@ -134,6 +149,43 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       end
     end
   end
+
+  @doc """
+  Appends an already-authenticated (active) user to the session stack and makes
+  them the active account. Shares all invariants with `add_account/3`:
+
+  - Stack-limit check (`:stack_full`)
+  - Dedup check — returns `{:error, :already_in_stack}` if the user is already present
+  - Session-fixation protection via `renew_and_put_active_token/2`
+
+  Used by the OAuth add-account callback so the same logic applies whether the
+  user was authenticated via password or via OAuth.
+  """
+  def add_authenticated_user(conn, %Auth.User{is_active: true} = user) do
+    session = get_session(conn)
+    stack = stack_tokens(session)
+
+    cond do
+      length(stack) >= @max_accounts ->
+        {:error, :stack_full}
+
+      already_in_stack?(stack, user) ->
+        {:error, :already_in_stack}
+
+      true ->
+        token = Auth.generate_user_session_token(user)
+
+        conn =
+          conn
+          |> put_session(@stack_key, stack ++ [token])
+          |> renew_and_put_active_token(token)
+
+        log_event("session.account_added", root_user(session), user)
+        {:ok, conn}
+    end
+  end
+
+  def add_authenticated_user(_conn, %Auth.User{}), do: {:error, :inactive}
 
   @doc "Activates a token already present in the stack, identified by `ref`."
   def switch_to(conn, ref) do

@@ -43,18 +43,22 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       assert length(get_session(conn)["pk_session_accounts"]) == 2
     end
 
-    test "plain user is forbidden", %{conn: conn} do
+    test "plain (non-admin) user can add an account when setting is on", %{conn: conn} do
+      # Change 2: gate_allowed? no longer requires owner/admin — any authenticated user may
+      # use the switcher when multi_session_enabled is on.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       user = make(nil)
       other = make(nil)
       conn = login(conn, user)
 
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
-          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"}
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
+          "return_to" => "/admin/dashboard"
         })
 
-      assert conn.status == 403 or redirected_to(conn) =~ "/"
-      assert length(get_session(conn)["pk_session_accounts"]) == 1
+      assert redirected_to(conn) == "/admin/dashboard"
+      assert length(get_session(conn)["pk_session_accounts"]) == 2
     end
 
     test "forbidden when setting is off", %{conn: conn} do
@@ -110,7 +114,9 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       assert Enum.all?(tokens, &is_nil(Auth.get_user_by_session_token(&1)))
     end
 
-    test "set_active_account is forbidden for a plain user", %{conn: _conn} do
+    test "set_active_account works for a plain user when setting is on", %{conn: _conn} do
+      # Change 2: gate_allowed? now allows any authenticated user when the setting is on.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       plain = make(nil)
       other = make(nil)
       conn = login(build_conn(), plain)
@@ -121,10 +127,11 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
       conn =
         put(conn, Routes.path("/users/session/active"), %{
-          "ref" => second.ref
+          "ref" => second.ref,
+          "return_to" => "/admin/dashboard"
         })
 
-      assert conn.status == 403 or redirected_to(conn) =~ "/"
+      assert redirected_to(conn) == "/admin/dashboard"
     end
 
     test "set_active_account is forbidden when multi_session setting is off", %{conn: conn} do
@@ -139,7 +146,9 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       assert conn.status == 403 or redirected_to(conn) =~ "/"
     end
 
-    test "remove_account is forbidden for a plain user", %{conn: _conn} do
+    test "remove_account works for a plain user when setting is on", %{conn: _conn} do
+      # Change 2: gate_allowed? now allows any authenticated user when the setting is on.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       plain = make(nil)
       other = make(nil)
       conn = login(build_conn(), plain)
@@ -148,10 +157,8 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
       [_, second | _] = MultiSession.list_accounts(get_session(conn))
 
-      conn =
-        delete(conn, Routes.path("/users/session/accounts/#{second.ref}"))
-
-      assert conn.status == 403 or redirected_to(conn) =~ "/"
+      conn = delete(conn, Routes.path("/users/session/accounts/#{second.ref}"))
+      assert redirected_to(conn) == Routes.path("/")
     end
 
     test "remove_account is forbidden when multi_session setting is off", %{conn: conn} do

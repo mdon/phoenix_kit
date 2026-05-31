@@ -1,6 +1,7 @@
 defmodule PhoenixKit.Integration.Users.MultiSessionTest do
   use PhoenixKitWeb.ConnCase, async: true
 
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Roles
   alias PhoenixKitWeb.Users.MultiSession
@@ -17,6 +18,20 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
   defp plain_user do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
+    Repo.get!(Auth.User, user.uuid)
+  end
+
+  defp custom_role_user(role_name) do
+    {:ok, role} =
+      Repo.insert(%PhoenixKit.Users.Role{
+        name: role_name,
+        description: role_name,
+        is_system_role: false
+      })
+
+    {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
+    {:ok, user} = Auth.admin_confirm_user(user)
+    Roles.assign_role(user, role.name)
     Repo.get!(Auth.User, user.uuid)
   end
 
@@ -155,6 +170,131 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
 
       _conn = MultiSession.delete_all_stack_tokens(conn)
       assert Enum.all?(tokens, &is_nil(Auth.get_user_by_session_token(&1)))
+    end
+  end
+
+  # --- Change 1: role_label shows real role name ---
+
+  describe "list_accounts/1 role labels" do
+    test "owner account shows 'Owner'" do
+      owner = owner_user()
+      conn = conn_for(owner)
+      [account] = MultiSession.list_accounts(Plug.Conn.get_session(conn))
+      assert account.role == "Owner"
+    end
+
+    test "plain user account shows 'User'" do
+      user = plain_user()
+      conn = conn_for(user)
+      [account] = MultiSession.list_accounts(Plug.Conn.get_session(conn))
+      assert account.role == "User"
+    end
+
+    test "custom-role user is labelled with the actual role name, not 'Admin'" do
+      # A custom role with no explicit permissions — admin?/1 would return false,
+      # but it might return true if permissions were seeded. The real fix is that we
+      # no longer call admin?/1 at all — we read cached_roles directly.
+      user = custom_role_user("Manager")
+      conn = conn_for(user)
+      [account] = MultiSession.list_accounts(Plug.Conn.get_session(conn))
+      # Must show the real role name, not "Admin" or "User"
+      assert account.role == "Manager"
+      refute account.role == "Admin"
+    end
+  end
+
+  # --- Change 2: gate_allowed? for any authenticated user ---
+
+  describe "gate_allowed?/1" do
+    test "returns false when multi_session_enabled setting is off" do
+      Settings.update_boolean_setting("multi_session_enabled", false)
+      owner = owner_user()
+      conn = conn_for(owner)
+      refute MultiSession.gate_allowed?(Plug.Conn.get_session(conn))
+    end
+
+    test "returns true for a plain (non-admin) authenticated user when setting is on" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      user = plain_user()
+      conn = conn_for(user)
+      assert MultiSession.gate_allowed?(Plug.Conn.get_session(conn))
+    end
+
+    test "returns true for an owner when setting is on" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      owner = owner_user()
+      conn = conn_for(owner)
+      assert MultiSession.gate_allowed?(Plug.Conn.get_session(conn))
+    end
+
+    test "returns false when there is no root user token (anonymous)" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+
+      empty_session =
+        Phoenix.ConnTest.build_conn()
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> Plug.Conn.get_session()
+
+      refute MultiSession.gate_allowed?(empty_session)
+    end
+  end
+
+  # --- Change 3: add_authenticated_user/2 stack-append path ---
+
+  describe "add_authenticated_user/2" do
+    test "appends an active user to the stack and makes them active" do
+      owner = owner_user()
+      other = plain_user()
+      conn = conn_for(owner)
+
+      assert {:ok, conn} = MultiSession.add_authenticated_user(conn, other)
+
+      session = Plug.Conn.get_session(conn)
+      assert length(session["pk_session_accounts"]) == 2
+      assert Auth.get_user_by_session_token(session["user_token"]).uuid == other.uuid
+      [root_token | _] = session["pk_session_accounts"]
+      assert Auth.get_user_by_session_token(root_token).uuid == owner.uuid
+    end
+
+    test "rejects when the account is already in the stack" do
+      owner = owner_user()
+      conn = conn_for(owner)
+
+      # Add the same user a second time via add_authenticated_user
+      assert {:ok, conn} = MultiSession.add_authenticated_user(conn, plain_user())
+      added = plain_user()
+      # Force a second call with the same user object (reuse owner)
+      assert {:ok, conn_with_two} = MultiSession.add_authenticated_user(conn, added)
+
+      assert {:error, :already_in_stack} =
+               MultiSession.add_authenticated_user(conn_with_two, added)
+    end
+
+    test "rejects when the stack is full" do
+      owner = owner_user()
+      conn = conn_for(owner)
+
+      conn =
+        Enum.reduce(1..(MultiSession.max_accounts() - 1), conn, fn _, acc ->
+          {:ok, acc} = MultiSession.add_authenticated_user(acc, plain_user())
+          acc
+        end)
+
+      assert {:error, :stack_full} = MultiSession.add_authenticated_user(conn, plain_user())
+    end
+
+    test "rejects an inactive user" do
+      owner = owner_user()
+      conn = conn_for(owner)
+
+      {:ok, inactive} =
+        Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
+
+      # inactive user (not confirmed, is_active false by default until confirmed)
+      # Deactivate explicitly
+      inactive = %{inactive | is_active: false}
+
+      assert {:error, :inactive} = MultiSession.add_authenticated_user(conn, inactive)
     end
   end
 end
