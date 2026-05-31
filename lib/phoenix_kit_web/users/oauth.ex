@@ -237,15 +237,26 @@ if Code.ensure_loaded?(Ueberauth) do
           # When the add-account intent is present AND the root session is still valid AND
           # the multi-session gate allows it, add the OAuth user to the stack instead of
           # performing a full login. This mirrors the password add_account/3 path.
-          if add_account_intent == "add_account" and
-               MultiSession.gate_allowed?(get_session(conn)) do
-            handle_oauth_add_account(conn, user, return_to)
-          else
-            flash_message = "Successfully signed in with #{format_provider_name(auth.provider)}!"
+          cond do
+            add_account_intent == "add_account" and
+                MultiSession.gate_allowed?(get_session(conn)) ->
+              handle_oauth_add_account(conn, user, return_to)
 
-            conn
-            |> put_flash(:info, flash_message)
-            |> UserAuth.log_in_user(user, %{"remember_me" => "true", "return_to" => return_to})
+            # Intent was set but the gate is now closed (setting toggled off, or the
+            # root token expired). Don't silently replace the primary session with a
+            # full login — surface it and return home.
+            add_account_intent == "add_account" ->
+              conn
+              |> put_flash(:error, "Account switching is currently disabled.")
+              |> redirect(to: Routes.path("/"))
+
+            true ->
+              flash_message =
+                "Successfully signed in with #{format_provider_name(auth.provider)}!"
+
+              conn
+              |> put_flash(:info, flash_message)
+              |> UserAuth.log_in_user(user, %{"remember_me" => "true", "return_to" => return_to})
           end
 
         {:error, %Ecto.Changeset{} = changeset} ->
@@ -277,6 +288,8 @@ if Code.ensure_loaded?(Ueberauth) do
       Logger.warning("PhoenixKit: OAuth authentication failure: #{inspect(failure)}")
 
       conn
+      # Clear the add-account marker so a later normal sign-in can't inherit it.
+      |> delete_session(@add_account_intent_key)
       |> put_flash(:error, error_message)
       |> redirect(to: Routes.path("/users/log-in"))
     end
@@ -286,6 +299,8 @@ if Code.ensure_loaded?(Ueberauth) do
       Logger.error("PhoenixKit: Unexpected OAuth callback without auth or failure")
 
       conn
+      # Clear the add-account marker so a later normal sign-in can't inherit it.
+      |> delete_session(@add_account_intent_key)
       |> put_flash(:error, "Authentication failed. Please try again.")
       |> redirect(to: Routes.path("/users/log-in"))
     end
