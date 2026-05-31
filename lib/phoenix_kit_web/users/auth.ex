@@ -330,9 +330,19 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     scope = Scope.for_user(active_user)
 
+    session = get_session(conn)
+
     conn
     |> assign(:phoenix_kit_current_user, active_user)
     |> assign(:phoenix_kit_current_scope, scope)
+    |> assign(
+      :phoenix_kit_session_accounts,
+      PhoenixKitWeb.Users.MultiSession.list_accounts(session)
+    )
+    |> assign(
+      :phoenix_kit_multi_session_allowed?,
+      PhoenixKitWeb.Users.MultiSession.gate_allowed?(session)
+    )
   end
 
   defp ensure_user_token(conn) do
@@ -837,6 +847,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
     |> Phoenix.Component.assign(:current_locale, current_locale)
     |> Phoenix.Component.assign(:current_locale_base, current_locale_base)
+    |> Phoenix.Component.assign(
+      :phoenix_kit_session_accounts,
+      PhoenixKitWeb.Users.MultiSession.list_accounts(session)
+    )
+    |> Phoenix.Component.assign(
+      :phoenix_kit_multi_session_allowed?,
+      PhoenixKitWeb.Users.MultiSession.gate_allowed?(session)
+    )
     # Fold the maintenance check into the shared scope mount so any new
     # live_session that uses a scope-mounting hook can't forget it.
     |> check_maintenance_mode()
