@@ -182,6 +182,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   attr(:scope, :any, default: nil)
   attr(:current_path, :string, default: "")
   attr(:current_locale, :string, default: "en")
+  attr(:accounts, :list, default: [])
+  attr(:multi_session_allowed?, :boolean, default: false)
 
   def admin_user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -301,6 +303,73 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             </li>
           <% end %>
 
+          <%= if @multi_session_allowed? do %>
+            <div class="divider my-0"></div>
+
+            <li class="menu-title px-4 py-1">
+              <span class="text-xs">Accounts</span>
+            </li>
+
+            <%= for account <- @accounts do %>
+              <li class="p-0">
+                <%= if account.active? do %>
+                  <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200">
+                    <span class="truncate">{account.email}</span>
+                    <span class="badge badge-xs badge-ghost">{account.role}</span>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                  </div>
+                <% else %>
+                  <div class="flex items-center gap-2 px-1">
+                    <.form
+                      for={%{}}
+                      action={Routes.locale_aware_path(assigns, "/users/session/active")}
+                      method="put"
+                      class="flex-1"
+                    >
+                      <input type="hidden" name="ref" value={account.ref} />
+                      <input type="hidden" name="return_to" value={@current_path} />
+                      <button
+                        type="submit"
+                        class="flex w-full items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
+                      >
+                        <span class="truncate">{account.email}</span>
+                        <span class="badge badge-xs badge-ghost ml-auto">{account.role}</span>
+                      </button>
+                    </.form>
+                    <%= unless account.root? do %>
+                      <.form
+                        for={%{}}
+                        action={
+                          Routes.locale_aware_path(assigns, "/users/session/accounts/#{account.ref}")
+                        }
+                        method="delete"
+                      >
+                        <input type="hidden" name="return_to" value={@current_path} />
+                        <button
+                          type="submit"
+                          class="btn btn-ghost btn-xs btn-square text-error"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                      </.form>
+                    <% end %>
+                  </div>
+                <% end %>
+              </li>
+            <% end %>
+
+            <li class="p-0">
+              <label
+                for="pk-add-account-modal"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-base-200 cursor-pointer"
+              >
+                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
+                <span>Add account</span>
+              </label>
+            </li>
+          <% end %>
+
           <div class="divider my-0"></div>
 
           <%!-- Log Out Link --%>
@@ -316,6 +385,46 @@ defmodule PhoenixKitWeb.Components.AdminNav do
           </li>
         </ul>
       </div>
+
+      <%= if @multi_session_allowed? do %>
+        <input type="checkbox" id="pk-add-account-modal" class="modal-toggle" />
+        <div class="modal" role="dialog">
+          <div class="modal-box">
+            <h3 class="text-lg font-bold mb-4">Add account</h3>
+            <.form
+              for={%{}}
+              action={Routes.locale_aware_path(assigns, "/users/session/accounts")}
+              method="post"
+              class="space-y-4"
+            >
+              <input type="hidden" name="return_to" value={@current_path} />
+              <div class="form-control">
+                <label class="label"><span class="label-text">Email or username</span></label>
+                <input
+                  name="user[email_or_username]"
+                  type="text"
+                  required
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Password</span></label>
+                <input
+                  name="user[password]"
+                  type="password"
+                  required
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div class="modal-action">
+                <label for="pk-add-account-modal" class="btn btn-outline">Cancel</label>
+                <button type="submit" class="btn btn-primary">Add account</button>
+              </div>
+            </.form>
+          </div>
+          <label class="modal-backdrop" for="pk-add-account-modal">Close</label>
+        </div>
+      <% end %>
     <% else %>
       <%!-- Not Authenticated - Show Login Button --%>
       <.link
