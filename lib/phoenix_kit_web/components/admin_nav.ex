@@ -314,7 +314,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               <li class="p-0">
                 <%= if account.active? do %>
                   <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200">
-                    <span class="truncate">{account.email}</span>
+                    <span class="flex-1 min-w-0 break-words">{account.email}</span>
                     <span class="badge badge-xs badge-ghost">{account.role}</span>
                     <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
                   </div>
@@ -332,7 +332,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         type="submit"
                         class="flex w-full items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
                       >
-                        <span class="truncate">{account.email}</span>
+                        <span class="flex-1 min-w-0 break-words">{account.email}</span>
                         <span class="badge badge-xs badge-ghost ml-auto">{account.role}</span>
                       </button>
                     </.form>
@@ -380,7 +380,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
-              <span>Log Out</span>
+              <span>Log out</span>
             </.link>
           </li>
           <%= if @multi_session_allowed? and length(@accounts) > 1 do %>
@@ -391,7 +391,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                 class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
               >
                 <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
-                <span>Log out all accounts</span>
+                <span>Log out from all accounts</span>
               </.link>
             </li>
           <% end %>
