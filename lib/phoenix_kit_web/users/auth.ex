@@ -50,6 +50,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
+  alias PhoenixKitWeb.Users.MultiSession
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
@@ -337,11 +338,11 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> assign(:phoenix_kit_current_scope, scope)
     |> assign(
       :phoenix_kit_session_accounts,
-      PhoenixKitWeb.Users.MultiSession.list_accounts(session)
+      MultiSession.list_accounts(session)
     )
     |> assign(
       :phoenix_kit_multi_session_allowed?,
-      PhoenixKitWeb.Users.MultiSession.gate_allowed?(session)
+      MultiSession.gate_allowed?(session)
     )
   end
 
@@ -849,11 +850,11 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> Phoenix.Component.assign(:current_locale_base, current_locale_base)
     |> Phoenix.Component.assign(
       :phoenix_kit_session_accounts,
-      PhoenixKitWeb.Users.MultiSession.list_accounts(session)
+      MultiSession.list_accounts(session)
     )
     |> Phoenix.Component.assign(
       :phoenix_kit_multi_session_allowed?,
-      PhoenixKitWeb.Users.MultiSession.gate_allowed?(session)
+      MultiSession.gate_allowed?(session)
     )
     # Fold the maintenance check into the shared scope mount so any new
     # live_session that uses a scope-mounting hook can't forget it.

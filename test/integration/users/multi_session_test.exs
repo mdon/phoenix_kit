@@ -11,13 +11,13 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
     {:ok, _} = Roles.assign_role(user, "Owner")
-    PhoenixKit.Test.Repo.get!(Auth.User, user.uuid)
+    Repo.get!(Auth.User, user.uuid)
   end
 
   defp plain_user do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
-    PhoenixKit.Test.Repo.get!(Auth.User, user.uuid)
+    Repo.get!(Auth.User, user.uuid)
   end
 
   # Build a conn whose root (active) account is `user`, logged in like log_in_user.

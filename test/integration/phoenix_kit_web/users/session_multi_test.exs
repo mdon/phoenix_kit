@@ -13,7 +13,7 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
     if role, do: {:ok, _} = Roles.assign_role(user, role)
-    PhoenixKit.Test.Repo.get!(Auth.User, user.uuid)
+    Repo.get!(Auth.User, user.uuid)
   end
 
   defp login(conn, user) do

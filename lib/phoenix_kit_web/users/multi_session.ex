@@ -105,29 +105,27 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     session = get_session(conn)
     stack = stack_tokens(session)
 
-    cond do
-      length(stack) >= @max_accounts ->
-        {:error, :stack_full}
+    if length(stack) >= @max_accounts do
+      {:error, :stack_full}
+    else
+      case Auth.get_user_by_email_or_username_and_password(email_or_username, password) do
+        {:ok, %Auth.User{is_active: true} = user} ->
+          token = Auth.generate_user_session_token(user)
 
-      true ->
-        case Auth.get_user_by_email_or_username_and_password(email_or_username, password) do
-          {:ok, %Auth.User{is_active: true} = user} ->
-            token = Auth.generate_user_session_token(user)
+          conn =
+            conn
+            |> put_session(@stack_key, stack ++ [token])
+            |> put_active_token(token)
 
-            conn =
-              conn
-              |> put_session(@stack_key, stack ++ [token])
-              |> put_active_token(token)
+          log_event("session.account_added", root_user(session), user)
+          {:ok, conn}
 
-            log_event("session.account_added", root_user(session), user)
-            {:ok, conn}
+        {:ok, %Auth.User{}} ->
+          {:error, :inactive}
 
-          {:ok, %Auth.User{}} ->
-            {:error, :inactive}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
