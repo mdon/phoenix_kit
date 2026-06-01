@@ -39,12 +39,17 @@ defmodule PhoenixKit.Notifications.Render do
     }
   end
 
-  def render(%Notification{} = _notification) do
-    # Activity wasn't preloaded — render a safe fallback.
+  def render(%Notification{} = notification) do
+    # No activity — either a standalone notification (V126, activity_uuid
+    # nil) or an activity-linked row that wasn't preloaded. Read the
+    # display content from the notification's own metadata (same override
+    # keys as activity metadata); fall back to a safe generic notice.
+    meta = notification.metadata || %{}
+
     %{
-      icon: "hero-bell",
-      text: "You have a new notification.",
-      link: nil,
+      icon: meta_string(meta, "notification_icon") || "hero-bell",
+      text: meta_string(meta, "notification_text") || "You have a new notification.",
+      link: meta_string(meta, "notification_link"),
       actor_uuid: nil
     }
   end

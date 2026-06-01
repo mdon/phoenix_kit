@@ -70,6 +70,76 @@ defmodule PhoenixKit.Notifications do
     end
   end
 
+  @doc """
+  Create a **standalone** notification — one not tied to an activity
+  (V126). Use for app-driven notices that don't originate from the
+  activity log (e.g. "your export is ready").
+
+  `attrs` keys:
+    * `:recipient_uuid` (required) — who receives it
+    * `:text` / `:icon` / `:link` — convenience, folded into `metadata`
+      as `notification_text` / `notification_icon` / `notification_link`
+      (the keys `Render` reads)
+    * `:metadata` — raw metadata map (merged under the convenience keys)
+
+      Notifications.create(%{
+        recipient_uuid: user.uuid,
+        text: "Your export is ready.",
+        icon: "hero-arrow-down-tray",
+        link: "/exports/123"
+      })
+
+  Honors the global `notifications_enabled` kill-switch. Does NOT run the
+  per-type preference filter (a standalone notification has no action to
+  map to a type) — it's an explicit, app-driven send. Returns
+  `{:ok, %Notification{}}`, `{:ok, :skipped}` (disabled), or
+  `{:error, changeset}`. Broadcasts `{:notification_created, n}` on success.
+  """
+  def create(attrs) when is_map(attrs) do
+    if enabled?() do
+      do_create_standalone(attrs)
+    else
+      {:ok, :skipped}
+    end
+  rescue
+    e ->
+      Logger.warning("Notifications.create failed: #{inspect(e)}")
+      {:ok, :skipped}
+  end
+
+  defp do_create_standalone(attrs) do
+    metadata =
+      (attrs[:metadata] || %{})
+      |> put_meta("notification_text", attrs[:text])
+      |> put_meta("notification_icon", attrs[:icon])
+      |> put_meta("notification_link", attrs[:link])
+
+    %Notification{}
+    |> Notification.changeset(%{
+      recipient_uuid: attrs[:recipient_uuid],
+      activity_uuid: nil,
+      metadata: metadata
+    })
+    |> repo().insert()
+    |> case do
+      {:ok, notification} ->
+        # No activity for a standalone row — pin it nil so Render takes the
+        # metadata path (a freshly-inserted struct otherwise carries a
+        # NotLoaded association, which Render's activity clause would choke on).
+        notification = %{notification | activity: nil}
+        Events.broadcast(notification.recipient_uuid, {:notification_created, notification})
+        {:ok, notification}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Logger.warning("Notifications.create insert failed: #{inspect(cs.errors)}")
+        {:error, cs}
+    end
+  end
+
+  defp put_meta(meta, _key, nil), do: meta
+  defp put_meta(meta, _key, ""), do: meta
+  defp put_meta(meta, key, val), do: Map.put(meta, key, val)
+
   # ── Reads ────────────────────────────────────────────────────────────
 
   @doc """

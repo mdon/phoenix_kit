@@ -25,6 +25,7 @@ defmodule PhoenixKit.Notifications.Notification do
           recipient_uuid: UUIDv7.t() | nil,
           seen_at: DateTime.t() | nil,
           dismissed_at: DateTime.t() | nil,
+          metadata: map() | nil,
           inserted_at: DateTime.t() | nil,
           activity: PhoenixKit.Activity.Entry.t() | Ecto.Association.NotLoaded.t() | nil,
           recipient: PhoenixKit.Users.Auth.User.t() | Ecto.Association.NotLoaded.t() | nil
@@ -43,6 +44,10 @@ defmodule PhoenixKit.Notifications.Notification do
 
     field :seen_at, :utc_datetime
     field :dismissed_at, :utc_datetime
+    # Display content for a standalone notification (no activity). Render
+    # reads notification_text / notification_icon / notification_link from
+    # here — the same override keys it honors on activity metadata.
+    field :metadata, :map, default: %{}
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -50,8 +55,10 @@ defmodule PhoenixKit.Notifications.Notification do
   @doc "Changeset for creating a notification."
   def changeset(notification, attrs) do
     notification
-    |> cast(attrs, [:activity_uuid, :recipient_uuid, :seen_at, :dismissed_at])
-    |> validate_required([:activity_uuid, :recipient_uuid])
+    |> cast(attrs, [:activity_uuid, :recipient_uuid, :seen_at, :dismissed_at, :metadata])
+    # Only recipient is required — `activity_uuid` is nil for standalone
+    # notifications (V126), where `metadata` carries the display content.
+    |> validate_required([:recipient_uuid])
     |> foreign_key_constraint(:activity_uuid)
     |> foreign_key_constraint(:recipient_uuid)
     |> unique_constraint([:activity_uuid, :recipient_uuid],

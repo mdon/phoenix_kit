@@ -529,7 +529,17 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V125 - Project workflow statuses (entities-backed, cement-at-start) ⚡ LATEST
+  ### V126 - Standalone notifications ⚡ LATEST
+  - Drops NOT NULL on `phoenix_kit_notifications.activity_uuid` so a
+    notification can exist without an originating activity (the unique
+    `(activity_uuid, recipient_uuid)` index still holds — NULLs are
+    distinct in Postgres).
+  - Adds `metadata JSONB NOT NULL DEFAULT '{}'` so a standalone
+    notification carries its own display content (`Render` reads the same
+    `notification_text` / `notification_icon` / `notification_link` keys
+    it honors on activity metadata).
+
+  ### V125 - Project workflow statuses (entities-backed, cement-at-start)
   - Adds `status_entity_uuid` (FK `phoenix_kit_entities(uuid) ON DELETE SET NULL`),
     `current_status_slug`, and a generic `settings` JSONB (first key:
     `use_status_translations`) to `phoenix_kit_projects` — the catalog list a
@@ -1079,7 +1089,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 125
+  @current_version 126
   @default_prefix "public"
 
   @doc false
