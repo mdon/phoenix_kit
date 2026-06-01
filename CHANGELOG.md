@@ -1,3 +1,38 @@
+## 1.7.128 - 2026-06-01
+
+### Added
+- Sub-projects and project assignees (core schema support for the
+  `phoenix_kit_projects` module). A sub-project is an assignment row that
+  points at a child project instead of a task template, so it lives in the
+  parent's task timeline with dependencies + drag-reorder for free; a whole
+  project (or sub-project) can also be assigned to a Department / Team /
+  Person, exactly like a task. The schemas, context, and UI ship in the
+  external `phoenix_kit_projects` package — this release adds the migrations.
+
+### Migrations
+- **V127** — sub-projects as tasks: adds `child_project_uuid`
+  (FK `phoenix_kit_projects(uuid) ON DELETE RESTRICT`) to
+  `phoenix_kit_project_assignments`, drops `NOT NULL` on `task_uuid`, and adds
+  a `task_uuid`-XOR-`child_project_uuid` CHECK. A partial UNIQUE index on
+  `(child_project_uuid) WHERE NOT NULL` enforces one parent per child and also
+  serves child-link lookups (an equality predicate implies `IS NOT NULL`).
+- **V128** — assignee on projects (and sub-projects): adds
+  `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
+  (FKs to the staff tables, `ON DELETE SET NULL`) to `phoenix_kit_projects`
+  with a `num_nonnulls(...) <= 1` single-assignee CHECK + a partial index per
+  FK. `@current_version` → 128.
+
+### Fixed
+- Notifications kill-switch (`Notifications.enabled?/0`) reads the setting
+  uncached again. The `:settings` cache is node-local with no cross-node
+  invalidation or TTL, so a cached read let a disable on one node go unseen on
+  others until restart; the uncached read keeps the switch immediate and
+  cluster-wide.
+- `Notifications.admin_stats/0` now runs a single
+  `count(...) FILTER (WHERE ...)` query (one table scan) instead of three
+  separate `COUNT(*)` aggregates, and `get_config/0` skips it entirely when the
+  module is disabled — it's called for every module on each Modules-page render.
+
 ## 1.7.127 - 2026-06-01
 
 ### Added
