@@ -33,6 +33,12 @@
   `/admin/notifications` overview page + admin nav tab. The overview is a
   simple read-only page — enabled state, retention window, and aggregate
   counts (total / unread / dismissed via `Notifications.admin_stats/0`).
+- The `NotificationsBell` (sticky nested LiveView) is now embedded in the
+  admin header, to the right of the theme switcher — shown only when the
+  Notifications module is enabled and a user is logged in. `app_layout`
+  gained an optional `socket` attr (threaded from the admin call sites +
+  `admin.html.heex`); the bell renders via `live_render(@socket, …)` and
+  isn't rendered when no socket is threaded (e.g. public/auth pages).
 
 ### Migrations
 - **V126** — `phoenix_kit_notifications.activity_uuid` is now nullable
