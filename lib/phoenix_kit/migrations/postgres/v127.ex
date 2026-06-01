@@ -27,9 +27,10 @@ defmodule PhoenixKit.Migrations.Postgres.V127 do
     * Partial UNIQUE index on `(child_project_uuid) WHERE child_project_uuid IS
       NOT NULL` — a project is a child of at most one parent assignment. This is
       also what forces template cloning to *deep-clone* child subtrees rather
-      than point two parents at the same child.
-    * Plain index on `(child_project_uuid)` for "find the linking row for this
-      child" lookups (parent breadcrumb, rollup sync).
+      than point two parents at the same child. It also serves the "find the
+      linking row for this child" lookups (parent breadcrumb, rollup sync): an
+      equality predicate `child_project_uuid = $1` implies `IS NOT NULL`, so
+      Postgres uses the partial index for it — no separate plain index needed.
 
   Idempotent: re-running is a no-op once the column/constraints/indexes exist.
   """
@@ -46,7 +47,6 @@ defmodule PhoenixKit.Migrations.Postgres.V127 do
     drop_task_uuid_not_null(p)
     add_task_xor_child_check(p, schema)
     create_child_project_unique_index(p, schema)
-    create_child_project_index(p)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '127'")
   end
@@ -55,7 +55,6 @@ defmodule PhoenixKit.Migrations.Postgres.V127 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_project_assignments_child_project_index")
     execute("DROP INDEX IF EXISTS #{p}phoenix_kit_project_assignments_child_project_unique")
 
     execute("""
@@ -68,14 +67,18 @@ defmodule PhoenixKit.Migrations.Postgres.V127 do
       DROP CONSTRAINT IF EXISTS phoenix_kit_project_assignments_child_project_uuid_fkey
     """)
 
-    # Drop the sub-project linking rows first. The XOR check guaranteed every
-    # such row had `task_uuid IS NULL` (a child link, not a task), so they are
-    # exactly the rows that would violate the NOT NULL we restore below. They
-    # have no task identity to fall back on, so rollback discards them (the
-    # child projects themselves survive as standalone projects). Must run
-    # BEFORE dropping `child_project_uuid` only conceptually — `task_uuid IS
-    # NULL` already identifies them, and the column is about to go.
-    execute("DELETE FROM #{p}phoenix_kit_project_assignments WHERE task_uuid IS NULL")
+    # Drop the sub-project linking rows first — they're exactly the rows that
+    # would violate the NOT NULL we restore below. Target them directly by
+    # `child_project_uuid IS NOT NULL` (the column still exists here, dropped
+    # just after): that's precisely the V127-created set, without leaning on
+    # the XOR check we dropped two statements ago. The child projects survive
+    # as standalone projects, but note this also cascade-deletes any
+    # `phoenix_kit_project_dependencies` edges touching these assignments
+    # (FK `ON DELETE CASCADE`), so a sub-project's dependency wiring is lost —
+    # rollback is feature-removal, not a reversible round-trip.
+    execute(
+      "DELETE FROM #{p}phoenix_kit_project_assignments WHERE child_project_uuid IS NOT NULL"
+    )
 
     execute(
       "ALTER TABLE #{p}phoenix_kit_project_assignments DROP COLUMN IF EXISTS child_project_uuid"
@@ -177,13 +180,6 @@ defmodule PhoenixKit.Migrations.Postgres.V127 do
           WHERE child_project_uuid IS NOT NULL;
       END IF;
     END $$;
-    """)
-  end
-
-  defp create_child_project_index(p) do
-    execute("""
-    CREATE INDEX IF NOT EXISTS phoenix_kit_project_assignments_child_project_index
-    ON #{p}phoenix_kit_project_assignments (child_project_uuid)
     """)
   end
 

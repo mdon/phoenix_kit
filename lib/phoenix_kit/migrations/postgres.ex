@@ -544,7 +544,8 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Drops `NOT NULL` on `task_uuid`; adds a `CHECK` that exactly one of
     `task_uuid` / `child_project_uuid` is set (XOR).
   - Partial UNIQUE index on `(child_project_uuid) WHERE NOT NULL` (a project is
-    a child of at most one parent); plain index on `(child_project_uuid)`.
+    a child of at most one parent); it also serves child-link lookups, since an
+    equality predicate implies `IS NOT NULL`.
 
   ### V126 - Standalone notifications
   - Drops NOT NULL on `phoenix_kit_notifications.activity_uuid` so a
