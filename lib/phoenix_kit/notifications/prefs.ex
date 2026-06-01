@@ -105,4 +105,25 @@ defmodule PhoenixKit.Notifications.Prefs do
         end
     end
   end
+
+  @doc """
+  Like `user_wants?/2` but checks a notification **type key** directly
+  (e.g. `"account"`, `"posts"`, or a module-contributed type) instead of
+  mapping from an action. Used by `Notifications.create/1` when a caller
+  passes `:type` to opt a standalone notification into preference
+  filtering. Same fail-open contract: unknown type / missing pref /
+  crash → `true`.
+  """
+  @spec user_wants_type?(String.t(), String.t()) :: boolean()
+  def user_wants_type?(user_uuid, type_key) when is_binary(user_uuid) and is_binary(type_key) do
+    case Map.get(get(user_uuid), type_key) do
+      true -> true
+      false -> false
+      _ -> Types.default_for(type_key)
+    end
+  rescue
+    e ->
+      Logger.warning("Notifications.Prefs.user_wants_type? crashed: #{inspect(e)}")
+      true
+  end
 end

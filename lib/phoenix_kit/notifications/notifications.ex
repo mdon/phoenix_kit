@@ -11,12 +11,20 @@ defmodule PhoenixKit.Notifications do
 
   The whole feature is gated by the global `notifications_enabled` setting
   (default `"true"`); when `"false"`, `maybe_create_from_activity/1` is a no-op.
+
+  Registered as a core toggleable module (`use PhoenixKit.Module`) so it
+  appears on the admin Modules page and contributes the `/admin/notifications`
+  overview tab. The module enable/disable flips the same
+  `notifications_enabled` kill-switch `enabled?/0` reads.
   """
+
+  use PhoenixKit.Module
 
   import Ecto.Query, warn: false
   require Logger
 
   alias PhoenixKit.Activity.Entry
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Notifications.Events
   alias PhoenixKit.Notifications.Notification
   alias PhoenixKit.Notifications.Prefs
@@ -69,6 +77,133 @@ defmodule PhoenixKit.Notifications do
         end
     end
   end
+
+  @doc """
+  Create a **standalone** notification — one not tied to an activity
+  (V126). Use for app-driven notices that don't originate from the
+  activity log (e.g. "your export is ready").
+
+  `attrs` keys:
+    * `:recipient_uuid` (required) — who receives it
+    * `:text` / `:icon` / `:link` — convenience, folded into `metadata`
+      as `notification_text` / `notification_icon` / `notification_link`
+      (the keys `Render` reads)
+    * `:metadata` — raw metadata map (merged under the convenience keys)
+    * `:type` — optional notification type key (e.g. `"account"`,
+      `"posts"`, or a module-contributed type). When given, the send is
+      filtered through the recipient's per-type preference
+      (`Prefs.user_wants_type?/2`, fail-open).
+    * `:action` — optional action string (e.g. `"post.commented"`). When
+      given, filtered through `Prefs.user_wants?/2` (which maps the
+      action to a type). Use `:type` OR `:action`, not both.
+
+      Notifications.create(%{
+        recipient_uuid: user.uuid,
+        text: "Your export is ready.",
+        icon: "hero-arrow-down-tray",
+        link: "/exports/123"
+      })
+
+  Honors the global `notifications_enabled` kill-switch. With neither
+  `:type` nor `:action`, it's an unconditional app-driven send (no
+  preference filtering). Returns `{:ok, %Notification{}}`,
+  `{:ok, :skipped}` (disabled or filtered out by prefs), or
+  `{:error, changeset}`. Broadcasts `{:notification_created, n}` on success.
+  """
+  def create(attrs) when is_map(attrs) do
+    cond do
+      not enabled?() -> {:ok, :skipped}
+      not wants_standalone?(attrs) -> {:ok, :skipped}
+      true -> do_create_standalone(attrs)
+    end
+  rescue
+    e ->
+      Logger.warning("Notifications.create failed: #{inspect(e)}")
+      {:ok, :skipped}
+  end
+
+  @doc """
+  Create a standalone notification for **many** recipients in one call —
+  the multi-recipient counterpart to `create/1`. `recipient_uuids` is a
+  list; `attrs` is the same shape as `create/1` minus `:recipient_uuid`
+  (it's supplied per recipient).
+
+  The recipient list is the caller's responsibility (e.g. the followers
+  of an author) — this is the generic fan-out primitive, not an audience
+  resolver. Duplicate uuids are de-duped. Each recipient is filtered
+  independently through `:type` / `:action` prefs when given, so muted
+  users are skipped. Honors the kill-switch once up front.
+
+      Notifications.create_many(follower_uuids, %{
+        type: "posts",
+        text: "Alice published a new post.",
+        link: "/posts/\#{post.id}"
+      })
+
+  Returns `{:ok, created_count}` (notifications actually inserted, i.e.
+  excluding disabled / pref-skipped) or `{:ok, :skipped}` when
+  notifications are globally disabled.
+  """
+  def create_many(recipient_uuids, attrs) when is_list(recipient_uuids) and is_map(attrs) do
+    if enabled?() do
+      created =
+        recipient_uuids
+        |> Enum.uniq()
+        |> Enum.count(fn uuid ->
+          match?({:ok, %Notification{}}, create(Map.put(attrs, :recipient_uuid, uuid)))
+        end)
+
+      {:ok, created}
+    else
+      {:ok, :skipped}
+    end
+  end
+
+  # Apply the optional per-recipient preference filter. `:type` checks the
+  # type pref directly; `:action` maps the action to a type. With neither,
+  # the send is unconditional.
+  defp wants_standalone?(%{type: type, recipient_uuid: uuid})
+       when is_binary(type) and is_binary(uuid),
+       do: Prefs.user_wants_type?(uuid, type)
+
+  defp wants_standalone?(%{action: action, recipient_uuid: uuid})
+       when is_binary(action) and is_binary(uuid),
+       do: Prefs.user_wants?(uuid, action)
+
+  defp wants_standalone?(_attrs), do: true
+
+  defp do_create_standalone(attrs) do
+    metadata =
+      (attrs[:metadata] || %{})
+      |> put_meta("notification_text", attrs[:text])
+      |> put_meta("notification_icon", attrs[:icon])
+      |> put_meta("notification_link", attrs[:link])
+
+    %Notification{}
+    |> Notification.changeset(%{
+      recipient_uuid: attrs[:recipient_uuid],
+      activity_uuid: nil,
+      metadata: metadata
+    })
+    |> repo().insert()
+    |> case do
+      {:ok, notification} ->
+        # No activity for a standalone row — pin it nil so Render takes the
+        # metadata path (a freshly-inserted struct otherwise carries a
+        # NotLoaded association, which Render's activity clause would choke on).
+        notification = %{notification | activity: nil}
+        Events.broadcast(notification.recipient_uuid, {:notification_created, notification})
+        {:ok, notification}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Logger.warning("Notifications.create insert failed: #{inspect(cs.errors)}")
+        {:error, cs}
+    end
+  end
+
+  defp put_meta(meta, _key, nil), do: meta
+  defp put_meta(meta, _key, ""), do: meta
+  defp put_meta(meta, key, val), do: Map.put(meta, key, val)
 
   # ── Reads ────────────────────────────────────────────────────────────
 
@@ -253,9 +388,76 @@ defmodule PhoenixKit.Notifications do
     PhoenixKit.Activity.retention_days()
   end
 
+  # ── Module behaviour (toggleable module on the admin Modules page) ────
+
+  @impl PhoenixKit.Module
+  def module_key, do: "notifications"
+
+  @impl PhoenixKit.Module
+  def module_name, do: "Notifications"
+
+  @impl PhoenixKit.Module
+  def enable_system, do: Settings.update_boolean_setting("notifications_enabled", true)
+
+  @impl PhoenixKit.Module
+  def disable_system, do: Settings.update_boolean_setting("notifications_enabled", false)
+
+  @impl PhoenixKit.Module
+  def get_config, do: Map.merge(%{enabled: enabled?()}, admin_stats())
+
+  @impl PhoenixKit.Module
+  def permission_metadata do
+    %{
+      key: "notifications",
+      label: "Notifications",
+      icon: "hero-bell",
+      description: "Per-user in-app notifications driven by the activity log"
+    }
+  end
+
+  @impl PhoenixKit.Module
+  def admin_tabs do
+    [
+      Tab.new!(
+        id: :admin_notifications,
+        label: "Notifications",
+        icon: "hero-bell",
+        path: "notifications",
+        priority: 640,
+        level: :admin,
+        permission: "notifications",
+        match: :prefix,
+        group: :admin_modules,
+        gettext_backend: PhoenixKitWeb.Gettext
+      )
+    ]
+  end
+
+  @doc """
+  Aggregate counts for the admin overview page: total notifications,
+  `unread` (neither seen nor dismissed), and `dismissed`. Rescues to
+  zeros so the page never crashes on a query hiccup.
+  """
+  def admin_stats do
+    %{
+      total: repo().aggregate(Notification, :count, :uuid),
+      unread:
+        Notification
+        |> where([n], is_nil(n.seen_at) and is_nil(n.dismissed_at))
+        |> repo().aggregate(:count, :uuid),
+      dismissed:
+        Notification
+        |> where([n], not is_nil(n.dismissed_at))
+        |> repo().aggregate(:count, :uuid)
+    }
+  rescue
+    _ -> %{total: 0, unread: 0, dismissed: 0}
+  end
+
   # ── Settings ─────────────────────────────────────────────────────────
 
   @doc "Is the notifications feature enabled? Default `true`."
+  @impl PhoenixKit.Module
   def enabled? do
     case Settings.get_setting("notifications_enabled", "true") do
       "false" -> false

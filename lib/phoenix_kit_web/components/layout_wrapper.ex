@@ -74,6 +74,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   - `inner_block` - Content to render within the layout
   """
   attr :flash, :map, default: %{}
+  # Parent LiveView socket — required only to embed the sticky
+  # NotificationsBell (a nested LiveView) in the admin header. Callers
+  # pass `socket={@socket}`; when absent the bell is simply not rendered.
+  attr :socket, :any, default: nil
   attr :phoenix_kit_current_scope, :any, default: nil
   attr :phoenix_kit_current_user, :any, default: nil
   attr :page_title, :string, default: nil
@@ -241,6 +245,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             # Create template assigns with needed values
             template_assigns = %{
               original_inner_block: original_inner_block,
+              # Parent LiveView socket — only used to embed the sticky
+              # NotificationsBell; nil when the caller didn't thread it
+              # through (then the bell simply isn't rendered).
+              socket: assigns[:socket],
+              phoenix_kit_current_user: assigns[:phoenix_kit_current_user],
               current_path: assigns[:current_path],
               phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
               project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
@@ -323,9 +332,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   </div>
                 </div>
 
-                <%!-- Right: Theme Switcher and User Dropdown (language selection lives inside user dropdown) --%>
+                <%!-- Right: Theme Switcher, Notifications bell, User Dropdown --%>
                 <div class="flex items-center gap-3">
                   <.admin_theme_controller mobile={true} />
+                  <%!-- Notifications bell — a sticky nested LiveView, shown only
+                       when the socket is threaded through, the module is enabled,
+                       and there's a logged-in user. Sticky + a stable id so the
+                       bell keeps its PubSub subscription across admin navigation. --%>
+                  <% bell_user =
+                    assigns[:phoenix_kit_current_user] ||
+                      (assigns[:phoenix_kit_current_scope] &&
+                         assigns[:phoenix_kit_current_scope].user) %>
+                  <%= if @socket && bell_user && PhoenixKit.Notifications.enabled?() do %>
+                    {Phoenix.Component.live_render(@socket, PhoenixKitWeb.Live.NotificationsBell,
+                      id: "pk-notifications-bell",
+                      sticky: true,
+                      session: %{"user_uuid" => bell_user.uuid}
+                    )}
+                  <% end %>
                   <.admin_user_dropdown
                     scope={@phoenix_kit_current_scope}
                     current_path={@current_path}

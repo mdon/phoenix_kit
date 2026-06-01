@@ -1,3 +1,51 @@
+## 1.7.127 - 2026-06-01
+
+### Added
+- Standalone notifications — a notification no longer has to come from an
+  activity. `PhoenixKit.Notifications.create/1` inserts an
+  activity-less notification carrying its own display content:
+
+      Notifications.create(%{
+        recipient_uuid: user.uuid,
+        text: "Your export is ready.",
+        icon: "hero-arrow-down-tray",
+        link: "/exports/123"
+      })
+
+  `:text` / `:icon` / `:link` fold into a new `metadata` JSONB column as
+  the `notification_text` / `notification_icon` / `notification_link`
+  keys `Render` already honors; `Render` reads them off the notification
+  itself when there's no activity. Honors the `notifications_enabled`
+  kill-switch.
+- `Notifications.create/1` takes an optional `:type` (notification type
+  key) or `:action` (action string) to opt the standalone send into the
+  recipient's per-type **preference filter** (fail-open) — omit both for
+  an unconditional app-driven send.
+- `Notifications.create_many/2` — the multi-recipient fan-out primitive:
+  one standalone notification per recipient uuid (caller supplies the
+  list, e.g. an author's followers), de-duped, each filtered
+  independently by `:type`/`:action` prefs. Returns `{:ok, created_count}`.
+- `Notifications.Prefs.user_wants_type?/2` — type-keyed preference check
+  (vs the action-keyed `user_wants?/2`), backing the `:type` filter above.
+- Notifications is now a toggleable core **module** (`use PhoenixKit.Module`):
+  it appears as a card on the admin Modules page (enable/disable flips the
+  existing `notifications_enabled` kill-switch) and contributes a
+  `/admin/notifications` overview page + admin nav tab. The overview is a
+  simple read-only page — enabled state, retention window, and aggregate
+  counts (total / unread / dismissed via `Notifications.admin_stats/0`).
+- The `NotificationsBell` (sticky nested LiveView) is now embedded in the
+  admin header, to the right of the theme switcher — shown only when the
+  Notifications module is enabled and a user is logged in. `app_layout`
+  gained an optional `socket` attr (threaded from the admin call sites +
+  `admin.html.heex`); the bell renders via `live_render(@socket, …)` and
+  isn't rendered when no socket is threaded (e.g. public/auth pages).
+
+### Migrations
+- **V126** — `phoenix_kit_notifications.activity_uuid` is now nullable
+  (standalone notifications) and a `metadata JSONB NOT NULL DEFAULT '{}'`
+  column is added. The `(activity_uuid, recipient_uuid)` unique index
+  still holds (Postgres treats NULLs as distinct). `@current_version` → 126.
+
 ## 1.7.126 - 2026-05-30
 
 ### Added

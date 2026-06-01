@@ -478,7 +478,8 @@ defmodule PhoenixKit.ModuleRegistry do
       PhoenixKit.Modules.SEO,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,
-      PhoenixKit.Jobs
+      PhoenixKit.Jobs,
+      PhoenixKit.Notifications
     ]
   end
 
