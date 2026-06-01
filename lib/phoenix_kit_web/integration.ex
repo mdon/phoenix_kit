@@ -296,9 +296,12 @@ defmodule PhoenixKitWeb.Integration do
       # whose endpoint never got the mount. Compiled in only when the
       # catalogue module is loaded.
       if Code.ensure_loaded?(PhoenixKitCatalogue.Catalogue.PdfLibrary) do
+        # No pipeline: these are public static assets (HTML / JS modules /
+        # CSS / fonts) served by the controller, which sets its own
+        # content-type. The `:phoenix_kit_api` pipeline restricts to JSON
+        # (`plug :accepts, ["json"]`) and would mis-negotiate text/html and
+        # text/javascript for strict Accept headers.
         scope "/_pdfjs", PhoenixKitWeb do
-          pipe_through [:phoenix_kit_api]
-
           get "/*path", PdfViewerController, :serve
         end
       end
