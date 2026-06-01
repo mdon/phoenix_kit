@@ -529,7 +529,24 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V126 - Standalone notifications ⚡ LATEST
+  ### V128 - Assignee on projects (and sub-projects) ⚡ LATEST
+  - Adds `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
+    (FKs to the staff tables, `ON DELETE SET NULL`) to `phoenix_kit_projects`,
+    with a `num_nonnulls(...) <= 1` single-assignee CHECK + a partial index per
+    FK. Lets a whole project — or, since a sub-project is a project (V127), a
+    sub-project — be assigned to a Department/Team/Person like a task.
+
+  ### V127 - Sub-projects as tasks
+  - Adds `child_project_uuid` (FK `phoenix_kit_projects(uuid) ON DELETE RESTRICT`)
+    to `phoenix_kit_project_assignments` — a sub-project is an assignment that
+    points at a child project instead of a task template, so it lives in the
+    parent's task timeline with dependencies + drag-reorder for free.
+  - Drops `NOT NULL` on `task_uuid`; adds a `CHECK` that exactly one of
+    `task_uuid` / `child_project_uuid` is set (XOR).
+  - Partial UNIQUE index on `(child_project_uuid) WHERE NOT NULL` (a project is
+    a child of at most one parent); plain index on `(child_project_uuid)`.
+
+  ### V126 - Standalone notifications
   - Drops NOT NULL on `phoenix_kit_notifications.activity_uuid` so a
     notification can exist without an originating activity (the unique
     `(activity_uuid, recipient_uuid)` index still holds — NULLs are
@@ -1089,7 +1106,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 126
+  @current_version 128
   @default_prefix "public"
 
   @doc false
