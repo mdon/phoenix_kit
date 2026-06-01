@@ -291,6 +291,24 @@ defmodule PhoenixKitWeb.Integration do
         get "/assets/:file", AssetsController, :serve
       end
 
+      # Router-served fallback for phoenix_kit_catalogue's vendored PDF.js
+      # viewer. Served at the literal `/_pdfjs` path (no prefix/locale) so it
+      # matches the same URL the catalogue's iframe + endpoint `Plug.Static`
+      # mount use — the endpoint mount (when present) wins because endpoint
+      # plugs precede the router; this only catches the fall-through on a host
+      # whose endpoint never got the mount. Compiled in only when the
+      # catalogue module is loaded.
+      if Code.ensure_loaded?(PhoenixKitCatalogue.Catalogue.PdfLibrary) do
+        # No pipeline: these are public static assets (HTML / JS modules /
+        # CSS / fonts) served by the controller, which sets its own
+        # content-type. The `:phoenix_kit_api` pipeline restricts to JSON
+        # (`plug :accepts, ["json"]`) and would mis-negotiate text/html and
+        # text/javascript for strict Accept headers.
+        scope "/_pdfjs", PhoenixKitWeb do
+          get "/*path", PdfViewerController, :serve
+        end
+      end
+
       # Sitemap routes - public XML/XSL endpoints, no session/CSRF/auto_setup needed
       scope unquote(url_prefix) do
         get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
