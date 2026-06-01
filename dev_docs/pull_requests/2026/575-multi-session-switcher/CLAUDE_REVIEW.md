@@ -7,6 +7,24 @@ Overall this is solid, well-tested work: session-fixation protection (`renew_and
 
 ---
 
+## Resolution log (high-effort follow-up review, 2026-06-01)
+
+A second high-effort review (7 finder angles over the multi-session fixes + the merged PR #577 PDF.js controller) surfaced 10 findings. Resolutions:
+
+**Fixed:**
+- **Logout token-leak regression** — moved stack draining into `Auth.log_out_user/1` (after the user lookup, so the admin disconnect broadcast still resolves) and removed the three call-site `delete_all_stack_tokens/1` calls. Fixes both the broadcast regression *and* the "fourth logout path forgets to drain" fragility.
+- **Open-redirect guard duplicated 4×** — centralised into `PhoenixKit.Utils.Routes.local_path?/1` (also now rejects `/\\`), used by `session.ex`, `oauth.ex`, `login.ex`.
+- **`scope_fields/1` redundant root query** — derives `allowed?` from the resolved stack instead of a separate `gate_allowed?/1` token lookup.
+- **PDF controller (#577):** rejects symlinked targets via `File.lstat` (was `File.regular?/1`, which follows symlinks); adds `ETag` + `If-None-Match`/304; corrected the stale `.mjs`/`@content_types` comment.
+
+**Deferred (architectural — flagged for the PR authors, not unilaterally redesigned):**
+- **Two static servers for `/_pdfjs`** (controller fallback vs endpoint `Plug.Static`) can drift — the deeper fix is to make `mix phoenix_kit.install/update` always wire the route (or harden the mount), which is PR #577's design call.
+- **PDF route hardcoded to one module/app** — generalising to a `static_asset_mounts/0`-style module callback is the same "lift to a registry" pattern the publishing note already tracks.
+- **Transient switcher data on the auth `Scope` struct** (PR #575 design) — moving it to a dedicated assign touches `layout_wrapper` + `admin_nav` + `auth` and risks the switcher; larger refactor.
+- **Partial:** PDF `lstat` closes final-component symlinks but not an intermediate symlinked *directory* (needs realpath resolution); near-zero realism for a package-vendored dir. `list_accounts/1`'s 2-queries-per-row + per-account role N+1 left as low-impact (≤5 accounts, behind an off-by-default flag).
+
+---
+
 ## BUG - MEDIUM — Secondary tokens orphaned (left valid in DB) on single logout from root
 
 `lib/phoenix_kit_web/users/session.ex` — `delete(conn, _params)` (non-`all` path)

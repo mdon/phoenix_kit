@@ -66,13 +66,7 @@ defmodule PhoenixKitWeb.Users.Login do
   end
 
   # Only allow relative paths to prevent open redirect attacks
-  defp sanitize_return_to(path) when is_binary(path) do
-    if String.starts_with?(path, "/") and not String.starts_with?(path, "//") do
-      path
-    else
-      nil
-    end
+  defp sanitize_return_to(path) do
+    if Routes.local_path?(path), do: path, else: nil
   end
-
-  defp sanitize_return_to(_), do: nil
 end

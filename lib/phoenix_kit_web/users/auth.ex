@@ -154,10 +154,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   def log_out_user(conn) do
     user_token = get_session(conn, :user_token)
 
-    # Get user info before deleting token for admin notification
+    # Get user info before deleting any token, for the admin notification below.
     user = user_token && Auth.get_user_by_session_token(user_token)
 
-    user_token && Auth.delete_user_session_token(user_token)
+    # Invalidate the active token AND every secondary multi-session account in
+    # the stack (stack_tokens/1 falls back to just the active token when no
+    # stack is set, so this covers the ordinary single-session logout too).
+    # Centralising the drain here means every logout path is covered by
+    # construction — and it runs AFTER the user lookup above so the
+    # session-disconnect broadcast can still resolve the user.
+    MultiSession.delete_all_stack_tokens(conn)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       broadcast_disconnect(live_socket_id)

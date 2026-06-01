@@ -80,8 +80,9 @@ defmodule PhoenixKitWeb.Users.Session do
   # Logout: "all" drains the whole stack; otherwise log out the active account only
   # (falling back to root) unless root is active, in which case full logout runs.
   def delete(conn, %{"all" => _} = _params) do
+    # log_out_user/1 drains the whole multi-session stack, so this is now just a
+    # relabelled full logout (kept distinct for the clearer flash message).
     conn
-    |> MultiSession.delete_all_stack_tokens()
     |> put_flash(:info, "Logged out of all accounts.")
     |> UserAuth.log_out_user()
   end
@@ -94,11 +95,9 @@ defmodule PhoenixKitWeb.Users.Session do
         |> redirect(to: Routes.path("/"))
 
       {:full, conn} ->
-        # Root account is active → full logout. Drain the whole stack first so no
-        # secondary-account tokens are left valid in the DB (the session is about to
-        # be cleared, orphaning them otherwise). Mirrors the "all" and GET-logout paths.
+        # Root account is active → full logout. log_out_user/1 drains the whole
+        # stack (after resolving the user for the disconnect broadcast).
         conn
-        |> MultiSession.delete_all_stack_tokens()
         |> put_flash(:info, "Logged out successfully.")
         |> UserAuth.log_out_user()
     end
@@ -120,11 +119,8 @@ defmodule PhoenixKitWeb.Users.Session do
   end
 
   defp redirect_back(conn, params) do
-    return_to = params["return_to"]
-
-    if is_binary(return_to) and String.starts_with?(return_to, "/") and
-         not String.starts_with?(return_to, "//") do
-      redirect(conn, to: return_to)
+    if Routes.local_path?(params["return_to"]) do
+      redirect(conn, to: params["return_to"])
     else
       redirect(conn, to: Routes.path("/"))
     end
@@ -133,7 +129,7 @@ defmodule PhoenixKitWeb.Users.Session do
   # Store return_to from form params (e.g., guest checkout → login → back to checkout)
   defp maybe_store_return_to_from_params(conn, %{"return_to" => return_to})
        when is_binary(return_to) and return_to != "" do
-    if String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") do
+    if Routes.local_path?(return_to) do
       put_session(conn, :user_return_to, return_to)
     else
       conn
@@ -142,12 +138,10 @@ defmodule PhoenixKitWeb.Users.Session do
 
   defp maybe_store_return_to_from_params(conn, _params), do: conn
 
-  # Support GET logout for direct URL access.
-  # Mirrors the DELETE path: drain all stack tokens before delegating so no
-  # secondary-account tokens are left valid in the DB.
+  # Support GET logout for direct URL access. log_out_user/1 drains the whole
+  # multi-session stack, so secondary tokens are invalidated here too.
   def get_logout(conn, _params) do
     conn
-    |> MultiSession.delete_all_stack_tokens()
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()
   end

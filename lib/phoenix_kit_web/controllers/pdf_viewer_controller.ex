@@ -37,8 +37,11 @@ defmodule PhoenixKitWeb.PdfViewerController do
   @app :phoenix_kit_catalogue
   @root "priv/static/pdfjs"
 
-  # `.mjs` MUST carry a JS MIME or browsers refuse the ES module; the
-  # rest pin types `MIME.from_path/1` may not know (`.bcmap`, `.ftl`).
+  # Pins the content types the viewer depends on. Most of these also resolve
+  # correctly via `MIME.from_path/1` (the fallback in `content_type/1`); the
+  # genuinely-needed overrides are `.map` → json and `.ftl` → text/plain, which
+  # MIME reports as `application/octet-stream`. The rest are kept explicit so
+  # the viewer's MIME contract is pinned here regardless of the `:mime` version.
   @content_types %{
     ".mjs" => "text/javascript",
     ".js" => "text/javascript",
@@ -63,14 +66,28 @@ defmodule PhoenixKitWeb.PdfViewerController do
   Streams a single vendored PDF.js asset by its path under
   `priv/static/pdfjs/`. 404s on traversal attempts, a missing
   catalogue app, or a non-file target.
+
+  Sends an `ETag` and honours `If-None-Match` (304) so browsers can
+  revalidate cheaply instead of re-downloading every asset once the
+  `max-age` window lapses.
   """
   def serve(conn, %{"path" => segments}) when is_list(segments) and segments != [] do
     with {:ok, abs} <- locate(segments),
-         true <- File.regular?(abs) do
-      conn
-      |> put_resp_content_type(content_type(abs))
-      |> put_resp_header("cache-control", "public, max-age=86400")
-      |> send_file(200, abs)
+         # `lstat` (not `File.regular?/1`) so a symlinked target is rejected
+         # rather than followed — the containment check is purely lexical and
+         # would otherwise let an in-tree symlink escape the vendored dir.
+         {:ok, %File.Stat{type: :regular} = stat} <- File.lstat(abs, time: :posix) do
+      etag = etag_for(stat)
+      conn = put_resp_header(conn, "etag", etag)
+
+      if fresh?(conn, etag) do
+        send_resp(conn, 304, "")
+      else
+        conn
+        |> put_resp_content_type(content_type(abs))
+        |> put_resp_header("cache-control", "public, max-age=86400")
+        |> send_file(200, abs)
+      end
     else
       _ -> send_resp(conn, 404, "Not found")
     end
@@ -112,5 +129,26 @@ defmodule PhoenixKitWeb.PdfViewerController do
   defp content_type(path) do
     ext = path |> Path.extname() |> String.downcase()
     Map.get(@content_types, ext) || MIME.from_path(path)
+  end
+
+  # A strong validator derived from size + mtime — stable for an unchanged file,
+  # changes when the vendored asset is rebuilt.
+  defp etag_for(%File.Stat{size: size, mtime: mtime}) do
+    ~s("#{Integer.to_string(size, 16)}-#{Integer.to_string(mtime, 16)}")
+  end
+
+  # True when the client already holds a matching representation (so we can 304).
+  defp fresh?(conn, etag) do
+    case get_req_header(conn, "if-none-match") do
+      [] -> false
+      values -> Enum.any?(values, &etag_member?(&1, etag))
+    end
+  end
+
+  defp etag_member?(header_value, etag) do
+    header_value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.any?(&(&1 == etag or &1 == "*"))
   end
 end

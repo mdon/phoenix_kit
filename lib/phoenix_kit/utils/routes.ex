@@ -28,6 +28,31 @@ defmodule PhoenixKit.Utils.Routes do
   @spec url_prefix() :: String.t()
   def url_prefix, do: Config.get_url_prefix()
 
+  @doc """
+  Returns `true` when `path` is safe to use as a local redirect / `return_to`
+  target: a binary that begins with a single `/` but not `//` or `/\\` — both of
+  which browsers resolve as protocol-relative, host-switching URLs. Use this to
+  guard user-supplied redirect params against open-redirect attacks.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.local_path?("/admin/dashboard")
+      true
+      iex> PhoenixKit.Utils.Routes.local_path?("//evil.com")
+      false
+      iex> PhoenixKit.Utils.Routes.local_path?("https://evil.com")
+      false
+
+  """
+  @spec local_path?(term()) :: boolean()
+  def local_path?(path) when is_binary(path) do
+    String.starts_with?(path, "/") and
+      not String.starts_with?(path, "//") and
+      not String.starts_with?(path, "/\\")
+  end
+
+  def local_path?(_), do: false
+
   # NOTE: Locale override logic below exists for the publishing component system integration.
   # Switch to the upcoming media/storage helpers once they land.
   def path(url_path, opts \\ [])

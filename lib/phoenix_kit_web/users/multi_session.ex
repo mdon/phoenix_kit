@@ -91,14 +91,19 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   Resolves the two transient Scope fields `{multi_session_allowed?, multi_session_accounts}`
   for a session in one call.
 
-  Crucially, the (DB-heavy) account stack is resolved ONLY when the gate is open.
-  When the `multi_session_enabled` setting is off — the default — this short-circuits
-  to `{false, []}` without touching the DB, so the hot auth path (plug + every
+  Crucially, the (DB-heavy) account stack is resolved ONLY when the setting is on.
+  When `multi_session_enabled` is off — the default — this short-circuits to
+  `{false, []}` without touching the DB, so the hot auth path (plug + every
   LiveView mount) pays nothing for a feature that is disabled.
+
+  When it IS on, `allowed?` is derived from the resolved stack (a surviving root
+  account) rather than a separate `gate_allowed?/1` call, which would re-resolve
+  the root token in its own query on top of the `list_accounts/1` walk.
   """
   def scope_fields(session) when is_map(session) do
-    if gate_allowed?(session) do
-      {true, list_accounts(session)}
+    if Settings.get_boolean_setting("multi_session_enabled", false) do
+      accounts = list_accounts(session)
+      {Enum.any?(accounts, & &1.root?), accounts}
     else
       {false, []}
     end

@@ -332,8 +332,7 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp redirect_back(conn, return_to) do
-      if is_binary(return_to) and String.starts_with?(return_to, "/") and
-           not String.starts_with?(return_to, "//") do
+      if Routes.local_path?(return_to) do
         redirect(conn, to: return_to)
       else
         redirect(conn, to: Routes.path("/"))
