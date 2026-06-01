@@ -27,6 +27,12 @@
   independently by `:type`/`:action` prefs. Returns `{:ok, created_count}`.
 - `Notifications.Prefs.user_wants_type?/2` — type-keyed preference check
   (vs the action-keyed `user_wants?/2`), backing the `:type` filter above.
+- Notifications is now a toggleable core **module** (`use PhoenixKit.Module`):
+  it appears as a card on the admin Modules page (enable/disable flips the
+  existing `notifications_enabled` kill-switch) and contributes a
+  `/admin/notifications` overview page + admin nav tab. The overview is a
+  simple read-only page — enabled state, retention window, and aggregate
+  counts (total / unread / dismissed via `Notifications.admin_stats/0`).
 
 ### Migrations
 - **V126** — `phoenix_kit_notifications.activity_uuid` is now nullable

@@ -11,12 +11,20 @@ defmodule PhoenixKit.Notifications do
 
   The whole feature is gated by the global `notifications_enabled` setting
   (default `"true"`); when `"false"`, `maybe_create_from_activity/1` is a no-op.
+
+  Registered as a core toggleable module (`use PhoenixKit.Module`) so it
+  appears on the admin Modules page and contributes the `/admin/notifications`
+  overview tab. The module enable/disable flips the same
+  `notifications_enabled` kill-switch `enabled?/0` reads.
   """
+
+  use PhoenixKit.Module
 
   import Ecto.Query, warn: false
   require Logger
 
   alias PhoenixKit.Activity.Entry
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Notifications.Events
   alias PhoenixKit.Notifications.Notification
   alias PhoenixKit.Notifications.Prefs
@@ -380,9 +388,76 @@ defmodule PhoenixKit.Notifications do
     PhoenixKit.Activity.retention_days()
   end
 
+  # ── Module behaviour (toggleable module on the admin Modules page) ────
+
+  @impl PhoenixKit.Module
+  def module_key, do: "notifications"
+
+  @impl PhoenixKit.Module
+  def module_name, do: "Notifications"
+
+  @impl PhoenixKit.Module
+  def enable_system, do: Settings.update_boolean_setting("notifications_enabled", true)
+
+  @impl PhoenixKit.Module
+  def disable_system, do: Settings.update_boolean_setting("notifications_enabled", false)
+
+  @impl PhoenixKit.Module
+  def get_config, do: Map.merge(%{enabled: enabled?()}, admin_stats())
+
+  @impl PhoenixKit.Module
+  def permission_metadata do
+    %{
+      key: "notifications",
+      label: "Notifications",
+      icon: "hero-bell",
+      description: "Per-user in-app notifications driven by the activity log"
+    }
+  end
+
+  @impl PhoenixKit.Module
+  def admin_tabs do
+    [
+      Tab.new!(
+        id: :admin_notifications,
+        label: "Notifications",
+        icon: "hero-bell",
+        path: "notifications",
+        priority: 640,
+        level: :admin,
+        permission: "notifications",
+        match: :prefix,
+        group: :admin_modules,
+        gettext_backend: PhoenixKitWeb.Gettext
+      )
+    ]
+  end
+
+  @doc """
+  Aggregate counts for the admin overview page: total notifications,
+  `unread` (neither seen nor dismissed), and `dismissed`. Rescues to
+  zeros so the page never crashes on a query hiccup.
+  """
+  def admin_stats do
+    %{
+      total: repo().aggregate(Notification, :count, :uuid),
+      unread:
+        Notification
+        |> where([n], is_nil(n.seen_at) and is_nil(n.dismissed_at))
+        |> repo().aggregate(:count, :uuid),
+      dismissed:
+        Notification
+        |> where([n], not is_nil(n.dismissed_at))
+        |> repo().aggregate(:count, :uuid)
+    }
+  rescue
+    _ -> %{total: 0, unread: 0, dismissed: 0}
+  end
+
   # ── Settings ─────────────────────────────────────────────────────────
 
   @doc "Is the notifications feature enabled? Default `true`."
+  @impl PhoenixKit.Module
   def enabled? do
     case Settings.get_setting("notifications_enabled", "true") do
       "false" -> false

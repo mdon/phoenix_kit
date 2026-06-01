@@ -664,6 +664,62 @@
         </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
       <% end %>
 
+      <%!-- Notifications Module --%>
+      <%= if "notifications" in @accessible_modules do %>
+        <% cfg = @module_configs["notifications"] || %{} %>
+        <PhoenixKitWeb.Components.Core.ModuleCard.module_card
+          title={gettext("Notifications")}
+          description={gettext("Per-user in-app notifications driven by the activity log")}
+          icon="🔔"
+          enabled={cfg[:enabled] || false}
+          toggle_event="toggle_module"
+          toggle_key="notifications"
+        >
+          <:status_badges>
+            <span class={[
+              "badge",
+              if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
+            ]}>
+              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
+            </span>
+          </:status_badges>
+
+          <:action_buttons>
+            <div class="flex flex-col gap-2 w-full">
+              <%= if cfg[:enabled] do %>
+                <.link
+                  navigate={PhoenixKit.Utils.Routes.path("/admin/notifications")}
+                  class="btn btn-primary btn-sm"
+                >
+                  <.icon name="hero-bell" class="w-4 h-4 mr-1" /> {gettext("View Notifications")}
+                </.link>
+              <% else %>
+                <span class="text-xs text-base-content/50 text-center">
+                  {gettext("Enable module to view notifications")}
+                </span>
+              <% end %>
+            </div>
+          </:action_buttons>
+
+          <:stats>
+            <div class="grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <span class="text-base-content/70">{gettext("Total")}:</span>
+                <span class="font-medium">{cfg[:total] || 0}</span>
+              </div>
+              <div>
+                <span class="text-base-content/70">{gettext("Unread")}:</span>
+                <span class="font-medium">{cfg[:unread] || 0}</span>
+              </div>
+              <div>
+                <span class="text-base-content/70">{gettext("Dismissed")}:</span>
+                <span class="font-medium">{cfg[:dismissed] || 0}</span>
+              </div>
+            </div>
+          </:stats>
+        </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
+      <% end %>
+
       <%!-- Legal Module --%>
       <%!-- External Modules (auto-discovered) --%>
       <%= for ext <- @external_modules, ext.key in @accessible_modules do %>

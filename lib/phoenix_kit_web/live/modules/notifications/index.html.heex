@@ -1,0 +1,72 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title="Notifications"
+  current_path={@url_path}
+  project_title={@project_title}
+  current_locale={assigns[:current_locale]}
+>
+  <div class="p-6">
+    <.admin_page_header
+      back={Routes.path("/admin/modules")}
+      title={gettext("Notifications")}
+      subtitle={gettext("Per-user in-app notifications driven by the activity log")}
+    >
+      <:actions>
+        <button type="button" phx-click="refresh" class="btn btn-sm btn-ghost gap-2">
+          <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Refresh")}
+        </button>
+      </:actions>
+    </.admin_page_header>
+
+    <%!-- Aggregate counts --%>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+          <div class="flex items-center gap-2 text-base-content/60 text-sm">
+            <.icon name="hero-bell" class="w-4 h-4" /> {gettext("Total")}
+          </div>
+          <div class="text-3xl font-bold">{@stats.total}</div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+          <div class="flex items-center gap-2 text-base-content/60 text-sm">
+            <.icon name="hero-envelope" class="w-4 h-4" /> {gettext("Unread")}
+          </div>
+          <div class="text-3xl font-bold text-primary">{@stats.unread}</div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+          <div class="flex items-center gap-2 text-base-content/60 text-sm">
+            <.icon name="hero-x-circle" class="w-4 h-4" /> {gettext("Dismissed")}
+          </div>
+          <div class="text-3xl font-bold">{@stats.dismissed}</div>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Module info --%>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body p-4">
+        <h3 class="font-semibold text-sm mb-3">{gettext("About")}</h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-base-content/60">{gettext("Status")}</span>
+            <span class="badge badge-success">{gettext("Enabled")}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">{gettext("Retention")}</span>
+            <span>{gettext("%{days} days", days: @retention_days)}</span>
+          </div>
+        </div>
+        <p class="text-xs text-base-content/60 mt-4">
+          {gettext(
+            "Notifications are generated from the activity log (one per target user) and via standalone sends. Each user manages which types they receive in their settings; this page is a read-only overview. Disable the module from the Modules page."
+          )}
+        </p>
+      </div>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>
