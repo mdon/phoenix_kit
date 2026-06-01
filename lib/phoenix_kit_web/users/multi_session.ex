@@ -17,7 +17,6 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Role
 
   @stack_key :pk_session_accounts
@@ -88,13 +87,33 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     end)
   end
 
+  @doc """
+  Resolves the two transient Scope fields `{multi_session_allowed?, multi_session_accounts}`
+  for a session in one call.
+
+  Crucially, the (DB-heavy) account stack is resolved ONLY when the gate is open.
+  When the `multi_session_enabled` setting is off — the default — this short-circuits
+  to `{false, []}` without touching the DB, so the hot auth path (plug + every
+  LiveView mount) pays nothing for a feature that is disabled.
+  """
+  def scope_fields(session) when is_map(session) do
+    if gate_allowed?(session) do
+      {true, list_accounts(session)}
+    else
+      {false, []}
+    end
+  end
+
   # Returns the user's most descriptive display role name.
   # Priority: Owner > Admin > first custom (non-"User") role > "User".
   # This correctly labels custom roles (e.g. "Manager") instead of
   # bucketing all permission-holders as "Admin".
+  #
+  # Reads role names straight from `User.get_roles/1` rather than building a full
+  # `Scope` — the scope carries an opaque `MapSet` of permissions we don't need
+  # here (and constructing it tripped a Dialyzer opaqueness warning).
   defp role_label(user) do
-    scope = Scope.for_user(user)
-    roles = Scope.user_roles(scope)
+    roles = Auth.User.get_roles(user)
     system = Role.system_roles()
 
     cond do

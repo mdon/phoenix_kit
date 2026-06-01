@@ -328,11 +328,6 @@ if Code.ensure_loaded?(Ueberauth) do
           conn
           |> put_flash(:error, "That account is inactive.")
           |> redirect_back(return_to)
-
-        {:error, _reason} ->
-          conn
-          |> put_flash(:error, "Could not add account. Please try again.")
-          |> redirect_back(return_to)
       end
     end
 

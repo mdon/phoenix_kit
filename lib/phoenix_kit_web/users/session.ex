@@ -94,7 +94,11 @@ defmodule PhoenixKitWeb.Users.Session do
         |> redirect(to: Routes.path("/"))
 
       {:full, conn} ->
+        # Root account is active → full logout. Drain the whole stack first so no
+        # secondary-account tokens are left valid in the DB (the session is about to
+        # be cleared, orphaning them otherwise). Mirrors the "all" and GET-logout paths.
         conn
+        |> MultiSession.delete_all_stack_tokens()
         |> put_flash(:info, "Logged out successfully.")
         |> UserAuth.log_out_user()
     end
@@ -106,8 +110,10 @@ defmodule PhoenixKitWeb.Users.Session do
     if MultiSession.gate_allowed?(get_session(conn)) do
       fun.(conn)
     else
+      # Feature is off (or no valid root) — send the user home with a flash. A bare
+      # redirect (302) lets the flash render; a 403 would swallow it (the browser
+      # never follows the Location header on a non-3xx response).
       conn
-      |> put_status(:forbidden)
       |> put_flash(:error, "Multi-account switching is not available.")
       |> redirect(to: Routes.path("/"))
     end

@@ -330,11 +330,12 @@ defmodule PhoenixKitWeb.Users.Auth do
     active_user = Auth.ensure_active_user(user)
 
     session = get_session(conn)
+    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
 
     scope = %{
       Scope.for_user(active_user)
-      | multi_session_accounts: MultiSession.list_accounts(session),
-        multi_session_allowed?: MultiSession.gate_allowed?(session)
+      | multi_session_accounts: multi_session_accounts,
+        multi_session_allowed?: multi_session_allowed?
     }
 
     conn
@@ -807,11 +808,12 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_attach_scope_refresh_hook()
 
     user = socket.assigns.phoenix_kit_current_user
+    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
 
     scope = %{
       Scope.for_user(user)
-      | multi_session_accounts: MultiSession.list_accounts(session),
-        multi_session_allowed?: MultiSession.gate_allowed?(session)
+      | multi_session_accounts: multi_session_accounts,
+        multi_session_allowed?: multi_session_allowed?
     }
 
     # Locale is URL-driven: the URL's `:locale` segment wins; absent
