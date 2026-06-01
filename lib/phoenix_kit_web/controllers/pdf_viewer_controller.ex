@@ -21,6 +21,16 @@ defmodule PhoenixKitWeb.PdfViewerController do
   Read-only: it streams files from the catalogue app's
   `priv/static/pdfjs/` and nothing else. Path traversal is rejected via
   `Path.safe_relative/1` plus an expanded-prefix check.
+
+  ## Compatibility note
+
+  The route is mounted at the **root** literal `/_pdfjs/*path` (no URL
+  prefix / locale) so it matches the same URL the catalogue's iframe and
+  the endpoint `Plug.Static` mount use. A host app that already serves its
+  own `/_pdfjs/...` would shadow / be shadowed here — but the path is
+  deliberately underscore-prefixed and module-namespaced to avoid
+  collisions, and the route only compiles in when `phoenix_kit_catalogue`
+  is a dependency.
   """
   use PhoenixKitWeb, :controller
 
@@ -74,15 +84,21 @@ defmodule PhoenixKitWeb.PdfViewerController do
     with {:ok, rel} <- Path.safe_relative(Path.join(segments)),
          base when is_binary(base) <- app_root() do
       abs = Path.join(base, rel)
-
-      if String.starts_with?(Path.expand(abs), Path.expand(base) <> "/") do
-        {:ok, abs}
-      else
-        :error
-      end
+      if within?(abs, base), do: {:ok, abs}, else: :error
     else
       _ -> :error
     end
+  end
+
+  # Platform-agnostic containment check: compare expanded path *segments*
+  # rather than string-prefixing with a hardcoded "/" (which assumes POSIX
+  # separators). `Path.split/1` and `Path.expand/1` are separator-aware, so
+  # this holds on Windows too. Belt-and-suspenders on top of
+  # `Path.safe_relative/1`.
+  defp within?(abs, base) do
+    base_parts = base |> Path.expand() |> Path.split()
+    abs_parts = abs |> Path.expand() |> Path.split()
+    List.starts_with?(abs_parts, base_parts)
   end
 
   defp app_root do
