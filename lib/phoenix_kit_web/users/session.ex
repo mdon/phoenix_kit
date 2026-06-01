@@ -20,6 +20,7 @@ defmodule PhoenixKitWeb.Users.Session do
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
+  alias PhoenixKitWeb.Users.MultiSession
 
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
@@ -76,10 +77,51 @@ defmodule PhoenixKitWeb.Users.Session do
     end
   end
 
-  def delete(conn, _params) do
+  # Logout: "all" drains the whole stack; otherwise log out the active account only
+  # (falling back to root) unless root is active, in which case full logout runs.
+  def delete(conn, %{"all" => _} = _params) do
     conn
-    |> put_flash(:info, "Logged out successfully.")
+    |> MultiSession.delete_all_stack_tokens()
+    |> put_flash(:info, "Logged out of all accounts.")
     |> UserAuth.log_out_user()
+  end
+
+  def delete(conn, _params) do
+    case MultiSession.log_out_active(conn) do
+      {:switched, conn, user} ->
+        conn
+        |> put_flash(:info, gettext("Logged out. Now signed in as %{email}.", email: user.email))
+        |> redirect(to: Routes.path("/"))
+
+      {:full, conn} ->
+        conn
+        |> put_flash(:info, "Logged out successfully.")
+        |> UserAuth.log_out_user()
+    end
+  end
+
+  # --- multi-session helpers ---
+
+  defp with_gate(conn, _params, fun) do
+    if MultiSession.gate_allowed?(get_session(conn)) do
+      fun.(conn)
+    else
+      conn
+      |> put_status(:forbidden)
+      |> put_flash(:error, "Multi-account switching is not available.")
+      |> redirect(to: Routes.path("/"))
+    end
+  end
+
+  defp redirect_back(conn, params) do
+    return_to = params["return_to"]
+
+    if is_binary(return_to) and String.starts_with?(return_to, "/") and
+         not String.starts_with?(return_to, "//") do
+      redirect(conn, to: return_to)
+    else
+      redirect(conn, to: Routes.path("/"))
+    end
   end
 
   # Store return_to from form params (e.g., guest checkout → login → back to checkout)
@@ -94,10 +136,70 @@ defmodule PhoenixKitWeb.Users.Session do
 
   defp maybe_store_return_to_from_params(conn, _params), do: conn
 
-  # Support GET logout for direct URL access
+  # Support GET logout for direct URL access.
+  # Mirrors the DELETE path: drain all stack tokens before delegating so no
+  # secondary-account tokens are left valid in the DB.
   def get_logout(conn, _params) do
     conn
+    |> MultiSession.delete_all_stack_tokens()
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()
+  end
+
+  def add_account(conn, %{"user" => %{"password" => password} = user_params} = params) do
+    email_or_username = user_params["email_or_username"] || user_params["email"]
+
+    with_gate(conn, params, fn conn ->
+      case MultiSession.add_account(conn, email_or_username, password) do
+        {:ok, conn} ->
+          conn |> put_flash(:info, "Account added.") |> redirect_back(params)
+
+        {:error, :stack_full} ->
+          conn
+          |> put_flash(:error, "Maximum number of accounts reached.")
+          |> redirect_back(params)
+
+        {:error, :already_in_stack} ->
+          conn
+          |> put_flash(:error, "That account is already in your session.")
+          |> redirect_back(params)
+
+        {:error, _reason} ->
+          conn
+          |> put_flash(:error, "Invalid email/username or password.")
+          |> redirect_back(params)
+      end
+    end)
+  end
+
+  def set_active_account(conn, %{"ref" => ref} = params) do
+    with_gate(conn, params, fn conn ->
+      case MultiSession.switch_to(conn, ref) do
+        {:ok, conn, user} ->
+          conn
+          |> put_flash(:info, gettext("Switched to %{email}.", email: user.email))
+          |> redirect_back(params)
+
+        {:error, _reason} ->
+          conn |> put_flash(:error, "Could not switch account.") |> redirect_back(params)
+      end
+    end)
+  end
+
+  def remove_account(conn, %{"ref" => ref} = params) do
+    with_gate(conn, params, fn conn ->
+      case MultiSession.remove_account(conn, ref) do
+        {:ok, conn} ->
+          conn |> put_flash(:info, "Account removed.") |> redirect_back(params)
+
+        {:error, :cannot_remove_root} ->
+          conn
+          |> put_flash(:error, "Cannot remove your primary account.")
+          |> redirect_back(params)
+
+        {:error, _reason} ->
+          conn |> put_flash(:error, "Could not remove account.") |> redirect_back(params)
+      end
+    end)
   end
 end

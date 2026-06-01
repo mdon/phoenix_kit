@@ -233,6 +233,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/log-in", Users.Session, :create
         delete "/users/log-out", Users.Session, :delete
         get "/users/log-out", Users.Session, :get_logout
+        post "/users/session/accounts", Users.Session, :add_account
+        put "/users/session/active", Users.Session, :set_active_account
+        delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
 
         # Dashboard context switching (multi-selector with key, must come before legacy route)
@@ -1065,6 +1068,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/log-in", Users.Session, :create
         delete "/users/log-out", Users.Session, :delete
         get "/users/log-out", Users.Session, :get_logout
+        post "/users/session/accounts", Users.Session, :add_account
+        put "/users/session/active", Users.Session, :set_active_account
+        delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
 
         # OAuth routes

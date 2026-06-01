@@ -50,6 +50,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
+  alias PhoenixKitWeb.Users.MultiSession
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
@@ -328,7 +329,13 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Check if user is active using centralized function
     active_user = Auth.ensure_active_user(user)
 
-    scope = Scope.for_user(active_user)
+    session = get_session(conn)
+
+    scope = %{
+      Scope.for_user(active_user)
+      | multi_session_accounts: MultiSession.list_accounts(session),
+        multi_session_allowed?: MultiSession.gate_allowed?(session)
+    }
 
     conn
     |> assign(:phoenix_kit_current_user, active_user)
@@ -800,7 +807,12 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_attach_scope_refresh_hook()
 
     user = socket.assigns.phoenix_kit_current_user
-    scope = Scope.for_user(user)
+
+    scope = %{
+      Scope.for_user(user)
+      | multi_session_accounts: MultiSession.list_accounts(session),
+        multi_session_allowed?: MultiSession.gate_allowed?(session)
+    }
 
     # Locale is URL-driven: the URL's `:locale` segment wins; absent
     # that, we fall straight to the default. The previous session-locale
@@ -2029,6 +2041,9 @@ defmodule PhoenixKitWeb.Users.Auth do
         "unknown"
     end
   end
+
+  @doc false
+  def broadcast_disconnect_for_socket(live_socket_id), do: broadcast_disconnect(live_socket_id)
 
   defp broadcast_disconnect(live_socket_id) do
     case get_endpoint() do

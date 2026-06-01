@@ -248,6 +248,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               current_locale_base:
                 assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
               scope: assigns[:phoenix_kit_current_scope],
+              phoenix_kit_session_accounts:
+                (assigns[:phoenix_kit_current_scope] &&
+                   assigns[:phoenix_kit_current_scope].multi_session_accounts) || [],
+              phoenix_kit_multi_session_allowed?:
+                (assigns[:phoenix_kit_current_scope] &&
+                   assigns[:phoenix_kit_current_scope].multi_session_allowed?) || false,
               auth_logo_url:
                 case PhoenixKit.Settings.get_setting("auth_logo_file_uuid", "") do
                   uuid when is_binary(uuid) and uuid != "" -> URLSigner.signed_url(uuid, "medium")
@@ -324,6 +330,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     scope={@phoenix_kit_current_scope}
                     current_path={@current_path}
                     current_locale={@current_locale}
+                    accounts={@phoenix_kit_session_accounts}
+                    multi_session_allowed?={@phoenix_kit_multi_session_allowed?}
                   />
                 </div>
               </div>
