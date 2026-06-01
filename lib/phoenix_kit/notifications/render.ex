@@ -40,8 +40,11 @@ defmodule PhoenixKit.Notifications.Render do
   end
 
   def render(%Notification{} = notification) do
-    # No activity — either a standalone notification (V126, activity_uuid
-    # nil) or an activity-linked row that wasn't preloaded. Read the
+    # Standalone notification (V126): `activity` is nil, so this clause —
+    # not the `%_{}` activity clause above — matches. (An activity-linked
+    # row that wasn't preloaded carries `%Ecto.Association.NotLoaded{}`,
+    # which is a struct and would match the clause above; every read path
+    # preloads `:activity`, so that case doesn't reach Render.) Read the
     # display content from the notification's own metadata (same override
     # keys as activity metadata); fall back to a safe generic notice.
     meta = notification.metadata || %{}

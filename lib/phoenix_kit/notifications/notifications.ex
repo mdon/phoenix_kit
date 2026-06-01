@@ -403,7 +403,15 @@ defmodule PhoenixKit.Notifications do
   def disable_system, do: Settings.update_boolean_setting("notifications_enabled", false)
 
   @impl PhoenixKit.Module
-  def get_config, do: Map.merge(%{enabled: enabled?()}, admin_stats())
+  def get_config do
+    # Called for every module on each /admin/modules render. Skip the
+    # count query entirely when disabled — the stats aren't shown then.
+    if enabled?() do
+      Map.merge(%{enabled: true}, admin_stats())
+    else
+      %{enabled: false}
+    end
+  end
 
   @impl PhoenixKit.Module
   def permission_metadata do
@@ -435,21 +443,18 @@ defmodule PhoenixKit.Notifications do
 
   @doc """
   Aggregate counts for the admin overview page: total notifications,
-  `unread` (neither seen nor dismissed), and `dismissed`. Rescues to
-  zeros so the page never crashes on a query hiccup.
+  `unread` (neither seen nor dismissed), and `dismissed`. A single
+  `count(...) FILTER (WHERE ...)` query — one table scan, not three.
+  Rescues to zeros so the page never crashes on a query hiccup.
   """
   def admin_stats do
-    %{
-      total: repo().aggregate(Notification, :count, :uuid),
-      unread:
-        Notification
-        |> where([n], is_nil(n.seen_at) and is_nil(n.dismissed_at))
-        |> repo().aggregate(:count, :uuid),
-      dismissed:
-        Notification
-        |> where([n], not is_nil(n.dismissed_at))
-        |> repo().aggregate(:count, :uuid)
-    }
+    Notification
+    |> select([n], %{
+      total: count(n.uuid),
+      unread: filter(count(n.uuid), is_nil(n.seen_at) and is_nil(n.dismissed_at)),
+      dismissed: filter(count(n.uuid), not is_nil(n.dismissed_at))
+    })
+    |> repo().one()
   rescue
     _ -> %{total: 0, unread: 0, dismissed: 0}
   end
@@ -459,6 +464,11 @@ defmodule PhoenixKit.Notifications do
   @doc "Is the notifications feature enabled? Default `true`."
   @impl PhoenixKit.Module
   def enabled? do
+    # Deliberately the uncached read: this is the kill-switch, and the
+    # `:settings` cache is node-local with no cross-node invalidation or TTL
+    # (see PhoenixKit.Cache) — a cached read would let a disable on one node
+    # go unseen on others until restart. An always-fresh read keeps the
+    # switch cluster-wide and immediate.
     case Settings.get_setting("notifications_enabled", "true") do
       "false" -> false
       false -> false
