@@ -81,6 +81,13 @@ defmodule PhoenixKit.Notifications do
       as `notification_text` / `notification_icon` / `notification_link`
       (the keys `Render` reads)
     * `:metadata` — raw metadata map (merged under the convenience keys)
+    * `:type` — optional notification type key (e.g. `"account"`,
+      `"posts"`, or a module-contributed type). When given, the send is
+      filtered through the recipient's per-type preference
+      (`Prefs.user_wants_type?/2`, fail-open).
+    * `:action` — optional action string (e.g. `"post.commented"`). When
+      given, filtered through `Prefs.user_wants?/2` (which maps the
+      action to a type). Use `:type` OR `:action`, not both.
 
       Notifications.create(%{
         recipient_uuid: user.uuid,
@@ -89,23 +96,73 @@ defmodule PhoenixKit.Notifications do
         link: "/exports/123"
       })
 
-  Honors the global `notifications_enabled` kill-switch. Does NOT run the
-  per-type preference filter (a standalone notification has no action to
-  map to a type) — it's an explicit, app-driven send. Returns
-  `{:ok, %Notification{}}`, `{:ok, :skipped}` (disabled), or
+  Honors the global `notifications_enabled` kill-switch. With neither
+  `:type` nor `:action`, it's an unconditional app-driven send (no
+  preference filtering). Returns `{:ok, %Notification{}}`,
+  `{:ok, :skipped}` (disabled or filtered out by prefs), or
   `{:error, changeset}`. Broadcasts `{:notification_created, n}` on success.
   """
   def create(attrs) when is_map(attrs) do
-    if enabled?() do
-      do_create_standalone(attrs)
-    else
-      {:ok, :skipped}
+    cond do
+      not enabled?() -> {:ok, :skipped}
+      not wants_standalone?(attrs) -> {:ok, :skipped}
+      true -> do_create_standalone(attrs)
     end
   rescue
     e ->
       Logger.warning("Notifications.create failed: #{inspect(e)}")
       {:ok, :skipped}
   end
+
+  @doc """
+  Create a standalone notification for **many** recipients in one call —
+  the multi-recipient counterpart to `create/1`. `recipient_uuids` is a
+  list; `attrs` is the same shape as `create/1` minus `:recipient_uuid`
+  (it's supplied per recipient).
+
+  The recipient list is the caller's responsibility (e.g. the followers
+  of an author) — this is the generic fan-out primitive, not an audience
+  resolver. Duplicate uuids are de-duped. Each recipient is filtered
+  independently through `:type` / `:action` prefs when given, so muted
+  users are skipped. Honors the kill-switch once up front.
+
+      Notifications.create_many(follower_uuids, %{
+        type: "posts",
+        text: "Alice published a new post.",
+        link: "/posts/\#{post.id}"
+      })
+
+  Returns `{:ok, created_count}` (notifications actually inserted, i.e.
+  excluding disabled / pref-skipped) or `{:ok, :skipped}` when
+  notifications are globally disabled.
+  """
+  def create_many(recipient_uuids, attrs) when is_list(recipient_uuids) and is_map(attrs) do
+    if enabled?() do
+      created =
+        recipient_uuids
+        |> Enum.uniq()
+        |> Enum.count(fn uuid ->
+          match?({:ok, %Notification{}}, create(Map.put(attrs, :recipient_uuid, uuid)))
+        end)
+
+      {:ok, created}
+    else
+      {:ok, :skipped}
+    end
+  end
+
+  # Apply the optional per-recipient preference filter. `:type` checks the
+  # type pref directly; `:action` maps the action to a type. With neither,
+  # the send is unconditional.
+  defp wants_standalone?(%{type: type, recipient_uuid: uuid})
+       when is_binary(type) and is_binary(uuid),
+       do: Prefs.user_wants_type?(uuid, type)
+
+  defp wants_standalone?(%{action: action, recipient_uuid: uuid})
+       when is_binary(action) and is_binary(uuid),
+       do: Prefs.user_wants?(uuid, action)
+
+  defp wants_standalone?(_attrs), do: true
 
   defp do_create_standalone(attrs) do
     metadata =

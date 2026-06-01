@@ -16,8 +16,17 @@
   the `notification_text` / `notification_icon` / `notification_link`
   keys `Render` already honors; `Render` reads them off the notification
   itself when there's no activity. Honors the `notifications_enabled`
-  kill-switch; does not run the per-type preference filter (no action to
-  map to a type — it's an explicit app-driven send).
+  kill-switch.
+- `Notifications.create/1` takes an optional `:type` (notification type
+  key) or `:action` (action string) to opt the standalone send into the
+  recipient's per-type **preference filter** (fail-open) — omit both for
+  an unconditional app-driven send.
+- `Notifications.create_many/2` — the multi-recipient fan-out primitive:
+  one standalone notification per recipient uuid (caller supplies the
+  list, e.g. an author's followers), de-duped, each filtered
+  independently by `:type`/`:action` prefs. Returns `{:ok, created_count}`.
+- `Notifications.Prefs.user_wants_type?/2` — type-keyed preference check
+  (vs the action-keyed `user_wants?/2`), backing the `:type` filter above.
 
 ### Migrations
 - **V126** — `phoenix_kit_notifications.activity_uuid` is now nullable
