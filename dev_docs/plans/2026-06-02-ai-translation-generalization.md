@@ -95,14 +95,36 @@ The bespoke per-resource Settings keys (`projects_translation_*`,
 `publishing_*`) collapse to one shared pair; a consumer may still override
 per-call by passing explicit `endpoint_uuid`/`prompt_uuid`.
 
-## Design — core UI (Phase 2)
+## Core UI (Phase 2) — DONE
 
-- `multilang_tabs` forwards an `ai_translate` map to its internal
-  `language_switcher`.
-- A `use PhoenixKitWeb.AITranslate.Embed` macro injects the
-  `handle_event("ai_translate", …)` + `handle_info({:ai_translation, …})`
-  glue via `attach_hook` (same shape as `MediaBrowser.Embed`), so a form
-  is `use` + `<.multilang_tabs ai_translate={...}>`.
+Built as a standalone shared component rather than a `multilang_tabs`
+passthrough + `use` macro (simpler, and composes with any form layout):
+
+- **`PhoenixKitWeb.Components.AITranslate`** — render-only
+  `<.ai_translate_button>` + `<.ai_translate_modal>` + `<.ai_translate_progress>`,
+  driven by a single `ai_translate` config map (string/atom keys). The modal
+  carries endpoint + prompt selectors, a Generate-Default-Prompt button, a
+  scope picker (missing-only / all-overwrite / current-tab), in-flight
+  status, and one scope-driven Translate action (`phx-value-lang` =
+  `"*"` / `"**"` / concrete code). Hoisted from `phoenix_kit_projects`'
+  bespoke `AITranslateBar`, made generic (core Gettext + Core.Icon).
+- The **host owns the state + event handlers** (mount state, modal
+  open/close, endpoint/prompt/scope selection, generate-prompt,
+  scope dispatch, the `{:ai_translation, _, _}` lifecycle + live changeset
+  patch). Catalogue's `Web.Helpers` is the reference glue; a future
+  `use`-macro could fold this into core, but the per-consumer completion
+  merge (how to write translated fields into the form) stays consumer-specific.
+
+### Known limitation (codex review)
+
+A force-stored translation that equals the primary (so the field shows
+instead of looking failed) is **re-dropped if the user then manually saves
+the form** — the shared multilang save path (`merge_translatable_params` →
+`Multilang.put_language_data`) strips equal-to-primary overrides. The
+translate-time UX (field populated + DB-persisted) is correct; only a
+subsequent manual save reverts an identical value to "inherited". Fixing
+that fully means an opt-out on the multilang save path (out of scope —
+affects every multilang form).
 
 ## Consumers
 

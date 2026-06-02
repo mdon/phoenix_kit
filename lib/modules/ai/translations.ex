@@ -149,6 +149,12 @@ defmodule PhoenixKit.Modules.AI.Translations do
     )
   end
 
+  @doc "Is the shared default translation prompt already provisioned?"
+  @spec default_prompt_exists?() :: boolean()
+  def default_prompt_exists? do
+    safe_ai(fn -> PhoenixKitAI.get_prompt_by_slug(@prompt_slug) != nil end, false)
+  end
+
   @doc """
   Idempotently provision the shared translation prompt. Returns
   `{:ok, prompt}` (existing or freshly created) or `{:error, reason}`.
