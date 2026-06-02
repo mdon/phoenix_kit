@@ -49,7 +49,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
+
+  # Etcher's toolbar color slots are a single palette shared across every
+  # Fresco viewer this user opens — stored in their `custom_fields`
+  # ("user meta") under this key, not per-file like annotations. The
+  # default is used until the user saves a palette of their own.
+  @etcher_colors_key "etcher_colors"
+  @default_etcher_colors ["#fca5a5", "#fdba74", "#fde68a", "#86efac", "#93c5fd"]
 
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
@@ -62,6 +70,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:viewer_canvas, nil)
      |> assign(:viewer_annotations, [])
      |> assign(:composing_annotation_uuid, nil)
+     |> assign(:etcher_colors, @default_etcher_colors)
      |> assign(:viewer_only, false)}
   end
 
@@ -111,6 +120,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         socket
         |> assign(:viewer_annotations, annotations)
         |> assign(:viewer_canvas, build_viewer_canvas(file, annotations))
+        # Read fresh from the DB (not the parent-passed struct) so the
+        # palette is correct even on modal prev/next after an in-session
+        # edit, where the parent's `current_user` may be stale.
+        |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
       else
         socket
       end
@@ -139,6 +152,31 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     case socket.assigns[:file] do
       nil -> {:noreply, socket}
       file -> {:noreply, sync_annotations(socket, file, new_annotations)}
+    end
+  end
+
+  # Etcher's color-save hook. The toolbar palette is per-user (one set of
+  # slots across every viewer), not per-file, so we ignore the fresco_id
+  # and persist the slots into the user's `custom_fields`, merging into a
+  # freshly-read copy so a concurrent change elsewhere isn't clobbered.
+  # `update_user_custom_fields/2` broadcasts `phoenix_kit_user_updated`,
+  # so hosts that subscribe refresh their `current_user` automatically.
+  def handle_event("etcher:colors-changed", %{"colors" => colors}, socket) do
+    case socket.assigns[:current_user] do
+      %{uuid: uuid} = user ->
+        fresh = Auth.get_user(uuid) || user
+        merged = Map.put(fresh.custom_fields || %{}, @etcher_colors_key, colors)
+
+        case Auth.update_user_custom_fields(fresh, merged) do
+          {:ok, updated} ->
+            {:noreply, socket |> assign(:current_user, updated) |> assign(:etcher_colors, colors)}
+
+          {:error, _changeset} ->
+            {:noreply, socket}
+        end
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -353,6 +391,21 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       metadata -> Map.put(base, "metadata", metadata)
     end
   end
+
+  # Read this user's saved Etcher palette fresh from the DB, falling back
+  # to the default when nothing is stored (or there's no user). Fresh read
+  # (not the parent-passed struct) keeps it correct on modal prev/next
+  # after an in-session edit.
+  defp load_user_colors(%{uuid: uuid} = user) do
+    fresh = Auth.get_user(uuid) || user
+
+    case Auth.get_user_field(fresh, @etcher_colors_key) do
+      colors when is_list(colors) and colors != [] -> colors
+      _ -> @default_etcher_colors
+    end
+  end
+
+  defp load_user_colors(_), do: @default_etcher_colors
 
   @doc """
   Loads annotations for a file into the curated map shape this component
