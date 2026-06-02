@@ -197,6 +197,46 @@ defmodule PhoenixKit.ModuleRegistry do
     end)
   end
 
+  @doc """
+  Collect AI-translatable adapters from all registered modules.
+
+  Scans each module's optional `ai_translatables/0` callback (returning
+  `[{resource_type, adapter_module}]`) and folds into a
+  `%{resource_type => adapter_module}` map. `resource_type` strings are
+  expected to be globally unique; on a collision the first registered
+  module wins (`Map.put_new/3`). Drives
+  `PhoenixKit.Modules.AI.TranslateWorker`'s adapter dispatch.
+  """
+  @spec all_ai_translatables() :: %{String.t() => module()}
+  def all_ai_translatables do
+    all_modules()
+    |> Enum.flat_map(&safe_call(&1, :ai_translatables, []))
+    |> Enum.reduce(%{}, fn
+      {type, adapter}, acc when is_binary(type) and is_atom(adapter) ->
+        case acc do
+          %{^type => existing} when existing != adapter ->
+            Logger.warning(
+              "[ModuleRegistry] duplicate ai_translatable resource_type #{inspect(type)}: " <>
+                "keeping #{inspect(existing)}, ignoring #{inspect(adapter)}"
+            )
+
+            acc
+
+          _ ->
+            Map.put(acc, type, adapter)
+        end
+
+      _other, acc ->
+        acc
+    end)
+  end
+
+  @doc "Resolve the AI-translatable adapter for a `resource_type`, or `nil`."
+  @spec find_ai_translatable(String.t()) :: module() | nil
+  def find_ai_translatable(resource_type) when is_binary(resource_type) do
+    Map.get(all_ai_translatables(), resource_type)
+  end
+
   @doc "Find a registered module by its key string."
   @spec get_by_key(String.t()) :: module() | nil
   def get_by_key(key) when is_binary(key) do
