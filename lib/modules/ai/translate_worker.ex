@@ -280,6 +280,10 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
   @doc false
   @spec retryable?(term()) :: boolean()
   def retryable?({:ai_error, :request_timeout}), do: true
+  # PhoenixKit.AI's HTTP client surfaces a request timeout as `:timeout`
+  # ({:error, :timeout} → {:ai_error, :timeout} here). A timeout is transient
+  # — retry rather than discard, so a one-off slow/hung provider call re-runs.
+  def retryable?({:ai_error, :timeout}), do: true
   def retryable?({:ai_error, :rate_limited}), do: true
   def retryable?({:ai_error, {:connection_error, _}}), do: true
   def retryable?({:ai_error, {:exit, _}}), do: true

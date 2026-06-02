@@ -264,7 +264,46 @@ defmodule PhoenixKitWeb.Components.AITranslate do
     """
   end
 
+  attr(:ai_translate, :map, default: nil, doc: "Same config map; reads `:slow` + `:in_flight`.")
+
+  @doc """
+  Reassurance line shown when a translation is taking a while (`slow: true`
+  in the config while jobs are still in flight). A leading attention icon
+  flags the line, then the visible message, then a trailing info icon whose
+  tooltip carries the fuller "you can leave, nothing is lost" detail.
+  Renders nothing otherwise.
+  """
+  def ai_translate_hint(assigns) do
+    ~H"""
+    <%= if hint_visible?(@ai_translate) do %>
+      <div class="flex items-start gap-1.5 text-xs text-base-content/70 mt-1">
+        <Icon.icon name="hero-exclamation-triangle" class="w-4 h-4 text-warning shrink-0 mt-px" />
+        <span>
+          {gettext(
+            "This is taking longer than usual. Translations keep running in the background — you can safely leave this page."
+          )}<span
+            class="tooltip tooltip-top cursor-help align-middle ml-1 [--tooltip-max-width:20rem]"
+            data-tip={
+              gettext(
+                "Each language is saved automatically the moment it finishes, so it's fine to navigate away or keep editing other fields — nothing will be lost."
+              )
+            }
+          ><Icon.icon
+              name="hero-information-circle"
+              class="inline-block w-4 h-4 text-base-content/50"
+            /></span>
+        </span>
+      </div>
+    <% end %>
+    """
+  end
+
   # ─── Visibility / state helpers ────────────────────────────────
+
+  defp hint_visible?(cfg) when is_map(cfg),
+    do: enabled?(cfg) and get(cfg, :slow) == true and has_in_flight?(cfg)
+
+  defp hint_visible?(_), do: false
 
   defp button_visible?(cfg) when is_map(cfg), do: enabled?(cfg) and toggle_event_name(cfg) != nil
   defp button_visible?(_), do: false
