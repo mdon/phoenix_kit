@@ -8,13 +8,15 @@
   them across files. Falls back to a default 5-color palette.
 
 ### Changed
-- Bump the Etcher lazy-load CDN pin to `v0.5.4` (`phoenix_kit.js`), which
-  ships the colors API + the always-visible color `[⋯]` hue-picker entry
-  (previously overflow-gated, so it vanished when swatches fit inline).
-  The hex `etcher` dep (`~> 0.5`) picks up `0.5.4` once published —
-  run `mix deps.update etcher` then; the per-user palette **injection**
-  (the `:colors` attr → `data-colors`) needs the 0.5.4 layer component,
-  while the picker UI itself works from the CDN bump alone.
+- Pin the Etcher lazy-load CDN to `v0.5.5` (`phoenix_kit.js`) and the hex
+  `etcher` dep to `~> 0.5.5`. 0.5.5 ships the per-user colors API plus the
+  reworked annotation toolbar: the color `[⋯]` is an always-visible
+  palette-icon hue-picker entry, toolbar overflow splits ~50/50 between
+  the tools and the color swatches, undo/redo collapse as a single unit,
+  and color slots that don't fit inline appear in the picker popup above
+  the presets. The per-user palette **injection** (the `:colors` attr →
+  `data-colors`) needs the 0.5.4+ layer component; the picker UI itself
+  works from the CDN bump alone.
 
 ## 1.7.128 - 2026-06-01
 
