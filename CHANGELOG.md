@@ -1,3 +1,21 @@
+## 1.7.129 - 2026-06-03
+
+### Added
+- Per-user Etcher color palette in the media viewer. `MediaCanvasViewer`
+  passes the user's saved palette to `<Etcher.layer colors={…}>` and
+  persists edits from the `etcher:colors-changed` event into the user's
+  `custom_fields` ("etcher_colors"), so a user's annotation colors follow
+  them across files. Falls back to a default 5-color palette.
+
+### Changed
+- Bump the Etcher lazy-load CDN pin to `v0.5.4` (`phoenix_kit.js`), which
+  ships the colors API + the always-visible color `[⋯]` hue-picker entry
+  (previously overflow-gated, so it vanished when swatches fit inline).
+  The hex `etcher` dep (`~> 0.5`) picks up `0.5.4` once published —
+  run `mix deps.update etcher` then; the per-user palette **injection**
+  (the `:colors` attr → `data-colors`) needs the 0.5.4 layer component,
+  while the picker UI itself works from the CDN bump alone.
+
 ## 1.7.128 - 2026-06-01
 
 ### Added
