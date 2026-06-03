@@ -273,17 +273,25 @@ defmodule PhoenixKit.Modules.AI.Translations do
     do: PubSubManager.subscribe(topic(resource_type, resource_uuid))
 
   @doc false
-  # Called by `TranslateWorker` to fan an event out on the global topic,
-  # the per-resource topic, and any adapter-supplied topics.
+  # Called by `TranslateWorker` to fan an event out. The FULL payload (incl.
+  # the translated `fields`) goes ONLY to the per-resource topic — that's the
+  # one the form LV subscribes to and patches its changeset from. The global
+  # topic + any adapter-supplied topics get a content-free SUMMARY (everything
+  # but `:fields`), so translated resource text is never fanned out to broad
+  # topics a monitor/dashboard might subscribe to (payload-minimal rule).
   def broadcast(event, payload, extra_topics \\ []) do
-    msg = {:ai_translation, event, payload}
-    PubSubManager.broadcast(@topic, msg)
+    summary = {:ai_translation, event, Map.drop(payload, [:fields])}
 
-    with %{resource_type: t, resource_uuid: u} when is_binary(t) and is_binary(u) <- payload do
-      PubSubManager.broadcast(topic(t, u), msg)
+    case payload do
+      %{resource_type: t, resource_uuid: u} when is_binary(t) and is_binary(u) ->
+        PubSubManager.broadcast(topic(t, u), {:ai_translation, event, payload})
+
+      _ ->
+        :ok
     end
 
-    Enum.each(extra_topics, &PubSubManager.broadcast(&1, msg))
+    PubSubManager.broadcast(@topic, summary)
+    Enum.each(extra_topics, &PubSubManager.broadcast(&1, summary))
     :ok
   end
 
