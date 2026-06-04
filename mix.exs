@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.128"
+  @version "1.7.129"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -140,7 +140,7 @@ defmodule PhoenixKit.MixProject do
       # (residual TODO; resurrect when a Tessera 0.5 ships).
       {:fresco, "~> 0.6"},
       {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.5"},
+      {:etcher, "~> 0.5.5"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
