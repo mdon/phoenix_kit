@@ -12,7 +12,7 @@ addressing; the rest are nitpicks.
 
 ---
 
-## IMPROVEMENT - MEDIUM — `etcher:colors-changed` persists unvalidated client data
+## IMPROVEMENT - MEDIUM — `etcher:colors-changed` persists unvalidated client data — ✅ FIXED (c7ec90f1)
 
 `media_canvas_viewer.ex` (`handle_event("etcher:colors-changed", %{"colors" => colors}, …)`)
 
@@ -30,6 +30,13 @@ component each render.
 Suggest validating before persist: keep only entries matching a short hex-color pattern
 (e.g. `~r/^#[0-9a-fA-F]{3,8}$/`) and cap the count (the default palette is 5). Drop/ignore
 anything else rather than storing it.
+
+**Resolution (c7ec90f1):** added `sanitize_colors/1` and rewrote the handler with a `with`.
+The client palette is now filtered to short color-shaped strings (permissive on format —
+hex / `rgb()` / `hsl()` / named — but length-capped at 32 chars each via
+`@etcher_color_format`), trimmed, deduped, and capped at `@max_etcher_colors` (24). When
+nothing valid survives, the event is ignored rather than persisted — so a malformed payload
+can neither store garbage in `custom_fields` nor wipe the user's saved palette.
 
 ---
 

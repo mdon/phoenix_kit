@@ -35,7 +35,20 @@ Ask: confirm `PhoenixKitAI` always normalises 429 → `:rate_limited`. If not gu
 treat `{:api_error, 429}` as snooze (or at least retryable) as defense in depth — it's the
 canonical retry-after status.
 
+**Status: left as-is, needs maintainer confirmation.** Flipping this would be
+defense-in-depth against an error shape I can't verify (the plugin contract lives outside
+this repo, and the non-retryable choice is intentional + pinned by a test). Not changed
+unilaterally — confirm the `PhoenixKitAI` contract first.
+
 ---
+
+## BUG - LOW — credo `--strict` fails on the new test — ✅ FIXED (c7ec90f1)
+
+`translations_test.exs:90` called `PhoenixKit.PubSub.Manager.subscribe/1` fully-qualified,
+tripping Credo's nested-module-alias check. With `--strict` this exits 2, so the merged
+state fails the documented `mix precommit` / `mix quality.ci` bar. Fixed by aliasing
+`PhoenixKit.PubSub.Manager, as: PubSubManager` and using the short form. `mix credo --strict`
+now exits 0; `mix compile --warnings-as-errors` clean.
 
 ## NITPICK — `find_ai_translatable/1` rescans all modules per perform
 
