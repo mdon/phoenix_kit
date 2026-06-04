@@ -19,6 +19,7 @@ defmodule PhoenixKit.Modules.AI.TranslationsTest do
   use ExUnit.Case, async: false
 
   alias PhoenixKit.Modules.AI.Translations
+  alias PhoenixKit.PubSub.Manager, as: PubSubManager
 
   describe "missing_languages/3" do
     test "returns enabled non-primary codes that have no translation yet" do
@@ -87,7 +88,7 @@ defmodule PhoenixKit.Modules.AI.TranslationsTest do
 
     test "extra (adapter) topics also get the content-free summary" do
       extra = "phoenix_kit:test_adapter_topic"
-      :ok = PhoenixKit.PubSub.Manager.subscribe(extra)
+      :ok = PubSubManager.subscribe(extra)
 
       Translations.broadcast(
         :translation_completed,

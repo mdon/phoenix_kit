@@ -59,6 +59,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   @etcher_colors_key "etcher_colors"
   @default_etcher_colors ["#fca5a5", "#fdba74", "#fde68a", "#86efac", "#93c5fd"]
 
+  # The palette arrives from a client JS hook, so it's untrusted: keep only
+  # short color-shaped strings and cap the count before persisting into the
+  # user's `custom_fields`. Blocks arbitrary/oversized JSON from being stored
+  # and fed back into `<Etcher.layer colors={…}>`. Permissive on format (hex /
+  # rgb() / hsl() / named) but bounded in length and count.
+  @max_etcher_colors 24
+  @etcher_color_format ~r/\A[#0-9a-zA-Z(),.%\s]{1,32}\z/
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -162,21 +170,22 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # `update_user_custom_fields/2` broadcasts `phoenix_kit_user_updated`,
   # so hosts that subscribe refresh their `current_user` automatically.
   def handle_event("etcher:colors-changed", %{"colors" => colors}, socket) do
-    case socket.assigns[:current_user] do
-      %{uuid: uuid} = user ->
-        fresh = Auth.get_user(uuid) || user
-        merged = Map.put(fresh.custom_fields || %{}, @etcher_colors_key, colors)
+    with %{uuid: uuid} = user <- socket.assigns[:current_user],
+         [_ | _] = clean <- sanitize_colors(colors) do
+      fresh = Auth.get_user(uuid) || user
+      merged = Map.put(fresh.custom_fields || %{}, @etcher_colors_key, clean)
 
-        case Auth.update_user_custom_fields(fresh, merged) do
-          {:ok, updated} ->
-            {:noreply, socket |> assign(:current_user, updated) |> assign(:etcher_colors, colors)}
+      case Auth.update_user_custom_fields(fresh, merged) do
+        {:ok, updated} ->
+          {:noreply, socket |> assign(:current_user, updated) |> assign(:etcher_colors, clean)}
 
-          {:error, _changeset} ->
-            {:noreply, socket}
-        end
-
-      _ ->
-        {:noreply, socket}
+        {:error, _changeset} ->
+          {:noreply, socket}
+      end
+    else
+      # No user, or nothing valid survived sanitization — ignore the event
+      # rather than persisting garbage or wiping the saved palette.
+      _ -> {:noreply, socket}
     end
   end
 
@@ -406,6 +415,20 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   end
 
   defp load_user_colors(_), do: @default_etcher_colors
+
+  # Keep only color-shaped strings, trimmed, deduped, and capped — the input
+  # is client-supplied. Returns `[]` when nothing valid remains so the caller
+  # can ignore the update.
+  defp sanitize_colors(colors) when is_list(colors) do
+    colors
+    |> Enum.filter(&(is_binary(&1) and Regex.match?(@etcher_color_format, &1)))
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.take(@max_etcher_colors)
+  end
+
+  defp sanitize_colors(_), do: []
 
   @doc """
   Loads annotations for a file into the curated map shape this component
