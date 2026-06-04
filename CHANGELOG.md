@@ -1,3 +1,47 @@
+## 1.7.130 - 2026-06-04
+
+### Added
+- Generic AI-driven translation pipeline in core, so feature modules plug in
+  via a small adapter instead of re-implementing the whole stack:
+  - `PhoenixKit.Modules.AI.Translatable` behaviour (`fetch/2`, `source_fields/2`,
+    `put_translation/4`, optional `pubsub_topics/1`), exposed by a module via the
+    optional `ai_translatables/0` callback on `PhoenixKit.Module` and discovered
+    through `PhoenixKit.ModuleRegistry.all_ai_translatables/0` /
+    `find_ai_translatable/1`. `resource_type` strings must be globally unique;
+    on a collision the first registered module wins.
+  - `PhoenixKit.Modules.AI.Translations` orchestration — availability,
+    endpoint/prompt defaults, idempotent shared prompt provisioning,
+    `enqueue/1` + `enqueue_all_missing/2` (app-level de-dup, fail-open),
+    per-resource + global PubSub topics, and `missing_languages/3`.
+  - `PhoenixKit.Modules.AI.TranslateWorker` — generic one-job-per-language Oban
+    worker: retry classification (transient errors incl. `:timeout` retry, 5xx
+    retry, deterministic discards), `{:snooze, 30}` on rate-limit so a burst
+    backs off without consuming attempts, and an `ai.translation_added` audit
+    entry on success.
+- Shared AI-translate UI for multilang form LiveViews:
+  - `PhoenixKitWeb.Components.AITranslate` — render-only trigger button, modal
+    (endpoint/prompt selectors, scope picker, generate-default-prompt), inline
+    progress bar, and a "taking a while, runs in the background" stall hint.
+  - `PhoenixKitWeb.Components.AITranslate.{FormGlue,FormBinding}` — the shared
+    LiveView state machine (modal events, scope dispatch, live progress, the
+    stall timer with a per-arm token guard) behind a 3-callback binding, so a
+    consumer wires a tiny adapter + binding and delegates.
+
+### Changed
+- AI-translation broadcasts keep translated **content** off broad topics: the
+  full payload (with `:fields`) goes only to the per-resource topic the form
+  consumes; the global + adapter topics receive a content-free summary, so
+  resource text is never fanned out to topics a monitor/dashboard might watch.
+
+### Fixed
+- Sanitize the per-user Etcher color palette on both write and read.
+  `MediaCanvasViewer` now filters the client-supplied `etcher:colors-changed`
+  payload to short, color-shaped strings (deduped, capped at 24) before
+  persisting into `custom_fields`, ignoring the event when nothing valid
+  survives; `load_user_colors/1` runs the same sanitization on read, so a
+  palette stored before the guard shipped — or written by any other path — can
+  never reach `<Etcher.layer colors={…}>` untrusted.
+
 ## 1.7.129 - 2026-06-03
 
 ### Added
