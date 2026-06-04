@@ -38,6 +38,13 @@ hex / `rgb()` / `hsl()` / named — but length-capped at 32 chars each via
 nothing valid survives, the event is ignored rather than persisted — so a malformed payload
 can neither store garbage in `custom_fields` nor wipe the user's saved palette.
 
+**Follow-up (read-path symmetry):** a `/code-review` pass flagged that the first fix only
+guarded *writes* — `load_user_colors/1` still returned the stored value straight to
+`<Etcher.layer colors={…}>`, so anything persisted before the guard shipped (or via another
+path) bypassed it. `load_user_colors/1` now runs the stored value through the same
+`sanitize_colors/1` and falls back to the default palette when nothing valid remains, so the
+component never receives untrusted palette data regardless of how it was stored.
+
 ---
 
 ## NITPICK — unrelated lockfile bumps bundled in

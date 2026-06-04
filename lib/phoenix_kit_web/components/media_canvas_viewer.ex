@@ -404,13 +404,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Read this user's saved Etcher palette fresh from the DB, falling back
   # to the default when nothing is stored (or there's no user). Fresh read
   # (not the parent-passed struct) keeps it correct on modal prev/next
-  # after an in-session edit.
+  # after an in-session edit. Re-sanitize on read too (not just on write) so
+  # data persisted before the write-side guard shipped, or written by any
+  # other path, can't reach `<Etcher.layer colors={…}>` untrusted.
   defp load_user_colors(%{uuid: uuid} = user) do
     fresh = Auth.get_user(uuid) || user
 
-    case Auth.get_user_field(fresh, @etcher_colors_key) do
-      colors when is_list(colors) and colors != [] -> colors
-      _ -> @default_etcher_colors
+    case sanitize_colors(Auth.get_user_field(fresh, @etcher_colors_key)) do
+      [_ | _] = colors -> colors
+      [] -> @default_etcher_colors
     end
   end
 
