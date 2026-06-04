@@ -84,7 +84,7 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
   attr :manual_field, :any,
     default: nil,
     doc:
-      "Atom or string field key that represents \"manual\" ordering (e.g. `:sort_order`). When `sort_by` matches, the direction toggle is replaced by a static drag-handle hint icon — direction has no meaning for a user-specified order."
+      "Atom or string field key that represents \"manual\" ordering (e.g. `:sort_order`). When `sort_by` matches, the direction toggle is hidden — direction has no meaning for a user-specified order, and the drag handles on each row are themselves the affordance for reordering."
 
   def sort_selector(assigns) do
     sort_by_str = to_field_str(assigns[:sort_by])
@@ -127,17 +127,10 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
             class="select-sm join-item"
             aria-label={gettext("Sort by")}
           />
-          <%!-- In manual mode, direction is meaningless — replace the click-
-             to-flip arrow with a static drag-handle hint so the join still
-             reads as one widget but doesn't pretend to toggle anything. --%>
-          <span
-            :if={@manual_active?}
-            class="btn btn-sm btn-square join-item pointer-events-none text-base-content/60"
-            title={gettext("Drag rows to reorder")}
-            aria-label={gettext("Drag rows to reorder")}
-          >
-            <.icon name="hero-bars-3" class="w-4 h-4" />
-          </span>
+          <%!-- In manual mode, direction is meaningless — the row drag
+             handles are the affordance, and a separate indicator here
+             would be visual noise. The direction button is hidden
+             entirely; the dropdown alone communicates "manual" mode. --%>
           <button
             :if={!@manual_active?}
             type="button"

@@ -58,8 +58,11 @@ defmodule PhoenixKit.Annotations.Annotation do
   # Fields the storage adapter is allowed to accept from event payloads.
   # `file_uuid` is set server-side from `target_uuid`, not by the client,
   # so it's excluded here — the adapter's `create/1` puts it on the
-  # changeset after the whitelist filter.
-  @adapter_writable_fields @cast_fields -- [:file_uuid]
+  # changeset after the whitelist filter. `creator_uuid` is set server-
+  # side from the actor (`adapter`'s `create/1` resolves it from the
+  # actor opts), so it's excluded for the same reason — a forged event
+  # payload shouldn't be able to claim authorship.
+  @adapter_writable_fields @cast_fields -- [:file_uuid, :creator_uuid]
 
   @doc false
   def changeset(annotation, attrs) do

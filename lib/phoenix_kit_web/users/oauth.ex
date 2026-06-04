@@ -15,6 +15,19 @@ if Code.ensure_loaded?(Ueberauth) do
     - ueberauth_facebook (for Facebook Sign-In)
 
     If these dependencies are not installed, a fallback controller will be used instead.
+
+    ## Add-account via OAuth
+
+    When the request action receives `add_account=1` as a query parameter it sets a
+    short-lived session key `:oauth_add_account_intent` to `"add_account"`. The callback
+    reads and immediately clears this key. When it is present AND there is a valid root
+    user AND `MultiSession.gate_allowed?/1` is true, the callback adds the OAuth-
+    authenticated user to the multi-session stack via `MultiSession.add_authenticated_user/2`
+    instead of performing a full login.
+
+    The marker is distinct from `:oauth_return_to` and `:oauth_referral_code` and does NOT
+    interact with the existing settings-page provider-link flow (which has no session marker
+    at all and is handled by a separate LiveView).
     """
 
     use PhoenixKitWeb, :controller
@@ -29,8 +42,14 @@ if Code.ensure_loaded?(Ueberauth) do
     alias PhoenixKit.Utils.IpAddress
     alias PhoenixKit.Utils.Routes
     alias PhoenixKitWeb.Users.Auth, as: UserAuth
+    alias PhoenixKitWeb.Users.MultiSession
 
     require Logger
+
+    # Session key used to signal that an OAuth flow was started from the
+    # "Add account" modal. Distinct from :oauth_return_to and the settings
+    # provider-link flow. Value is "add_account" when set.
+    @add_account_intent_key :oauth_add_account_intent
 
     # Map provider names (strings) to strategy modules
     @provider_strategies %{
@@ -95,11 +114,14 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp handle_oauth_request(conn, provider, strategy_module, params) do
-      # Store referral_code and return_to in session
+      # Store referral_code, return_to, and add-account intent in session.
+      # The add-account intent is set when the request comes from the "Add account"
+      # modal (add_account=1 query param). It is consumed and cleared in the callback.
       conn =
         conn
         |> maybe_put_session(:oauth_referral_code, params["referral_code"])
         |> maybe_put_session(:oauth_return_to, params["return_to"])
+        |> maybe_set_add_account_intent(params)
 
       # Build provider config for dynamic Ueberauth call
       base_path = Config.UeberAuth.get_base_path()
@@ -138,6 +160,12 @@ if Code.ensure_loaded?(Ueberauth) do
 
     defp maybe_put_session(conn, _key, nil), do: conn
     defp maybe_put_session(conn, key, value), do: put_session(conn, key, value)
+
+    defp maybe_set_add_account_intent(conn, %{"add_account" => "1"}) do
+      put_session(conn, @add_account_intent_key, "add_account")
+    end
+
+    defp maybe_set_add_account_intent(conn, _params), do: conn
 
     defp oauth_enabled_in_settings? do
       Settings.get_boolean_setting("oauth_enabled", false)
@@ -185,6 +213,14 @@ if Code.ensure_loaded?(Ueberauth) do
       ip_address = IpAddress.extract_from_conn(conn)
       referral_code = get_session(conn, :oauth_referral_code)
       return_to = get_session(conn, :oauth_return_to)
+      # Consume the add-account marker immediately — regardless of outcome below.
+      add_account_intent = get_session(conn, @add_account_intent_key)
+
+      conn =
+        conn
+        |> delete_session(:oauth_referral_code)
+        |> delete_session(:oauth_return_to)
+        |> delete_session(@add_account_intent_key)
 
       opts = [
         track_geolocation: track_geolocation,
@@ -198,16 +234,30 @@ if Code.ensure_loaded?(Ueberauth) do
             "PhoenixKit: User #{user.uuid} (#{user.email}) authenticated via OAuth (#{auth.provider})"
           )
 
-          conn =
-            conn
-            |> delete_session(:oauth_referral_code)
-            |> delete_session(:oauth_return_to)
+          # When the add-account intent is present AND the root session is still valid AND
+          # the multi-session gate allows it, add the OAuth user to the stack instead of
+          # performing a full login. This mirrors the password add_account/3 path.
+          cond do
+            add_account_intent == "add_account" and
+                MultiSession.gate_allowed?(get_session(conn)) ->
+              handle_oauth_add_account(conn, user, return_to)
 
-          flash_message = "Successfully signed in with #{format_provider_name(auth.provider)}!"
+            # Intent was set but the gate is now closed (setting toggled off, or the
+            # root token expired). Don't silently replace the primary session with a
+            # full login — surface it and return home.
+            add_account_intent == "add_account" ->
+              conn
+              |> put_flash(:error, "Account switching is currently disabled.")
+              |> redirect(to: Routes.path("/"))
 
-          conn
-          |> put_flash(:info, flash_message)
-          |> UserAuth.log_in_user(user, %{"remember_me" => "true", "return_to" => return_to})
+            true ->
+              flash_message =
+                "Successfully signed in with #{format_provider_name(auth.provider)}!"
+
+              conn
+              |> put_flash(:info, flash_message)
+              |> UserAuth.log_in_user(user, %{"remember_me" => "true", "return_to" => return_to})
+          end
 
         {:error, %Ecto.Changeset{} = changeset} ->
           errors = format_changeset_errors(changeset)
@@ -238,6 +288,8 @@ if Code.ensure_loaded?(Ueberauth) do
       Logger.warning("PhoenixKit: OAuth authentication failure: #{inspect(failure)}")
 
       conn
+      # Clear the add-account marker so a later normal sign-in can't inherit it.
+      |> delete_session(@add_account_intent_key)
       |> put_flash(:error, error_message)
       |> redirect(to: Routes.path("/users/log-in"))
     end
@@ -247,8 +299,44 @@ if Code.ensure_loaded?(Ueberauth) do
       Logger.error("PhoenixKit: Unexpected OAuth callback without auth or failure")
 
       conn
+      # Clear the add-account marker so a later normal sign-in can't inherit it.
+      |> delete_session(@add_account_intent_key)
       |> put_flash(:error, "Authentication failed. Please try again.")
       |> redirect(to: Routes.path("/users/log-in"))
+    end
+
+    # Adds an OAuth-authenticated user to the multi-session stack.
+    # Mirrors the error handling of Session.add_account/2.
+    defp handle_oauth_add_account(conn, user, return_to) do
+      case MultiSession.add_authenticated_user(conn, user) do
+        {:ok, conn} ->
+          conn
+          |> put_flash(:info, "Account added.")
+          |> redirect_back(return_to)
+
+        {:error, :stack_full} ->
+          conn
+          |> put_flash(:error, "Maximum number of accounts reached.")
+          |> redirect_back(return_to)
+
+        {:error, :already_in_stack} ->
+          conn
+          |> put_flash(:error, "That account is already in your session.")
+          |> redirect_back(return_to)
+
+        {:error, :inactive} ->
+          conn
+          |> put_flash(:error, "That account is inactive.")
+          |> redirect_back(return_to)
+      end
+    end
+
+    defp redirect_back(conn, return_to) do
+      if Routes.local_path?(return_to) do
+        redirect(conn, to: return_to)
+      else
+        redirect(conn, to: Routes.path("/"))
+      end
     end
 
     # Private helper functions

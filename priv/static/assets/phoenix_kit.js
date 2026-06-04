@@ -1391,6 +1391,21 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // SelectOnMount
+  //
+  // Focuses an input and selects all of its current value on mount. Use
+  // for inline-rename inputs and similar type-to-replace flows where
+  // JS.focus() alone leaves the cursor at the end and forces the user
+  // to reach for the mouse / select-all shortcut before retyping.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.SelectOnMount = {
+    mounted() {
+      this.el.focus();
+      this.el.select();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // AnnotationComposerPosition
   //
   // Positions the MediaBrowser's floating annotation-composer popover
@@ -1510,37 +1525,440 @@ if (typeof window.Chart === "undefined") {
   //
   // Renders the modal in the browser top layer (showModal()), so it is immune to
   // ancestor stacking contexts / z-index — fixes modals being overlapped by
-  // parent-page elements.
+  // parent-page elements. The dialog also covers the FULL visual viewport
+  // (top-layer rendering bypasses the daisyUI `scrollbar-gutter: stable` trick
+  // that previously left a 15px gap on the right of `<div class="modal">`).
   //
   //   data-show        "true" / "false" — desired open state (synced each update)
-  //   data-close-event event pushed to the component on Escape / cancel
+  //   data-close-event event pushed to the component on Escape / cancel / backdrop
+  //   data-closeable   "false" → Escape + backdrop click are no-ops (modal still
+  //                    closable only via an explicit action button). Default:
+  //                    closeable.
   // ---------------------------------------------------------------------------
 
-  window.PhoenixKitHooks.PkDialog = {
+  // Refcount of open PkDialog modals. Used to know when to restore the
+  // html's scrollbar-gutter (only when the LAST modal closes, since
+  // multiple <dialog> can be open simultaneously).
+  window._PkDialogOpenCount = window._PkDialogOpenCount || 0;
+
+  // ---------------------------------------------------------------------------
+  // PkCheckboxIndeterminate — applies the `indeterminate` property to a
+  // checkbox based on `data-indeterminate="true"`. HTML has no attribute
+  // form of `indeterminate`, so a small hook is needed to read the dataset
+  // and assign the JS property after every LV patch.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PkCheckboxIndeterminate = {
+    _apply() {
+      this.el.indeterminate = this.el.dataset.indeterminate === "true";
+    },
+    mounted() { this._apply(); },
+    updated() { this._apply(); }
+  };
+
+  // ---------------------------------------------------------------------------
+  // BulkSelectScope — client-side bulk-select state for admin tables.
+  //
+  // The hook owns the selection set in the browser; the server only learns
+  // about it at action time (when the user clicks an action button). This
+  // makes per-checkbox toggles feel instant — no round-trip on every click.
+  //
+  // Markup contract (inside the hook root element):
+  //
+  //   data-bulk-total="N"                   on the root, total row count
+  //                                         (drives the header's
+  //                                         all-selected check)
+  //
+  //   data-bulk-role="select-all"           the header checkbox. Click
+  //                                         toggles every row to match.
+  //
+  //   data-bulk-role="row"
+  //   data-uuid="<row-uuid>"                a per-row checkbox.
+  //
+  //   data-bulk-action="<lv-event>"         on a button: clicking pushes
+  //                                         <lv-event> to the LV with
+  //                                         `{ uuids: [...] }` payload.
+  //
+  //   data-bulk-clear                       on a button: pure client-side
+  //                                         clear (uncheck all + reset).
+  //
+  //   data-bulk-count                       text content gets set to the
+  //                                         current selected count.
+  //
+  //   data-bulk-show="has-selection"        element shown only when
+  //                                         count > 0 (hidden otherwise).
+  //   data-bulk-show="no-selection"         inverse: shown only when count
+  //                                         is 0.
+  //
+  //   data-bulk-text-template="…%{count}…"  element's textContent is
+  //                                         re-rendered from the template
+  //                                         each time the count changes
+  //                                         (%{count} → current count).
+  //
+  //   data-bulk-label-empty / -selected     button label flips between
+  //                                         the two strings based on
+  //                                         count (selected supports
+  //                                         %{count} interpolation).
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.BulkSelectScope = {
+    mounted() {
+      this.selected = new Set();
+      this._readFromDom();
+      this._wire();
+      this._sync();
+    },
+    updated() {
+      // LV may have re-rendered the row set (filter, reload, delete,
+      // reorder, apply_reorder, load_more). The server always renders
+      // checkboxes unchecked — selection lives in this hook's in-
+      // memory Set, NOT in the markup. So we restore from the Set
+      // against whatever rows are in the DOM now, and prune uuids
+      // whose rows are no longer present (filtered, deleted).
+      //
+      // Always assign `checked` explicitly (true OR false) — never
+      // skip the false case. Morphdom can reuse input nodes whose
+      // `dataset.uuid` changed (row swapped under the same node), and
+      // a stale `checked=true` left over from that reuse would render
+      // a phantom selection that this.selected doesn't actually own.
+      const surviving = new Set();
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach((r) => {
+        const uuid = r.dataset.uuid;
+        const want = !!(uuid && this.selected.has(uuid));
+        r.checked = want;
+        if (want) surviving.add(uuid);
+      });
+      this.selected = surviving;
+      this._wire();
+      this._sync();
+    },
+    _readFromDom() {
+      // Initial mount: read whatever is already checked in the markup.
+      // Used only by mounted(); updated() restores from the in-memory
+      // Set instead so selection survives LV re-renders.
+      this.selected.clear();
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach((r) => {
+        if (r.checked && r.dataset.uuid) this.selected.add(r.dataset.uuid);
+      });
+    },
+    _wire() {
+      const self = this;
+      const header = this.el.querySelector('[data-bulk-role="select-all"]');
+      if (header && !header._pkBulkWired) {
+        header.addEventListener("click", function() { self._onHeaderClick(header); });
+        header._pkBulkWired = true;
+      }
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach(function(r) {
+        if (r._pkBulkWired) return;
+        r.addEventListener("click", function() { self._onRowClick(r); });
+        r._pkBulkWired = true;
+      });
+      this.el.querySelectorAll("[data-bulk-action]").forEach(function(btn) {
+        if (btn._pkBulkWired) return;
+        btn.addEventListener("click", function(e) { self._onActionClick(e, btn); });
+        btn._pkBulkWired = true;
+      });
+      this.el.querySelectorAll("[data-bulk-clear]").forEach(function(btn) {
+        if (btn._pkBulkWired) return;
+        btn.addEventListener("click", function() { self._clearAll(); });
+        btn._pkBulkWired = true;
+      });
+    },
+    _onHeaderClick(header) {
+      const rows = this.el.querySelectorAll('[data-bulk-role="row"]');
+      const self = this;
+      if (header.checked) {
+        rows.forEach(function(r) {
+          r.checked = true;
+          if (r.dataset.uuid) self.selected.add(r.dataset.uuid);
+        });
+      } else {
+        rows.forEach(function(r) { r.checked = false; });
+        this.selected.clear();
+      }
+      this._sync();
+    },
+    _onRowClick(input) {
+      const uuid = input.dataset.uuid;
+      if (!uuid) return;
+      if (input.checked) this.selected.add(uuid);
+      else this.selected.delete(uuid);
+      this._sync();
+    },
+    _onActionClick(e, btn) {
+      e.preventDefault();
+      const event = btn.dataset.bulkAction;
+      if (!event) return;
+
+      // If the button is paired with a kept-in-DOM dialog, open it
+      // locally BEFORE pushing the event. The server still gets the
+      // payload + flips its `@show_*_modal` assign for state sync,
+      // but the user sees the modal instantly instead of waiting
+      // for the round-trip.
+      const dialogId = btn.dataset.bulkOpensDialog;
+      if (dialogId) {
+        const dialog = document.getElementById(dialogId);
+        if (dialog && !dialog.open && typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      }
+
+      this.pushEventTo(this.el, event, { uuids: Array.from(this.selected) });
+    },
+    _clearAll() {
+      this.el.querySelectorAll('[data-bulk-role="row"]').forEach(function(r) {
+        r.checked = false;
+      });
+      this.selected.clear();
+      this._sync();
+    },
     _sync() {
-      const wantOpen = this.el.dataset.show === "true";
-      if (wantOpen && !this.el.open && typeof this.el.showModal === "function") {
+      const total = parseInt(this.el.dataset.bulkTotal || "0", 10);
+      const count = this.selected.size;
+
+      const header = this.el.querySelector('[data-bulk-role="select-all"]');
+      if (header) {
+        header.checked = count > 0 && count === total;
+        header.indeterminate = count > 0 && count < total;
+      }
+
+      this.el.querySelectorAll("[data-bulk-count]").forEach(function(el) {
+        el.textContent = String(count);
+      });
+
+      this.el.querySelectorAll("[data-bulk-text-template]").forEach(function(el) {
+        el.textContent = el.dataset.bulkTextTemplate.replace("%{count}", String(count));
+      });
+
+      this.el.querySelectorAll("[data-bulk-show]").forEach(function(el) {
+        const mode = el.dataset.bulkShow;
+        const visible =
+          mode === "has-selection" ? count > 0 :
+          mode === "no-selection" ? count === 0 :
+          mode === "has-multiple" ? count > 1 :
+          // count is 0 OR > 1 — used by reorder-like buttons whose
+          // single-row case is a no-op (count=1 hides the button).
+          mode === "not-single" ? count !== 1 : true;
+        el.style.display = visible ? "" : "none";
+      });
+
+      // Label flip: requires at least the `selected` variant. The
+      // `empty` variant is optional — when absent, count <= 1 leaves
+      // the server-rendered initial text in place (which is fine,
+      // since a button without label-empty is also typically gated
+      // to hide at low counts via data-bulk-show).
+      //
+      // Threshold is `> 1`, not `> 0`: a one-row "Reorder selected"
+      // is a no-op (permuting a single row leaves it where it was),
+      // and "Delete 1 selected" reads identically to bare "Delete".
+      // Showing the empty label at count=1 keeps the button label
+      // honest about what's actually going to happen.
+      this.el.querySelectorAll("[data-bulk-label-selected]").forEach(function(el) {
+        const empty = el.dataset.bulkLabelEmpty;
+        const label = count > 1
+          ? el.dataset.bulkLabelSelected.replace("%{count}", String(count))
+          : empty;
+        if (label === undefined) return;
+        // Only swap the text node so we don't blow away icon children.
+        let updated = false;
+        for (const node of el.childNodes) {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== "") {
+            node.textContent = label;
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) el.appendChild(document.createTextNode(label));
+      });
+    }
+  };
+
+  // Returns true if the given <dialog> is in the browser's top layer
+  // (was opened via showModal()). Uses the `:modal` pseudo-class as
+  // the truth source, with a graceful fallback to the `open`
+  // attribute for older engines that lack `:modal` support.
+  function isDialogOpenInBrowser(el) {
+    if (!el || typeof el.matches !== "function") return false;
+    try {
+      return el.matches(":modal");
+    } catch (_e) {
+      // `matches()` throws SyntaxError on the `:modal` selector when
+      // the engine doesn't recognise it (pre-2022 browsers). The
+      // fallback loses fidelity to morphdom-strip cases but is the
+      // best we can do without the pseudo-class.
+      return !!el.open;
+    }
+  }
+
+  window.PhoenixKitHooks.PkDialog = {
+    _onOpened() {
+      // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`
+      // rule that prevents body layout jump when a modal opens but ALSO
+      // reduces the layout viewport by ~15px, leaving a strip on the right
+      // where the dialog/backdrop don't reach. Override per modal open so
+      // the dialog can cover the full visual viewport. Refcounted so
+      // concurrent modals don't fight each other.
+      if (window._PkDialogOpenCount === 0) {
+        const html = document.documentElement;
+        html.dataset.pkPrevScrollbarGutter = html.style.scrollbarGutter || "";
+        html.style.setProperty("scrollbar-gutter", "auto", "important");
+      }
+      window._PkDialogOpenCount += 1;
+    },
+    _onClosed() {
+      window._PkDialogOpenCount = Math.max(0, window._PkDialogOpenCount - 1);
+      if (window._PkDialogOpenCount === 0) {
+        const html = document.documentElement;
+        const prev = html.dataset.pkPrevScrollbarGutter;
+        if (prev) {
+          html.style.scrollbarGutter = prev;
+        } else {
+          html.style.removeProperty("scrollbar-gutter");
+        }
+        delete html.dataset.pkPrevScrollbarGutter;
+      }
+    },
+    _isCloseable() {
+      return this.el.dataset.closeable !== "false";
+    },
+    _pushClose() {
+      const ev = this.el.dataset.closeEvent;
+      if (ev) this.pushEventTo(this.el, ev, {});
+    },
+    _sync() {
+      // `data-show` drives visibility for keep_in_dom modals. Conditional
+      // modals (rendered only when @show=true) get the same attribute
+      // value, so this works for both paths.
+      // Absent attribute defaults to "true" so a consumer that doesn't
+      // set data-show (legacy callers) keeps the original mount-opens
+      // behavior.
+      const wantOpen = this.el.dataset.show !== "false";
+      // `:modal` matches whenever the dialog is in the browser's top
+      // layer (showModal was called). This is the truth source — `el.open`
+      // is just the reflected attribute, which Phoenix LV's DOM patcher
+      // strips on re-render if it wasn't in the server template (the
+      // browser added it via showModal(), the server didn't). Using
+      // `:modal` keeps state in sync even after that attribute gets
+      // stripped on a patch.
+      //
+      // `:modal` is a relatively new CSS pseudo-class (Chrome 105+,
+      // Safari 15.6+, Firefox 117+). On browsers that have `matches()`
+      // but not `:modal` it throws SyntaxError, which would break the
+      // hook entirely — fall back to the `open` attribute so older
+      // engines degrade to the pre-fix behavior rather than crash.
+      const isOpenForBrowser = isDialogOpenInBrowser(this.el);
+      if (
+        wantOpen &&
+        !isOpenForBrowser &&
+        typeof this.el.showModal === "function"
+      ) {
         this.el.showModal();
-      } else if (!wantOpen && this.el.open) {
+        if (!this._opened) {
+          this._opened = true;
+          this._onOpened();
+        }
+      } else if (wantOpen && isOpenForBrowser) {
+        // Dialog is in the top layer but the `open` attribute may have
+        // been stripped by Phoenix LV's DOM patch (the server template
+        // doesn't include `open=""` — the browser added it when
+        // showModal() ran). CSS treats `dialog:not([open])` as
+        // `display: none`, so the dialog becomes invisible AND
+        // uninteractable while still blocking clicks elsewhere from
+        // the top layer. Restore the attribute so the dialog renders.
+        if (!this.el.open) {
+          this.el.setAttribute("open", "");
+        }
+        // Also track that the dialog is open (it may have been opened
+        // externally — e.g. BulkSelectScope — before this hook saw it).
+        if (!this._opened) {
+          this._opened = true;
+          this._onOpened();
+        }
+      } else if (!wantOpen && isOpenForBrowser) {
+        // LV-driven close. If morphdom stripped the `open` attr after
+        // the external showModal, restore it so close() can actually
+        // release the top layer (close() needs `open` to fire 'close'
+        // and detach from the top layer on every UA).
+        if (!this.el.open) {
+          this.el.setAttribute("open", "");
+        }
+        // Mark the close as LV-initiated so _onClose skips the echo
+        // push (LV already knows data-show=false).
+        this._closeFromLV = true;
         this.el.close();
       }
     },
     mounted() {
       const self = this;
+      // `_opened` tracks whether we've incremented the global refcount,
+      // so the close event handler can decrement exactly once regardless
+      // of whether the close originated from Esc, backdrop, programmatic
+      // close, or destroyed(). Without this, a user-driven close would
+      // leave the gutter override sticky until `destroyed()` ran — and
+      // if LV didn't process the on_close event, that could be forever.
+      this._opened = false;
+      this._closeFromLV = false;
+
       self._onCancel = function(e) {
-        e.preventDefault();
-        const ev = self.el.dataset.closeEvent;
-        if (ev) self.pushEventTo(self.el, ev, {});
+        if (!self._isCloseable()) e.preventDefault();
+      };
+      // 'close' fires for every close path: Esc, our own el.close() in
+      // destroyed(), backdrop click (via _onClick → el.close()), and
+      // form `method="dialog"` submits. This is the ONE place that
+      // decrements the refcount.
+      self._onClose = function() {
+        if (self._opened) {
+          self._onClosed();
+          self._opened = false;
+        }
+        if (!self._closeFromLV) self._pushClose();
+        // Reset the LV-initiated flag now that the close event has
+        // been fully processed. The next user-initiated close (Esc,
+        // backdrop) will fall through to the echo push as intended.
+        self._closeFromLV = false;
+      };
+      // Backdrop click: a click event whose target is the <dialog> itself
+      // (rather than a descendant) means the user clicked outside the
+      // modal-box on the ::backdrop surface. Children stop propagation
+      // naturally because event.target lands on them, not on the dialog.
+      self._onClick = function(e) {
+        if (e.target === self.el && self._isCloseable()) self.el.close();
       };
       this.el.addEventListener("cancel", self._onCancel);
+      this.el.addEventListener("close", self._onClose);
+      this.el.addEventListener("click", self._onClick);
+
       this._sync();
     },
     updated() {
       this._sync();
     },
     destroyed() {
+      // LV is removing the element. Tell _onClose not to echo a close
+      // event back (LV already initiated this).
+      this._closeFromLV = true;
+      // Try the friendly path first (fires 'close' which decrements via
+      // _onClose). But if the element is already detached from the DOM
+      // when destroyed runs, close() may not fire 'close' on every UA —
+      // so always decrement defensively. _opened gates so we never
+      // double-decrement (whoever runs first wins).
+      //
+      // Use the same "is the browser holding this dialog open?"
+      // predicate as `_sync()` — `el.open` alone is unreliable when
+      // morphdom stripped the attribute earlier. Restore `open`
+      // first if needed so `close()` can release the top layer
+      // cleanly.
+      if (isDialogOpenInBrowser(this.el)) {
+        if (!this.el.open) this.el.setAttribute("open", "");
+        this.el.close();
+      }
+      if (this._opened) {
+        this._onClosed();
+        this._opened = false;
+      }
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
-      if (this.el.open) this.el.close();
+      if (this._onClose) this.el.removeEventListener("close", this._onClose);
+      if (this._onClick) this.el.removeEventListener("click", this._onClick);
     }
   };
 
@@ -2003,6 +2421,79 @@ if (typeof window.Chart === "undefined") {
           detail.open = true;
         }
       });
+    }
+  };
+
+
+  // ---------------------------------------------------------------------------
+  // InfiniteScroll — fires a "load more" LV event when the sentinel scrolls
+  // into view. Pair with the core `<.load_more infinite>` component, which
+  // renders this hook plus a manual fallback button. The event name is read
+  // from `data-load-more-event` (default "load_more").
+  //
+  // `data-cursor` is an opaque per-page marker that changes whenever a new
+  // page lands. `updated()` only re-fires when it actually changes — so an
+  // unrelated LV diff that happens to touch the sentinel (flash, PubSub row
+  // update, sibling assign) won't spuriously trigger another load. A single
+  // in-flight guard (`loading`) prevents stacking multiple pushes before the
+  // server responds; the cursor change clears it on the happy path.
+  //
+  // The guard also has a timeout watchdog: if a load resolves WITHOUT
+  // advancing the cursor (an empty/no-op page, a stale `total`, or a
+  // replace-in-place list where `loaded` stays constant), the cursor-change
+  // path never clears the guard. The watchdog releases it after a short
+  // window so auto-load can never wedge permanently — worst case is a brief
+  // stall, after which the next scroll (or the manual button) recovers.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.InfiniteScroll = {
+    loadMoreEvent() {
+      return this.el.dataset.loadMoreEvent || "load_more";
+    },
+    clearGuard() {
+      this.loading = false;
+      clearTimeout(this.loadTimer);
+    },
+    maybeLoad() {
+      if (this.loading) return;
+      this.loading = true;
+      this.pushEvent(this.loadMoreEvent(), {});
+      // Watchdog: release the guard even if the cursor never advances, so a
+      // no-op load can't wedge the sentinel. The cursor-change path in
+      // updated() clears it sooner on the normal (page-grew) path.
+      clearTimeout(this.loadTimer);
+      this.loadTimer = setTimeout(() => { this.loading = false; }, 2000);
+    },
+    mounted() {
+      this.intersecting = false;
+      this.loading = false;
+      this.lastCursor = this.el.dataset.cursor;
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          this.intersecting = entries[0].isIntersecting;
+          if (this.intersecting) {
+            this.maybeLoad();
+          }
+        },
+        { rootMargin: "200px" }
+      );
+      this.observer.observe(this.el);
+    },
+    updated() {
+      // Only react to a genuinely new page (cursor changed), not to every
+      // diff that happens to touch this element. The cursor change also means
+      // the previous load resolved, so clear the in-flight guard.
+      if (this.el.dataset.cursor !== this.lastCursor) {
+        this.lastCursor = this.el.dataset.cursor;
+        this.clearGuard();
+        if (this.intersecting) {
+          this.maybeLoad();
+        }
+      }
+    },
+    destroyed() {
+      clearTimeout(this.loadTimer);
+      if (this.observer) this.observer.disconnect();
     }
   };
 
@@ -2600,7 +3091,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.13/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.21/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -2669,7 +3160,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.5.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.6.3/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -2814,7 +3305,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.3.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.5.5/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 

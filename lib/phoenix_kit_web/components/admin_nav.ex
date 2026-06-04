@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
@@ -182,6 +183,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   attr(:scope, :any, default: nil)
   attr(:current_path, :string, default: "")
   attr(:current_locale, :string, default: "en")
+  attr(:accounts, :list, default: [])
+  attr(:multi_session_allowed?, :boolean, default: false)
 
   def admin_user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -301,6 +304,73 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             </li>
           <% end %>
 
+          <%= if @multi_session_allowed? do %>
+            <div class="divider my-0"></div>
+
+            <li class="menu-title px-4 py-1">
+              <span class="text-xs">Accounts</span>
+            </li>
+
+            <%= for account <- @accounts do %>
+              <li class="p-0">
+                <%= if account.active? do %>
+                  <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200">
+                    <span class="flex-1 min-w-0 break-words">{account.email}</span>
+                    <span class="badge badge-xs badge-ghost">{account.role}</span>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                  </div>
+                <% else %>
+                  <div class="flex items-center gap-2 px-1">
+                    <.form
+                      for={%{}}
+                      action={Routes.locale_aware_path(assigns, "/users/session/active")}
+                      method="put"
+                      class="flex-1"
+                    >
+                      <input type="hidden" name="ref" value={account.ref} />
+                      <input type="hidden" name="return_to" value={@current_path} />
+                      <button
+                        type="submit"
+                        class="flex w-full items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
+                      >
+                        <span class="flex-1 min-w-0 break-words">{account.email}</span>
+                        <span class="badge badge-xs badge-ghost ml-auto">{account.role}</span>
+                      </button>
+                    </.form>
+                    <%= unless account.root? do %>
+                      <.form
+                        for={%{}}
+                        action={
+                          Routes.locale_aware_path(assigns, "/users/session/accounts/#{account.ref}")
+                        }
+                        method="delete"
+                      >
+                        <input type="hidden" name="return_to" value={@current_path} />
+                        <button
+                          type="submit"
+                          class="btn btn-ghost btn-xs btn-square text-error"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                      </.form>
+                    <% end %>
+                  </div>
+                <% end %>
+              </li>
+            <% end %>
+
+            <li class="p-0">
+              <label
+                for="pk-add-account-modal"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-base-200 cursor-pointer"
+              >
+                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
+                <span>Add account</span>
+              </label>
+            </li>
+          <% end %>
+
           <div class="divider my-0"></div>
 
           <%!-- Log Out Link --%>
@@ -311,11 +381,64 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
-              <span>Log Out</span>
+              <span>Log out</span>
             </.link>
           </li>
+          <%= if @multi_session_allowed? and length(@accounts) > 1 do %>
+            <li>
+              <.link
+                href={Routes.locale_aware_path(assigns, "/users/log-out") <> "?all=1"}
+                method="delete"
+                class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
+              >
+                <PhoenixKitWeb.Components.Core.Icons.icon_logout class="w-4 h-4" />
+                <span>Log out from all accounts</span>
+              </.link>
+            </li>
+          <% end %>
         </ul>
       </div>
+
+      <%= if @multi_session_allowed? do %>
+        <input type="checkbox" id="pk-add-account-modal" class="modal-toggle" />
+        <div class="modal" role="dialog">
+          <div class="modal-box">
+            <h3 class="text-lg font-bold mb-4">Add account</h3>
+            <.form
+              for={%{}}
+              action={Routes.locale_aware_path(assigns, "/users/session/accounts")}
+              method="post"
+              class="space-y-4"
+            >
+              <input type="hidden" name="return_to" value={@current_path} />
+              <div class="form-control">
+                <label class="label"><span class="label-text">Email or username</span></label>
+                <input
+                  name="user[email_or_username]"
+                  type="text"
+                  required
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Password</span></label>
+                <input
+                  name="user[password]"
+                  type="password"
+                  required
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div class="modal-action">
+                <label for="pk-add-account-modal" class="btn btn-outline">Cancel</label>
+                <button type="submit" class="btn btn-primary">Add account</button>
+              </div>
+            </.form>
+            <.add_account_oauth_buttons current_path={@current_path} />
+          </div>
+          <label class="modal-backdrop" for="pk-add-account-modal">Close</label>
+        </div>
+      <% end %>
     <% else %>
       <%!-- Not Authenticated - Show Login Button --%>
       <.link
@@ -579,5 +702,87 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   defp generate_language_switch_url(current_path, new_locale) do
     base_code = DialectMapper.extract_base(new_locale)
     build_locale_url(current_path, base_code)
+  end
+
+  # OAuth buttons for the "Add account" modal.
+  # Uses the same provider availability checks as the main login page —
+  # a provider button only appears when it is enabled in General Settings.
+  # Each link targets /users/auth/:provider with add_account=1 so the OAuth
+  # callback knows to append the result to the multi-session stack.
+  attr :current_path, :string, default: "/"
+
+  defp add_account_oauth_buttons(assigns) do
+    google_enabled = OAuthAvailability.provider_enabled?(:google)
+    apple_enabled = OAuthAvailability.provider_enabled?(:apple)
+    github_enabled = OAuthAvailability.provider_enabled?(:github)
+    facebook_enabled = OAuthAvailability.provider_enabled?(:facebook)
+
+    any_enabled = google_enabled or apple_enabled or github_enabled or facebook_enabled
+
+    assigns =
+      assigns
+      |> assign(:google_enabled, google_enabled)
+      |> assign(:apple_enabled, apple_enabled)
+      |> assign(:github_enabled, github_enabled)
+      |> assign(:facebook_enabled, facebook_enabled)
+      |> assign(:any_enabled, any_enabled)
+
+    ~H"""
+    <%= if @any_enabled do %>
+      <div class="mt-4">
+        <div class="divider text-base-content/60 text-xs">Or add via</div>
+        <div class="space-y-2">
+          <%= if @google_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/google", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_google class="w-5 h-5" />
+              <span>Add Google account</span>
+            </.link>
+          <% end %>
+          <%= if @apple_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/apple", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_apple class="w-5 h-5" />
+              <span>Add Apple account</span>
+            </.link>
+          <% end %>
+          <%= if @github_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/github", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_github class="w-5 h-5" />
+              <span>Add GitHub account</span>
+            </.link>
+          <% end %>
+          <%= if @facebook_enabled do %>
+            <.link
+              href={
+                Routes.path("/users/auth/facebook", locale: :none) <>
+                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
+              }
+              class="btn btn-outline w-full flex items-center justify-center gap-2"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="w-5 h-5" />
+              <span>Add Facebook account</span>
+            </.link>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    """
   end
 end

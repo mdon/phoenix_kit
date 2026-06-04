@@ -32,6 +32,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       host). Currently unused by this component, but kept on the
       assigns map so future cross-component send_updates have a
       target without re-plumbing the API.
+
+  ## Optional assigns
+
+    * `:viewer_only` (default `false`) — render only the canvas /
+      composer column; suppresses the close button and the sidebar
+      (filename + Download + metadata + comments). Used by
+      standalone-page hosts like `MediaDetail` that have their own
+      surrounding chrome (admin actions, metadata editor, file
+      details).
   """
 
   use PhoenixKitWeb, :live_component
@@ -40,7 +49,23 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
+
+  # Etcher's toolbar color slots are a single palette shared across every
+  # Fresco viewer this user opens — stored in their `custom_fields`
+  # ("user meta") under this key, not per-file like annotations. The
+  # default is used until the user saves a palette of their own.
+  @etcher_colors_key "etcher_colors"
+  @default_etcher_colors ["#fca5a5", "#fdba74", "#fde68a", "#86efac", "#93c5fd"]
+
+  # The palette arrives from a client JS hook, so it's untrusted: keep only
+  # short color-shaped strings and cap the count before persisting into the
+  # user's `custom_fields`. Blocks arbitrary/oversized JSON from being stored
+  # and fed back into `<Etcher.layer colors={…}>`. Permissive on format (hex /
+  # rgb() / hsl() / named) but bounded in length and count.
+  @max_etcher_colors 24
+  @etcher_color_format ~r/\A[#0-9a-zA-Z(),.%\s]{1,32}\z/
 
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
@@ -52,7 +77,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      socket
      |> assign(:viewer_canvas, nil)
      |> assign(:viewer_annotations, [])
-     |> assign(:composing_annotation_uuid, nil)}
+     |> assign(:composing_annotation_uuid, nil)
+     |> assign(:etcher_colors, @default_etcher_colors)
+     |> assign(:viewer_only, false)}
   end
 
   @impl true
@@ -62,6 +89,19 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   def update(%{action: :annotation_composer_cancelled} = assigns, socket) do
     {:ok, rollback_annotation_compose(socket, assigns[:annotation_uuid])}
+  end
+
+  # Inline title edit posted from the sidebar's CommentsComponent.
+  # The payload uses the comments package's generic decoration
+  # vocabulary (`metadata_key`, `metadata_value`, `label`); we
+  # translate to annotation-domain terms here. Same wire as
+  # `finalize_annotation_compose/3` minus the composer-specific
+  # bookkeeping: write → reload annotations → rebuild canvas →
+  # push patch-shape so the tooltip reflects the new title →
+  # CommentsComponent's next render picks up the fresh
+  # `comment_decorations` via the heex helper.
+  def update(%{action: :annotation_title_updated} = assigns, socket) do
+    {:ok, apply_annotation_title_update(socket, assigns[:metadata_value], assigns[:label])}
   end
 
   def update(assigns, socket) do
@@ -75,6 +115,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:parent_id, assigns[:parent_id])
       |> assign(:has_prev, assigns[:has_prev] || false)
       |> assign(:has_next, assigns[:has_next] || false)
+      |> assign(:viewer_only, assigns[:viewer_only] || false)
 
     # First mount (or file changed via re-mount): hydrate annotations
     # + canvas. Because the id encodes the file uuid, the parent's
@@ -87,6 +128,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         socket
         |> assign(:viewer_annotations, annotations)
         |> assign(:viewer_canvas, build_viewer_canvas(file, annotations))
+        # Read fresh from the DB (not the parent-passed struct) so the
+        # palette is correct even on modal prev/next after an in-session
+        # edit, where the parent's `current_user` may be stale.
+        |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
       else
         socket
       end
@@ -115,6 +160,32 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     case socket.assigns[:file] do
       nil -> {:noreply, socket}
       file -> {:noreply, sync_annotations(socket, file, new_annotations)}
+    end
+  end
+
+  # Etcher's color-save hook. The toolbar palette is per-user (one set of
+  # slots across every viewer), not per-file, so we ignore the fresco_id
+  # and persist the slots into the user's `custom_fields`, merging into a
+  # freshly-read copy so a concurrent change elsewhere isn't clobbered.
+  # `update_user_custom_fields/2` broadcasts `phoenix_kit_user_updated`,
+  # so hosts that subscribe refresh their `current_user` automatically.
+  def handle_event("etcher:colors-changed", %{"colors" => colors}, socket) do
+    with %{uuid: uuid} = user <- socket.assigns[:current_user],
+         [_ | _] = clean <- sanitize_colors(colors) do
+      fresh = Auth.get_user(uuid) || user
+      merged = Map.put(fresh.custom_fields || %{}, @etcher_colors_key, clean)
+
+      case Auth.update_user_custom_fields(fresh, merged) do
+        {:ok, updated} ->
+          {:noreply, socket |> assign(:current_user, updated) |> assign(:etcher_colors, clean)}
+
+        {:error, _changeset} ->
+          {:noreply, socket}
+      end
+    else
+      # No user, or nothing valid survived sanitization — ignore the event
+      # rather than persisting garbage or wiping the saved palette.
+      _ -> {:noreply, socket}
     end
   end
 
@@ -330,7 +401,45 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
-  defp load_annotations_for(file_uuid) do
+  # Read this user's saved Etcher palette fresh from the DB, falling back
+  # to the default when nothing is stored (or there's no user). Fresh read
+  # (not the parent-passed struct) keeps it correct on modal prev/next
+  # after an in-session edit. Re-sanitize on read too (not just on write) so
+  # data persisted before the write-side guard shipped, or written by any
+  # other path, can't reach `<Etcher.layer colors={…}>` untrusted.
+  defp load_user_colors(%{uuid: uuid} = user) do
+    fresh = Auth.get_user(uuid) || user
+
+    case sanitize_colors(Auth.get_user_field(fresh, @etcher_colors_key)) do
+      [_ | _] = colors -> colors
+      [] -> @default_etcher_colors
+    end
+  end
+
+  defp load_user_colors(_), do: @default_etcher_colors
+
+  # Keep only color-shaped strings, trimmed, deduped, and capped — the input
+  # is client-supplied. Returns `[]` when nothing valid remains so the caller
+  # can ignore the update.
+  defp sanitize_colors(colors) when is_list(colors) do
+    colors
+    |> Enum.filter(&(is_binary(&1) and Regex.match?(@etcher_color_format, &1)))
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.take(@max_etcher_colors)
+  end
+
+  defp sanitize_colors(_), do: []
+
+  @doc """
+  Loads annotations for a file into the curated map shape this component
+  uses internally (uuid / kind / geometry / style / metadata with
+  comment_* + title injected). Public so standalone-page hosts like
+  `MediaDetail` can build their own decoration registry off the same
+  shape without re-querying the schema by hand.
+  """
+  def load_annotations_for(file_uuid) do
     file_uuid
     |> Annotations.list_for_file_with_previews()
     |> Enum.map(fn %{annotation: a, first_comment: fc, comment_count: count} ->
@@ -440,6 +549,107 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
+  # Apply a title edit that came from the comments sidebar
+  # (CommentsComponent's inline-edit). Writes the annotation row,
+  # reloads `viewer_annotations` so the heex re-derives
+  # `build_annotation_titles/1` for the comments component on the
+  # next render, and pushes `etcher:patch-shape` so the shape
+  # tooltip refreshes. No flash, no `composing_annotation_uuid`
+  # reset — the user is not interacting with the composer here.
+  defp apply_annotation_title_update(socket, annotation_uuid, title)
+       when is_binary(annotation_uuid) do
+    file_uuid =
+      case socket.assigns[:file] do
+        %{file_uuid: uuid} -> uuid
+        _ -> nil
+      end
+
+    persist_annotation_title(annotation_uuid, normalize_annotation_title(title))
+
+    fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
+
+    socket =
+      socket
+      |> assign(:viewer_annotations, fresh)
+      |> rebuild_viewer_canvas(fresh)
+
+    case file_uuid && Enum.find(fresh, fn a -> a.uuid == annotation_uuid end) do
+      %{} = ann ->
+        Phoenix.LiveView.push_event(socket, "etcher:patch-shape", %{
+          fresco_id: "media-zoom-" <> file_uuid,
+          uuid: ann.uuid,
+          metadata: ann.metadata
+        })
+
+      _ ->
+        socket
+    end
+  end
+
+  defp apply_annotation_title_update(socket, _, _), do: socket
+
+  # Blank/whitespace-only titles collapse to nil (clears the column).
+  defp normalize_annotation_title(str) when is_binary(str) do
+    if String.trim(str) == "", do: nil, else: str
+  end
+
+  defp normalize_annotation_title(_), do: nil
+
+  # Inline title edits intentionally show no flash (see above), but a failed
+  # write would otherwise be indistinguishable from a no-op — log it so the
+  # failure is diagnosable.
+  defp persist_annotation_title(annotation_uuid, title_val) do
+    case PhoenixKit.Annotations.update(annotation_uuid, %{title: title_val}) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to update annotation #{annotation_uuid} title from comments sidebar: #{inspect(reason)}"
+        )
+    end
+  end
+
+  @doc """
+  Build the `comment_decorations` registry that `CommentsComponent`
+  uses to render external labels above comments. The comments
+  package speaks a generic `%{metadata_key => %{value => entry}}`
+  vocabulary; we package annotation titles under the
+  `"annotation_uuid"` metadata key (matching the back-reference
+  comments already store via `metadata["annotation_uuid"]`).
+
+  Source for the label: `load_annotations_for/1` projects the
+  schema's `title` column into `metadata["title"]` (so Etcher's
+  JS tooltip can read it as a single map). We read from the same
+  place rather than bolt a top-level field onto the curated
+  annotation map. Only entries with non-empty titles are
+  included; an annotation without a title contributes nothing
+  (and the comment renders without a label block).
+
+  Public so standalone-page hosts (`MediaDetail`) can build the
+  same registry against the annotations they loaded via
+  `load_annotations_for/1`.
+  """
+  def build_comment_decorations(annotations) when is_list(annotations) do
+    entries =
+      Enum.reduce(annotations, %{}, fn a, acc ->
+        title = a |> Map.get(:metadata, %{}) |> Map.get("title")
+
+        if is_binary(title) and title != "" do
+          Map.put(acc, to_string(a.uuid), %{
+            label: title,
+            on_save: :annotation_title_updated
+          })
+        else
+          acc
+        end
+      end)
+
+    if map_size(entries) == 0, do: %{}, else: %{"annotation_uuid" => entries}
+  end
+
+  def build_comment_decorations(_), do: %{}
+
   # Cancel path: drop the just-drawn shape so the canvas doesn't
   # carry an untitled placeholder. The `etcher:delete-shape` JS
   # bridge calls `layer.deleteShape(uuid)` — that removes the shape
@@ -514,8 +724,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
 
+  @doc """
+  Runtime check for whether the optional `phoenix_kit_comments` package
+  is installed AND enabled. Public so standalone-page hosts can gate
+  their own embed of `CommentsComponent` the same way the sidebar does.
+  """
   @dialyzer {:nowarn_function, comments_enabled?: 0}
-  defp comments_enabled? do
+  def comments_enabled? do
     Code.ensure_loaded?(PhoenixKitComments) and PhoenixKitComments.enabled?()
   rescue
     _ -> false

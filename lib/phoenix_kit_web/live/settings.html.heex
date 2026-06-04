@@ -1,4 +1,5 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title="{@project_title} Settings"
@@ -245,6 +246,38 @@
               <span class="label-text-alt text-xs text-base-content/50">
                 {gettext(
                   "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
+                )}
+              </span>
+            </div>
+          </div>
+
+          <%!-- Multiple Sessions (account switcher) --%>
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text text-base font-medium">
+                {gettext("Multiple Sessions")}
+              </span>
+              <span class="label-text-alt text-sm text-base-content/60">
+                {gettext("Account switcher for signing in to several accounts at once")}
+              </span>
+            </label>
+            <div class="flex items-center gap-3">
+              <input type="hidden" name="settings[multi_session_enabled]" value="false" />
+              <input
+                name="settings[multi_session_enabled]"
+                type="checkbox"
+                value="true"
+                checked={@settings["multi_session_enabled"] == "true"}
+                class="checkbox checkbox-primary"
+              />
+              <span class="label-text">
+                {gettext("Enable the multi-account switcher in the header")}
+              </span>
+            </div>
+            <div class="label">
+              <span class="label-text-alt text-xs text-base-content/50">
+                {gettext(
+                  "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
                 )}
               </span>
             </div>

@@ -233,6 +233,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/log-in", Users.Session, :create
         delete "/users/log-out", Users.Session, :delete
         get "/users/log-out", Users.Session, :get_logout
+        post "/users/session/accounts", Users.Session, :add_account
+        put "/users/session/active", Users.Session, :set_active_account
+        delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
 
         # Dashboard context switching (multi-selector with key, must come before legacy route)
@@ -286,6 +289,24 @@ defmodule PhoenixKitWeb.Integration do
         pipe_through [:phoenix_kit_api]
 
         get "/assets/:file", AssetsController, :serve
+      end
+
+      # Router-served fallback for phoenix_kit_catalogue's vendored PDF.js
+      # viewer. Served at the literal `/_pdfjs` path (no prefix/locale) so it
+      # matches the same URL the catalogue's iframe + endpoint `Plug.Static`
+      # mount use — the endpoint mount (when present) wins because endpoint
+      # plugs precede the router; this only catches the fall-through on a host
+      # whose endpoint never got the mount. Compiled in only when the
+      # catalogue module is loaded.
+      if Code.ensure_loaded?(PhoenixKitCatalogue.Catalogue.PdfLibrary) do
+        # No pipeline: these are public static assets (HTML / JS modules /
+        # CSS / fonts) served by the controller, which sets its own
+        # content-type. The `:phoenix_kit_api` pipeline restricts to JSON
+        # (`plug :accepts, ["json"]`) and would mis-negotiate text/html and
+        # text/javascript for strict Accept headers.
+        scope "/_pdfjs", PhoenixKitWeb do
+          get "/*path", PdfViewerController, :serve
+        end
       end
 
       # Sitemap routes - public XML/XSL endpoints, no session/CSRF/auto_setup needed
@@ -416,6 +437,7 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/users/sessions", Live.Users.Sessions, :index
       live "/admin/activity", Live.Activity.Index, :index
       live "/admin/activity/:uuid", Live.Activity.Show, :show
+      live "/admin/notifications", Live.Modules.Notifications.Index, :index
       live "/admin/media", Live.Users.Media, :index
       live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
       live "/admin/media/selector", Live.Users.MediaSelector, :index
@@ -1065,6 +1087,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/log-in", Users.Session, :create
         delete "/users/log-out", Users.Session, :delete
         get "/users/log-out", Users.Session, :get_logout
+        post "/users/session/accounts", Users.Session, :add_account
+        put "/users/session/active", Users.Session, :set_active_account
+        delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
 
         # OAuth routes

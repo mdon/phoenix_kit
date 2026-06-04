@@ -3,9 +3,22 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   Pagination components for list views in PhoenixKit.
 
   Provides pagination controls and information display following daisyUI design patterns.
+
+  Two flavours:
+
+    * Page-numbered (`<.pagination>`, `<.pagination_controls>`,
+      `<.pagination_info>`) — URL-param driven, suits standalone admin
+      pages with deep-linkable state.
+
+    * Load-more (`<.load_more>`) — click-driven LV event that grows
+      the loaded set in place. Suits embeddable LVs (no URL routing),
+      lists with DnD reorder (rows append, don't replace), and lists
+      with client-side bulk-select (selection persists across loads
+      because rows stay in the DOM).
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   @doc """
   Displays pagination controls with page numbers and navigation buttons.
@@ -74,6 +87,8 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
       />
 
       # Renders: "Showing 1 to 25 of 100 results"
+      # Single-page result drops the redundant " of N" — e.g. with
+      # total_count=4 and per_page=25: "Showing 1 to 4 results".
   """
   attr :page, :integer, required: true
   attr :per_page, :integer, required: true
@@ -83,7 +98,14 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   def pagination_info(assigns) do
     ~H"""
     <div class={["text-sm text-base-content/70", @class]}>
-      Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+      <%= cond do %>
+        <% @total_count == 0 -> %>
+          No results
+        <% @total_count > @per_page -> %>
+          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+        <% true -> %>
+          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
+      <% end %>
     </div>
     """
   end
@@ -162,7 +184,116 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
     """
   end
 
+  @doc """
+  Load-more footer for incrementally-loaded lists.
+
+  Renders a centered "Showing N of M %{noun}" line and a "Load more"
+  button (hidden when `loaded >= total`). Clicking the button emits
+  the LV event named in `on_load_more`.
+
+  Suited for embeddable LVs where URL-param pagination isn't an
+  option, lists with DnD reorder (rows append rather than navigate
+  away), and lists with client-side bulk-select (selection persists
+  because the DOM grows, it doesn't get replaced).
+
+  ## Attributes
+
+  - `loaded` — number of rows currently rendered (required)
+  - `total` — total rows matching the current filter/sort (required)
+  - `on_load_more` — LV event name pushed on button click
+    (default `"load_more"`)
+  - `noun_plural` — used in the "Showing N of M %{noun}" line
+    (default `"items"`)
+  - `class` — additional classes on the outer wrapper
+  - `infinite` — when `true`, the footer also auto-loads on scroll via
+    the `InfiniteScroll` hook (the manual button stays as a fallback).
+    Requires `id`. (default `false`)
+  - `id` — DOM id, **required when `infinite`** (the JS hook needs it)
+  - `cursor` — an opaque per-page marker (e.g. `"items-<offset>"`) that
+    changes on each load. The `InfiniteScroll` hook re-fires only when it
+    changes, so it both keeps firing while still on screen and ignores
+    unrelated diffs. Only used when `infinite`. Defaults to `@loaded`
+    (which already changes per page), so most callers can omit it; pass
+    an explicit value only when `@loaded` is not a faithful page marker.
+
+  ## Example
+
+      <.load_more
+        loaded={length(@projects)}
+        total={@total_count}
+        on_load_more="load_more"
+        noun_plural={gettext("projects")}
+      />
+
+      <%!-- Auto-load on scroll + manual fallback --%>
+      <.load_more
+        id="items-load-more"
+        loaded={length(@items)}
+        total={@total}
+        infinite
+        cursor={"items-\#{@offset}"}
+      />
+  """
+  attr :loaded, :integer, required: true
+  attr :total, :integer, required: true
+  attr :on_load_more, :string, default: "load_more"
+  attr :noun_plural, :string, default: "items"
+  attr :class, :string, default: ""
+  attr :id, :string, default: nil
+  attr :infinite, :boolean, default: false
+  attr :cursor, :string, default: ""
+
+  def load_more(assigns) do
+    if assigns.infinite and is_nil(assigns.id) do
+      raise ArgumentError,
+            "<.load_more infinite> requires an `id` (the InfiniteScroll JS hook needs it)"
+    end
+
+    # Only the infinite variant renders data-cursor; skip the work otherwise.
+    assigns =
+      assign(
+        assigns,
+        :effective_cursor,
+        if(assigns.infinite, do: resolve_cursor(assigns), else: "")
+      )
+
+    ~H"""
+    <div
+      :if={@total > 0}
+      id={@id}
+      phx-hook={if @infinite and @loaded < @total, do: "InfiniteScroll"}
+      data-load-more-event={@on_load_more}
+      data-cursor={@infinite && @effective_cursor}
+      class={["flex flex-col items-center gap-2 p-4", @class]}
+    >
+      <p class="text-sm text-base-content/60">
+        {gettext("Showing %{loaded} of %{total} %{noun}",
+          loaded: @loaded,
+          total: @total,
+          noun: @noun_plural
+        )}
+      </p>
+      <button
+        :if={@loaded < @total}
+        type="button"
+        class="btn btn-sm"
+        phx-click={@on_load_more}
+        phx-disable-with={gettext("Loading…")}
+      >
+        {gettext("Load more")}
+      </button>
+    </div>
+    """
+  end
+
   # Private helper functions
+
+  # Per-page marker the InfiniteScroll hook watches. An explicit `cursor`
+  # wins; otherwise fall back to `loaded`, which already changes per page so
+  # callers don't have to thread a cursor through just to drive auto-load.
+  defp resolve_cursor(%{cursor: cursor}) when is_binary(cursor) and cursor != "", do: cursor
+  defp resolve_cursor(%{loaded: loaded}) when is_integer(loaded), do: Integer.to_string(loaded)
+  defp resolve_cursor(_), do: ""
 
   # Calculate visible page range (current page ± 2)
   defp pagination_range(current_page, total_pages) do

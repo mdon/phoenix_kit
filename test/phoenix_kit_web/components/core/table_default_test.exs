@@ -255,4 +255,135 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert count == 2, "phx-target should appear on both <form> and <input>, got #{count}"
     end
   end
+
+  # ── table_default_row/1 ───────────────────────────────────────────
+
+  describe "table_default_row/1" do
+    test "carries the `group/row` Tailwind marker for group-hover children" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.table_default_row>
+          <td>row</td>
+        </.table_default_row>
+        """)
+
+      assert result =~ "<tr"
+      # `group/row` is what makes `<.drag_handle_cell>`'s opacity-0 +
+      # group-hover/row:opacity-100 reveal-on-hover work. Named (not bare
+      # `group`) so it doesn't clobber unnamed `group-hover:` utilities a
+      # consumer nests inside a cell. Removing it would silently kill the
+      # drag-handle UX.
+      assert result =~ "group/row"
+    end
+
+    test "consumer class composes alongside `group/row`" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.table_default_row class="my-extra">
+          <td>x</td>
+        </.table_default_row>
+        """)
+
+      assert result =~ "group/row"
+      assert result =~ "my-extra"
+    end
+
+    test "hover=false drops the hover class" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.table_default_row hover={false}>
+          <td>x</td>
+        </.table_default_row>
+        """)
+
+      # Should still have `group/row`, but the daisyUI `hover` class is gone.
+      assert result =~ "group/row"
+      refute result =~ ~s(class="group/row hover)
+    end
+  end
+
+  # ── drag_handle_cell/1 + drag_handle_header_cell/1 ─────────────────
+
+  describe "drag_handle_cell/1" do
+    test "renders td with pk-drag-handle + group-hover hide-until-hover classes" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.drag_handle_cell />
+        """)
+
+      assert result =~ "<td"
+      # SortableJS hook reads this selector for the drag handle.
+      assert result =~ "pk-drag-handle"
+      assert result =~ "cursor-grab"
+      # Hide-until-hover: parent row has `group/row`, this cell has
+      # `opacity-0 group-hover/row:opacity-100`.
+      assert result =~ "opacity-0"
+      assert result =~ "group-hover/row:opacity-100"
+      # Default heroicon for the handle.
+      assert result =~ "hero-bars-3"
+    end
+
+    test "has a default title for accessibility" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.drag_handle_cell />
+        """)
+
+      assert result =~ "Drag to reorder"
+    end
+
+    test "custom title overrides default" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.drag_handle_cell title="Move me" />
+        """)
+
+      assert result =~ "Move me"
+    end
+
+    test "default width class matches the matching header cell" do
+      assigns = %{}
+
+      cell =
+        rendered_to_string(~H"""
+        <.drag_handle_cell />
+        """)
+
+      header =
+        rendered_to_string(~H"""
+        <.drag_handle_header_cell />
+        """)
+
+      # Both default to `w-8` so columns stay aligned without the consumer
+      # repeating the width on both sides.
+      assert cell =~ "w-8"
+      assert header =~ "w-8"
+    end
+  end
+
+  describe "drag_handle_header_cell/1" do
+    test "renders an empty <th>" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.drag_handle_header_cell />
+        """)
+
+      assert result =~ "<th"
+      assert result =~ "w-8"
+    end
+  end
 end

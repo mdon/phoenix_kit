@@ -64,6 +64,28 @@ defmodule PhoenixKit.ModuleRegistry do
     GenServer.call(__MODULE__, {:unregister, module})
   end
 
+  @doc """
+  Rescan beam files and absorb any external modules that weren't known
+  at registry init.
+
+  Returns `{:ok, new_modules}` — the freshly-absorbed module atoms (often
+  `[]` after the first call). Safe to call repeatedly.
+
+  Intended use: parent app calls this from `Application.start/2` after
+  `Supervisor.start_link/2` so late-loading `:phoenix_kit_<x>` deps
+  whose beams are only available after PhoenixKit's own supervision tree
+  is up get picked up deterministically — without timer-based polling.
+  `mix phoenix_kit.install` and `mix phoenix_kit.update` wire this call
+  in automatically; existing apps can call it manually.
+
+  Also useful in dev for hot-reload recovery after recompiling a module
+  package, or in tests that dynamically load fixture modules.
+  """
+  @spec rescan() :: {:ok, [module()]}
+  def rescan do
+    GenServer.call(__MODULE__, :rescan)
+  end
+
   @doc "Returns all registered module atoms."
   @spec all_modules() :: [module()]
   def all_modules do
@@ -173,6 +195,46 @@ defmodule PhoenixKit.ModuleRegistry do
         migration_mod -> [{safe_call(mod, :module_name, inspect(mod)), migration_mod}]
       end
     end)
+  end
+
+  @doc """
+  Collect AI-translatable adapters from all registered modules.
+
+  Scans each module's optional `ai_translatables/0` callback (returning
+  `[{resource_type, adapter_module}]`) and folds into a
+  `%{resource_type => adapter_module}` map. `resource_type` strings are
+  expected to be globally unique; on a collision the first registered
+  module wins (`Map.put_new/3`). Drives
+  `PhoenixKit.Modules.AI.TranslateWorker`'s adapter dispatch.
+  """
+  @spec all_ai_translatables() :: %{String.t() => module()}
+  def all_ai_translatables do
+    all_modules()
+    |> Enum.flat_map(&safe_call(&1, :ai_translatables, []))
+    |> Enum.reduce(%{}, fn
+      {type, adapter}, acc when is_binary(type) and is_atom(adapter) ->
+        case acc do
+          %{^type => existing} when existing != adapter ->
+            Logger.warning(
+              "[ModuleRegistry] duplicate ai_translatable resource_type #{inspect(type)}: " <>
+                "keeping #{inspect(existing)}, ignoring #{inspect(adapter)}"
+            )
+
+            acc
+
+          _ ->
+            Map.put(acc, type, adapter)
+        end
+
+      _other, acc ->
+        acc
+    end)
+  end
+
+  @doc "Resolve the AI-translatable adapter for a `resource_type`, or `nil`."
+  @spec find_ai_translatable(String.t()) :: module() | nil
+  def find_ai_translatable(resource_type) when is_binary(resource_type) do
+    Map.get(all_ai_translatables(), resource_type)
   end
 
   @doc "Find a registered module by its key string."
@@ -340,11 +402,31 @@ defmodule PhoenixKit.ModuleRegistry do
     end
   end
 
-  @impl true
   def handle_call({:unregister, module}, _from, %{modules: modules} = state) do
     updated = List.delete(modules, module)
     :persistent_term.put(@pterm_key, updated)
     {:reply, :ok, %{state | modules: updated}}
+  end
+
+  def handle_call(:rescan, _from, %{modules: known} = state) do
+    current = load_modules()
+
+    case current -- known do
+      [] ->
+        {:reply, {:ok, []}, state}
+
+      new_modules ->
+        Enum.each(new_modules, &validate_module(&1, known))
+        updated = known ++ new_modules
+        :persistent_term.put(@pterm_key, updated)
+
+        Logger.info(
+          "[ModuleRegistry] Late-discovered #{length(new_modules)} module(s): " <>
+            inspect(new_modules)
+        )
+
+        {:reply, {:ok, new_modules}, %{state | modules: updated}}
+    end
   end
 
   # ============================================================================
@@ -436,7 +518,8 @@ defmodule PhoenixKit.ModuleRegistry do
       PhoenixKit.Modules.SEO,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,
-      PhoenixKit.Jobs
+      PhoenixKit.Jobs,
+      PhoenixKit.Notifications
     ]
   end
 

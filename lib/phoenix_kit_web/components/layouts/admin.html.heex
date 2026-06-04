@@ -8,6 +8,7 @@
   handles the admin chrome automatically.
 --%>
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   current_path={assigns[:url_path] || assigns[:current_path] || "/admin"}

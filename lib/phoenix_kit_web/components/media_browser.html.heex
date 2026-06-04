@@ -90,7 +90,7 @@
 
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
     <div class="card bg-base-100 shadow-xl">
-      <div class="card-body p-4 flex flex-row gap-0">
+      <div class="card-body p-4 flex flex-row gap-0 h-[72vh] max-h-[48rem] min-h-[24rem] overflow-hidden">
         <%!-- Folder Sidebar --%>
         <.folder_explorer
           id="media-browser-sidebar"
@@ -110,7 +110,7 @@
         />
 
         <%!-- Main content area --%>
-        <div class="flex-1 min-w-0 pl-4">
+        <div class="flex-1 min-w-0 min-h-0 pl-4 flex flex-col">
           <%!-- Hidden upload input for folder drag-drop (always in DOM when in a folder) --%>
           <%= if @has_buckets && !@show_upload && assigns[:parent_uploads] do %>
             <form
@@ -122,9 +122,9 @@
             </form>
           <% end %>
 
-          <div>
+          <div class="min-h-0 flex-1 flex flex-col">
             <div
-              class="p-2"
+              class="p-2 min-h-0 flex-1 flex flex-col"
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
@@ -246,6 +246,10 @@
                     <button
                       phx-click="show_move_modal"
                       phx-target={@myself}
+                      disabled={
+                        MapSet.size(@selected_files) + MapSet.size(@selected_folders) == 0
+                      }
+                      title={gettext("Select items to move")}
                       class="btn btn-sm btn-primary gap-1"
                     >
                       <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext("Move")}
@@ -432,7 +436,14 @@
                   </div>
                 <% end %>
                 <div class="flex items-center gap-2">
-                  <%= if @total_count > 0 do %>
+                  <%!--
+                    Show the grid/list toggle + count whenever we're in a
+                    browseable view — there are files, there are folders, or
+                    we're inside a folder (even an empty one). Gating on
+                    `@total_count > 0` alone hid the toggle and count in an
+                    empty folder and in folders-with-no-files.
+                  --%>
+                  <%= if @total_count > 0 or @folders != [] or not is_nil(@current_folder) do %>
                     <div class="join">
                       <button
                         phx-click="set_view_mode"
@@ -483,7 +494,7 @@
                 so the wrapper isn't a drop target there.
               --%>
               <div
-                class="rounded-lg"
+                class="rounded-lg min-h-0 flex-1 overflow-y-auto pr-1"
                 data-drop-folder={
                   if not @filter_trash and @file_view != "all" do
                     if @current_folder, do: @current_folder.uuid, else: "root"
@@ -1221,19 +1232,29 @@
               MapSet.size(@selected_files) + MapSet.size(@selected_folders)
             )}
           </h3>
-          <ul class="menu bg-base-200 rounded-lg max-h-64 overflow-y-auto">
+          <%!--
+            Plain <ul> (not daisyUI `menu`, which laid the custom tree rows
+            out horizontally and overflowed the box). Full width, vertical
+            scroll, horizontal clipped — folder names truncate rather than
+            spill past the box edge.
+          --%>
+          <ul class="bg-base-200 rounded-lg max-h-64 w-full overflow-y-auto overflow-x-hidden p-2 space-y-0.5">
             <li>
               <button
                 phx-click="move_selected_to_folder"
                 phx-target={@myself}
                 phx-value-folder_uuid=""
-                class={if @current_folder == nil, do: "active", else: ""}
+                class={[
+                  "flex items-center gap-1.5 w-full min-w-0 text-left rounded-lg px-1 py-1 hover:bg-base-300 transition-colors",
+                  @current_folder == nil && "font-semibold"
+                ]}
               >
-                <.icon name="hero-home" class="w-4 h-4" /> {@scope_folder_name}
+                <.icon name="hero-home" class="w-4 h-4 shrink-0" />
+                <span class="truncate">{@scope_folder_name}</span>
               </button>
             </li>
             <%= for node <- @folder_tree do %>
-              <.move_folder_option node={node} depth={0} myself={@myself} />
+              <.move_folder_option node={node} move_expanded={@move_expanded} myself={@myself} />
             <% end %>
           </ul>
           <div class="modal-action">

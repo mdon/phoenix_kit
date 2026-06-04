@@ -50,6 +50,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
+  alias PhoenixKitWeb.Users.MultiSession
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
@@ -153,10 +154,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   def log_out_user(conn) do
     user_token = get_session(conn, :user_token)
 
-    # Get user info before deleting token for admin notification
+    # Get user info before deleting any token, for the admin notification below.
     user = user_token && Auth.get_user_by_session_token(user_token)
 
-    user_token && Auth.delete_user_session_token(user_token)
+    # Invalidate the active token AND every secondary multi-session account in
+    # the stack (stack_tokens/1 falls back to just the active token when no
+    # stack is set, so this covers the ordinary single-session logout too).
+    # Centralising the drain here means every logout path is covered by
+    # construction — and it runs AFTER the user lookup above so the
+    # session-disconnect broadcast can still resolve the user.
+    MultiSession.delete_all_stack_tokens(conn)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       broadcast_disconnect(live_socket_id)
@@ -328,7 +335,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Check if user is active using centralized function
     active_user = Auth.ensure_active_user(user)
 
-    scope = Scope.for_user(active_user)
+    session = get_session(conn)
+    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
+
+    scope = %{
+      Scope.for_user(active_user)
+      | multi_session_accounts: multi_session_accounts,
+        multi_session_allowed?: multi_session_allowed?
+    }
 
     conn
     |> assign(:phoenix_kit_current_user, active_user)
@@ -800,7 +814,13 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_attach_scope_refresh_hook()
 
     user = socket.assigns.phoenix_kit_current_user
-    scope = Scope.for_user(user)
+    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
+
+    scope = %{
+      Scope.for_user(user)
+      | multi_session_accounts: multi_session_accounts,
+        multi_session_allowed?: multi_session_allowed?
+    }
 
     # Locale is URL-driven: the URL's `:locale` segment wins; absent
     # that, we fall straight to the default. The previous session-locale
@@ -1984,11 +2004,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Get the default language
     default_base = Routes.get_default_admin_locale()
 
-    replacement_segment =
-      if prefixless_primary?(), do: "/", else: "/#{default_base}/"
-
-    replacement_suffix =
-      if prefixless_primary?(), do: "", else: "/#{default_base}"
+    # Single read of the setting — the two replacement variants always
+    # flip together (prefixless ↔ prefixed), so evaluating the flag
+    # twice would just risk torn reads if a concurrent setting flip
+    # landed between the two calls.
+    {replacement_segment, replacement_suffix} =
+      if prefixless_primary?(),
+        do: {"/", ""},
+        else: {"/#{default_base}/", "/#{default_base}"}
 
     corrected_path =
       conn.request_path
@@ -2026,6 +2049,9 @@ defmodule PhoenixKitWeb.Users.Auth do
         "unknown"
     end
   end
+
+  @doc false
+  def broadcast_disconnect_for_socket(live_socket_id), do: broadcast_disconnect(live_socket_id)
 
   defp broadcast_disconnect(live_socket_id) do
     case get_endpoint() do

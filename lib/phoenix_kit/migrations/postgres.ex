@@ -529,7 +529,95 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V121 - Line annotation kind ⚡ LATEST
+  ### V128 - Assignee on projects (and sub-projects) ⚡ LATEST
+  - Adds `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
+    (FKs to the staff tables, `ON DELETE SET NULL`) to `phoenix_kit_projects`,
+    with a `num_nonnulls(...) <= 1` single-assignee CHECK + a partial index per
+    FK. Lets a whole project — or, since a sub-project is a project (V127), a
+    sub-project — be assigned to a Department/Team/Person like a task.
+
+  ### V127 - Sub-projects as tasks
+  - Adds `child_project_uuid` (FK `phoenix_kit_projects(uuid) ON DELETE RESTRICT`)
+    to `phoenix_kit_project_assignments` — a sub-project is an assignment that
+    points at a child project instead of a task template, so it lives in the
+    parent's task timeline with dependencies + drag-reorder for free.
+  - Drops `NOT NULL` on `task_uuid`; adds a `CHECK` that exactly one of
+    `task_uuid` / `child_project_uuid` is set (XOR).
+  - Partial UNIQUE index on `(child_project_uuid) WHERE NOT NULL` (a project is
+    a child of at most one parent); it also serves child-link lookups, since an
+    equality predicate implies `IS NOT NULL`.
+
+  ### V126 - Standalone notifications
+  - Drops NOT NULL on `phoenix_kit_notifications.activity_uuid` so a
+    notification can exist without an originating activity (the unique
+    `(activity_uuid, recipient_uuid)` index still holds — NULLs are
+    distinct in Postgres).
+  - Adds `metadata JSONB NOT NULL DEFAULT '{}'` so a standalone
+    notification carries its own display content (`Render` reads the same
+    `notification_text` / `notification_icon` / `notification_link` keys
+    it honors on activity metadata).
+
+  ### V125 - Project workflow statuses (entities-backed, cement-at-start)
+  - Adds `status_entity_uuid` (FK `phoenix_kit_entities(uuid) ON DELETE SET NULL`),
+    `current_status_slug`, and a generic `settings` JSONB (first key:
+    `use_status_translations`) to `phoenix_kit_projects` — the catalog list a
+    project/template draws workflow statuses from, the selected status
+    (addressed by stable slug), and per-project preferences. NULL entity =
+    the shared default list.
+  - Creates `phoenix_kit_project_statuses` (the cemented per-project copy:
+    `project_uuid` FK cascade, `label`/`slug`/`position`, `data` JSONB
+    (per-status attrs e.g. colour) + `translations` JSONB (label i18n,
+    workspace shape), provenance `source_entity_data_uuid` with no FK).
+    Populated when a project starts so running projects use a frozen,
+    independently-editable status set.
+  - Partial index on `(status_entity_uuid) WHERE NOT NULL`; unique
+    `(project_uuid, slug)` on the cemented table.
+  - Orthogonal to `derived_status/2` + `archived_at`; the legacy `status`
+    string column is untouched.
+
+  ### V124 - Partial unique index on media folder names
+  - Restricts `phoenix_kit_media_folders_name_parent_idx` to
+    `WHERE trashed_at IS NULL`. Previously a trashed "untitled"
+    folder still reserved its slot in the index, blocking re-creation
+    of the same name in the same parent — surfacing as a confusing
+    auto-numbering jump or a "Failed to create folder" error after
+    the user had emptied the visible parent by sending its children
+    to trash. Active-only siblings are now an accurate predictor of
+    what the constraint accepts.
+  - (Renumbered from a pre-merge V122; upstream took V122/V123 for
+    location spaces + catalogue folders.)
+
+  ### V123 - Catalogue folders
+  - Creates `phoenix_kit_cat_folders` (self-nesting via `parent_uuid`,
+    `position`/`status`/`data`) — a dedicated folder layer for organizing
+    catalogues, unrelated to the media-folder system.
+  - Adds nullable `folder_uuid` FK to `phoenix_kit_cat_catalogues`
+    (`ON DELETE SET NULL`; NULL = unfiled / root).
+
+  ### V122 - Location spaces + staff translations + staff Person.name
+  - Creates `phoenix_kit_location_spaces` for the per-Location nested
+    tree of spaces. Required `location_uuid` FK (cascade) and optional
+    `parent_uuid` self-ref FK (cascade); arbitrary depth.
+  - `kind` is a CHECK-constrained enum (floor / room / hall / suite /
+    section / zone / aisle / shelf / corner) mirroring the consumer's
+    `PhoenixKitLocations.Schemas.Space @kinds`.
+  - The "child belongs to same Location as parent" cross-row invariant
+    is enforced in the consumer context; a composite FK would be
+    heavier than the surface justifies.
+  - Adds `translations JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_staff_departments`, `phoenix_kit_staff_teams`, and
+    `phoenix_kit_staff_people` (mirrors the projects V112 settings-
+    translations shape: primary stays in dedicated columns, JSONB
+    holds non-primary overrides). Translatable fields by schema:
+    * Department: `name`, `description`
+    * Team: `name`, `description`
+    * Person: `job_title`, `bio`, `skills`, `notes`
+  - Adds a single nullable `name VARCHAR` to `phoenix_kit_staff_people`
+    for the staff person's full display name — consistent with every
+    other consumer schema in the staff plugin (Department / Team / Space
+    / Location all use a single `name`).
+
+  ### V121 - Line annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to accept `'line'`.
   - Etcher gains a simple two-endpoint line tool alongside `dimension`
     (same geometry, no arrows, no inline numeric label). Title +
@@ -1019,7 +1107,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 121
+  @current_version 128
   @default_prefix "public"
 
   @doc false

@@ -1,3 +1,407 @@
+## 1.7.130 - 2026-06-04
+
+### Added
+- Generic AI-driven translation pipeline in core, so feature modules plug in
+  via a small adapter instead of re-implementing the whole stack:
+  - `PhoenixKit.Modules.AI.Translatable` behaviour (`fetch/2`, `source_fields/2`,
+    `put_translation/4`, optional `pubsub_topics/1`), exposed by a module via the
+    optional `ai_translatables/0` callback on `PhoenixKit.Module` and discovered
+    through `PhoenixKit.ModuleRegistry.all_ai_translatables/0` /
+    `find_ai_translatable/1`. `resource_type` strings must be globally unique;
+    on a collision the first registered module wins.
+  - `PhoenixKit.Modules.AI.Translations` orchestration — availability,
+    endpoint/prompt defaults, idempotent shared prompt provisioning,
+    `enqueue/1` + `enqueue_all_missing/2` (app-level de-dup, fail-open),
+    per-resource + global PubSub topics, and `missing_languages/3`.
+  - `PhoenixKit.Modules.AI.TranslateWorker` — generic one-job-per-language Oban
+    worker: retry classification (transient errors incl. `:timeout` retry, 5xx
+    retry, deterministic discards), `{:snooze, 30}` on rate-limit so a burst
+    backs off without consuming attempts, and an `ai.translation_added` audit
+    entry on success.
+- Shared AI-translate UI for multilang form LiveViews:
+  - `PhoenixKitWeb.Components.AITranslate` — render-only trigger button, modal
+    (endpoint/prompt selectors, scope picker, generate-default-prompt), inline
+    progress bar, and a "taking a while, runs in the background" stall hint.
+  - `PhoenixKitWeb.Components.AITranslate.{FormGlue,FormBinding}` — the shared
+    LiveView state machine (modal events, scope dispatch, live progress, the
+    stall timer with a per-arm token guard) behind a 3-callback binding, so a
+    consumer wires a tiny adapter + binding and delegates.
+
+### Changed
+- AI-translation broadcasts keep translated **content** off broad topics: the
+  full payload (with `:fields`) goes only to the per-resource topic the form
+  consumes; the global + adapter topics receive a content-free summary, so
+  resource text is never fanned out to topics a monitor/dashboard might watch.
+
+### Fixed
+- Sanitize the per-user Etcher color palette on both write and read.
+  `MediaCanvasViewer` now filters the client-supplied `etcher:colors-changed`
+  payload to short, color-shaped strings (deduped, capped at 24) before
+  persisting into `custom_fields`, ignoring the event when nothing valid
+  survives; `load_user_colors/1` runs the same sanitization on read, so a
+  palette stored before the guard shipped — or written by any other path — can
+  never reach `<Etcher.layer colors={…}>` untrusted.
+
+## 1.7.129 - 2026-06-03
+
+### Added
+- Per-user Etcher color palette in the media viewer. `MediaCanvasViewer`
+  passes the user's saved palette to `<Etcher.layer colors={…}>` and
+  persists edits from the `etcher:colors-changed` event into the user's
+  `custom_fields` ("etcher_colors"), so a user's annotation colors follow
+  them across files. Falls back to a default 5-color palette.
+
+### Changed
+- Pin the Etcher lazy-load CDN to `v0.5.5` (`phoenix_kit.js`) and the hex
+  `etcher` dep to `~> 0.5.5`. 0.5.5 ships the per-user colors API plus the
+  reworked annotation toolbar: the color `[⋯]` is an always-visible
+  palette-icon hue-picker entry, toolbar overflow splits ~50/50 between
+  the tools and the color swatches, undo/redo collapse as a single unit,
+  and color slots that don't fit inline appear in the picker popup above
+  the presets. The per-user palette **injection** (the `:colors` attr →
+  `data-colors`) needs the 0.5.4+ layer component; the picker UI itself
+  works from the CDN bump alone.
+
+## 1.7.128 - 2026-06-01
+
+### Added
+- Sub-projects and project assignees (core schema support for the
+  `phoenix_kit_projects` module). A sub-project is an assignment row that
+  points at a child project instead of a task template, so it lives in the
+  parent's task timeline with dependencies + drag-reorder for free; a whole
+  project (or sub-project) can also be assigned to a Department / Team /
+  Person, exactly like a task. The schemas, context, and UI ship in the
+  external `phoenix_kit_projects` package — this release adds the migrations.
+
+### Migrations
+- **V127** — sub-projects as tasks: adds `child_project_uuid`
+  (FK `phoenix_kit_projects(uuid) ON DELETE RESTRICT`) to
+  `phoenix_kit_project_assignments`, drops `NOT NULL` on `task_uuid`, and adds
+  a `task_uuid`-XOR-`child_project_uuid` CHECK. A partial UNIQUE index on
+  `(child_project_uuid) WHERE NOT NULL` enforces one parent per child and also
+  serves child-link lookups (an equality predicate implies `IS NOT NULL`).
+- **V128** — assignee on projects (and sub-projects): adds
+  `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
+  (FKs to the staff tables, `ON DELETE SET NULL`) to `phoenix_kit_projects`
+  with a `num_nonnulls(...) <= 1` single-assignee CHECK + a partial index per
+  FK. `@current_version` → 128.
+
+### Fixed
+- Notifications kill-switch (`Notifications.enabled?/0`) reads the setting
+  uncached again. The `:settings` cache is node-local with no cross-node
+  invalidation or TTL, so a cached read let a disable on one node go unseen on
+  others until restart; the uncached read keeps the switch immediate and
+  cluster-wide.
+- `Notifications.admin_stats/0` now runs a single
+  `count(...) FILTER (WHERE ...)` query (one table scan) instead of three
+  separate `COUNT(*)` aggregates, and `get_config/0` skips it entirely when the
+  module is disabled — it's called for every module on each Modules-page render.
+
+## 1.7.127 - 2026-06-01
+
+### Added
+- Standalone notifications — a notification no longer has to come from an
+  activity. `PhoenixKit.Notifications.create/1` inserts an
+  activity-less notification carrying its own display content:
+
+      Notifications.create(%{
+        recipient_uuid: user.uuid,
+        text: "Your export is ready.",
+        icon: "hero-arrow-down-tray",
+        link: "/exports/123"
+      })
+
+  `:text` / `:icon` / `:link` fold into a new `metadata` JSONB column as
+  the `notification_text` / `notification_icon` / `notification_link`
+  keys `Render` already honors; `Render` reads them off the notification
+  itself when there's no activity. Honors the `notifications_enabled`
+  kill-switch.
+- `Notifications.create/1` takes an optional `:type` (notification type
+  key) or `:action` (action string) to opt the standalone send into the
+  recipient's per-type **preference filter** (fail-open) — omit both for
+  an unconditional app-driven send.
+- `Notifications.create_many/2` — the multi-recipient fan-out primitive:
+  one standalone notification per recipient uuid (caller supplies the
+  list, e.g. an author's followers), de-duped, each filtered
+  independently by `:type`/`:action` prefs. Returns `{:ok, created_count}`.
+- `Notifications.Prefs.user_wants_type?/2` — type-keyed preference check
+  (vs the action-keyed `user_wants?/2`), backing the `:type` filter above.
+- Notifications is now a toggleable core **module** (`use PhoenixKit.Module`):
+  it appears as a card on the admin Modules page (enable/disable flips the
+  existing `notifications_enabled` kill-switch) and contributes a
+  `/admin/notifications` overview page + admin nav tab. The overview is a
+  simple read-only page — enabled state, retention window, and aggregate
+  counts (total / unread / dismissed via `Notifications.admin_stats/0`).
+- The `NotificationsBell` (sticky nested LiveView) is now embedded in the
+  admin header, to the right of the theme switcher — shown only when the
+  Notifications module is enabled and a user is logged in. `app_layout`
+  gained an optional `socket` attr (threaded from the admin call sites +
+  `admin.html.heex`); the bell renders via `live_render(@socket, …)` and
+  isn't rendered when no socket is threaded (e.g. public/auth pages).
+
+### Migrations
+- **V126** — `phoenix_kit_notifications.activity_uuid` is now nullable
+  (standalone notifications) and a `metadata JSONB NOT NULL DEFAULT '{}'`
+  column is added. The `(activity_uuid, recipient_uuid)` unique index
+  still holds (Postgres treats NULLs as distinct). `@current_version` → 126.
+
+## 1.7.126 - 2026-05-30
+
+### Added
+- `MediaBrowser.Embed` gains an opt-in `url_sync` option so any embedding
+  LiveView gets shareable, deep-linkable folder URLs with one line:
+
+      use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: true
+      # or, for a non-default component id / multiple browsers:
+      use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "my-browser"]
+
+  It provides the full controlled-mode round-trip the host previously had
+  to hand-write (~50 lines), via LiveView lifecycle hooks attached in
+  `on_mount` (not injected `handle_params`/`handle_info` clauses) so it
+  **composes with a host that already defines its own** — e.g. an
+  `…/orders/:id/edit/files` page that loads the order in its own
+  `handle_params`. `on_mount` parses `:initial_params` from the URL, a
+  `:handle_params` hook feeds them to the component, and a `:handle_info`
+  hook intercepts the component's `{:navigate, …}` and `push_patch`es
+  folder / search / page / view onto the current path (every existing
+  segment — locale, parent ids, sub-tab — preserved). Folder is tracked
+  by uuid (stable across renames; unknown/out-of-scope falls back to
+  root); base path is taken from the live URL so router prefixes are
+  respected. Reusable `parse_nav_params/1` + `build_nav_query/1` helpers
+  are public. The host template passes `on_navigate={:navigate}` +
+  `initial_params={@initial_params}`. A `push_patch` issued from a
+  `handle_info` hook makes LiveView call `view.handle_params/3`
+  unconditionally, so the macro injects a trivial `handle_params/3` stub
+  when (and only when) the host defines none — a host with its own keeps
+  it. (Note: changing the macro requires recompiling the host;
+  `mix deps.compile phoenix_kit --force` in a parent app after updating.)
+  The `:handle_params` hook only re-syncs the component when the parsed
+  folder / search / page / view actually changed, so unrelated host
+  navigation on a multi-purpose page doesn't trigger a needless reload.
+- Installer: the `catalogue_pdf` Oban queue (concurrency 2) is now added
+  to the host Oban config on `mix phoenix_kit.install` /
+  `mix phoenix_kit.update` (and to the fresh-install default queues).
+  `phoenix_kit_catalogue` enqueues a `:catalogue_pdf` job per uploaded PDF
+  (`pdfinfo` + `pdftotext` text extraction); Oban only runs listed queues,
+  so without this entry the jobs sat `available` forever — uploads looked
+  fine but text search silently never worked. Added unconditionally (an
+  idle queue costs nothing) so a host that later adds the catalogue module
+  is already wired.
+
+### Changed
+- `/admin/media` (`Live.Users.Media`) now uses `url_sync` instead of its
+  bespoke `handle_params`/`handle_info`/`initial_params` plumbing —
+  behavior unchanged, ~45 lines lighter.
+- MediaBrowser Move modal: the destination picker is now a collapsible
+  directory tree (chevron expand/collapse + colored folder icons),
+  matching the left-sidebar experience, instead of a flat fully-expanded
+  dump of every folder in the project. It **opens seeded from the
+  sidebar's current expansion** (`expanded_folders`), so the picker shows
+  the same open directories you already see on the left, then tracks its
+  own `move_expanded` independently (drilling in the picker doesn't move
+  the sidebar). The picker is a plain full-width `<ul>` (not a daisyUI
+  `menu`, which laid the custom tree rows out horizontally and spilled
+  past the box); names truncate and horizontal overflow is clipped so it
+  fits the modal.
+
+### Fixed
+- MediaBrowser: the grid/list view toggle and the item count no longer
+  vanish in an empty folder (or a folder that has subfolders but no
+  files). They were gated on `@total_count > 0` (file count only); now
+  shown whenever there are files, folders, or you're inside a folder.
+- `<.pagination_info>` renders "No results" at `total_count == 0` instead
+  of the nonsensical "Showing 1 to 0 results".
+- MediaBrowser: the bulk **Move** button is disabled in Select Mode until
+  at least one item is selected (matching the Download/Delete actions,
+  which already hide with an empty selection). The `show_move_modal`
+  handler is guarded too, so it can't open an empty modal.
+
+### Migrations
+- **V125** — project workflow statuses (entities-backed, cement-at-start).
+  New `phoenix_kit_project_statuses` table (the cemented per-project status
+  snapshot: `project_uuid` FK `ON DELETE CASCADE`, `label` / `slug` /
+  `position`, `data` + `translations` JSONB, `source_entity_data_uuid`
+  provenance with no FK; index on `(project_uuid)`, unique on
+  `(project_uuid, slug)`). New columns on `phoenix_kit_projects`:
+  `status_entity_uuid` (FK → `phoenix_kit_entities` `ON DELETE SET NULL`),
+  `current_status_slug`, a generic `settings` JSONB, and a free-form
+  `external_id VARCHAR(255)` for tying a project to an external system
+  (not unique, not an FK; partial-indexed `WHERE NOT NULL`, set
+  programmatically). Idempotent; `down/0` reverses to 124.
+  `@current_version` is now 125.
+
+## 1.7.125 - 2026-05-29
+
+### Fixed
+- `<.load_more infinite>` no longer over-fetches or wedges. The
+  `InfiniteScroll` JS hook now re-fires only when its `data-cursor`
+  changes (not on every unrelated LiveView diff), guards against stacked
+  in-flight pushes, and carries a 2s watchdog so a load that resolves
+  without advancing the cursor (empty/no-op page, stale `total`, or a
+  replace-in-place list with a constant `loaded`) can never permanently
+  disable auto-scroll — worst case is a brief stall that the next scroll
+  or the manual button recovers.
+- `MediaBrowser.Embed`'s injected `:leaf_changed` forwarder no longer
+  crashes the host LiveView if `PhoenixKitComments.Web.CommentsComponent.forward_leaf_event/2`
+  returns an unexpected value — an `other ->` branch logs a warning and
+  degrades to `{:noreply, socket}`.
+- Inline annotation-title edits from the comments sidebar now log a
+  `Logger.warning` when the underlying `Annotations.update/2` write fails
+  (previously the error was discarded, making a failed write
+  indistinguishable from a no-op). UX is unchanged — still no flash.
+
+### Changed
+- `<.load_more>`: in `infinite` mode, `data-cursor` defaults to `@loaded`
+  (so most callers can omit `cursor`), and the component raises a clear
+  `ArgumentError` when `infinite` is set without an `id`. `resolve_cursor/1`
+  is now nil/type-safe and computed only for the infinite variant.
+- Bump the lazy-load `etcher` CDN pin in `phoenix_kit.js` `v0.5.2 → v0.5.3`
+  to match the resolved `etcher` hex dependency.
+
+
+### Merged
+- Merged upstream `dev`, which added **V122** (`phoenix_kit_location_spaces`
+  + staff `translations` JSONB + staff `Person.name`) and **V123**
+  (catalogue folders: `phoenix_kit_cat_folders` + `cat_catalogues.folder_uuid`),
+  plus the `<.load_more>` infinite-scroll option.
+
+### Migrations
+- **V124** — the media-folder partial unique index (previously authored
+  as V122 on this fork) is **renumbered to V124** because upstream
+  claimed V122/V123. Content is unchanged: restricts
+  `phoenix_kit_media_folders_name_parent_idx` to `WHERE trashed_at IS NULL`.
+  `@current_version` is now 124.
+
+## 1.7.123 - 2026-05-29
+
+### Added
+- `/admin/media/:file_uuid` (MediaDetail) now renders the image through
+  the Fresco canvas + Etcher annotation layer instead of a plain
+  `<img>`, reaching parity with the in-place modal: draw / edit / delete
+  annotations, the composer popover, and persistence all work on the
+  standalone page. Implemented via a new `viewer_only` mode on
+  `MediaCanvasViewer` that suppresses its close button + sidebar so a
+  page host can supply its own chrome.
+- A comments thread (annotation-aware) on MediaDetail, above the Storage
+  Locations card — mirrors the modal sidebar's embed. Promotes
+  `MediaCanvasViewer.load_annotations_for/1`,
+  `build_comment_decorations/1`, and `comments_enabled?/0` to public so
+  page hosts reuse them.
+
+### Changed
+- Bump leaf 0.2.20 → 0.2.21 (hex dep + `phoenix_kit.js` CDN pin).
+
+### Fixed
+- MediaDetail's embedded canvas now receives the file's intrinsic
+  `width` / `height`, so the Fresco canvas matches the source image
+  aspect instead of falling back to a 1000×1000 square (which letterboxed
+  the image and stranded annotations on the dotted background).
+
+## 1.7.122 - 2026-05-28
+
+### Fixed
+- `pagination_info` drops the redundant `of N` suffix when the result set
+  fits on one page (`total_count <= per_page`) — e.g. "Showing 1 to 4
+  results" instead of "Showing 1 to 4 of 4 results". The media browser
+  toolbar reads cleaner; multi-page views are unchanged.
+- New folder creation at the root of a scoped media browser no longer fails
+  silently when a trashed "untitled" folder still occupies the unique
+  index slot. V124 restricts `phoenix_kit_media_folders_name_parent_idx`
+  to `WHERE trashed_at IS NULL`, so trashed folders no longer reserve
+  names from the user's perspective.
+- `MediaBrowser.Embed` now forwards `{:leaf_changed, _}` events from
+  sidebar comment Leaf editors to `PhoenixKitComments.Web.CommentsComponent`
+  via runtime `Code.ensure_loaded?` + `apply/3` (sibling deps with no
+  compile-order guarantee). Without this, typed content in those editors
+  never reached the server. User-defined `:leaf_changed` clauses still win
+  because the injected clause is appended last.
+
+### Changed
+- The inline rename input for the auto-created "untitled" folder now
+  selects all of its value on mount instead of just focusing — type
+  immediately replaces the placeholder name without reaching for the
+  mouse. Implemented via a new tiny `SelectOnMount` JS hook in
+  `phoenix_kit.js` (reusable for any "type-to-replace" inline edit).
+
+### Migrations
+- **V124** — `phoenix_kit_media_folders_name_parent_idx` is now a partial
+  unique index `WHERE trashed_at IS NULL`. Active siblings are the only
+  rows the constraint sees, matching what `Storage.list_folders/2`
+  returns. (Renumbered from V122 after the upstream merge — see 1.7.124.)
+
+## 1.7.121 - 2026-05-25
+
+### Added
+- Core list-UI toolkit for admin tables, all in
+  `lib/phoenix_kit_web/components/core/` (PR #568):
+  - `BulkSelect` — `<.bulk_select_scope>` + `<.bulk_select_header_cell>` +
+    `<.bulk_select_cell>` + `<.bulk_actions_toolbar>`. Selection lives
+    client-side via the `BulkSelectScope` JS hook (per-checkbox toggles feel
+    instant — no LV round-trip); the server only receives the selected uuids
+    at action time as `%{"uuids" => [...]}`. The selection survives LV
+    re-renders (reorder / load_more / sort).
+  - `Sortable` — `<.sortable_tbody>` + `<.sortable_row>` wrap the
+    `SortableGrid` hook wiring; `enabled={false}` cleanly omits the hook so
+    drag turns off when sorting by a non-position field. Pair with
+    `<.drag_handle_cell>` / `<.drag_handle_header_cell>` on `<.table_default>`.
+  - `<.reorder_modal>` — strategy-picker dialog for bulk reorder; the consumer
+    LV owns the strategy whitelist.
+  - `<.load_more>` pagination footer (in `core/pagination.ex`) for embeddable /
+    DnD-aware lists where rows append rather than navigate away.
+- `<.modal keep_in_dom>` mode — renders the `<dialog>` regardless of `@show`
+  and flips visibility via `data-show` + the `PkDialog` hook, enabling instant
+  client-side open without a server round-trip (PR #568).
+- `PhoenixKit.boot/1` hook so late-loaded modules can register after app start
+  (PR #569).
+
+### Changed
+- `<.modal>` now renders a native `<dialog>` in the browser top layer
+  (`PkDialog` hook + `showModal()`) instead of `<div class="modal">`. It is
+  immune to ancestor stacking contexts / z-index and covers the full visual
+  viewport (PR #568).
+- `<.sort_selector>` is now race-free: the field select sends only `sort_by`
+  and the direction arrow sends only `sort_dir`; the LV handler derives the
+  missing half from assigns. Manual-order mode hides the direction toggle
+  entirely (PR #568).
+- `<.table_default>` rows carry a named `group/row` Tailwind marker (not a bare
+  `group`) so the drag-handle hide-until-hover reveal stays keyed to row hover
+  without clobbering unnamed `group-hover:` utilities nested in cells (PR #568).
+- Activity feed renders dates with locale-aware formatting (PR #569).
+- `redirect_invalid_locale/2` reads `prefixless_primary?()` once instead of
+  twice, removing a torn-read window on a concurrent setting flip
+  (PR #554 follow-up).
+- Annotation storage adapter no longer accepts `:creator_uuid` from event
+  payloads — authorship is resolved server-side from the actor, so a forged
+  payload can't claim it (PR #550 follow-up).
+
+### Fixed
+- PkDialog top-layer leak: a `<dialog>` opened via `showModal()` stayed in the
+  top layer (still capturing all clicks) after Phoenix LV's DOM patcher
+  stripped the browser-added `open` attribute on re-render, while CSS rendered
+  it `display: none` — visually closed but blocking the rest of the page.
+  `PkDialog` now uses the `:modal` pseudo-class as the truth source and
+  restores the stripped attribute before `close()` (PR #568).
+- The "Reorder N selected" bulk-toolbar label was rendered untranslated: it
+  used `gettext_noop/1` (extraction-only) and the JS hook does no translation,
+  so it stayed English in every non-default locale. Now translated at render
+  time while preserving the `%{count}` placeholder for client-side interpolation
+  (PR #568 post-merge review).
+- `<.drag_handle_cell>`'s default title now renders (the `default: nil` attr was
+  shadowing `assign_new`) (PR #568).
+- Registration and magic-link registration fieldsets unified to
+  `class="fieldset min-w-0"` (dropped redundant `w-full`) (PR #559 follow-up).
+- Combined the split revoke-all-sessions confirmation sentence into one
+  translatable string (PR #569).
+- Guard `stat.label` against non-binary values in the modules overview
+  (PR #569).
+
+### i18n
+- Broad i18n coverage sweep across the user-facing admin pages — Users
+  management, Session management, Live Sessions, User Settings, the General
+  settings sidebar tab, and the Modules overview — with ru/et catalogs brought
+  back to 100% and fuzzy msgids / mistranslations corrected (PR #569).
+- Translate the stranded "Last updated:" label in Live Sessions (PR #569).
+
 ## 1.7.120 - 2026-05-24
 
 ### Changed

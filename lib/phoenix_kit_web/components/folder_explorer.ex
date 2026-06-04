@@ -56,8 +56,6 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
   use PhoenixKitWeb, :html
 
-  alias Phoenix.LiveView.JS
-
   # ──────────────────────────────────────────────────────────────
   # Top-level component
   # ──────────────────────────────────────────────────────────────
@@ -89,12 +87,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
     ~H"""
     <div
       id={@id}
-      class="hidden lg:block shrink-0"
+      class="hidden lg:block shrink-0 h-full min-h-0"
       style={if !@sidebar_collapsed, do: "width: 240px; max-width: 240px;"}
     >
       <%= if @sidebar_collapsed do %>
         <%!-- Collapsed strip --%>
-        <div class="sticky top-4 w-10">
+        <div class="w-10">
           <button
             phx-click="toggle_sidebar"
             phx-target={@myself}
@@ -107,7 +105,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       <% else %>
         <%!-- Expanded sidebar --%>
         <div
-          class="sticky top-4 border-r border-base-200 pr-3 mr-3 overflow-hidden"
+          class="h-full min-h-0 flex flex-col border-r border-base-200 pr-3 mr-3 overflow-hidden"
           style="width: 240px; max-width: 240px;"
         >
           <div class="flex items-center justify-between mb-3">
@@ -175,7 +173,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           <div class="divider my-1 h-0"></div>
 
           <%!-- Folder Tree --%>
-          <ul class="space-y-0.5 w-full overflow-hidden">
+          <ul class="space-y-0.5 w-full min-h-0 flex-1 overflow-y-auto pr-1">
             <%= for node <- @folder_tree do %>
               <.folder_tree_node
                 node={node}
@@ -315,9 +313,10 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <input
               type="text"
               name="name"
+              id={"rename-folder-#{@node.folder.uuid}"}
               value={@renaming_text}
               class="bg-base-100 text-sm rounded px-1.5 py-0 flex-1 min-w-0 border border-primary/60 focus:outline-none focus:border-primary"
-              phx-mounted={JS.focus()}
+              phx-hook="SelectOnMount"
               required
               phx-keydown="cancel_rename_folder"
               phx-key="Escape"

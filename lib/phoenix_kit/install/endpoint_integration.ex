@@ -13,8 +13,20 @@ defmodule PhoenixKit.Install.EndpointIntegration do
 
   alias Igniter.Code.{Common, Function}
   alias Igniter.Project.Application
+  alias Igniter.Project.Deps
   alias Igniter.Project.Module, as: IgniterModule
   alias PhoenixKit.Install.IgniterHelpers
+
+  # PDF.js viewer assets are vendored in phoenix_kit_catalogue's
+  # `priv/static/pdfjs/` and the host endpoint must serve them at
+  # `/_pdfjs/` for the catalogue PDF viewer to load. Mounted only when the
+  # catalogue module is a dependency.
+  @pdfjs_static_mount """
+  plug Plug.Static,
+    at: "/_pdfjs",
+    from: {:phoenix_kit_catalogue, "priv/static/pdfjs"},
+    gzip: false\
+  """
 
   @doc """
   Removes deprecated `phoenix_kit_socket()` and its import from the endpoint.
@@ -29,16 +41,59 @@ defmodule PhoenixKit.Install.EndpointIntegration do
   Updated igniter with deprecated socket code and import removed.
   """
   def add_endpoint_integration(igniter) do
-    case find_endpoint(igniter) do
-      {igniter, nil} ->
-        # No endpoint found, nothing to clean up
-        igniter
+    igniter =
+      case find_endpoint(igniter) do
+        {igniter, nil} ->
+          # No endpoint found, nothing to clean up
+          igniter
 
-      {igniter, endpoint_module} ->
-        igniter
-        |> remove_deprecated_socket(endpoint_module)
-        |> remove_deprecated_import(endpoint_module)
+        {igniter, endpoint_module} ->
+          igniter
+          |> remove_deprecated_socket(endpoint_module)
+          |> remove_deprecated_import(endpoint_module)
+      end
+
+    add_pdfjs_static_mount(igniter)
+  end
+
+  @doc """
+  Ensures the host endpoint serves phoenix_kit_catalogue's vendored PDF.js
+  viewer at `/_pdfjs/` via a `Plug.Static` mount.
+
+  Only added when `:phoenix_kit_catalogue` is a dependency (the mount
+  references that app's `priv`, so adding it without the dep would break
+  boot). Idempotent — skips when an `at: "/_pdfjs"` mount already exists.
+  Called by both `mix phoenix_kit.install` and `mix phoenix_kit.update`.
+  """
+  def add_pdfjs_static_mount(igniter) do
+    with true <- Deps.has_dep?(igniter, :phoenix_kit_catalogue),
+         {igniter, endpoint_module} when not is_nil(endpoint_module) <- find_endpoint(igniter),
+         {igniter, source, _zipper} <- IgniterModule.find_module!(igniter, endpoint_module),
+         false <- source |> Rewrite.Source.get(:content) |> String.contains?(~s(at: "/_pdfjs")) do
+      IgniterModule.find_and_update_module!(igniter, endpoint_module, fn zipper ->
+        case move_to_endpoint_use(zipper) do
+          {:ok, use_zipper} ->
+            {:ok, Common.add_code(use_zipper, @pdfjs_static_mount, placement: :after)}
+
+          :error ->
+            {:ok, zipper}
+        end
+      end)
+    else
+      # No catalogue dep, no endpoint, or mount already present.
+      _ -> igniter
     end
+  end
+
+  # Locate `use Phoenix.Endpoint, otp_app: ...` so the static mount can be
+  # inserted right after it (early in the plug pipeline).
+  defp move_to_endpoint_use(zipper) do
+    Function.move_to_function_call(zipper, :use, 2, fn call_zipper ->
+      case Function.move_to_nth_argument(call_zipper, 0) do
+        {:ok, arg_zipper} -> Common.nodes_equal?(arg_zipper, Phoenix.Endpoint)
+        :error -> false
+      end
+    end)
   end
 
   # Find endpoint module

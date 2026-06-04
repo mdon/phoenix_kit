@@ -296,6 +296,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:selected_files, MapSet.new())
     |> assign(:selected_folders, MapSet.new())
     |> assign(:show_move_modal, false)
+    # Expand state for the Move modal's directory tree (separate from the
+    # sidebar's :expanded_folders so drilling one doesn't move the other).
+    # Starts collapsed → top-level folders only, drill in via the chevrons.
+    |> assign(:move_expanded, MapSet.new())
     |> assign(:current_page, 1)
     |> assign(:per_page, 50)
     |> then(fn s ->
@@ -453,23 +457,63 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Function components
   # ──────────────────────────────────────────────────────────────
 
+  # Move-target picker row. Renders as a collapsible directory tree —
+  # the same experience as the left sidebar (`FolderExplorer`): a chevron
+  # expands/collapses children (children only render when expanded), a
+  # colored folder icon, and clicking the name selects that folder as the
+  # move destination. `move_expanded` (a MapSet of expanded folder uuids,
+  # threaded through the recursion) drives the collapse state, kept
+  # separate from the sidebar's `expanded_folders` so the two don't fight.
   attr :node, :map, required: true
-  attr :depth, :integer, default: 0
+  attr :move_expanded, :any, required: true
   attr :myself, :any, required: true
 
   def move_folder_option(assigns) do
+    assigns =
+      assigns
+      |> assign(:has_children, assigns.node.children != [])
+      |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
+
     ~H"""
-    <li>
-      <button
-        phx-click="move_selected_to_folder"
-        phx-target={@myself}
-        phx-value-folder_uuid={@node.folder.uuid}
-        style={"padding-left: #{(@depth + 1) * 16}px"}
-      >
-        <.icon name="hero-folder" class="w-4 h-4" /> {@node.folder.name}
-      </button>
-      <%= for child <- @node.children do %>
-        <.move_folder_option node={child} depth={@depth + 1} myself={@myself} />
+    <li class="min-w-0">
+      <div class="flex items-center gap-0.5 w-full min-w-0 rounded-lg hover:bg-base-300 transition-colors">
+        <%= if @has_children do %>
+          <button
+            type="button"
+            phx-click="toggle_move_folder"
+            phx-target={@myself}
+            phx-value-folder-uuid={@node.folder.uuid}
+            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 shrink-0"
+          >
+            <.icon
+              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
+              class="w-4 h-4 text-base-content/40"
+            />
+          </button>
+        <% else %>
+          <span class="w-5 shrink-0"></span>
+        <% end %>
+        <button
+          phx-click="move_selected_to_folder"
+          phx-target={@myself}
+          phx-value-folder_uuid={@node.folder.uuid}
+          class="flex items-center gap-1.5 flex-1 min-w-0 text-left px-1 py-1"
+        >
+          <span style={folder_icon_style(@node.folder.color)}>
+            <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
+          </span>
+          <span class="truncate">{@node.folder.name}</span>
+        </button>
+      </div>
+      <%= if @has_children and @is_expanded do %>
+        <ul
+          class="ml-3 border-l-2 pl-1.5 min-w-0"
+          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
+        >
+          <%= for child <- @node.children do %>
+            <.move_folder_option node={child} move_expanded={@move_expanded} myself={@myself} />
+          <% end %>
+        </ul>
       <% end %>
     </li>
     """
@@ -481,8 +525,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Finder/Explorer-style instant folder creation. Click the "+" button
   # in any toolbar and a folder appears named "untitled" (or
-  # "untitled 1", "untitled 2", ... if that's taken). User can rename
-  # via the kebab → Rename action afterward.
+  # "untitled 1", "untitled 2", ... if that's taken). The new folder
+  # immediately opens inline rename in the sidebar.
   def handle_event("create_untitled_folder", _params, socket) do
     cond do
       socket.assigns[:filter_trash] ->
@@ -502,10 +546,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
                %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid},
                scope
              ) do
-          {:ok, _folder} ->
+          {:ok, folder} ->
             {:noreply,
              socket
              |> reload_folder_lists()
+             |> expand_sidebar_folder(parent_uuid)
+             |> assign(:sidebar_collapsed, false)
+             |> assign(:renaming_folder, folder.uuid)
+             |> assign(:renaming_source, "sidebar")
+             |> assign(:renaming_text, name)
              |> put_flash(:info, gettext("Folder \"%{name}\" created", name: name))}
 
           {:error, :out_of_scope} ->
@@ -1035,7 +1084,27 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("show_move_modal", _params, socket) do
-    {:noreply, assign(socket, :show_move_modal, true)}
+    # Bulk move only opens when something is selected. The Move button is
+    # disabled with an empty selection; this guards the handler too so a
+    # stray event can't pop an empty modal.
+    if MapSet.size(socket.assigns.selected_files) +
+         MapSet.size(socket.assigns.selected_folders) > 0 do
+      {:noreply, open_move_modal(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Expand/collapse a folder in the Move modal's directory tree.
+  def handle_event("toggle_move_folder", %{"folder-uuid" => uuid}, socket) do
+    expanded = socket.assigns.move_expanded
+
+    expanded =
+      if MapSet.member?(expanded, uuid),
+        do: MapSet.delete(expanded, uuid),
+        else: MapSet.put(expanded, uuid)
+
+    {:noreply, assign(socket, :move_expanded, expanded)}
   end
 
   def handle_event("close_move_modal", _params, socket) do
@@ -1066,7 +1135,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:selected_files, MapSet.new([file_uuid]))
      |> assign(:selected_folders, MapSet.new())
-     |> assign(:show_move_modal, true)}
+     |> open_move_modal()}
   end
 
   # Single-folder move from kebab — symmetric to `prepare_move_file`.
@@ -1075,7 +1144,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new([folder_uuid]))
-     |> assign(:show_move_modal, true)}
+     |> open_move_modal()}
   end
 
   def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
@@ -1615,6 +1684,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
   end
 
+  # Open the move modal, seeding its directory tree's expansion from the
+  # sidebar's current `:expanded_folders` so the picker opens showing the
+  # same expanded directories the user already sees on the left. The
+  # modal then tracks its own `:move_expanded` independently, so drilling
+  # in the picker doesn't move the sidebar.
+  defp open_move_modal(socket) do
+    socket
+    |> assign(:show_move_modal, true)
+    |> assign(:move_expanded, socket.assigns.expanded_folders)
+  end
+
   defp current_folder_uuid(socket) do
     socket.assigns.current_folder && socket.assigns.current_folder.uuid
   end
@@ -1992,7 +2072,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # quick folder creation. Looks at sibling folders in the same parent
   # and picks the first non-conflicting name. Gaps fill before
   # extending — if "untitled" and "untitled 5" exist, we create
-  # "untitled 1".
+  # "untitled 1". Active siblings only: the V122 partial index makes
+  # trashed siblings invisible to the unique constraint, so
+  # `list_folders/2`'s active-only view matches what the DB will
+  # accept.
   defp next_untitled_name(parent_uuid, scope) do
     base = gettext("untitled")
 
@@ -2059,6 +2142,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     ancestor_uuids = Enum.map(breadcrumbs, & &1.uuid)
     expanded = Enum.reduce(ancestor_uuids, socket.assigns.expanded_folders, &MapSet.put(&2, &1))
     assign(socket, :expanded_folders, expanded)
+  end
+
+  defp expand_sidebar_folder(socket, nil), do: socket
+
+  defp expand_sidebar_folder(socket, folder_uuid) do
+    assign(socket, :expanded_folders, MapSet.put(socket.assigns.expanded_folders, folder_uuid))
   end
 
   defp push_tree_state(socket) do
