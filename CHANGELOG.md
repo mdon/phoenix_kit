@@ -48,6 +48,11 @@
   retry-after. Also corrected the worker's `:timeout` retry-clause comment
   (`PhoenixKitAI.Completion` remaps transport timeouts to `:request_timeout`
   before they reach the worker).
+- Core `<.select field={...}>` now renders changeset validation errors. The
+  component already had the rendering side (`select-error` class + the `<.error>`
+  loop) but its `FormField` clause never populated `@errors` from
+  `field.errors`, so `<.select>` silently swallowed validation errors while the
+  sibling `<.input>` showed them. Mirrors `Input` exactly.
 
 ## 1.7.130 - 2026-06-04
 
