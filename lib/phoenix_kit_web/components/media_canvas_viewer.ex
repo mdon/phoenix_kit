@@ -67,6 +67,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   @max_etcher_colors 24
   @etcher_color_format ~r/\A[#0-9a-zA-Z(),.%\s]{1,32}\z/
 
+  # Etcher's global stroke defaults — the "ink" (line width / opacity / dash)
+  # every new stroke shape adopts — are, like the color palette, one set per
+  # user shared across every viewer, not per-file. Stored in `custom_fields`
+  # ("user meta") under this key; seeded from the saved value until the user
+  # edits the toolbar sliders. Defaults mirror Etcher's own built-in fallback.
+  @etcher_line_params_key "etcher_line_params"
+  @default_etcher_line_params %{"width" => 2, "opacity" => 1, "dash" => "solid"}
+  @etcher_dash_values ~w(solid dashed dotted)
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -79,6 +88,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:viewer_annotations, [])
      |> assign(:composing_annotation_uuid, nil)
      |> assign(:etcher_colors, @default_etcher_colors)
+     |> assign(:etcher_line_params, @default_etcher_line_params)
      |> assign(:viewer_only, false)}
   end
 
@@ -132,6 +142,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         # palette is correct even on modal prev/next after an in-session
         # edit, where the parent's `current_user` may be stale.
         |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
+        |> assign(:etcher_line_params, load_user_line_params(assigns[:current_user]))
       else
         socket
       end
@@ -189,17 +200,46 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
+  # Etcher's line-params save hook — the twin of `colors-changed`. The global
+  # stroke defaults (width / opacity / dash for new shapes) are per-user, one
+  # set across every viewer, so we ignore the fresco_id and persist the map
+  # into the user's `custom_fields`, merging into a freshly-read copy so a
+  # concurrent change elsewhere isn't clobbered. `update_user_custom_fields/2`
+  # broadcasts `phoenix_kit_user_updated` for subscribed hosts to refresh.
+  def handle_event("etcher:line-params-changed", %{"line_params" => params}, socket) do
+    with %{uuid: uuid} = user <- socket.assigns[:current_user],
+         %{} = clean <- sanitize_line_params(params) do
+      fresh = Auth.get_user(uuid) || user
+      merged = Map.put(fresh.custom_fields || %{}, @etcher_line_params_key, clean)
+
+      case Auth.update_user_custom_fields(fresh, merged) do
+        {:ok, updated} ->
+          {:noreply,
+           socket |> assign(:current_user, updated) |> assign(:etcher_line_params, clean)}
+
+        {:error, _changeset} ->
+          {:noreply, socket}
+      end
+    else
+      # No user, or nothing valid survived sanitization — ignore rather than
+      # persisting garbage or wiping the saved ink.
+      _ -> {:noreply, socket}
+    end
+  end
+
   # Fires only on a brand-new user draw (Etcher's `_finalizeShape`).
   # Undo/redo, drags, color picks all bypass this — they go through
   # `annotations-changed` for persistence but don't re-open the
   # composer. Text shapes get Etcher's inline editor and skip the
-  # popup. If the composer is already open mid-compose, keep its
-  # target — a second quick draw shouldn't ambush an in-flight
-  # title/comment.
+  # popup. Markers are pure marking for now — they still persist (via
+  # `annotations-changed`) but skip the composer too, so highlighting
+  # doesn't prompt for a title/comment; it's just a line. If the
+  # composer is already open mid-compose, keep its target — a second
+  # quick draw shouldn't ambush an in-flight title/comment.
   def handle_event("etcher:shape-drawn", %{"uuid" => uuid, "kind" => kind}, socket) do
     socket =
       cond do
-        kind == "text" ->
+        kind in ["text", "marker"] ->
           socket
 
         is_binary(socket.assigns[:composing_annotation_uuid]) ->
@@ -246,6 +286,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
                 |> Map.put("target_type", "file")
                 |> Map.put("target_uuid", file_uuid)
                 |> creator_attrs(socket)
+                |> put_marker_author(socket)
 
               Storage.EtcherAdapter.create(attrs)
           end
@@ -432,6 +473,45 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp sanitize_colors(_), do: []
 
+  # Read this user's saved Etcher line params fresh from the DB, falling back
+  # to the default when nothing valid is stored (or there's no user). Fresh
+  # read (not the parent-passed struct) keeps it correct on modal prev/next
+  # after an in-session edit. Re-sanitize on read too (not just on write) so
+  # data persisted before this guard shipped, or by any other path, can't reach
+  # `<Etcher.layer line_params={…}>` untrusted.
+  defp load_user_line_params(%{uuid: uuid} = user) do
+    fresh = Auth.get_user(uuid) || user
+
+    case sanitize_line_params(Auth.get_user_field(fresh, @etcher_line_params_key)) do
+      %{} = params -> params
+      nil -> @default_etcher_line_params
+    end
+  end
+
+  defp load_user_line_params(_), do: @default_etcher_line_params
+
+  # Line params arrive from the same untrusted client hook as the palette.
+  # Keep only the three known keys, clamped to Etcher's own ranges (width
+  # 1..40, opacity 0..1, dash enum), then merge over the default so a partial
+  # or garbage payload still yields a usable map. Returns `nil` when nothing
+  # valid survives so the caller can ignore the update rather than wipe the
+  # saved ink.
+  defp sanitize_line_params(params) when is_map(params) do
+    clean =
+      Enum.reduce(params, %{}, fn
+        {"width", w}, acc when is_number(w) -> Map.put(acc, "width", clamp_number(w, 1, 40))
+        {"opacity", o}, acc when is_number(o) -> Map.put(acc, "opacity", clamp_number(o, 0, 1))
+        {"dash", d}, acc when d in @etcher_dash_values -> Map.put(acc, "dash", d)
+        _, acc -> acc
+      end)
+
+    if map_size(clean) == 0, do: nil, else: Map.merge(@default_etcher_line_params, clean)
+  end
+
+  defp sanitize_line_params(_), do: nil
+
+  defp clamp_number(n, lo, hi), do: n |> max(lo) |> min(hi)
+
   @doc """
   Loads annotations for a file into the curated map shape this component
   uses internally (uuid / kind / geometry / style / metadata with
@@ -488,6 +568,51 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
     Map.put(attrs, "creator_uuid", creator_uuid)
   end
+
+  # Markers skip the composer, so they never collect a title/comment — but
+  # the tooltip should still say who drew it and when. Stamp the author's
+  # display name into the annotation's `metadata` server-side (trusted, from
+  # the socket — not the untrusted wire payload, which the adapter strips
+  # `creator_uuid` from anyway). The tooltip's header slot reads
+  # `metadata.comment_author`; `comment_created_at` is derived from the row's
+  # `inserted_at` in `load_annotations_for/1`. Persisting the name in
+  # `metadata` (an adapter-writable field) keeps the tooltip identical on the
+  # instant patch-shape push and after a reload. Non-markers are untouched.
+  defp put_marker_author(%{"kind" => "marker"} = attrs, socket) do
+    case current_user_display_name(socket) do
+      name when is_binary(name) ->
+        meta = Map.put(attrs["metadata"] || %{}, "comment_author", name)
+        Map.put(attrs, "metadata", meta)
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp put_marker_author(attrs, _socket), do: attrs
+
+  defp current_user_display_name(socket) do
+    case socket.assigns[:current_user] do
+      %{} = user -> user_display_name(user)
+      _ -> nil
+    end
+  end
+
+  # Mirror of `PhoenixKit.Annotations.author_display/1` (private there) so
+  # marker bylines read the same as comment-author bylines: "First Last",
+  # else first name, else the email local-part.
+  defp user_display_name(%{first_name: fn_, last_name: ln})
+       when is_binary(fn_) and is_binary(ln) and fn_ != "" and ln != "" do
+    "#{fn_} #{ln}"
+  end
+
+  defp user_display_name(%{first_name: fn_}) when is_binary(fn_) and fn_ != "", do: fn_
+
+  defp user_display_name(%{email: email}) when is_binary(email) do
+    email |> String.split("@", parts: 2) |> hd()
+  end
+
+  defp user_display_name(_), do: nil
 
   # ──────────────────────────────────────────────────────────────
   # Composer Post / Cancel — driven by AnnotationComposer's
