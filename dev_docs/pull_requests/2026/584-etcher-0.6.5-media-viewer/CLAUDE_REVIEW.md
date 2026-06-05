@@ -1,9 +1,9 @@
-# Review — Etcher 0.6.5 media-canvas wiring (line params, marker, full toolset)
+# PR #584 — Wire Etcher 0.6.5 into the Media viewer (line params, marker, full toolset)
 
 **Reviewer:** Claude
-**For:** Alex (Etcher author / `MediaCanvasViewer` owner)
-**Commit:** `23d6a024` "Wire Etcher 0.6.5 into the Media viewer: line params, full toolset, marker"
-(shipping in unreleased **1.7.131**; builds on PR #581's per-user color palette).
+**For:** Alex (`alexdont` — PR author / Etcher + `MediaCanvasViewer` owner)
+**PR:** #584, merged 2026-06-05 (commit `23d6a024`); shipping in unreleased **1.7.131**.
+Builds on Alex's PR #581 per-user color palette (`581-etcher-permanent-colors`).
 **Scope:** `lib/phoenix_kit_web/components/media_canvas_viewer.ex`,
 `lib/phoenix_kit/annotations/annotation.ex`, V130 CHECK migration, the new
 `annotation_kind_test.exs`.
