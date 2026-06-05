@@ -27,11 +27,14 @@ defmodule PhoenixKit.Modules.AI.TranslateWorkerTest do
       assert TranslateWorker.retryable?({:ai_error, {:exit, :timeout}})
     end
 
-    test "5xx-class API errors retry; 4xx and others don't" do
+    test "5xx-class + 429 API errors retry; other 4xx don't" do
       assert TranslateWorker.retryable?({:ai_error, {:api_error, 500}})
       assert TranslateWorker.retryable?({:ai_error, {:api_error, 503}})
+      # 429 retries as defense-in-depth: the built-in client maps 429 →
+      # :rate_limited (snoozed), but a custom provider may surface {:api_error, 429}.
+      assert TranslateWorker.retryable?({:ai_error, {:api_error, 429}})
       refute TranslateWorker.retryable?({:ai_error, {:api_error, 400}})
-      refute TranslateWorker.retryable?({:ai_error, {:api_error, 429}})
+      refute TranslateWorker.retryable?({:ai_error, {:api_error, 404}})
     end
 
     test "deterministic errors don't retry" do
