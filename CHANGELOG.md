@@ -32,6 +32,23 @@
   old `etcher.js` and the new hook never fires. Also bump `credo`
   1.7.18 → 1.7.19 and `owl` 0.13.0 → 0.13.1.
 
+### Fixed
+- **V129** migration adds the missing `subscription_type_uuid` UUID column to
+  `phoenix_kit_subscriptions`. The column the billing `Subscription` schema uses
+  was only ever *renamed* in V65 (`plan_uuid` → `subscription_type_uuid`), never
+  added, and `plan_uuid` never existed — so on a fresh `ensure_current/2` build
+  the column was absent and every subscription insert / the billing
+  Subscriptions LiveView raised `undefined_column`. Idempotent throughout:
+  nullable UUID FK to `phoenix_kit_subscription_types(uuid)` `ON DELETE SET NULL`
+  plus a partial index, every step guarded.
+- AI translation now retries a bare HTTP 429 surfaced as `{:api_error, 429}`
+  instead of discarding it on the first attempt. The built-in OpenRouter client
+  already maps 429 → `:rate_limited` (snoozed), so this is defense-in-depth for
+  a custom/future provider that returns the raw status — 429 is the canonical
+  retry-after. Also corrected the worker's `:timeout` retry-clause comment
+  (`PhoenixKitAI.Completion` remaps transport timeouts to `:request_timeout`
+  before they reach the worker).
+
 ## 1.7.130 - 2026-06-04
 
 ### Added
