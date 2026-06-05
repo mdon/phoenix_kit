@@ -529,11 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V129 - Marker annotation kind ⚡ LATEST
+  ### V130 - Marker annotation kind ⚡ LATEST
   - Widens `phoenix_kit_annotations_kind_check` to allow `'marker'` (the Etcher
     highlighter tool). Markers persist via `annotations-changed` but skip the
     composer (no title/comment) — without this the insert is rejected and the
     marker silently fails to save. Idempotent DROP-then-ADD per prefixed table.
+
+  ### V129 - Add missing subscription_type_uuid column
+  - Adds `subscription_type_uuid` (UUID, FK to `phoenix_kit_subscription_types(uuid)`
+    `ON DELETE SET NULL`) + a partial index to `phoenix_kit_subscriptions`. The
+    column the billing `Subscription` schema uses was only ever *renamed* in V65
+    (`plan_uuid` → `subscription_type_uuid`), never added, and `plan_uuid` never
+    existed — so on a fresh build the column was absent and subscription
+    inserts/queries raised `undefined_column`. Idempotent.
 
   ### V128 - Assignee on projects (and sub-projects)
   - Adds `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
@@ -1113,7 +1121,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 129
+  @current_version 130
   @default_prefix "public"
 
   @doc false

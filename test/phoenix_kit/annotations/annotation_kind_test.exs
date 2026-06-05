@@ -3,7 +3,7 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
   Guards the two layers that must agree on the set of allowed annotation
   `kind`s: the schema's `@kinds` (`validate_inclusion`) and the DB
   `phoenix_kit_annotations_kind_check` CHECK constraint. A new Etcher tool
-  is only usable when both accept its kind — `"marker"` (V129) was the
+  is only usable when both accept its kind — `"marker"` (V130) was the
   regression that motivated this test: it drew + skipped the composer but
   silently failed to persist because both layers still rejected it.
   """
@@ -51,7 +51,7 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
         )
 
       assert def =~ "marker",
-             "expected the kind CHECK constraint to include 'marker' (V129), got: #{def}"
+             "expected the kind CHECK constraint to include 'marker' (V130), got: #{def}"
     end
   end
 end

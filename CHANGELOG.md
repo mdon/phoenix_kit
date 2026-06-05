@@ -20,7 +20,7 @@
   into `metadata` server-side at creation, not the spoofable client wire) over
   the creation date — filled instantly via the patch-shape push and identical
   after a reload.
-- **V129** migration widens `phoenix_kit_annotations_kind_check` to allow
+- **V130** migration widens `phoenix_kit_annotations_kind_check` to allow
   `'marker'`, and `Annotation`'s `@kinds` adds it too. Without both layers the
   marker insert was rejected and silently dropped, so a marker vanished on
   reload.
