@@ -3300,12 +3300,17 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
   // to a host viewer/canvas via `fresco_id` and adds the pencil toolbar,
-  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.3"}
+  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.6"}
   // hex dependency. Same parent-pre-import short-circuit as Fresco.
+  //
+  // Keep this version pin in sync with the hex dep + the GitHub release tag
+  // (jsDelivr resolves `gh/<user>/<repo>@<tag>`). A stale pin silently serves
+  // an old etcher.js — toolbar hooks like `etcher:line-params-changed` then
+  // never fire even though the server side is wired for them.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.5.5/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.6.5/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 

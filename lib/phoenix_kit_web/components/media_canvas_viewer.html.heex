@@ -78,11 +78,14 @@
             <Etcher.layer
               fresco_id={"media-zoom-" <> f.file_uuid}
               colors={@etcher_colors}
+              line_params={@etcher_line_params}
               tools={[
+                :grabber,
                 :rectangle,
                 :circle,
                 :polygon,
                 :freehand,
+                :marker,
                 :callout,
                 :text,
                 :dimension,
