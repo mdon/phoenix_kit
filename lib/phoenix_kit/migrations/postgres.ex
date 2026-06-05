@@ -529,7 +529,15 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V128 - Assignee on projects (and sub-projects) ⚡ LATEST
+  ### V129 - Add missing subscription_type_uuid column ⚡ LATEST
+  - Adds `subscription_type_uuid` (UUID, FK to `phoenix_kit_subscription_types(uuid)`
+    `ON DELETE SET NULL`) + a partial index to `phoenix_kit_subscriptions`. The
+    column the billing `Subscription` schema uses was only ever *renamed* in V65
+    (`plan_uuid` → `subscription_type_uuid`), never added, and `plan_uuid` never
+    existed — so on a fresh build the column was absent and subscription
+    inserts/queries raised `undefined_column`. Idempotent.
+
+  ### V128 - Assignee on projects (and sub-projects)
   - Adds `assigned_team_uuid` / `assigned_department_uuid` / `assigned_person_uuid`
     (FKs to the staff tables, `ON DELETE SET NULL`) to `phoenix_kit_projects`,
     with a `num_nonnulls(...) <= 1` single-assignee CHECK + a partial index per
@@ -1107,7 +1115,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 128
+  @current_version 129
   @default_prefix "public"
 
   @doc false
