@@ -10,35 +10,42 @@ tests, `.dialyzer_ignore.exs`, plan/follow-up docs.
 High-quality foundational refactor. The behaviour/adapter split is clean, the generic
 worker's error handling is careful and well-reasoned, and the payload-minimal broadcast
 scoping is a genuinely good security/privacy decision (and is tested). No correctness bugs
-found that I can confirm. One item to verify against the `PhoenixKitAI` error contract, plus
-a few nitpicks.
+found that I can confirm. The one open item from the original pass (429 retry classification)
+was verified against the real `PhoenixKitAI` contract and hardened — see the
+**Follow-up (2026-06-05)** section below. The rest are nitpicks, some left for the developer.
 
 ---
 
-## IMPROVEMENT - MEDIUM (verify) — 429 is classified non-retryable
+## IMPROVEMENT - MEDIUM — 429 retry classification — ✅ RESOLVED + FIXED (2026-06-05)
 
 `translate_worker.ex` `retryable?/1` + test
 
-Rate limiting is handled only via `{:error, {:ai_error, :rate_limited}}` → `{:snooze, 30}`.
-`{:ai_error, {:api_error, 429}}` is deliberately **non-retryable** (the test pins
+Original concern: `{:ai_error, {:api_error, 429}}` was **non-retryable** (the test pinned
 `refute retryable?({:ai_error, {:api_error, 429}})`), so a 429 surfaced as an `:api_error`
-status (rather than the `:rate_limited` atom) is **discarded silently** — terminal failure,
-no snooze, no retry.
+status (rather than the `:rate_limited` atom) would be **discarded silently** on first
+attempt. Whether that ever happens depends on the `PhoenixKitAI` error contract, which the
+first pass couldn't see.
 
-`Translation.do_translate/6` passes the plugin's `reason` through verbatim
-(`{:error, reason} -> {:error, {:ai_error, reason}}`), so which shape a 429 takes depends
-entirely on `PhoenixKitAI`'s contract, which isn't in this repo. The author clearly intends
-the plugin to emit `:rate_limited` for throttling — but if any provider/path ever returns a
-bare HTTP 429 as `{:api_error, 429}`, that translation dies on first attempt.
+**Contract verified** against `/workspace/phoenix_kit_ai`. Translation runs
+`ask_with_prompt → complete → Completion.chat_completion → handle_error_status/2`:
 
-Ask: confirm `PhoenixKitAI` always normalises 429 → `:rate_limited`. If not guaranteed,
-treat `{:api_error, 429}` as snooze (or at least retryable) as defense in depth — it's the
-canonical retry-after status.
+```elixir
+def handle_error_status(429, _body), do: {:error, :rate_limited}        # → {:snooze, 30} ✓
+def handle_error_status(402, _body), do: {:error, :insufficient_credits} # → discard ✓
+def handle_error_status(status, body), do: {:error, {:api_error, status}} # 5xx → retryable ✓
+# transport timeout → {:error, :request_timeout} → retryable ✓
+```
 
-**Status: left as-is, needs maintainer confirmation.** Flipping this would be
-defense-in-depth against an error shape I can't verify (the plugin contract lives outside
-this repo, and the non-retryable choice is intentional + pinned by a test). Not changed
-unilaterally — confirm the `PhoenixKitAI` contract first.
+So the **built-in OpenRouter client always maps 429 → `:rate_limited`** (snoozed before
+`retryable?/1` is even consulted). `{:api_error, 429}` can only arise from a hypothetical
+non-conforming *custom/future* provider — the shipped path was never at risk.
+
+**Fix applied** (defense-in-depth for custom providers): added
+`def retryable?({:ai_error, {:api_error, 429}}), do: true` — 429 is the canonical
+retry-after, so a bare-429 from a custom client now retries with backoff instead of dying on
+first attempt. Test updated (`refute` → `assert` for 429; added a `404` refute to keep the
+"other 4xx don't retry" assertion). `mix compile --warnings-as-errors` + `mix credo --strict`
+clean.
 
 ---
 
@@ -71,6 +78,68 @@ noting for the record.
 `ai_translate.ex` hardcodes `id="ai-translation-modal"`. Two translate modals on one page
 would collide. Single-translatable-form-per-page is the implicit assumption (same shape as
 MediaBrowser's single-browser assumption); worth a doc line if multi-form ever lands.
+
+## Follow-up review (2026-06-05)
+
+Second pass at the maintainer's request. The full pipeline + the `PhoenixKitAI` contract were
+re-read end to end. No new correctness bugs. One fix applied (the 429 hardening above), plus
+a doc-accuracy fix; the remaining items are **left for the developer** as low-priority.
+
+### ✅ FIXED — misleading `retryable?` timeout comment
+
+`translate_worker.ex` `retryable?({:ai_error, :timeout})`
+
+The comment claimed the HTTP client "surfaces a request timeout as `:timeout`
+(`{:error, :timeout} → {:ai_error, :timeout}`)". In reality `Completion.chat_completion/3`
+remaps a transport timeout to `:request_timeout` **before** it reaches the worker, so the
+`:timeout` clause never matches via the built-in client (the `:request_timeout` clause above
+it does). Rewrote the comment to describe `:timeout` for what it actually is: a defensive
+fallback for a provider/path that surfaces the raw atom. No behaviour change.
+
+### ⬜ FOR DEVELOPER — fixed modal `id` (was a NITPICK; still open)
+
+`ai_translate.ex:105` hardcodes `id="ai-translation-modal"`. Two AI-translate modals on one
+page collide. Left as-is because it's guarded by the documented single-translatable-form-
+per-page assumption (same shape as MediaBrowser's single-browser assumption) and a proper fix
+threads an `id` through both the config map (`FormGlue.ai_translate_config/1`) and the
+component — more surface than this follow-up warrants. **Wire a configurable `id` if/when a
+second translatable form ever shares a page.**
+
+### ⬜ FOR DEVELOPER — `find_ai_translatable/1` recomputes per `perform`
+
+`module_registry.ex:236` → `all_ai_translatables/0` folds over every registered module on
+every worker run; `enqueue_all_missing` fans out one job per language. Pure recompute, fine at
+translation volumes. **Memoize in `:persistent_term` only if it ever shows up hot** (it
+won't at current scale — deliberately left unoptimized).
+
+### ⬜ FOR DEVELOPER (acknowledged, no action) — unprefixed dedup query
+
+`translations.ex:360` queries `from(j in "oban_jobs", …)` — won't see jobs if Oban runs under
+a non-public schema prefix, and the `exists?`-then-`insert` is TOCTOU. Both are **deliberate,
+documented tradeoffs** matching the catalogue PDF worker (the moduledoc explains the dropped
+`:suspended` enum that made Oban's native `unique:` unusable). Worst case is duplicate work,
+not corruption, because `put_translation/4` is required atomic+merge-safe. Noted for the
+record; no change recommended.
+
+---
+
+## PR #583 — V129: subscription_type_uuid column — ✅ NO ISSUES
+
+Reviewed alongside #582. Correct and well-built:
+
+- **Auto-dispatched**: the runner resolves `Module.concat([…Postgres, "V129"])`, so no manual
+  registration list is needed — the new module is picked up by version number.
+- **FK target exists in core**: `phoenix_kit_subscription_types(uuid)` is created/renamed by
+  V65/V73/V74, so the FK resolves on a fresh build (not gated on the billing package).
+- **Marker handling correct**: the hardcoded `COMMENT … IS '129'` is overwritten to `130` by
+  the later V130 that runs after it in the same `ensure_current/2` sweep.
+- **Idempotent**: every step is guarded (`information_schema` / `pg_indexes` existence checks),
+  `down/1` reverses cleanly and resets the marker to 128.
+
+Micro-note (not a defect, no action): on the legacy DBs the moduledoc describes (column
+acquired via a historic `plan_uuid` rename), the guards key off the *specific* constraint/
+index names — a legacy FK under a different name wouldn't be detected, so a second FK could be
+added. Extremely low risk and outside the stated scope of the fix.
 
 ## Positives worth keeping
 

@@ -280,13 +280,20 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
   @doc false
   @spec retryable?(term()) :: boolean()
   def retryable?({:ai_error, :request_timeout}), do: true
-  # PhoenixKit.AI's HTTP client surfaces a request timeout as `:timeout`
-  # ({:error, :timeout} → {:ai_error, :timeout} here). A timeout is transient
-  # — retry rather than discard, so a one-off slow/hung provider call re-runs.
+  # `PhoenixKitAI.Completion` normalizes a transport timeout to `:request_timeout`
+  # (above) before it reaches this worker. The bare `:timeout` below is a
+  # defensive fallback for any provider/path that surfaces the raw atom instead —
+  # a timeout is transient, so retry rather than discard.
   def retryable?({:ai_error, :timeout}), do: true
   def retryable?({:ai_error, :rate_limited}), do: true
   def retryable?({:ai_error, {:connection_error, _}}), do: true
   def retryable?({:ai_error, {:exit, _}}), do: true
+
+  # Defense-in-depth: the built-in OpenRouter client maps HTTP 429 to the
+  # `:rate_limited` atom (handled as `{:snooze, 30}` in `do_translate/1`, before
+  # this is consulted). A custom/future provider that instead surfaces a bare
+  # `{:api_error, 429}` should still retry — 429 is the canonical retry-after.
+  def retryable?({:ai_error, {:api_error, 429}}), do: true
 
   def retryable?({:ai_error, {:api_error, status}})
       when status in [500, 502, 503, 504, 522, 524, 529],

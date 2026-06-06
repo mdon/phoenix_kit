@@ -1,3 +1,59 @@
+## 1.7.131 - 2026-06-05
+
+### Added
+- Per-user Etcher line params ("ink") saved to user meta, mirroring the color
+  palette. `MediaCanvasViewer` wires Etcher 0.6.5's new
+  `etcher:line-params-changed` hook: the global stroke defaults (width /
+  opacity / dash for new shapes) are one set per user shared across every
+  viewer, seeded fresh from `custom_fields["etcher_line_params"]` on mount and
+  persisted back via `update_user_custom_fields/2` on every slider edit. The
+  payload is sanitized on both write and read — width clamped 1..40, opacity
+  0..1, dash restricted to `solid`/`dashed`/`dotted`, merged over the default —
+  so a partial or garbage client payload can never reach
+  `<Etcher.layer line_params={…}>`.
+- Expose the full Etcher 0.6.5 toolset in the Media viewer: add `:grabber`
+  (pan) and `:marker` (highlighter) to `MediaCanvasViewer`'s `tools` list,
+  which previously omitted them. Marker is pure marking for now — it persists
+  like any shape (via `annotations-changed`) but skips the annotation composer,
+  so highlighting doesn't prompt for a title/comment; it's just a line.
+  Its tooltip shows a byline instead: the drawing user's display name (stamped
+  into `metadata` server-side at creation, not the spoofable client wire) over
+  the creation date — filled instantly via the patch-shape push and identical
+  after a reload.
+- **V130** migration widens `phoenix_kit_annotations_kind_check` to allow
+  `'marker'`, and `Annotation`'s `@kinds` adds it too. Without both layers the
+  marker insert was rejected and silently dropped, so a marker vanished on
+  reload.
+
+### Changed
+- Upgrade `etcher` 0.5.5 → 0.6.5 (adds the line-params hook + API) and bump the
+  matching jsDelivr CDN pin in `phoenix_kit.js` (`@v0.5.5 → @v0.6.5`) so the
+  lazy-loaded browser JS is the same version — a stale pin silently serves an
+  old `etcher.js` and the new hook never fires. Also bump `credo`
+  1.7.18 → 1.7.19 and `owl` 0.13.0 → 0.13.1.
+
+### Fixed
+- **V129** migration adds the missing `subscription_type_uuid` UUID column to
+  `phoenix_kit_subscriptions`. The column the billing `Subscription` schema uses
+  was only ever *renamed* in V65 (`plan_uuid` → `subscription_type_uuid`), never
+  added, and `plan_uuid` never existed — so on a fresh `ensure_current/2` build
+  the column was absent and every subscription insert / the billing
+  Subscriptions LiveView raised `undefined_column`. Idempotent throughout:
+  nullable UUID FK to `phoenix_kit_subscription_types(uuid)` `ON DELETE SET NULL`
+  plus a partial index, every step guarded.
+- AI translation now retries a bare HTTP 429 surfaced as `{:api_error, 429}`
+  instead of discarding it on the first attempt. The built-in OpenRouter client
+  already maps 429 → `:rate_limited` (snoozed), so this is defense-in-depth for
+  a custom/future provider that returns the raw status — 429 is the canonical
+  retry-after. Also corrected the worker's `:timeout` retry-clause comment
+  (`PhoenixKitAI.Completion` remaps transport timeouts to `:request_timeout`
+  before they reach the worker).
+- Core `<.select field={...}>` now renders changeset validation errors. The
+  component already had the rendering side (`select-error` class + the `<.error>`
+  loop) but its `FormField` clause never populated `@errors` from
+  `field.errors`, so `<.select>` silently swallowed validation errors while the
+  sibling `<.input>` showed them. Mirrors `Input` exactly.
+
 ## 1.7.130 - 2026-06-04
 
 ### Added

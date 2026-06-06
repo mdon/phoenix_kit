@@ -6,6 +6,7 @@ defmodule PhoenixKitWeb.Components.Core.Select do
 
   import PhoenixKitWeb.Components.Core.FormFieldLabel, only: [label: 1]
   import PhoenixKitWeb.Components.Core.FormFieldError, only: [error: 1]
+  import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
 
   attr :field, Phoenix.HTML.FormField
 
@@ -30,6 +31,7 @@ defmodule PhoenixKitWeb.Components.Core.Select do
   def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
+    |> assign(:errors, Enum.map(field.errors, &translate_error(&1)))
     |> assign_new(:name, fn -> field.name end)
     |> assign_new(:value, fn -> field.value end)
     |> select()
