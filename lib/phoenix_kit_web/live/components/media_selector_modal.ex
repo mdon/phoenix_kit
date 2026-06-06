@@ -34,6 +34,28 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
         {:noreply, socket |> assign(:gallery_uuids, file_uuids)}
       end
 
+  ## Required host wiring (do not skip — silent failure otherwise)
+
+  This is a `LiveComponent`, so it has no `handle_info` of its own; it
+  reports the user's choice by sending a **process message to the host
+  LiveView**. The host MUST handle it, or the selection is silently
+  dropped (the modal closes, nothing happens — no crash, no warning):
+
+    * `handle_info({:media_selected, file_uuids}, socket)` — **required.**
+      Fired when the user confirms; `file_uuids` is the chosen list.
+    * `handle_info({:media_selector_closed}, socket)` — recommended (fired
+      on cancel/close) so the host can reset its own open-state assign.
+
+  Each host does something different with the files (avatar, gallery,
+  product images…), so there is intentionally no `use ...Embed` macro to
+  inject this — the handling is yours to write.
+
+  Alternative — `:notify`: pass `notify: {SomeComponent, id}` and the
+  result is delivered to that **component** via `send_update` instead
+  (`update(%{media_selected: uuids}, socket)` /
+  `update(%{media_selector_closed: true}, socket)`), for when the
+  consumer is itself a LiveComponent.
+
   ## Attrs
 
     * `show` — boolean, controls modal visibility
