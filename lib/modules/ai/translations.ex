@@ -321,7 +321,8 @@ defmodule PhoenixKit.Modules.AI.Translations do
           required(:prompt_uuid) => String.t(),
           required(:source_lang) => String.t(),
           required(:target_lang) => String.t(),
-          optional(:actor_uuid) => String.t() | nil
+          optional(:actor_uuid) => String.t() | nil,
+          optional(:resource_scope) => String.t() | nil
         }
 
   @doc """
@@ -348,13 +349,19 @@ defmodule PhoenixKit.Modules.AI.Translations do
   def enqueue(_other), do: {:error, {:invalid, :not_a_map}}
 
   # App-level uniqueness: is there already a non-terminal TranslateWorker job
-  # for this (resource_type, resource_uuid, target_lang)? Fails open (returns
-  # false → proceed with insert) on any query error.
+  # for this (resource_type, resource_uuid, resource_scope, target_lang)? Fails
+  # open (returns false → proceed with insert) on any query error.
+  #
+  # `resource_scope` is part of the identity so two slices of the same resource
+  # (e.g. version 1 and version 2) get independent jobs. A `nil` scope matches
+  # `->>` returning NULL, which covers BOTH a JSON null and an absent key — so
+  # an unscoped/legacy job and a `nil`-scope job dedup against each other.
   defp job_in_flight?(params) do
     repo = PhoenixKit.RepoHelper.repo()
     type = value_for(params, :resource_type)
     uuid = value_for(params, :resource_uuid)
     target = value_for(params, :target_lang)
+    scope = normalize_scope(value_for(params, :resource_scope))
 
     query =
       from(j in "oban_jobs",
@@ -364,11 +371,18 @@ defmodule PhoenixKit.Modules.AI.Translations do
         where: fragment("?->>'resource_uuid' = ?", j.args, ^uuid),
         where: fragment("?->>'target_lang' = ?", j.args, ^target)
       )
+      |> scope_where(scope)
 
     repo.exists?(query)
   rescue
     _ -> false
   end
+
+  defp scope_where(query, nil),
+    do: where(query, [j], fragment("?->>'resource_scope' IS NULL", j.args))
+
+  defp scope_where(query, scope),
+    do: where(query, [j], fragment("?->>'resource_scope' = ?", j.args, ^scope))
 
   @doc """
   Enqueue one job per missing target language. `base_params` is
@@ -462,9 +476,20 @@ defmodule PhoenixKit.Modules.AI.Translations do
       "prompt_uuid" => value_for(params, :prompt_uuid),
       "source_lang" => value_for(params, :source_lang),
       "target_lang" => value_for(params, :target_lang),
-      "actor_uuid" => value_for(params, :actor_uuid)
+      "actor_uuid" => value_for(params, :actor_uuid),
+      "resource_scope" => normalize_scope(value_for(params, :resource_scope))
     }
   end
+
+  # `resource_scope` partitions a resource's translation jobs (e.g. by version).
+  # It must be a canonical, JSON-safe scalar so the dedup query (`->>` text
+  # compare) is stable — `2` vs `"2"` would otherwise create duplicate or
+  # missed-conflict jobs. Coerce to a trimmed string; blank/absent → nil, which
+  # means "default slice" (identical to an unscoped/legacy job).
+  defp normalize_scope(nil), do: nil
+  defp normalize_scope(value) when is_binary(value), do: blank_to_nil(value)
+  defp normalize_scope(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_scope(_), do: nil
 
   # Plugin-boundary fuse: an absent/broken optional plugin must not crash
   # the caller. Narrow rescue for the shapes a missing/incompatible plugin

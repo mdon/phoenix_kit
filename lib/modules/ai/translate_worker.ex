@@ -7,7 +7,7 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
   job's `resource_type` (registered via `ai_translatables/0` and
   discovered through `PhoenixKit.ModuleRegistry`), then runs:
 
-      adapter.fetch/2 → adapter.source_fields/2 →
+      adapter.fetch/3-or-2 → adapter.source_fields/2 →
       Translation.translate_fields/6 → adapter.put_translation/4
 
   broadcasting `{:ai_translation, event, payload}` at each lifecycle step
@@ -23,13 +23,20 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
         "prompt_uuid"   => uuid,
         "source_lang"   => "en",
         "target_lang"   => "es",
-        "actor_uuid"    => uuid_or_nil
+        "actor_uuid"    => uuid_or_nil,
+        "resource_scope" => scope_or_nil
       }
+
+  `resource_scope` is an optional, opaque, JSON-safe string partitioning a
+  resource's jobs (e.g. a version number). When present and the adapter exports
+  `fetch/3`, it's passed through so the adapter loads that exact slice; `nil`
+  (or absent) means the default slice via `fetch/2`.
 
   ## De-duplication
 
   De-dup is **app-level** in `PhoenixKit.Modules.AI.Translations.enqueue/1`
-  (one in-flight job per `(resource_type, resource_uuid, target_lang)`), NOT
+  (one in-flight job per `(resource_type, resource_uuid, resource_scope,
+  target_lang)`), NOT
   Oban's built-in `unique:`. Oban's uniqueness query references the
   `:suspended` job state, which is absent from the `oban_job_state` enum on
   hosts that upgraded the Oban *lib* ahead of its *migration* — there the
@@ -54,7 +61,8 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
          {:ok, source} <- fetch_arg(args, "source_lang"),
          {:ok, target} <- fetch_arg(args, "target_lang"),
          {:ok, adapter} <- resolve_adapter(type),
-         {:ok, resource} <- load_resource(adapter, type, uuid) do
+         scope = Map.get(args, "resource_scope"),
+         {:ok, resource} <- load_resource(adapter, type, uuid, scope) do
       do_translate(%{
         type: type,
         uuid: uuid,
@@ -62,6 +70,7 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
         prompt: prompt,
         source: source,
         target: target,
+        scope: scope,
         actor: Map.get(args, "actor_uuid"),
         adapter: adapter,
         resource: resource,
@@ -76,6 +85,7 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
         Translations.broadcast(:translation_failed, %{
           resource_type: Map.get(args, "resource_type"),
           resource_uuid: Map.get(args, "resource_uuid"),
+          resource_scope: Map.get(args, "resource_scope"),
           source_lang: Map.get(args, "source_lang"),
           target_lang: Map.get(args, "target_lang"),
           reason: reason
@@ -211,8 +221,19 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
     end
   end
 
-  defp load_resource(adapter, type, uuid) do
-    case adapter.fetch(type, uuid) do
+  # Prefer the scoped `fetch/3` when the adapter exports it (load the exact
+  # slice the `resource_scope` names); otherwise fall back to `fetch/2`. Guard
+  # `function_exported?/3` with `ensure_loaded?/1` — it returns false for a
+  # not-yet-loaded module, which would silently drop the scope.
+  defp load_resource(adapter, type, uuid, scope) do
+    result =
+      if Code.ensure_loaded?(adapter) and function_exported?(adapter, :fetch, 3) do
+        adapter.fetch(type, uuid, scope)
+      else
+        adapter.fetch(type, uuid)
+      end
+
+    case result do
       {:ok, resource} -> {:ok, resource}
       {:error, reason} -> {:error, reason}
       other -> {:error, {:bad_adapter_fetch, other}}
@@ -227,6 +248,7 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
         %{
           resource_type: ctx.type,
           resource_uuid: ctx.uuid,
+          resource_scope: ctx.scope,
           source_lang: ctx.source,
           target_lang: ctx.target
         },

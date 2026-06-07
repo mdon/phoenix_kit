@@ -60,6 +60,24 @@ defmodule PhoenixKit.Modules.AI.Translatable do
   @callback fetch(resource_type(), uuid :: String.t()) :: {:ok, struct()} | {:error, term()}
 
   @doc """
+  Optional scoped load — `fetch/2` plus an opaque `scope` (the `resource_scope`
+  enqueue param, threaded verbatim through the Oban job). Lets a versioned or
+  partitioned resource load the exact slice being translated instead of a
+  default.
+
+  `scope` is a JSON-safe value (it round-trips through Oban args) — typically a
+  string the adapter interprets (e.g. a version number), or `nil`. **A `nil`
+  scope MUST behave identically to `fetch/2`** (the default slice), so jobs
+  enqueued before scoping existed keep working unchanged.
+
+  Optional: when an adapter does not export `fetch/3`, the worker falls back to
+  `fetch/2`. Adapters that implement `fetch/3` should still implement `fetch/2`
+  (delegating with a `nil` scope) to satisfy the required arity.
+  """
+  @callback fetch(resource_type(), uuid :: String.t(), scope :: term() | nil) ::
+              {:ok, struct()} | {:error, term()}
+
+  @doc """
   The `%{field_name => text}` to translate, read in `source_lang`.
 
   Return only non-empty fields — empty ones waste tokens and confuse the
@@ -85,5 +103,5 @@ defmodule PhoenixKit.Modules.AI.Translatable do
   """
   @callback pubsub_topics(resource :: struct()) :: [binary()]
 
-  @optional_callbacks pubsub_topics: 1
+  @optional_callbacks pubsub_topics: 1, fetch: 3
 end
