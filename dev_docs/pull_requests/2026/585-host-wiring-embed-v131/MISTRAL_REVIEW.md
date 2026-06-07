@@ -218,6 +218,18 @@ The PR addresses a class of bugs where LiveComponent process messages are silent
 
 ---
 
+## Fix Status — updated 2026-06-07 (commit `34cb7aac`)
+
+| Finding | Status | Notes |
+|---------|--------|-------|
+| **IMPROVEMENT - MEDIUM** — Align `media_detail.ex` leaf handler with `MediaBrowser.Embed` | ✅ **Fixed** | `media_detail.ex` now mirrors the canonical handler: `function_exported?/2` guard, `apply/3` (avoids compile-time binding to the optional `phoenix_kit_comments` dep), explicit `:pass` handling, and `Logger.warning` on unexpected returns instead of silently swallowing them. |
+| **IMPROVEMENT - HIGH** — Document double-fire scenario in `AITranslate.Embed` moduledoc | ⚠️ **Corrected, not as written** | The "double-fire" premise is inverted. Lifecycle hooks attached via `attach_hook` run **before** the LiveView's own callbacks, and the AI hook returns `{:halt, …}` for `{:ai_translation, …}` (and the six `ai_*` events). So a host clause for those messages is **shadowed — it never fires at all**; there is no double-handling and no need for the host to `{:halt}`. The moduledoc was updated with an *accurate* note (host clauses are shadowed by the halting hook; don't re-implement them) rather than the suggested warning. |
+| **SUGGESTION** — CHANGELOG entry for the Leaf-forwarding fix | ⏭️ Deferred | Release-cut / CHANGELOG handled separately per PR body. |
+| **SUGGESTION** — Cross-reference the three documented moduledocs | ⏭️ Skipped | Cosmetic; low value vs. churn. |
+| **NITPICK** — `@doc false` on internal funcs | ⏭️ No action | Review concurs none needed. |
+
+---
+
 ## File-by-File Checklist
 
 - [x] `lib/phoenix_kit_web/components/ai_translate/embed.ex` — Read, analyzed, approved with minor suggestions
