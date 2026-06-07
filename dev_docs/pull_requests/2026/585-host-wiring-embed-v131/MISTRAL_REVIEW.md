@@ -222,11 +222,17 @@ The PR addresses a class of bugs where LiveComponent process messages are silent
 
 | Finding | Status | Notes |
 |---------|--------|-------|
-| **IMPROVEMENT - MEDIUM** — Align `media_detail.ex` leaf handler with `MediaBrowser.Embed` | ✅ **Fixed** | `media_detail.ex` now mirrors the canonical handler: `function_exported?/2` guard, `apply/3` (avoids compile-time binding to the optional `phoenix_kit_comments` dep), explicit `:pass` handling, and `Logger.warning` on unexpected returns instead of silently swallowing them. |
+| **IMPROVEMENT - MEDIUM** — Align `media_detail.ex` leaf handler with `MediaBrowser.Embed` | ✅ **Fixed**, then **superseded by extraction** (see below) | First aligned `media_detail.ex` to the canonical handler (`function_exported?/2` guard, `apply/3`, `:pass` handling, `Logger.warning` on unexpected returns) in `34cb7aac`. A follow-up code review then flagged that this left the ~20-line handler duplicated near-verbatim in two places. |
 | **IMPROVEMENT - HIGH** — Document double-fire scenario in `AITranslate.Embed` moduledoc | ⚠️ **Corrected, not as written** | The "double-fire" premise is inverted. Lifecycle hooks attached via `attach_hook` run **before** the LiveView's own callbacks, and the AI hook returns `{:halt, …}` for `{:ai_translation, …}` (and the six `ai_*` events). So a host clause for those messages is **shadowed — it never fires at all**; there is no double-handling and no need for the host to `{:halt}`. The moduledoc was updated with an *accurate* note (host clauses are shadowed by the halting hook; don't re-implement them) rather than the suggested warning. |
 | **SUGGESTION** — CHANGELOG entry for the Leaf-forwarding fix | ⏭️ Deferred | Release-cut / CHANGELOG handled separately per PR body. |
 | **SUGGESTION** — Cross-reference the three documented moduledocs | ⏭️ Skipped | Cosmetic; low value vs. churn. |
 | **NITPICK** — `@doc false` on internal funcs | ⏭️ No action | Review concurs none needed. |
+
+### Follow-up — shared helper extraction (commit `d9a483a2`)
+
+A post-merge code review flagged that aligning `media_detail.ex` with `MediaBrowser.Embed` left the ~20-line `{:leaf_changed, _}` forwarding block (optional-dep guard + `apply/3` + `:pass`/contract-drift handling) duplicated near-verbatim in two places — a concrete maintenance cost: a future change to the `phoenix_kit_comments` `forward_leaf_event/2` contract would have to be applied in lock-step to both.
+
+Resolved by extracting **`PhoenixKitWeb.CommentsForwarding.forward_leaf_changed/2`** (`lib/phoenix_kit_web/comments_forwarding.ex`). Both `media_detail.ex` and the `MediaBrowser.Embed` macro now delegate to it, so the optional-dep contract lives in one module. Bonus cleanup: the `MediaBrowser.Embed` macro no longer injects `require Logger` into every host — the only `Logger` use moved into the shared module. Verified with `mix precommit` (compile/credo/dialyzer all green).
 
 ---
 
