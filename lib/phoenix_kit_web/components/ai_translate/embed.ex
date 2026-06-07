@@ -36,6 +36,13 @@ defmodule PhoenixKitWeb.Components.AITranslate.Embed do
   lifecycle-hook approach in `PhoenixKitWeb.Components.MediaBrowser.Embed`
   and `PhoenixKitComments.Embed`.
 
+  Lifecycle hooks run *before* the LiveView's own callbacks, and the AI
+  hooks `:halt` on the events/messages they own. So a host that also
+  defines `handle_info({:ai_translation, _, _}, socket)` (or one of the
+  six `ai_*` `handle_event` clauses) will find that clause **shadowed** —
+  the hook handles and halts first, the host clause never fires. There is
+  no double-handling; just don't re-implement the AI clauses in the host.
+
   ## Form re-sync
 
   After a translation merges into the live changeset, the form must be
