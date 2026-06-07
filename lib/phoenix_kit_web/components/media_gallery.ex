@@ -45,13 +45,20 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     always 1 (implied by `mode`). When the limit is reached, the "Add" tile is
     hidden entirely (not just disabled) and `apply_selection` refuses to exceed it.
 
-  ## Change notifications
+  ## Change notifications — required host wiring (silent failure otherwise)
 
-  After any change (pick / remove / reorder), the component sends:
+  This is a `LiveComponent`, so it has no `handle_info` of its own: after
+  any change (pick / remove / reorder) it sends a **process message to the
+  host LiveView** via `send/2`:
 
       {PhoenixKitWeb.Components.MediaGallery, id, {:changed, ordered_uuids}}
 
-  to the parent LiveView via `send/2`.
+  The host MUST handle this (see the Usage example above) and persist
+  `ordered_uuids` — it is a *controlled* component: it renders whatever the
+  host passes back as `:selected`. Forget the handler and the user's
+  picks/reorders are silently dropped (no crash, no warning). Each host
+  stores the selection differently (its own field/assoc), so there is
+  intentionally no `use ...Embed` macro — the handling is yours to write.
 
   ## Reorder event contract
 

@@ -176,6 +176,27 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     end
   end
 
+  # The embedded CommentsComponent's Leaf editor reports its content via a
+  # {:leaf_changed, ...} process message to this host LV; without forwarding
+  # it to the component, "Post Comment" silently no-ops. phoenix_kit_comments
+  # is optional from core, so resolve it at runtime (safe no-op if absent).
+  # NOTE: defining handle_info means unmatched messages no longer hit
+  # LiveView's default — hence the catch-all below.
+  def handle_info({:leaf_changed, _} = msg, socket) do
+    case Code.ensure_loaded(PhoenixKitComments.Web.CommentsComponent) do
+      {:module, mod} ->
+        case mod.forward_leaf_event(msg, socket) do
+          {:noreply, socket} -> {:noreply, socket}
+          _ -> {:noreply, socket}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
   defp load_file_data(socket, file_uuid) do
     repo = PhoenixKit.Config.get_repo()
 
