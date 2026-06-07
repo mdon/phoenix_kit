@@ -1,3 +1,52 @@
+## 1.7.132 - 2026-06-07
+
+### Added
+- **`PhoenixKitWeb.Components.AITranslate.Embed`** — a `use`-able macro that
+  wires the host side of the AI-translate modal so consumers stop hand-copying
+  it. Via `attach_hook` lifecycle hooks it injects the six `ai_*` `handle_event`
+  clauses (`ai_toggle_modal`, `ai_select_endpoint`, `ai_select_prompt`,
+  `ai_select_scope`, `ai_generate_prompt`, `ai_translate_lang`) and the
+  `{:ai_translation, …}` `handle_info` clause, composing with the host's own
+  handlers (non-AI events/messages pass straight through). Form re-sync defaults
+  to assigning both `:changeset` and `:form`; hosts whose sync differs override
+  `ai_translate_assign_form/2`. Because lifecycle hooks run before the host's
+  own callbacks and `:halt` on the events they own, a host clause for those AI
+  events is shadowed — the moduledoc documents this so the AI clauses aren't
+  re-implemented in the host.
+- **V131** migration adds a generic `metadata JSONB NOT NULL DEFAULT '{}'`
+  column to `phoenix_kit_staff_people` (mirrors the `entity_data` shape). The
+  first consumer is staff soft-delete, which stashes the prior lifecycle status
+  under `metadata["trashed_from_status"]`; the column is general-purpose so
+  future per-person metadata needs no new migration. Idempotent
+  `ADD COLUMN IF NOT EXISTS`; `@current_version` → 131.
+
+### Fixed
+- Media detail comments: forward Leaf editor events to the embedded
+  `CommentsComponent`. The Leaf rich-text composer reports its content to the
+  host LiveView via a `{:leaf_changed, …}` process message; `media_detail`
+  wasn't forwarding it, so "Post Comment" silently posted empty content. Adds
+  the runtime forward (resolved against the optional `phoenix_kit_comments` dep)
+  plus a `handle_info` catch-all so unmatched messages don't crash the LV.
+
+### Changed
+- Extract `PhoenixKitWeb.CommentsForwarding.forward_leaf_changed/2` — the
+  `{:leaf_changed, _}` forwarding contract (optional-dep guard + runtime
+  `apply/3` + `:pass`/contract-drift handling, logging unexpected returns) now
+  lives in one module. `MediaBrowser.Embed` and `MediaDetail` both delegate to
+  it instead of carrying near-verbatim copies, so a future
+  `forward_leaf_event/2` contract change touches one call site. As a side
+  effect the `MediaBrowser.Embed` macro no longer injects `require Logger` into
+  every host (the only `Logger` use moved into the shared module).
+- Document required host wiring on the callback-message components
+  `MediaSelectorModal`, `MarkdownEditor`, and `MediaGallery` — loud
+  "required host wiring / silent failure otherwise" moduledoc contracts. These
+  stay docs-only by design (per-consumer handling, not uniform boilerplate, so
+  no Embed macro). `MediaSelectorModal` also documents the `:notify` alternative
+  for LiveComponent consumers.
+- Dependency bumps (`mix.lock`): `bandit` 1.11.1 → 1.12.0, `etcher`
+  0.6.5 → 0.6.6, `fresco` 0.6.3 → 0.7.1, `spitfire` 0.3.12 → 0.3.13, `tesla`
+  1.18.3 → 1.20.0.
+
 ## 1.7.131 - 2026-06-05
 
 ### Added
