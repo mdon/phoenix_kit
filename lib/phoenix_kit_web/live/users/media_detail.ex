@@ -183,37 +183,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   # NOTE: defining handle_info means unmatched messages no longer hit
   # LiveView's default — hence the catch-all below.
   def handle_info({:leaf_changed, _} = msg, socket) do
-    # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-    mod = PhoenixKitComments.Web.CommentsComponent
-
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :forward_leaf_event, 2) do
-      # `apply/3` (instead of `mod.forward_leaf_event(...)`) so the call
-      # doesn't compile-time-bind to a module that may not be available —
-      # phoenix_kit_comments is an optional sibling dep with no compile-order
-      # guarantee. Mirrors `MediaBrowser.Embed`'s leaf-forwarding handler.
-      # credo:disable-for-next-line Credo.Check.Refactor.Apply
-      case apply(mod, :forward_leaf_event, [msg, socket]) do
-        {:noreply, _} = result ->
-          result
-
-        :pass ->
-          {:noreply, socket}
-
-        other ->
-          # Optional cross-package contract: forward_leaf_event/2 is expected
-          # to return {:noreply, socket} or :pass. Anything else shouldn't
-          # crash the host LiveView — degrade gracefully and log so a contract
-          # drift in phoenix_kit_comments is diagnosable.
-          Logger.warning(
-            "PhoenixKitComments.Web.CommentsComponent.forward_leaf_event/2 " <>
-              "returned an unexpected value (#{inspect(other)}); ignoring."
-          )
-
-          {:noreply, socket}
-      end
-    else
-      {:noreply, socket}
-    end
+    PhoenixKitWeb.CommentsForwarding.forward_leaf_changed(msg, socket)
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
