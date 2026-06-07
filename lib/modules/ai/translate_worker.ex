@@ -272,6 +272,11 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
     _ -> []
   end
 
+  # Only record resource_scope when present, so unversioned resources' audit
+  # entries stay unchanged.
+  defp maybe_put_scope(metadata, nil), do: metadata
+  defp maybe_put_scope(metadata, scope), do: Map.put(metadata, "resource_scope", scope)
+
   defp log_added(ctx, translated) do
     if Code.ensure_loaded?(PhoenixKit.Activity) and
          function_exported?(PhoenixKit.Activity, :log, 1) do
@@ -282,11 +287,13 @@ defmodule PhoenixKit.Modules.AI.TranslateWorker do
         actor_uuid: ctx.actor,
         resource_type: ctx.type,
         resource_uuid: ctx.uuid,
-        metadata: %{
-          "source_lang" => ctx.source,
-          "target_lang" => ctx.target,
-          "fields" => Map.keys(translated)
-        }
+        metadata:
+          %{
+            "source_lang" => ctx.source,
+            "target_lang" => ctx.target,
+            "fields" => Map.keys(translated)
+          }
+          |> maybe_put_scope(ctx.scope)
       })
     end
   rescue
