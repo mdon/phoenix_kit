@@ -1,3 +1,24 @@
+## 1.7.133 - 2026-06-08
+
+### Removed
+- **AI translation pipeline moved out of core into the `phoenix_kit_ai` plugin** (PR #586).
+  Core keeps only the `phoenix_kit_ai_endpoints` / `_prompts` table migrations (the single
+  versioned chain) and the generic, AI-agnostic `ai_translate` attr on
+  `Components.Core.LanguageSwitcher`. Removed from core:
+  - `PhoenixKit.Modules.AI` + `.Translatable` / `.Translations` / `.TranslateWorker` /
+    `.Translation` (the whole pipeline) — re-homed to `PhoenixKitAI.*`.
+  - The optional `PhoenixKit.Module.ai_translatables/0` callback and its
+    `PhoenixKit.ModuleRegistry.all_ai_translatables/0` / `find_ai_translatable/1` discovery —
+    discovery now lives in `PhoenixKitAI.Translatables` as a duck-typed scan over
+    `ModuleRegistry.all_modules/0`.
+  - `PhoenixKitWeb.Components.AITranslate{,.Embed,.FormBinding,.FormGlue}` (the AI-translate
+    modal UI), and the `Utils.Routes.ai_path/0` helper (now `PhoenixKitAI.Routes.ai_path/0`).
+
+  **Breaking for direct consumers of these APIs.** Feature modules
+  (publishing / catalogue / projects) now depend on `phoenix_kit_ai` and implement
+  `PhoenixKitAI.Translatable`; they float to this core release via `~>` minimums. Hosts that
+  used the in-core `Modules.AI.*` / `AITranslate.*` modules must switch to the plugin.
+
 ## 1.7.132 - 2026-06-07
 
 ### Added
