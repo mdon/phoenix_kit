@@ -151,17 +151,6 @@ defmodule PhoenixKit.Module do
   @callback notification_types() :: [map()]
 
   @doc """
-  Optional. Declare AI-translatable resources contributed by this module.
-
-  Returns `[{resource_type, adapter_module}]` where `adapter_module`
-  implements `PhoenixKit.Modules.AI.Translatable`. Discovered by
-  `PhoenixKit.ModuleRegistry.all_ai_translatables/0` and dispatched by
-  `PhoenixKit.Modules.AI.TranslateWorker`. `resource_type` strings must be
-  globally unique (namespace them, e.g. `"catalogue_item"`).
-  """
-  @callback ai_translatables() :: [{String.t(), module()}]
-
-  @doc """
   Returns Tailwind CSS source roots for scanning.
 
   Each entry is either:
@@ -238,7 +227,6 @@ defmodule PhoenixKit.Module do
     required_integrations: 0,
     integration_providers: 0,
     notification_types: 0,
-    ai_translatables: 0,
     css_sources: 0,
     migrate_legacy: 0
   ]
@@ -293,9 +281,6 @@ defmodule PhoenixKit.Module do
       def notification_types, do: []
 
       @impl PhoenixKit.Module
-      def ai_translatables, do: []
-
-      @impl PhoenixKit.Module
       def css_sources, do: []
 
       @impl PhoenixKit.Module
@@ -314,7 +299,6 @@ defmodule PhoenixKit.Module do
                      required_integrations: 0,
                      integration_providers: 0,
                      notification_types: 0,
-                     ai_translatables: 0,
                      css_sources: 0,
                      migrate_legacy: 0
     end

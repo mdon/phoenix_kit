@@ -160,7 +160,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     actual translation worker and broadcasting the resulting `:missing` /
     `:in_flight` state back via PubSub. Set `:enabled` to `false` (or pass
     `nil`) to fall back to today's behavior with no AI UI — convenient for
-    hosts that gate on `PhoenixKit.Modules.AI.available?/0`.
+    hosts that gate on `PhoenixKitAI.Translations.available?/0`.
 
     ## Bulk action dispatch
 

@@ -79,13 +79,6 @@
   # External optional modules guarded by Code.ensure_loaded? at runtime
   {"lib/modules/sitemap/sources/publishing.ex", :unknown_function},
   {"lib/phoenix_kit/dashboard/registry.ex", :unknown_function},
-  # PhoenixKitAI.ask_with_prompt/4 — optional :phoenix_kit_ai plugin, gated by
-  # PhoenixKit.Modules.AI.available?/0. @compile no_warn_undefined silences the
-  # compiler; Dialyzer needs this ignore for the same call.
-  {"lib/modules/ai/translation.ex", :unknown_function},
-  # PhoenixKitAI.{enabled?,list_endpoints,list_prompts,get_prompt_by_slug,create_prompt}
-  # — same optional-plugin story for the orchestration context.
-  {"lib/modules/ai/translations.ex", :unknown_function},
 
   # Integrations: Dialyzer infers boolean branches in cond/case are unreachable
   # when provider auth_type covers all spec'd atoms. False positive — defensive code.
