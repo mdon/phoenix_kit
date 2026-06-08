@@ -529,7 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V130 - Marker annotation kind ⚡ LATEST
+  ### V132 - Folder description ⚡ LATEST
+  - Adds an optional `description TEXT` column to `phoenix_kit_media_folders`
+    so admins can add/edit a free-text note describing a folder. Nullable;
+    `ADD COLUMN IF NOT EXISTS`, idempotent.
+
+  ### V131 - `metadata JSONB` on staff people
+  - Adds a general-purpose `metadata JSONB NOT NULL DEFAULT '{}'` column to
+    `phoenix_kit_staff_people` (mirrors `phoenix_kit_entities.entity_data`).
+    First consumer is staff soft-delete: stashes the prior lifecycle status
+    under `metadata["trashed_from_status"]` so restore can return the person to
+    active/inactive. Idempotent `ADD COLUMN IF NOT EXISTS`.
+
+  ### V130 - Marker annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to allow `'marker'` (the Etcher
     highlighter tool). Markers persist via `annotations-changed` but skip the
     composer (no title/comment) — without this the insert is rejected and the
@@ -1121,7 +1133,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 130
+  @current_version 132
   @default_prefix "public"
 
   @doc false

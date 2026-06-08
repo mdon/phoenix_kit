@@ -1,3 +1,139 @@
+## 1.7.138 - 2026-06-09
+
+### Fixed
+- Media browser: removed the dead client-side view-mode persistence left over
+  from the 1.7.136 server-side switch. The `MediaDragDrop` hook no longer writes
+  the now-unread `phoenix_kit_media_view_mode` localStorage key (or the
+  `data-view-mode` button attrs / `dataset.mediaView`) — view mode is persisted
+  per-user in `custom_fields` and rendered on first paint.
+- Media browser: the current-folder header description editor now cancels on
+  Escape, matching the grid-card and list-row editors.
+
+### Changed
+- Media browser: folder-description textareas are debounced
+  (`phx-debounce="300"`) so editing no longer round-trips on every keystroke,
+  and the description editor resolves the folder from already-loaded assigns
+  instead of issuing a redundant query on open/save.
+
+## 1.7.137 - 2026-06-09
+
+### Fixed
+- Bump `leaf` 0.2.21 → **0.2.22** (dep min in `mix.exs` + the jsDelivr CDN pin
+  in `phoenix_kit.js`, `@v0.2.21 → @v0.2.22`) for the markdown-link round-trip
+  fix: editing rich-text content with a link no longer doubles it into
+  `[[label](url)](url)` on each save (affected comments/posts editors).
+
+## 1.7.136 - 2026-06-08
+
+### Fixed
+- Media browser no longer flashes grid view before switching to the user's
+  saved list view on load. The grid/list preference is now persisted per-user
+  in `custom_fields["media_view_mode"]` and rendered on first paint (dead +
+  connected render), instead of being restored from localStorage via a
+  post-connect `set_view_mode` push. The `MediaDragDrop` hook's localStorage
+  restore was removed; the toolbar toggle still drives `set_view_mode`, which
+  now persists server-side.
+
+## 1.7.135 - 2026-06-08
+
+### Added
+- **Folder descriptions** — media folders can now carry an optional free-text
+  description that admins can add/edit/clear. Surfaced in three places in the
+  Media browser, all sharing one save path:
+  - Inside a folder: a prominent "Add a folder description" button / info box
+    under the breadcrumb, with an inline editor.
+  - Grid view: a clamped description line under each folder card + an
+    "Add/Edit description" entry in the card's ⋯ menu (inline editor on the card).
+  - List view: a new **Description** column after Path + the same ⋯ menu entry
+    (inline editor in the row).
+- **V132** migration adds the `description TEXT` column to
+  `phoenix_kit_media_folders` (`ADD COLUMN IF NOT EXISTS`, idempotent), and
+  `Folder`'s changeset casts it with a 2000-char cap.
+
+## 1.7.134 - 2026-06-08
+
+### Changed
+- The `/admin/media` page now fills the full content width and viewport height
+  instead of floating in a width-capped, fixed-height card. The page wrapper
+  drops `container mx-auto` for `w-full` + `h-[calc(100dvh-4rem)]`, and the
+  browser's file grid scrolls internally rather than the whole page growing.
+
+### Added
+- `PhoenixKitWeb.Components.MediaBrowser` gains a `fill_height` attr (default
+  `false`). When `true`, the browser grows to fill its parent (`flex-1`)
+  instead of the bounded `h-[72vh] max-h-[48rem]` card — used by the full-page
+  admin media view; modal/gallery embeds keep the bounded default.
+
+## 1.7.133 - 2026-06-08
+
+### Removed
+- **AI translation pipeline moved out of core into the `phoenix_kit_ai` plugin** (PR #586).
+  Core keeps only the `phoenix_kit_ai_endpoints` / `_prompts` table migrations (the single
+  versioned chain) and the generic, AI-agnostic `ai_translate` attr on
+  `Components.Core.LanguageSwitcher`. Removed from core:
+  - `PhoenixKit.Modules.AI` + `.Translatable` / `.Translations` / `.TranslateWorker` /
+    `.Translation` (the whole pipeline) — re-homed to `PhoenixKitAI.*`.
+  - The optional `PhoenixKit.Module.ai_translatables/0` callback and its
+    `PhoenixKit.ModuleRegistry.all_ai_translatables/0` / `find_ai_translatable/1` discovery —
+    discovery now lives in `PhoenixKitAI.Translatables` as a duck-typed scan over
+    `ModuleRegistry.all_modules/0`.
+  - `PhoenixKitWeb.Components.AITranslate{,.Embed,.FormBinding,.FormGlue}` (the AI-translate
+    modal UI), and the `Utils.Routes.ai_path/0` helper (now `PhoenixKitAI.Routes.ai_path/0`).
+
+  **Breaking for direct consumers of these APIs.** Feature modules
+  (publishing / catalogue / projects) now depend on `phoenix_kit_ai` and implement
+  `PhoenixKitAI.Translatable`; they float to this core release via `~>` minimums. Hosts that
+  used the in-core `Modules.AI.*` / `AITranslate.*` modules must switch to the plugin.
+
+## 1.7.132 - 2026-06-07
+
+### Added
+- **`PhoenixKitWeb.Components.AITranslate.Embed`** — a `use`-able macro that
+  wires the host side of the AI-translate modal so consumers stop hand-copying
+  it. Via `attach_hook` lifecycle hooks it injects the six `ai_*` `handle_event`
+  clauses (`ai_toggle_modal`, `ai_select_endpoint`, `ai_select_prompt`,
+  `ai_select_scope`, `ai_generate_prompt`, `ai_translate_lang`) and the
+  `{:ai_translation, …}` `handle_info` clause, composing with the host's own
+  handlers (non-AI events/messages pass straight through). Form re-sync defaults
+  to assigning both `:changeset` and `:form`; hosts whose sync differs override
+  `ai_translate_assign_form/2`. Because lifecycle hooks run before the host's
+  own callbacks and `:halt` on the events they own, a host clause for those AI
+  events is shadowed — the moduledoc documents this so the AI clauses aren't
+  re-implemented in the host.
+- **V131** migration adds a generic `metadata JSONB NOT NULL DEFAULT '{}'`
+  column to `phoenix_kit_staff_people` (mirrors the `entity_data` shape). The
+  first consumer is staff soft-delete, which stashes the prior lifecycle status
+  under `metadata["trashed_from_status"]`; the column is general-purpose so
+  future per-person metadata needs no new migration. Idempotent
+  `ADD COLUMN IF NOT EXISTS`; `@current_version` → 131.
+
+### Fixed
+- Media detail comments: forward Leaf editor events to the embedded
+  `CommentsComponent`. The Leaf rich-text composer reports its content to the
+  host LiveView via a `{:leaf_changed, …}` process message; `media_detail`
+  wasn't forwarding it, so "Post Comment" silently posted empty content. Adds
+  the runtime forward (resolved against the optional `phoenix_kit_comments` dep)
+  plus a `handle_info` catch-all so unmatched messages don't crash the LV.
+
+### Changed
+- Extract `PhoenixKitWeb.CommentsForwarding.forward_leaf_changed/2` — the
+  `{:leaf_changed, _}` forwarding contract (optional-dep guard + runtime
+  `apply/3` + `:pass`/contract-drift handling, logging unexpected returns) now
+  lives in one module. `MediaBrowser.Embed` and `MediaDetail` both delegate to
+  it instead of carrying near-verbatim copies, so a future
+  `forward_leaf_event/2` contract change touches one call site. As a side
+  effect the `MediaBrowser.Embed` macro no longer injects `require Logger` into
+  every host (the only `Logger` use moved into the shared module).
+- Document required host wiring on the callback-message components
+  `MediaSelectorModal`, `MarkdownEditor`, and `MediaGallery` — loud
+  "required host wiring / silent failure otherwise" moduledoc contracts. These
+  stay docs-only by design (per-consumer handling, not uniform boilerplate, so
+  no Embed macro). `MediaSelectorModal` also documents the `:notify` alternative
+  for LiveComponent consumers.
+- Dependency bumps (`mix.lock`): `bandit` 1.11.1 → 1.12.0, `etcher`
+  0.6.5 → 0.6.6, `fresco` 0.6.3 → 0.7.1, `spitfire` 0.3.12 → 0.3.13, `tesla`
+  1.18.3 → 1.20.0.
+
 ## 1.7.131 - 2026-06-05
 
 ### Added

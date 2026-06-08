@@ -38,13 +38,23 @@ defmodule PhoenixKitWeb.Components.Core.MarkdownEditor do
   When text is selected, formatting wraps the selection. When no text is
   selected, a placeholder is inserted and auto-selected for easy replacement.
 
-  ## Events Sent to Parent
+  ## Events Sent to Parent — required host wiring (silent failure otherwise)
 
-  The component sends messages to the parent LiveView via `send/2`:
+  This is a `LiveComponent`, so it has no `handle_info` of its own: it
+  reports edits by sending **process messages to the host LiveView** via
+  `send/2`. The host MUST handle these, or the edits are silently lost
+  (the editor looks live but the parent never sees the typed content —
+  no crash, no warning):
 
-  - `{:editor_content_changed, %{content: content, editor_id: id}}` - Content updated
-  - `{:editor_insert_component, %{type: :image | :video, editor_id: id}}` - Toolbar button clicked
-  - `{:editor_save_requested, %{editor_id: id}}` - Save button clicked
+  - `{:editor_content_changed, %{content: content, editor_id: id}}` —
+    **required.** Content updated; the host folds `content` into its own
+    changeset/assign. Forget this and the form never sees what's typed.
+  - `{:editor_insert_component, %{type: :image | :video, editor_id: id}}` —
+    toolbar insert button clicked (handle if you support media inserts).
+  - `{:editor_save_requested, %{editor_id: id}}` — save button clicked.
+
+  Each host folds the content into its own form differently, so there is
+  intentionally no `use ...Embed` macro — the handling is yours to write.
 
   ## Commands from Parent
 
