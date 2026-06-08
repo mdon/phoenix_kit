@@ -1,3 +1,20 @@
+## 1.7.138 - 2026-06-09
+
+### Fixed
+- Media browser: removed the dead client-side view-mode persistence left over
+  from the 1.7.136 server-side switch. The `MediaDragDrop` hook no longer writes
+  the now-unread `phoenix_kit_media_view_mode` localStorage key (or the
+  `data-view-mode` button attrs / `dataset.mediaView`) — view mode is persisted
+  per-user in `custom_fields` and rendered on first paint.
+- Media browser: the current-folder header description editor now cancels on
+  Escape, matching the grid-card and list-row editors.
+
+### Changed
+- Media browser: folder-description textareas are debounced
+  (`phx-debounce="300"`) so editing no longer round-trips on every keystroke,
+  and the description editor resolves the folder from already-loaded assigns
+  instead of issuing a redundant query on open/save.
+
 ## 1.7.137 - 2026-06-09
 
 ### Fixed
