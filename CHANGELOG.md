@@ -1,3 +1,11 @@
+## 1.7.137 - 2026-06-09
+
+### Fixed
+- Bump `leaf` 0.2.21 → **0.2.22** (dep min in `mix.exs` + the jsDelivr CDN pin
+  in `phoenix_kit.js`, `@v0.2.21 → @v0.2.22`) for the markdown-link round-trip
+  fix: editing rich-text content with a link no longer doubles it into
+  `[[label](url)](url)` on each save (affected comments/posts editors).
+
 ## 1.7.136 - 2026-06-08
 
 ### Fixed
