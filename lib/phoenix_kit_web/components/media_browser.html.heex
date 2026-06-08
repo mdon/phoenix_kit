@@ -213,21 +213,21 @@
                       <input type="hidden" name="folder_uuid" value={@current_folder.uuid} />
                       <textarea
                         name="description"
-                        rows="2"
+                        rows="3"
                         maxlength="2000"
                         placeholder={gettext("Describe what this folder is for...")}
-                        class="textarea textarea-bordered textarea-sm w-full"
+                        class="textarea textarea-bordered textarea-sm w-full block"
                         phx-mounted={JS.focus()}
                       >{@folder_description_text}</textarea>
-                      <div class="flex items-center gap-2 mt-1">
-                        <button type="submit" class="btn btn-xs btn-primary">
+                      <div class="flex items-center gap-2 mt-3">
+                        <button type="submit" class="btn btn-sm btn-primary">
                           {gettext("Save")}
                         </button>
                         <button
                           type="button"
                           phx-click="cancel_edit_folder_description"
                           phx-target={@myself}
-                          class="btn btn-xs btn-ghost"
+                          class="btn btn-sm btn-ghost"
                         >
                           {gettext("Cancel")}
                         </button>
@@ -235,12 +235,15 @@
                     </form>
                   <% else %>
                     <%= if @current_folder.description not in [nil, ""] do %>
-                      <div class="flex items-start gap-2 rounded-lg border border-base-300 bg-base-200/40 px-3 py-2">
+                      <div class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200/40 px-3 py-2">
                         <.icon
                           name="hero-information-circle"
-                          class="w-4 h-4 mt-0.5 text-base-content/40 shrink-0"
+                          class="w-4 h-4 text-base-content/40 shrink-0"
                         />
-                        <p class="text-sm text-base-content/80 whitespace-pre-line flex-1">
+                        <p
+                          class="text-sm text-base-content/80 truncate flex-1 min-w-0"
+                          title={@current_folder.description}
+                        >
                           {@current_folder.description}
                         </p>
                         <button
