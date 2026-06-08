@@ -3091,7 +3091,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.21/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.22/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
@@ -3383,11 +3383,9 @@ if (typeof window.Chart === "undefined") {
 
   window.PhoenixKitHooks.MediaDragDrop = {
     mounted: function() {
-      // Sync saved view mode to server
-      var savedMode = localStorage.getItem("phoenix_kit_media_view_mode");
-      if (savedMode && savedMode !== "grid") {
-        this.pushEventTo(this.el, "set_view_mode", { mode: savedMode });
-      }
+      // View mode (grid/list) is persisted server-side in the user's meta and
+      // rendered on first paint, so there's no localStorage→push restore here
+      // anymore (that caused a grid→list flash after connect).
 
       // Restore tree state from localStorage
       var expandedRaw = localStorage.getItem("phoenix_kit_media_expanded_folders");

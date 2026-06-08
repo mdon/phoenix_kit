@@ -99,6 +99,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
+  # Grid/list view preference is persisted per-user in `custom_fields`
+  # ("user meta") so the server renders the correct mode on first paint —
+  # no grid→list flash while the client restores a localStorage value
+  # after connect.
+  @media_view_mode_key "media_view_mode"
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -110,6 +116,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       |> assign_new(:viewer_file, fn -> nil end)
+      # When true, the browser fills its parent's width + height (flex-1)
+      # instead of the default fixed-height card. Used by the full-page
+      # admin media view; modal/gallery embeds keep the bounded default.
+      |> assign_new(:fill_height, fn -> false end)
 
     cond do
       not Map.has_key?(socket.assigns, :uploaded_files) ->
@@ -290,7 +300,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:renaming_folder, nil)
     |> assign(:renaming_source, nil)
     |> assign(:renaming_text, "")
-    |> assign(:view_mode, "grid")
+    |> assign(:editing_folder_description, nil)
+    |> assign(:folder_description_text, "")
+    |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
@@ -860,6 +872,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["grid", "list"] do
+    # Persist the choice to user meta so the next page load renders this mode
+    # directly (the server is the source of truth — see @media_view_mode_key).
+    socket =
+      case socket.assigns[:phoenix_kit_current_user] do
+        %{} = user ->
+          assign(socket, :phoenix_kit_current_user, persist_user_view_mode(user, mode))
+
+        _ ->
+          socket
+      end
+
     {:noreply, assign(socket, :view_mode, mode)}
   end
 
@@ -932,6 +955,82 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:renaming_folder, nil)
        |> assign(:renaming_source, nil)
        |> assign(:renaming_text, "")}
+    end
+  end
+
+  # Folder description edit — opens the inline editor in the current-folder
+  # header, seeded with the folder's existing description.
+  def handle_event("start_edit_folder_description", %{"folder-uuid" => folder_uuid}, socket) do
+    folder = Storage.get_folder(folder_uuid)
+
+    {:noreply,
+     socket
+     |> assign(:editing_folder_description, folder_uuid)
+     |> assign(:folder_description_text, (folder && folder.description) || "")}
+  end
+
+  def handle_event("folder_description_input", %{"description" => description}, socket) do
+    {:noreply, assign(socket, :folder_description_text, description)}
+  end
+
+  def handle_event("cancel_edit_folder_description", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_folder_description, nil)
+     |> assign(:folder_description_text, "")}
+  end
+
+  def handle_event(
+        "save_folder_description",
+        %{"folder_uuid" => folder_uuid, "description" => description},
+        socket
+      ) do
+    folder = Storage.get_folder(folder_uuid)
+    scope = scope_folder_id(socket)
+    # Blank/whitespace-only clears the description (stored as nil).
+    trimmed = String.trim(description)
+    value = if trimmed == "", do: nil, else: trimmed
+
+    if folder do
+      case Storage.update_folder(folder, %{description: value}, scope) do
+        {:ok, updated} ->
+          parent_uuid = current_folder_uuid(socket)
+
+          socket =
+            socket
+            |> assign(:editing_folder_description, nil)
+            |> assign(:folder_description_text, "")
+            # Reload the listing so the grid card / list row reflects the new
+            # description immediately (they render from `@folders`, not the
+            # tree), plus the tree.
+            |> assign(:folders, Storage.list_folders(parent_uuid, scope))
+            |> assign(:folder_tree, Storage.list_folder_tree(scope))
+
+          # Refresh the header's folder if we're editing the one we're inside.
+          socket =
+            if socket.assigns[:current_folder] &&
+                 to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid),
+               do: assign(socket, :current_folder, updated),
+               else: socket
+
+          {:noreply, socket}
+
+        {:error, :out_of_scope} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             gettext("Cannot edit a folder outside the allowed scope")
+           )}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to save folder description"))}
+      end
+    else
+      {:noreply,
+       socket
+       |> assign(:editing_folder_description, nil)
+       |> assign(:folder_description_text, "")}
     end
   end
 
@@ -1698,6 +1797,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp current_folder_uuid(socket) do
     socket.assigns.current_folder && socket.assigns.current_folder.uuid
   end
+
+  # Read the per-user grid/list preference from `custom_fields`, defaulting to
+  # "grid". Tolerant of a missing/garbage value.
+  defp load_user_view_mode(%{} = user) do
+    case Auth.get_user_field(user, @media_view_mode_key) do
+      mode when mode in ["grid", "list"] -> mode
+      _ -> "grid"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "grid"
+
+  # Persist the preference into a freshly-read `custom_fields` copy so a
+  # concurrent change elsewhere isn't clobbered. Returns the updated user (or
+  # the original on no-user / error) for the caller to re-assign.
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @media_view_mode_key, mode)
+
+    case Auth.update_user_custom_fields(fresh, merged) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
 
   defp scope_folder_id(socket), do: socket.assigns[:scope_folder_id]
 

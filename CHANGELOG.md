@@ -1,3 +1,52 @@
+## 1.7.137 - 2026-06-09
+
+### Fixed
+- Bump `leaf` 0.2.21 → **0.2.22** (dep min in `mix.exs` + the jsDelivr CDN pin
+  in `phoenix_kit.js`, `@v0.2.21 → @v0.2.22`) for the markdown-link round-trip
+  fix: editing rich-text content with a link no longer doubles it into
+  `[[label](url)](url)` on each save (affected comments/posts editors).
+
+## 1.7.136 - 2026-06-08
+
+### Fixed
+- Media browser no longer flashes grid view before switching to the user's
+  saved list view on load. The grid/list preference is now persisted per-user
+  in `custom_fields["media_view_mode"]` and rendered on first paint (dead +
+  connected render), instead of being restored from localStorage via a
+  post-connect `set_view_mode` push. The `MediaDragDrop` hook's localStorage
+  restore was removed; the toolbar toggle still drives `set_view_mode`, which
+  now persists server-side.
+
+## 1.7.135 - 2026-06-08
+
+### Added
+- **Folder descriptions** — media folders can now carry an optional free-text
+  description that admins can add/edit/clear. Surfaced in three places in the
+  Media browser, all sharing one save path:
+  - Inside a folder: a prominent "Add a folder description" button / info box
+    under the breadcrumb, with an inline editor.
+  - Grid view: a clamped description line under each folder card + an
+    "Add/Edit description" entry in the card's ⋯ menu (inline editor on the card).
+  - List view: a new **Description** column after Path + the same ⋯ menu entry
+    (inline editor in the row).
+- **V132** migration adds the `description TEXT` column to
+  `phoenix_kit_media_folders` (`ADD COLUMN IF NOT EXISTS`, idempotent), and
+  `Folder`'s changeset casts it with a 2000-char cap.
+
+## 1.7.134 - 2026-06-08
+
+### Changed
+- The `/admin/media` page now fills the full content width and viewport height
+  instead of floating in a width-capped, fixed-height card. The page wrapper
+  drops `container mx-auto` for `w-full` + `h-[calc(100dvh-4rem)]`, and the
+  browser's file grid scrolls internally rather than the whole page growing.
+
+### Added
+- `PhoenixKitWeb.Components.MediaBrowser` gains a `fill_height` attr (default
+  `false`). When `true`, the browser grows to fill its parent (`flex-1`)
+  instead of the bounded `h-[72vh] max-h-[48rem]` card — used by the full-page
+  admin media view; modal/gallery embeds keep the bounded default.
+
 ## 1.7.133 - 2026-06-08
 
 ### Removed

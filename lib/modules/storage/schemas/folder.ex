@@ -16,6 +16,7 @@ defmodule PhoenixKit.Modules.Storage.Folder do
 
   schema "phoenix_kit_media_folders" do
     field :name, :string
+    field :description, :string
     field :color, :string, default: "default"
     field :trashed_at, :utc_datetime
 
@@ -46,10 +47,11 @@ defmodule PhoenixKit.Modules.Storage.Folder do
 
   def changeset(folder, attrs) do
     folder
-    |> cast(attrs, [:name, :parent_uuid, :user_uuid, :color, :trashed_at])
+    |> cast(attrs, [:name, :description, :parent_uuid, :user_uuid, :color, :trashed_at])
     |> validate_required([:name])
     |> validate_inclusion(:color, @folder_colors)
     |> validate_length(:name, min: 1, max: 255)
+    |> validate_length(:description, max: 2000)
     |> foreign_key_constraint(:parent_uuid)
     |> foreign_key_constraint(:user_uuid)
     |> unique_constraint([:name, :parent_uuid],
