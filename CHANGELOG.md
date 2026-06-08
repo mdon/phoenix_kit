@@ -1,3 +1,17 @@
+## 1.7.133 - 2026-06-08
+
+### Changed
+- The `/admin/media` page now fills the full content width and viewport height
+  instead of floating in a width-capped, fixed-height card. The page wrapper
+  drops `container mx-auto` for `w-full` + `h-[calc(100dvh-4rem)]`, and the
+  browser's file grid scrolls internally rather than the whole page growing.
+
+### Added
+- `PhoenixKitWeb.Components.MediaBrowser` gains a `fill_height` attr (default
+  `false`). When `true`, the browser grows to fill its parent (`flex-1`)
+  instead of the bounded `h-[72vh] max-h-[48rem]` card — used by the full-page
+  admin media view; modal/gallery embeds keep the bounded default.
+
 ## 1.7.132 - 2026-06-07
 
 ### Added

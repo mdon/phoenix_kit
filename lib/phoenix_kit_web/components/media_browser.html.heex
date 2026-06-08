@@ -1,6 +1,11 @@
 <%!-- MediaBrowser LiveComponent template.
      All phx-* events route to the component via phx-target={@myself} on the root div. --%>
-<div id={@id} phx-target={@myself} phx-hook="MediaDragDrop">
+<div
+  id={@id}
+  phx-target={@myself}
+  phx-hook="MediaDragDrop"
+  class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
+>
   <style>
     @keyframes rename-pulse {
       0%, 100% { opacity: 1; }
@@ -89,8 +94,11 @@
     <% end %>
 
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
-    <div class="card bg-base-100 shadow-xl">
-      <div class="card-body p-4 flex flex-row gap-0 h-[72vh] max-h-[48rem] min-h-[24rem] overflow-hidden">
+    <div class={["card bg-base-100 shadow-xl", @fill_height && "flex-1 min-h-0"]}>
+      <div class={[
+        "card-body p-4 flex flex-row gap-0 overflow-hidden",
+        if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
+      ]}>
         <%!-- Folder Sidebar --%>
         <.folder_explorer
           id="media-browser-sidebar"

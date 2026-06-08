@@ -110,6 +110,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       |> assign_new(:viewer_file, fn -> nil end)
+      # When true, the browser fills its parent's width + height (flex-1)
+      # instead of the default fixed-height card. Used by the full-page
+      # admin media view; modal/gallery embeds keep the bounded default.
+      |> assign_new(:fill_height, fn -> false end)
 
     cond do
       not Map.has_key?(socket.assigns, :uploaded_files) ->
