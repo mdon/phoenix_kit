@@ -961,7 +961,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Folder description edit — opens the inline editor in the current-folder
   # header, seeded with the folder's existing description.
   def handle_event("start_edit_folder_description", %{"folder-uuid" => folder_uuid}, socket) do
-    folder = Storage.get_folder(folder_uuid)
+    folder = loaded_folder(socket, folder_uuid)
 
     {:noreply,
      socket
@@ -985,7 +985,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         %{"folder_uuid" => folder_uuid, "description" => description},
         socket
       ) do
-    folder = Storage.get_folder(folder_uuid)
+    folder = loaded_folder(socket, folder_uuid)
     scope = scope_folder_id(socket)
     # Blank/whitespace-only clears the description (stored as nil).
     trimmed = String.trim(description)
@@ -1796,6 +1796,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp current_folder_uuid(socket) do
     socket.assigns.current_folder && socket.assigns.current_folder.uuid
+  end
+
+  # Resolve a folder already loaded in assigns (the current folder or the
+  # listing) before falling back to a DB read — the description editor is
+  # always opened from a folder that's on screen, so the re-query is redundant.
+  defp loaded_folder(socket, folder_uuid) do
+    current = socket.assigns[:current_folder]
+    key = to_string(folder_uuid)
+
+    found =
+      if current && to_string(current.uuid) == key do
+        current
+      else
+        Enum.find(socket.assigns[:folders] || [], &(to_string(&1.uuid) == key))
+      end
+
+    found || Storage.get_folder(folder_uuid)
   end
 
   # Read the per-user grid/list preference from `custom_fields`, defaulting to

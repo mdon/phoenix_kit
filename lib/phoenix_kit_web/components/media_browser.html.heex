@@ -218,6 +218,10 @@
                         placeholder={gettext("Describe what this folder is for...")}
                         class="textarea textarea-bordered textarea-sm w-full block"
                         phx-mounted={JS.focus()}
+                        phx-keydown="cancel_edit_folder_description"
+                        phx-target={@myself}
+                        phx-key="Escape"
+                        phx-debounce="300"
                       >{@folder_description_text}</textarea>
                       <div class="flex items-center gap-2 mt-3">
                         <button type="submit" class="btn btn-sm btn-primary">
@@ -528,7 +532,6 @@
                         phx-click="set_view_mode"
                         phx-target={@myself}
                         phx-value-mode="grid"
-                        data-view-mode="grid"
                         class={[
                           "btn btn-xs join-item",
                           if(@view_mode == "grid", do: "btn-active")
@@ -541,7 +544,6 @@
                         phx-click="set_view_mode"
                         phx-target={@myself}
                         phx-value-mode="list"
-                        data-view-mode="list"
                         class={[
                           "btn btn-xs join-item",
                           if(@view_mode == "list", do: "btn-active")
@@ -686,6 +688,7 @@
                                   phx-keydown="cancel_edit_folder_description"
                                   phx-target={@myself}
                                   phx-key="Escape"
+                                  phx-debounce="300"
                                 >{@folder_description_text}</textarea>
                                 <div class="flex items-center justify-center gap-1 mt-1">
                                   <button type="submit" class="btn btn-xs btn-primary">
@@ -1036,6 +1039,7 @@
                                         phx-keydown="cancel_edit_folder_description"
                                         phx-target={@myself}
                                         phx-key="Escape"
+                                        phx-debounce="300"
                                       >{@folder_description_text}</textarea>
                                       <button type="submit" class="btn btn-sm btn-ghost">
                                         <.icon name="hero-check" class="w-4 h-4 text-success" />

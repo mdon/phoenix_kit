@@ -3423,21 +3423,10 @@ if (typeof window.Chart === "undefined") {
       });
 
       this.setupDragDrop();
-      this.setupViewModePersistence();
     },
 
     updated: function() {
       this.setupDragDrop();
-    },
-
-    setupViewModePersistence: function() {
-      this.el.querySelectorAll("[data-view-mode]").forEach(function(btn) {
-        btn.addEventListener("click", function() {
-          var mode = btn.dataset.viewMode;
-          localStorage.setItem("phoenix_kit_media_view_mode", mode);
-          document.documentElement.dataset.mediaView = mode;
-        });
-      });
     },
 
     setupDragDrop: function() {
