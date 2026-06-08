@@ -44,6 +44,25 @@ end
 
 `test/test_helper.exs` calls `PhoenixKit.Migration.ensure_current/2`. **Do not** swap in `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` — it goes silently stale (see `ensure_current/2` moduledoc).
 
+### Local cross-repo development
+
+Core has no `phoenix_kit` dependency of its own, so there is nothing to override
+here — the flow matters from the **consumer** side. Every Max-maintained feature
+module wraps its `phoenix_kit*` deps in a `pk_dep/3` helper, so a module's own
+suite can run against **uncommitted local core** without publishing. From inside
+the module's directory:
+
+```bash
+PHOENIX_KIT_PATH=../phoenix_kit mix test
+```
+
+Mix swaps that module's Hex pin for a local `path:` + `override: true` dep (the
+var name is the dep app upper-cased + `_PATH`; unset = the published pin, so
+`mix hex.publish` / CI are unaffected). `phoenix_kit_parent` does the same
+permanently via `path:` + `override: true` deps — use it to exercise the whole
+tree (its own tests, the running app, browser checks) against local core. Full
+write-up: workspace `AGENTS.md` → "Testing a module against local deps".
+
 ### Code Search
 
 - `rg` (ripgrep) — text/regex/strings/comments
