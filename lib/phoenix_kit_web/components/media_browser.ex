@@ -99,6 +99,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
+  # Grid/list view preference is persisted per-user in `custom_fields`
+  # ("user meta") so the server renders the correct mode on first paint —
+  # no grid→list flash while the client restores a localStorage value
+  # after connect.
+  @media_view_mode_key "media_view_mode"
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -296,7 +302,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:renaming_text, "")
     |> assign(:editing_folder_description, nil)
     |> assign(:folder_description_text, "")
-    |> assign(:view_mode, "grid")
+    |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
@@ -866,6 +872,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["grid", "list"] do
+    # Persist the choice to user meta so the next page load renders this mode
+    # directly (the server is the source of truth — see @media_view_mode_key).
+    socket =
+      case socket.assigns[:phoenix_kit_current_user] do
+        %{} = user ->
+          assign(socket, :phoenix_kit_current_user, persist_user_view_mode(user, mode))
+
+        _ ->
+          socket
+      end
+
     {:noreply, assign(socket, :view_mode, mode)}
   end
 
@@ -1780,6 +1797,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp current_folder_uuid(socket) do
     socket.assigns.current_folder && socket.assigns.current_folder.uuid
   end
+
+  # Read the per-user grid/list preference from `custom_fields`, defaulting to
+  # "grid". Tolerant of a missing/garbage value.
+  defp load_user_view_mode(%{} = user) do
+    case Auth.get_user_field(user, @media_view_mode_key) do
+      mode when mode in ["grid", "list"] -> mode
+      _ -> "grid"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "grid"
+
+  # Persist the preference into a freshly-read `custom_fields` copy so a
+  # concurrent change elsewhere isn't clobbered. Returns the updated user (or
+  # the original on no-user / error) for the caller to re-assign.
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @media_view_mode_key, mode)
+
+    case Auth.update_user_custom_fields(fresh, merged) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
 
   defp scope_folder_id(socket), do: socket.assigns[:scope_folder_id]
 

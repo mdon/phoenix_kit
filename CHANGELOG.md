@@ -1,3 +1,14 @@
+## 1.7.135 - 2026-06-08
+
+### Fixed
+- Media browser no longer flashes grid view before switching to the user's
+  saved list view on load. The grid/list preference is now persisted per-user
+  in `custom_fields["media_view_mode"]` and rendered on first paint (dead +
+  connected render), instead of being restored from localStorage via a
+  post-connect `set_view_mode` push. The `MediaDragDrop` hook's localStorage
+  restore was removed; the toolbar toggle still drives `set_view_mode`, which
+  now persists server-side.
+
 ## 1.7.134 - 2026-06-08
 
 ### Added
