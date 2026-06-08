@@ -294,6 +294,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:renaming_folder, nil)
     |> assign(:renaming_source, nil)
     |> assign(:renaming_text, "")
+    |> assign(:editing_folder_description, nil)
+    |> assign(:folder_description_text, "")
     |> assign(:view_mode, "grid")
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
@@ -936,6 +938,82 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:renaming_folder, nil)
        |> assign(:renaming_source, nil)
        |> assign(:renaming_text, "")}
+    end
+  end
+
+  # Folder description edit — opens the inline editor in the current-folder
+  # header, seeded with the folder's existing description.
+  def handle_event("start_edit_folder_description", %{"folder-uuid" => folder_uuid}, socket) do
+    folder = Storage.get_folder(folder_uuid)
+
+    {:noreply,
+     socket
+     |> assign(:editing_folder_description, folder_uuid)
+     |> assign(:folder_description_text, (folder && folder.description) || "")}
+  end
+
+  def handle_event("folder_description_input", %{"description" => description}, socket) do
+    {:noreply, assign(socket, :folder_description_text, description)}
+  end
+
+  def handle_event("cancel_edit_folder_description", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_folder_description, nil)
+     |> assign(:folder_description_text, "")}
+  end
+
+  def handle_event(
+        "save_folder_description",
+        %{"folder_uuid" => folder_uuid, "description" => description},
+        socket
+      ) do
+    folder = Storage.get_folder(folder_uuid)
+    scope = scope_folder_id(socket)
+    # Blank/whitespace-only clears the description (stored as nil).
+    trimmed = String.trim(description)
+    value = if trimmed == "", do: nil, else: trimmed
+
+    if folder do
+      case Storage.update_folder(folder, %{description: value}, scope) do
+        {:ok, updated} ->
+          parent_uuid = current_folder_uuid(socket)
+
+          socket =
+            socket
+            |> assign(:editing_folder_description, nil)
+            |> assign(:folder_description_text, "")
+            # Reload the listing so the grid card / list row reflects the new
+            # description immediately (they render from `@folders`, not the
+            # tree), plus the tree.
+            |> assign(:folders, Storage.list_folders(parent_uuid, scope))
+            |> assign(:folder_tree, Storage.list_folder_tree(scope))
+
+          # Refresh the header's folder if we're editing the one we're inside.
+          socket =
+            if socket.assigns[:current_folder] &&
+                 to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid),
+               do: assign(socket, :current_folder, updated),
+               else: socket
+
+          {:noreply, socket}
+
+        {:error, :out_of_scope} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             gettext("Cannot edit a folder outside the allowed scope")
+           )}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to save folder description"))}
+      end
+    else
+      {:noreply,
+       socket
+       |> assign(:editing_folder_description, nil)
+       |> assign(:folder_description_text, "")}
     end
   end
 

@@ -1,3 +1,19 @@
+## 1.7.134 - 2026-06-08
+
+### Added
+- **Folder descriptions** — media folders can now carry an optional free-text
+  description that admins can add/edit/clear. Surfaced in three places in the
+  Media browser, all sharing one save path:
+  - Inside a folder: a prominent "Add a folder description" button / info box
+    under the breadcrumb, with an inline editor.
+  - Grid view: a clamped description line under each folder card + an
+    "Add/Edit description" entry in the card's ⋯ menu (inline editor on the card).
+  - List view: a new **Description** column after Path + the same ⋯ menu entry
+    (inline editor in the row).
+- **V132** migration adds the `description TEXT` column to
+  `phoenix_kit_media_folders` (`ADD COLUMN IF NOT EXISTS`, idempotent), and
+  `Folder`'s changeset casts it with a 2000-char cap.
+
 ## 1.7.133 - 2026-06-08
 
 ### Changed
