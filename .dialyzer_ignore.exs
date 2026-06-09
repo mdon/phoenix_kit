@@ -2,6 +2,7 @@
   # Mix functions are only available during Mix compilation context
   {"lib/mix/tasks/phoenix_kit.gen.migration.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.doctor.ex", :unknown_function},
+  {"lib/mix/tasks/phoenix_kit.release_check.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.install.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.update.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.gen.admin.page.ex", :unknown_function},
@@ -19,6 +20,7 @@
   # Note: Mix.Task behaviour info is not available to Dialyzer (compile-time only)
   # Adding @impl Mix.Task does not fix this warning
   {"lib/mix/tasks/phoenix_kit.doctor.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.release_check.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.gen.migration.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.install.ex", :callback_info_missing, 2},
   {"lib/mix/tasks/phoenix_kit.update.ex", :callback_info_missing, 3},
@@ -64,6 +66,8 @@
   # doctor.ex display_check - `if detail` on binary() type: Dialyzer sees binary is always
   # truthy so the nil/false branch of `if` can never succeed; this is intentional nil-guard
   {"lib/mix/tasks/phoenix_kit.doctor.ex", :guard_fail},
+  # release_check.ex shares doctor's `if detail` display helper — same false positive
+  {"lib/mix/tasks/phoenix_kit.release_check.ex", :guard_fail},
   # doctor.ex MapSet.member? - Dialyzer infers old MapSet internal structure from SQL rows
   # This is a false positive: MapSet.new/1 correctly produces an opaque MapSet at runtime
   {"lib/mix/tasks/phoenix_kit.doctor.ex", :call_without_opaque},
