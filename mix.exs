@@ -112,6 +112,7 @@ defmodule PhoenixKit.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:hackney, "~> 1.16"},
@@ -250,6 +251,21 @@ defmodule PhoenixKit.MixProject do
         "compile --warnings-as-errors --all-warnings",
         "deps.unlock --check-unused",
         "quality.ci"
+      ],
+
+      # Release gate — run before `mix hex.publish`. Catches release-metadata
+      # drift and packaging mistakes that precommit/quality.ci structurally
+      # cannot. Deliberately DB-free (no `mix test` here — CI owns that).
+      prerelease: [
+        "deps.get --check-locked",
+        "deps.unlock --check-unused",
+        "cmd MIX_ENV=prod mix compile --force --warnings-as-errors",
+        "quality.ci",
+        "deps.audit",
+        "hex.audit",
+        "docs",
+        "hex.build",
+        "phoenix_kit.release_check"
       ]
     ]
   end
