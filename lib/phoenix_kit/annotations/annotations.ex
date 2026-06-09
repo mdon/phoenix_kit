@@ -41,6 +41,14 @@ defmodule PhoenixKit.Annotations do
     |> RepoHelper.insert()
   end
 
+  @doc "Returns true if the file has at least one annotation."
+  @spec has_annotations?(term()) :: boolean()
+  def has_annotations?(file_uuid) when is_binary(file_uuid) do
+    RepoHelper.exists?(from a in Annotation, where: a.file_uuid == ^file_uuid)
+  end
+
+  def has_annotations?(_), do: false
+
   @doc "List annotations for a file, ordered by `position` then insertion time."
   @spec list_for_file(uuid()) :: [Annotation.t()]
   def list_for_file(file_uuid) do
