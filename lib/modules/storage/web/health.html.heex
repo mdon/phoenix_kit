@@ -114,8 +114,7 @@
             class="progress progress-primary w-full"
             value={@sync_progress}
             max={@sync_total}
-          >
-          </progress>
+          ></progress>
           <div class="flex gap-4 mt-2 text-xs text-base-content/60">
             <span class="text-success">{gettext("%{n} synced", n: @sync_synced)}</span>
             <%= if @sync_failed > 0 do %>

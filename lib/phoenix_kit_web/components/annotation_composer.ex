@@ -433,8 +433,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
                       class="progress progress-primary w-full h-1"
                       value={entry.progress}
                       max="100"
-                    >
-                    </progress>
+                    ></progress>
                   <% end %>
                 </div>
                 <button

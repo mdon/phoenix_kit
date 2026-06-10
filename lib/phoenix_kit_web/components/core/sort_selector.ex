@@ -151,8 +151,7 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
             />
             <%!-- Spinner — hidden by default; revealed while an ancestor
                button carries Phoenix's `.phx-click-loading` class --%>
-            <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs">
-            </span>
+            <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs"></span>
           </button>
         </div>
       </.form>

@@ -1,3 +1,12 @@
+## 1.7.143 - 2026-06-11
+
+### Changed
+- Media browser header now reads top-to-bottom in a logical order: breadcrumb →
+  title → folder description → toolbar. The contextual title (folder name, or
+  "All Media" / "Trash" / "Orphaned Files" / "All Files" at the roots) moved out
+  of the action toolbar and above the folder-description block, so the title sits
+  directly under the breadcrumb and the description reads as belonging to it.
+
 ## 1.7.142 - 2026-06-10
 
 ### Fixed

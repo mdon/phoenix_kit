@@ -105,8 +105,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.Badge do
         @class
       ]}
       data-badge-type="dot"
-    >
-    </span>
+    ></span>
     """
   end
 
@@ -284,8 +283,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.Badge do
         <span class={[
           "w-2 h-2 rounded-full",
           dot_color_class_for_segment(segment[:color] || segment["color"])
-        ]}>
-        </span>
+        ]}></span>
         <span class="text-xs text-base-content/70">
           {segment[:value] || segment["value"]}
         </span>

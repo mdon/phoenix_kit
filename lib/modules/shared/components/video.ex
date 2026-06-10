@@ -61,8 +61,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Video do
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen
             loading="lazy"
-          >
-          </iframe>
+          ></iframe>
         </div>
         <%= if @has_caption? do %>
           <p class="text-sm text-base-content/70 text-center">
