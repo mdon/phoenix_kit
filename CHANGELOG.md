@@ -1,3 +1,11 @@
+## 1.7.142 - 2026-06-10
+
+### Fixed
+- Media browser breadcrumb now always renders in the same place (no
+  disappearing row / layout jump when navigating to the root). At the root it
+  shows "All Media" (or the scope folder name) as the current, non-link crumb
+  instead of vanishing; inside a folder it stays the clickable path.
+
 ## 1.7.141 - 2026-06-10
 
 ### Added
