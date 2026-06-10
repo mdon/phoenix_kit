@@ -1,3 +1,12 @@
+## 1.7.144 - 2026-06-10
+
+### Added
+- `table_row_menu_link/1` now accepts `target` and `rel` attributes directly
+  (via its `:global` include list), so host apps can render external links that
+  open in a new tab — e.g. `target="_blank" rel="noopener noreferrer"` — without
+  tripping the "undefined attribute" compile warning under
+  `--warnings-as-errors`.
+
 ## 1.7.143 - 2026-06-11
 
 ### Changed
