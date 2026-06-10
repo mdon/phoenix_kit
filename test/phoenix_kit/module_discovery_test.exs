@@ -60,5 +60,82 @@ defmodule PhoenixKit.ModuleDiscoveryTest do
       # Should not raise even if no external deps exist
       assert is_list(ModuleDiscovery.scan_beam_files())
     end
+
+    @tag :tmp_dir
+    test "finds a phoenix_kit-dependent dep on disk without its app being loaded", %{
+      tmp_dir: tmp_dir
+    } do
+      mod = write_fixture_dep(tmp_dir, :fixture_dep_found, depends?: true, marked?: true)
+
+      # Regression lock: the fixture app is never started, so it is absent from
+      # :application.loaded_applications/0 — discovery must still find it via the
+      # filesystem beam scan.
+      refute Enum.any?(:application.loaded_applications(), fn {app, _, _} ->
+               app == :fixture_dep_found
+             end)
+
+      assert mod in ModuleDiscovery.scan_beam_files()
+      assert :fixture_dep_found in ModuleDiscovery.phoenix_kit_dependent_apps()
+    end
+
+    @tag :tmp_dir
+    test "excludes a dep whose .app does not depend on :phoenix_kit", %{tmp_dir: tmp_dir} do
+      mod = write_fixture_dep(tmp_dir, :fixture_dep_indep, depends?: false, marked?: true)
+
+      refute mod in ModuleDiscovery.scan_beam_files()
+      refute :fixture_dep_indep in ModuleDiscovery.phoenix_kit_dependent_apps()
+    end
+
+    @tag :tmp_dir
+    test "excludes a beam without the @phoenix_kit_module attribute", %{tmp_dir: tmp_dir} do
+      mod = write_fixture_dep(tmp_dir, :fixture_dep_unmarked, depends?: true, marked?: false)
+
+      refute mod in ModuleDiscovery.scan_beam_files()
+    end
+  end
+
+  # Builds a fake dep ebin layout in `dir`: a `<app>.app` resource file plus one
+  # compiled module beam, then puts the dir on the code path (cleaned up after the
+  # test). The app itself is never loaded/started.
+  defp write_fixture_dep(dir, app, opts) do
+    depends? = Keyword.fetch!(opts, :depends?)
+    marked? = Keyword.fetch!(opts, :marked?)
+    module = Module.concat([Macro.camelize(to_string(app))])
+
+    marker =
+      if marked? do
+        """
+        Module.register_attribute(__MODULE__, :phoenix_kit_module, persist: true)
+        @phoenix_kit_module true
+        """
+      else
+        ""
+      end
+
+    [{^module, binary}] =
+      Code.compile_string("""
+      defmodule #{inspect(module)} do
+        #{marker}
+        def css_sources, do: [#{inspect(app)}]
+      end
+      """)
+
+    File.write!(Path.join(dir, "#{module}.beam"), binary)
+
+    extra = if depends?, do: ", phoenix_kit", else: ""
+
+    File.write!(Path.join(dir, "#{app}.app"), """
+    {application, #{app}, [
+      {description, "fixture"},
+      {vsn, "0.1.0"},
+      {modules, ['#{module}']},
+      {applications, [kernel, stdlib#{extra}]}
+    ]}.
+    """)
+
+    Code.append_path(dir)
+    on_exit(fn -> Code.delete_path(dir) end)
+
+    module
   end
 end

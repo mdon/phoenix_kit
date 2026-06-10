@@ -52,111 +52,110 @@ defmodule PhoenixKit.ModuleDiscovery do
   @doc """
   Scans beam files of phoenix_kit-dependent apps for `@phoenix_kit_module` attribute.
 
-  Only checks apps that explicitly list `:phoenix_kit` in their dependencies,
-  keeping the scan fast and targeted.
+  Walks dependency `ebin` directories on disk (pure file I/O) rather than relying
+  on `:application.loaded_applications/0`, so it is deterministic at compile time —
+  it returns the same set whether or not the apps happen to be loaded yet. An app
+  qualifies when its `<app>.app` lists `:phoenix_kit` in `applications`; its beams
+  are then read with `:beam_lib.chunks/2` to keep the ones carrying
+  `@phoenix_kit_module true`. No module loading required.
   """
   @spec scan_beam_files() :: [module()]
   def scan_beam_files do
-    phoenix_kit_dependent_apps()
-    |> Enum.flat_map(&app_phoenix_kit_modules/1)
+    phoenix_kit_dependent_ebin_dirs()
+    |> Enum.flat_map(&beam_modules_in_dir/1)
+    |> Enum.uniq()
   rescue
     error ->
       Logger.warning("[ModuleDiscovery] Beam scanning failed: #{Exception.message(error)}")
       []
   end
 
-  # Find all loaded applications that depend on :phoenix_kit
-  defp phoenix_kit_dependent_apps do
-    for {app, _, _} <- :application.loaded_applications(),
-        app != :phoenix_kit,
-        depends_on_phoenix_kit?(app) do
-      app
-    end
-  end
+  @doc """
+  Returns the names of dependency apps on disk that declare `:phoenix_kit` in their
+  `applications` (i.e. via `extra_applications`).
 
-  defp depends_on_phoenix_kit?(app) do
-    case :application.get_key(app, :applications) do
-      {:ok, apps} -> :phoenix_kit in apps
-      _ -> false
-    end
-  end
-
-  # Get all PhoenixKit modules from a specific app
-  defp app_phoenix_kit_modules(app) do
-    case :application.get_key(app, :modules) do
-      {:ok, modules} ->
-        Enum.filter(modules, &phoenix_kit_module?/1)
-
-      _ ->
-        # App modules not available via :application, try beam file scan
-        scan_app_ebin(app)
-    end
-  end
-
-  # Check if a module has the @phoenix_kit_module persisted attribute.
-  # First tries :code.which/1 to locate the beam file, then reads attributes
-  # via :beam_lib.chunks/2 without fully loading the module into the VM.
-  defp phoenix_kit_module?(mod) do
-    case :code.which(mod) do
-      :non_existing ->
-        # Module not on code path — try loading it first, then re-check
-        case Code.ensure_loaded(mod) do
-          {:module, _} ->
-            case :code.which(mod) do
-              beam_path when is_list(beam_path) -> check_beam_attribute(beam_path)
-              _ -> false
-            end
-
-          _ ->
-            false
-        end
-
-      beam_path when is_list(beam_path) ->
-        check_beam_attribute(beam_path)
-
-      _ ->
-        false
-    end
-  end
-
-  defp check_beam_attribute(mod_or_path) do
-    case :beam_lib.chunks(mod_or_path, [:attributes]) do
-      {:ok, {_, [{:attributes, attrs}]}} ->
-        attrs[:phoenix_kit_module] == [true]
-
-      _ ->
-        false
-    end
-  end
-
-  # Fallback: scan the ebin directory directly for beam files
-  defp scan_app_ebin(app) do
-    dir = Application.app_dir(app, "ebin")
-
-    dir
-    |> Path.join("*.beam")
-    |> Path.wildcard()
-    |> Enum.filter(&phoenix_kit_beam_file?/1)
-    |> Enum.map(&beam_file_to_module/1)
+  Filesystem-based, independent of load state. Used by the CSS-sources compiler to
+  warn when discovery yields zero sources even though phoenix_kit-dependent deps
+  are present.
+  """
+  @spec phoenix_kit_dependent_apps() :: [atom()]
+  def phoenix_kit_dependent_apps do
+    phoenix_kit_dependent_ebin_dirs()
+    |> Enum.map(&app_name_for_ebin/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   rescue
     _ -> []
   end
 
-  defp phoenix_kit_beam_file?(path) do
-    case :beam_lib.chunks(String.to_charlist(path), [:attributes]) do
-      {:ok, {_, [{:attributes, attrs}]}} ->
-        attrs[:phoenix_kit_module] == [true]
+  # ebin directories whose `<app>.app` depends on :phoenix_kit (excludes phoenix_kit itself).
+  defp phoenix_kit_dependent_ebin_dirs do
+    candidate_ebin_dirs()
+    |> Enum.filter(&ebin_depends_on_phoenix_kit?/1)
+  end
 
-      _ ->
+  # All ebin directories that might hold compiled deps. The code path covers both
+  # compile time and runtime: during `mix compile` the `deps.loadpaths` task prepends
+  # every dep's ebin to the code path *before* compilers run, so freshly compiled deps
+  # are present even on a cold build (`rm -rf _build`); at runtime it holds the loaded
+  # apps' ebins. Crucially this is independent of `:application.loaded_applications/0`,
+  # which is what made discovery nondeterministic at compile time.
+  defp candidate_ebin_dirs do
+    :code.get_path()
+    |> Enum.map(&List.to_string/1)
+    |> Enum.uniq()
+  rescue
+    _ -> []
+  end
+
+  defp ebin_depends_on_phoenix_kit?(dir) do
+    case read_app_spec(dir) do
+      {app, keys} ->
+        app != :phoenix_kit and :phoenix_kit in Keyword.get(keys, :applications, [])
+
+      nil ->
         false
     end
   end
 
-  # Using String.to_existing_atom/1 — any module with @phoenix_kit_module attribute
-  # will already exist as an atom (it's in the app's module list).
-  defp beam_file_to_module(path) do
-    path
-    |> Path.basename(".beam")
-    |> String.to_existing_atom()
+  defp app_name_for_ebin(dir) do
+    case read_app_spec(dir) do
+      {app, _keys} -> app
+      nil -> nil
+    end
+  end
+
+  # Reads the `<app>.app` resource file from an ebin dir as `{app_name, keys}`.
+  # Pure file read — does not load the application.
+  defp read_app_spec(dir) do
+    with [app_file | _] <- Path.wildcard(Path.join(dir, "*.app")),
+         {:ok, [{:application, app, keys}]} <- :file.consult(String.to_charlist(app_file)) do
+      {app, keys}
+    else
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp beam_modules_in_dir(dir) do
+    dir
+    |> Path.join("*.beam")
+    |> Path.wildcard()
+    |> Enum.map(&beam_phoenix_kit_module/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  # Reads the persisted `@phoenix_kit_module` attribute via :beam_lib.chunks/2
+  # without loading the module. Returns the module atom (which :beam_lib resolves
+  # from the beam itself, so no String.to_existing_atom fragility) or nil.
+  defp beam_phoenix_kit_module(path) do
+    case :beam_lib.chunks(String.to_charlist(path), [:attributes]) do
+      {:ok, {module, [{:attributes, attrs}]}} ->
+        if attrs[:phoenix_kit_module] == [true], do: module
+
+      _ ->
+        nil
+    end
   end
 end

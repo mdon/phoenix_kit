@@ -1,3 +1,22 @@
+## 1.7.139 - 2026-06-10
+
+### Fixed
+- External module CSS auto-discovery is now deterministic at compile time.
+  `PhoenixKit.ModuleDiscovery` scanned `:application.loaded_applications/0`, so on
+  a cold build (`rm -rf _build && mix compile`) a dep whose app hadn't been loaded
+  yet was invisible — `_phoenix_kit_sources.css` was generated **empty**, and under
+  Tailwind v4 `@import "tailwindcss" source(none);` the dep's classes (e.g.
+  responsive `sm:/md:/xl:table-cell` columns) were never compiled, silently
+  breaking admin UI in the host. Discovery now walks dependency `ebin` directories
+  on the code path (reading each `<app>.app` + the persisted `@phoenix_kit_module`
+  beam attribute via `:beam_lib.chunks/2`) independent of load state, matching the
+  module's documented "no module loading required" contract.
+
+### Added
+- The `:phoenix_kit_css_sources` compiler now emits a loud build warning when it
+  generates zero `@source` lines while phoenix_kit-dependent deps are present on
+  disk, turning a hard-to-diagnose missing-CSS mystery into a one-line warning.
+
 ## 1.7.138 - 2026-06-09
 
 ### Fixed
