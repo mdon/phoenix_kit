@@ -1,3 +1,13 @@
+## 1.7.141 - 2026-06-10
+
+### Added
+- Media detail page (`/admin/media/:file_uuid`) now has a back arrow to the
+  left of the title. It does a browser **history back**, returning the user to
+  exactly where they were before opening the file — the folder grid they came
+  from (the MediaBrowser keeps the open folder in the `?folder=` query) rather
+  than always the media root. Falls back to `/admin/media` for a direct/shared
+  load with no history.
+
 ## 1.7.140 - 2026-06-10
 
 ### Changed
