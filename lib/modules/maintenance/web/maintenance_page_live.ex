@@ -142,8 +142,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Page do
               >
                 <p class="text-sm">
                   {gettext("Expected back in")}
-                  <span id="countdown-value" class="font-mono font-semibold text-base-content/70">
-                  </span>
+                  <span id="countdown-value" class="font-mono font-semibold text-base-content/70"></span>
                 </p>
               </div>
             <% end %>

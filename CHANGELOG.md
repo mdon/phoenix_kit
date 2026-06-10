@@ -1,3 +1,40 @@
+## 1.7.143 - 2026-06-11
+
+### Changed
+- Media browser header now reads top-to-bottom in a logical order: breadcrumb →
+  title → folder description → toolbar. The contextual title (folder name, or
+  "All Media" / "Trash" / "Orphaned Files" / "All Files" at the roots) moved out
+  of the action toolbar and above the folder-description block, so the title sits
+  directly under the breadcrumb and the description reads as belonging to it.
+
+## 1.7.142 - 2026-06-10
+
+### Fixed
+- Media browser breadcrumb now always renders in the same place (no
+  disappearing row / layout jump when navigating to the root). At the root it
+  shows "All Media" (or the scope folder name) as the current, non-link crumb
+  instead of vanishing; inside a folder it stays the clickable path.
+
+## 1.7.141 - 2026-06-10
+
+### Added
+- Media detail page (`/admin/media/:file_uuid`) now has a back arrow to the
+  left of the title. It does a browser **history back**, returning the user to
+  exactly where they were before opening the file — the folder grid they came
+  from (the MediaBrowser keeps the open folder in the `?folder=` query) rather
+  than always the media root. Falls back to `/admin/media` for a direct/shared
+  load with no history.
+
+## 1.7.140 - 2026-06-10
+
+### Changed
+- Bump `leaf` 0.2.22 → **0.2.23** (dep min in `mix.exs` + the jsDelivr CDN pin
+  in `phoenix_kit.js`, `@v0.2.22 → @v0.2.23`). 0.2.23 is a large, default-
+  preserving Leaf release: GFM task lists & callouts, custom/unknown tag
+  round-trip preservation, an expanded host-integration/authoring API, RTL +
+  symbol/date inserts, and an Obsidian-style hybrid live preview for list
+  markers and checkboxes. Stored markdown and existing usage are unchanged.
+
 ## 1.7.139 - 2026-06-10
 
 ### Fixed

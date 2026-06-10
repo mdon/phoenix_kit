@@ -170,9 +170,17 @@
                 scoped, the leading "root" button shows the scope folder's
                 name (e.g. "banana") instead of "All Media".
               --%>
-              <%= if @current_folder do %>
-                <nav class="breadcrumbs text-sm mb-2">
-                  <ul>
+              <%!--
+                Breadcrumb — ALWAYS rendered so it stays in the same place
+                across root and folder views (no disappearing row / layout
+                jump). At root the leading crumb is the current, non-link item
+                ("All Media", or the scope folder's name when scoped); inside a
+                folder it becomes a clickable button followed by the ancestor
+                path and the current folder.
+              --%>
+              <nav class="breadcrumbs text-sm mb-2">
+                <ul>
+                  <%= if @current_folder do %>
                     <li>
                       <button
                         phx-click="navigate_root"
@@ -199,9 +207,35 @@
                     <li>
                       {@current_folder.name}
                     </li>
-                  </ul>
-                </nav>
+                  <% else %>
+                    <li>
+                      {if @scope_folder_id,
+                        do: @scope_folder_name,
+                        else: gettext("All Media")}
+                    </li>
+                  <% end %>
+                </ul>
+              </nav>
 
+              <%!-- Page title — sits above the folder description so it reads
+                   title → description. Contextual: Trash / Orphaned / All
+                   Files / the current folder name / the scope root. --%>
+              <h2 class="card-title text-xl mb-2">
+                <%= cond do %>
+                  <% @filter_trash -> %>
+                    {gettext("Trash")}
+                  <% @filter_orphaned -> %>
+                    {gettext("Orphaned Files")}
+                  <% @file_view == "all" -> %>
+                    {gettext("All Files")}
+                  <% @current_folder -> %>
+                    {@current_folder.name}
+                  <% true -> %>
+                    {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
+                <% end %>
+              </h2>
+
+              <%= if @current_folder do %>
                 <%!-- Folder description: view + inline edit/add --%>
                 <div class="mb-4">
                   <%= if @editing_folder_description == @current_folder.uuid do %>
@@ -397,22 +431,9 @@
                     </button>
                   </div>
                 <% else %>
-                  <%!-- Normal Header --%>
+                  <%!-- Normal Header — actions only; the title now sits above
+                       the folder description (see the page title above). --%>
                   <div class="flex items-center gap-3 flex-wrap">
-                    <h2 class="card-title text-xl">
-                      <%= cond do %>
-                        <% @filter_trash -> %>
-                          {gettext("Trash")}
-                        <% @filter_orphaned -> %>
-                          {gettext("Orphaned Files")}
-                        <% @file_view == "all" -> %>
-                          {gettext("All Files")}
-                        <% @current_folder -> %>
-                          {@current_folder.name}
-                        <% true -> %>
-                          {@scope_folder_name}
-                      <% end %>
-                    </h2>
                     <%= if @filter_trash do %>
                       <%= if @select_mode and MapSet.size(@selected_files) > 0 do %>
                         <button
@@ -804,8 +825,7 @@
                                           ]}
                                           style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
                                           title={color}
-                                        >
-                                        </button>
+                                        ></button>
                                       <% end %>
                                     </div>
                                   </div>
@@ -1235,8 +1255,7 @@
                                                 ]}
                                                 style={"background-color: #{folder_color_hex(color) || "oklch(var(--wa))"}"}
                                                 title={color}
-                                              >
-                                              </button>
+                                              ></button>
                                             <% end %>
                                           </div>
                                         </div>

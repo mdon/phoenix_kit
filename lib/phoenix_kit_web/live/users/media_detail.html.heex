@@ -8,7 +8,29 @@
   current_locale={@current_locale}
 >
   <div class="p-6">
-    <.admin_page_header back={Routes.path("/admin/media")} title="Media Detail" />
+    <.admin_page_header>
+      <div class="flex items-center gap-3">
+        <%!--
+          Browser-back so the user returns to exactly where they were before
+          opening this file — the folder grid they came from (the MediaBrowser
+          keeps the open folder in the `?folder=` query, and the click here was
+          a push_navigate, so the previous history entry is that folder view).
+          Falls back to the media root for a direct/shared load with no history.
+        --%>
+        <button
+          type="button"
+          onclick={"if (window.history.length > 1) { window.history.back() } else { window.location.href = '#{Routes.path("/admin/media")}' }"}
+          class="btn btn-ghost btn-circle"
+          title="Back"
+          aria-label="Back"
+        >
+          <.icon name="hero-arrow-left" class="w-7 h-7" />
+        </button>
+        <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
+          Media Detail
+        </h1>
+      </div>
+    </.admin_page_header>
 
     <%= if @file_data do %>
       <%!-- Main Layout: 3/4 Preview + 1/4 Info --%>

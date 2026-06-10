@@ -747,8 +747,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                this column is the active sort: solid chevron for current
                direction. Otherwise (including active column with unknown
                dir): faint up-down hint that strengthens on hover. --%>
-          <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs">
-          </span>
+          <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs"></span>
           <.icon
             :if={@active_dir == :asc}
             name="hero-chevron-up-mini"

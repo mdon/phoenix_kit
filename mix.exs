@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.139"
+  @version "1.7.143"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -118,7 +118,7 @@ defmodule PhoenixKit.MixProject do
       {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2.22"},
+      {:leaf, "~> 0.2.23"},
 
       # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
       # OpenSeadragon and replaced the wrapped-OSD viewer with a
