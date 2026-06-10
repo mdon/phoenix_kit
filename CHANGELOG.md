@@ -1,3 +1,13 @@
+## 1.7.140 - 2026-06-10
+
+### Changed
+- Bump `leaf` 0.2.22 → **0.2.23** (dep min in `mix.exs` + the jsDelivr CDN pin
+  in `phoenix_kit.js`, `@v0.2.22 → @v0.2.23`). 0.2.23 is a large, default-
+  preserving Leaf release: GFM task lists & callouts, custom/unknown tag
+  round-trip preservation, an expanded host-integration/authoring API, RTL +
+  symbol/date inserts, and an Obsidian-style hybrid live preview for list
+  markers and checkboxes. Stored markdown and existing usage are unchanged.
+
 ## 1.7.139 - 2026-06-10
 
 ### Fixed
