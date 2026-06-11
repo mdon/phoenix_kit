@@ -464,58 +464,105 @@
         <%!-- Quick Actions --%>
         <div class="divider">{gettext("Quick Actions")}</div>
 
+        <%!--
+          Each action is wrapped in a daisyUI tooltip (rather than putting the
+          tooltip on the button) so the hover description also works on the
+          disabled "Media Stats" button — a disabled button has
+          `pointer-events: none` and would otherwise swallow hover. Each button
+          also carries a trailing info icon as the visible "what does this do?"
+          affordance.
+        --%>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
-            class="btn btn-outline"
-          >
-            <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Manage Dimensions")}
-          </.link>
-
-          <button class="btn btn-outline" disabled>
-            <.icon name="hero-chart-bar" class="w-4 h-4 mr-2" /> {gettext("Media Stats")}
-            <span class="badge badge-xs ml-1">{gettext("Soon")}</span>
-          </button>
-
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/health")}
-            class="btn btn-outline"
-          >
-            <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
-          </.link>
-
-          <%!--
-            Opens the media browser pre-filtered to orphaned files (files no
-            longer attached to any record) via the `?orphaned=1` URL param the
-            browser's url_sync already parses. This is the entry point for
-            finding orphans; the "Delete all orphaned" action lives in the
-            browser toolbar while that view is active.
-          --%>
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/media") <> "?orphaned=1"}
-            class="btn btn-outline"
-          >
-            <.icon name="hero-funnel" class="w-4 h-4 mr-2" /> {gettext("Find Orphaned Files")}
-          </.link>
-
-          <%!--
-            Resets media dimensions/settings to defaults and creates a local
-            bucket if none exist. Does NOT delete uploaded files. (Previously a
-            standalone warning banner at the top of the page.)
-          --%>
-          <button
-            phx-click="repair_storage_module"
-            data-confirm={
+          <%!-- Manage Dimensions --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
               gettext(
-                "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
+                "Create and edit the image/video size presets used to generate variants of uploaded media."
               )
             }
-            class="btn btn-outline btn-warning"
           >
-            <.icon name="hero-wrench-screwdriver" class="w-4 h-4 mr-2" /> {gettext(
-              "Repair Media Module"
-            )}
-          </button>
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Manage Dimensions")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
+          </div>
+
+          <%!-- Media Stats (coming soon) --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={gettext("View storage usage and media statistics. Coming soon.")}
+          >
+            <button class="btn btn-outline w-full" disabled>
+              <.icon name="hero-chart-bar" class="w-4 h-4 mr-2" /> {gettext("Media Stats")}
+              <span class="badge badge-xs ml-1">{gettext("Soon")}</span>
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </button>
+          </div>
+
+          <%!-- Sync Files / Health dashboard --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
+              )
+            }
+          >
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/health")}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
+          </div>
+
+          <%!-- Find Orphaned Files --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
+              )
+            }
+          >
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/media") <> "?orphaned=1"}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-funnel" class="w-4 h-4 mr-2" /> {gettext("Find Orphaned Files")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
+          </div>
+
+          <%!-- Repair Media Module --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
+              )
+            }
+          >
+            <button
+              phx-click="repair_storage_module"
+              data-confirm={
+                gettext(
+                  "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
+                )
+              }
+              class="btn btn-outline btn-warning w-full"
+            >
+              <.icon name="hero-wrench-screwdriver" class="w-4 h-4 mr-2" /> {gettext(
+                "Repair Media Module"
+              )}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

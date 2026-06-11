@@ -1,3 +1,12 @@
+## 1.7.150 - 2026-06-11
+
+### Added
+- Each media settings **Quick Action** now has a trailing info icon and a hover
+  tooltip describing what it does (Manage Dimensions, Media Stats, Sync Files,
+  Find Orphaned Files, Repair Media Module). The tooltip wraps each action
+  rather than sitting on the button, so it also works on the disabled
+  "Media Stats" button.
+
 ## 1.7.149 - 2026-06-11
 
 ### Removed
