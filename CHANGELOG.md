@@ -1,3 +1,12 @@
+## 1.7.148 - 2026-06-11
+
+### Changed
+- Decluttered the top of the media settings page. The blue "Core System Module"
+  info banner is removed and its message folded into the header subtitle, and
+  the yellow "Media Module Repair" banner is moved into Quick Actions as a
+  warning-tinted **Repair Media Module** button (same action + confirmation).
+  The conditional ImageMagick/FFmpeg dependency alerts are unchanged.
+
 ## 1.7.147 - 2026-06-11
 
 ### Changed
