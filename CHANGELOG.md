@@ -1,3 +1,11 @@
+## 1.7.149 - 2026-06-11
+
+### Removed
+- Removed the "Advanced Features Coming Soon" card from the media settings page.
+  All six listed items have shipped (multi-location redundancy with 1-5 copies,
+  S3/B2/R2 providers, remote servers, the media Health dashboard, the
+  PostgreSQL file registry, and automatic failover), so the section was stale.
+
 ## 1.7.148 - 2026-06-11
 
 ### Changed
