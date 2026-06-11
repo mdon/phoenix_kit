@@ -1,3 +1,15 @@
+## 1.7.144 - 2026-06-11
+
+### Changed
+- Media folder sidebar tree guide lines now terminate cleanly. Each nested
+  folder row draws its own connector (a vertical line plus a horizontal elbow
+  into the row) instead of one full-height border that overshot past the last
+  item: non-last rows render a `├` tee, and the **last** row's line stops at
+  its own row and curves right into the folder with a rounded `└` corner. The
+  parent folder's color is carried down as an inheriting CSS variable
+  (`--pk-tree-line`), so connectors keep their per-folder color and deeper
+  levels override with their own.
+
 ## 1.7.143 - 2026-06-11
 
 ### Changed

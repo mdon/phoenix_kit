@@ -263,7 +263,16 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       )
 
     ~H"""
-    <li class="overflow-hidden">
+    <li class={[
+      "overflow-hidden",
+      @depth > 0 &&
+        "relative pl-3.5 " <>
+          "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
+          "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-2.5 after:bg-[var(--pk-tree-line)] " <>
+          "last:before:h-[0.875rem] last:before:w-2.5 last:before:bg-transparent " <>
+          "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line)] last:before:rounded-bl-lg " <>
+          "last:after:hidden"
+    ]}>
       <div
         class={[
           "flex items-center gap-0.5 rounded-lg px-1 py-1 hover:bg-base-200 transition-colors group overflow-hidden min-w-0",
@@ -371,9 +380,18 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
       <%!-- Children (expanded) --%>
       <%= if @has_children && @is_expanded do %>
+        <%!--
+          Tree guide lines are drawn per child <li> (see the connector
+          classes on the <li> below), not as a single full-height border on
+          this <ul>. That lets the LAST child's vertical segment stop at its
+          own row and curl right (an elbow), instead of the line overshooting
+          past the last item. The parent folder's color is handed down as an
+          inheriting CSS variable so every child connector picks it up; a
+          deeper nested <ul> overrides it with its own folder color.
+        --%>
         <ul
-          class="ml-3 border-l-2 pl-1.5 overflow-hidden"
-          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
+          class="ml-3 overflow-hidden"
+          style={"--pk-tree-line: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
         >
           <%= for child <- @node.children do %>
             <.folder_tree_node
