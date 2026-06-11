@@ -96,6 +96,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
@@ -215,8 +216,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         do: total_count,
         else: Storage.count_orphaned_files(scope)
 
+    creator = folder_creator_user(current_folder)
+
     socket
     |> assign(:current_folder, current_folder)
+    |> assign(:folder_creator_user, creator)
+    |> assign(:folder_creator_name, creator_label(creator))
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view and the orphaned view are flat file listings — they show
     # no folder cards. (The sidebar folder tree is unaffected; only the grid's
@@ -295,6 +300,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
     )
     |> assign(:current_folder, nil)
+    |> assign(:folder_creator_user, nil)
+    |> assign(:folder_creator_name, nil)
     |> assign(:breadcrumbs, [])
     |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
     |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
@@ -305,6 +312,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:renaming_text, "")
     |> assign(:editing_folder_description, nil)
     |> assign(:folder_description_text, "")
+    # In-folder header editor (edits the current folder's name + description
+    # together; distinct from the grid/list card description-only editors).
+    |> assign(:editing_folder_header, nil)
+    |> assign(:folder_header_name, "")
+    |> assign(:folder_header_description, "")
     |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
@@ -1034,6 +1046,62 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        socket
        |> assign(:editing_folder_description, nil)
        |> assign(:folder_description_text, "")}
+    end
+  end
+
+  # ── In-folder header editor ───────────────────────────────────────────
+  # Edits the current folder's name AND description together from the
+  # header you see after opening a folder. Separate from the grid/list
+  # card editors above (which only touch the description), so adding a
+  # name field here doesn't disturb those.
+  def handle_event("start_edit_folder_header", %{"folder-uuid" => folder_uuid}, socket) do
+    folder = loaded_folder(socket, folder_uuid)
+
+    {:noreply,
+     socket
+     |> assign(:editing_folder_header, folder_uuid)
+     |> assign(:folder_header_name, (folder && folder.name) || "")
+     |> assign(:folder_header_description, (folder && folder.description) || "")}
+  end
+
+  def handle_event("folder_header_input", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:folder_header_name, params["name"] || socket.assigns.folder_header_name)
+     |> assign(
+       :folder_header_description,
+       params["description"] || socket.assigns.folder_header_description
+     )}
+  end
+
+  def handle_event("cancel_edit_folder_header", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_folder_header, nil)
+     |> assign(:folder_header_name, "")
+     |> assign(:folder_header_description, "")}
+  end
+
+  def handle_event(
+        "save_folder_header",
+        %{"folder_uuid" => folder_uuid, "name" => name, "description" => description},
+        socket
+      ) do
+    folder = loaded_folder(socket, folder_uuid)
+    scope = scope_folder_id(socket)
+    trimmed_name = String.trim(name)
+    trimmed_desc = String.trim(description)
+    desc_value = if trimmed_desc == "", do: nil, else: trimmed_desc
+
+    cond do
+      is_nil(folder) ->
+        {:noreply, reset_folder_header_edit(socket)}
+
+      trimmed_name == "" ->
+        {:noreply, put_flash(socket, :error, gettext("Folder name can't be blank"))}
+
+      true ->
+        save_folder_header(socket, folder, folder_uuid, scope, trimmed_name, desc_value)
     end
   end
 
@@ -1816,6 +1884,60 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     found || Storage.get_folder(folder_uuid)
+  end
+
+  # The folder's creator (the `user_uuid` owner) for the folder-header info
+  # line — returns the user struct (used for the avatar + name) or nil.
+  defp folder_creator_user(nil), do: nil
+  defp folder_creator_user(%{user_uuid: nil}), do: nil
+  defp folder_creator_user(%{user_uuid: user_uuid}), do: Auth.get_user(user_uuid)
+
+  # Display label for a creator — full name, falling back to email.
+  defp creator_label(nil), do: nil
+  defp creator_label(user), do: User.full_name(user) || user.email
+
+  defp reset_folder_header_edit(socket) do
+    socket
+    |> assign(:editing_folder_header, nil)
+    |> assign(:folder_header_name, "")
+    |> assign(:folder_header_description, "")
+  end
+
+  defp save_folder_header(socket, folder, folder_uuid, scope, name, desc_value) do
+    case Storage.update_folder(folder, %{name: name, description: desc_value}, scope) do
+      {:ok, updated} ->
+        parent_uuid = current_folder_uuid(socket)
+
+        socket =
+          socket
+          |> reset_folder_header_edit()
+          # Reload the listing + tree so any grid card / list row / sidebar
+          # entry for this folder reflects the new name and description.
+          |> assign(:folders, Storage.list_folders(parent_uuid, scope))
+          |> assign(:folder_tree, Storage.list_folder_tree(scope))
+
+        # Refresh the header's folder + breadcrumbs when editing the folder
+        # we're currently inside, so the title, description and breadcrumb
+        # trail all show the new name immediately.
+        socket =
+          if socket.assigns[:current_folder] &&
+               to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
+            socket
+            |> assign(:current_folder, updated)
+            |> assign(:breadcrumbs, Storage.folder_breadcrumbs(folder_uuid, scope))
+          else
+            socket
+          end
+
+        {:noreply, socket}
+
+      {:error, :out_of_scope} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot edit a folder outside the allowed scope"))}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to save folder header"))}
+    end
   end
 
   # Read the per-user grid/list preference from `custom_fields`, defaulting to

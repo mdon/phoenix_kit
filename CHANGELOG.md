@@ -1,3 +1,14 @@
+## 1.7.151 - 2026-06-11
+
+### Added
+- Folder header on the media page now has an **Edit header** button (to the
+  right of the folder name) that opens a modal to edit the folder's **name and
+  description** together. The description shows a muted placeholder when empty.
+- Above the description, a folder info line shows **Created by** (the folder
+  creator's avatar + name, via the shared `user_avatar`) and the **file count**,
+  separated by a bullet. The created-by segment is omitted when the creator is
+  unknown.
+
 ## 1.7.150 - 2026-06-11
 
 ### Added
