@@ -1,3 +1,17 @@
+## 1.7.147 - 2026-06-11
+
+### Changed
+- Media folder sidebar tree guide lines are now drawn at 50% opacity so they
+  read as a soft stroke rather than a solid, dark line. Colored folders use
+  their color at ~50% (hex `80` alpha); uncolored folders use the theme text
+  color at 50% via `color-mix` (theme-adaptive).
+
+### Fixed
+- Uncolored-folder tree guide lines no longer render as solid black. The
+  neutral fallback used `oklch(var(--bc) / …)`, but daisyUI 5 renamed that
+  variable, so the value was invalid and the last-item border fell back to a
+  solid-black `currentColor`. Replaced with a valid `currentColor`-based color.
+
 ## 1.7.146 - 2026-06-11
 
 ### Changed

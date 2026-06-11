@@ -401,7 +401,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         --%>
         <ul
           class="ml-3 overflow-hidden"
-          style={"--pk-tree-line: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
+          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}"}
         >
           <%= for child <- @node.children do %>
             <.folder_tree_node
@@ -438,6 +438,20 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   # folder icon (`w-9`), while a row with a chevron stops the line at the
   # chevron (`w-4`) so it never crosses the `>` glyph. Root rows (`depth == 0`)
   # get no connector.
+  # Color for the tree guide lines (`--pk-tree-line`), rendered at 50% opacity
+  # so the lines read lighter rather than a solid, dark stroke. A colored folder
+  # uses its hex with a `80` alpha suffix (~50%); an uncolored folder uses the
+  # theme text color at 50% via `color-mix` (theme-adaptive — dark in light
+  # mode, light in dark mode). The previous `oklch(var(--bc) / …)` neutral was
+  # invalid under daisyUI 5's renamed variables, so its border fell back to a
+  # solid-black `currentColor`.
+  defp tree_line_color(color) do
+    case folder_color_hex(color) do
+      nil -> "color-mix(in oklab, currentColor 50%, transparent)"
+      hex -> hex <> "80"
+    end
+  end
+
   defp tree_connector_class(0, _has_children), do: false
 
   defp tree_connector_class(_depth, true = _has_children) do
