@@ -501,23 +501,15 @@
                     >
                       <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext("New Folder")}
                     </button>
-                    <%!-- Orphan filter is only meaningful at the global root (no scope set) --%>
+                    <%!--
+                      Orphan filtering is only meaningful at the global root
+                      (no scope set). The "Find orphaned" entry point now lives
+                      in the media settings Quick Actions
+                      (/admin/media?orphaned=1); only the contextual
+                      "Delete all orphaned" action remains here, shown while the
+                      orphaned view is active.
+                    --%>
                     <%= if is_nil(@scope_folder_id) do %>
-                      <button
-                        phx-click="toggle_orphan_filter"
-                        phx-target={@myself}
-                        class={[
-                          "btn btn-sm gap-2",
-                          if(@filter_orphaned, do: "btn-warning", else: "btn-ghost")
-                        ]}
-                      >
-                        <.icon name="hero-funnel" class="w-4 h-4" />
-                        <%= if @filter_orphaned do %>
-                          {gettext("Showing orphaned (%{count})", count: @orphaned_count)}
-                        <% else %>
-                          {gettext("Find orphaned (%{count})", count: @orphaned_count)}
-                        <% end %>
-                      </button>
                       <%= if @filter_orphaned && @total_count > 0 do %>
                         <button
                           phx-click="delete_all_orphaned"

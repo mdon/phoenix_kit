@@ -522,6 +522,20 @@
           >
             <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
           </.link>
+
+          <%!--
+            Opens the media browser pre-filtered to orphaned files (files no
+            longer attached to any record) via the `?orphaned=1` URL param the
+            browser's url_sync already parses. This is the entry point for
+            finding orphans; the "Delete all orphaned" action lives in the
+            browser toolbar while that view is active.
+          --%>
+          <.link
+            navigate={PhoenixKit.Utils.Routes.path("/admin/media") <> "?orphaned=1"}
+            class="btn btn-outline"
+          >
+            <.icon name="hero-funnel" class="w-4 h-4 mr-2" /> {gettext("Find Orphaned Files")}
+          </.link>
         </div>
       </div>
     </div>

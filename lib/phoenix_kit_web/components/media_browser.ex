@@ -218,7 +218,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     socket
     |> assign(:current_folder, current_folder)
     |> assign(:breadcrumbs, breadcrumbs)
-    |> assign(:folders, if(file_view == "all", do: [], else: folders))
+    # The "all" view and the orphaned view are flat file listings — they show
+    # no folder cards. (The sidebar folder tree is unaffected; only the grid's
+    # folder cards are suppressed here.)
+    |> assign(:folders, if(file_view == "all" or filter_orphaned, do: [], else: folders))
     |> assign(:search_query, q)
     |> assign(:current_page, page)
     |> assign(:filter_orphaned, filter_orphaned)

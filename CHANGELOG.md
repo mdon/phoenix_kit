@@ -1,3 +1,19 @@
+## 1.7.146 - 2026-06-11
+
+### Changed
+- Moved the "Find orphaned" entry point out of the media browser toolbar into
+  the media settings **Quick Actions** (`/admin/settings/media`) as a new
+  **Find Orphaned Files** button. It opens the browser pre-filtered to orphaned
+  files via the `?orphaned=1` URL param the browser already parses. The
+  contextual "Delete all orphaned" action still surfaces in the toolbar while
+  the orphaned view is active, and the page title still reads "Orphaned Files".
+
+### Fixed
+- The orphaned-files view no longer mixes in the root folder's folder cards —
+  like the "All Files" flat view, it now lists only files (the orphaned media).
+  The sidebar folder tree is unaffected, so navigating out of the view still
+  works.
+
 ## 1.7.145 - 2026-06-11
 
 ### Changed
