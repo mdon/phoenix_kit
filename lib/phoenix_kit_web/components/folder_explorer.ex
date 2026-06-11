@@ -262,20 +262,30 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           assigns.renaming_source == "sidebar"
       )
 
+    assigns =
+      assign(
+        assigns,
+        :tree_connector_class,
+        tree_connector_class(assigns.depth, assigns.has_children)
+      )
+
     ~H"""
-    <li class={[
-      "overflow-hidden",
-      @depth > 0 &&
-        "relative pl-3.5 " <>
-          "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
-          "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-2.5 after:bg-[var(--pk-tree-line)] " <>
-          "last:before:h-[0.875rem] last:before:w-2.5 last:before:bg-transparent " <>
-          "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line)] last:before:rounded-bl-lg " <>
-          "last:after:hidden"
-    ]}>
+    <li class={["overflow-hidden", @tree_connector_class]}>
+      <%!--
+        Whole row is clickable to open the folder. LiveView resolves a click
+        to the closest `phx-click` element, so the nested chevron (toggle) and
+        rename buttons still handle their own clicks — only clicks elsewhere on
+        the row fall through to `navigate_folder`. The click is suppressed while
+        the inline rename form is open so clicking the text field doesn't
+        navigate away. The inner folder button is kept for keyboard access.
+      --%>
       <div
+        phx-click={!@is_renaming && "navigate_folder"}
+        phx-target={@myself}
+        phx-value-folder-uuid={@node.folder.uuid}
         class={[
           "flex items-center gap-0.5 rounded-lg px-1 py-1 hover:bg-base-200 transition-colors group overflow-hidden min-w-0",
+          !@is_renaming && "cursor-pointer",
           @is_active && "font-semibold"
         ]}
         style={
@@ -410,6 +420,42 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       <% end %>
     </li>
     """
+  end
+
+  # Tree guide-line connector for a nested row (`depth > 0`). Returns a
+  # literal Tailwind class string (kept whole so the JIT picks it up — never
+  # interpolate the utility tokens):
+  #
+  #   * a vertical line down the row's left edge (`before`), full height so it
+  #     flows to the next sibling — `last:` shortens it to the row's center and
+  #     turns it into a left+bottom bordered box with a rounded corner, so the
+  #     last row curls right into the folder instead of overshooting.
+  #   * a horizontal elbow into the row (`after`, hidden on the last row since
+  #     the bordered box already draws it).
+  #
+  # The elbow length depends on whether the row has a disclosure chevron: a
+  # childless row runs the line across its empty chevron column right up to the
+  # folder icon (`w-9`), while a row with a chevron stops the line at the
+  # chevron (`w-4`) so it never crosses the `>` glyph. Root rows (`depth == 0`)
+  # get no connector.
+  defp tree_connector_class(0, _has_children), do: false
+
+  defp tree_connector_class(_depth, true = _has_children) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
+      "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
+  end
+
+  defp tree_connector_class(_depth, false = _has_children) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>
+      "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
   end
 
   # ──────────────────────────────────────────────────────────────

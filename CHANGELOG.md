@@ -1,3 +1,18 @@
+## 1.7.145 - 2026-06-11
+
+### Changed
+- Media folder sidebar rows are now fully clickable to open a folder, not just
+  the folder name. Clicking anywhere on a row navigates into it; the disclosure
+  chevron still toggles expand/collapse and the rename pencil still starts
+  inline rename (both resolve to their own click), and the row click is
+  suppressed while the inline rename field is open. The folder name stays a
+  button for keyboard access.
+- Media folder tree guide lines now reach their target. The horizontal elbow
+  extends across a childless folder's empty chevron column right up to the
+  folder icon, while a folder with a disclosure chevron stops its line at the
+  chevron — so each line clearly connects to the item it belongs to instead of
+  ending short.
+
 ## 1.7.144 - 2026-06-11
 
 ### Changed
