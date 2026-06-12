@@ -445,16 +445,18 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   # mode, light in dark mode). The previous `oklch(var(--bc) / …)` neutral was
   # invalid under daisyUI 5's renamed variables, so its border fell back to a
   # solid-black `currentColor`.
-  defp tree_line_color(color) do
+  @doc false
+  def tree_line_color(color) do
     case folder_color_hex(color) do
       nil -> "color-mix(in oklab, currentColor 50%, transparent)"
       hex -> hex <> "80"
     end
   end
 
-  defp tree_connector_class(0, _has_children), do: false
+  @doc false
+  def tree_connector_class(0, _has_children), do: false
 
-  defp tree_connector_class(_depth, true = _has_children) do
+  def tree_connector_class(_depth, true = _has_children) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
@@ -463,7 +465,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       "last:after:hidden"
   end
 
-  defp tree_connector_class(_depth, false = _has_children) do
+  def tree_connector_class(_depth, false = _has_children) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>

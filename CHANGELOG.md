@@ -1,3 +1,19 @@
+## 1.7.154 - 2026-06-12
+
+### Changed
+- Reorganized the media header toolbar: view controls (Display / Sort / Filter)
+  on the left, actions on the right (Search, the primary Add Media, and a ⋯
+  overflow holding Select and New folder). Dropped the redundant result count
+  (the header meta already shows "N files").
+- Reworked the select-mode toolbar so it lives inside the header (no jump on
+  toggle) with a clear layout: a neutral exit ✕, the selected count, and Select
+  all / Clear on the left; bulk Move / Download / Delete (Delete in red) on the
+  right, shown only when something is selected.
+- The Move modal's folder picker now uses the same tree guide lines as the
+  sidebar (per-row connectors, rounded last-item curl, 50% color) instead of a
+  plain left border. `tree_connector_class/2` and `tree_line_color/1` are now
+  shared (public) helpers in `FolderExplorer`.
+
 ## 1.7.153 - 2026-06-12
 
 ### Added

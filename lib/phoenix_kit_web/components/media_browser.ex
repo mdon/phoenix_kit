@@ -87,7 +87,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       folder_explorer: 1,
       folder_color_hex: 1,
       folder_icon_style: 1,
-      folder_bg_style: 1
+      folder_bg_style: 1,
+      tree_connector_class: 2,
+      tree_line_color: 1
     ]
 
   alias Phoenix.LiveView.JS
@@ -565,15 +567,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   attr :node, :map, required: true
   attr :move_expanded, :any, required: true
   attr :myself, :any, required: true
+  attr :depth, :integer, default: 0
 
   def move_folder_option(assigns) do
+    has_children = assigns.node.children != []
+
     assigns =
       assigns
-      |> assign(:has_children, assigns.node.children != [])
+      |> assign(:has_children, has_children)
       |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
+      |> assign(:tree_connector_class, tree_connector_class(assigns.depth, has_children))
 
     ~H"""
-    <li class="min-w-0">
+    <li class={["min-w-0", @tree_connector_class]}>
       <div class="flex items-center gap-0.5 w-full min-w-0 rounded-lg hover:bg-base-300 transition-colors">
         <%= if @has_children do %>
           <button
@@ -605,11 +611,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       </div>
       <%= if @has_children and @is_expanded do %>
         <ul
-          class="ml-3 border-l-2 pl-1.5 min-w-0"
-          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
+          class="ml-3 overflow-hidden min-w-0"
+          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}"}
         >
           <%= for child <- @node.children do %>
-            <.move_folder_option node={child} move_expanded={@move_expanded} myself={@myself} />
+            <.move_folder_option
+              node={child}
+              move_expanded={@move_expanded}
+              myself={@myself}
+              depth={@depth + 1}
+            />
           <% end %>
         </ul>
       <% end %>
