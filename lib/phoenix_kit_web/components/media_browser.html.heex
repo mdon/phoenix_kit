@@ -609,10 +609,26 @@
                         <%!-- Description (folders only). Must NOT use
                              whitespace-pre-line (the HEEx-indented expression's
                              leading newline would render as a blank line). --%>
-                        <%= if show_description and @current_folder.description not in [nil, ""] do %>
-                          <p class="text-sm text-base-content/80 max-w-2xl">
-                            {@current_folder.description}
-                          </p>
+                        <%= if show_description do %>
+                          <%= if @current_folder.description not in [nil, ""] do %>
+                            <p class="text-sm text-base-content/80 max-w-2xl">
+                              {@current_folder.description}
+                            </p>
+                          <% else %>
+                            <%!-- Placeholder so users see where a description
+                                 would appear and how to add one. Opens the Edit
+                                 header panel (description field) on click. --%>
+                            <button
+                              type="button"
+                              phx-click="start_edit_folder_header"
+                              phx-value-folder-uuid={@current_folder.uuid}
+                              phx-target={@myself}
+                              class="inline-flex items-center gap-1.5 text-sm italic text-base-content/40 hover:text-base-content/70 transition-colors"
+                            >
+                              <.icon name="hero-pencil-square" class="w-3.5 h-3.5 shrink-0" />
+                              {gettext("No description — add one")}
+                            </button>
+                          <% end %>
                         <% end %>
                         <%= if show_creation_info do %>
                           <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
