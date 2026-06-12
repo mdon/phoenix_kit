@@ -313,11 +313,15 @@
                     if(small_header, do: "flex-row items-center gap-3", else: "flex-col gap-1")
                   ]}>
                     <%= if show_logo do %>
+                      <%!-- Transparent logos (e.g. PNG) show the header
+                           background through, not a solid square: no bg,
+                           object-contain (full logo, uncropped), and a
+                           drop-shadow that follows the logo's alpha shape. --%>
                       <img
                         src={@folder_logo_url}
                         alt=""
                         class={[
-                          "rounded-xl object-cover shadow-lg ring-1 ring-base-content/10 bg-base-100 shrink-0",
+                          "object-contain shrink-0 drop-shadow-lg",
                           case @current_folder.header_size do
                             "small" -> "w-16 h-16"
                             "large" -> "w-20 h-20"
@@ -1760,7 +1764,7 @@
                     <img
                       src={@folder_logo_url}
                       alt=""
-                      class="absolute inset-0 w-full h-full object-cover"
+                      class="absolute inset-0 w-full h-full object-contain p-1"
                     />
                   <% else %>
                     <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
