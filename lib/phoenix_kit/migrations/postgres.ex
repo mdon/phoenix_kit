@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V132 - Folder description ⚡ LATEST
+  ### V133 - Dashboards table ⚡ LATEST
+  - Creates `phoenix_kit_dashboards`, backing the `phoenix_kit_dashboards` plugin
+    module. A dashboard is a page of placed widgets whose layout is stored as a
+    JSONB list of widget instances. Supports personal / system / role scopes;
+    `owner_user_uuid` FKs `phoenix_kit_users(uuid)` ON DELETE CASCADE. Idempotent
+    `CREATE TABLE IF NOT EXISTS` + indexes.
+
+  ### V132 - Folder description
   - Adds an optional `description TEXT` column to `phoenix_kit_media_folders`
     so admins can add/edit a free-text note describing a folder. Nullable;
     `ADD COLUMN IF NOT EXISTS`, idempotent.
@@ -1133,7 +1140,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 132
+  @current_version 133
   @default_prefix "public"
 
   @doc false
