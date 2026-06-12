@@ -256,7 +256,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     actual_uuid = current_folder && current_folder.uuid
 
     {files, total_count} =
-      load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view)
+      load_nav_files(
+        scope,
+        page,
+        per_page,
+        q,
+        actual_uuid,
+        filter_orphaned,
+        file_view,
+        list_extra(socket)
+      )
 
     orphaned_count =
       if filter_orphaned,
@@ -311,12 +320,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view) do
+  defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view, extra) do
     cond do
       filter_orphaned -> load_orphaned_files(page, per_page)
-      file_view == "all" -> load_all_view_files(scope, page, per_page, q)
-      true -> load_scoped_files(scope, page, per_page, actual_uuid, q)
+      file_view == "all" -> load_all_view_files(scope, page, per_page, q, extra)
+      true -> load_scoped_files(scope, page, per_page, actual_uuid, q, extra)
     end
+  end
+
+  # Sort + file-type filter opts from the toolbar, for the listing query.
+  defp list_extra(socket) do
+    [
+      sort: socket.assigns[:sort_by] || "newest",
+      file_type: socket.assigns[:file_type_filter] || "all"
+    ]
   end
 
   defp init_socket(socket) do
@@ -369,6 +386,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:folder_header_name, "")
     |> assign(:folder_header_description, "")
     |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
+    # Toolbar sort + file-type filter (socket state, applied to the listing).
+    |> assign(:sort_by, "newest")
+    |> assign(:file_type_filter, "all")
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
@@ -920,7 +940,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       scope = scope_folder_id(socket)
       per_page = socket.assigns.per_page
       q = socket.assigns.search_query
-      {files, total_count} = load_all_view_files(scope, 1, per_page, q)
+      {files, total_count} = load_all_view_files(scope, 1, per_page, q, list_extra(socket))
 
       {:noreply,
        socket
@@ -950,6 +970,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     {:noreply, assign(socket, :view_mode, mode)}
+  end
+
+  @valid_sorts ~w(newest oldest name_asc name_desc largest smallest)
+  @valid_file_types ~w(all image video document audio archive other)
+
+  def handle_event("set_sort", %{"sort" => sort}, socket) when sort in @valid_sorts do
+    {:noreply,
+     socket
+     |> assign(:sort_by, sort)
+     |> assign(:current_page, 1)
+     |> reload_current_page()}
+  end
+
+  def handle_event("set_file_filter", %{"type" => type}, socket)
+      when type in @valid_file_types do
+    {:noreply,
+     socket
+     |> assign(:file_type_filter, type)
+     |> assign(:current_page, 1)
+     |> reload_current_page()}
   end
 
   def handle_event("toggle_sidebar", _params, socket) do
@@ -1913,12 +1953,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
     file_view = socket.assigns[:file_view]
 
+    extra = list_extra(socket)
+
     {files, total_count} =
       cond do
         socket.assigns[:filter_trash] -> load_trashed_files(scope, page, per_page)
         socket.assigns.filter_orphaned -> load_orphaned_files(page, per_page)
-        file_view == "all" -> load_all_view_files(scope, page, per_page, search)
-        true -> load_scoped_files(scope, page, per_page, folder_uuid, search)
+        file_view == "all" -> load_all_view_files(scope, page, per_page, search, extra)
+        true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
       end
 
     socket
@@ -2088,10 +2130,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Loads files within scope with optional folder/search filters.
   # When scope=nil AND folder_uuid=nil AND search="", passes include_orphaned: true
   # to preserve the /admin/media root view behavior of showing only orphan files.
-  defp load_scoped_files(scope, page, per_page, folder_uuid, search) do
+  defp load_scoped_files(scope, page, per_page, folder_uuid, search, extra \\ []) do
     at_real_root = is_nil(scope) and is_nil(folder_uuid) and search in [nil, ""]
 
-    opts = [page: page, per_page: per_page]
+    opts = extra ++ [page: page, per_page: per_page]
 
     opts =
       if folder_uuid && folder_uuid != "", do: [{:folder_uuid, folder_uuid} | opts], else: opts
@@ -2107,8 +2149,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Loads ALL files in the system (or within scope subtree when scope is set).
   # Used for the view=all flat listing. Does not apply folder or orphan filters.
-  defp load_all_view_files(scope, page, per_page, search) do
-    opts = [page: page, per_page: per_page]
+  defp load_all_view_files(scope, page, per_page, search, extra \\ []) do
+    opts = extra ++ [page: page, per_page: per_page]
     opts = if search && search != "", do: [{:search, search} | opts], else: opts
 
     case Storage.list_files_in_scope(scope, opts) do

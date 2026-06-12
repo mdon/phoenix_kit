@@ -1,3 +1,20 @@
+## 1.7.153 - 2026-06-12
+
+### Added
+- Media browser **Display / Sort / Filter** toolbar. Display switches grid/list,
+  Sort offers newest/oldest/name/size ordering, and Filter narrows by file type
+  (images/videos/documents/audio/archives/other). Each dropdown trigger shows
+  the current selection with a chevron and closes on pick. Sort + filter are
+  applied through `list_files_in_scope`.
+
+### Changed
+- The folder header, toolbar, search, Add Media, Select and result count are now
+  a single unified hero block — the toolbar sits inside the colored/cover-image
+  header (faded at the bottom) instead of separate rows. Non-folder views (root,
+  All Files, Trash, Orphaned) render the same header with a neutral gradient.
+- Removed the standalone grid/list toggle that sat next to the result count
+  (it's now the Display dropdown).
+
 ## 1.7.152 - 2026-06-12
 
 ### Added

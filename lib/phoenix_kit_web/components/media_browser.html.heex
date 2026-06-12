@@ -225,34 +225,42 @@
                 Orphaned / All Files / root) just show a plain title. The
                 cover-image upload itself lives in the Edit-header modal.
               --%>
-              <%= if @current_folder do %>
-                <% hero_hex = folder_color_hex(@current_folder.color) %>
-                <div class="relative overflow-hidden rounded-xl mb-4 min-h-[200px] flex flex-col justify-end">
-                  <%!-- Background: cover image, folder-color gradient, or neutral --%>
-                  <%= cond do %>
-                    <% @folder_cover_url -> %>
-                      <img
-                        src={@folder_cover_url}
-                        alt=""
-                        class="absolute inset-0 w-full h-full object-cover"
-                      />
-                    <% hero_hex -> %>
-                      <div
-                        class="absolute inset-0"
-                        style={"background-image: linear-gradient(160deg, #{hero_hex}59 0%, #{hero_hex}1a 55%, transparent 100%);"}
-                      >
-                      </div>
-                    <% true -> %>
-                      <div class="absolute inset-0 bg-gradient-to-br from-base-200 to-base-300">
-                      </div>
-                  <% end %>
+              <%!-- Unified header: a hero block (cover image / folder-color
+                   gradient for folders, neutral gradient otherwise) that also
+                   holds the toolbar at the bottom. `overflow-hidden` is avoided
+                   so the toolbar dropdown menus aren't clipped — the background
+                   layers are each rounded instead. --%>
+              <% hero_hex = @current_folder && folder_color_hex(@current_folder.color) %>
+              <div class={[
+                "relative rounded-xl mb-4 flex flex-col justify-end",
+                @current_folder && "min-h-[200px]"
+              ]}>
+                <%!-- Background: cover image, folder-color gradient, or neutral --%>
+                <%= cond do %>
+                  <% @folder_cover_url -> %>
+                    <img
+                      src={@folder_cover_url}
+                      alt=""
+                      class="absolute inset-0 w-full h-full object-cover rounded-xl"
+                    />
+                  <% hero_hex -> %>
+                    <div
+                      class="absolute inset-0 rounded-xl"
+                      style={"background-image: linear-gradient(160deg, #{hero_hex}59 0%, #{hero_hex}1a 55%, transparent 100%);"}
+                    >
+                    </div>
+                  <% true -> %>
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-br from-base-200 to-base-300">
+                    </div>
+                <% end %>
 
-                  <%!-- Bottom fade to the page background for the clean,
-                       faded-out look and readable overlaid text. --%>
-                  <div class="absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
-                  </div>
+                <%!-- Bottom fade to the page background for the clean,
+                     faded-out look and readable overlaid text. --%>
+                <div class="absolute inset-0 rounded-xl bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
+                </div>
 
-                  <%!-- Action(s), top-right, as a frosted overlay button --%>
+                <%!-- Action(s), top-right, as a frosted overlay button --%>
+                <%= if @current_folder do %>
                   <div class="absolute top-3 right-3 z-10 flex gap-2">
                     <button
                       type="button"
@@ -265,17 +273,33 @@
                       {gettext("Edit header")}
                     </button>
                   </div>
+                <% end %>
 
-                  <%!-- Title + meta, bottom-left over the faded area. The
+                <%!-- Title + meta, bottom-left over the faded area. The
                        description must NOT use `whitespace-pre-line` — the
                        HEEx-indented `{...}` would render its leading newline as
                        a blank line ("crazy top padding"). --%>
-                  <div class="relative z-10 p-4 flex flex-col gap-1">
-                    <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
-                      {@current_folder.name}
-                    </h2>
-                    <%!-- Description, directly under the title so the two read
-                         as one — the meta line sits last, below it. --%>
+                <%!-- Content (title / description / meta / toolbar) over the
+                     faded bottom area. The toolbar is folded in below. --%>
+                <div class="relative z-10 p-4 flex flex-col gap-1">
+                  <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
+                    <%= cond do %>
+                      <% @filter_trash -> %>
+                        {gettext("Trash")}
+                      <% @filter_orphaned -> %>
+                        {gettext("Orphaned Files")}
+                      <% @file_view == "all" -> %>
+                        {gettext("All Files")}
+                      <% @current_folder -> %>
+                        {@current_folder.name}
+                      <% true -> %>
+                        {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
+                    <% end %>
+                  </h2>
+                  <%= if @current_folder do %>
+                    <%!-- Description + meta (folders only). Description must NOT
+                         use whitespace-pre-line (the HEEx-indented expression's
+                         leading newline would render as a blank line). --%>
                     <%= if @current_folder.description not in [nil, ""] do %>
                       <p class="text-sm text-base-content/80 max-w-2xl">
                         {@current_folder.description}
@@ -306,22 +330,236 @@
                         {ngettext("%{count} file", "%{count} files", @total_count)}
                       </span>
                     </div>
-                  </div>
-                </div>
-              <% else %>
-                <h2 class="card-title text-xl mb-2">
-                  <%= cond do %>
-                    <% @filter_trash -> %>
-                      {gettext("Trash")}
-                    <% @filter_orphaned -> %>
-                      {gettext("Orphaned Files")}
-                    <% @file_view == "all" -> %>
-                      {gettext("All Files")}
-                    <% true -> %>
-                      {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
                   <% end %>
-                </h2>
-              <% end %>
+
+                  <%!-- Main toolbar: Display / Sort / Filter dropdowns, search,
+                   Add Media, Select and the result count — all in one row.
+                   Hidden in select mode (the selection header below replaces
+                   it). The dropdowns are gated to file-listing views; the
+                   other actions show in trash/orphaned too. --%>
+                  <%= unless @select_mode do %>
+                    <% display_options = [
+                      {"grid", gettext("Grid"), "hero-squares-2x2"},
+                      {"list", gettext("List"), "hero-bars-3-bottom-left"}
+                    ] %>
+                    <% sort_options = [
+                      {"newest", gettext("Newest first")},
+                      {"oldest", gettext("Oldest first")},
+                      {"name_asc", gettext("Name A–Z")},
+                      {"name_desc", gettext("Name Z–A")},
+                      {"largest", gettext("Largest first")},
+                      {"smallest", gettext("Smallest first")}
+                    ] %>
+                    <% filter_options = [
+                      {"all", gettext("All types")},
+                      {"image", gettext("Images")},
+                      {"video", gettext("Videos")},
+                      {"document", gettext("Documents")},
+                      {"audio", gettext("Audio")},
+                      {"archive", gettext("Archives")},
+                      {"other", gettext("Other")}
+                    ] %>
+                    <% sort_label =
+                      sort_options
+                      |> Enum.find(fn {v, _} -> v == @sort_by end)
+                      |> then(&(&1 && elem(&1, 1))) %>
+                    <% filter_label =
+                      filter_options
+                      |> Enum.find(fn {v, _} -> v == @file_type_filter end)
+                      |> then(&(&1 && elem(&1, 1))) %>
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                      <%= if not @filter_trash and not @filter_orphaned do %>
+                        <%!-- Display (grid/list) --%>
+                        <div class="dropdown">
+                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                            <.icon
+                              name={
+                                if @view_mode == "list",
+                                  do: "hero-bars-3-bottom-left",
+                                  else: "hero-squares-2x2"
+                              }
+                              class="w-4 h-4"
+                            />
+                            {if @view_mode == "list", do: gettext("List"), else: gettext("Grid")}
+                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                          </div>
+                          <ul
+                            tabindex="0"
+                            onclick="document.activeElement.blur()"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                          >
+                            <%= for {val, label, icon} <- display_options do %>
+                              <li>
+                                <button
+                                  phx-click="set_view_mode"
+                                  phx-value-mode={val}
+                                  phx-target={@myself}
+                                  class={@view_mode == val && "active"}
+                                >
+                                  <.icon name={icon} class="w-4 h-4" /> {label}
+                                </button>
+                              </li>
+                            <% end %>
+                          </ul>
+                        </div>
+
+                        <%!-- Sort --%>
+                        <div class="dropdown">
+                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                            <.icon name="hero-arrows-up-down" class="w-4 h-4" />
+                            {sort_label || gettext("Sort")}
+                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                          </div>
+                          <ul
+                            tabindex="0"
+                            onclick="document.activeElement.blur()"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                          >
+                            <%= for {val, label} <- sort_options do %>
+                              <li>
+                                <button
+                                  phx-click="set_sort"
+                                  phx-value-sort={val}
+                                  phx-target={@myself}
+                                  class={@sort_by == val && "active"}
+                                >
+                                  {label}
+                                </button>
+                              </li>
+                            <% end %>
+                          </ul>
+                        </div>
+
+                        <%!-- Filter (file type) --%>
+                        <div class="dropdown">
+                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                            <.icon name="hero-funnel" class="w-4 h-4" />
+                            {if @file_type_filter == "all",
+                              do: gettext("Filter"),
+                              else: filter_label}
+                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                          </div>
+                          <ul
+                            tabindex="0"
+                            onclick="document.activeElement.blur()"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                          >
+                            <%= for {val, label} <- filter_options do %>
+                              <li>
+                                <button
+                                  phx-click="set_file_filter"
+                                  phx-value-type={val}
+                                  phx-target={@myself}
+                                  class={@file_type_filter == val && "active"}
+                                >
+                                  {label}
+                                </button>
+                              </li>
+                            <% end %>
+                          </ul>
+                        </div>
+                      <% end %>
+
+                      <%!-- Empty Trash (trash view) --%>
+                      <%= if @filter_trash and @total_count > 0 do %>
+                        <button
+                          phx-click="empty_trash"
+                          phx-target={@myself}
+                          data-confirm={
+                            ngettext(
+                              "Permanently delete %{count} trashed file?",
+                              "Permanently delete all %{count} trashed files?",
+                              @total_count
+                            )
+                          }
+                          class="btn btn-sm btn-error gap-1"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
+                        </button>
+                      <% end %>
+
+                      <%!-- Search --%>
+                      <button
+                        phx-click="toggle_search"
+                        phx-target={@myself}
+                        class={[
+                          "btn btn-sm btn-circle",
+                          if(@show_search or @search_query != "",
+                            do: "btn-primary",
+                            else: "btn-ghost"
+                          )
+                        ]}
+                        title={gettext("Search")}
+                      >
+                        <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+                      </button>
+
+                      <%!-- Add Media --%>
+                      <%= unless @show_upload or @filter_trash do %>
+                        <button
+                          phx-click="toggle_upload"
+                          phx-target={@myself}
+                          class="btn btn-sm btn-primary gap-2"
+                        >
+                          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                        </button>
+                      <% end %>
+
+                      <%!-- Select --%>
+                      <button
+                        phx-click="toggle_select_mode"
+                        phx-target={@myself}
+                        class="btn btn-sm btn-secondary btn-outline gap-2"
+                        phx-disable-with={gettext("Select")}
+                      >
+                        <.icon name="hero-check-circle" class="w-4 h-4" /> {gettext("Select")}
+                      </button>
+
+                      <%!-- New Folder (mobile only) --%>
+                      <button
+                        phx-click="create_untitled_folder"
+                        phx-target={@myself}
+                        class="btn btn-sm btn-ghost gap-2 lg:hidden"
+                      >
+                        <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext("New Folder")}
+                      </button>
+
+                      <%!-- Delete all orphaned (orphaned view, global root only) --%>
+                      <%= if is_nil(@scope_folder_id) and @filter_orphaned and @total_count > 0 do %>
+                        <button
+                          phx-click="delete_all_orphaned"
+                          phx-target={@myself}
+                          data-confirm={
+                            ngettext(
+                              "Delete %{count} orphaned file?",
+                              "Delete all %{count} orphaned files?",
+                              @total_count
+                            )
+                          }
+                          class="btn btn-sm btn-error gap-2"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
+                            "Delete all orphaned"
+                          )}
+                        </button>
+                      <% end %>
+
+                      <%!-- Result count, pushed to the right --%>
+                      <%= if @total_count > 0 or @folders != [] or not is_nil(@current_folder) do %>
+                        <div class="ml-auto">
+                          <.pagination_info
+                            page={@current_page}
+                            per_page={@per_page}
+                            total_count={@total_count}
+                          />
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+                <%!-- /content --%>
+              </div>
+              <%!-- /hero header --%>
 
               <%!-- Search Bar (toggleable) --%>
               <%= if @show_search or @search_query != "" do %>
@@ -352,239 +590,92 @@
                 </form>
               <% end %>
 
-              <%!-- Header --%>
-              <div class="flex justify-between items-center mb-4">
-                <%= if @select_mode do %>
-                  <%!-- Selection Mode Header --%>
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <button
-                      phx-click="toggle_select_mode"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-error gap-2"
-                    >
-                      <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
-                    </button>
-                    <span class="text-sm font-semibold">
-                      {ngettext(
-                        "%{count} selected",
-                        "%{count} selected",
-                        MapSet.size(@selected_files) + MapSet.size(@selected_folders)
-                      )}
-                    </span>
-                    <button
-                      phx-click="show_move_modal"
-                      phx-target={@myself}
-                      disabled={
-                        MapSet.size(@selected_files) + MapSet.size(@selected_folders) == 0
-                      }
-                      title={gettext("Select items to move")}
-                      class="btn btn-sm btn-primary gap-1"
-                    >
-                      <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext("Move")}
-                    </button>
-                    <%= if MapSet.size(@selected_files) + MapSet.size(@selected_folders) > 0 do %>
-                      <div class="dropdown dropdown-end">
-                        <label
-                          tabindex="0"
-                          class="btn btn-sm btn-ghost px-2"
-                          title={gettext("More actions")}
-                        >
-                          <.icon name="hero-ellipsis-horizontal" class="w-5 h-5" />
-                        </label>
-                        <ul
-                          tabindex="0"
-                          class="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg border border-base-200"
-                        >
-                          <%= if MapSet.size(@selected_files) > 0 do %>
-                            <li>
-                              <button phx-click="download_selected" phx-target={@myself}>
-                                <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext(
-                                  "Download"
-                                )}
-                              </button>
-                            </li>
-                          <% end %>
+              <%!-- Selection-mode header (replaces the main toolbar above) --%>
+              <%= if @select_mode do %>
+                <div class="flex items-center gap-2 flex-wrap mb-4">
+                  <button
+                    phx-click="toggle_select_mode"
+                    phx-target={@myself}
+                    class="btn btn-sm btn-error gap-2"
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+                  </button>
+                  <span class="text-sm font-semibold">
+                    {ngettext(
+                      "%{count} selected",
+                      "%{count} selected",
+                      MapSet.size(@selected_files) + MapSet.size(@selected_folders)
+                    )}
+                  </span>
+                  <button
+                    phx-click="show_move_modal"
+                    phx-target={@myself}
+                    disabled={MapSet.size(@selected_files) + MapSet.size(@selected_folders) == 0}
+                    title={gettext("Select items to move")}
+                    class="btn btn-sm btn-primary gap-1"
+                  >
+                    <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext("Move")}
+                  </button>
+                  <%= if MapSet.size(@selected_files) + MapSet.size(@selected_folders) > 0 do %>
+                    <div class="dropdown dropdown-end">
+                      <label
+                        tabindex="0"
+                        class="btn btn-sm btn-ghost px-2"
+                        title={gettext("More actions")}
+                      >
+                        <.icon name="hero-ellipsis-horizontal" class="w-5 h-5" />
+                      </label>
+                      <ul
+                        tabindex="0"
+                        class="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg border border-base-200"
+                      >
+                        <%= if MapSet.size(@selected_files) > 0 do %>
                           <li>
-                            <button
-                              phx-click="delete_selected"
-                              phx-target={@myself}
-                              data-confirm={
-                                delete_selected_confirm(
-                                  @selected_files,
-                                  @selected_folders,
-                                  @filter_trash
-                                )
-                              }
-                              class="text-error"
-                            >
-                              <.icon name="hero-trash" class="w-4 h-4" />
-                              {if @filter_trash,
-                                do: gettext("Delete permanently"),
-                                else: gettext("Delete")}
+                            <button phx-click="download_selected" phx-target={@myself}>
+                              <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext(
+                                "Download"
+                              )}
                             </button>
                           </li>
-                        </ul>
-                      </div>
-                    <% end %>
-                    <button
-                      phx-click="select_all"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost"
-                    >
-                      {gettext("Select all")}
-                    </button>
-                    <button
-                      phx-click="deselect_all"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost"
-                    >
-                      {gettext("Clear")}
-                    </button>
-                  </div>
-                <% else %>
-                  <%!-- Normal Header — actions only; the title now sits above
-                       the folder description (see the page title above). --%>
-                  <div class="flex items-center gap-3 flex-wrap">
-                    <%= if @filter_trash do %>
-                      <%= if @select_mode and MapSet.size(@selected_files) > 0 do %>
-                        <button
-                          phx-click="restore_selected"
-                          phx-target={@myself}
-                          class="btn btn-sm btn-success gap-1"
-                        >
-                          <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> {gettext(
-                            "Restore"
-                          )}
-                        </button>
-                      <% end %>
-                      <%= if @total_count > 0 do %>
-                        <button
-                          phx-click="empty_trash"
-                          phx-target={@myself}
-                          data-confirm={
-                            ngettext(
-                              "Permanently delete %{count} trashed file?",
-                              "Permanently delete all %{count} trashed files?",
-                              @total_count
-                            )
-                          }
-                          class="btn btn-sm btn-error gap-1"
-                        >
-                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
-                        </button>
-                      <% end %>
-                    <% end %>
-                    <button
-                      phx-click="toggle_search"
-                      phx-target={@myself}
-                      class={[
-                        "btn btn-sm btn-circle",
-                        if(@show_search or @search_query != "",
-                          do: "btn-primary",
-                          else: "btn-ghost"
-                        )
-                      ]}
-                      title={gettext("Search")}
-                    >
-                      <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-                    </button>
-                    <%= unless @show_upload or @filter_trash do %>
-                      <button
-                        phx-click="toggle_upload"
-                        phx-target={@myself}
-                        class="btn btn-sm btn-primary gap-2"
-                      >
-                        <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
-                      </button>
-                    <% end %>
-                    <button
-                      phx-click="toggle_select_mode"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-secondary btn-outline gap-2"
-                      phx-disable-with={gettext("Select")}
-                    >
-                      <.icon name="hero-check-circle" class="w-4 h-4" /> {gettext("Select")}
-                    </button>
-                    <button
-                      phx-click="create_untitled_folder"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost gap-2 lg:hidden"
-                    >
-                      <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext("New Folder")}
-                    </button>
-                    <%!--
-                      Orphan filtering is only meaningful at the global root
-                      (no scope set). The "Find orphaned" entry point now lives
-                      in the media settings Quick Actions
-                      (/admin/media?orphaned=1); only the contextual
-                      "Delete all orphaned" action remains here, shown while the
-                      orphaned view is active.
-                    --%>
-                    <%= if is_nil(@scope_folder_id) do %>
-                      <%= if @filter_orphaned && @total_count > 0 do %>
-                        <button
-                          phx-click="delete_all_orphaned"
-                          phx-target={@myself}
-                          data-confirm={
-                            ngettext(
-                              "Delete %{count} orphaned file?",
-                              "Delete all %{count} orphaned files?",
-                              @total_count
-                            )
-                          }
-                          class="btn btn-sm btn-error gap-2"
-                        >
-                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
-                            "Delete all orphaned"
-                          )}
-                        </button>
-                      <% end %>
-                    <% end %>
-                  </div>
-                <% end %>
-                <div class="flex items-center gap-2">
-                  <%!--
-                    Show the grid/list toggle + count whenever we're in a
-                    browseable view — there are files, there are folders, or
-                    we're inside a folder (even an empty one). Gating on
-                    `@total_count > 0` alone hid the toggle and count in an
-                    empty folder and in folders-with-no-files.
-                  --%>
-                  <%= if @total_count > 0 or @folders != [] or not is_nil(@current_folder) do %>
-                    <div class="join">
-                      <button
-                        phx-click="set_view_mode"
-                        phx-target={@myself}
-                        phx-value-mode="grid"
-                        class={[
-                          "btn btn-xs join-item",
-                          if(@view_mode == "grid", do: "btn-active")
-                        ]}
-                        title={gettext("Grid view")}
-                      >
-                        <.icon name="hero-squares-2x2" class="w-3 h-3" />
-                      </button>
-                      <button
-                        phx-click="set_view_mode"
-                        phx-target={@myself}
-                        phx-value-mode="list"
-                        class={[
-                          "btn btn-xs join-item",
-                          if(@view_mode == "list", do: "btn-active")
-                        ]}
-                        title={gettext("List view")}
-                      >
-                        <.icon name="hero-bars-3-bottom-left" class="w-3 h-3" />
-                      </button>
+                        <% end %>
+                        <li>
+                          <button
+                            phx-click="delete_selected"
+                            phx-target={@myself}
+                            data-confirm={
+                              delete_selected_confirm(
+                                @selected_files,
+                                @selected_folders,
+                                @filter_trash
+                              )
+                            }
+                            class="text-error"
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" />
+                            {if @filter_trash,
+                              do: gettext("Delete permanently"),
+                              else: gettext("Delete")}
+                          </button>
+                        </li>
+                      </ul>
                     </div>
-                    <.pagination_info
-                      page={@current_page}
-                      per_page={@per_page}
-                      total_count={@total_count}
-                    />
                   <% end %>
+                  <button
+                    phx-click="select_all"
+                    phx-target={@myself}
+                    class="btn btn-sm btn-ghost"
+                  >
+                    {gettext("Select all")}
+                  </button>
+                  <button
+                    phx-click="deselect_all"
+                    phx-target={@myself}
+                    class="btn btn-sm btn-ghost"
+                  >
+                    {gettext("Clear")}
+                  </button>
                 </div>
-              </div>
+              <% end %>
 
               <%!--
                 Main-area drop target. Dropping a folder or file onto the
