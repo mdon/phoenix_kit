@@ -885,7 +885,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # The inline search collapses back to the magnifier when emptied via the ✕ or
+  # blurred while empty.
+  def handle_event("close_search_if_empty", _params, socket) do
+    if socket.assigns.search_query == "" do
+      {:noreply, assign(socket, :show_search, false)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("clear_search", _params, socket) do
+    socket = assign(socket, :show_search, false)
+
     if controlled_mode?(socket) do
       folder_uuid = current_folder_uuid(socket)
 
