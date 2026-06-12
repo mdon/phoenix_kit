@@ -631,14 +631,22 @@
                           </button>
                         <% end %>
 
-                        <%!-- Add Media (primary) --%>
-                        <%= unless @show_upload or @filter_trash do %>
+                        <%!-- Add Media ⇄ Cancel: stays in place (fixed min-width)
+                             so the toolbar doesn't shift when the uploader opens. --%>
+                        <%= unless @filter_trash do %>
                           <button
                             phx-click="toggle_upload"
                             phx-target={@myself}
-                            class="btn btn-sm btn-primary gap-2"
+                            class={[
+                              "btn btn-sm gap-2 min-w-[8.5rem]",
+                              if(@show_upload, do: "btn-error", else: "btn-primary")
+                            ]}
                           >
-                            <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                            <%= if @show_upload do %>
+                              <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+                            <% else %>
+                              <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                            <% end %>
                           </button>
                         <% end %>
 
