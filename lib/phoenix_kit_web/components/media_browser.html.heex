@@ -231,8 +231,12 @@
                    so the toolbar dropdown menus aren't clipped — the background
                    layers are each rounded instead. --%>
               <% hero_hex = @current_folder && folder_color_hex(@current_folder.color) %>
+              <%!-- `relative z-30` lifts the whole header above the list's
+                   scroll area (which comes later in the DOM), so the toolbar
+                   dropdowns open *over* the sticky table header instead of
+                   being painted behind it. --%>
               <div class={[
-                "relative rounded-xl mb-4 flex flex-col justify-end",
+                "relative z-30 rounded-xl mb-4 flex flex-col justify-end",
                 @current_folder && "min-h-[200px]"
               ]}>
                 <%!-- Background: cover image, folder-color gradient, or neutral --%>
@@ -689,7 +693,7 @@
                 so the wrapper isn't a drop target there.
               --%>
               <div
-                class="rounded-lg min-h-0 flex-1 overflow-y-auto pr-1"
+                class="rounded-lg min-h-0 flex-1 overflow-auto pr-1"
                 data-drop-folder={
                   if not @filter_trash and @file_view != "all" do
                     if @current_folder, do: @current_folder.uuid, else: "root"
@@ -1086,9 +1090,16 @@
                   <% end %>
                   <%= if @view_mode == "list" do %>
                     <%!-- List View --%>
-                    <div data-media-list class="overflow-x-auto">
+                    <%!-- Horizontal scroll handled by the outer scroll area
+                         (not a nested overflow div) so the sticky header below
+                         pins to the top of that area while scrolling. --%>
+                    <div data-media-list>
                       <table class="table table-sm">
-                        <thead>
+                        <%!-- Sticky column header: stays glued to the top of
+                             the scroll area. `th`-level sticky (not `thead`) is
+                             the cross-browser-safe form; each cell needs an
+                             opaque bg so rows scroll under it. --%>
+                        <thead class="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-base-100">
                           <tr>
                             <%= if @select_mode do %>
                               <th class="w-8"></th>
