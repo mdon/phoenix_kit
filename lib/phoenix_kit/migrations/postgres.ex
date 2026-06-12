@@ -529,7 +529,12 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V132 - Folder description ⚡ LATEST
+  ### V133 - Folder cover image ⚡ LATEST
+  - Adds an optional `cover_file_uuid UUID` column to `phoenix_kit_media_folders`
+    referencing a media file used as the folder's hero/cover image in the Media
+    browser header. Nullable; `ADD COLUMN IF NOT EXISTS`, idempotent.
+
+  ### V132 - Folder description
   - Adds an optional `description TEXT` column to `phoenix_kit_media_folders`
     so admins can add/edit a free-text note describing a folder. Nullable;
     `ADD COLUMN IF NOT EXISTS`, idempotent.
@@ -1133,7 +1138,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 132
+  @current_version 133
   @default_prefix "public"
 
   @doc false

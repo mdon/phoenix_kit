@@ -143,6 +143,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Map.has_key?(assigns, :pending_upload) ->
         {:ok, process_pending_upload(socket, assigns.pending_upload)}
 
+      # The folder-cover picker (MediaSelectorModal) reports back here via
+      # `notify: {__MODULE__, id}`: a confirmed selection sets the cover, a
+      # close just dismisses the picker.
+      Map.has_key?(assigns, :media_selected) ->
+        {:ok, set_cover_from_selection(socket, assigns.media_selected)}
+
+      Map.has_key?(assigns, :media_selector_closed) ->
+        {:ok, assign(socket, :selecting_cover, false)}
+
       Map.get(assigns, :action) == :commit_upload_batch ->
         {:ok, commit_upload_batch(socket)}
 
@@ -195,6 +204,44 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> put_flash(flash_type, flash_msg)
   end
 
+  # Sets the open folder's hero/cover to a file chosen in the media picker
+  # (an existing folder image or one just uploaded into it via the picker).
+  defp set_cover_from_selection(socket, uuids) do
+    folder_uuid = socket.assigns[:editing_folder_header]
+    file_uuid = uuids |> List.wrap() |> List.first()
+    socket = assign(socket, :selecting_cover, false)
+    folder = is_binary(folder_uuid) && loaded_folder(socket, folder_uuid)
+
+    if is_binary(file_uuid) and folder do
+      scope = scope_folder_id(socket)
+
+      case Storage.update_folder(folder, %{cover_file_uuid: file_uuid}, scope) do
+        {:ok, updated} ->
+          socket
+          |> maybe_refresh_current_folder(updated, folder_uuid)
+          |> reload_current_page()
+
+        _ ->
+          put_flash(socket, :error, gettext("Failed to set the cover image"))
+      end
+    else
+      socket
+    end
+  end
+
+  # Keeps the in-folder header in sync after a cover change — refreshes the
+  # current folder struct + cover URL when the edited folder is the open one.
+  defp maybe_refresh_current_folder(socket, updated, folder_uuid) do
+    if socket.assigns[:current_folder] &&
+         to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
+      socket
+      |> assign(:current_folder, updated)
+      |> assign(:folder_cover_url, folder_cover_url(updated))
+    else
+      socket
+    end
+  end
+
   defp apply_nav_params(socket, params) do
     q = params[:q] || ""
     page = params[:page] || 1
@@ -222,6 +269,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:current_folder, current_folder)
     |> assign(:folder_creator_user, creator)
     |> assign(:folder_creator_name, creator_label(creator))
+    |> assign(:folder_cover_url, folder_cover_url(current_folder))
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view and the orphaned view are flat file listings — they show
     # no folder cards. (The sidebar folder tree is unaffected; only the grid's
@@ -302,6 +350,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:current_folder, nil)
     |> assign(:folder_creator_user, nil)
     |> assign(:folder_creator_name, nil)
+    |> assign(:folder_cover_url, nil)
+    # Whether the cover-image media picker (MediaSelectorModal) is open.
+    |> assign(:selecting_cover, false)
     |> assign(:breadcrumbs, [])
     |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
     |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
@@ -1080,6 +1131,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:editing_folder_header, nil)
      |> assign(:folder_header_name, "")
      |> assign(:folder_header_description, "")}
+  end
+
+  # Open the media picker (scoped to the open folder) to choose/upload a cover.
+  def handle_event("open_cover_picker", _params, socket) do
+    {:noreply, assign(socket, :selecting_cover, true)}
+  end
+
+  # Clear the folder's cover. The image stays in the folder as a normal asset —
+  # only the cover reference is removed.
+  def handle_event("remove_folder_cover", %{"folder-uuid" => folder_uuid}, socket) do
+    folder = loaded_folder(socket, folder_uuid)
+    scope = scope_folder_id(socket)
+
+    case folder && Storage.update_folder(folder, %{cover_file_uuid: nil}, scope) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> maybe_refresh_current_folder(updated, folder_uuid)
+         |> reload_current_page()}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to remove the cover image"))}
+    end
   end
 
   def handle_event(
@@ -1895,6 +1969,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Display label for a creator — full name, falling back to email.
   defp creator_label(nil), do: nil
   defp creator_label(user), do: User.full_name(user) || user.email
+
+  # Display URL for a folder's hero/cover image, or nil. Loads the referenced
+  # file and enriches it for its signed URLs; only runs when a cover is set.
+  defp folder_cover_url(%{cover_file_uuid: uuid}) when is_binary(uuid) do
+    case Storage.get_file(uuid) do
+      nil ->
+        nil
+
+      file ->
+        case enrich_files([file]) do
+          [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
+          _ -> nil
+        end
+    end
+  end
+
+  defp folder_cover_url(_), do: nil
 
   defp reset_folder_header_edit(socket) do
     socket

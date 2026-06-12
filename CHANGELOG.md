@@ -1,3 +1,21 @@
+## 1.7.152 - 2026-06-12
+
+### Added
+- Folder header on the media page is now a **hero block**: a cover image as the
+  background (or a soft folder-color gradient when none is set), faded to the
+  page at the bottom, with the title, description, and created-by/date/file-count
+  overlaid. New `cover_file_uuid` column on `phoenix_kit_media_folders` (migration
+  **V133**).
+- The Edit-header modal gained a **cover image selector**: clicking it opens the
+  shared media picker scoped to the current folder, so you can pick an existing
+  image from the folder or upload a new one as the cover; a **Remove** action
+  clears the cover (the image stays in the folder).
+
+### Fixed
+- Removed `whitespace-pre-line` from the folder-header description — the
+  HEEx-indented expression rendered its leading newline as a blank line above
+  the text, showing up as large top padding once a description was set.
+
 ## 1.7.151 - 2026-06-11
 
 ### Added

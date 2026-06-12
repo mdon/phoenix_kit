@@ -218,15 +218,98 @@
               </nav>
 
               <%!--
-                Page title + folder header. For a real folder, "Edit header"
-                opens a modal to edit the folder's name AND description together
-                (add the description if there isn't one yet) — see the
-                Edit-header modal near the move modal below. Non-folder views
-                (Trash / Orphaned / All Files / root) just show the title.
+                Folder hero header: a cover image (or a soft folder-color
+                gradient when none is set) as the background, faded to the page
+                at the bottom, with the title + created-by/file-count and the
+                "Edit header" action overlaid. Non-folder views (Trash /
+                Orphaned / All Files / root) just show a plain title. The
+                cover-image upload itself lives in the Edit-header modal.
               --%>
-              <%!-- Title + "Edit header" (to the right of the folder name) --%>
-              <div class="flex flex-wrap items-center gap-3 mb-2">
-                <h2 class="card-title text-xl">
+              <%= if @current_folder do %>
+                <% hero_hex = folder_color_hex(@current_folder.color) %>
+                <div class="relative overflow-hidden rounded-xl mb-4 min-h-[200px] flex flex-col justify-end">
+                  <%!-- Background: cover image, folder-color gradient, or neutral --%>
+                  <%= cond do %>
+                    <% @folder_cover_url -> %>
+                      <img
+                        src={@folder_cover_url}
+                        alt=""
+                        class="absolute inset-0 w-full h-full object-cover"
+                      />
+                    <% hero_hex -> %>
+                      <div
+                        class="absolute inset-0"
+                        style={"background-image: linear-gradient(160deg, #{hero_hex}59 0%, #{hero_hex}1a 55%, transparent 100%);"}
+                      >
+                      </div>
+                    <% true -> %>
+                      <div class="absolute inset-0 bg-gradient-to-br from-base-200 to-base-300">
+                      </div>
+                  <% end %>
+
+                  <%!-- Bottom fade to the page background for the clean,
+                       faded-out look and readable overlaid text. --%>
+                  <div class="absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
+                  </div>
+
+                  <%!-- Action(s), top-right, as a frosted overlay button --%>
+                  <div class="absolute top-3 right-3 z-10 flex gap-2">
+                    <button
+                      type="button"
+                      phx-click="start_edit_folder_header"
+                      phx-value-folder-uuid={@current_folder.uuid}
+                      phx-target={@myself}
+                      class="btn btn-sm gap-1.5 border-0 bg-base-100/70 hover:bg-base-100 backdrop-blur text-base-content shadow"
+                    >
+                      <.icon name="hero-pencil-square" class="w-4 h-4" />
+                      {gettext("Edit header")}
+                    </button>
+                  </div>
+
+                  <%!-- Title + meta, bottom-left over the faded area. The
+                       description must NOT use `whitespace-pre-line` — the
+                       HEEx-indented `{...}` would render its leading newline as
+                       a blank line ("crazy top padding"). --%>
+                  <div class="relative z-10 p-4 flex flex-col gap-1">
+                    <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
+                      {@current_folder.name}
+                    </h2>
+                    <%!-- Description, directly under the title so the two read
+                         as one — the meta line sits last, below it. --%>
+                    <%= if @current_folder.description not in [nil, ""] do %>
+                      <p class="text-sm text-base-content/80 max-w-2xl">
+                        {@current_folder.description}
+                      </p>
+                    <% else %>
+                      <p class="text-sm italic text-base-content/50">
+                        {gettext("No description yet — use “Edit header” to add one.")}
+                      </p>
+                    <% end %>
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
+                      <%= if @folder_creator_name do %>
+                        <span class="inline-flex items-center gap-1.5">
+                          <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
+                            user={@folder_creator_user}
+                            size="xs"
+                          />
+                          {gettext("Created by %{name}", name: @folder_creator_name)}
+                        </span>
+                        <span class="text-base-content/40">•</span>
+                      <% end %>
+                      <span class="inline-flex items-center gap-1">
+                        <.icon name="hero-calendar" class="w-3.5 h-3.5" />
+                        {Calendar.strftime(@current_folder.inserted_at, "%b %d, %Y")}
+                      </span>
+                      <span class="text-base-content/40">•</span>
+                      <span class="inline-flex items-center gap-1">
+                        <.icon name="hero-document" class="w-3.5 h-3.5" />
+                        {ngettext("%{count} file", "%{count} files", @total_count)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              <% else %>
+                <h2 class="card-title text-xl mb-2">
                   <%= cond do %>
                     <% @filter_trash -> %>
                       {gettext("Trash")}
@@ -234,62 +317,10 @@
                       {gettext("Orphaned Files")}
                     <% @file_view == "all" -> %>
                       {gettext("All Files")}
-                    <% @current_folder -> %>
-                      {@current_folder.name}
                     <% true -> %>
                       {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
                   <% end %>
                 </h2>
-                <%= if @current_folder do %>
-                  <button
-                    type="button"
-                    phx-click="start_edit_folder_header"
-                    phx-value-folder-uuid={@current_folder.uuid}
-                    phx-target={@myself}
-                    class="btn btn-xs btn-outline gap-1.5"
-                  >
-                    <.icon name="hero-pencil-square" class="w-3.5 h-3.5" />
-                    {gettext("Edit header")}
-                  </button>
-                <% end %>
-              </div>
-
-              <%!-- Folder meta: created-by + file count, above the description --%>
-              <%= if @current_folder do %>
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/60 mb-2">
-                  <%= if @folder_creator_name do %>
-                    <span class="inline-flex items-center gap-1.5">
-                      <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
-                        user={@folder_creator_user}
-                        size="xs"
-                      />
-                      {gettext("Created by %{name}", name: @folder_creator_name)}
-                    </span>
-                    <span class="text-base-content/30">•</span>
-                  <% end %>
-                  <span class="inline-flex items-center gap-1">
-                    <.icon name="hero-document" class="w-3.5 h-3.5" />
-                    {ngettext("%{count} file", "%{count} files", @total_count)}
-                  </span>
-                </div>
-              <% end %>
-
-              <%= if @current_folder do %>
-                <div class="flex items-start gap-2 rounded-lg border border-base-300 bg-base-200/40 px-3 py-2 mb-4">
-                  <.icon
-                    name="hero-information-circle"
-                    class="w-4 h-4 text-base-content/40 shrink-0 mt-0.5"
-                  />
-                  <%= if @current_folder.description not in [nil, ""] do %>
-                    <p class="text-sm text-base-content/80 flex-1 min-w-0 whitespace-pre-line">
-                      {@current_folder.description}
-                    </p>
-                  <% else %>
-                    <p class="text-sm italic text-base-content/40 flex-1 min-w-0">
-                      {gettext("No description yet — use “Edit header” to add one.")}
-                    </p>
-                  <% end %>
-                </div>
               <% end %>
 
               <%!-- Search Bar (toggleable) --%>
@@ -1478,66 +1509,155 @@
     <% end %>
   <% end %>
 
-  <%!-- ── Edit folder header modal (name + description) ───────────────────── --%>
+  <%!-- ── Edit folder header modal (cover + name + description) ──────────────── --%>
   <%= if @editing_folder_header do %>
     <div class="modal modal-open">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">{gettext("Edit folder header")}</h3>
-        <form
-          phx-submit="save_folder_header"
-          phx-change="folder_header_input"
-          phx-target={@myself}
-        >
-          <input type="hidden" name="folder_uuid" value={@editing_folder_header} />
-          <div class="mb-3">
-            <label class="text-sm font-medium mb-1 block" for="folder-header-name">
-              {gettext("Name")}
-            </label>
-            <input
-              id="folder-header-name"
-              type="text"
-              name="name"
-              value={@folder_header_name}
-              maxlength="255"
-              required
-              placeholder={gettext("Folder name")}
-              class="input input-bordered input-sm w-full"
-              phx-mounted={JS.focus()}
-              phx-debounce="300"
-            />
-          </div>
-          <div>
-            <label class="text-sm font-medium mb-1 block" for="folder-header-description">
-              {gettext("Description")}
-            </label>
-            <textarea
-              id="folder-header-description"
-              name="description"
-              rows="4"
-              maxlength="2000"
-              placeholder={gettext("Describe what this folder is for...")}
-              class="textarea textarea-bordered textarea-sm w-full"
-              phx-debounce="300"
-            >{@folder_header_description}</textarea>
-          </div>
-          <div class="modal-action">
+      <div class="modal-box max-w-lg p-0 overflow-hidden max-h-[90vh] flex flex-col">
+        <%!-- Header bar --%>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-base-200 shrink-0">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <.icon name="hero-pencil-square" class="w-5 h-5 text-primary" />
+            {gettext("Edit folder header")}
+          </h3>
+          <button
+            type="button"
+            phx-click="cancel_edit_folder_header"
+            phx-target={@myself}
+            class="btn btn-ghost btn-sm btn-circle"
+            title={gettext("Close")}
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="overflow-y-auto px-5 py-5">
+          <%!-- Cover image selector — opens the media picker (scoped to this
+               folder) to choose an existing image or upload a new one. --%>
+          <div class="mb-5">
+            <label class="text-sm font-medium mb-2 block">{gettext("Cover image")}</label>
             <button
               type="button"
-              phx-click="cancel_edit_folder_header"
+              phx-click="open_cover_picker"
               phx-target={@myself}
-              class="btn btn-ghost"
+              class="group relative block w-full aspect-[16/6] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
             >
-              {gettext("Cancel")}
+              <%= if @folder_cover_url do %>
+                <img
+                  src={@folder_cover_url}
+                  alt=""
+                  class="absolute inset-0 w-full h-full object-cover"
+                />
+              <% else %>
+                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
+                  <.icon name="hero-photo" class="w-8 h-8" />
+                  <span class="text-xs">{gettext("No cover image")}</span>
+                </div>
+              <% end %>
+              <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                <span class="opacity-0 group-hover:opacity-100 transition-opacity btn btn-sm gap-1.5 border-0 bg-base-100/90 text-base-content">
+                  <.icon name="hero-photo" class="w-4 h-4" />
+                  {if @folder_cover_url,
+                    do: gettext("Change image"),
+                    else: gettext("Choose image")}
+                </span>
+              </div>
             </button>
-            <button type="submit" class="btn btn-primary">
-              {gettext("Save")}
-            </button>
+
+            <div class="flex items-center gap-3 mt-2">
+              <p class="text-xs text-base-content/50">
+                {gettext(
+                  "Pick an image from this folder or upload a new one as the header background."
+                )}
+              </p>
+              <%= if @folder_cover_url do %>
+                <button
+                  type="button"
+                  phx-click="remove_folder_cover"
+                  phx-value-folder-uuid={@editing_folder_header}
+                  phx-target={@myself}
+                  class="btn btn-ghost btn-xs gap-1 text-error shrink-0 ml-auto"
+                >
+                  <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
+                </button>
+              <% end %>
+            </div>
           </div>
-        </form>
+
+          <%!-- Name + description --%>
+          <form
+            phx-submit="save_folder_header"
+            phx-change="folder_header_input"
+            phx-target={@myself}
+          >
+            <input type="hidden" name="folder_uuid" value={@editing_folder_header} />
+            <div class="mb-3">
+              <label class="text-sm font-medium mb-1 block" for="folder-header-name">
+                {gettext("Name")}
+              </label>
+              <input
+                id="folder-header-name"
+                type="text"
+                name="name"
+                value={@folder_header_name}
+                maxlength="255"
+                required
+                placeholder={gettext("Folder name")}
+                class="input input-bordered input-sm w-full"
+                phx-debounce="300"
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium mb-1 block" for="folder-header-description">
+                {gettext("Description")}
+              </label>
+              <textarea
+                id="folder-header-description"
+                name="description"
+                rows="4"
+                maxlength="2000"
+                placeholder={gettext("Describe what this folder is for...")}
+                class="textarea textarea-bordered textarea-sm w-full"
+                phx-debounce="300"
+              >{@folder_header_description}</textarea>
+            </div>
+            <div class="modal-action mt-5">
+              <button
+                type="button"
+                phx-click="cancel_edit_folder_header"
+                phx-target={@myself}
+                class="btn btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-primary">
+                {gettext("Save")}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
       <div class="modal-backdrop" phx-click="cancel_edit_folder_header" phx-target={@myself}>
       </div>
     </div>
+  <% end %>
+
+  <%!-- ── Cover-image media picker ───────────────────────────────────────────
+       Reuses the shared MediaSelectorModal, scoped to the folder being edited,
+       so the user can pick an existing image from the folder or upload a new
+       one. Single-select; the choice is reported back to this component via
+       `notify`, where set_cover_from_selection/2 records it as the cover. --%>
+  <%= if @editing_folder_header do %>
+    <.live_component
+      module={PhoenixKitWeb.Live.Components.MediaSelectorModal}
+      id={"#{@id}-cover-selector"}
+      show={@selecting_cover}
+      mode={:single}
+      file_type_filter={:image}
+      scope_folder_id={@editing_folder_header}
+      selected_uuids={[]}
+      phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+      notify={{PhoenixKitWeb.Components.MediaBrowser, @id}}
+    />
   <% end %>
 
   <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>
