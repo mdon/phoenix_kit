@@ -344,10 +344,10 @@
                       <button
                         phx-click="toggle_select_mode"
                         phx-target={@myself}
-                        class="btn btn-sm btn-ghost btn-circle"
-                        title={gettext("Done")}
+                        class="btn btn-sm btn-neutral gap-1.5"
+                        title={gettext("Exit selection")}
                       >
-                        <.icon name="hero-x-mark" class="w-5 h-5" />
+                        <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
                       </button>
                       <span class="text-sm font-semibold">
                         {ngettext("%{count} selected", "%{count} selected", selected_count)}
@@ -760,7 +760,7 @@
                           class={[
                             "group relative flex flex-col items-center justify-center aspect-square bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 hover:shadow-lg transition-colors",
                             @select_mode && MapSet.member?(@selected_folders, folder.uuid) &&
-                              "ring-2 ring-primary"
+                              "ring-2 ring-primary !bg-primary/20"
                           ]}
                           style={folder_bg_style(folder.color)}
                           phx-click={if @select_mode, do: "toggle_select_folder"}
@@ -1238,7 +1238,7 @@
                                   class={[
                                     "hover cursor-pointer",
                                     @select_mode && MapSet.member?(@selected_folders, folder.uuid) &&
-                                      "bg-primary/10"
+                                      "!bg-primary/20"
                                   ]}
                                   style={folder_bg_style(folder.color)}
                                 >

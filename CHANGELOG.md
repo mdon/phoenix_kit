@@ -1,157 +1,56 @@
-## 1.7.155 - 2026-06-12
+## 1.7.144 - 2026-06-12
+
+Media browser overhaul: folder hero header, unified toolbar, tree-line
+polish, and selection UX.
 
 ### Added
-- Long-press to multi-select in the media browser: holding a file/folder card
-  for ~450ms (without moving) enters select mode and selects that item, with a
-  subtle vibration where supported. Moving or releasing early cancels it, and
-  the trailing click is swallowed so the item isn't also opened/navigated.
-  Implemented via `setupLongPress` on the `MediaDragDrop` JS hook + a
-  `long_press_select` server handler.
-
-## 1.7.154 - 2026-06-12
+- **Folder hero header**: the folder header is now a hero block with a cover
+  image background (or a soft folder-color gradient, neutral on non-folder
+  views), faded to the page at the bottom, with the title, description,
+  created-by avatar + name, date, and file count overlaid. New
+  `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V133**).
+- **Edit header** modal to edit a folder's name + description together (muted
+  placeholder when empty), plus a **cover image selector** that opens the shared
+  media picker scoped to the folder — pick an existing image or upload a new
+  one; **Remove** clears the cover (the image stays in the folder).
+- **Display / Sort / Filter toolbar**: Display switches grid/list, Sort orders
+  by newest/oldest/name/size, Filter narrows by file type. Each trigger shows
+  the current selection with a chevron; sort + filter run through
+  `list_files_in_scope`.
+- **Long-press to multi-select**: holding a file/folder card ~450ms (without
+  moving) enters select mode and selects it (subtle vibrate where supported);
+  the trailing click is swallowed. Via `setupLongPress` on the `MediaDragDrop`
+  hook + a `long_press_select` server handler.
+- Media settings **Quick Actions** gained info icons + hover tooltips, plus a
+  **Find Orphaned Files** and **Repair Media Module** action.
 
 ### Changed
-- Reorganized the media header toolbar: view controls (Display / Sort / Filter)
-  on the left, actions on the right (Search, the primary Add Media, and a ⋯
-  overflow holding Select and New folder). Dropped the redundant result count
-  (the header meta already shows "N files").
-- Reworked the select-mode toolbar so it lives inside the header (no jump on
-  toggle) with a clear layout: a neutral exit ✕, the selected count, and Select
-  all / Clear on the left; bulk Move / Download / Delete (Delete in red) on the
-  right, shown only when something is selected.
-- The Move modal's folder picker now uses the same tree guide lines as the
-  sidebar (per-row connectors, rounded last-item curl, 50% color) instead of a
-  plain left border. `tree_connector_class/2` and `tree_line_color/1` are now
-  shared (public) helpers in `FolderExplorer`.
-
-## 1.7.153 - 2026-06-12
-
-### Added
-- Media browser **Display / Sort / Filter** toolbar. Display switches grid/list,
-  Sort offers newest/oldest/name/size ordering, and Filter narrows by file type
-  (images/videos/documents/audio/archives/other). Each dropdown trigger shows
-  the current selection with a chevron and closes on pick. Sort + filter are
-  applied through `list_files_in_scope`.
-
-### Changed
-- The folder header, toolbar, search, Add Media, Select and result count are now
-  a single unified hero block — the toolbar sits inside the colored/cover-image
-  header (faded at the bottom) instead of separate rows. Non-folder views (root,
-  All Files, Trash, Orphaned) render the same header with a neutral gradient.
-- Removed the standalone grid/list toggle that sat next to the result count
-  (it's now the Display dropdown).
-
-## 1.7.152 - 2026-06-12
-
-### Added
-- Folder header on the media page is now a **hero block**: a cover image as the
-  background (or a soft folder-color gradient when none is set), faded to the
-  page at the bottom, with the title, description, and created-by/date/file-count
-  overlaid. New `cover_file_uuid` column on `phoenix_kit_media_folders` (migration
-  **V133**).
-- The Edit-header modal gained a **cover image selector**: clicking it opens the
-  shared media picker scoped to the current folder, so you can pick an existing
-  image from the folder or upload a new one as the cover; a **Remove** action
-  clears the cover (the image stays in the folder).
+- **Unified header/toolbar**: the toolbar, search, Add Media, Select and folder
+  meta all live inside the hero. Layout is view-controls-left / actions-right,
+  with secondary actions (Select, New folder) in a ⋯ overflow; the redundant
+  result count and the standalone grid/list toggle were dropped.
+- **Select-mode toolbar** reworked: it stays inside the header (no jump on
+  toggle), with a clear **Done** exit button + count + Select all / Clear on the
+  left and bulk Move / Download / Delete (Delete red) on the right, shown only
+  when something is selected.
+- **Folder tree guide lines** (sidebar + Move modal): per-row connectors with a
+  `├` tee and a rounded `└` curl on the last row, elbows that reach the item,
+  and 50% line opacity via an inheriting `--pk-tree-line` variable.
+  `tree_connector_class/2` + `tree_line_color/1` are shared helpers.
+- Media folder sidebar rows are fully clickable to open a folder (chevron still
+  toggles, rename pencil still renames).
+- Decluttered the media settings page: top banners folded into the
+  subtitle/Quick Actions and the stale "Advanced Features Coming Soon" card
+  removed.
 
 ### Fixed
-- Removed `whitespace-pre-line` from the folder-header description — the
-  HEEx-indented expression rendered its leading newline as a blank line above
-  the text, showing up as large top padding once a description was set.
-
-## 1.7.151 - 2026-06-11
-
-### Added
-- Folder header on the media page now has an **Edit header** button (to the
-  right of the folder name) that opens a modal to edit the folder's **name and
-  description** together. The description shows a muted placeholder when empty.
-- Above the description, a folder info line shows **Created by** (the folder
-  creator's avatar + name, via the shared `user_avatar`) and the **file count**,
-  separated by a bullet. The created-by segment is omitted when the creator is
-  unknown.
-
-## 1.7.150 - 2026-06-11
-
-### Added
-- Each media settings **Quick Action** now has a trailing info icon and a hover
-  tooltip describing what it does (Manage Dimensions, Media Stats, Sync Files,
-  Find Orphaned Files, Repair Media Module). The tooltip wraps each action
-  rather than sitting on the button, so it also works on the disabled
-  "Media Stats" button.
-
-## 1.7.149 - 2026-06-11
-
-### Removed
-- Removed the "Advanced Features Coming Soon" card from the media settings page.
-  All six listed items have shipped (multi-location redundancy with 1-5 copies,
-  S3/B2/R2 providers, remote servers, the media Health dashboard, the
-  PostgreSQL file registry, and automatic failover), so the section was stale.
-
-## 1.7.148 - 2026-06-11
-
-### Changed
-- Decluttered the top of the media settings page. The blue "Core System Module"
-  info banner is removed and its message folded into the header subtitle, and
-  the yellow "Media Module Repair" banner is moved into Quick Actions as a
-  warning-tinted **Repair Media Module** button (same action + confirmation).
-  The conditional ImageMagick/FFmpeg dependency alerts are unchanged.
-
-## 1.7.147 - 2026-06-11
-
-### Changed
-- Media folder sidebar tree guide lines are now drawn at 50% opacity so they
-  read as a soft stroke rather than a solid, dark line. Colored folders use
-  their color at ~50% (hex `80` alpha); uncolored folders use the theme text
-  color at 50% via `color-mix` (theme-adaptive).
-
-### Fixed
-- Uncolored-folder tree guide lines no longer render as solid black. The
-  neutral fallback used `oklch(var(--bc) / …)`, but daisyUI 5 renamed that
-  variable, so the value was invalid and the last-item border fell back to a
-  solid-black `currentColor`. Replaced with a valid `currentColor`-based color.
-
-## 1.7.146 - 2026-06-11
-
-### Changed
-- Moved the "Find orphaned" entry point out of the media browser toolbar into
-  the media settings **Quick Actions** (`/admin/settings/media`) as a new
-  **Find Orphaned Files** button. It opens the browser pre-filtered to orphaned
-  files via the `?orphaned=1` URL param the browser already parses. The
-  contextual "Delete all orphaned" action still surfaces in the toolbar while
-  the orphaned view is active, and the page title still reads "Orphaned Files".
-
-### Fixed
-- The orphaned-files view no longer mixes in the root folder's folder cards —
-  like the "All Files" flat view, it now lists only files (the orphaned media).
-  The sidebar folder tree is unaffected, so navigating out of the view still
-  works.
-
-## 1.7.145 - 2026-06-11
-
-### Changed
-- Media folder sidebar rows are now fully clickable to open a folder, not just
-  the folder name. Clicking anywhere on a row navigates into it; the disclosure
-  chevron still toggles expand/collapse and the rename pencil still starts
-  inline rename (both resolve to their own click), and the row click is
-  suppressed while the inline rename field is open. The folder name stays a
-  button for keyboard access.
-- Media folder tree guide lines now reach their target. The horizontal elbow
-  extends across a childless folder's empty chevron column right up to the
-  folder icon, while a folder with a disclosure chevron stops its line at the
-  chevron — so each line clearly connects to the item it belongs to instead of
-  ending short.
-
-## 1.7.144 - 2026-06-11
-
-### Changed
-- Media folder sidebar tree guide lines now terminate cleanly. Each nested
-  folder row draws its own connector (a vertical line plus a horizontal elbow
-  into the row) instead of one full-height border that overshot past the last
-  item: non-last rows render a `├` tee, and the **last** row's line stops at
-  its own row and curves right into the folder with a rounded `└` corner. The
-  parent folder's color is carried down as an inheriting CSS variable
-  (`--pk-tree-line`), so connectors keep their per-folder color and deeper
-  levels override with their own.
+- Colored folders now show the blue selection highlight (the inline folder color
+  was outranking the tint; it's now `!important`).
+- Uncolored tree guide lines no longer render solid black (daisyUI-5 renamed
+  `--bc`; replaced with a valid `currentColor`-based color).
+- The orphaned-files view no longer mixes in folder cards (files only).
+- The folder-header description no longer shows a large top blank line
+  (`whitespace-pre-line` preserved the HEEx-indented expression's newline).
 
 ## 1.7.143 - 2026-06-11
 
