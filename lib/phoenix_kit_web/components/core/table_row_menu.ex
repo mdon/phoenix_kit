@@ -157,14 +157,16 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
   * `label` - Item label text (required)
   * `variant` - Color variant: "default", "primary", "secondary", "info", "success",
     "warning", "error" (optional, default: "default")
-  * `rest` - Additional HTML attributes passed to the `<a>` element
+  * `rest` - Additional HTML attributes passed to the `<a>` element. Includes
+    `target` and `rel` (e.g. `target="_blank" rel="noopener noreferrer"` for
+    external links opening in a new tab).
   """
   attr :navigate, :string, default: nil
   attr :href, :string, default: nil
   attr :icon, :string, default: nil
   attr :label, :string, required: true
   attr :variant, :string, default: "default"
-  attr :rest, :global
+  attr :rest, :global, include: ~w(target rel)
 
   def table_row_menu_link(assigns) do
     ~H"""

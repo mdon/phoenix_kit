@@ -21,8 +21,8 @@
           type="button"
           onclick={"if (window.history.length > 1) { window.history.back() } else { window.location.href = '#{Routes.path("/admin/media")}' }"}
           class="btn btn-ghost btn-circle"
-          title="Back"
-          aria-label="Back"
+          title={gettext("Back")}
+          aria-label={gettext("Back")}
         >
           <.icon name="hero-arrow-left" class="w-7 h-7" />
         </button>

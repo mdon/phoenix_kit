@@ -1,22 +1,17 @@
 defmodule PhoenixKit.Migrations.Postgres.V133 do
   @moduledoc """
-  V133: folder-header customization columns on `phoenix_kit_media_folders`.
+  V133: Dashboards table.
 
-  Adds the fields backing the Media browser's folder hero header / "Edit header"
-  panel:
+  Backs the `phoenix_kit_dashboards` plugin module. A dashboard is a page of
+  placed widgets; its layout is stored as a JSONB list of widget instances
+  (`[{id, widget_key, x, y, w, h, settings}]`), read and written whole.
 
-    * `cover_file_uuid UUID` — background image (a normal uploaded file living in
-      the folder, excluded from its visible listing).
-    * `logo_file_uuid UUID` — icon/logo shown in the header.
-    * `header_size TEXT DEFAULT 'medium'` — header height: small / medium / large.
-    * `header_show_title`, `header_show_icon`, `header_show_creator`,
-      `header_show_date`, `header_show_file_count`, `header_show_description`,
-      `header_show_background` BOOLEAN — per-folder visibility toggles for each
-      header element (default on). Creator / date / file-count are independent
-      so users can show just the pieces they want.
+  Scopes:
+  - `personal` — `owner_user_uuid` set; private to that user.
+  - `system`   — `owner_user_uuid` NULL; visible to everyone.
+  - `role`     — `role_uuid` set; visible to members of that role.
 
-  All nullable / defaulted, so existing folders render the header as before.
-  Idempotent: `ADD COLUMN IF NOT EXISTS`, safe to re-run.
+  All statements are idempotent (IF NOT EXISTS), safe to re-run.
   """
 
   use Ecto.Migration
@@ -24,39 +19,40 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
-    t = "#{p}phoenix_kit_media_folders"
 
-    execute("ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS cover_file_uuid UUID")
-    execute("ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS logo_file_uuid UUID")
-    execute("ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_size TEXT DEFAULT 'medium'")
-
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_title BOOLEAN NOT NULL DEFAULT TRUE"
+    execute("""
+    CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_dashboards (
+      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      title VARCHAR(255) NOT NULL,
+      slug VARCHAR(255) NOT NULL,
+      owner_user_uuid UUID REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,
+      role_uuid UUID,
+      scope VARCHAR(20) NOT NULL DEFAULT 'personal',
+      layout JSONB NOT NULL DEFAULT '[]',
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      position INTEGER NOT NULL DEFAULT 0,
+      inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+    """)
 
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_icon BOOLEAN NOT NULL DEFAULT TRUE"
-    )
+    execute("""
+    CREATE INDEX IF NOT EXISTS idx_phoenix_kit_dashboards_owner
+    ON #{p}phoenix_kit_dashboards (owner_user_uuid)
+    WHERE owner_user_uuid IS NOT NULL
+    """)
 
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_creator BOOLEAN NOT NULL DEFAULT TRUE"
-    )
+    execute("""
+    CREATE INDEX IF NOT EXISTS idx_phoenix_kit_dashboards_scope
+    ON #{p}phoenix_kit_dashboards (scope)
+    """)
 
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_date BOOLEAN NOT NULL DEFAULT TRUE"
-    )
-
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_file_count BOOLEAN NOT NULL DEFAULT TRUE"
-    )
-
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_description BOOLEAN NOT NULL DEFAULT TRUE"
-    )
-
-    execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_background BOOLEAN NOT NULL DEFAULT TRUE"
-    )
+    # One slug per owner for personal dashboards. System dashboards share a NULL
+    # owner; Postgres treats NULLs as distinct, so this does not constrain them.
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_dashboards_owner_slug_index
+    ON #{p}phoenix_kit_dashboards (owner_user_uuid, slug)
+    """)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '133'")
   end
@@ -64,18 +60,8 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
-    t = "#{p}phoenix_kit_media_folders"
 
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_background")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_description")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_file_count")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_date")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_creator")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_icon")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_title")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_size")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS logo_file_uuid")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS cover_file_uuid")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_dashboards CASCADE")
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '132'")
   end

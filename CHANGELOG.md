@@ -1,4 +1,4 @@
-## 1.7.144 - 2026-06-13
+## 1.7.145 - 2026-06-13
 
 Media browser overhaul: folder hero header + full customization, unified
 toolbar, a shared folder-tree component, persisted tree state, and selection UX.
@@ -8,8 +8,8 @@ toolbar, a shared folder-tree component, persisted tree state, and selection UX.
   image background (or a soft folder-color gradient, neutral on non-folder
   views), faded to the page at the bottom, with the title, description,
   created-by avatar + name, date, and file count overlaid. New
-  `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V133**).
-- **Folder header customization** (V133, same migration): a **logo/icon**
+  `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V134**).
+- **Folder header customization** (V134, same migration): a **logo/icon**
   (`logo_file_uuid`, transparent-PNG aware), a **header size** (`header_size`:
   small / medium / large), and independent per-element visibility toggles —
   title, icon, **creator**, **date created**, **file count**, description, and
@@ -77,6 +77,15 @@ toolbar, a shared folder-tree component, persisted tree state, and selection UX.
 - The orphaned-files view no longer mixes in folder cards (files only).
 - The folder-header description no longer shows a large top blank line
   (`whitespace-pre-line` preserved the HEEx-indented expression's newline).
+
+## 1.7.144 - 2026-06-10
+
+### Added
+- `table_row_menu_link/1` now accepts `target` and `rel` attributes directly
+  (via its `:global` include list), so host apps can render external links that
+  open in a new tab — e.g. `target="_blank" rel="noopener noreferrer"` — without
+  tripping the "undefined attribute" compile warning under
+  `--warnings-as-errors`.
 
 ## 1.7.143 - 2026-06-11
 
