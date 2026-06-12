@@ -282,10 +282,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:folder_creator_name, creator_label(creator))
     |> assign(:folder_cover_url, folder_cover_url(current_folder))
     |> assign(:breadcrumbs, breadcrumbs)
-    # The "all" view and the orphaned view are flat file listings — they show
-    # no folder cards. (The sidebar folder tree is unaffected; only the grid's
-    # folder cards are suppressed here.)
-    |> assign(:folders, if(file_view == "all" or filter_orphaned, do: [], else: folders))
+    # The "all" view, the orphaned view, and any active search are flat file
+    # listings — they show no folder cards, only the matching files. (The
+    # sidebar folder tree is unaffected; only the grid's folder cards here.)
+    |> assign(
+      :folders,
+      if(file_view == "all" or filter_orphaned or q != "", do: [], else: folders)
+    )
     |> assign(:search_query, q)
     |> assign(:current_page, page)
     |> assign(:filter_orphaned, filter_orphaned)
