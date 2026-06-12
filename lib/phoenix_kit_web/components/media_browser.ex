@@ -1285,6 +1285,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # Long-press on a card (from the MediaDragDrop JS hook) enters select mode and
+  # selects the held item.
+  def handle_event("long_press_select", %{"type" => "file", "uuid" => uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:select_mode, true)
+     |> assign(:selected_files, MapSet.put(socket.assigns.selected_files, uuid))}
+  end
+
+  def handle_event("long_press_select", %{"type" => "folder", "uuid" => uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:select_mode, true)
+     |> assign(:selected_folders, MapSet.put(socket.assigns.selected_folders, uuid))}
+  end
+
   def handle_event("click_file", %{"file-uuid" => file_uuid}, socket) do
     cond do
       # Already in selection mode → toggle this file in/out, stay in selection mode.

@@ -3423,10 +3423,74 @@ if (typeof window.Chart === "undefined") {
       });
 
       this.setupDragDrop();
+      this.setupLongPress();
     },
 
     updated: function() {
       this.setupDragDrop();
+      this.setupLongPress();
+    },
+
+    // Long-press (hold ~450ms without moving) on a file/folder card enters
+    // select mode and selects that item — the standard touch gesture for
+    // multi-select. Moving (scroll/drag) or releasing early cancels it. The
+    // click that follows the release is swallowed so the item isn't also
+    // opened/navigated. Native HTML5 drag is mouse-only, so this doesn't
+    // fight drag-to-move on touch.
+    setupLongPress: function() {
+      var self = this;
+      var LONG_PRESS_MS = 450;
+      var MOVE_TOLERANCE = 10;
+      var items = this.el.querySelectorAll("[data-draggable-file], [data-draggable-folder]");
+      items.forEach(function(el) {
+        var fileUuid = el.dataset.draggableFile;
+        var folderUuid = el.dataset.draggableFolder;
+        var type = fileUuid ? "file" : "folder";
+        var uuid = fileUuid || folderUuid;
+        if (!uuid) return;
+
+        el.removeEventListener("pointerdown", el._lpDown);
+        el.removeEventListener("pointermove", el._lpMove);
+        el.removeEventListener("pointerup", el._lpUp);
+        el.removeEventListener("pointercancel", el._lpUp);
+        el.removeEventListener("pointerleave", el._lpUp);
+        if (el._lpClick) el.removeEventListener("click", el._lpClick, true);
+
+        var timer = null, startX = 0, startY = 0;
+        var cancel = function() { if (timer) { clearTimeout(timer); timer = null; } };
+
+        el._lpDown = function(e) {
+          if (typeof e.button === "number" && e.button !== 0) return;
+          startX = e.clientX; startY = e.clientY;
+          cancel();
+          timer = setTimeout(function() {
+            timer = null;
+            el._lpFired = true;
+            if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
+            self.pushEventTo(self.el, "long_press_select", { type: type, uuid: uuid });
+          }, LONG_PRESS_MS);
+        };
+        el._lpMove = function(e) {
+          if (!timer) return;
+          if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE ||
+              Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+            cancel();
+          }
+        };
+        el._lpUp = function() { cancel(); };
+        // Capture phase beats LiveView's window/bubble click listener, so this
+        // reliably swallows the post-long-press click.
+        el._lpClick = function(e) {
+          if (el._lpFired) { e.preventDefault(); e.stopPropagation(); el._lpFired = false; }
+        };
+
+        el.addEventListener("pointerdown", el._lpDown);
+        el.addEventListener("pointermove", el._lpMove);
+        el.addEventListener("pointerup", el._lpUp);
+        el.addEventListener("pointercancel", el._lpUp);
+        el.addEventListener("pointerleave", el._lpUp);
+        el.addEventListener("click", el._lpClick, true);
+      });
     },
 
     setupDragDrop: function() {

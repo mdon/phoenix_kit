@@ -1,3 +1,13 @@
+## 1.7.155 - 2026-06-12
+
+### Added
+- Long-press to multi-select in the media browser: holding a file/folder card
+  for ~450ms (without moving) enters select mode and selects that item, with a
+  subtle vibration where supported. Moving or releasing early cancels it, and
+  the trailing click is swallowed so the item isn't also opened/navigated.
+  Implemented via `setupLongPress` on the `MediaDragDrop` JS hook + a
+  `long_press_select` server handler.
+
 ## 1.7.154 - 2026-06-12
 
 ### Changed
