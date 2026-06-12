@@ -3,17 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Media")}
+  page_subtitle={gettext("Manage user media and uploads")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="flex flex-col w-full px-4 py-6 h-[calc(100dvh-4rem)]">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin")}
-      title={gettext("Media")}
-      subtitle={gettext("Manage user media and uploads")}
-    />
-
     <.live_component
       module={PhoenixKitWeb.Components.MediaBrowser}
       id="media-browser"
