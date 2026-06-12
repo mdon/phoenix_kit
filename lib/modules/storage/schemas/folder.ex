@@ -19,6 +19,20 @@ defmodule PhoenixKit.Modules.Storage.Folder do
     field :description, :string
     field :color, :string, default: "default"
     field :trashed_at, :utc_datetime
+    # Folder hero-header customization. The cover (background) and logo (icon)
+    # are media files living in the folder, excluded from its visible listing.
+    # `header_size` is small/medium/large; the `header_show_*` flags toggle each
+    # header element. All defaulted so existing folders render as before.
+    field :cover_file_uuid, UUIDv7
+    field :logo_file_uuid, UUIDv7
+    field :header_size, :string, default: "medium"
+    field :header_show_title, :boolean, default: true
+    field :header_show_icon, :boolean, default: true
+    field :header_show_creator, :boolean, default: true
+    field :header_show_date, :boolean, default: true
+    field :header_show_file_count, :boolean, default: true
+    field :header_show_description, :boolean, default: true
+    field :header_show_background, :boolean, default: true
 
     belongs_to :parent, __MODULE__,
       foreign_key: :parent_uuid,
@@ -47,9 +61,27 @@ defmodule PhoenixKit.Modules.Storage.Folder do
 
   def changeset(folder, attrs) do
     folder
-    |> cast(attrs, [:name, :description, :parent_uuid, :user_uuid, :color, :trashed_at])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :parent_uuid,
+      :user_uuid,
+      :color,
+      :trashed_at,
+      :cover_file_uuid,
+      :logo_file_uuid,
+      :header_size,
+      :header_show_title,
+      :header_show_icon,
+      :header_show_creator,
+      :header_show_date,
+      :header_show_file_count,
+      :header_show_description,
+      :header_show_background
+    ])
     |> validate_required([:name])
     |> validate_inclusion(:color, @folder_colors)
+    |> validate_inclusion(:header_size, ~w(small medium large))
     |> validate_length(:name, min: 1, max: 255)
     |> validate_length(:description, max: 2000)
     |> foreign_key_constraint(:parent_uuid)

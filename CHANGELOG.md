@@ -1,3 +1,83 @@
+## 1.7.145 - 2026-06-13
+
+Media browser overhaul: folder hero header + full customization, unified
+toolbar, a shared folder-tree component, persisted tree state, and selection UX.
+
+### Added
+- **Folder hero header**: the folder header is now a hero block with a cover
+  image background (or a soft folder-color gradient, neutral on non-folder
+  views), faded to the page at the bottom, with the title, description,
+  created-by avatar + name, date, and file count overlaid. New
+  `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V134**).
+- **Folder header customization** (V134, same migration): a **logo/icon**
+  (`logo_file_uuid`, transparent-PNG aware), a **header size** (`header_size`:
+  small / medium / large), and independent per-element visibility toggles —
+  title, icon, **creator**, **date created**, **file count**, description, and
+  background (`header_show_*` columns). Creator / date / file-count are separate
+  toggles so users show only the pieces they want.
+- **Edit header** panel to edit a folder's name + description together (muted,
+  clickable "No description — add one" placeholder when empty), plus **logo** and
+  **cover image** selectors that open the shared media picker scoped to the
+  folder — pick an existing image or upload a new one; **Remove** clears it (the
+  image stays in the folder). Opens as a popover dropping from the Edit header
+  button (not a centered modal), ordered name/description → logo/background →
+  size → toggles.
+- **Display / Sort / Filter toolbar**: Display switches grid/list, Sort orders
+  by newest/oldest/name/size, Filter narrows by file type. Each trigger shows
+  the current selection with a chevron; sort + filter run through
+  `list_files_in_scope`.
+- **Long-press to multi-select**: holding a file/folder card ~450ms (without
+  moving) enters select mode and selects it (subtle vibrate where supported);
+  the trailing click is swallowed. Via `setupLongPress` on the `MediaDragDrop`
+  hook + a `long_press_select` server handler.
+- Media settings **Quick Actions** gained info icons + hover tooltips, plus a
+  **Find Orphaned Files** and **Repair Media Module** action.
+
+### Changed
+- **Unified header/toolbar**: the toolbar, search, Add Media, Select and folder
+  meta all live inside the hero. Layout is view-controls-left / actions-right,
+  with secondary actions (Select, New folder) in a ⋯ overflow; the redundant
+  result count and the standalone grid/list toggle were dropped. Add Media
+  toggles in place to a fixed-width **Cancel** (toolbar doesn't shift), search is
+  an inline expand-on-click field, and the list view has a sticky column header.
+- **Media page header moved into the admin topbar** as a breadcrumb
+  (`{ProjectName} Admin Panel / Media · subtitle`) via a new `page_subtitle`
+  attr on the app layout, freeing the full content area for the browser. Generic
+  — any admin page that sets `page_title` gets the breadcrumb.
+- **Shared folder-tree node**: the sidebar and the Move modal now render the same
+  parameterized `FolderExplorer.folder_tree_node` (config: navigate/toggle event,
+  rename, drag, hover), so guide-line and structure changes stay in sync. The
+  duplicate `move_folder_option` was removed.
+- **Sidebar tree state persists server-side**: expanded folders + collapsed flag
+  are stored in user meta and rendered on first paint (like the grid/list view
+  mode), removing the collapsed-then-jump-open flash after connect.
+- **Select-mode toolbar** reworked: it stays inside the header (no jump on
+  toggle), with a clear **Done** exit button + count + Select all / Clear on the
+  left and bulk Move / Download / Delete (Delete red) on the right, shown only
+  when something is selected.
+- **Folder tree guide lines** (sidebar + Move modal): per-row connectors with a
+  `├` tee and a rounded `└` curl on the last row, elbows that reach the item,
+  and 50% line opacity via an inheriting `--pk-tree-line` variable.
+  `tree_connector_class/2` + `tree_line_color/1` are shared helpers.
+- Media folder sidebar rows are fully clickable to open a folder (chevron still
+  toggles, rename pencil still renames).
+- Decluttered the media settings page: top banners folded into the
+  subtitle/Quick Actions and the stale "Advanced Features Coming Soon" card
+  removed.
+
+### Fixed
+- Edit header popover click-away routed its event to the parent LiveView and
+  crashed with a `FunctionClauseError`; it now targets the component.
+- Transparent-PNG logos render transparently (`object-contain` + drop shadow)
+  instead of as a black/white box.
+- Colored folders now show the blue selection highlight (the inline folder color
+  was outranking the tint; it's now `!important`).
+- Uncolored tree guide lines no longer render solid black (daisyUI-5 renamed
+  `--bc`; replaced with a valid `currentColor`-based color).
+- The orphaned-files view no longer mixes in folder cards (files only).
+- The folder-header description no longer shows a large top blank line
+  (`whitespace-pre-line` preserved the HEEx-indented expression's newline).
+
 ## 1.7.144 - 2026-06-10
 
 ### Added

@@ -85,6 +85,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   import PhoenixKitWeb.Components.FolderExplorer,
     only: [
       folder_explorer: 1,
+      folder_tree_node: 1,
       folder_color_hex: 1,
       folder_icon_style: 1,
       folder_bg_style: 1
@@ -96,6 +97,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
 
@@ -104,6 +106,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # no grid→list flash while the client restores a localStorage value
   # after connect.
   @media_view_mode_key "media_view_mode"
+
+  # Sidebar folder-tree state, also persisted server-side in user meta and
+  # rendered on first paint — same reasoning as the view mode above: restoring
+  # the expanded folders from localStorage only after connect made the tree
+  # render fully collapsed and then jump to its open positions.
+  @media_expanded_folders_key "media_expanded_folders"
+  @media_sidebar_collapsed_key "media_sidebar_collapsed"
 
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
@@ -141,6 +150,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       Map.has_key?(assigns, :pending_upload) ->
         {:ok, process_pending_upload(socket, assigns.pending_upload)}
+
+      # The header-image picker (MediaSelectorModal) reports back here via
+      # `notify: {__MODULE__, id}`: a confirmed selection sets the cover or logo
+      # (per `@image_picker_target`); a close just dismisses the picker.
+      Map.has_key?(assigns, :media_selected) ->
+        {:ok, set_image_from_selection(socket, assigns.media_selected)}
+
+      Map.has_key?(assigns, :media_selector_closed) ->
+        {:ok, assign(socket, :selecting_cover, false)}
 
       Map.get(assigns, :action) == :commit_upload_batch ->
         {:ok, commit_upload_batch(socket)}
@@ -194,6 +212,73 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> put_flash(flash_type, flash_msg)
   end
 
+  # Sets the open folder's cover (background) or logo (icon) — per
+  # `@image_picker_target` — to a file chosen in the media picker (an existing
+  # folder image or one just uploaded into it via the picker).
+  defp set_image_from_selection(socket, uuids) do
+    target = socket.assigns[:image_picker_target] || "cover"
+    attr = if target == "logo", do: :logo_file_uuid, else: :cover_file_uuid
+    folder_uuid = socket.assigns[:editing_folder_header]
+    file_uuid = uuids |> List.wrap() |> List.first()
+    socket = assign(socket, :selecting_cover, false)
+    folder = is_binary(folder_uuid) && loaded_folder(socket, folder_uuid)
+
+    if is_binary(file_uuid) and folder do
+      scope = scope_folder_id(socket)
+
+      case Storage.update_folder(folder, %{attr => file_uuid}, scope) do
+        {:ok, updated} ->
+          socket
+          |> maybe_refresh_current_folder(updated, folder_uuid)
+          |> reload_current_page()
+
+        _ ->
+          put_flash(socket, :error, gettext("Failed to set the image"))
+      end
+    else
+      socket
+    end
+  end
+
+  # Keeps the in-folder header in sync after a header change — refreshes the
+  # current folder struct + cover/logo URLs when the edited folder is open.
+  defp maybe_refresh_current_folder(socket, updated, folder_uuid) do
+    if socket.assigns[:current_folder] &&
+         to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
+      socket
+      |> assign(:current_folder, updated)
+      |> assign(:folder_cover_url, folder_cover_url(updated))
+      |> assign(:folder_logo_url, folder_logo_url(updated))
+    else
+      socket
+    end
+  end
+
+  # Update a folder-header field (size / toggles / cover-or-logo clear) and
+  # refresh the open folder's header. No listing reload needed — header changes
+  # don't affect the file grid (the cover/logo stay as folder assets).
+  defp update_header_field(socket, folder_uuid, attrs) do
+    folder = loaded_folder(socket, folder_uuid)
+    scope = scope_folder_id(socket)
+
+    case folder && Storage.update_folder(folder, attrs, scope) do
+      {:ok, updated} ->
+        {:noreply, maybe_refresh_current_folder(socket, updated, folder_uuid)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update the header"))}
+    end
+  end
+
+  defp header_option_field("title"), do: :header_show_title
+  defp header_option_field("icon"), do: :header_show_icon
+  defp header_option_field("creator"), do: :header_show_creator
+  defp header_option_field("date"), do: :header_show_date
+  defp header_option_field("file_count"), do: :header_show_file_count
+  defp header_option_field("description"), do: :header_show_description
+  defp header_option_field("background"), do: :header_show_background
+  defp header_option_field(_), do: nil
+
   defp apply_nav_params(socket, params) do
     q = params[:q] || ""
     page = params[:page] || 1
@@ -208,17 +293,38 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     actual_uuid = current_folder && current_folder.uuid
 
     {files, total_count} =
-      load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view)
+      load_nav_files(
+        scope,
+        page,
+        per_page,
+        q,
+        actual_uuid,
+        filter_orphaned,
+        file_view,
+        list_extra(socket)
+      )
 
     orphaned_count =
       if filter_orphaned,
         do: total_count,
         else: Storage.count_orphaned_files(scope)
 
+    creator = folder_creator_user(current_folder)
+
     socket
     |> assign(:current_folder, current_folder)
+    |> assign(:folder_creator_user, creator)
+    |> assign(:folder_creator_name, creator_label(creator))
+    |> assign(:folder_cover_url, folder_cover_url(current_folder))
+    |> assign(:folder_logo_url, folder_logo_url(current_folder))
     |> assign(:breadcrumbs, breadcrumbs)
-    |> assign(:folders, if(file_view == "all", do: [], else: folders))
+    # The "all" view, the orphaned view, and any active search are flat file
+    # listings — they show no folder cards, only the matching files. (The
+    # sidebar folder tree is unaffected; only the grid's folder cards here.)
+    |> assign(
+      :folders,
+      if(file_view == "all" or filter_orphaned or q != "", do: [], else: folders)
+    )
     |> assign(:search_query, q)
     |> assign(:current_page, page)
     |> assign(:filter_orphaned, filter_orphaned)
@@ -255,12 +361,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view) do
+  defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view, extra) do
     cond do
       filter_orphaned -> load_orphaned_files(page, per_page)
-      file_view == "all" -> load_all_view_files(scope, page, per_page, q)
-      true -> load_scoped_files(scope, page, per_page, actual_uuid, q)
+      file_view == "all" -> load_all_view_files(scope, page, per_page, q, extra)
+      true -> load_scoped_files(scope, page, per_page, actual_uuid, q, extra)
     end
+  end
+
+  # Sort + file-type filter opts from the toolbar, for the listing query.
+  defp list_extra(socket) do
+    [
+      sort: socket.assigns[:sort_by] || "newest",
+      file_type: socket.assigns[:file_type_filter] || "all"
+    ]
   end
 
   defp init_socket(socket) do
@@ -292,17 +406,39 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
     )
     |> assign(:current_folder, nil)
+    |> assign(:folder_creator_user, nil)
+    |> assign(:folder_creator_name, nil)
+    |> assign(:folder_cover_url, nil)
+    |> assign(:folder_logo_url, nil)
+    # The header-image media picker (MediaSelectorModal): open flag + which
+    # image it sets ("cover" background or "logo" icon).
+    |> assign(:selecting_cover, false)
+    |> assign(:image_picker_target, "cover")
     |> assign(:breadcrumbs, [])
     |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
     |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
-    |> assign(:sidebar_collapsed, false)
-    |> assign(:expanded_folders, MapSet.new())
+    |> assign(
+      :sidebar_collapsed,
+      load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
+    )
+    |> assign(
+      :expanded_folders,
+      load_user_expanded_folders(socket.assigns[:phoenix_kit_current_user])
+    )
     |> assign(:renaming_folder, nil)
     |> assign(:renaming_source, nil)
     |> assign(:renaming_text, "")
     |> assign(:editing_folder_description, nil)
     |> assign(:folder_description_text, "")
+    # In-folder header editor (edits the current folder's name + description
+    # together; distinct from the grid/list card description-only editors).
+    |> assign(:editing_folder_header, nil)
+    |> assign(:folder_header_name, "")
+    |> assign(:folder_header_description, "")
     |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
+    # Toolbar sort + file-type filter (socket state, applied to the listing).
+    |> assign(:sort_by, "newest")
+    |> assign(:file_type_filter, "all")
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
@@ -463,72 +599,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     {:noreply, socket}
-  end
-
-  # ──────────────────────────────────────────────────────────────
-  # Function components
-  # ──────────────────────────────────────────────────────────────
-
-  # Move-target picker row. Renders as a collapsible directory tree —
-  # the same experience as the left sidebar (`FolderExplorer`): a chevron
-  # expands/collapses children (children only render when expanded), a
-  # colored folder icon, and clicking the name selects that folder as the
-  # move destination. `move_expanded` (a MapSet of expanded folder uuids,
-  # threaded through the recursion) drives the collapse state, kept
-  # separate from the sidebar's `expanded_folders` so the two don't fight.
-  attr :node, :map, required: true
-  attr :move_expanded, :any, required: true
-  attr :myself, :any, required: true
-
-  def move_folder_option(assigns) do
-    assigns =
-      assigns
-      |> assign(:has_children, assigns.node.children != [])
-      |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
-
-    ~H"""
-    <li class="min-w-0">
-      <div class="flex items-center gap-0.5 w-full min-w-0 rounded-lg hover:bg-base-300 transition-colors">
-        <%= if @has_children do %>
-          <button
-            type="button"
-            phx-click="toggle_move_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 shrink-0"
-          >
-            <.icon
-              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40"
-            />
-          </button>
-        <% else %>
-          <span class="w-5 shrink-0"></span>
-        <% end %>
-        <button
-          phx-click="move_selected_to_folder"
-          phx-target={@myself}
-          phx-value-folder_uuid={@node.folder.uuid}
-          class="flex items-center gap-1.5 flex-1 min-w-0 text-left px-1 py-1"
-        >
-          <span style={folder_icon_style(@node.folder.color)}>
-            <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
-          </span>
-          <span class="truncate">{@node.folder.name}</span>
-        </button>
-      </div>
-      <%= if @has_children and @is_expanded do %>
-        <ul
-          class="ml-3 border-l-2 pl-1.5 min-w-0"
-          style={"border-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--bc) / 0.15)"}"}
-        >
-          <%= for child <- @node.children do %>
-            <.move_folder_option node={child} move_expanded={@move_expanded} myself={@myself} />
-          <% end %>
-        </ul>
-      <% end %>
-    </li>
-    """
   end
 
   # ──────────────────────────────────────────────────────────────
@@ -788,7 +858,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # The inline search collapses back to the magnifier when emptied via the ✕ or
+  # blurred while empty.
+  def handle_event("close_search_if_empty", _params, socket) do
+    if socket.assigns.search_query == "" do
+      {:noreply, assign(socket, :show_search, false)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("clear_search", _params, socket) do
+    socket = assign(socket, :show_search, false)
+
     if controlled_mode?(socket) do
       folder_uuid = current_folder_uuid(socket)
 
@@ -854,7 +936,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       scope = scope_folder_id(socket)
       per_page = socket.assigns.per_page
       q = socket.assigns.search_query
-      {files, total_count} = load_all_view_files(scope, 1, per_page, q)
+      {files, total_count} = load_all_view_files(scope, 1, per_page, q, list_extra(socket))
 
       {:noreply,
        socket
@@ -886,9 +968,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, assign(socket, :view_mode, mode)}
   end
 
+  @valid_sorts ~w(newest oldest name_asc name_desc largest smallest)
+  @valid_file_types ~w(all image video document audio archive other)
+
+  def handle_event("set_sort", %{"sort" => sort}, socket) when sort in @valid_sorts do
+    {:noreply,
+     socket
+     |> assign(:sort_by, sort)
+     |> assign(:current_page, 1)
+     |> reload_current_page()}
+  end
+
+  def handle_event("set_file_filter", %{"type" => type}, socket)
+      when type in @valid_file_types do
+    {:noreply,
+     socket
+     |> assign(:file_type_filter, type)
+     |> assign(:current_page, 1)
+     |> reload_current_page()}
+  end
+
   def handle_event("toggle_sidebar", _params, socket) do
     socket = assign(socket, :sidebar_collapsed, !socket.assigns.sidebar_collapsed)
-    {:noreply, push_tree_state(socket)}
+    {:noreply, persist_tree_state(socket)}
   end
 
   def handle_event("restore_tree_state", params, socket) do
@@ -1034,6 +1136,105 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # ── In-folder header editor ───────────────────────────────────────────
+  # Edits the current folder's name AND description together from the
+  # header you see after opening a folder. Separate from the grid/list
+  # card editors above (which only touch the description), so adding a
+  # name field here doesn't disturb those.
+  def handle_event("start_edit_folder_header", %{"folder-uuid" => folder_uuid}, socket) do
+    folder = loaded_folder(socket, folder_uuid)
+
+    {:noreply,
+     socket
+     |> assign(:editing_folder_header, folder_uuid)
+     |> assign(:folder_header_name, (folder && folder.name) || "")
+     |> assign(:folder_header_description, (folder && folder.description) || "")}
+  end
+
+  def handle_event("folder_header_input", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:folder_header_name, params["name"] || socket.assigns.folder_header_name)
+     |> assign(
+       :folder_header_description,
+       params["description"] || socket.assigns.folder_header_description
+     )}
+  end
+
+  def handle_event("cancel_edit_folder_header", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_folder_header, nil)
+     |> assign(:folder_header_name, "")
+     |> assign(:folder_header_description, "")}
+  end
+
+  # Open the media picker (scoped to the open folder) to choose/upload the
+  # header background (cover) or the icon (logo).
+  def handle_event("open_cover_picker", _params, socket) do
+    {:noreply, socket |> assign(:image_picker_target, "cover") |> assign(:selecting_cover, true)}
+  end
+
+  def handle_event("open_logo_picker", _params, socket) do
+    {:noreply, socket |> assign(:image_picker_target, "logo") |> assign(:selecting_cover, true)}
+  end
+
+  # Clear the folder's cover / logo. The image stays in the folder as a normal
+  # asset — only the header reference is removed.
+  def handle_event("remove_folder_cover", %{"folder-uuid" => folder_uuid}, socket) do
+    update_header_field(socket, folder_uuid, %{cover_file_uuid: nil})
+  end
+
+  def handle_event("remove_folder_logo", %{"folder-uuid" => folder_uuid}, socket) do
+    update_header_field(socket, folder_uuid, %{logo_file_uuid: nil})
+  end
+
+  # Header size (small / medium / large) — affects the hero height.
+  def handle_event("set_header_size", %{"size" => size, "folder-uuid" => folder_uuid}, socket)
+      when size in ~w(small medium large) do
+    update_header_field(socket, folder_uuid, %{header_size: size})
+  end
+
+  # Toggle a header element's visibility (title / icon / creator / date /
+  # file_count / description / background).
+  def handle_event(
+        "toggle_header_option",
+        %{"option" => option, "folder-uuid" => folder_uuid},
+        socket
+      ) do
+    field = header_option_field(option)
+    folder = field && loaded_folder(socket, folder_uuid)
+
+    if folder do
+      update_header_field(socket, folder_uuid, %{field => !Map.get(folder, field, true)})
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "save_folder_header",
+        %{"folder_uuid" => folder_uuid, "name" => name, "description" => description},
+        socket
+      ) do
+    folder = loaded_folder(socket, folder_uuid)
+    scope = scope_folder_id(socket)
+    trimmed_name = String.trim(name)
+    trimmed_desc = String.trim(description)
+    desc_value = if trimmed_desc == "", do: nil, else: trimmed_desc
+
+    cond do
+      is_nil(folder) ->
+        {:noreply, reset_folder_header_edit(socket)}
+
+      trimmed_name == "" ->
+        {:noreply, put_flash(socket, :error, gettext("Folder name can't be blank"))}
+
+      true ->
+        save_folder_header(socket, folder, folder_uuid, scope, trimmed_name, desc_value)
+    end
+  end
+
   def handle_event(
         "change_folder_color",
         %{"folder-uuid" => folder_uuid, "color" => color},
@@ -1074,7 +1275,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         else: MapSet.put(expanded, folder_uuid)
 
     socket = assign(socket, :expanded_folders, expanded)
-    {:noreply, push_tree_state(socket)}
+    {:noreply, persist_tree_state(socket)}
   end
 
   def handle_event("toggle_select_mode", _params, socket) do
@@ -1087,6 +1288,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       {:noreply, assign(socket, :select_mode, true)}
     end
+  end
+
+  # Long-press on a card (from the MediaDragDrop JS hook) enters select mode and
+  # selects the held item.
+  def handle_event("long_press_select", %{"type" => "file", "uuid" => uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:select_mode, true)
+     |> assign(:selected_files, MapSet.put(socket.assigns.selected_files, uuid))}
+  end
+
+  def handle_event("long_press_select", %{"type" => "folder", "uuid" => uuid}, socket) do
+    {:noreply,
+     socket
+     |> assign(:select_mode, true)
+     |> assign(:selected_folders, MapSet.put(socket.assigns.selected_folders, uuid))}
   end
 
   def handle_event("click_file", %{"file-uuid" => file_uuid}, socket) do
@@ -1246,7 +1463,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> open_move_modal()}
   end
 
-  def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
+  def handle_event("move_selected_to_folder", %{"folder-uuid" => folder_uuid}, socket) do
     scope = scope_folder_id(socket)
     # "root" in a scoped browser is the scope folder, not nil — same fix as
     # the drag-drop `move_file_to_folder` handler above. Without this,
@@ -1768,12 +1985,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
     file_view = socket.assigns[:file_view]
 
+    extra = list_extra(socket)
+
     {files, total_count} =
       cond do
         socket.assigns[:filter_trash] -> load_trashed_files(scope, page, per_page)
         socket.assigns.filter_orphaned -> load_orphaned_files(page, per_page)
-        file_view == "all" -> load_all_view_files(scope, page, per_page, search)
-        true -> load_scoped_files(scope, page, per_page, folder_uuid, search)
+        file_view == "all" -> load_all_view_files(scope, page, per_page, search, extra)
+        true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
       end
 
     socket
@@ -1815,6 +2034,93 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     found || Storage.get_folder(folder_uuid)
   end
 
+  # The folder's creator (the `user_uuid` owner) for the folder-header info
+  # line — returns the user struct (used for the avatar + name) or nil.
+  defp folder_creator_user(nil), do: nil
+  defp folder_creator_user(%{user_uuid: nil}), do: nil
+  defp folder_creator_user(%{user_uuid: user_uuid}), do: Auth.get_user(user_uuid)
+
+  # Display label for a creator — full name, falling back to email.
+  defp creator_label(nil), do: nil
+  defp creator_label(user), do: User.full_name(user) || user.email
+
+  # Display URL for a folder's hero/cover image, or nil. Loads the referenced
+  # file and enriches it for its signed URLs; only runs when a cover is set.
+  defp folder_cover_url(%{cover_file_uuid: uuid}) when is_binary(uuid) do
+    case Storage.get_file(uuid) do
+      nil ->
+        nil
+
+      file ->
+        case enrich_files([file]) do
+          [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
+          _ -> nil
+        end
+    end
+  end
+
+  defp folder_cover_url(_), do: nil
+
+  # Display URL for a folder's logo/icon image, or nil.
+  defp folder_logo_url(%{logo_file_uuid: uuid}) when is_binary(uuid) do
+    case Storage.get_file(uuid) do
+      nil ->
+        nil
+
+      file ->
+        case enrich_files([file]) do
+          [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
+          _ -> nil
+        end
+    end
+  end
+
+  defp folder_logo_url(_), do: nil
+
+  defp reset_folder_header_edit(socket) do
+    socket
+    |> assign(:editing_folder_header, nil)
+    |> assign(:folder_header_name, "")
+    |> assign(:folder_header_description, "")
+  end
+
+  defp save_folder_header(socket, folder, folder_uuid, scope, name, desc_value) do
+    case Storage.update_folder(folder, %{name: name, description: desc_value}, scope) do
+      {:ok, updated} ->
+        parent_uuid = current_folder_uuid(socket)
+
+        socket =
+          socket
+          |> reset_folder_header_edit()
+          # Reload the listing + tree so any grid card / list row / sidebar
+          # entry for this folder reflects the new name and description.
+          |> assign(:folders, Storage.list_folders(parent_uuid, scope))
+          |> assign(:folder_tree, Storage.list_folder_tree(scope))
+
+        # Refresh the header's folder + breadcrumbs when editing the folder
+        # we're currently inside, so the title, description and breadcrumb
+        # trail all show the new name immediately.
+        socket =
+          if socket.assigns[:current_folder] &&
+               to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
+            socket
+            |> assign(:current_folder, updated)
+            |> assign(:breadcrumbs, Storage.folder_breadcrumbs(folder_uuid, scope))
+          else
+            socket
+          end
+
+        {:noreply, socket}
+
+      {:error, :out_of_scope} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Cannot edit a folder outside the allowed scope"))}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to save folder header"))}
+    end
+  end
+
   # Read the per-user grid/list preference from `custom_fields`, defaulting to
   # "grid". Tolerant of a missing/garbage value.
   defp load_user_view_mode(%{} = user) do
@@ -1840,6 +2146,49 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp persist_user_view_mode(user, _mode), do: user
+
+  # Sidebar tree state (expanded folder uuids + collapsed flag). Persisted in
+  # user meta so the first server render already shows the tree open — no
+  # collapsed→expanded jump after connect.
+  defp load_user_expanded_folders(%{} = user) do
+    case Auth.get_user_field(user, @media_expanded_folders_key) do
+      list when is_list(list) -> list |> Enum.filter(&is_binary/1) |> MapSet.new()
+      _ -> MapSet.new()
+    end
+  end
+
+  defp load_user_expanded_folders(_), do: MapSet.new()
+
+  defp load_user_sidebar_collapsed(%{} = user) do
+    Auth.get_user_field(user, @media_sidebar_collapsed_key) == true
+  end
+
+  defp load_user_sidebar_collapsed(_), do: false
+
+  # Write the current tree state into a freshly-read custom_fields copy and
+  # re-assign the updated user, mirroring `persist_user_view_mode/2`.
+  defp persist_tree_state(socket) do
+    case socket.assigns[:phoenix_kit_current_user] do
+      %{uuid: uuid} = user when is_binary(uuid) ->
+        fresh = Auth.get_user(uuid) || user
+
+        merged =
+          (fresh.custom_fields || %{})
+          |> Map.put(
+            @media_expanded_folders_key,
+            MapSet.to_list(socket.assigns.expanded_folders)
+          )
+          |> Map.put(@media_sidebar_collapsed_key, socket.assigns.sidebar_collapsed)
+
+        case Auth.update_user_custom_fields(fresh, merged) do
+          {:ok, updated} -> assign(socket, :phoenix_kit_current_user, updated)
+          {:error, _} -> socket
+        end
+
+      _ ->
+        socket
+    end
+  end
 
   defp scope_folder_id(socket), do: socket.assigns[:scope_folder_id]
 
@@ -1872,10 +2221,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Loads files within scope with optional folder/search filters.
   # When scope=nil AND folder_uuid=nil AND search="", passes include_orphaned: true
   # to preserve the /admin/media root view behavior of showing only orphan files.
-  defp load_scoped_files(scope, page, per_page, folder_uuid, search) do
+  defp load_scoped_files(scope, page, per_page, folder_uuid, search, extra \\ []) do
     at_real_root = is_nil(scope) and is_nil(folder_uuid) and search in [nil, ""]
 
-    opts = [page: page, per_page: per_page]
+    opts = extra ++ [page: page, per_page: per_page]
 
     opts =
       if folder_uuid && folder_uuid != "", do: [{:folder_uuid, folder_uuid} | opts], else: opts
@@ -1891,8 +2240,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Loads ALL files in the system (or within scope subtree when scope is set).
   # Used for the view=all flat listing. Does not apply folder or orphan filters.
-  defp load_all_view_files(scope, page, per_page, search) do
-    opts = [page: page, per_page: per_page]
+  defp load_all_view_files(scope, page, per_page, search, extra \\ []) do
+    opts = extra ++ [page: page, per_page: per_page]
     opts = if search && search != "", do: [{:search, search} | opts], else: opts
 
     case Storage.list_files_in_scope(scope, opts) do
@@ -2290,12 +2639,5 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp expand_sidebar_folder(socket, folder_uuid) do
     assign(socket, :expanded_folders, MapSet.put(socket.assigns.expanded_folders, folder_uuid))
-  end
-
-  defp push_tree_state(socket) do
-    push_event(socket, "save_tree_state", %{
-      expanded: MapSet.to_list(socket.assigns.expanded_folders),
-      sidebar_collapsed: socket.assigns.sidebar_collapsed
-    })
   end
 end

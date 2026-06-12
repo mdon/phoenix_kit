@@ -12,49 +12,10 @@
       title={gettext("Media Settings")}
       subtitle={
         gettext(
-          "Configure media storage buckets and file processing settings for your application"
+          "Media is a core system module that is always enabled and cannot be disabled — it provides essential file management functionality across PhoenixKit. Configure its storage buckets and file processing settings here."
         )
       }
     />
-
-    <%!-- Module Status Alert --%>
-    <div class="alert alert-info mb-6">
-      <.icon name="hero-information-circle" class="w-5 h-5" />
-      <div>
-        <h3 class="font-bold">{gettext("Core System Module")}</h3>
-        <p class="text-sm">
-          {gettext("Media is a core system module that is always enabled and cannot be disabled.")}
-          {gettext("It provides essential file management functionality across PhoenixKit.")}
-        </p>
-      </div>
-    </div>
-
-    <%!-- Repair Media Module Section --%>
-    <div class="alert alert-warning mb-6">
-      <.icon name="hero-wrench-screwdriver" class="w-5 h-5" />
-      <div class="flex-1">
-        <h3 class="font-bold">{gettext("Media Module Repair")}</h3>
-        <p class="text-sm">
-          {gettext(
-            "If your media module isn't working correctly, use this to reset configuration to defaults."
-          )}
-          {gettext("This will NOT delete any uploaded files.")}
-        </p>
-      </div>
-      <button
-        phx-click="repair_storage_module"
-        data-confirm={
-          gettext(
-            "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
-          )
-        }
-        class="btn btn-warning btn-sm"
-      >
-        <.icon name="hero-wrench-screwdriver" class="w-4 h-4 mr-1" /> {gettext(
-          "Repair Media Module"
-        )}
-      </button>
-    </div>
 
     <%!-- System Dependencies Check --%>
     <%= if match?({:error, :not_installed}, @imagemagick_status) do %>
@@ -503,121 +464,108 @@
         <%!-- Quick Actions --%>
         <div class="divider">{gettext("Quick Actions")}</div>
 
+        <%!--
+          Each action is wrapped in a daisyUI tooltip (rather than putting the
+          tooltip on the button) so the hover description also works on the
+          disabled "Media Stats" button — a disabled button has
+          `pointer-events: none` and would otherwise swallow hover. Each button
+          also carries a trailing info icon as the visible "what does this do?"
+          affordance.
+        --%>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
-            class="btn btn-outline"
+          <%!-- Manage Dimensions --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Create and edit the image/video size presets used to generate variants of uploaded media."
+              )
+            }
           >
-            <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Manage Dimensions")}
-          </.link>
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Manage Dimensions")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
+          </div>
 
-          <button class="btn btn-outline" disabled>
-            <.icon name="hero-chart-bar" class="w-4 h-4 mr-2" /> {gettext("Media Stats")}
-            <span class="badge badge-xs ml-1">{gettext("Soon")}</span>
-          </button>
-
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/health")}
-            class="btn btn-outline"
+          <%!-- Media Stats (coming soon) --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={gettext("View storage usage and media statistics. Coming soon.")}
           >
-            <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
-          </.link>
-        </div>
-      </div>
-    </div>
-
-    <%!-- Coming Soon Features --%>
-    <div class="card bg-base-100 shadow-xl border-2 border-dashed border-base-300">
-      <div class="card-body">
-        <h2 class="card-title text-2xl mb-4">
-          <.icon name="hero-rocket-launch" class="w-6 h-6 mr-2" /> {gettext(
-            "Advanced Features Coming Soon"
-          )}
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <%!-- Multi-Location Media Storage --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">🗂️</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("Multi-Location Media Storage")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("Store files across 1-5 redundant locations with automatic failover")}
-                </p>
-              </div>
-            </div>
+            <button class="btn btn-outline w-full" disabled>
+              <.icon name="hero-chart-bar" class="w-4 h-4 mr-2" /> {gettext("Media Stats")}
+              <span class="badge badge-xs ml-1">{gettext("Soon")}</span>
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </button>
           </div>
 
-          <%!-- S3 Integration --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">☁️</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("AWS S3 Integration")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("Store files in Amazon S3 buckets for cloud redundancy")}
-                </p>
-              </div>
-            </div>
+          <%!-- Sync Files / Health dashboard --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
+              )
+            }
+          >
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/health")}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
           </div>
 
-          <%!-- Remote Servers --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">🖥️</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("Remote Servers")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("Distribute files across multiple remote servers and datacenters")}
-                </p>
-              </div>
-            </div>
+          <%!-- Find Orphaned Files --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
+              )
+            }
+          >
+            <.link
+              navigate={PhoenixKit.Utils.Routes.path("/admin/media") <> "?orphaned=1"}
+              class="btn btn-outline w-full"
+            >
+              <.icon name="hero-funnel" class="w-4 h-4 mr-2" /> {gettext("Find Orphaned Files")}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </.link>
           </div>
 
-          <%!-- Admin Dashboard --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">📊</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("Admin Dashboard")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("Monitor media health, locations, and file distribution")}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <%!-- File Tracking --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">📋</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("File Tracking")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("PostgreSQL-based file registry with location tracking")}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <%!-- Automatic Failover --%>
-          <div class="border border-base-300 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <div class="text-3xl">🔄</div>
-              <div>
-                <h3 class="font-bold mb-1">{gettext("Automatic Failover")}</h3>
-                <p class="text-sm text-base-content/70">
-                  {gettext("Seamless file retrieval even when media locations fail")}
-                </p>
-              </div>
-            </div>
+          <%!-- Repair Media Module --%>
+          <div
+            class="tooltip tooltip-bottom"
+            data-tip={
+              gettext(
+                "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
+              )
+            }
+          >
+            <button
+              phx-click="repair_storage_module"
+              data-confirm={
+                gettext(
+                  "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
+                )
+              }
+              class="btn btn-outline btn-warning w-full"
+            >
+              <.icon name="hero-wrench-screwdriver" class="w-4 h-4 mr-2" /> {gettext(
+                "Repair Media Module"
+              )}
+              <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
+            </button>
           </div>
         </div>
       </div>
     </div>
-
-    <%!-- Upload Test Section --%>
 
     <%!-- Help Section --%>
     <div class="alert mt-6">

@@ -1366,6 +1366,9 @@ defmodule PhoenixKit.Modules.Storage do
     include_orphaned = Keyword.get(opts, :include_orphaned, false)
     page = Keyword.get(opts, :page, 1)
     per_page = Keyword.get(opts, :per_page, 20)
+    # Optional UI sort + file-type filter (media browser toolbar).
+    sort = opts[:sort] || "newest"
+    file_type = opts[:file_type]
 
     if not is_nil(folder_uuid) and not is_nil(scope_folder_id) and
          not within_scope?(folder_uuid, scope_folder_id) do
@@ -1375,12 +1378,13 @@ defmodule PhoenixKit.Modules.Storage do
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
         |> exclude_system_managed()
+        |> maybe_filter_file_type(file_type)
 
       total = repo().aggregate(query, :count, :uuid)
 
       files =
         query
-        |> order_by([f], desc: f.inserted_at)
+        |> apply_file_sort(sort)
         |> offset(^((page - 1) * per_page))
         |> limit(^per_page)
         |> repo().all()
@@ -1388,6 +1392,19 @@ defmodule PhoenixKit.Modules.Storage do
       {files, total}
     end
   end
+
+  # Narrows the listing to a single file_type ("image", "video", "document",
+  # "audio", "archive", "other"); "all"/nil leaves it unfiltered.
+  defp maybe_filter_file_type(query, type) when type in [nil, "all", ""], do: query
+  defp maybe_filter_file_type(query, type), do: where(query, [f], f.file_type == ^type)
+
+  # Sort whitelist for the media browser toolbar — defaults to newest first.
+  defp apply_file_sort(query, "oldest"), do: order_by(query, [f], asc: f.inserted_at)
+  defp apply_file_sort(query, "name_asc"), do: order_by(query, [f], asc: f.original_file_name)
+  defp apply_file_sort(query, "name_desc"), do: order_by(query, [f], desc: f.original_file_name)
+  defp apply_file_sort(query, "largest"), do: order_by(query, [f], desc: f.size)
+  defp apply_file_sort(query, "smallest"), do: order_by(query, [f], asc: f.size)
+  defp apply_file_sort(query, _newest), do: order_by(query, [f], desc: f.inserted_at)
 
   defp build_scope_file_query(nil, nil, nil, false) do
     from(f in PhoenixKit.Modules.Storage.File)

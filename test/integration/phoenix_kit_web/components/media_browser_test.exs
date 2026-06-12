@@ -4,7 +4,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
 
   Tests cover:
   - scope_invalid banner renders when scope folder is deleted
-  - Orphan filter button hidden when scope_folder_id is set
+  - Find-orphaned toggle moved out of the toolbar to settings Quick Actions
   - Scope constrains folder navigation (scope truncation)
   - Out-of-scope folder/file mutations are rejected by Storage
   - Controlled mode (on_navigate set) emits navigate message to parent
@@ -130,30 +130,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Orphan filter visibility under scope
+  # Orphan filter entry point
   # ---------------------------------------------------------------------------
 
-  describe "orphan filter visibility" do
-    test "orphan filter button visible when no scope", %{conn: _conn} do
+  describe "orphan filter entry point" do
+    test "find-orphaned toggle is not rendered in the browser toolbar", %{conn: _conn} do
+      # The "Find orphaned" entry point moved to the media settings Quick
+      # Actions (/admin/media?orphaned=1); the browser no longer renders an
+      # in-toolbar toggle. Orphan filtering is still reachable via the URL
+      # param, with only the contextual "Delete all orphaned" action surfacing
+      # in the toolbar while that view is active.
       html =
         render_component(PhoenixKitWeb.Components.MediaBrowser,
           id: "test-browser",
           scope_folder_id: nil
         )
 
-      assert html =~ "toggle_orphan_filter"
-    end
-
-    test "orphan filter button hidden when scope_folder_id is set", %{conn: _conn} do
-      scope = create_folder!()
-
-      html =
-        render_component(PhoenixKitWeb.Components.MediaBrowser,
-          id: "test-browser",
-          scope_folder_id: scope.uuid
-        )
-
       refute html =~ "toggle_orphan_filter"
+      refute html =~ "Find orphaned"
     end
   end
 

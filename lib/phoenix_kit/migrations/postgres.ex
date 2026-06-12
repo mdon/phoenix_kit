@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V133 - Dashboards table ⚡ LATEST
+  ### V134 - Folder header customization ⚡ LATEST
+  - Adds the folder hero-header columns to `phoenix_kit_media_folders`:
+    `cover_file_uuid` (background image), `logo_file_uuid` (icon),
+    `header_size` (small/medium/large), and the `header_show_*` visibility
+    toggles (title / icon / creator / date / file_count / description /
+    background). All nullable/defaulted; `ADD COLUMN IF NOT EXISTS`, idempotent.
+
+  ### V133 - Dashboards table
   - Creates `phoenix_kit_dashboards`, backing the `phoenix_kit_dashboards` plugin
     module. A dashboard is a page of placed widgets whose layout is stored as a
     JSONB list of widget instances. Supports personal / system / role scopes;
@@ -1140,7 +1147,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 133
+  @current_version 134
   @default_prefix "public"
 
   @doc false
