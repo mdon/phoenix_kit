@@ -283,7 +283,7 @@
                      block (also z-10, but later in the DOM) so a tall header
                      with lots of content can't cover the button's click area. --%>
                 <%= if @current_folder do %>
-                  <div class="absolute top-3 right-3 z-20 flex gap-2">
+                  <div class="absolute top-3 right-3 z-40 flex flex-col items-end gap-2">
                     <button
                       type="button"
                       phx-click="start_edit_folder_header"
@@ -294,6 +294,262 @@
                       <.icon name="hero-pencil-square" class="w-4 h-4" />
                       {gettext("Edit header")}
                     </button>
+
+                    <%!-- Edit-header editor as a popover dropping from the
+                         button (not a centered modal). Closes on click-away,
+                         except while the image picker is open. --%>
+                    <%= if @editing_folder_header do %>
+                      <div
+                        class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-base-100 rounded-xl shadow-2xl border border-base-300 text-left cursor-default font-normal"
+                        phx-click-away={!@selecting_cover && "cancel_edit_folder_header"}
+                        phx-target={@myself}
+                      >
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-base-200 shrink-0">
+                          <h3 class="font-semibold text-sm flex items-center gap-2">
+                            <.icon name="hero-pencil-square" class="w-4 h-4 text-primary" />
+                            {gettext("Edit header")}
+                          </h3>
+                          <button
+                            type="button"
+                            phx-click="cancel_edit_folder_header"
+                            phx-target={@myself}
+                            class="btn btn-ghost btn-xs btn-circle"
+                            title={gettext("Close")}
+                          >
+                            <.icon name="hero-x-mark" class="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div class="overflow-y-auto px-4 py-4">
+                          <%!-- 1. Name + description (saved on Save below; the
+                               other sections apply instantly). --%>
+                          <form
+                            id="folder-header-form"
+                            phx-submit="save_folder_header"
+                            phx-change="folder_header_input"
+                            phx-target={@myself}
+                            class="mb-4"
+                          >
+                            <input
+                              type="hidden"
+                              name="folder_uuid"
+                              value={@editing_folder_header}
+                            />
+                            <div class="mb-3">
+                              <label
+                                class="text-xs font-medium mb-1 block text-base-content/70"
+                                for="folder-header-name"
+                              >
+                                {gettext("Name")}
+                              </label>
+                              <input
+                                id="folder-header-name"
+                                type="text"
+                                name="name"
+                                value={@folder_header_name}
+                                maxlength="255"
+                                required
+                                placeholder={gettext("Folder name")}
+                                class="input input-bordered input-sm w-full"
+                                phx-debounce="300"
+                              />
+                            </div>
+                            <div>
+                              <label
+                                class="text-xs font-medium mb-1 block text-base-content/70"
+                                for="folder-header-description"
+                              >
+                                {gettext("Description")}
+                              </label>
+                              <textarea
+                                id="folder-header-description"
+                                name="description"
+                                rows="3"
+                                maxlength="2000"
+                                placeholder={gettext("Describe what this folder is for...")}
+                                class="textarea textarea-bordered textarea-sm w-full"
+                                phx-debounce="300"
+                              >{@folder_header_description}</textarea>
+                            </div>
+                          </form>
+
+                          <%!-- 2. Icon + background image --%>
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Icon")}
+                            </label>
+                            <div class="flex items-center gap-3">
+                              <button
+                                type="button"
+                                phx-click="open_logo_picker"
+                                phx-target={@myself}
+                                class="group relative w-16 h-16 rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer shrink-0"
+                              >
+                                <%= if @folder_logo_url do %>
+                                  <img
+                                    src={@folder_logo_url}
+                                    alt=""
+                                    class="absolute inset-0 w-full h-full object-contain p-1"
+                                  />
+                                <% else %>
+                                  <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
+                                    <.icon name="hero-photo" class="w-6 h-6" />
+                                  </div>
+                                <% end %>
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                                  <.icon
+                                    name="hero-arrow-up-tray"
+                                    class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                  />
+                                </div>
+                              </button>
+                              <div class="flex-1 min-w-0">
+                                <p class="text-xs text-base-content/50">
+                                  {gettext("Pick or upload a small icon image.")}
+                                </p>
+                                <%= if @folder_logo_url do %>
+                                  <button
+                                    type="button"
+                                    phx-click="remove_folder_logo"
+                                    phx-value-folder-uuid={@editing_folder_header}
+                                    phx-target={@myself}
+                                    class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                                  >
+                                    <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext(
+                                      "Remove"
+                                    )}
+                                  </button>
+                                <% end %>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Background image")}
+                            </label>
+                            <button
+                              type="button"
+                              phx-click="open_cover_picker"
+                              phx-target={@myself}
+                              class="group relative block w-full aspect-[16/7] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
+                            >
+                              <%= if @folder_cover_url do %>
+                                <img
+                                  src={@folder_cover_url}
+                                  alt=""
+                                  class="absolute inset-0 w-full h-full object-cover"
+                                />
+                              <% else %>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
+                                  <.icon name="hero-photo" class="w-7 h-7" />
+                                  <span class="text-xs">{gettext("No background")}</span>
+                                </div>
+                              <% end %>
+                              <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                                <span class="opacity-0 group-hover:opacity-100 transition-opacity btn btn-xs gap-1 border-0 bg-base-100/90 text-base-content">
+                                  <.icon name="hero-photo" class="w-3.5 h-3.5" />
+                                  {if @folder_cover_url,
+                                    do: gettext("Change"),
+                                    else: gettext("Choose")}
+                                </span>
+                              </div>
+                            </button>
+                            <%= if @folder_cover_url do %>
+                              <button
+                                type="button"
+                                phx-click="remove_folder_cover"
+                                phx-value-folder-uuid={@editing_folder_header}
+                                phx-target={@myself}
+                                class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                              >
+                                <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext(
+                                  "Remove"
+                                )}
+                              </button>
+                            <% end %>
+                          </div>
+
+                          <%!-- 3. Header size --%>
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Header size")}
+                            </label>
+                            <div class="join w-full">
+                              <%= for {val, label} <- [
+                                    {"small", gettext("Small")},
+                                    {"medium", gettext("Medium")},
+                                    {"large", gettext("Large")}
+                                  ] do %>
+                                <button
+                                  type="button"
+                                  phx-click="set_header_size"
+                                  phx-value-size={val}
+                                  phx-value-folder-uuid={@editing_folder_header}
+                                  phx-target={@myself}
+                                  class={[
+                                    "btn btn-sm join-item flex-1",
+                                    @current_folder.header_size == val && "btn-primary"
+                                  ]}
+                                >
+                                  {label}
+                                </button>
+                              <% end %>
+                            </div>
+                          </div>
+
+                          <%!-- 4. Element visibility toggles --%>
+                          <div class="mb-4 divide-y divide-base-200">
+                            <%= for {opt, label, icon, on} <- [
+                                  {"title", gettext("Show title"), "hero-bars-3-bottom-left",
+                                   @current_folder.header_show_title},
+                                  {"icon", gettext("Show icon"), "hero-photo",
+                                   @current_folder.header_show_icon},
+                                  {"creation_info", gettext("Show creation info"), "hero-user",
+                                   @current_folder.header_show_creation_info},
+                                  {"description", gettext("Show description"), "hero-document-text",
+                                   @current_folder.header_show_description},
+                                  {"background", gettext("Show background"), "hero-swatch",
+                                   @current_folder.header_show_background}
+                                ] do %>
+                              <label class="flex items-center gap-2.5 py-2 cursor-pointer">
+                                <.icon name={icon} class="w-4 h-4 text-base-content/50 shrink-0" />
+                                <span class="text-sm flex-1">{label}</span>
+                                <input
+                                  type="checkbox"
+                                  class="toggle toggle-primary toggle-sm"
+                                  checked={on}
+                                  phx-click="toggle_header_option"
+                                  phx-value-option={opt}
+                                  phx-value-folder-uuid={@editing_folder_header}
+                                  phx-target={@myself}
+                                />
+                              </label>
+                            <% end %>
+                          </div>
+
+                          <%!-- Save / Cancel — Save submits the name/description
+                               form above (the rest already applied live). --%>
+                          <div class="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              phx-click="cancel_edit_folder_header"
+                              phx-target={@myself}
+                              class="btn btn-ghost btn-sm"
+                            >
+                              {gettext("Done")}
+                            </button>
+                            <button
+                              type="submit"
+                              form="folder-header-form"
+                              class="btn btn-primary btn-sm"
+                            >
+                              {gettext("Save name")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
                   </div>
                 <% end %>
 
@@ -1670,242 +1926,6 @@
         <div class="modal-backdrop" phx-click="close_move_modal" phx-target={@myself}></div>
       </div>
     <% end %>
-  <% end %>
-
-  <%!-- ── Edit folder header modal (cover + name + description) ──────────────── --%>
-  <%= if @editing_folder_header do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-lg p-0 overflow-hidden max-h-[90vh] flex flex-col">
-        <%!-- Header bar --%>
-        <div class="flex items-center justify-between px-5 py-4 border-b border-base-200 shrink-0">
-          <h3 class="font-bold text-lg flex items-center gap-2">
-            <.icon name="hero-pencil-square" class="w-5 h-5 text-primary" />
-            {gettext("Edit folder header")}
-          </h3>
-          <button
-            type="button"
-            phx-click="cancel_edit_folder_header"
-            phx-target={@myself}
-            class="btn btn-ghost btn-sm btn-circle"
-            title={gettext("Close")}
-          >
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
-        </div>
-
-        <div class="overflow-y-auto px-5 py-5">
-          <%= if @current_folder do %>
-            <%!-- Header size --%>
-            <div class="mb-5">
-              <label class="text-sm font-medium mb-2 block">{gettext("Header size")}</label>
-              <div class="join w-full">
-                <%= for {val, label} <- [
-                      {"small", gettext("Small")},
-                      {"medium", gettext("Medium")},
-                      {"large", gettext("Large")}
-                    ] do %>
-                  <button
-                    type="button"
-                    phx-click="set_header_size"
-                    phx-value-size={val}
-                    phx-value-folder-uuid={@editing_folder_header}
-                    phx-target={@myself}
-                    class={[
-                      "btn btn-sm join-item flex-1",
-                      @current_folder.header_size == val && "btn-primary"
-                    ]}
-                  >
-                    {label}
-                  </button>
-                <% end %>
-              </div>
-            </div>
-
-            <%!-- Element visibility toggles --%>
-            <div class="mb-5 divide-y divide-base-200">
-              <%= for {opt, label, icon, on} <- [
-                    {"title", gettext("Show title"), "hero-bars-3-bottom-left",
-                     @current_folder.header_show_title},
-                    {"icon", gettext("Show icon"), "hero-photo", @current_folder.header_show_icon},
-                    {"creation_info", gettext("Show creation info"), "hero-user",
-                     @current_folder.header_show_creation_info},
-                    {"description", gettext("Show description"), "hero-document-text",
-                     @current_folder.header_show_description},
-                    {"background", gettext("Show background"), "hero-swatch",
-                     @current_folder.header_show_background}
-                  ] do %>
-                <label class="flex items-center gap-2.5 py-2 cursor-pointer">
-                  <.icon name={icon} class="w-4 h-4 text-base-content/50 shrink-0" />
-                  <span class="text-sm flex-1">{label}</span>
-                  <input
-                    type="checkbox"
-                    class="toggle toggle-primary toggle-sm"
-                    checked={on}
-                    phx-click="toggle_header_option"
-                    phx-value-option={opt}
-                    phx-value-folder-uuid={@editing_folder_header}
-                    phx-target={@myself}
-                  />
-                </label>
-              <% end %>
-            </div>
-
-            <%!-- Icon / logo selector --%>
-            <div class="mb-5">
-              <label class="text-sm font-medium mb-2 block">{gettext("Icon")}</label>
-              <div class="flex items-center gap-3">
-                <button
-                  type="button"
-                  phx-click="open_logo_picker"
-                  phx-target={@myself}
-                  class="group relative w-20 h-20 rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer shrink-0"
-                >
-                  <%= if @folder_logo_url do %>
-                    <img
-                      src={@folder_logo_url}
-                      alt=""
-                      class="absolute inset-0 w-full h-full object-contain p-1"
-                    />
-                  <% else %>
-                    <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
-                      <.icon name="hero-photo" class="w-7 h-7" />
-                    </div>
-                  <% end %>
-                  <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-                    <.icon
-                      name="hero-arrow-up-tray"
-                      class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    />
-                  </div>
-                </button>
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs text-base-content/50">
-                    {gettext("Pick or upload a small image as the folder's icon.")}
-                  </p>
-                  <%= if @folder_logo_url do %>
-                    <button
-                      type="button"
-                      phx-click="remove_folder_logo"
-                      phx-value-folder-uuid={@editing_folder_header}
-                      phx-target={@myself}
-                      class="btn btn-ghost btn-xs gap-1 text-error mt-1"
-                    >
-                      <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
-                    </button>
-                  <% end %>
-                </div>
-              </div>
-            </div>
-          <% end %>
-
-          <%!-- Cover image selector — opens the media picker (scoped to this
-               folder) to choose an existing image or upload a new one. --%>
-          <div class="mb-5">
-            <label class="text-sm font-medium mb-2 block">{gettext("Background image")}</label>
-            <button
-              type="button"
-              phx-click="open_cover_picker"
-              phx-target={@myself}
-              class="group relative block w-full aspect-[16/6] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
-            >
-              <%= if @folder_cover_url do %>
-                <img
-                  src={@folder_cover_url}
-                  alt=""
-                  class="absolute inset-0 w-full h-full object-cover"
-                />
-              <% else %>
-                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
-                  <.icon name="hero-photo" class="w-8 h-8" />
-                  <span class="text-xs">{gettext("No cover image")}</span>
-                </div>
-              <% end %>
-              <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-                <span class="opacity-0 group-hover:opacity-100 transition-opacity btn btn-sm gap-1.5 border-0 bg-base-100/90 text-base-content">
-                  <.icon name="hero-photo" class="w-4 h-4" />
-                  {if @folder_cover_url,
-                    do: gettext("Change image"),
-                    else: gettext("Choose image")}
-                </span>
-              </div>
-            </button>
-
-            <div class="flex items-center gap-3 mt-2">
-              <p class="text-xs text-base-content/50">
-                {gettext(
-                  "Pick an image from this folder or upload a new one as the header background."
-                )}
-              </p>
-              <%= if @folder_cover_url do %>
-                <button
-                  type="button"
-                  phx-click="remove_folder_cover"
-                  phx-value-folder-uuid={@editing_folder_header}
-                  phx-target={@myself}
-                  class="btn btn-ghost btn-xs gap-1 text-error shrink-0 ml-auto"
-                >
-                  <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
-                </button>
-              <% end %>
-            </div>
-          </div>
-
-          <%!-- Name + description --%>
-          <form
-            phx-submit="save_folder_header"
-            phx-change="folder_header_input"
-            phx-target={@myself}
-          >
-            <input type="hidden" name="folder_uuid" value={@editing_folder_header} />
-            <div class="mb-3">
-              <label class="text-sm font-medium mb-1 block" for="folder-header-name">
-                {gettext("Name")}
-              </label>
-              <input
-                id="folder-header-name"
-                type="text"
-                name="name"
-                value={@folder_header_name}
-                maxlength="255"
-                required
-                placeholder={gettext("Folder name")}
-                class="input input-bordered input-sm w-full"
-                phx-debounce="300"
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium mb-1 block" for="folder-header-description">
-                {gettext("Description")}
-              </label>
-              <textarea
-                id="folder-header-description"
-                name="description"
-                rows="4"
-                maxlength="2000"
-                placeholder={gettext("Describe what this folder is for...")}
-                class="textarea textarea-bordered textarea-sm w-full"
-                phx-debounce="300"
-              >{@folder_header_description}</textarea>
-            </div>
-            <div class="modal-action mt-5">
-              <button
-                type="button"
-                phx-click="cancel_edit_folder_header"
-                phx-target={@myself}
-                class="btn btn-ghost"
-              >
-                {gettext("Cancel")}
-              </button>
-              <button type="submit" class="btn btn-primary">
-                {gettext("Save")}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_edit_folder_header" phx-target={@myself}>
-      </div>
-    </div>
   <% end %>
 
   <%!-- ── Cover-image media picker ───────────────────────────────────────────
