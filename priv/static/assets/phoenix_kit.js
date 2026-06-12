@@ -3383,28 +3383,12 @@ if (typeof window.Chart === "undefined") {
 
   window.PhoenixKitHooks.MediaDragDrop = {
     mounted: function() {
-      // View mode (grid/list) is persisted server-side in the user's meta and
-      // rendered on first paint, so there's no localStorage→push restore here
-      // anymore (that caused a grid→list flash after connect).
-
-      // Restore tree state from localStorage
-      var expandedRaw = localStorage.getItem("phoenix_kit_media_expanded_folders");
-      var sidebarCollapsed = localStorage.getItem("phoenix_kit_media_sidebar_collapsed") === "true";
-      var expanded = [];
-      try { expanded = expandedRaw ? JSON.parse(expandedRaw) : []; } catch(e) {}
-      if (expanded.length > 0 || sidebarCollapsed) {
-        this.pushEventTo(this.el, "restore_tree_state", {
-          expanded: expanded,
-          sidebar_collapsed: sidebarCollapsed
-        });
-      }
-
-      // Listen for tree state changes from server
-      var self = this;
-      this.handleEvent("save_tree_state", function(data) {
-        localStorage.setItem("phoenix_kit_media_expanded_folders", JSON.stringify(data.expanded || []));
-        localStorage.setItem("phoenix_kit_media_sidebar_collapsed", data.sidebar_collapsed ? "true" : "false");
-      });
+      // View mode (grid/list) AND the sidebar folder-tree state (expanded
+      // folders + collapsed flag) are both persisted server-side in the user's
+      // meta and rendered on first paint. There is intentionally no
+      // localStorage→push restore here anymore — that ran only after connect
+      // and made the grid flash to list / the tree flash from collapsed to its
+      // open positions.
 
       // Bulk download: server pushes a list of {url, name}; we trigger one anchor click per file
       this.handleEvent("download_files", function(data) {

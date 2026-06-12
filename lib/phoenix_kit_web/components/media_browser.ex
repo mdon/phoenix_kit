@@ -108,6 +108,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # after connect.
   @media_view_mode_key "media_view_mode"
 
+  # Sidebar folder-tree state, also persisted server-side in user meta and
+  # rendered on first paint — same reasoning as the view mode above: restoring
+  # the expanded folders from localStorage only after connect made the tree
+  # render fully collapsed and then jump to its open positions.
+  @media_expanded_folders_key "media_expanded_folders"
+  @media_sidebar_collapsed_key "media_sidebar_collapsed"
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -409,8 +416,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:breadcrumbs, [])
     |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
     |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
-    |> assign(:sidebar_collapsed, false)
-    |> assign(:expanded_folders, MapSet.new())
+    |> assign(
+      :sidebar_collapsed,
+      load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
+    )
+    |> assign(
+      :expanded_folders,
+      load_user_expanded_folders(socket.assigns[:phoenix_kit_current_user])
+    )
     |> assign(:renaming_folder, nil)
     |> assign(:renaming_source, nil)
     |> assign(:renaming_text, "")
@@ -1051,7 +1064,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("toggle_sidebar", _params, socket) do
     socket = assign(socket, :sidebar_collapsed, !socket.assigns.sidebar_collapsed)
-    {:noreply, push_tree_state(socket)}
+    {:noreply, persist_tree_state(socket)}
   end
 
   def handle_event("restore_tree_state", params, socket) do
@@ -1336,7 +1349,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         else: MapSet.put(expanded, folder_uuid)
 
     socket = assign(socket, :expanded_folders, expanded)
-    {:noreply, push_tree_state(socket)}
+    {:noreply, persist_tree_state(socket)}
   end
 
   def handle_event("toggle_select_mode", _params, socket) do
@@ -2208,6 +2221,49 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp persist_user_view_mode(user, _mode), do: user
 
+  # Sidebar tree state (expanded folder uuids + collapsed flag). Persisted in
+  # user meta so the first server render already shows the tree open — no
+  # collapsed→expanded jump after connect.
+  defp load_user_expanded_folders(%{} = user) do
+    case Auth.get_user_field(user, @media_expanded_folders_key) do
+      list when is_list(list) -> list |> Enum.filter(&is_binary/1) |> MapSet.new()
+      _ -> MapSet.new()
+    end
+  end
+
+  defp load_user_expanded_folders(_), do: MapSet.new()
+
+  defp load_user_sidebar_collapsed(%{} = user) do
+    Auth.get_user_field(user, @media_sidebar_collapsed_key) == true
+  end
+
+  defp load_user_sidebar_collapsed(_), do: false
+
+  # Write the current tree state into a freshly-read custom_fields copy and
+  # re-assign the updated user, mirroring `persist_user_view_mode/2`.
+  defp persist_tree_state(socket) do
+    case socket.assigns[:phoenix_kit_current_user] do
+      %{uuid: uuid} = user when is_binary(uuid) ->
+        fresh = Auth.get_user(uuid) || user
+
+        merged =
+          (fresh.custom_fields || %{})
+          |> Map.put(
+            @media_expanded_folders_key,
+            MapSet.to_list(socket.assigns.expanded_folders)
+          )
+          |> Map.put(@media_sidebar_collapsed_key, socket.assigns.sidebar_collapsed)
+
+        case Auth.update_user_custom_fields(fresh, merged) do
+          {:ok, updated} -> assign(socket, :phoenix_kit_current_user, updated)
+          {:error, _} -> socket
+        end
+
+      _ ->
+        socket
+    end
+  end
+
   defp scope_folder_id(socket), do: socket.assigns[:scope_folder_id]
 
   defp controlled_mode?(socket), do: socket.assigns[:on_navigate] != nil
@@ -2657,12 +2713,5 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp expand_sidebar_folder(socket, folder_uuid) do
     assign(socket, :expanded_folders, MapSet.put(socket.assigns.expanded_folders, folder_uuid))
-  end
-
-  defp push_tree_state(socket) do
-    push_event(socket, "save_tree_state", %{
-      expanded: MapSet.to_list(socket.assigns.expanded_folders),
-      sidebar_collapsed: socket.assigns.sidebar_collapsed
-    })
   end
 end
