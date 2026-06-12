@@ -1,7 +1,7 @@
-## 1.7.144 - 2026-06-12
+## 1.7.144 - 2026-06-13
 
-Media browser overhaul: folder hero header, unified toolbar, tree-line
-polish, and selection UX.
+Media browser overhaul: folder hero header + full customization, unified
+toolbar, a shared folder-tree component, persisted tree state, and selection UX.
 
 ### Added
 - **Folder hero header**: the folder header is now a hero block with a cover
@@ -9,10 +9,19 @@ polish, and selection UX.
   views), faded to the page at the bottom, with the title, description,
   created-by avatar + name, date, and file count overlaid. New
   `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V133**).
-- **Edit header** modal to edit a folder's name + description together (muted
-  placeholder when empty), plus a **cover image selector** that opens the shared
-  media picker scoped to the folder — pick an existing image or upload a new
-  one; **Remove** clears the cover (the image stays in the folder).
+- **Folder header customization** (V133, same migration): a **logo/icon**
+  (`logo_file_uuid`, transparent-PNG aware), a **header size** (`header_size`:
+  small / medium / large), and independent per-element visibility toggles —
+  title, icon, **creator**, **date created**, **file count**, description, and
+  background (`header_show_*` columns). Creator / date / file-count are separate
+  toggles so users show only the pieces they want.
+- **Edit header** panel to edit a folder's name + description together (muted,
+  clickable "No description — add one" placeholder when empty), plus **logo** and
+  **cover image** selectors that open the shared media picker scoped to the
+  folder — pick an existing image or upload a new one; **Remove** clears it (the
+  image stays in the folder). Opens as a popover dropping from the Edit header
+  button (not a centered modal), ordered name/description → logo/background →
+  size → toggles.
 - **Display / Sort / Filter toolbar**: Display switches grid/list, Sort orders
   by newest/oldest/name/size, Filter narrows by file type. Each trigger shows
   the current selection with a chevron; sort + filter run through
@@ -28,7 +37,20 @@ polish, and selection UX.
 - **Unified header/toolbar**: the toolbar, search, Add Media, Select and folder
   meta all live inside the hero. Layout is view-controls-left / actions-right,
   with secondary actions (Select, New folder) in a ⋯ overflow; the redundant
-  result count and the standalone grid/list toggle were dropped.
+  result count and the standalone grid/list toggle were dropped. Add Media
+  toggles in place to a fixed-width **Cancel** (toolbar doesn't shift), search is
+  an inline expand-on-click field, and the list view has a sticky column header.
+- **Media page header moved into the admin topbar** as a breadcrumb
+  (`{ProjectName} Admin Panel / Media · subtitle`) via a new `page_subtitle`
+  attr on the app layout, freeing the full content area for the browser. Generic
+  — any admin page that sets `page_title` gets the breadcrumb.
+- **Shared folder-tree node**: the sidebar and the Move modal now render the same
+  parameterized `FolderExplorer.folder_tree_node` (config: navigate/toggle event,
+  rename, drag, hover), so guide-line and structure changes stay in sync. The
+  duplicate `move_folder_option` was removed.
+- **Sidebar tree state persists server-side**: expanded folders + collapsed flag
+  are stored in user meta and rendered on first paint (like the grid/list view
+  mode), removing the collapsed-then-jump-open flash after connect.
 - **Select-mode toolbar** reworked: it stays inside the header (no jump on
   toggle), with a clear **Done** exit button + count + Select all / Clear on the
   left and bulk Move / Download / Delete (Delete red) on the right, shown only
@@ -44,6 +66,10 @@ polish, and selection UX.
   removed.
 
 ### Fixed
+- Edit header popover click-away routed its event to the parent LiveView and
+  crashed with a `FunctionClauseError`; it now targets the component.
+- Transparent-PNG logos render transparently (`object-contain` + drop shadow)
+  instead of as a black/white box.
 - Colored folders now show the blue selection highlight (the inline folder color
   was outranking the tint; it's now `!important`).
 - Uncolored tree guide lines no longer render solid black (daisyUI-5 renamed
