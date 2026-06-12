@@ -231,17 +231,33 @@
                    so the toolbar dropdown menus aren't clipped — the background
                    layers are each rounded instead. --%>
               <% hero_hex = @current_folder && folder_color_hex(@current_folder.color) %>
+              <%!-- Folder-header customization (Edit header): size + per-element
+                   visibility toggles. Non-folder views ignore them (defaults). --%>
+              <% header_min_h =
+                @current_folder &&
+                  case @current_folder.header_size do
+                    "small" -> "min-h-[140px]"
+                    "large" -> "min-h-[320px]"
+                    _ -> "min-h-[200px]"
+                  end %>
+              <% show_background = !@current_folder || @current_folder.header_show_background %>
+              <% show_logo =
+                @current_folder && @current_folder.header_show_icon && @folder_logo_url %>
+              <% show_title = !@current_folder || @current_folder.header_show_title %>
+              <% show_creation_info = @current_folder && @current_folder.header_show_creation_info %>
+              <% show_description = @current_folder && @current_folder.header_show_description %>
               <%!-- `relative z-30` lifts the whole header above the list's
                    scroll area (which comes later in the DOM), so the toolbar
                    dropdowns open *over* the sticky table header instead of
                    being painted behind it. --%>
               <div class={[
                 "relative z-30 rounded-xl mb-4 flex flex-col justify-end",
-                @current_folder && "min-h-[200px]"
+                header_min_h
               ]}>
-                <%!-- Background: cover image, folder-color gradient, or neutral --%>
+                <%!-- Background: cover image (when shown), folder-color gradient,
+                     or neutral --%>
                 <%= cond do %>
-                  <% @folder_cover_url -> %>
+                  <% show_background && @folder_cover_url -> %>
                     <img
                       src={@folder_cover_url}
                       alt=""
@@ -263,9 +279,11 @@
                 <div class="absolute inset-0 rounded-xl bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
                 </div>
 
-                <%!-- Action(s), top-right, as a frosted overlay button --%>
+                <%!-- Action(s), top-right. `z-20` keeps it above the content
+                     block (also z-10, but later in the DOM) so a tall header
+                     with lots of content can't cover the button's click area. --%>
                 <%= if @current_folder do %>
-                  <div class="absolute top-3 right-3 z-10 flex gap-2">
+                  <div class="absolute top-3 right-3 z-20 flex gap-2">
                     <button
                       type="button"
                       phx-click="start_edit_folder_header"
@@ -286,55 +304,82 @@
                 <%!-- Content (title / description / meta / toolbar) over the
                      faded bottom area. The toolbar is folded in below. --%>
                 <div class="relative z-10 p-4 flex flex-col gap-1">
-                  <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
-                    <%= cond do %>
-                      <% @filter_trash -> %>
-                        {gettext("Trash")}
-                      <% @filter_orphaned -> %>
-                        {gettext("Orphaned Files")}
-                      <% @file_view == "all" -> %>
-                        {gettext("All Files")}
-                      <% @current_folder -> %>
-                        {@current_folder.name}
-                      <% true -> %>
-                        {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
+                  <% small_header = @current_folder && @current_folder.header_size == "small" %>
+                  <%!-- Logo + text. On a SMALL header the logo sits to the LEFT
+                       of the title/description (so it can be larger despite the
+                       short header); otherwise it sits above them. --%>
+                  <div class={[
+                    "flex min-w-0",
+                    if(small_header, do: "flex-row items-center gap-3", else: "flex-col gap-1")
+                  ]}>
+                    <%= if show_logo do %>
+                      <img
+                        src={@folder_logo_url}
+                        alt=""
+                        class={[
+                          "rounded-xl object-cover shadow-lg ring-1 ring-base-content/10 bg-base-100 shrink-0",
+                          case @current_folder.header_size do
+                            "small" -> "w-16 h-16"
+                            "large" -> "w-20 h-20"
+                            _ -> "w-14 h-14"
+                          end
+                        ]}
+                      />
                     <% end %>
-                  </h2>
-                  <%= if @current_folder do %>
-                    <%!-- Description + meta (folders only). Description must NOT
-                         use whitespace-pre-line (the HEEx-indented expression's
-                         leading newline would render as a blank line). --%>
-                    <%= if @current_folder.description not in [nil, ""] do %>
-                      <p class="text-sm text-base-content/80 max-w-2xl">
-                        {@current_folder.description}
-                      </p>
-                    <% else %>
-                      <p class="text-sm italic text-base-content/50">
-                        {gettext("No description yet — use “Edit header” to add one.")}
-                      </p>
-                    <% end %>
-                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
-                      <%= if @folder_creator_name do %>
-                        <span class="inline-flex items-center gap-1.5">
-                          <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
-                            user={@folder_creator_user}
-                            size="xs"
-                          />
-                          {gettext("Created by %{name}", name: @folder_creator_name)}
-                        </span>
-                        <span class="text-base-content/40">•</span>
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                      <%= if show_title do %>
+                        <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
+                          <%= cond do %>
+                            <% @filter_trash -> %>
+                              {gettext("Trash")}
+                            <% @filter_orphaned -> %>
+                              {gettext("Orphaned Files")}
+                            <% @file_view == "all" -> %>
+                              {gettext("All Files")}
+                            <% @current_folder -> %>
+                              {@current_folder.name}
+                            <% true -> %>
+                              {if @scope_folder_id,
+                                do: @scope_folder_name,
+                                else: gettext("All Media")}
+                          <% end %>
+                        </h2>
                       <% end %>
-                      <span class="inline-flex items-center gap-1">
-                        <.icon name="hero-calendar" class="w-3.5 h-3.5" />
-                        {Calendar.strftime(@current_folder.inserted_at, "%b %d, %Y")}
-                      </span>
-                      <span class="text-base-content/40">•</span>
-                      <span class="inline-flex items-center gap-1">
-                        <.icon name="hero-document" class="w-3.5 h-3.5" />
-                        {ngettext("%{count} file", "%{count} files", @total_count)}
-                      </span>
+                      <%= if @current_folder do %>
+                        <%!-- Description (folders only). Must NOT use
+                             whitespace-pre-line (the HEEx-indented expression's
+                             leading newline would render as a blank line). --%>
+                        <%= if show_description and @current_folder.description not in [nil, ""] do %>
+                          <p class="text-sm text-base-content/80 max-w-2xl">
+                            {@current_folder.description}
+                          </p>
+                        <% end %>
+                        <%= if show_creation_info do %>
+                          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
+                            <%= if @folder_creator_name do %>
+                              <span class="inline-flex items-center gap-1.5">
+                                <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
+                                  user={@folder_creator_user}
+                                  size="xs"
+                                />
+                                {gettext("Created by %{name}", name: @folder_creator_name)}
+                              </span>
+                              <span class="text-base-content/40">•</span>
+                            <% end %>
+                            <span class="inline-flex items-center gap-1">
+                              <.icon name="hero-calendar" class="w-3.5 h-3.5" />
+                              {Calendar.strftime(@current_folder.inserted_at, "%b %d, %Y")}
+                            </span>
+                            <span class="text-base-content/40">•</span>
+                            <span class="inline-flex items-center gap-1">
+                              <.icon name="hero-document" class="w-3.5 h-3.5" />
+                              {ngettext("%{count} file", "%{count} files", @total_count)}
+                            </span>
+                          </div>
+                        <% end %>
+                      <% end %>
                     </div>
-                  <% end %>
+                  </div>
 
                   <%!-- Toolbar area: in select mode it's the selection header
                        (exit + count + select-all/clear on the left, bulk
@@ -1645,10 +1690,114 @@
         </div>
 
         <div class="overflow-y-auto px-5 py-5">
+          <%= if @current_folder do %>
+            <%!-- Header size --%>
+            <div class="mb-5">
+              <label class="text-sm font-medium mb-2 block">{gettext("Header size")}</label>
+              <div class="join w-full">
+                <%= for {val, label} <- [
+                      {"small", gettext("Small")},
+                      {"medium", gettext("Medium")},
+                      {"large", gettext("Large")}
+                    ] do %>
+                  <button
+                    type="button"
+                    phx-click="set_header_size"
+                    phx-value-size={val}
+                    phx-value-folder-uuid={@editing_folder_header}
+                    phx-target={@myself}
+                    class={[
+                      "btn btn-sm join-item flex-1",
+                      @current_folder.header_size == val && "btn-primary"
+                    ]}
+                  >
+                    {label}
+                  </button>
+                <% end %>
+              </div>
+            </div>
+
+            <%!-- Element visibility toggles --%>
+            <div class="mb-5 divide-y divide-base-200">
+              <%= for {opt, label, icon, on} <- [
+                    {"title", gettext("Show title"), "hero-bars-3-bottom-left",
+                     @current_folder.header_show_title},
+                    {"icon", gettext("Show icon"), "hero-photo", @current_folder.header_show_icon},
+                    {"creation_info", gettext("Show creation info"), "hero-user",
+                     @current_folder.header_show_creation_info},
+                    {"description", gettext("Show description"), "hero-document-text",
+                     @current_folder.header_show_description},
+                    {"background", gettext("Show background"), "hero-swatch",
+                     @current_folder.header_show_background}
+                  ] do %>
+                <label class="flex items-center gap-2.5 py-2 cursor-pointer">
+                  <.icon name={icon} class="w-4 h-4 text-base-content/50 shrink-0" />
+                  <span class="text-sm flex-1">{label}</span>
+                  <input
+                    type="checkbox"
+                    class="toggle toggle-primary toggle-sm"
+                    checked={on}
+                    phx-click="toggle_header_option"
+                    phx-value-option={opt}
+                    phx-value-folder-uuid={@editing_folder_header}
+                    phx-target={@myself}
+                  />
+                </label>
+              <% end %>
+            </div>
+
+            <%!-- Icon / logo selector --%>
+            <div class="mb-5">
+              <label class="text-sm font-medium mb-2 block">{gettext("Icon")}</label>
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  phx-click="open_logo_picker"
+                  phx-target={@myself}
+                  class="group relative w-20 h-20 rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer shrink-0"
+                >
+                  <%= if @folder_logo_url do %>
+                    <img
+                      src={@folder_logo_url}
+                      alt=""
+                      class="absolute inset-0 w-full h-full object-cover"
+                    />
+                  <% else %>
+                    <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
+                      <.icon name="hero-photo" class="w-7 h-7" />
+                    </div>
+                  <% end %>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                    <.icon
+                      name="hero-arrow-up-tray"
+                      class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
+                </button>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-base-content/50">
+                    {gettext("Pick or upload a small image as the folder's icon.")}
+                  </p>
+                  <%= if @folder_logo_url do %>
+                    <button
+                      type="button"
+                      phx-click="remove_folder_logo"
+                      phx-value-folder-uuid={@editing_folder_header}
+                      phx-target={@myself}
+                      class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                    >
+                      <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
           <%!-- Cover image selector — opens the media picker (scoped to this
                folder) to choose an existing image or upload a new one. --%>
           <div class="mb-5">
-            <label class="text-sm font-medium mb-2 block">{gettext("Cover image")}</label>
+            <label class="text-sm font-medium mb-2 block">{gettext("Background image")}</label>
             <button
               type="button"
               phx-click="open_cover_picker"
