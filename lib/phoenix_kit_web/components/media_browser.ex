@@ -272,7 +272,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp header_option_field("title"), do: :header_show_title
   defp header_option_field("icon"), do: :header_show_icon
-  defp header_option_field("creation_info"), do: :header_show_creation_info
+  defp header_option_field("creator"), do: :header_show_creator
+  defp header_option_field("date"), do: :header_show_date
+  defp header_option_field("file_count"), do: :header_show_file_count
   defp header_option_field("description"), do: :header_show_description
   defp header_option_field("background"), do: :header_show_background
   defp header_option_field(_), do: nil
@@ -1193,8 +1195,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     update_header_field(socket, folder_uuid, %{header_size: size})
   end
 
-  # Toggle a header element's visibility (title / icon / creation_info /
-  # description / background).
+  # Toggle a header element's visibility (title / icon / creator / date /
+  # file_count / description / background).
   def handle_event(
         "toggle_header_option",
         %{"option" => option, "folder-uuid" => folder_uuid},

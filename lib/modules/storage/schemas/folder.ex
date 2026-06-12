@@ -28,7 +28,9 @@ defmodule PhoenixKit.Modules.Storage.Folder do
     field :header_size, :string, default: "medium"
     field :header_show_title, :boolean, default: true
     field :header_show_icon, :boolean, default: true
-    field :header_show_creation_info, :boolean, default: true
+    field :header_show_creator, :boolean, default: true
+    field :header_show_date, :boolean, default: true
+    field :header_show_file_count, :boolean, default: true
     field :header_show_description, :boolean, default: true
     field :header_show_background, :boolean, default: true
 
@@ -71,7 +73,9 @@ defmodule PhoenixKit.Modules.Storage.Folder do
       :header_size,
       :header_show_title,
       :header_show_icon,
-      :header_show_creation_info,
+      :header_show_creator,
+      :header_show_date,
+      :header_show_file_count,
       :header_show_description,
       :header_show_background
     ])

@@ -9,9 +9,11 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
       the folder, excluded from its visible listing).
     * `logo_file_uuid UUID` — icon/logo shown in the header.
     * `header_size TEXT DEFAULT 'medium'` — header height: small / medium / large.
-    * `header_show_title`, `header_show_icon`, `header_show_creation_info`,
-      `header_show_description`, `header_show_background` BOOLEAN — per-folder
-      visibility toggles for each header element (default on).
+    * `header_show_title`, `header_show_icon`, `header_show_creator`,
+      `header_show_date`, `header_show_file_count`, `header_show_description`,
+      `header_show_background` BOOLEAN — per-folder visibility toggles for each
+      header element (default on). Creator / date / file-count are independent
+      so users can show just the pieces they want.
 
   All nullable / defaulted, so existing folders render the header as before.
   Idempotent: `ADD COLUMN IF NOT EXISTS`, safe to re-run.
@@ -37,7 +39,15 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
     )
 
     execute(
-      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_creation_info BOOLEAN NOT NULL DEFAULT TRUE"
+      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_creator BOOLEAN NOT NULL DEFAULT TRUE"
+    )
+
+    execute(
+      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_date BOOLEAN NOT NULL DEFAULT TRUE"
+    )
+
+    execute(
+      "ALTER TABLE #{t} ADD COLUMN IF NOT EXISTS header_show_file_count BOOLEAN NOT NULL DEFAULT TRUE"
     )
 
     execute(
@@ -58,7 +68,9 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
 
     execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_background")
     execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_description")
-    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_creation_info")
+    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_file_count")
+    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_date")
+    execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_creator")
     execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_icon")
     execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_show_title")
     execute("ALTER TABLE #{t} DROP COLUMN IF EXISTS header_size")
