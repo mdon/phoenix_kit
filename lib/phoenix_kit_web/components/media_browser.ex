@@ -85,11 +85,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   import PhoenixKitWeb.Components.FolderExplorer,
     only: [
       folder_explorer: 1,
+      folder_tree_node: 1,
       folder_color_hex: 1,
       folder_icon_style: 1,
-      folder_bg_style: 1,
-      tree_connector_class: 2,
-      tree_line_color: 1
+      folder_bg_style: 1
     ]
 
   alias Phoenix.LiveView.JS
@@ -598,81 +597,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     {:noreply, socket}
-  end
-
-  # ──────────────────────────────────────────────────────────────
-  # Function components
-  # ──────────────────────────────────────────────────────────────
-
-  # Move-target picker row. Renders as a collapsible directory tree —
-  # the same experience as the left sidebar (`FolderExplorer`): a chevron
-  # expands/collapses children (children only render when expanded), a
-  # colored folder icon, and clicking the name selects that folder as the
-  # move destination. `move_expanded` (a MapSet of expanded folder uuids,
-  # threaded through the recursion) drives the collapse state, kept
-  # separate from the sidebar's `expanded_folders` so the two don't fight.
-  attr :node, :map, required: true
-  attr :move_expanded, :any, required: true
-  attr :myself, :any, required: true
-  attr :depth, :integer, default: 0
-
-  def move_folder_option(assigns) do
-    has_children = assigns.node.children != []
-
-    assigns =
-      assigns
-      |> assign(:has_children, has_children)
-      |> assign(:is_expanded, MapSet.member?(assigns.move_expanded, assigns.node.folder.uuid))
-      |> assign(:tree_connector_class, tree_connector_class(assigns.depth, has_children))
-
-    ~H"""
-    <li class={["min-w-0", @tree_connector_class]}>
-      <div class="flex items-center gap-0.5 w-full min-w-0 rounded-lg hover:bg-base-300 transition-colors">
-        <%= if @has_children do %>
-          <button
-            type="button"
-            phx-click="toggle_move_folder"
-            phx-target={@myself}
-            phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 shrink-0"
-          >
-            <.icon
-              name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40"
-            />
-          </button>
-        <% else %>
-          <span class="w-5 shrink-0"></span>
-        <% end %>
-        <button
-          phx-click="move_selected_to_folder"
-          phx-target={@myself}
-          phx-value-folder_uuid={@node.folder.uuid}
-          class="flex items-center gap-1.5 flex-1 min-w-0 text-left px-1 py-1"
-        >
-          <span style={folder_icon_style(@node.folder.color)}>
-            <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
-          </span>
-          <span class="truncate">{@node.folder.name}</span>
-        </button>
-      </div>
-      <%= if @has_children and @is_expanded do %>
-        <ul
-          class="ml-3 overflow-hidden min-w-0"
-          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}"}
-        >
-          <%= for child <- @node.children do %>
-            <.move_folder_option
-              node={child}
-              move_expanded={@move_expanded}
-              myself={@myself}
-              depth={@depth + 1}
-            />
-          <% end %>
-        </ul>
-      <% end %>
-    </li>
-    """
   end
 
   # ──────────────────────────────────────────────────────────────
@@ -1537,7 +1461,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> open_move_modal()}
   end
 
-  def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid}, socket) do
+  def handle_event("move_selected_to_folder", %{"folder-uuid" => folder_uuid}, socket) do
     scope = scope_folder_id(socket)
     # "root" in a scoped browser is the scope folder, not nil — same fix as
     # the drag-drop `move_file_to_folder` handler above. Without this,

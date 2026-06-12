@@ -1919,7 +1919,7 @@
               <button
                 phx-click="move_selected_to_folder"
                 phx-target={@myself}
-                phx-value-folder_uuid=""
+                phx-value-folder-uuid=""
                 class={[
                   "flex items-center gap-1.5 w-full min-w-0 text-left rounded-lg px-1 py-1 hover:bg-base-300 transition-colors",
                   @current_folder == nil && "font-semibold"
@@ -1929,8 +1929,27 @@
                 <span class="truncate">{@scope_folder_name}</span>
               </button>
             </li>
+            <%!--
+              Same recursive tree node as the left sidebar
+              (`FolderExplorer.folder_tree_node`) so guide lines / structure
+              stay in sync. Move-mode config: clicking a row selects it as the
+              destination, the chevron drives the modal's own `move_expanded`
+              set, and rename + drag are off. No active highlight (current_folder
+              left nil — you're picking where to move TO).
+            --%>
             <%= for node <- @folder_tree do %>
-              <.move_folder_option node={node} move_expanded={@move_expanded} myself={@myself} />
+              <.folder_tree_node
+                node={node}
+                current_folder={nil}
+                expanded_folders={@move_expanded}
+                depth={0}
+                myself={@myself}
+                on_navigate="move_selected_to_folder"
+                on_toggle="toggle_move_folder"
+                show_rename={false}
+                enable_drag={false}
+                hover_class="hover:bg-base-300"
+              />
             <% end %>
           </ul>
           <div class="modal-action">

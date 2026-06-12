@@ -223,12 +223,27 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   attr :node, :map, required: true
   attr :current_folder, :any, required: true
   attr :expanded_folders, :any, required: true
-  attr :renaming_folder, :any, required: true
+  attr :renaming_folder, :any, default: nil
   attr :renaming_text, :string, default: ""
-  attr :renaming_source, :any, required: true
+  attr :renaming_source, :any, default: nil
   attr :filter_trash, :boolean, default: false
   attr :depth, :integer, default: 0
   attr :myself, :any, required: true
+
+  # Behavior config so the same recursive node powers both the sidebar and the
+  # move-destination picker. Defaults reproduce the sidebar; the move modal
+  # passes its own select/toggle events and turns off rename + drag.
+  attr :on_navigate, :string,
+    default: "navigate_folder",
+    doc: "Event fired when a folder row/name is clicked (sidebar navigates, move modal selects)."
+
+  attr :on_toggle, :string,
+    default: "toggle_folder_expand",
+    doc: "Event fired by the disclosure chevron."
+
+  attr :show_rename, :boolean, default: true, doc: "Show the inline rename affordance."
+  attr :enable_drag, :boolean, default: true, doc: "Emit drag-drop data attributes."
+  attr :hover_class, :string, default: "hover:bg-base-200", doc: "Row hover background utility."
 
   def folder_tree_node(assigns) do
     # In trash view no folder is "active" in the file sense — the user is
@@ -258,7 +273,8 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       assign(
         assigns,
         :is_renaming,
-        assigns.renaming_folder == assigns.node.folder.uuid &&
+        (assigns.show_rename and
+           assigns.renaming_folder == assigns.node.folder.uuid) &&
           assigns.renaming_source == "sidebar"
       )
 
@@ -280,11 +296,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         navigate away. The inner folder button is kept for keyboard access.
       --%>
       <div
-        phx-click={!@is_renaming && "navigate_folder"}
+        phx-click={!@is_renaming && @on_navigate}
         phx-target={@myself}
         phx-value-folder-uuid={@node.folder.uuid}
         class={[
-          "flex items-center gap-0.5 rounded-lg px-1 py-1 hover:bg-base-200 transition-colors group overflow-hidden min-w-0",
+          "flex items-center gap-0.5 rounded-lg px-1 py-1 transition-colors group overflow-hidden min-w-0",
+          @hover_class,
           !@is_renaming && "cursor-pointer",
           @is_active && "font-semibold"
         ]}
@@ -296,7 +313,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         <%!-- Chevron (expand/collapse) --%>
         <%= if @has_children do %>
           <button
-            phx-click="toggle_folder_expand"
+            phx-click={@on_toggle}
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
             class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
@@ -347,11 +364,11 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         <% else %>
           <%!-- Folder button (uncontrolled: phx-click instead of .link navigate) --%>
           <button
-            phx-click="navigate_folder"
+            phx-click={@on_navigate}
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
-            data-drop-folder={@node.folder.uuid}
-            data-draggable-folder={@node.folder.uuid}
+            data-drop-folder={@enable_drag && @node.folder.uuid}
+            data-draggable-folder={@enable_drag && @node.folder.uuid}
             class="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-sm text-left"
           >
             <span style={folder_icon_style(@node.folder.color, @is_active)}>
@@ -376,6 +393,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           </button>
           <%!-- Rename button (visible on hover) --%>
           <button
+            :if={@show_rename}
             phx-click="start_rename_folder"
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
@@ -414,6 +432,11 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
               filter_trash={@filter_trash}
               depth={@depth + 1}
               myself={@myself}
+              on_navigate={@on_navigate}
+              on_toggle={@on_toggle}
+              show_rename={@show_rename}
+              enable_drag={@enable_drag}
+              hover_class={@hover_class}
             />
           <% end %>
         </ul>
