@@ -245,10 +245,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp maybe_refresh_current_folder(socket, updated, folder_uuid) do
     if socket.assigns[:current_folder] &&
          to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
+      # Editor-time path (infrequent): load both URLs unconditionally so the
+      # Edit-header previews stay correct even with the show toggles off.
       socket
       |> assign(:current_folder, updated)
-      |> assign(:folder_cover_url, folder_cover_url(updated))
-      |> assign(:folder_logo_url, folder_logo_url(updated))
+      |> assign(:folder_cover_url, folder_image_url(updated.cover_file_uuid))
+      |> assign(:folder_logo_url, folder_image_url(updated.logo_file_uuid))
     else
       socket
     end
@@ -309,14 +311,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         do: total_count,
         else: Storage.count_orphaned_files(scope)
 
-    creator = folder_creator_user(current_folder)
-
     socket
     |> assign(:current_folder, current_folder)
-    |> assign(:folder_creator_user, creator)
-    |> assign(:folder_creator_name, creator_label(creator))
-    |> assign(:folder_cover_url, folder_cover_url(current_folder))
-    |> assign(:folder_logo_url, folder_logo_url(current_folder))
+    |> assign_folder_header_media(current_folder)
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view, the orphaned view, and any active search are flat file
     # listings — they show no folder cards, only the matching files. (The
@@ -979,6 +976,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> reload_current_page()}
   end
 
+  # Ignore an out-of-whitelist sort instead of crashing the component.
+  def handle_event("set_sort", _params, socket), do: {:noreply, socket}
+
   def handle_event("set_file_filter", %{"type" => type}, socket)
       when type in @valid_file_types do
     {:noreply,
@@ -988,19 +988,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> reload_current_page()}
   end
 
+  # Ignore an out-of-whitelist file-type filter instead of crashing.
+  def handle_event("set_file_filter", _params, socket), do: {:noreply, socket}
+
   def handle_event("toggle_sidebar", _params, socket) do
     socket = assign(socket, :sidebar_collapsed, !socket.assigns.sidebar_collapsed)
     {:noreply, persist_tree_state(socket)}
-  end
-
-  def handle_event("restore_tree_state", params, socket) do
-    expanded = (params["expanded"] || []) |> MapSet.new()
-    sidebar_collapsed = params["sidebar_collapsed"] == true
-
-    {:noreply,
-     socket
-     |> assign(:expanded_folders, MapSet.union(socket.assigns.expanded_folders, expanded))
-     |> assign(:sidebar_collapsed, sidebar_collapsed)}
   end
 
   def handle_event("start_rename_folder", %{"folder-uuid" => folder_uuid} = params, socket) do
@@ -1148,7 +1141,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:editing_folder_header, folder_uuid)
      |> assign(:folder_header_name, (folder && folder.name) || "")
-     |> assign(:folder_header_description, (folder && folder.description) || "")}
+     |> assign(:folder_header_description, (folder && folder.description) || "")
+     # Load the cover/logo previews up front (unconditionally) so the editor
+     # shows them even when their show toggles are off — navigation gates these
+     # on the toggles, so they may be nil when the editor opens.
+     |> assign(:folder_cover_url, folder && folder_image_url(folder.cover_file_uuid))
+     |> assign(:folder_logo_url, folder && folder_image_url(folder.logo_file_uuid))}
   end
 
   def handle_event("folder_header_input", params, socket) do
@@ -1194,6 +1192,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       when size in ~w(small medium large) do
     update_header_field(socket, folder_uuid, %{header_size: size})
   end
+
+  # Ignore an out-of-whitelist header size instead of crashing.
+  def handle_event("set_header_size", _params, socket), do: {:noreply, socket}
 
   # Toggle a header element's visibility (title / icon / creator / date /
   # file_count / description / background).
@@ -2036,17 +2037,44 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # The folder's creator (the `user_uuid` owner) for the folder-header info
   # line — returns the user struct (used for the avatar + name) or nil.
-  defp folder_creator_user(nil), do: nil
-  defp folder_creator_user(%{user_uuid: nil}), do: nil
-  defp folder_creator_user(%{user_uuid: user_uuid}), do: Auth.get_user(user_uuid)
+  # Header media (creator user + cover/logo URLs) for the folder hero. Each
+  # piece is gated on its matching `header_show_*` toggle so a folder whose
+  # header hides that element costs no extra query / signed-URL build on
+  # navigation (the hot path). The Edit-header editor loads the cover/logo URLs
+  # unconditionally when it opens (see `start_edit_folder_header`) so its
+  # previews still work with the toggles off.
+  defp assign_folder_header_media(socket, %{} = folder) do
+    creator = if folder.header_show_creator, do: folder_creator_user(folder)
+    cover = if folder.header_show_background, do: folder_image_url(folder.cover_file_uuid)
+    logo = if folder.header_show_icon, do: folder_image_url(folder.logo_file_uuid)
+
+    socket
+    |> assign(:folder_creator_user, creator)
+    |> assign(:folder_creator_name, creator_label(creator))
+    |> assign(:folder_cover_url, cover)
+    |> assign(:folder_logo_url, logo)
+  end
+
+  defp assign_folder_header_media(socket, _no_folder) do
+    socket
+    |> assign(:folder_creator_user, nil)
+    |> assign(:folder_creator_name, nil)
+    |> assign(:folder_cover_url, nil)
+    |> assign(:folder_logo_url, nil)
+  end
+
+  defp folder_creator_user(%{user_uuid: user_uuid}) when is_binary(user_uuid),
+    do: Auth.get_user(user_uuid)
+
+  defp folder_creator_user(_), do: nil
 
   # Display label for a creator — full name, falling back to email.
   defp creator_label(nil), do: nil
   defp creator_label(user), do: User.full_name(user) || user.email
 
-  # Display URL for a folder's hero/cover image, or nil. Loads the referenced
-  # file and enriches it for its signed URLs; only runs when a cover is set.
-  defp folder_cover_url(%{cover_file_uuid: uuid}) when is_binary(uuid) do
+  # Display URL for a folder header image (cover or logo) by file uuid, or nil.
+  # Loads the referenced file and enriches it for its signed URLs.
+  defp folder_image_url(uuid) when is_binary(uuid) do
     case Storage.get_file(uuid) do
       nil ->
         nil
@@ -2059,23 +2087,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp folder_cover_url(_), do: nil
-
-  # Display URL for a folder's logo/icon image, or nil.
-  defp folder_logo_url(%{logo_file_uuid: uuid}) when is_binary(uuid) do
-    case Storage.get_file(uuid) do
-      nil ->
-        nil
-
-      file ->
-        case enrich_files([file]) do
-          [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
-          _ -> nil
-        end
-    end
-  end
-
-  defp folder_logo_url(_), do: nil
+  defp folder_image_url(_), do: nil
 
   defp reset_folder_header_edit(socket) do
     socket
@@ -2165,22 +2177,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp load_user_sidebar_collapsed(_), do: false
 
-  # Write the current tree state into a freshly-read custom_fields copy and
-  # re-assign the updated user, mirroring `persist_user_view_mode/2`.
+  # Write the current tree state into the in-socket user's custom_fields and
+  # re-assign the updated user. Expand/collapse is a high-frequency interaction,
+  # so we persist from the in-socket struct (kept current by every write here
+  # and by `persist_user_view_mode/2`) rather than re-reading the user from the
+  # DB on every chevron click.
   defp persist_tree_state(socket) do
     case socket.assigns[:phoenix_kit_current_user] do
       %{uuid: uuid} = user when is_binary(uuid) ->
-        fresh = Auth.get_user(uuid) || user
-
         merged =
-          (fresh.custom_fields || %{})
+          (user.custom_fields || %{})
           |> Map.put(
             @media_expanded_folders_key,
             MapSet.to_list(socket.assigns.expanded_folders)
           )
           |> Map.put(@media_sidebar_collapsed_key, socket.assigns.sidebar_collapsed)
 
-        case Auth.update_user_custom_fields(fresh, merged) do
+        case Auth.update_user_custom_fields(user, merged) do
           {:ok, updated} -> assign(socket, :phoenix_kit_current_user, updated)
           {:error, _} -> socket
         end

@@ -1378,6 +1378,7 @@ defmodule PhoenixKit.Modules.Storage do
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
         |> exclude_system_managed()
+        |> exclude_folder_header_assets(folder_uuid)
         |> maybe_filter_file_type(file_type)
 
       total = repo().aggregate(query, :count, :uuid)
@@ -1398,13 +1399,43 @@ defmodule PhoenixKit.Modules.Storage do
   defp maybe_filter_file_type(query, type) when type in [nil, "all", ""], do: query
   defp maybe_filter_file_type(query, type), do: where(query, [f], f.file_type == ^type)
 
+  # A folder's own cover/logo are folder assets, not part of its visible file
+  # listing — drop them from the per-folder grid. They remain real files
+  # (re-selectable via the header's media picker); we just don't show them as
+  # loose files in the folder they decorate. Only applies when listing a
+  # specific folder; flat views (all/orphaned/search) pass folder_uuid = nil.
+  defp exclude_folder_header_assets(query, nil), do: query
+
+  defp exclude_folder_header_assets(query, folder_uuid) do
+    case get_folder(folder_uuid) do
+      %{} = folder ->
+        case Enum.reject([folder.cover_file_uuid, folder.logo_file_uuid], &is_nil/1) do
+          [] -> query
+          excluded -> where(query, [f], f.uuid not in ^excluded)
+        end
+
+      _ ->
+        query
+    end
+  end
+
   # Sort whitelist for the media browser toolbar — defaults to newest first.
-  defp apply_file_sort(query, "oldest"), do: order_by(query, [f], asc: f.inserted_at)
-  defp apply_file_sort(query, "name_asc"), do: order_by(query, [f], asc: f.original_file_name)
-  defp apply_file_sort(query, "name_desc"), do: order_by(query, [f], desc: f.original_file_name)
-  defp apply_file_sort(query, "largest"), do: order_by(query, [f], desc: f.size)
-  defp apply_file_sort(query, "smallest"), do: order_by(query, [f], asc: f.size)
-  defp apply_file_sort(query, _newest), do: order_by(query, [f], desc: f.inserted_at)
+  # Every order carries `f.uuid` as a stable tiebreaker so equal values
+  # (same size, same name, same insert time) can't shuffle across pages.
+  # Name sorts compare case-insensitively (lower/?) so "apple" and "Zebra"
+  # order naturally instead of uppercase-before-lowercase.
+  defp apply_file_sort(query, "oldest"),
+    do: order_by(query, [f], asc: f.inserted_at, asc: f.uuid)
+
+  defp apply_file_sort(query, "name_asc"),
+    do: order_by(query, [f], asc: fragment("lower(?)", f.original_file_name), asc: f.uuid)
+
+  defp apply_file_sort(query, "name_desc"),
+    do: order_by(query, [f], desc: fragment("lower(?)", f.original_file_name), asc: f.uuid)
+
+  defp apply_file_sort(query, "largest"), do: order_by(query, [f], desc: f.size, asc: f.uuid)
+  defp apply_file_sort(query, "smallest"), do: order_by(query, [f], asc: f.size, asc: f.uuid)
+  defp apply_file_sort(query, _newest), do: order_by(query, [f], desc: f.inserted_at, asc: f.uuid)
 
   defp build_scope_file_query(nil, nil, nil, false) do
     from(f in PhoenixKit.Modules.Storage.File)

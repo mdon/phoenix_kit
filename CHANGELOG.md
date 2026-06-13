@@ -77,6 +77,21 @@ toolbar, a shared folder-tree component, persisted tree state, and selection UX.
 - The orphaned-files view no longer mixes in folder cards (files only).
 - The folder-header description no longer shows a large top blank line
   (`whitespace-pre-line` preserved the HEEx-indented expression's newline).
+- A folder's chosen cover/logo no longer appears as a loose file in that
+  folder's grid/list — `list_files_in_scope/2` excludes the folder's own
+  `cover_file_uuid`/`logo_file_uuid` (the design intent the schema documented but
+  didn't enforce). They remain real files, re-selectable from the header picker.
+- Header media (creator avatar, cover, logo) is loaded only when its
+  `header_show_*` toggle is on, dropping up to three queries + two signed-URL
+  builds per folder navigation; the Edit-header previews still load them on open.
+- `cover_file_uuid` / `logo_file_uuid` are now FK columns to
+  `phoenix_kit_files(uuid)` with `ON DELETE SET NULL`, so deleting a referenced
+  file self-heals the header reference; `header_size` is now `NOT NULL` (V134).
+- Media file sort is case-insensitive for name and carries a stable `uuid`
+  tiebreaker so equal sizes/names/timestamps can't shuffle across pages.
+- Sidebar tree state persists from the in-socket user instead of re-reading the
+  user from the DB on every expand/collapse; toolbar sort/filter/size handlers
+  ignore out-of-whitelist values instead of crashing the component.
 
 ## 1.7.144 - 2026-06-10
 
