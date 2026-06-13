@@ -194,7 +194,9 @@ defmodule PhoenixKit.Module do
       `"static/assets/my_hooks.js"`. The file must ship in the app's `priv/`.
     * `:global` — the `window.<Name>` the bundle assigns its hooks to. The
       compiler folds it into `window.PhoenixKitHooks` (which the host already
-      spreads into `LiveSocket`), so no per-module `app.js` edit is needed.
+      spreads into `LiveSocket`), so no per-module `app.js` edit is needed. Must
+      be unique across all modules — two bundles sharing a global would clobber
+      each other, so the compiler fails loudly on a collision.
 
   ## Example
 

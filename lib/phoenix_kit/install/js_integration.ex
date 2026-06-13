@@ -355,11 +355,15 @@ defmodule PhoenixKit.Install.JsIntegration do
     """
 
     # Prefer to anchor right after the phoenix_kit.js tag so ordering is explicit.
+    # Escape the filename — its "." is a regex metachar, and a future vendor file
+    # could otherwise false-match.
+    pk = Regex.escape(@source_filename)
+
     updated =
       cond do
-        Regex.match?(~r{<script[^>]*#{@source_filename}[^>]*>\s*</script>}, content) ->
+        Regex.match?(~r{<script[^>]*#{pk}[^>]*>\s*</script>}, content) ->
           Regex.replace(
-            ~r{(<script[^>]*#{@source_filename}[^>]*>\s*</script>)},
+            ~r{(<script[^>]*#{pk}[^>]*>\s*</script>)},
             content,
             "\\1\n#{tag}",
             global: false
