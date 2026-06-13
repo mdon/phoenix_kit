@@ -31,7 +31,8 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSourcesTest do
       assert js =~ "})();"
       assert js =~ "window.AHooks={X:1}"
       # Merge folds the bundle's global into the host-spread global.
-      assert js =~ "window.PhoenixKitHooks=Object.assign(window.PhoenixKitHooks||{},window.AHooks||{});"
+      assert js =~
+               "window.PhoenixKitHooks=Object.assign(window.PhoenixKitHooks||{},window.AHooks||{});"
     end
 
     test "merges every distinct global into a single Object.assign" do
@@ -47,7 +48,8 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSourcesTest do
           %{app: :b, file: "b.js", global: "BHooks", source: b}
         ])
 
-      assert js =~ "Object.assign(window.PhoenixKitHooks||{},window.AHooks||{},window.BHooks||{});"
+      assert js =~
+               "Object.assign(window.PhoenixKitHooks||{},window.AHooks||{},window.BHooks||{});"
     end
   end
 
