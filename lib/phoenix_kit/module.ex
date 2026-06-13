@@ -176,6 +176,46 @@ defmodule PhoenixKit.Module do
   @callback css_sources() :: [atom() | String.t()]
 
   @doc """
+  Returns JavaScript hook bundles this module needs registered in the host's
+  `LiveSocket`.
+
+  A LiveView JS hook must be present in the host's single `LiveSocket` at
+  construction time — a nested LiveView cannot register one at runtime. This
+  callback lets a module declare a prebuilt bundle (e.g. a standalone Hex
+  package's hooks) so the `:phoenix_kit_js_sources` compiler can wire it into
+  the host automatically, the same way `css_sources/0` wires Tailwind sources.
+
+  Each entry is a map:
+
+    * `:app` — the OTP app shipping the bundle. Resolved at compile time via
+      `:code.priv_dir/1`, so it works for Hex installs and path deps alike (no
+      `deps/<app>` path arithmetic).
+    * `:file` — path to the prebuilt bundle **inside that app's `priv/`**, e.g.
+      `"static/assets/my_hooks.js"`. The file must ship in the app's `priv/`.
+    * `:global` — the `window.<Name>` the bundle assigns its hooks to. The
+      compiler folds it into `window.PhoenixKitHooks` (which the host already
+      spreads into `LiveSocket`), so no per-module `app.js` edit is needed.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def js_sources do
+        [%{app: :phoenix_live_gantt,
+           file: "static/assets/phoenix_live_gantt.js",
+           global: "PhoenixLiveGanttHooks"}]
+      end
+
+  Modules with no JS hooks skip this callback — the default is `[]`.
+  """
+  @callback js_sources() :: [
+              %{
+                required(:app) => atom(),
+                required(:file) => String.t(),
+                required(:global) => String.t()
+              }
+            ]
+
+  @doc """
   Run any one-shot legacy data migrations this module owns.
 
   Two transitions every module that touches Integrations may need:
@@ -228,6 +268,7 @@ defmodule PhoenixKit.Module do
     integration_providers: 0,
     notification_types: 0,
     css_sources: 0,
+    js_sources: 0,
     migrate_legacy: 0
   ]
 
@@ -284,6 +325,9 @@ defmodule PhoenixKit.Module do
       def css_sources, do: []
 
       @impl PhoenixKit.Module
+      def js_sources, do: []
+
+      @impl PhoenixKit.Module
       def migrate_legacy, do: :ok
 
       defoverridable get_config: 0,
@@ -300,6 +344,7 @@ defmodule PhoenixKit.Module do
                      integration_providers: 0,
                      notification_types: 0,
                      css_sources: 0,
+                     js_sources: 0,
                      migrate_legacy: 0
     end
   end
