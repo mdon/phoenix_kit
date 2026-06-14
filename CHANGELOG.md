@@ -1,5 +1,24 @@
 ## 1.7.146 - 2026-06-14
 
+### Added
+- **`js_sources/0`** — a zero-config mechanism for external PhoenixKit modules to
+  ship LiveView JS hook bundles into the host app, mirroring `css_sources/0`. A
+  module declares `%{app:, file:, global:}` entries; the new
+  `:phoenix_kit_js_sources` compiler resolves each bundle via `:code.priv_dir/1`
+  (Hex + path deps), IIFE-wraps and concatenates them into
+  `priv/static/assets/vendor/phoenix_kit_modules.js`, and folds each
+  `window.<Global>` into `window.PhoenixKitHooks` (already spread into the host's
+  `LiveSocket`). One stable `<script>` tag is added by `mix phoenix_kit.install`;
+  `mix phoenix_kit.update` backfills it on existing installs. The compiler fails
+  loudly on a missing bundle, a duplicate global, or a non-identifier global.
+  Hook **names** must also be namespaced to stay unique across modules and the
+  core hooks (documented on the callback) — the merge is last-write-wins.
+
+### Changed
+- PhoenixKit self-doc links now point at `phoenix-kit.hexdocs.pm` instead of the
+  `hexdocs.pm/phoenix_kit` path form (install/update task footers, the
+  not-installed warning, and the per-module-i18n guide).
+
 ### Fixed
 - Media sidebar tree-state persistence no longer clobbers other `custom_fields`
   keys. `persist_tree_state/1` re-reads the user fresh from the DB before
@@ -8,6 +27,11 @@
   server-side merge. The 1.7.145 version wrote from the stale in-socket copy, so
   expanding/collapsing a folder could silently revert a `custom_fields` value
   saved elsewhere since the browser loaded (e.g. notification preferences).
+- The CSS/JS source compilers are now **prepended** to `Mix.compilers()` instead
+  of replacing the list when a host has no `compilers:` key yet (the `css_sources`
+  analogue had the same latent bug), in both install and update.
+- `seed_modules_js_file/1` surfaces a seed-write failure as an installer warning
+  instead of swallowing it (the file is still recreated on the next compile).
 
 ## 1.7.145 - 2026-06-13
 
