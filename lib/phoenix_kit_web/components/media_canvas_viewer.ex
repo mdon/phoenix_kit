@@ -398,7 +398,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp build_viewer_canvas(nil, _annotations), do: nil
 
   defp build_viewer_canvas(file, annotations) when is_map(file) do
-    src = file.urls["original"] || file.urls["large"] || file.urls["medium"]
+    # Open on the cheap medium variant; Tessera swaps up to large (and DZI
+    # tiles for >4K images) as the user zooms. The canvas keeps the full
+    # original dimensions so the coordinate space matches the DZI pyramid.
+    src = file.urls["medium"] || file.urls["large"] || file.urls["original"]
 
     if is_binary(src) and src != "" do
       width = Map.get(file, :width) || 1000

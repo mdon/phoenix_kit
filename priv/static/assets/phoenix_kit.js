@@ -3242,14 +3242,19 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
   // TESSERA LAYER (loaded from CDN)
   //
-  // Lazy-fetches Tessera's deep-zoom (DZI) tile-source layer JS. Pairs with
-  // Fresco — the host viewer must mount first, then the Tessera layer
-  // attaches via `fresco_id`. Comes from the {:tessera, "~> 0.2.1"} hex
+  // Lazy-fetches Tessera's progressive-resolution + DZI deep-zoom layer JS.
+  // Pairs with Fresco — the host viewer must mount first, then the Tessera
+  // layer attaches via `fresco_id`. Comes from the {:tessera, "~> 0.3"} hex
   // dependency. Same parent-pre-import short-circuit as Fresco.
+  //
+  // Keep this version pin in sync with the hex dep + the GitHub release tag
+  // (jsDelivr resolves `gh/<user>/<repo>@<tag>`). A stale pin silently serves
+  // an old tessera.js — the OSD-era 0.2 build no longer works against Fresco's
+  // engine, so the layer would be a silent no-op.
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.2.1/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.1/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 

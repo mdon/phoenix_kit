@@ -313,7 +313,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     socket
     |> assign(:current_folder, current_folder)
-    |> assign_folder_header_media(current_folder)
+    # At the scoped root `current_folder` is nil but the scope folder is the
+    # effective root — show its header customizations there.
+    |> assign_folder_header_media(current_folder || socket.assigns[:scope_folder])
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view, the orphaned view, and any active search are flat file
     # listings — they show no folder cards, only the matching files. (The
@@ -389,6 +391,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:has_buckets, has_buckets)
     |> assign(:scope_invalid, scope_invalid)
     |> assign(:scope_folder_name, scope_name)
+    # The scope folder itself (when scoped). It's the effective root of the
+    # browser, so its header customizations (description/logo/background/
+    # creation info) render at the scoped root even though `current_folder`
+    # stays nil there. nil when unscoped.
+    |> assign(:scope_folder, scope_folder)
     |> assign(:show_upload, false)
     |> assign(:show_search, false)
     |> assign(:last_uploaded_file_uuids, [])
@@ -403,10 +410,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
     )
     |> assign(:current_folder, nil)
-    |> assign(:folder_creator_user, nil)
-    |> assign(:folder_creator_name, nil)
-    |> assign(:folder_cover_url, nil)
-    |> assign(:folder_logo_url, nil)
+    # Seed the header media from the scope folder (effective root) so the
+    # scoped-root header shows its customizations even when no initial_params
+    # are passed (apply_nav_params doesn't run on mount in that case).
+    |> assign_folder_header_media(scope_folder)
     # The header-image media picker (MediaSelectorModal): open flag + which
     # image it sets ("cover" background or "logo" icon).
     |> assign(:selecting_cover, false)
@@ -2491,35 +2498,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
 
   defp generate_urls_from_instances(instances, file_uuid, mime_type) do
-    base =
-      Enum.reduce(instances, %{}, fn instance, acc ->
-        url = URLSigner.signed_url(file_uuid, instance.variant_name)
-        Map.put(acc, instance.variant_name, url)
-      end)
-
-    # For images, surface a DZI manifest URL only when tile generation is
-    # enabled in storage settings. The manifest itself is generated lazily
-    # on first request; tiles are generated lazily as OSD asks for them.
-    # When the setting is off, no `urls["dzi"]` → Tessera falls back to
-    # the medium / large layers and never asks for tiles, so the
-    # lazy-generation path is never triggered.
-    #
-    # The signed token lives in the URL path (not query string) so
-    # OpenSeadragon's tile-URL derivation preserves it across the
-    # manifest → tile fetch. The "dzi" variant name is distinct from
-    # the storage variants ("original" / "small" / "medium" / "large")
-    # so a leaked file-serving token can't grant tile access.
-    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
-         tile_generation_enabled?() do
-      token = URLSigner.generate_token(file_uuid, "dzi")
-      Map.put(base, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
-    else
-      base
-    end
-  end
-
-  defp tile_generation_enabled? do
-    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
+    # For images, `put_dzi_url/3` adds a `"dzi"` manifest URL when tile
+    # generation is enabled (shared with the detail page + lightbox so all
+    # viewers wire deep zoom identically). Manifest + tiles are generated
+    # lazily on first request; off → no `"dzi"` key, so Tessera just swaps
+    # the medium/large/original rasters and never asks for tiles.
+    instances
+    |> Enum.reduce(%{}, fn instance, acc ->
+      url = URLSigner.signed_url(file_uuid, instance.variant_name)
+      Map.put(acc, instance.variant_name, url)
+    end)
+    |> URLSigner.put_dzi_url(file_uuid, mime_type)
   end
 
   # Builds a parallel map of `%{variant_name => width}` from the same

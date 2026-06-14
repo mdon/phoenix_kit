@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.146"
+  @version "1.7.147"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -137,10 +137,13 @@ defmodule PhoenixKit.MixProject do
       # apps either import them directly in `app.js` or rely on the
       # lazy-load wrappers in phoenix_kit.js (jsdelivr-pinned to the
       # matching version).
-      # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
-      # (residual TODO; resurrect when a Tessera 0.5 ships).
+      # Tessera 0.3 was rewritten for Fresco's engine — a peer layer (like
+      # Etcher) that swaps raster resolutions on zoom and streams DZI tiles
+      # of the original for deep zoom on >4K images (no OpenSeadragon). The
+      # tile overlay rides Fresco's stage transform so it stays glued to the
+      # image. JS hooks lazy-load from jsdelivr pinned to the matching tag.
       {:fresco, "~> 0.6"},
-      {:tessera, "~> 0.2"},
+      {:tessera, "~> 0.3"},
       {:etcher, "~> 0.6.5"},
 
       # Cloud provider regions

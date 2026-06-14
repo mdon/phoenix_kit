@@ -199,7 +199,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
       file ->
         instances = load_file_instances(file_uuid, repo)
-        urls = generate_urls_from_instances(instances, file_uuid)
+        urls = generate_urls_from_instances(instances, file_uuid, file.mime_type)
         variant_dimensions = build_variant_dimensions(instances)
         locations = load_original_locations(instances, repo)
         {title, description, tags} = extract_metadata_fields(file.metadata)
@@ -312,11 +312,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   # Generate URLs from pre-loaded instances (no database query needed)
-  defp generate_urls_from_instances(instances, file_uuid) do
-    Enum.reduce(instances, %{}, fn instance, acc ->
+  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+    instances
+    |> Enum.reduce(%{}, fn instance, acc ->
       url = URLSigner.signed_url(file_uuid, instance.variant_name)
       Map.put(acc, instance.variant_name, url)
     end)
+    |> URLSigner.put_dzi_url(file_uuid, mime_type)
   end
 
   # Load file locations with bucket information
