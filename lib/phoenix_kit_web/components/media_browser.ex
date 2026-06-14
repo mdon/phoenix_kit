@@ -313,7 +313,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     socket
     |> assign(:current_folder, current_folder)
-    |> assign_folder_header_media(current_folder)
+    # At the scoped root `current_folder` is nil but the scope folder is the
+    # effective root — show its header customizations there.
+    |> assign_folder_header_media(current_folder || socket.assigns[:scope_folder])
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view, the orphaned view, and any active search are flat file
     # listings — they show no folder cards, only the matching files. (The
@@ -389,6 +391,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:has_buckets, has_buckets)
     |> assign(:scope_invalid, scope_invalid)
     |> assign(:scope_folder_name, scope_name)
+    # The scope folder itself (when scoped). It's the effective root of the
+    # browser, so its header customizations (description/logo/background/
+    # creation info) render at the scoped root even though `current_folder`
+    # stays nil there. nil when unscoped.
+    |> assign(:scope_folder, scope_folder)
     |> assign(:show_upload, false)
     |> assign(:show_search, false)
     |> assign(:last_uploaded_file_uuids, [])
@@ -403,10 +410,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
     )
     |> assign(:current_folder, nil)
-    |> assign(:folder_creator_user, nil)
-    |> assign(:folder_creator_name, nil)
-    |> assign(:folder_cover_url, nil)
-    |> assign(:folder_logo_url, nil)
+    # Seed the header media from the scope folder (effective root) so the
+    # scoped-root header shows its customizations even when no initial_params
+    # are passed (apply_nav_params doesn't run on mount in that case).
+    |> assign_folder_header_media(scope_folder)
     # The header-image media picker (MediaSelectorModal): open flag + which
     # image it sets ("cover" background or "logo" icon).
     |> assign(:selecting_cover, false)

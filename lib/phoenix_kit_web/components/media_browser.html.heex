@@ -230,26 +230,31 @@
                    holds the toolbar at the bottom. `overflow-hidden` is avoided
                    so the toolbar dropdown menus aren't clipped — the background
                    layers are each rounded instead. --%>
-              <% hero_hex = @current_folder && folder_color_hex(@current_folder.color) %>
+              <%!-- The folder whose header customizations to display. At a
+                   scoped root `current_folder` is nil but the scope folder is
+                   the effective root, so fall back to it — otherwise an embedded
+                   browser scoped to a customized folder shows no header. --%>
+              <% header_folder = @current_folder || @scope_folder %>
+              <% hero_hex = header_folder && folder_color_hex(header_folder.color) %>
               <%!-- Folder-header customization (Edit header): size + per-element
                    visibility toggles. Non-folder views ignore them (defaults). --%>
               <% header_min_h =
-                @current_folder &&
-                  case @current_folder.header_size do
+                header_folder &&
+                  case header_folder.header_size do
                     "small" -> "min-h-[140px]"
                     "large" -> "min-h-[320px]"
                     _ -> "min-h-[200px]"
                   end %>
-              <% show_background = !@current_folder || @current_folder.header_show_background %>
+              <% show_background = !header_folder || header_folder.header_show_background %>
               <% show_logo =
-                @current_folder && @current_folder.header_show_icon && @folder_logo_url %>
-              <% show_title = !@current_folder || @current_folder.header_show_title %>
+                header_folder && header_folder.header_show_icon && @folder_logo_url %>
+              <% show_title = !header_folder || header_folder.header_show_title %>
               <% show_creator =
-                @current_folder && @current_folder.header_show_creator && @folder_creator_name %>
-              <% show_date = @current_folder && @current_folder.header_show_date %>
-              <% show_file_count = @current_folder && @current_folder.header_show_file_count %>
+                header_folder && header_folder.header_show_creator && @folder_creator_name %>
+              <% show_date = header_folder && header_folder.header_show_date %>
+              <% show_file_count = header_folder && header_folder.header_show_file_count %>
               <% show_creation_info = show_creator || show_date || show_file_count %>
-              <% show_description = @current_folder && @current_folder.header_show_description %>
+              <% show_description = header_folder && header_folder.header_show_description %>
               <%!-- `relative z-30` lifts the whole header above the list's
                    scroll area (which comes later in the DOM), so the toolbar
                    dropdowns open *over* the sticky table header instead of
@@ -568,7 +573,7 @@
                 <%!-- Content (title / description / meta / toolbar) over the
                      faded bottom area. The toolbar is folded in below. --%>
                 <div class="relative z-10 p-4 flex flex-col gap-1">
-                  <% small_header = @current_folder && @current_folder.header_size == "small" %>
+                  <% small_header = header_folder && header_folder.header_size == "small" %>
                   <%!-- Logo + text. On a SMALL header the logo sits to the LEFT
                        of the title/description (so it can be larger despite the
                        short header); otherwise it sits above them. --%>
@@ -586,7 +591,7 @@
                         alt=""
                         class={[
                           "object-contain shrink-0 drop-shadow-lg",
-                          case @current_folder.header_size do
+                          case header_folder.header_size do
                             "small" -> "w-16 h-16"
                             "large" -> "w-20 h-20"
                             _ -> "w-14 h-14"
@@ -613,20 +618,23 @@
                           <% end %>
                         </h2>
                       <% end %>
-                      <%= if @current_folder do %>
+                      <%= if header_folder do %>
                         <%!-- Description (folders only). Must NOT use
                              whitespace-pre-line (the HEEx-indented expression's
                              leading newline would render as a blank line). --%>
                         <%= if show_description do %>
-                          <%= if @current_folder.description not in [nil, ""] do %>
+                          <%= if header_folder.description not in [nil, ""] do %>
                             <p class="text-sm text-base-content/80 max-w-2xl">
-                              {@current_folder.description}
+                              {header_folder.description}
                             </p>
                           <% else %>
                             <%!-- Placeholder so users see where a description
                                  would appear and how to add one. Opens the Edit
-                                 header panel (description field) on click. --%>
+                                 header panel (description field) on click. Only
+                                 shown when actually inside a folder (editable) —
+                                 at a scoped root the header is read-only. --%>
                             <button
+                              :if={@current_folder}
                               type="button"
                               phx-click="start_edit_folder_header"
                               phx-value-folder-uuid={@current_folder.uuid}
@@ -658,7 +666,7 @@
                             </span>
                             <span :if={show_date} class="inline-flex items-center gap-1">
                               <.icon name="hero-calendar" class="w-3.5 h-3.5" />
-                              {Calendar.strftime(@current_folder.inserted_at, "%b %d, %Y")}
+                              {Calendar.strftime(header_folder.inserted_at, "%b %d, %Y")}
                             </span>
                             <span :if={show_date && show_file_count} class="text-base-content/40">
                               •
