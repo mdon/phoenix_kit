@@ -150,7 +150,9 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
     if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
          tile_generation_enabled?() do
       token = generate_token(file_uuid, "dzi")
-      Map.put(urls, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
+      # `locale: :none` — the /tiles routes live in the non-localized scope
+      # (same as /file/... variant URLs); a locale prefix would 404.
+      Map.put(urls, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi", locale: :none))
     else
       urls
     end
