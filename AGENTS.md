@@ -451,3 +451,14 @@ Partial coverage exists in `test/phoenix_kit_web/components/core/` — written f
 - `<.flash>` if complexity has grown.
 
 Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle). Fold the rest into a future component-coverage sweep.
+
+### Signed file-URL hardening (`modules/storage`)
+
+Surfaced 2026-06-11 by an adversarial audit of `phoenix_kit_publishing` (which embeds storage URLs for public post images — low impact there, but the contract is weaker than its naming implies). In `lib/modules/storage/services/url_signer.ex` + `file_controller.ex`:
+
+- **Token is 16-bit.** The signature is the first 4 hex chars of an MD5 — ~65k space, brute-forceable for a targeted file. Widen it (and consider HMAC over MD5).
+- **Tokens never expire**, yet the 401 says *"Invalid or expired token."* Either add real expiry or fix the message so it doesn't imply time-limited capability URLs.
+- **`/api/files/:uuid/info` is unauthenticated** and returns a valid signed URL for any uuid — defeats the signing scheme. Lock it down.
+- **Fails open on a nil `secret_key_base`** — the token degrades to a predictable no-secret hash. Fail closed.
+
+Not urgent (current use is public images), but record so the false sense of "capability URL" security isn't relied on for sensitive files.

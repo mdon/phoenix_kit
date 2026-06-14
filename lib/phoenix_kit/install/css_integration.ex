@@ -124,7 +124,9 @@ defmodule PhoenixKit.Install.CssIntegration do
   defp add_css_sources_compiler(igniter) do
     Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
       nil ->
-        {:ok, {:code, [:phoenix_kit_css_sources]}}
+        # No :compilers key yet — must keep the defaults, so prepend to
+        # Mix.compilers() rather than replacing the whole list.
+        {:ok, {:code, quote(do: [:phoenix_kit_css_sources] ++ Mix.compilers())}}
 
       zipper ->
         case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_css_sources) do
