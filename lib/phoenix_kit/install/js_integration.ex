@@ -203,8 +203,11 @@ defmodule PhoenixKit.Install.JsIntegration do
       content = File.read!(app_js_path)
 
       cond do
-        String.contains?(content, "PhoenixKitHooks") ->
-          # Already has PhoenixKitHooks spread
+        # Match the actual spread, not any mention — a comment that merely names
+        # PhoenixKitHooks must not skip the real injection. \s* handles the
+        # multiline `hooks: {\n  ...window.PhoenixKitHooks,` shape.
+        Regex.match?(~r/\.\.\.\s*window\.PhoenixKitHooks\b/, content) ->
+          # Already has the PhoenixKitHooks spread
           igniter
 
         Regex.match?(~r/hooks:\s*\{/, content) ->
