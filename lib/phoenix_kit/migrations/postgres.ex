@@ -529,7 +529,16 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V134 - Folder header customization ⚡ LATEST
+  ### V135 - Structured staff skills ⚡ LATEST
+  - Replaces the free-text `phoenix_kit_staff_people.skills` column with a
+    first-class translatable `phoenix_kit_staff_skills` entity + a
+    `phoenix_kit_staff_person_skills` join (nullable `proficiency_level`).
+    Migrates the comma-separated free-text into structured rows (case-insensitive
+    dedup, guarded for retry-safety) and drops the column. Lossy by design:
+    per-locale `translations["skills"]` overrides don't map to structured skills
+    and are stripped.
+
+  ### V134 - Folder header customization
   - Adds the folder hero-header columns to `phoenix_kit_media_folders`:
     `cover_file_uuid` (background image), `logo_file_uuid` (icon),
     `header_size` (small/medium/large), and the `header_show_*` visibility
@@ -1147,7 +1156,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 134
+  @current_version 135
   @default_prefix "public"
 
   @doc false
