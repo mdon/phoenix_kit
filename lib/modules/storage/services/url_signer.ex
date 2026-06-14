@@ -3,6 +3,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   import Bitwise
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
   @moduledoc """
@@ -129,6 +130,36 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
       |> String.slice(0..3)
 
     token
+  end
+
+  @doc """
+  Conditionally adds a `"dzi"` deep-zoom manifest URL to a `urls` map.
+
+  Returns the map unchanged unless the file is an image **and** the
+  `storage_tile_generation_enabled` setting is on. The signed manifest URL
+  (`/tiles/<token>/<file_uuid>.dzi`) is what Tessera fetches to stream tiles;
+  the token lives in the path (not a query string) so it survives Tessera's
+  manifest → tile URL derivation.
+
+  This is the single source of truth for the `"dzi"` URL — every viewer that
+  builds a file `urls` map (media browser, detail page, lightbox) pipes
+  through it so the deep-zoom layer is wired consistently.
+  """
+  def put_dzi_url(urls, file_uuid, mime_type)
+      when is_map(urls) and is_binary(file_uuid) do
+    if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
+         tile_generation_enabled?() do
+      token = generate_token(file_uuid, "dzi")
+      Map.put(urls, "dzi", Routes.path("/tiles/#{token}/#{file_uuid}.dzi"))
+    else
+      urls
+    end
+  end
+
+  def put_dzi_url(urls, _file_uuid, _mime_type), do: urls
+
+  defp tile_generation_enabled? do
+    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
   end
 
   defp get_secret_key_base do
