@@ -1,3 +1,18 @@
+## 1.7.148 - 2026-06-14
+
+Follow-up to 1.7.147: scopes the embedded-`MediaBrowser` header fix and adds `URLSigner.put_dzi_url/3` test coverage.
+
+### Fixed
+- **Scoped `MediaBrowser` header fallback** — an embedded browser scoped to a
+  customized folder was rendering that folder's header customizations
+  (description / logo / cover / creation-info) under the all-files / orphaned /
+  trash / search views as well as at its root, so the `<h2>` title ("All Files" /
+  "Trash" / …) disagreed with the metadata below it. The scope folder's header
+  now shows only at the effective root. `header_folder_target/6` is the single
+  source of truth shared by the nav data path and the template, and the hero
+  cover-image arm is gated so the scope-folder cover can't bleed into those views
+  either. The header stays read-only at the scoped root.
+
 ## 1.7.147 - 2026-06-14
 
 Media viewer deep-zoom: progressive resolution + DZI tile streaming via Tessera 0.3.
