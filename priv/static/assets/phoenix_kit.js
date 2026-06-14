@@ -3254,7 +3254,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.0/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.1/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 
