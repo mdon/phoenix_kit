@@ -277,7 +277,9 @@ defmodule PhoenixKit.Install.JsIntegration do
   defp add_js_sources_compiler(igniter) do
     Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
       nil ->
-        {:ok, {:code, [:phoenix_kit_js_sources]}}
+        # No :compilers key yet — must keep the defaults, so prepend to
+        # Mix.compilers() rather than replacing the whole list.
+        {:ok, {:code, quote(do: [:phoenix_kit_js_sources] ++ Mix.compilers())}}
 
       zipper ->
         case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_js_sources) do

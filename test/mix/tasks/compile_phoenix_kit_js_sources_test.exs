@@ -86,6 +86,12 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSourcesTest do
         Compiler.normalize_entry(%{app: :a})
       end
     end
+
+    test "raises when :global is not a valid JS identifier" do
+      assert_raise Mix.Error, ~r/valid JavaScript/, fn ->
+        Compiler.normalize_entry(%{app: :a, file: "a.js", global: "foo-bar"})
+      end
+    end
   end
 
   defp tmp_dir! do

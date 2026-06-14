@@ -944,7 +944,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     defp ensure_css_sources_compiler(igniter) do
       Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
         nil ->
-          {:ok, {:code, [:phoenix_kit_css_sources]}}
+          # No :compilers key yet — keep the defaults by prepending.
+          {:ok, {:code, quote(do: [:phoenix_kit_css_sources] ++ Mix.compilers())}}
 
         zipper ->
           case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_css_sources) do

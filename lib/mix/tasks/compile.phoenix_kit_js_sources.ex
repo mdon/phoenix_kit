@@ -112,6 +112,15 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSources do
   @doc false
   def normalize_entry(%{app: app, file: file, global: global})
       when is_atom(app) and is_binary(file) and is_binary(global) do
+    # `global` is emitted as `window.<global>` in the generated JS, so an
+    # invalid identifier (e.g. "foo-bar") would produce broken JS — fail loud.
+    unless Regex.match?(~r/^[A-Za-z_$][A-Za-z0-9_$]*$/, global) do
+      Mix.raise("""
+      Invalid js_sources/0 :global #{inspect(global)} — must be a valid JavaScript
+      identifier (it is emitted as window.<global> and folded into PhoenixKitHooks).
+      """)
+    end
+
     %{app: app, file: file, global: global}
   end
 
