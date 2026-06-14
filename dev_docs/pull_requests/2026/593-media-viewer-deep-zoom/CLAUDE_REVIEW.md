@@ -1,6 +1,6 @@
 # PR #593 — Media viewer deep-zoom: progressive resolution + DZI tiles (Tessera 0.3)
 
-**Status:** MERGED to `main` (`0f76ba72`, Merge: `41057ae2 a70a95d3`). Retrospective review.
+**Status:** MERGED to `main` (`0f76ba72`, Merge: `41057ae2 a70a95d3`). Retrospective review. **Follow-up: the two IMPROVEMENT-MEDIUM findings (header-folder gate + `put_dzi_url/3` tests) have now been fixed** in a follow-up commit on `main` (see "Resolution" under each).
 **Scope:** 11 files, +168 / −70. Version bump → `1.7.147`. Dep bump `tessera ~> 0.2 → ~> 0.3` (+ jsDelivr pin `v0.2.1 → v0.3.1`). Two logical changes bundled:
 1. Tessera 0.3 deep-zoom (medium → large → DZI tiles ladder) wired into the canvas viewer, and the `"dzi"` manifest URL centralized in `URLSigner.put_dzi_url/3`.
 2. A scoped-`MediaBrowser`-root fix (commit `a70a95d3`) that shows the scope folder's header customizations at the root of an embedded browser.
@@ -23,6 +23,8 @@ Caveat that bounds the impact: `/admin/media` is *unscoped*, so `scope_folder` i
 
 **Fix (if the disagreement is unwanted):** gate the fallback to the real root — e.g. only fall back to `@scope_folder` when there is no active search, `file_view != "all"`, and neither `filter_orphaned` nor `filter_trash` is set. Otherwise leave as-is but confirm the embedded-browser intent.
 
+**Resolution:** Gated. Added `header_folder_target/6` as the single source of truth for "which folder's header shows here," returning `nil` unless `current_folder` is set OR we're at the effective root (no `file_view == "all"`, no `filter_orphaned`, no `filter_trash`, no active `search_query`). Wired into both the nav data path (`apply_nav_params`, replacing the `current_folder || scope_folder` seed) and the template's `header_folder` local (recomputed each render from current assigns, so it stays correct even on trash/search transitions the nav path doesn't re-seed). Also gated the hero's cover-image `cond` arm (`header_folder && show_background && @folder_cover_url`) — without it the scope-folder cover URL still held in assigns would bleed into the all-files/trash views via `show_background`'s `!header_folder` default. The other header elements (logo, description, creation-info) were already `header_folder &&`-gated, so only the cover leaked. Edit button + add-description placeholder remain read-only at the scoped root (still `:if={@current_folder}`).
+
 ---
 
 ## IMPROVEMENT - MEDIUM — No tests for `put_dzi_url/3`, and the scoped-root header feature is untested
@@ -36,6 +38,8 @@ Caveat that bounds the impact: `/admin/media` is *unscoped*, so `scope_folder` i
 - fallback clause (`urls` not a map, or `file_uuid` not binary) → unchanged
 
 Separately, the **headline behavior of `a70a95d3`** — a scoped `MediaBrowser` showing the scope folder's header at its root — has no test either. The existing `media_browser_test.exs` / `media_browser_scope_test.exs` cover `scope_folder_id` validity banners and upload targeting, not header rendering. A rendering assertion (`render_component` scoped to a customized folder → description/creator present at root, Edit button absent) would lock the read-only-at-scoped-root contract that the template carefully enforces (`:if={@current_folder}` on the Edit button + add-description placeholder).
+
+**Resolution:** Added `test/integration/storage/url_signer_test.exs` (`PhoenixKit.Integration.Storage.URLSignerTest`, `DataCase`, `async: true`) covering `put_dzi_url/3` end-to-end: image + enabled adds a `"dzi"` URL matching `Routes.path("/tiles/<token>/<uuid>.dzi", locale: :none)` with `token == generate_token(uuid, "dzi")` (asserted via the same primitives, not a secret-dependent literal) and preserves existing keys; works across image mime subtypes; stable across repeated calls; non-image mimes (incl. the no-slash `"image"`), `nil` mime, explicitly-disabled, unset (default-false), and `"1"`-but-not-`"true"` all leave the map unchanged; and both guard/fallback clauses (`nil` urls, non-binary `file_uuid`). The setting is controlled via `Settings.update_setting/2` — safe under `async: true` because `tile_generation_enabled?/0` reads the non-cached `get_setting/2`, which is sandboxed per test and untouched by the cache `update_setting/2` invalidates. The scoped-root header *rendering* test (the second half of this finding) is left for a follow-up — it needs a LiveView `render_component` harness the storage integration suite doesn't have today.
 
 ---
 

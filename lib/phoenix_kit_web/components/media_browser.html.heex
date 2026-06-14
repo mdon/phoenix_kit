@@ -230,11 +230,21 @@
                    holds the toolbar at the bottom. `overflow-hidden` is avoided
                    so the toolbar dropdown menus aren't clipped — the background
                    layers are each rounded instead. --%>
-              <%!-- The folder whose header customizations to display. At a
-                   scoped root `current_folder` is nil but the scope folder is
-                   the effective root, so fall back to it — otherwise an embedded
-                   browser scoped to a customized folder shows no header. --%>
-              <% header_folder = @current_folder || @scope_folder %>
+              <%!-- The folder whose header customizations to display. Falls
+                   back to the scope folder only at the effective root of an
+                   embedded (scoped) browser — never under the all-files /
+                   orphaned / trash / search views, where the `<h2>` title below
+                   would disagree with the scope folder's metadata. See
+                   `header_folder_target/6`. --%>
+              <% header_folder =
+                header_folder_target(
+                  @current_folder,
+                  @file_view,
+                  @filter_orphaned,
+                  @search_query,
+                  @filter_trash,
+                  @scope_folder
+                ) %>
               <% hero_hex = header_folder && folder_color_hex(header_folder.color) %>
               <%!-- Folder-header customization (Edit header): size + per-element
                    visibility toggles. Non-folder views ignore them (defaults). --%>
@@ -266,7 +276,11 @@
                 <%!-- Background: cover image (when shown), folder-color gradient,
                      or neutral --%>
                 <%= cond do %>
-                  <% show_background && @folder_cover_url -> %>
+                  <%!-- `header_folder &&` gates the cover so a scope-folder
+                       cover URL still held in assigns (it's only refreshed on
+                       the nav path) can't bleed into the all-files / trash /
+                       orphaned / search views where `header_folder` is nil. --%>
+                  <% header_folder && show_background && @folder_cover_url -> %>
                     <img
                       src={@folder_cover_url}
                       alt=""

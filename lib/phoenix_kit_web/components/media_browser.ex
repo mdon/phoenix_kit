@@ -313,9 +313,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     socket
     |> assign(:current_folder, current_folder)
-    # At the scoped root `current_folder` is nil but the scope folder is the
-    # effective root — show its header customizations there.
-    |> assign_folder_header_media(current_folder || socket.assigns[:scope_folder])
+    # Seed header media for the folder whose hero shows here. The scope folder
+    # qualifies only at the effective root (see `header_folder_target/6`) — not
+    # under all-files / orphaned / search, where its metadata would disagree
+    # with the `<h2>` title. `filter_trash` is always false on the nav path
+    # (reset at the end of `apply_nav_params`), so the trash arm can't trip here.
+    |> assign_folder_header_media(
+      header_folder_target(
+        current_folder,
+        file_view,
+        filter_orphaned,
+        q,
+        false,
+        socket.assigns[:scope_folder]
+      )
+    )
     |> assign(:breadcrumbs, breadcrumbs)
     # The "all" view, the orphaned view, and any active search are flat file
     # listings — they show no folder cards, only the matching files. (The
@@ -2040,6 +2052,38 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     found || Storage.get_folder(folder_uuid)
+  end
+
+  # The folder whose header customizations to render in the hero, or `nil`.
+  #
+  # An embedded (scoped) browser treats the scope folder as its effective root,
+  # so that folder's header (description / logo / cover / creation-info) shows
+  # at the root even though `current_folder` is `nil` there. But ONLY at the
+  # root: the `<h2>` title (`media_browser.html.heex` cond) reads "All Files" /
+  # "Trash" / "Orphaned Files" in the flat listings and shows the scope folder
+  # name in search, so the scope folder's metadata would disagree with the
+  # title there — fall back to `nil` (plain hero) instead.
+  #
+  # Single source of truth: both the nav data path (`apply_nav_params`) and the
+  # template's `header_folder` local pipe the current view state through this,
+  # so display and the seeded `folder_*` assigns can't drift apart.
+  defp header_folder_target(
+         current_folder,
+         file_view,
+         filter_orphaned,
+         search_query,
+         filter_trash,
+         scope_folder
+       ) do
+    cond do
+      current_folder -> current_folder
+      file_view == "all" -> nil
+      filter_orphaned -> nil
+      filter_trash -> nil
+      search_query not in ["", nil] -> nil
+      scope_folder -> scope_folder
+      true -> nil
+    end
   end
 
   # The folder's creator (the `user_uuid` owner) for the folder-header info
