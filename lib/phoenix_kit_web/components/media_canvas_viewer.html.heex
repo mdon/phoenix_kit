@@ -102,19 +102,23 @@
                 :eraser
               ]}
             />
-            <% tessera_sources =
-              [
-                {f.urls["medium"], 800},
-                {f.urls["large"], 1920},
-                {f.urls["original"], Map.get(f, :width) || 4096}
-              ]
+            <%!-- Zoom ladder: medium → large, then for images over 4K we stream
+                 DZI tiles of the original (only the visible area) instead of
+                 ever loading the whole multi-MB original; for ≤4K images the
+                 full original raster is the top of the ladder (no tiles). DZI
+                 tiles also require the storage tile-generation setting (which
+                 is what populates urls["dzi"]). --%>
+            <% over_4k = max(Map.get(f, :width) || 0, Map.get(f, :height) || 0) > 4096
+            has_dzi = is_binary(f.urls["dzi"]) and f.urls["dzi"] != ""
+            use_tiles = over_4k and has_dzi
+
+            tessera_sources =
+              ([{f.urls["medium"], 800}, {f.urls["large"], 1920}] ++
+                 if(use_tiles, do: [], else: [{f.urls["original"], Map.get(f, :width) || 4096}]))
               |> Enum.filter(fn {url, _w} -> is_binary(url) and url != "" end)
               |> Enum.map(fn {url, width} -> %{url: url, width: width} end)
 
-            tessera_dzi =
-              if is_binary(f.urls["dzi"]) and f.urls["dzi"] != "",
-                do: f.urls["dzi"],
-                else: nil %>
+            tessera_dzi = if use_tiles, do: f.urls["dzi"], else: nil %>
             <%= if tessera_sources != [] do %>
               <Tessera.layer
                 fresco_id={"media-zoom-" <> f.file_uuid}

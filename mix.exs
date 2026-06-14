@@ -139,11 +139,11 @@ defmodule PhoenixKit.MixProject do
       # matching version).
       # Tessera 0.3 was rewritten for Fresco's engine — a peer layer (like
       # Etcher) that swaps raster resolutions on zoom and streams DZI tiles
-      # for deep zoom on gigapixel images (no OpenSeadragon). LOCAL path dep
-      # while iterating; switch back to `{:tessera, "~> 0.3"}` once 0.3.0 is
-      # published to hex.
+      # of the original for deep zoom on >4K images (no OpenSeadragon). The
+      # tile overlay rides Fresco's stage transform so it stays glued to the
+      # image. JS hooks lazy-load from jsdelivr pinned to the matching tag.
       {:fresco, "~> 0.6"},
-      {:tessera, path: "../tessera", override: true},
+      {:tessera, "~> 0.3"},
       {:etcher, "~> 0.6.5"},
 
       # Cloud provider regions
