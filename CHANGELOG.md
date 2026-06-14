@@ -1,3 +1,14 @@
+## 1.7.146 - 2026-06-14
+
+### Fixed
+- Media sidebar tree-state persistence no longer clobbers other `custom_fields`
+  keys. `persist_tree_state/1` re-reads the user fresh from the DB before
+  writing (matching `persist_user_view_mode/2`), because
+  `update_user_custom_fields` replaces the entire `custom_fields` map with no
+  server-side merge. The 1.7.145 version wrote from the stale in-socket copy, so
+  expanding/collapsing a folder could silently revert a `custom_fields` value
+  saved elsewhere since the browser loaded (e.g. notification preferences).
+
 ## 1.7.145 - 2026-06-13
 
 Media browser overhaul: folder hero header + full customization, unified

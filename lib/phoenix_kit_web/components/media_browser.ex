@@ -2177,23 +2177,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp load_user_sidebar_collapsed(_), do: false
 
-  # Write the current tree state into the in-socket user's custom_fields and
-  # re-assign the updated user. Expand/collapse is a high-frequency interaction,
-  # so we persist from the in-socket struct (kept current by every write here
-  # and by `persist_user_view_mode/2`) rather than re-reading the user from the
-  # DB on every chevron click.
+  # Write the current tree state into the user's custom_fields and re-assign the
+  # updated user, mirroring `persist_user_view_mode/2`. We re-read the user fresh
+  # from the DB first because `update_user_custom_fields` blind-writes the WHOLE
+  # custom_fields map (no server-side merge) — using the in-socket copy would
+  # clobber any custom_fields key written elsewhere since this socket loaded
+  # (e.g. notification preferences saved on the settings page in another tab).
   defp persist_tree_state(socket) do
     case socket.assigns[:phoenix_kit_current_user] do
       %{uuid: uuid} = user when is_binary(uuid) ->
+        fresh = Auth.get_user(uuid) || user
+
         merged =
-          (user.custom_fields || %{})
+          (fresh.custom_fields || %{})
           |> Map.put(
             @media_expanded_folders_key,
             MapSet.to_list(socket.assigns.expanded_folders)
           )
           |> Map.put(@media_sidebar_collapsed_key, socket.assigns.sidebar_collapsed)
 
-        case Auth.update_user_custom_fields(user, merged) do
+        case Auth.update_user_custom_fields(fresh, merged) do
           {:ok, updated} -> assign(socket, :phoenix_kit_current_user, updated)
           {:error, _} -> socket
         end

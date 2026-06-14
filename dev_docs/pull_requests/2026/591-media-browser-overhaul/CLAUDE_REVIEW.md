@@ -54,6 +54,18 @@ That's up to 3 extra DB round-trips + 2 signed-URL builds per navigation, even w
 
 **Resolution:** Dropped the `Auth.get_user(uuid)` re-read; `persist_tree_state/1` now merges into the in-socket user's `custom_fields` directly. The in-socket struct is kept current by this function and `persist_user_view_mode/2` (both re-assign `phoenix_kit_current_user` on write), so it's a safe source. One fewer query per expand/collapse/sidebar toggle.
 
+> **⚠️ REVERTED in 1.7.146 — this "improvement" was a correctness regression.**
+> A follow-up `/code-review` caught it: `update_user_custom_fields` blind-writes
+> the *entire* `custom_fields` map (no server-side merge), so writing from the
+> stale in-socket copy clobbers any `custom_fields` key changed elsewhere since
+> the socket loaded — notably **notification preferences** (V18 stores them in
+> `custom_fields`). Concrete repro: open `/admin/media`, mute a notification type
+> on the settings page (another tab), then expand a folder back in the media
+> browser → the muted preference is silently reverted. The sibling
+> `persist_user_view_mode/2` never dropped its fresh read, which is exactly why
+> it was safe. `persist_tree_state/1` is now restored to the fresh-read pattern;
+> the per-toggle read is the correct trade for not losing concurrent writes.
+
 ---
 
 ## NITPICK — Dead `restore_tree_state` handler
