@@ -1,3 +1,25 @@
+## 1.7.147 - 2026-06-14
+
+Media viewer deep-zoom: progressive resolution + DZI tile streaming via Tessera 0.3.
+
+### Added
+- **Progressive resolution + DZI tile streaming** in the media canvas viewer
+  (`/admin/media/:uuid`, the in-place modal, and the lightbox), backed by the
+  rewritten **Tessera 0.3.1** (now a Fresco peer layer, no OpenSeadragon). The
+  viewer opens on the cheap **medium** variant and swaps **medium → large** on
+  zoom; past the sharpest raster it streams **DZI tiles of the original** (only
+  the visible region) for images over 4K, or shows the full **original** raster
+  for ≤4K. Tiles ride Fresco's stage transform so they stay glued to the image
+  during pan/zoom; tile generation respects EXIF orientation.
+
+### Changed
+- `URLSigner.put_dzi_url/3` is now the single source of truth for the signed
+  `"dzi"` manifest URL, shared by the media browser, detail page, and lightbox
+  (previously only the browser produced it, so deep zoom was missing on the
+  other two). Built in the non-localized route scope so it resolves on any
+  locale.
+- `{:tessera, "~> 0.3"}` (was `~> 0.2`); the jsDelivr hook pin tracks `v0.3.1`.
+
 ## 1.7.146 - 2026-06-14
 
 ### Added
