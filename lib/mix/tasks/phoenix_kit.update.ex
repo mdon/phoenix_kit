@@ -820,7 +820,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       DOCUMENTATION
         For more information, visit:
-        https://hexdocs.pm/phoenix_kit
+        https://phoenix-kit.hexdocs.pm
       """)
     end
 
