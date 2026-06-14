@@ -198,6 +198,18 @@ defmodule PhoenixKit.Module do
       be unique across all modules — two bundles sharing a global would clobber
       each other, so the compiler fails loudly on a collision.
 
+  ## Hook names must be globally unique too
+
+  The compiler enforces unique `:global` names, but it cannot see *inside* a
+  prebuilt bundle. The final fold is `Object.assign(window.PhoenixKitHooks,
+  <bundle globals…>)`, which is last-write-wins on the **hook names** each
+  bundle exports. So two modules with distinct globals that happen to export a
+  hook of the same name (e.g. both define `Chart`) will silently clobber one
+  another — and a bundle hook whose name matches a core PhoenixKit hook (e.g.
+  `RowMenu`, `SortableGrid`) overrides the core one. Namespace your hook names
+  (e.g. prefix them with the module name) to keep them unique across every
+  module and the core set.
+
   ## Example
 
       @impl PhoenixKit.Module
