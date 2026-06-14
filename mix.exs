@@ -137,10 +137,13 @@ defmodule PhoenixKit.MixProject do
       # apps either import them directly in `app.js` or rely on the
       # lazy-load wrappers in phoenix_kit.js (jsdelivr-pinned to the
       # matching version).
-      # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
-      # (residual TODO; resurrect when a Tessera 0.5 ships).
+      # Tessera 0.3 was rewritten for Fresco's engine — a peer layer (like
+      # Etcher) that swaps raster resolutions on zoom and streams DZI tiles
+      # for deep zoom on gigapixel images (no OpenSeadragon). LOCAL path dep
+      # while iterating; switch back to `{:tessera, "~> 0.3"}` once 0.3.0 is
+      # published to hex.
       {:fresco, "~> 0.6"},
-      {:tessera, "~> 0.2"},
+      {:tessera, path: "../tessera", override: true},
       {:etcher, "~> 0.6.5"},
 
       # Cloud provider regions
