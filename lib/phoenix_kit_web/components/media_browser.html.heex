@@ -96,7 +96,7 @@
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
     <div class={["card bg-base-100 shadow-xl", @fill_height && "flex-1 min-h-0"]}>
       <div class={[
-        "card-body p-4 flex flex-row gap-0 overflow-hidden",
+        "card-body p-2 sm:p-4 flex flex-row gap-0 overflow-hidden",
         if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
       ]}>
         <%!-- Folder Sidebar --%>
@@ -118,7 +118,7 @@
         />
 
         <%!-- Main content area --%>
-        <div class="flex-1 min-w-0 min-h-0 pl-4 flex flex-col">
+        <div class="flex-1 min-w-0 min-h-0 lg:pl-4 flex flex-col">
           <%!-- Hidden upload input for folder drag-drop (always in DOM when in a folder) --%>
           <%= if @has_buckets && !@show_upload && assigns[:parent_uploads] do %>
             <form
@@ -251,9 +251,9 @@
               <% header_min_h =
                 header_folder &&
                   case header_folder.header_size do
-                    "small" -> "min-h-[140px]"
-                    "large" -> "min-h-[320px]"
-                    _ -> "min-h-[200px]"
+                    "small" -> "min-h-[100px] sm:min-h-[140px]"
+                    "large" -> "min-h-[160px] sm:min-h-[320px]"
+                    _ -> "min-h-[130px] sm:min-h-[200px]"
                   end %>
               <% show_background = !header_folder || header_folder.header_show_background %>
               <% show_logo =
@@ -270,7 +270,7 @@
                    dropdowns open *over* the sticky table header instead of
                    being painted behind it. --%>
               <div class={[
-                "relative z-30 rounded-xl mb-4 flex flex-col justify-end",
+                "relative z-30 rounded-xl mb-3 sm:mb-4 flex flex-col justify-end",
                 header_min_h
               ]}>
                 <%!-- Background: cover image (when shown), folder-color gradient,
@@ -586,7 +586,7 @@
                        a blank line ("crazy top padding"). --%>
                 <%!-- Content (title / description / meta / toolbar) over the
                      faded bottom area. The toolbar is folded in below. --%>
-                <div class="relative z-10 p-4 flex flex-col gap-1">
+                <div class="relative z-10 p-3 sm:p-4 flex flex-col gap-1">
                   <% small_header = header_folder && header_folder.header_size == "small" %>
                   <%!-- Logo + text. On a SMALL header the logo sits to the LEFT
                        of the title/description (so it can be larger despite the
@@ -606,16 +606,16 @@
                         class={[
                           "object-contain shrink-0 drop-shadow-lg",
                           case header_folder.header_size do
-                            "small" -> "w-16 h-16"
-                            "large" -> "w-20 h-20"
-                            _ -> "w-14 h-14"
+                            "small" -> "w-12 h-12 sm:w-16 sm:h-16"
+                            "large" -> "w-14 h-14 sm:w-20 sm:h-20"
+                            _ -> "w-10 h-10 sm:w-14 sm:h-14"
                           end
                         ]}
                       />
                     <% end %>
                     <div class="flex flex-col gap-0.5 min-w-0">
                       <%= if show_title do %>
-                        <h2 class="text-2xl font-bold text-base-content break-words leading-tight">
+                        <h2 class="text-lg sm:text-2xl font-bold text-base-content break-words leading-tight">
                           <%= cond do %>
                             <% @filter_trash -> %>
                               {gettext("Trash")}
@@ -638,7 +638,7 @@
                              leading newline would render as a blank line). --%>
                         <%= if show_description do %>
                           <%= if header_folder.description not in [nil, ""] do %>
-                            <p class="text-sm text-base-content/80 max-w-2xl">
+                            <p class="text-xs sm:text-sm text-base-content/80 max-w-2xl line-clamp-2 sm:line-clamp-none">
                               {header_folder.description}
                             </p>
                           <% else %>
@@ -704,55 +704,51 @@
                     <% selected_count =
                       MapSet.size(@selected_files) + MapSet.size(@selected_folders) %>
                     <div class="flex flex-wrap items-center gap-2 mt-1">
-                      <button
-                        phx-click="toggle_select_mode"
-                        phx-target={@myself}
-                        class="btn btn-sm btn-neutral gap-1.5"
-                        title={gettext("Exit selection")}
-                      >
-                        <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
-                      </button>
+                      <%!-- Count on the left; every control sits in the
+                           right-aligned cluster (Select all / Clear, the bulk
+                           actions, then Done) to match the actions-on-the-right
+                           convention used across the toolbars. --%>
                       <span class="text-sm font-semibold">
                         {ngettext("%{count} selected", "%{count} selected", selected_count)}
                       </span>
-                      <button
-                        phx-click="select_all"
-                        phx-target={@myself}
-                        class="btn btn-xs btn-ghost"
-                      >
-                        {gettext("Select all")}
-                      </button>
-                      <%= if selected_count > 0 do %>
+                      <div class="flex flex-wrap items-center justify-end gap-2 ml-auto">
                         <button
-                          phx-click="deselect_all"
+                          phx-click="select_all"
                           phx-target={@myself}
                           class="btn btn-xs btn-ghost"
                         >
-                          {gettext("Clear")}
+                          {gettext("Select all")}
                         </button>
-                      <% end %>
+                        <%= if selected_count > 0 do %>
+                          <button
+                            phx-click="deselect_all"
+                            phx-target={@myself}
+                            class="btn btn-xs btn-ghost"
+                          >
+                            {gettext("Clear")}
+                          </button>
+                        <% end %>
 
-                      <%!-- Bulk actions, right-aligned, only with a selection --%>
-                      <%= if selected_count > 0 do %>
-                        <div class="flex items-center gap-2 ml-auto">
+                        <%!-- Bulk actions, only with a selection --%>
+                        <%= if selected_count > 0 do %>
                           <button
                             phx-click="show_move_modal"
                             phx-target={@myself}
                             class="btn btn-sm btn-primary gap-1"
+                            title={gettext("Move")}
                           >
-                            <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext(
-                              "Move"
-                            )}
+                            <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                            <span class="hidden sm:inline">{gettext("Move")}</span>
                           </button>
                           <%= if MapSet.size(@selected_files) > 0 do %>
                             <button
                               phx-click="download_selected"
                               phx-target={@myself}
                               class="btn btn-sm btn-ghost gap-1"
+                              title={gettext("Download")}
                             >
-                              <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext(
-                                "Download"
-                              )}
+                              <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Download")}</span>
                             </button>
                           <% end %>
                           <button
@@ -766,14 +762,30 @@
                               )
                             }
                             class="btn btn-sm btn-error gap-1"
+                            title={
+                              if @filter_trash,
+                                do: gettext("Delete permanently"),
+                                else: gettext("Delete")
+                            }
                           >
                             <.icon name="hero-trash" class="w-4 h-4" />
-                            {if @filter_trash,
-                              do: gettext("Delete permanently"),
-                              else: gettext("Delete")}
+                            <span class="hidden sm:inline">
+                              {if @filter_trash,
+                                do: gettext("Delete permanently"),
+                                else: gettext("Delete")}
+                            </span>
                           </button>
-                        </div>
-                      <% end %>
+                        <% end %>
+
+                        <button
+                          phx-click="toggle_select_mode"
+                          phx-target={@myself}
+                          class="btn btn-sm btn-neutral gap-1.5"
+                          title={gettext("Exit selection")}
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
+                        </button>
+                      </div>
                     </div>
                   <% else %>
                     <% display_options = [
@@ -807,101 +819,134 @@
                       |> then(&(&1 && elem(&1, 1))) %>
                     <div class="flex flex-wrap items-center gap-2 mt-1">
                       <%= if not @filter_trash and not @filter_orphaned do %>
-                        <%!-- Display (grid/list) --%>
-                        <div class="dropdown">
-                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
-                            <.icon
-                              name={
-                                if @view_mode == "list",
-                                  do: "hero-bars-3-bottom-left",
-                                  else: "hero-squares-2x2"
-                              }
-                              class="w-4 h-4"
-                            />
-                            {if @view_mode == "list", do: gettext("List"), else: gettext("Grid")}
-                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                        <%!-- Display / Sort / Filter group. On mobile this hides
+                             while the search field is open so search fills the
+                             toolbar row as a single clean bar. --%>
+                        <div class={[
+                          "flex flex-wrap items-center gap-2",
+                          (@show_search or @search_query != "") && "hidden sm:flex"
+                        ]}>
+                          <%!-- Display (grid/list) --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon
+                                name={
+                                  if @view_mode == "list",
+                                    do: "hero-bars-3-bottom-left",
+                                    else: "hero-squares-2x2"
+                                }
+                                class="w-4 h-4"
+                              />
+                              <span class="hidden sm:inline">
+                                {if @view_mode == "list",
+                                  do: gettext("List"),
+                                  else: gettext("Grid")}
+                              </span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label, icon} <- display_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_view_mode"
+                                    phx-value-mode={val}
+                                    phx-target={@myself}
+                                    class={@view_mode == val && "active"}
+                                  >
+                                    <.icon name={icon} class="w-4 h-4" /> {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
                           </div>
-                          <ul
-                            tabindex="0"
-                            onclick="document.activeElement.blur()"
-                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
-                          >
-                            <%= for {val, label, icon} <- display_options do %>
-                              <li>
-                                <button
-                                  phx-click="set_view_mode"
-                                  phx-value-mode={val}
-                                  phx-target={@myself}
-                                  class={@view_mode == val && "active"}
-                                >
-                                  <.icon name={icon} class="w-4 h-4" /> {label}
-                                </button>
-                              </li>
-                            <% end %>
-                          </ul>
-                        </div>
 
-                        <%!-- Sort --%>
-                        <div class="dropdown">
-                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
-                            <.icon name="hero-arrows-up-down" class="w-4 h-4" />
-                            {sort_label || gettext("Sort")}
-                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                          <%!-- Sort --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon name="hero-arrows-up-down" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{sort_label || gettext("Sort")}</span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label} <- sort_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_sort"
+                                    phx-value-sort={val}
+                                    phx-target={@myself}
+                                    class={@sort_by == val && "active"}
+                                  >
+                                    {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
                           </div>
-                          <ul
-                            tabindex="0"
-                            onclick="document.activeElement.blur()"
-                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
-                          >
-                            <%= for {val, label} <- sort_options do %>
-                              <li>
-                                <button
-                                  phx-click="set_sort"
-                                  phx-value-sort={val}
-                                  phx-target={@myself}
-                                  class={@sort_by == val && "active"}
-                                >
-                                  {label}
-                                </button>
-                              </li>
-                            <% end %>
-                          </ul>
-                        </div>
 
-                        <%!-- Filter (file type) --%>
-                        <div class="dropdown">
-                          <div tabindex="0" role="button" class="btn btn-sm gap-2">
-                            <.icon name="hero-funnel" class="w-4 h-4" />
-                            {if @file_type_filter == "all",
-                              do: gettext("Filter"),
-                              else: filter_label}
-                            <.icon name="hero-chevron-down" class="w-3.5 h-3.5 opacity-60" />
+                          <%!-- Filter (file type) --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon name="hero-funnel" class="w-4 h-4" />
+                              <span class={[
+                                "sm:inline",
+                                @file_type_filter == "all" && "hidden"
+                              ]}>
+                                {if @file_type_filter == "all",
+                                  do: gettext("Filter"),
+                                  else: filter_label}
+                              </span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label} <- filter_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_file_filter"
+                                    phx-value-type={val}
+                                    phx-target={@myself}
+                                    class={@file_type_filter == val && "active"}
+                                  >
+                                    {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
                           </div>
-                          <ul
-                            tabindex="0"
-                            onclick="document.activeElement.blur()"
-                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
-                          >
-                            <%= for {val, label} <- filter_options do %>
-                              <li>
-                                <button
-                                  phx-click="set_file_filter"
-                                  phx-value-type={val}
-                                  phx-target={@myself}
-                                  class={@file_type_filter == val && "active"}
-                                >
-                                  {label}
-                                </button>
-                              </li>
-                            <% end %>
-                          </ul>
                         </div>
                       <% end %>
 
                       <%!-- Actions, pushed to the right. Contextual destructive
                            actions + Search + the primary Add Media; secondary
-                           actions (Select, New folder) live in the ⋯ overflow. --%>
-                      <div class="flex items-center gap-2 ml-auto">
+                           actions (Select, New folder) live in the ⋯ overflow.
+                           On mobile, opening search hides every sibling button
+                           (and the filter group above) and the cluster goes
+                           `w-full`, so the search field becomes a single clean
+                           full-width bar instead of squeezing the icon toolbar. --%>
+                      <div class={[
+                        "flex flex-wrap items-center justify-end gap-2 ml-auto",
+                        (@show_search or @search_query != "") && "w-full sm:w-auto"
+                      ]}>
                         <%!-- Empty Trash (trash view) --%>
                         <%= if @filter_trash and @total_count > 0 do %>
                           <button
@@ -914,7 +959,10 @@
                                 @total_count
                               )
                             }
-                            class="btn btn-sm btn-error gap-1"
+                            class={[
+                              "btn btn-sm btn-error gap-1",
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
+                            ]}
                           >
                             <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
                           </button>
@@ -932,7 +980,10 @@
                                 @total_count
                               )
                             }
-                            class="btn btn-sm btn-error gap-2"
+                            class={[
+                              "btn btn-sm btn-error gap-2",
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
+                            ]}
                           >
                             <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
                               "Delete all orphaned"
@@ -948,9 +999,9 @@
                             phx-change="search"
                             phx-submit="search"
                             phx-target={@myself}
-                            class="contents"
+                            class="w-full sm:w-auto min-w-0"
                           >
-                            <label class="input input-bordered input-sm flex items-center gap-1.5 w-44 max-w-[60vw] pr-1">
+                            <label class="input input-bordered input-sm flex items-center gap-1.5 w-full sm:w-44 max-w-none sm:max-w-[60vw] pr-1">
                               <.icon
                                 name="hero-magnifying-glass"
                                 class="w-4 h-4 text-base-content/40 shrink-0"
@@ -997,20 +1048,26 @@
                             phx-click="toggle_upload"
                             phx-target={@myself}
                             class={[
-                              "btn btn-sm gap-2 min-w-[8.5rem]",
-                              if(@show_upload, do: "btn-error", else: "btn-primary")
+                              "btn btn-sm gap-2 sm:min-w-[8.5rem]",
+                              if(@show_upload, do: "btn-error", else: "btn-primary"),
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
                             ]}
                           >
                             <%= if @show_upload do %>
-                              <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+                              <.icon name="hero-x-mark" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Cancel")}</span>
                             <% else %>
-                              <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                              <.icon name="hero-plus" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Add Media")}</span>
                             <% end %>
                           </button>
                         <% end %>
 
                         <%!-- Overflow: secondary actions --%>
-                        <div class="dropdown dropdown-end">
+                        <div class={[
+                          "dropdown dropdown-end",
+                          (@show_search or @search_query != "") && "hidden sm:block"
+                        ]}>
                           <div
                             tabindex="0"
                             role="button"
@@ -1478,11 +1535,11 @@
                             <% end %>
                             <th class="w-12"></th>
                             <th>{gettext("Name")}</th>
-                            <th>{gettext("Path")}</th>
-                            <th>{gettext("Description")}</th>
-                            <th>{gettext("Type")}</th>
-                            <th>{gettext("Size")}</th>
-                            <th>{gettext("Date")}</th>
+                            <th class="hidden lg:table-cell">{gettext("Path")}</th>
+                            <th class="hidden lg:table-cell">{gettext("Description")}</th>
+                            <th class="hidden sm:table-cell">{gettext("Type")}</th>
+                            <th class="hidden sm:table-cell">{gettext("Size")}</th>
+                            <th class="hidden md:table-cell">{gettext("Date")}</th>
                             <th class="w-10"></th>
                           </tr>
                         </thead>
@@ -1657,8 +1714,16 @@
                                         {folder.name}
                                       <% end %>
                                     </span>
+                                    <%!-- Mobile-only meta line: the hidden Type/Date
+                                         columns folded under the name so the row
+                                         stays readable without horizontal scroll. --%>
+                                    <div class="md:hidden flex items-center gap-1.5 text-xs text-base-content/50 mt-0.5">
+                                      <span>{gettext("Folder")}</span>
+                                      <span>·</span>
+                                      <span>{Calendar.strftime(folder.inserted_at, "%b %d, %Y")}</span>
+                                    </div>
                                   </td>
-                                  <td>
+                                  <td class="hidden lg:table-cell">
                                     <%= if folders_path do %>
                                       <span class="text-xs text-base-content/50">
                                         {folders_path}
@@ -1667,7 +1732,7 @@
                                       <span class="text-xs text-base-content/30">/</span>
                                     <% end %>
                                   </td>
-                                  <td>
+                                  <td class="hidden lg:table-cell">
                                     <%= if folder.description not in [nil, ""] do %>
                                       <span
                                         class="text-xs text-base-content/60 line-clamp-2"
@@ -1679,13 +1744,13 @@
                                       <span class="text-xs text-base-content/30">—</span>
                                     <% end %>
                                   </td>
-                                  <td>
+                                  <td class="hidden sm:table-cell">
                                     <span class="badge badge-ghost badge-sm h-auto">
                                       {gettext("Folder")}
                                     </span>
                                   </td>
-                                  <td></td>
-                                  <td class="text-sm text-base-content/70">
+                                  <td class="hidden sm:table-cell"></td>
+                                  <td class="hidden md:table-cell text-sm text-base-content/70">
                                     {Calendar.strftime(folder.inserted_at, "%b %d, %Y")}
                                   </td>
                                   <td>
@@ -1810,9 +1875,19 @@
                                 </div>
                               </td>
                               <td>
-                                <span class="font-medium text-sm">{file.filename}</span>
+                                <span class="font-medium text-sm break-all">{file.filename}</span>
+                                <%!-- Mobile-only meta line: the hidden Type/Size/Date
+                                     columns folded under the filename so the row
+                                     stays readable without horizontal scroll. --%>
+                                <div class="md:hidden flex flex-wrap items-center gap-1.5 text-xs text-base-content/50 mt-0.5">
+                                  <span>{String.upcase(file.file_type)}</span>
+                                  <span>·</span>
+                                  <span>{format_file_size(file.size)}</span>
+                                  <span>·</span>
+                                  <span>{Calendar.strftime(file.inserted_at, "%b %d, %Y")}</span>
+                                </div>
                               </td>
-                              <td>
+                              <td class="hidden lg:table-cell">
                                 <%= if file.folder_path do %>
                                   <span class="text-xs text-base-content/50">
                                     {file.folder_path}
@@ -1821,18 +1896,18 @@
                                   <span class="text-xs text-base-content/30">/</span>
                                 <% end %>
                               </td>
-                              <td>
+                              <td class="hidden lg:table-cell">
                                 <span class="text-xs text-base-content/30">—</span>
                               </td>
-                              <td>
+                              <td class="hidden sm:table-cell">
                                 <span class="badge badge-ghost badge-sm h-auto">
                                   {String.upcase(file.file_type)}
                                 </span>
                               </td>
-                              <td class="text-sm text-base-content/70">
+                              <td class="hidden sm:table-cell text-sm text-base-content/70">
                                 {format_file_size(file.size)}
                               </td>
-                              <td class="text-sm text-base-content/70">
+                              <td class="hidden md:table-cell text-sm text-base-content/70">
                                 {Calendar.strftime(file.inserted_at, "%b %d, %Y")}
                               </td>
                               <td>
