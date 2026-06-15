@@ -59,48 +59,6 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    # Defensive: the parent `phoenix_kit_locations` table is created in V91, but
-    # databases that ran V91 before the locations feature was added to it never
-    # got the table. `phoenix_kit_location_spaces` below has a FK to it, so we
-    # ensure it exists here. Idempotent (`create_if_not_exists`) — a no-op on
-    # installs where V91 already created it. Mirrors the V91 definition.
-    create_if_not_exists table(:phoenix_kit_locations,
-                           primary_key: false,
-                           prefix: prefix
-                         ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
-      add(:name, :string, null: false, size: 255)
-      add(:description, :text)
-      add(:public_notes, :text)
-
-      # Address (international standard)
-      add(:address_line_1, :string, size: 500)
-      add(:address_line_2, :string, size: 500)
-      add(:city, :string, size: 255)
-      add(:state, :string, size: 255)
-      add(:postal_code, :string, size: 20)
-      add(:country, :string, size: 255)
-
-      # Contact
-      add(:phone, :string, size: 50)
-      add(:email, :string, size: 255)
-      add(:website, :string, size: 500)
-
-      # Internal
-      add(:notes, :text)
-      add(:status, :string, default: "active", size: 20)
-
-      # Features (JSONB with boolean flags)
-      add(:features, :map, default: %{})
-
-      # Multilang translations
-      add(:data, :map, default: %{})
-
-      timestamps(type: :utc_datetime)
-    end
-
-    create_if_not_exists(index(:phoenix_kit_locations, [:status], prefix: prefix))
-
     create_if_not_exists table(:phoenix_kit_location_spaces,
                            primary_key: false,
                            prefix: prefix
