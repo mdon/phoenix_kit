@@ -1,3 +1,33 @@
+## 1.7.149 - 2026-06-15
+
+Structured staff skills: the V135 migration (PR #594) replaces the free-text staff `skills` column with a first-class, translatable skill entity.
+
+### Added
+- **V135 migration — structured staff skills.** Replaces the free-text
+  `phoenix_kit_staff_people.skills` column with a first-class, translatable
+  `phoenix_kit_staff_skills` entity (globally unique by `lower(name)`) and a
+  `phoenix_kit_staff_person_skills` many-to-many join. Each skill carries its
+  own per-skill, translatable proficiency levels (`levels` JSONB array of
+  `{id, name, translations}`) plus an `allow_multiple_levels` boolean; the
+  join's `proficiency_levels` JSONB array holds the selected level ids. The
+  comma-separated free-text is split, trimmed, case-insensitively de-duplicated
+  into skill rows, linked to each person, and the column is dropped — guarded on
+  the column's existence so a partial re-run is a safe no-op. Lossy by design:
+  per-locale `translations["skills"]` overrides don't map to structured skills
+  and are stripped (structured skills carry their own translations going
+  forward). `down/1` is a lossy rollback (re-adds an empty `skills` column).
+- **Partial birthday index** on `phoenix_kit_staff_people(date_of_birth)`
+  (active + non-null DOB only) so `Staff.upcoming_birthdays/1` scans a small
+  index instead of the full people table.
+
+### Fixed
+- **V135 data migration caps skill tokens at 255 chars.** The source
+  `skills` column is unbounded `TEXT` but `phoenix_kit_staff_skills.name` is
+  `VARCHAR(255)` (the `Skill` changeset's max), so a >255-char token would raise
+  `value too long` and wedge the migration on every host. Both the skill INSERT
+  and the link-INSERT join now truncate with `LEFT(trim(tok), 255)` so a long
+  token stores and links on the same truncated form.
+
 ## 1.7.148 - 2026-06-14
 
 Follow-up to 1.7.147: scopes the embedded-`MediaBrowser` header fix and adds `URLSigner.put_dzi_url/3` test coverage.
