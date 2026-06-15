@@ -1,3 +1,18 @@
+## 1.7.152 - 2026-06-15
+
+Fixes a 500 in the user-menu language switcher on bare-locale landing pages.
+
+### Fixed
+- **`user_dropdown` / guest dropdown no longer crash on a bare `/:locale`
+  path.** `remove_locale_from_path/1` fed the post-strip remainder to
+  `Path.join/1`, which raised `FunctionClauseError` on an empty list — so
+  rendering the in-menu language switcher on a path that is *only* a locale
+  segment (e.g. `/ru`, `/fr`, `/en-GB`) 500'd the page. A path that reduces to
+  just a locale now returns `/`, so the switch links resolve correctly (`/ru`,
+  `/fr`, …). Surfaced by hosts adopting locale-prefixed landings (1.7.150+).
+  Locale detection stays narrow (2-char base or 5-char dialect) so a real 3-char
+  page segment like `/faq` isn't mistaken for a locale.
+
 ## 1.7.151 - 2026-06-15
 
 Anonymous (guest) state for the user-menu widget, so one dropdown serves both signed-in and logged-out visitors and always offers a language switcher.

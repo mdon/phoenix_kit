@@ -388,20 +388,31 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
     Routes.path(clean_path, locale: base_code)
   end
 
-  # Remove locale from path
+  # Remove locale from path.
+  #
+  # A path that is *only* a locale segment (e.g. "/ru", "/en-GB") reduces
+  # to "/". The empty-`rest` guard matters: `Path.join([])` raises a
+  # FunctionClauseError, which used to 500 a host's bare `/:locale` landing
+  # route (e.g. a locale-prefixed landing page introduced in 1.7.150+).
   defp remove_locale_from_path(path) do
     case String.split(path, "/", trim: true) do
       [segment | rest] when byte_size(segment) in [2, 5] ->
-        # Check if segment looks like a locale
-        if String.length(segment) == 2 or
-             (String.length(segment) == 5 and String.contains?(segment, "-")) do
-          "/" <> Path.join(rest)
-        else
-          path
+        cond do
+          not locale_segment?(segment) -> path
+          rest == [] -> "/"
+          true -> "/" <> Path.join(rest)
         end
 
       _ ->
         path
     end
+  end
+
+  # A 2-char base code or a 5-char dialect ("en-GB"). Mirrors the original
+  # inline guard; kept narrow on purpose so a real 3-char page segment
+  # (e.g. "/faq") isn't mistaken for a locale.
+  defp locale_segment?(segment) do
+    String.length(segment) == 2 or
+      (String.length(segment) == 5 and String.contains?(segment, "-"))
   end
 end
