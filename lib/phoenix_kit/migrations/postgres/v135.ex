@@ -16,6 +16,10 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     `proficiency_levels` JSONB array holds the selected level `id`s into the
     parent skill's `levels` (`[]` = no level / "not set")
 
+  Also adds a partial index on `phoenix_kit_staff_people(date_of_birth)`
+  (active + non-null DOB only) so `Staff.upcoming_birthdays/1` scans a small
+  index rather than the full people table.
+
   ## Data migration
 
   The free-text `skills` column (comma-separated) is split, trimmed,
@@ -125,6 +129,16 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     # 4. Drop the free-text column (independently idempotent).
     execute("ALTER TABLE #{p}phoenix_kit_staff_people DROP COLUMN IF EXISTS skills")
 
+    # 5. Partial index for `Staff.upcoming_birthdays/1`, which filters
+    #    `status = 'active' AND date_of_birth IS NOT NULL` before its
+    #    next-anniversary window fragment — so Postgres scans a small index
+    #    instead of the full people table as the roster grows.
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_staff_people_active_dob_index
+    ON #{p}phoenix_kit_staff_people (date_of_birth)
+    WHERE status = 'active' AND date_of_birth IS NOT NULL
+    """)
+
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '135'")
   end
 
@@ -138,6 +152,8 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_staff_people_active_dob_index")
 
     execute("ALTER TABLE #{p}phoenix_kit_staff_people ADD COLUMN IF NOT EXISTS skills TEXT")
 

@@ -539,7 +539,9 @@ defmodule PhoenixKit.Migrations.Postgres do
     Migrates the comma-separated free-text into structured rows (case-insensitive
     dedup, guarded for retry-safety) and drops the column. Lossy by design:
     per-locale `translations["skills"]` overrides don't map to structured skills
-    and are stripped.
+    and are stripped. Also adds a partial index on
+    `phoenix_kit_staff_people(date_of_birth)` (active + non-null DOB only) for
+    `Staff.upcoming_birthdays/1`.
 
   ### V134 - Folder header customization
   - Adds the folder hero-header columns to `phoenix_kit_media_folders`:
