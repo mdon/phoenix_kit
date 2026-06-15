@@ -1,3 +1,90 @@
+## 1.7.152 - 2026-06-15
+
+Fixes a 500 in the user-menu language switcher on bare-locale landing pages.
+
+### Fixed
+- **`user_dropdown` / guest dropdown no longer crash on a bare `/:locale`
+  path.** `remove_locale_from_path/1` fed the post-strip remainder to
+  `Path.join/1`, which raised `FunctionClauseError` on an empty list — so
+  rendering the in-menu language switcher on a path that is *only* a locale
+  segment (e.g. `/ru`, `/fr`, `/en-GB`) 500'd the page. A path that reduces to
+  just a locale now returns `/`, so the switch links resolve correctly (`/ru`,
+  `/fr`, …). Surfaced by hosts adopting locale-prefixed landings (1.7.150+).
+  Locale detection stays narrow (2-char base or 5-char dialect) so a real 3-char
+  page segment like `/faq` isn't mistaken for a locale.
+
+## 1.7.151 - 2026-06-15
+
+Anonymous (guest) state for the user-menu widget, so one dropdown serves both signed-in and logged-out visitors and always offers a language switcher.
+
+### Added
+- **Guest dropdown in `UserDashboardNav.user_dropdown/1`.** The anonymous
+  state, previously a bare "Login" button, now renders the same dropdown shape
+  as the authenticated state: a generic "not signed in" trigger
+  (`hero-user-circle`) opening a menu with guest links — **Log in**, **Sign up**,
+  **Forgot password**, **Magic link** — plus the shared language switcher. A host
+  can now rely on this single widget for everyone and drop a separate standalone
+  switcher. Guest links are gated by the `allow_registration` /
+  `magic_link_login_enabled` settings (log in and forgot-password always show).
+- **`:show_language_switcher` attr** (default `true`) on `user_dropdown/1` —
+  hides the in-menu language list in both states, for hosts that keep a
+  standalone switcher and want to avoid a duplicate.
+- **`:guest_links` attr** (default `[:login, :register, :reset, :magic_link]`) —
+  narrows which guest links may appear; the per-feature settings gates still
+  apply, so it can only narrow, never force-enable a disabled feature.
+
+### Changed
+- The authenticated and guest dropdowns now share one internal
+  `language_menu_section` component, so both states render an identical
+  language list. The guest switcher reuses the same URL logic, so locale links
+  resolve correctly on locale-less pages (`/` → `/ru`, building on 1.7.150).
+
+## 1.7.150 - 2026-06-15
+
+Fixes locale-prefixed root URLs so anonymous visitors can switch language on a parent app's `/:locale` landing page.
+
+### Fixed
+- **`Routes.path("/", locale: x)` no longer emits a trailing slash.** The
+  locale-prefixed root was built as `/{locale}/` (e.g. `/ru/`); Phoenix routers
+  don't match a trailing slash, so a parent app's `/:locale` landing route 404'd
+  and the language switcher's link on `/` led nowhere for anonymous visitors.
+  Core now emits `/{locale}` (e.g. `/ru`) for the bare root while every other
+  path is unchanged. The standalone
+  `LanguageSwitcher.language_switcher_dropdown` routes through this primitive, so
+  its anonymous-landing links resolve correctly. phoenix_kit keeps its
+  URL-as-truth locale model (no session/cookie locale) — the parent app declares
+  a `/:locale` landing and the switcher's link now reaches it.
+
+## 1.7.149 - 2026-06-15
+
+Structured staff skills: the V135 migration (PR #594) replaces the free-text staff `skills` column with a first-class, translatable skill entity.
+
+### Added
+- **V135 migration — structured staff skills.** Replaces the free-text
+  `phoenix_kit_staff_people.skills` column with a first-class, translatable
+  `phoenix_kit_staff_skills` entity (globally unique by `lower(name)`) and a
+  `phoenix_kit_staff_person_skills` many-to-many join. Each skill carries its
+  own per-skill, translatable proficiency levels (`levels` JSONB array of
+  `{id, name, translations}`) plus an `allow_multiple_levels` boolean; the
+  join's `proficiency_levels` JSONB array holds the selected level ids. The
+  comma-separated free-text is split, trimmed, case-insensitively de-duplicated
+  into skill rows, linked to each person, and the column is dropped — guarded on
+  the column's existence so a partial re-run is a safe no-op. Lossy by design:
+  per-locale `translations["skills"]` overrides don't map to structured skills
+  and are stripped (structured skills carry their own translations going
+  forward). `down/1` is a lossy rollback (re-adds an empty `skills` column).
+- **Partial birthday index** on `phoenix_kit_staff_people(date_of_birth)`
+  (active + non-null DOB only) so `Staff.upcoming_birthdays/1` scans a small
+  index instead of the full people table.
+
+### Fixed
+- **V135 data migration caps skill tokens at 255 chars.** The source
+  `skills` column is unbounded `TEXT` but `phoenix_kit_staff_skills.name` is
+  `VARCHAR(255)` (the `Skill` changeset's max), so a >255-char token would raise
+  `value too long` and wedge the migration on every host. Both the skill INSERT
+  and the link-INSERT join now truncate with `LEFT(trim(tok), 255)` so a long
+  token stores and links on the same truncated form.
+
 ## 1.7.148 - 2026-06-14
 
 Follow-up to 1.7.147: scopes the embedded-`MediaBrowser` header fix and adds `URLSigner.put_dzi_url/3` test coverage.
