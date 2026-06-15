@@ -88,6 +88,7 @@ defmodule PhoenixKit.Integrations.Providers do
     [
       google(),
       microsoft(),
+      openai(),
       openrouter(),
       mistral(),
       deepseek(),
@@ -200,6 +201,77 @@ defmodule PhoenixKit.Integrations.Providers do
             {gettext("Grant access to Google Docs and Google Drive"), nil},
             {gettext("You'll be redirected back here once connected"), nil}
           ]
+        }
+      ]
+    }
+  end
+
+  defp openai do
+    %{
+      key: "openai",
+      name: gettext("OpenAI"),
+      description: gettext("AI models via OpenAI (GPT, embeddings, images, audio)"),
+      icon: "hero-sparkles",
+      auth_type: :api_key,
+      oauth_config: nil,
+      # `GET /v1/models` is a lightweight authenticated endpoint — 200 on a
+      # valid key, 401 otherwise. OpenAI uses standard `Authorization: Bearer`,
+      # so the generic `authenticated_request/4` helper works for consumers too.
+      validation: %{
+        url: "https://api.openai.com/v1/models",
+        method: :get,
+        auth_header: "Authorization",
+        auth_prefix: "Bearer "
+      },
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("API Key"),
+          type: :password,
+          required: true,
+          placeholder: "sk-...",
+          help: gettext("From platform.openai.com/api-keys"),
+          options: nil
+        }
+      ],
+      capabilities: [
+        :ai_completions,
+        :ai_embeddings,
+        :image_generation,
+        :text_to_speech,
+        :speech_to_text
+      ],
+      instructions: [
+        %{
+          title: gettext("Create an OpenAI account"),
+          steps: [
+            {gettext(
+               "Go to [platform.openai.com](https://platform.openai.com) and sign up or log in"
+             ), nil}
+          ]
+        },
+        %{
+          title: gettext("Add credits"),
+          steps: [
+            {gettext(
+               "Go to [Billing](https://platform.openai.com/account/billing/overview) and add a payment method or credits"
+             ), nil},
+            {gettext(
+               "OpenAI requires a positive balance before the API will return completions, even on cheaper models"
+             ), nil}
+          ]
+        },
+        %{
+          title: gettext("Create an API key"),
+          steps: [
+            {gettext("Go to [API Keys](https://platform.openai.com/api-keys)"), nil},
+            {gettext("Click **Create new secret key**, give it a name"), nil},
+            {gettext("Copy the key (shown once) and paste it into the form above"), nil}
+          ],
+          note:
+            gettext(
+              "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
+            )
         }
       ]
     }

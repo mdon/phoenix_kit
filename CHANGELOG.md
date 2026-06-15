@@ -1,3 +1,18 @@
+## 1.7.154 - 2026-06-15
+
+Adds **OpenAI** as a built-in integration provider.
+
+### Added
+- **OpenAI integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for OpenAI, alongside OpenRouter / Mistral /
+  DeepSeek / ElevenLabs. It appears automatically in the admin Integrations UI —
+  no migration or host changes needed. Connect with a single API key from
+  platform.openai.com → API Keys; **Test Connection** validates it against
+  `GET https://api.openai.com/v1/models` using standard `Authorization: Bearer`,
+  so the generic `authenticated_request/4` helper works for consumers too.
+  Declared capabilities cover OpenAI's range: `:ai_completions`,
+  `:ai_embeddings`, `:image_generation`, `:text_to_speech`, `:speech_to_text`.
+
 ## 1.7.153 - 2026-06-15
 
 Adds **ElevenLabs** as a built-in integration provider for text-to-speech and voice generation.
