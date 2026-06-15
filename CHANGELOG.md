@@ -1,3 +1,21 @@
+## 1.7.153 - 2026-06-15
+
+Adds **ElevenLabs** as a built-in integration provider for text-to-speech and voice generation.
+
+### Added
+- **ElevenLabs integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for ElevenLabs' audio AI, alongside OpenRouter /
+  Mistral / DeepSeek. It shows up automatically in the admin Integrations UI — no
+  migration or host changes needed. Connect with a single API key from
+  ElevenLabs → Settings → API Keys; **Test Connection** validates it against
+  `GET https://api.elevenlabs.io/v1/user` using ElevenLabs' custom `xi-api-key`
+  header (not `Authorization: Bearer`). Declared capabilities span the full audio
+  range: `:text_to_speech`, `:speech_to_text`, `:sound_effects`,
+  `:music_generation`. Consumers reference the connection by uuid and set the
+  `xi-api-key` header themselves (via `get_credentials/1`) — the generic
+  `authenticated_request/4` helper is Bearer-only and does not fit ElevenLabs'
+  scheme.
+
 ## 1.7.152 - 2026-06-15
 
 Fixes two user-menu language-switcher bugs on locale-prefixed / default-locale pages.

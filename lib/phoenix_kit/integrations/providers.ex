@@ -90,7 +90,8 @@ defmodule PhoenixKit.Integrations.Providers do
       microsoft(),
       openrouter(),
       mistral(),
-      deepseek()
+      deepseek(),
+      elevenlabs()
     ]
   end
 
@@ -371,6 +372,61 @@ defmodule PhoenixKit.Integrations.Providers do
             {gettext("Click **Create API key**, give it a name"), nil},
             {gettext("Copy the key (shown once) and paste it into the form above"), nil}
           ]
+        }
+      ]
+    }
+  end
+
+  defp elevenlabs do
+    %{
+      key: "elevenlabs",
+      name: gettext("ElevenLabs"),
+      description: gettext("Text-to-speech and voice generation via ElevenLabs"),
+      icon: "hero-speaker-wave",
+      auth_type: :api_key,
+      oauth_config: nil,
+      # ElevenLabs authenticates with the API key in a custom `xi-api-key`
+      # header (NOT `Authorization: Bearer`). The validation path honors
+      # `auth_header`/`auth_prefix`, so Test Connection works. `/v1/user`
+      # is a lightweight authenticated GET that returns the account's
+      # subscription info — 200 on a valid key, 401 otherwise.
+      validation: %{
+        url: "https://api.elevenlabs.io/v1/user",
+        method: :get,
+        auth_header: "xi-api-key",
+        auth_prefix: ""
+      },
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("API Key"),
+          type: :password,
+          required: true,
+          placeholder: "sk_...",
+          help: gettext("From elevenlabs.io → Settings → API Keys"),
+          options: nil
+        }
+      ],
+      capabilities: [:text_to_speech, :speech_to_text, :sound_effects, :music_generation],
+      instructions: [
+        %{
+          title: gettext("Create an ElevenLabs account"),
+          steps: [
+            {gettext("Go to [elevenlabs.io](https://elevenlabs.io) and sign up or log in"), nil}
+          ]
+        },
+        %{
+          title: gettext("Create an API key"),
+          steps: [
+            {gettext("Go to [Settings → API Keys](https://elevenlabs.io/app/settings/api-keys)"),
+             nil},
+            {gettext("Click **Create API Key**, give it a name"), nil},
+            {gettext("Copy the key (shown once) and paste it into the form above"), nil}
+          ],
+          note:
+            gettext(
+              "The free tier includes a monthly character quota; paid plans raise the quota and unlock commercial use and additional voices."
+            )
         }
       ]
     }
