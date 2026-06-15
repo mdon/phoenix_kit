@@ -56,6 +56,26 @@ defmodule PhoenixKit.Utils.RoutesTest do
     end
   end
 
+  describe "path/2 — root path locale prefixing (anonymous landing)" do
+    # Regression: `Routes.path("/", locale: x)` must NOT emit a trailing
+    # slash for the prefixed shape. Phoenix routers don't match a trailing
+    # slash, so `/{locale}/` 404s a parent app's `/:locale` landing route.
+    # The switcher's locale-rewrite default routes through this helper, so
+    # this is what an anonymous visitor's language link resolves to on "/".
+    test "non-primary locale on root → /{locale} (no trailing slash)" do
+      assert Routes.path("/", locale: "de") == "/phoenix_kit/de"
+      assert Routes.path("/", locale: "ru") == "/phoenix_kit/ru"
+    end
+
+    test "primary locale on root (setting OFF) → prefixed, still no trailing slash" do
+      assert Routes.path("/", locale: "en") == "/phoenix_kit/en"
+    end
+
+    test ":none locale on root keeps the bare root" do
+      assert Routes.path("/", locale: :none) == "/phoenix_kit/"
+    end
+  end
+
   describe "admin_path/2 — backcompat for legacy /en/admin URLs" do
     # Both URL shapes resolve at the router level — the admin route
     # macros declare both `/:locale/admin/*` AND `/admin/*` scopes — so

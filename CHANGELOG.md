@@ -1,3 +1,19 @@
+## 1.7.150 - 2026-06-15
+
+Fixes locale-prefixed root URLs so anonymous visitors can switch language on a parent app's `/:locale` landing page.
+
+### Fixed
+- **`Routes.path("/", locale: x)` no longer emits a trailing slash.** The
+  locale-prefixed root was built as `/{locale}/` (e.g. `/ru/`); Phoenix routers
+  don't match a trailing slash, so a parent app's `/:locale` landing route 404'd
+  and the language switcher's link on `/` led nowhere for anonymous visitors.
+  Core now emits `/{locale}` (e.g. `/ru`) for the bare root while every other
+  path is unchanged. The standalone
+  `LanguageSwitcher.language_switcher_dropdown` routes through this primitive, so
+  its anonymous-landing links resolve correctly. phoenix_kit keeps its
+  URL-as-truth locale model (no session/cookie locale) — the parent app declares
+  a `/:locale` landing and the switcher's link now reaches it.
+
 ## 1.7.149 - 2026-06-15
 
 Structured staff skills: the V135 migration (PR #594) replaces the free-text staff `skills` column with a first-class, translatable skill entity.
