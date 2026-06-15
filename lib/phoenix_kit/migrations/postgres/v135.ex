@@ -4,13 +4,17 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
 
   Replaces the free-text `phoenix_kit_staff_people.skills` column with a
   first-class, translatable `Skill` entity assigned to people many-to-many,
-  each assignment carrying an optional proficiency level. Creates:
+  each assignment carrying zero or more of the skill's own proficiency levels.
+  Creates:
 
   - `phoenix_kit_staff_skills` — translatable skill (name + description +
-    `translations` JSONB), globally unique by `lower(name)`
-  - `phoenix_kit_staff_person_skills` — person ↔ skill join with a nullable
-    `proficiency_level` (`beginner` / `intermediate` / `advanced` / `expert`,
-    or NULL = "not set")
+    `translations` JSONB), globally unique by `lower(name)`. Carries its own
+    **per-skill, translatable proficiency levels** in a `levels` JSONB array
+    (each `{"id", "name", "translations"}`) plus an `allow_multiple_levels`
+    boolean that decides whether an assignment may hold one level or several.
+  - `phoenix_kit_staff_person_skills` — person ↔ skill join whose
+    `proficiency_levels` JSONB array holds the selected level `id`s into the
+    parent skill's `levels` (`[]` = no level / "not set")
 
   ## Data migration
 
@@ -41,6 +45,8 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
       name VARCHAR(255) NOT NULL,
       description TEXT,
       translations JSONB NOT NULL DEFAULT '{}'::jsonb,
+      levels JSONB NOT NULL DEFAULT '[]'::jsonb,
+      allow_multiple_levels BOOLEAN NOT NULL DEFAULT false,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -57,7 +63,7 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
       uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
       staff_person_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_people(uuid) ON DELETE CASCADE,
       skill_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_skills(uuid) ON DELETE CASCADE,
-      proficiency_level VARCHAR(50),
+      proficiency_levels JSONB NOT NULL DEFAULT '[]'::jsonb,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
     """)

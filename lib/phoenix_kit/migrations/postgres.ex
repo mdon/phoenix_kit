@@ -532,7 +532,10 @@ defmodule PhoenixKit.Migrations.Postgres do
   ### V135 - Structured staff skills ⚡ LATEST
   - Replaces the free-text `phoenix_kit_staff_people.skills` column with a
     first-class translatable `phoenix_kit_staff_skills` entity + a
-    `phoenix_kit_staff_person_skills` join (nullable `proficiency_level`).
+    `phoenix_kit_staff_person_skills` join. Each skill carries its own
+    per-skill, translatable proficiency levels (`levels` JSONB array of
+    `{id, name, translations}`) and an `allow_multiple_levels` boolean; the
+    join's `proficiency_levels` JSONB array holds the selected level ids.
     Migrates the comma-separated free-text into structured rows (case-insensitive
     dedup, guarded for retry-safety) and drops the column. Lossy by design:
     per-locale `translations["skills"]` overrides don't map to structured skills
