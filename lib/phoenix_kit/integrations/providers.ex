@@ -30,14 +30,21 @@ defmodule PhoenixKit.Integrations.Providers do
         }
 
   @type provider :: %{
-          key: String.t(),
-          name: String.t(),
-          description: String.t(),
-          icon: String.t(),
-          auth_type: auth_type(),
-          oauth_config: map() | nil,
-          setup_fields: [setup_field()],
-          capabilities: [atom()]
+          :key => String.t(),
+          :name => String.t(),
+          :description => String.t(),
+          :icon => String.t(),
+          :auth_type => auth_type(),
+          :oauth_config => map() | nil,
+          :setup_fields => [setup_field()],
+          :capabilities => [atom()],
+          # `base_url` is the provider's primary REST API base — only the
+          # `:ai_completions` providers declare it (used as the default
+          # endpoint base by AI consumers). `validation` and `instructions`
+          # are present on most built-ins but absent on a few, hence optional.
+          optional(:base_url) => String.t(),
+          optional(:validation) => map(),
+          optional(:instructions) => [map()]
         }
 
   @providers_cache_key {__MODULE__, :all}
@@ -78,6 +85,36 @@ defmodule PhoenixKit.Integrations.Providers do
       end
 
     Enum.find(all(), fn p -> p.key == base_key end)
+  end
+
+  @doc """
+  Returns all providers (built-in + external) that declare the given capability.
+
+  Lets consumers discover providers by what they can do rather than by a
+  hardcoded list. For example, an AI module can render its provider picker
+  from `with_capability(:ai_completions)`, so adding a new chat provider to
+  the registry surfaces it automatically.
+
+  Order follows `all/0` (built-ins first, in definition order).
+  """
+  @spec with_capability(atom()) :: [provider()]
+  def with_capability(capability) when is_atom(capability) do
+    Enum.filter(all(), fn p -> capability in (p[:capabilities] || []) end)
+  end
+
+  @doc """
+  Returns the API base URL declared by a provider, or `nil` if it has none.
+
+  Accepts the same plain or named keys as `get/1` (`"openai"` /
+  `"openai:work"`). Only providers with a primary REST API (currently the
+  `:ai_completions` providers) declare a `:base_url`; everything else is `nil`.
+  """
+  @spec base_url(String.t()) :: String.t() | nil
+  def base_url(key) when is_binary(key) do
+    case get(key) do
+      %{base_url: url} when is_binary(url) -> url
+      _ -> nil
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -214,6 +251,10 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-sparkles",
       auth_type: :api_key,
       oauth_config: nil,
+      # Base URL of the OpenAI-compatible chat/completions API. Consumed by
+      # AI consumers (e.g. phoenix_kit_ai) as the default endpoint base for
+      # `:ai_completions` providers, so the provider list there stays dynamic.
+      base_url: "https://api.openai.com/v1",
       # `GET /v1/models` is a lightweight authenticated endpoint — 200 on a
       # valid key, 401 otherwise. OpenAI uses standard `Authorization: Bearer`,
       # so the generic `authenticated_request/4` helper works for consumers too.
@@ -285,6 +326,7 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-sparkles",
       auth_type: :api_key,
       oauth_config: nil,
+      base_url: "https://openrouter.ai/api/v1",
       validation: %{
         url: "https://openrouter.ai/api/v1/auth/key",
         method: :get,
@@ -338,6 +380,7 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-sparkles",
       auth_type: :api_key,
       oauth_config: nil,
+      base_url: "https://api.mistral.ai/v1",
       validation: %{
         url: "https://api.mistral.ai/v1/models",
         method: :get,
@@ -399,6 +442,7 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-sparkles",
       auth_type: :api_key,
       oauth_config: nil,
+      base_url: "https://api.deepseek.com/v1",
       validation: %{
         url: "https://api.deepseek.com/models",
         method: :get,

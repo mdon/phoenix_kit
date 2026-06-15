@@ -1,6 +1,24 @@
-## 1.7.154 - 2026-06-15
+## 1.7.155 - 2026-06-15
 
-Adds **OpenAI** as a built-in integration provider.
+Makes the integration provider registry capability-discoverable, so consumers
+(e.g. `phoenix_kit_ai`) can build provider lists dynamically instead of
+hardcoding them.
+
+### Added
+- **`PhoenixKit.Integrations.Providers.with_capability/1`** — returns all
+  providers (built-in + external-module) that declare a given capability, in
+  `all/0` order. An AI module can render its provider picker from
+  `with_capability(:ai_completions)` so a newly-registered chat provider
+  surfaces automatically, with no hardcoded list.
+- **`PhoenixKit.Integrations.Providers.base_url/1`** — returns a provider's
+  primary REST API base URL (or `nil`). The `:ai_completions` providers
+  (OpenAI, OpenRouter, Mistral, DeepSeek) now declare a `:base_url`, letting
+  consumers derive a default endpoint base from the registry.
+
+### Changed
+- `@type provider` now documents the optional `:base_url`, `:validation`, and
+  `:instructions` keys that real provider maps already carry (typespec accuracy
+  only — no runtime change).
 
 ### Added
 - **OpenAI integration provider** (`PhoenixKit.Integrations.Providers`). A new
