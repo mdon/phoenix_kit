@@ -1,6 +1,6 @@
 ## 1.7.152 - 2026-06-15
 
-Fixes a 500 in the user-menu language switcher on bare-locale landing pages.
+Fixes two user-menu language-switcher bugs on locale-prefixed / default-locale pages.
 
 ### Fixed
 - **`user_dropdown` / guest dropdown no longer crash on a bare `/:locale`
@@ -12,6 +12,17 @@ Fixes a 500 in the user-menu language switcher on bare-locale landing pages.
   `/fr`, …). Surfaced by hosts adopting locale-prefixed landings (1.7.150+).
   Locale detection stays narrow (2-char base or 5-char dialect) so a real 3-char
   page segment like `/faq` isn't mistaken for a locale.
+- **Current language now highlights on the default locale.** The in-menu list
+  compared the enabled dialect against `@current_locale` with full-dialect
+  equality, so on the default page (where the active locale resolves to a fixed
+  dialect like `en-US` while English is enabled as `en-GB`) nothing matched and
+  the active language wasn't marked. Highlighting now compares **base codes**
+  (`en`/`en-GB`/`en-US` all match), matching `Core.LanguageSwitcher`, and works
+  whether the caller passes a base or a dialect.
+- **Guest dropdown trigger matches the authenticated avatar shape.** The
+  logged-out trigger was a round `hero-user-circle`; it's now a rounded-rectangle
+  placeholder (`w-10 h-10 rounded-lg`) with a person silhouette, consistent with
+  the signed-in avatar.
 
 ## 1.7.151 - 2026-06-15
 

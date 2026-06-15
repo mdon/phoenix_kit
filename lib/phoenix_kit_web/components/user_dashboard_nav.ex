@@ -184,7 +184,15 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
         class="cursor-pointer hover:opacity-80 transition-opacity"
         aria-label={gettext("Account menu")}
       >
-        <.icon name="hero-user-circle" class="w-10 h-10 text-base-content/70" />
+        <%!--
+          Rounded-rectangle placeholder matching the authenticated avatar shape
+          (md = w-10 h-10, rounded-lg via its `!rounded-lg`), so the guest and
+          signed-in triggers look consistent — a generic person silhouette
+          signals "not signed in".
+        --%>
+        <div class="w-10 h-10 rounded-lg bg-base-300 flex items-center justify-center text-base-content/60">
+          <.icon name="hero-user" class="w-6 h-6" />
+        </div>
       </div>
 
       <ul
@@ -224,7 +232,21 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
   attr(:current_locale, :string, required: true)
 
   defp language_menu_section(assigns) do
-    assigns = assign(assigns, :user_languages, get_user_languages())
+    # Highlight by BASE code, not full-dialect equality. `@current_locale`
+    # may be a base ("en", per the attr doc) or a resolved dialect that
+    # differs from the enabled one (e.g. `resolve_dialect("en")` => "en-US"
+    # while English is enabled as "en-GB"), so a raw `==` against the
+    # enabled dialect never matched on the default locale. Comparing bases
+    # makes en/en-GB/en-US all match and works whether the caller passes a
+    # base or a dialect — same rule the standalone `Core.LanguageSwitcher` uses.
+    current_base = DialectMapper.extract_base(assigns.current_locale)
+
+    user_languages =
+      Enum.map(get_user_languages(), fn language ->
+        Map.put(language, :active?, DialectMapper.extract_base(language.code) == current_base)
+      end)
+
+    assigns = assign(assigns, :user_languages, user_languages)
 
     ~H"""
     <%= if length(@user_languages) > 1 do %>
@@ -242,7 +264,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
             class={[
               "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
               "focus:outline-none focus-visible:outline-none",
-              if(language.code == @current_locale,
+              if(language.active?,
                 do:
                   "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
                 else:
@@ -252,7 +274,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
           >
             <span class="text-lg">{get_language_flag(language.code)}</span>
             <span>{language.name}</span>
-            <%= if language.code == @current_locale do %>
+            <%= if language.active? do %>
               <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
             <% end %>
           </a>
