@@ -329,12 +329,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       )
     )
     |> assign(:breadcrumbs, breadcrumbs)
-    # The "all" view, the orphaned view, and any active search are flat file
-    # listings — they show no folder cards, only the matching files. (The
-    # sidebar folder tree is unaffected; only the grid's folder cards here.)
+    # The "all" view and the orphaned view are flat file listings — no folder
+    # cards. A name search keeps the file results but ALSO surfaces folders
+    # whose name matches (same scope as the file search). (The sidebar folder
+    # tree is unaffected; only the grid's folder cards here.)
     |> assign(
       :folders,
-      if(file_view == "all" or filter_orphaned or q != "", do: [], else: folders)
+      cond do
+        file_view == "all" or filter_orphaned -> []
+        q != "" -> Storage.search_folders(q, actual_uuid, scope)
+        true -> folders
+      end
     )
     |> assign(:search_query, q)
     |> assign(:current_page, page)
@@ -897,7 +902,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       folders =
         cond do
           file_view == "all" -> []
-          query != "" -> []
+          query != "" -> Storage.search_folders(query, folder_uuid, scope)
           true -> Storage.list_folders(folder_uuid, scope)
         end
 
