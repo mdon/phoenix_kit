@@ -95,21 +95,27 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
           AND table_name = 'phoenix_kit_staff_people'
           AND column_name = 'skills'
       ) THEN
-        -- distinct skills, deterministic canonical casing
+        -- distinct skills, deterministic canonical casing. The source
+        -- people.skills column is unbounded TEXT but skills.name is
+        -- VARCHAR(255) (the Skill changeset's max), so cap each token at
+        -- 255 before it reaches the bounded column — otherwise one long
+        -- token would raise "value too long" and abort the whole migration.
         INSERT INTO #{p}phoenix_kit_staff_skills (name)
-        SELECT DISTINCT ON (lower(trim(tok))) trim(tok)
+        SELECT DISTINCT ON (lower(LEFT(trim(tok), 255))) LEFT(trim(tok), 255)
         FROM #{p}phoenix_kit_staff_people pers
         CROSS JOIN LATERAL regexp_split_to_table(pers.skills, ',') AS tok
         WHERE pers.skills IS NOT NULL AND trim(tok) <> ''
-        ORDER BY lower(trim(tok)), trim(tok)
+        ORDER BY lower(LEFT(trim(tok), 255)), LEFT(trim(tok), 255)
         ON CONFLICT (lower(name)) DO NOTHING;
 
-        -- link each person to the skills parsed from their string
+        -- link each person to the skills parsed from their string. The join
+        -- uses the capped form so a token longer than 255 chars still matches
+        -- the truncated skill row above (and so gets linked, not dropped).
         INSERT INTO #{p}phoenix_kit_staff_person_skills (staff_person_uuid, skill_uuid)
         SELECT DISTINCT pers.uuid, sk.uuid
         FROM #{p}phoenix_kit_staff_people pers
         CROSS JOIN LATERAL regexp_split_to_table(pers.skills, ',') AS tok
-        JOIN #{p}phoenix_kit_staff_skills sk ON lower(sk.name) = lower(trim(tok))
+        JOIN #{p}phoenix_kit_staff_skills sk ON lower(sk.name) = lower(LEFT(trim(tok), 255))
         WHERE pers.skills IS NOT NULL AND trim(tok) <> ''
         ON CONFLICT (staff_person_uuid, skill_uuid) DO NOTHING;
 

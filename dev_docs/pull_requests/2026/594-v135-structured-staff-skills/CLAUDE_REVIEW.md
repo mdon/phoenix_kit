@@ -10,6 +10,10 @@ migration. DBs that already ran V135 (consumer CI, devs on `main`) re-run
 nothing (`135 > reported_version` is false in `ensure_current/2`); DBs that
 haven't run it yet get the hardened first-run path.
 
+**The BUG-MEDIUM finding below has been fixed** by amending the unreleased
+`v135.ex` on `main` (see "Resolution" under it). `mix format` + `mix compile
+--warnings-as-errors` clean.
+
 **Scope:** 2 files, +184 / −2. One new versioned migration (`v135.ex`) +
 `@current_version` 134 → 135 and the V135 doc block in `postgres.ex`. Creates
 `phoenix_kit_staff_skills` + `phoenix_kit_staff_person_skills`, migrates the
@@ -112,14 +116,27 @@ SELECT DISTINCT ON (lower(LEFT(trim(tok), 255))) LEFT(trim(tok), 255)
 ORDER BY lower(LEFT(trim(tok), 255)), LEFT(trim(tok), 255)
 ```
 
-(`LEFT(...,255)` in all three places — the `DISTINCT ON` expr, the selected
-value, and the matching `ORDER BY` prefix — so dedup stays consistent on the
-truncated form.) The link INSERT is unaffected (joins on `lower(name)` =
-`lower(trim(tok))`, still matches the truncated row).
+(`LEFT(...,255)` in the `DISTINCT ON` expr, the selected value, and the
+matching `ORDER BY` prefix — so dedup stays consistent on the truncated
+form.) The link INSERT's join also needs the cap so a long token still
+matches the truncated skill row — see "Resolution" below.
 
 **Recommendation:** amend `v135.ex` now while V135 is unreleased. If you'd
 rather not touch the merged migration, the alternative is a V136 no-op guard
 — but that's heavier than this deserves for an unreleased migration.
+
+**Resolution:** Fixed in place on `v135.ex`. Capped every token at 255 with
+`LEFT(trim(tok), 255)` in four spots, not three — the skill-INSERT's
+`DISTINCT ON` expr, its selected value, and its matching `ORDER BY` prefix
+(so dedup stays consistent on the truncated form), **and** the link-INSERT's
+join (`lower(sk.name) = lower(LEFT(trim(tok), 255))`). The initial write-up
+above called the link INSERT "unaffected"; that was wrong for the >255 case:
+the skill row stores the *truncated* name, so the link INSERT must join on
+the same truncated form or that one assignment silently drops on the join
+(the link INSERT itself never crashes — it inserts uuids — but the person
+would end up unlinked to their long-token skill). Capping the join makes a
+long token both store and link consistently. Added a comment on each INSERT
+explaining the cap and, on the link INSERT, why the join mirrors it.
 
 ---
 
