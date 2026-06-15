@@ -184,7 +184,15 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
         class="cursor-pointer hover:opacity-80 transition-opacity"
         aria-label={gettext("Account menu")}
       >
-        <.icon name="hero-user-circle" class="w-10 h-10 text-base-content/70" />
+        <%!--
+          Rounded-rectangle placeholder matching the authenticated avatar shape
+          (md = w-10 h-10, rounded-lg via its `!rounded-lg`), so the guest and
+          signed-in triggers look consistent — a generic person silhouette
+          signals "not signed in".
+        --%>
+        <div class="w-10 h-10 rounded-lg bg-base-300 flex items-center justify-center text-base-content/60">
+          <.icon name="hero-user" class="w-6 h-6" />
+        </div>
       </div>
 
       <ul

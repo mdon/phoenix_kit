@@ -19,6 +19,10 @@ Fixes two user-menu language-switcher bugs on locale-prefixed / default-locale p
   the active language wasn't marked. Highlighting now compares **base codes**
   (`en`/`en-GB`/`en-US` all match), matching `Core.LanguageSwitcher`, and works
   whether the caller passes a base or a dialect.
+- **Guest dropdown trigger matches the authenticated avatar shape.** The
+  logged-out trigger was a round `hero-user-circle`; it's now a rounded-rectangle
+  placeholder (`w-10 h-10 rounded-lg`) with a person silhouette, consistent with
+  the signed-in avatar.
 
 ## 1.7.151 - 2026-06-15
 
