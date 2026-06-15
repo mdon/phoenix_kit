@@ -1045,7 +1045,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     if folder && name != "" do
       case Storage.update_folder(folder, %{name: String.trim(name)}, scope) do
-        {:ok, _} ->
+        {:ok, updated} ->
           parent_uuid = current_folder_uuid(socket)
 
           {:noreply,
@@ -1054,7 +1054,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:renaming_source, nil)
            |> assign(:renaming_text, "")
            |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-           |> assign(:folder_tree, Storage.list_folder_tree(scope))}
+           |> assign(:folder_tree, Storage.list_folder_tree(scope))
+           |> refresh_header_folder(folder_uuid, updated)}
 
         {:error, :out_of_scope} ->
           {:noreply,
@@ -1988,6 +1989,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     socket
     |> assign(:folders, folders)
     |> assign(:folder_tree, Storage.list_folder_tree(scope))
+  end
+
+  # Keep the hero header (and the open Edit-header panel) in sync when the
+  # renamed folder is the one shown there. The title/description block reads
+  # `@current_folder`/`@scope_folder`, not the sidebar tree — without this it
+  # would keep displaying the pre-rename name after a sidebar rename.
+  defp refresh_header_folder(socket, folder_uuid, updated) do
+    same? = fn folder ->
+      folder && to_string(folder.uuid) == to_string(folder_uuid)
+    end
+
+    socket =
+      if same?.(socket.assigns[:current_folder]),
+        do: assign(socket, :current_folder, updated),
+        else: socket
+
+    socket =
+      if same?.(socket.assigns[:scope_folder]),
+        do:
+          socket
+          |> assign(:scope_folder, updated)
+          |> assign(:scope_folder_name, updated.name),
+        else: socket
+
+    if socket.assigns[:editing_folder_header] &&
+         to_string(socket.assigns.editing_folder_header) == to_string(folder_uuid),
+       do: assign(socket, :folder_header_name, updated.name),
+       else: socket
   end
 
   # Combined trash count for the sidebar badge — files + folders.

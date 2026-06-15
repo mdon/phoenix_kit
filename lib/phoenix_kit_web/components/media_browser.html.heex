@@ -624,7 +624,14 @@
                             <% @file_view == "all" -> %>
                               {gettext("All Files")}
                             <% @current_folder -> %>
-                              {@current_folder.name}
+                              <%!-- Live-preview the sidebar rename so the header
+                                   title tracks what's being typed, then settles
+                                   on the saved name. --%>
+                              <%= if @renaming_folder == @current_folder.uuid && @renaming_text != "" do %>
+                                {@renaming_text}
+                              <% else %>
+                                {@current_folder.name}
+                              <% end %>
                             <% true -> %>
                               {if @scope_folder_id,
                                 do: @scope_folder_name,
