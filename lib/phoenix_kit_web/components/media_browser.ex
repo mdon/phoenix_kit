@@ -460,6 +460,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:selected_files, MapSet.new())
     |> assign(:selected_folders, MapSet.new())
     |> assign(:show_move_modal, false)
+    # New-folder modal: the typed name plus the default placeholder
+    # ("untitled" / "untitled N") shown when left blank.
+    |> assign(:show_new_folder_modal, false)
+    |> assign(:new_folder_name, "")
+    |> assign(:new_folder_placeholder, "")
     # Expand state for the Move modal's directory tree (separate from the
     # sidebar's :expanded_folders so drilling one doesn't move the other).
     # Starts collapsed → top-level folders only, drill in via the chevrons.
@@ -625,34 +630,61 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # in any toolbar and a folder appears named "untitled" (or
   # "untitled 1", "untitled 2", ... if that's taken). The new folder
   # immediately opens inline rename in the sidebar.
-  def handle_event("create_untitled_folder", _params, socket) do
-    cond do
-      socket.assigns[:filter_trash] ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot create folders in trash"))}
+  # Open the New-folder modal, seeding the placeholder with the next default
+  # name. Creation itself is deferred to "submit_new_folder" so Cancel adds
+  # nothing.
+  def handle_event("open_new_folder_modal", _params, socket) do
+    case folder_creation_block(socket) do
+      nil ->
+        parent_uuid = current_folder_uuid(socket)
+        scope = scope_folder_id(socket)
 
-      socket.assigns[:file_view] == "all" ->
         {:noreply,
-         put_flash(socket, :error, gettext("Cannot create folders in the all-files view"))}
+         socket
+         |> assign(:show_new_folder_modal, true)
+         |> assign(:new_folder_name, "")
+         |> assign(:new_folder_placeholder, next_untitled_name(parent_uuid, scope))}
 
-      true ->
+      msg ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("new_folder_input", %{"name" => name}, socket) do
+    {:noreply, assign(socket, :new_folder_name, name)}
+  end
+
+  def handle_event("close_new_folder_modal", _params, socket) do
+    {:noreply, assign(socket, :show_new_folder_modal, false)}
+  end
+
+  def handle_event("submit_new_folder", %{"name" => name}, socket) do
+    case folder_creation_block(socket) do
+      nil ->
         parent_uuid = current_folder_uuid(socket)
         scope = scope_folder_id(socket)
         user = socket.assigns[:phoenix_kit_current_user]
-        name = next_untitled_name(parent_uuid, scope)
+
+        # Blank → fall back to the placeholder default ("untitled"/"untitled N").
+        name =
+          case String.trim(name) do
+            "" -> next_untitled_name(parent_uuid, scope)
+            trimmed -> trimmed
+          end
+
+        socket = assign(socket, :show_new_folder_modal, false)
 
         case Storage.create_folder(
                %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid},
                scope
              ) do
-          {:ok, folder} ->
+          {:ok, _folder} ->
             {:noreply,
              socket
+             |> assign(:new_folder_name, "")
              |> reload_folder_lists()
              |> expand_sidebar_folder(parent_uuid)
              |> assign(:sidebar_collapsed, false)
-             |> assign(:renaming_folder, folder.uuid)
-             |> assign(:renaming_source, "sidebar")
-             |> assign(:renaming_text, name)
              |> put_flash(:info, gettext("Folder \"%{name}\" created", name: name))}
 
           {:error, :out_of_scope} ->
@@ -662,6 +694,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           {:error, _changeset} ->
             {:noreply, put_flash(socket, :error, gettext("Failed to create folder"))}
         end
+
+      msg ->
+        {:noreply,
+         socket
+         |> assign(:show_new_folder_modal, false)
+         |> put_flash(:error, msg)}
     end
   end
 
@@ -2645,6 +2683,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # trashed siblings invisible to the unique constraint, so
   # `list_folders/2`'s active-only view matches what the DB will
   # accept.
+  # Returns a flash message when folder creation isn't allowed in the current
+  # view (trash / all-files), or nil when it's fine.
+  defp folder_creation_block(socket) do
+    cond do
+      socket.assigns[:filter_trash] ->
+        gettext("Cannot create folders in trash")
+
+      socket.assigns[:file_view] == "all" ->
+        gettext("Cannot create folders in the all-files view")
+
+      true ->
+        nil
+    end
+  end
+
   defp next_untitled_name(parent_uuid, scope) do
     base = gettext("untitled")
 

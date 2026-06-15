@@ -15,7 +15,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   implement the relevant `handle_event/3` clauses:
 
       navigate_folder, navigate_root, navigate_view_all,
-      toggle_folder_expand, toggle_sidebar, create_untitled_folder,
+      toggle_folder_expand, toggle_sidebar, open_new_folder_modal,
       start_rename_folder, rename_folder_input, rename_folder,
       cancel_rename_folder, toggle_trash_filter
 
@@ -129,7 +129,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <div class="flex gap-0.5">
               <button
                 :if={@show_create}
-                phx-click="create_untitled_folder"
+                phx-click="open_new_folder_modal"
                 phx-target={@myself}
                 class="btn btn-ghost btn-xs"
                 title={gettext("New folder")}

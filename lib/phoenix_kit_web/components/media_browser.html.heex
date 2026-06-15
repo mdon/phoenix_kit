@@ -1100,7 +1100,7 @@
                               </button>
                             </li>
                             <li>
-                              <button phx-click="create_untitled_folder" phx-target={@myself}>
+                              <button phx-click="open_new_folder_modal" phx-target={@myself}>
                                 <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext(
                                   "New folder"
                                 )}
@@ -2079,6 +2079,54 @@
           </div>
         </div>
         <div class="modal-backdrop" phx-click="close_move_modal" phx-target={@myself}></div>
+      </div>
+    <% end %>
+
+    <%!-- New Folder Modal — name the folder before it's created; Cancel
+         (button / backdrop / Esc) adds nothing. The placeholder is the next
+         default name, used as-is when the field is left blank. --%>
+    <%= if @show_new_folder_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-sm">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <.icon name="hero-folder-plus" class="w-5 h-5 text-primary" />
+            {gettext("New folder")}
+          </h3>
+          <p class="text-sm text-base-content/60 mt-1 mb-4">
+            {gettext("Name your folder, or leave it blank to use the default.")}
+          </p>
+          <form phx-submit="submit_new_folder" phx-change="new_folder_input" phx-target={@myself}>
+            <input
+              id="new-folder-name-input"
+              type="text"
+              name="name"
+              value={@new_folder_name}
+              placeholder={@new_folder_placeholder}
+              maxlength="255"
+              autocomplete="off"
+              class="input input-bordered w-full"
+              phx-mounted={JS.focus()}
+              phx-keydown="close_new_folder_modal"
+              phx-key="Escape"
+              phx-target={@myself}
+            />
+            <div class="modal-action">
+              <button
+                type="button"
+                phx-click="close_new_folder_modal"
+                phx-target={@myself}
+                class="btn btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-primary gap-2">
+                <.icon name="hero-folder-plus" class="w-4 h-4" />
+                {gettext("Create folder")}
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-backdrop" phx-click="close_new_folder_modal" phx-target={@myself}></div>
       </div>
     <% end %>
   <% end %>
