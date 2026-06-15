@@ -8,19 +8,52 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Core.LanguageSwitcher
 
+  # Guest dropdown link catalog. Each entry is
+  # `{key, path, icon, label_fn, setting_gate_fn}`; `label_fn`/`gate_fn`
+  # are zero-arity so gettext + settings are evaluated at render time
+  # (per-request locale / live setting), not at compile time.
+  @guest_link_catalog [
+    {:login, "/users/log-in", "hero-arrow-right-on-rectangle"},
+    {:register, "/users/register", "hero-user-plus"},
+    {:reset, "/users/reset-password", "hero-key"},
+    {:magic_link, "/users/magic-link", "hero-sparkles"}
+  ]
+
   @doc """
-  Renders user dropdown for dashboard navigation.
-  Shows user avatar with dropdown menu containing email, role, settings and logout.
+  Renders the user widget for dashboard navigation.
+
+  For authenticated visitors this is the avatar dropdown (email,
+  Admin/Dashboard/Settings, language switcher, log out). For anonymous
+  visitors the same dropdown *shape* is rendered with a generic
+  "not signed in" icon and guest-relevant links (log in, sign up, forgot
+  password, magic link) plus the same language switcher — so a single
+  widget covers both states and always offers a language switcher.
+
+  ## Attributes
+
+    * `:scope` — current scope; `nil`/unauthenticated renders the guest dropdown.
+    * `:current_path` — used for active-link highlighting and locale-switch URLs.
+    * `:current_locale` — base code of the active locale (highlighted in the list).
+    * `:show_language_switcher` — include the in-menu language list (default `true`).
+      Set `false` when the host renders a standalone switcher elsewhere to avoid
+      a duplicate. Applies to both the signed-in and guest states.
+    * `:guest_links` — which guest links may appear, e.g.
+      `[:login, :register, :reset, :magic_link]` (default: all). Links are also
+      gated by the `allow_registration` / `magic_link_login_enabled` settings, so
+      this list can only narrow, never force-enable a disabled feature.
   """
   attr(:scope, :any, default: nil)
   attr(:current_path, :string, default: "")
   attr(:current_locale, :string, default: "en")
   attr(:admin_edit_url, :string, default: nil)
   attr(:admin_edit_label, :string, default: nil)
+  attr(:show_language_switcher, :boolean, default: true)
+  attr(:guest_links, :list, default: [:login, :register, :reset, :magic_link])
 
   def user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -101,47 +134,11 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
             </.link>
           </li>
 
-          <% user_languages = get_user_languages() %>
-          <%= if length(user_languages) > 1 do %>
-            <div class="divider my-0"></div>
-
-            <li class="menu-title px-4 py-1">
-              <span class="text-xs">Language</span>
-            </li>
-
-            <%!--
-              Independently scrollable language list — caps at ~5 visible rows.
-              Anchors are styled directly (no nested daisyUI <ul class="menu">) so
-              the parent menu doesn't apply submenu indent or li-child padding
-              that would otherwise force horizontal scroll and leave a weird
-              left indent. See admin_nav.ex for the matching pattern.
-            --%>
-            <li class="p-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent">
-              <div class="!p-0 block w-full max-h-60 overflow-y-auto overflow-x-hidden !bg-transparent hover:!bg-transparent focus:!bg-transparent">
-                <%= for language <- user_languages do %>
-                  <a
-                    href={generate_language_switch_url(@current_path, language.code)}
-                    class={[
-                      "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
-                      "focus:outline-none focus-visible:outline-none",
-                      if(language.code == @current_locale,
-                        do:
-                          "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
-                        else:
-                          "!text-base-content hover:bg-base-200 hover:!text-base-content focus:!text-base-content active:!text-base-content active:!bg-base-300"
-                      )
-                    ]}
-                  >
-                    <span class="text-lg">{get_language_flag(language.code)}</span>
-                    <span>{language.name}</span>
-                    <%= if language.code == @current_locale do %>
-                      <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
-                    <% end %>
-                  </a>
-                <% end %>
-              </div>
-            </li>
-          <% end %>
+          <.language_menu_section
+            :if={@show_language_switcher}
+            current_path={@current_path}
+            current_locale={@current_locale}
+          />
 
           <div class="divider my-0"></div>
 
@@ -158,15 +155,138 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
         </ul>
       </div>
     <% else %>
-      <.link
-        navigate={Routes.path("/users/log-in")}
-        class="btn btn-primary btn-sm"
-      >
-        Login
-      </.link>
+      <.guest_dropdown
+        current_path={@current_path}
+        current_locale={@current_locale}
+        guest_links={@guest_links}
+        show_language_switcher={@show_language_switcher}
+      />
     <% end %>
     """
   end
+
+  # Guest counterpart to the authenticated avatar dropdown: same shape and
+  # styling, a generic "not signed in" trigger icon, guest-relevant links,
+  # and the shared language switcher.
+  attr(:current_path, :string, required: true)
+  attr(:current_locale, :string, required: true)
+  attr(:guest_links, :list, required: true)
+  attr(:show_language_switcher, :boolean, required: true)
+
+  defp guest_dropdown(assigns) do
+    assigns = assign(assigns, :links, visible_guest_links(assigns.guest_links))
+
+    ~H"""
+    <div class="dropdown dropdown-end">
+      <div
+        tabindex="0"
+        role="button"
+        class="cursor-pointer hover:opacity-80 transition-opacity"
+        aria-label={gettext("Account menu")}
+      >
+        <.icon name="hero-user-circle" class="w-10 h-10 text-base-content/70" />
+      </div>
+
+      <ul
+        tabindex="0"
+        class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto flex-nowrap"
+      >
+        <li class="menu-title px-4 py-2">
+          <span class="text-sm font-medium text-base-content">{gettext("Not signed in")}</span>
+        </li>
+
+        <div class="divider my-0"></div>
+
+        <li :for={link <- @links}>
+          <.link navigate={Routes.path(link.path)} class="flex items-center gap-3">
+            <.icon name={link.icon} class="w-4 h-4" />
+            <span>{link.label}</span>
+          </.link>
+        </li>
+
+        <.language_menu_section
+          :if={@show_language_switcher}
+          current_path={@current_path}
+          current_locale={@current_locale}
+        />
+      </ul>
+    </div>
+    """
+  end
+
+  # Shared, independently scrollable language list used by both the
+  # authenticated and guest dropdowns. Renders nothing when fewer than two
+  # languages are enabled. Anchors are styled directly (no nested daisyUI
+  # `<ul class="menu">`) so the parent menu doesn't apply submenu indent or
+  # li-child padding that would force horizontal scroll. See admin_nav.ex
+  # for the matching pattern.
+  attr(:current_path, :string, required: true)
+  attr(:current_locale, :string, required: true)
+
+  defp language_menu_section(assigns) do
+    assigns = assign(assigns, :user_languages, get_user_languages())
+
+    ~H"""
+    <%= if length(@user_languages) > 1 do %>
+      <div class="divider my-0"></div>
+
+      <li class="menu-title px-4 py-1">
+        <span class="text-xs">{gettext("Language")}</span>
+      </li>
+
+      <li class="p-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+        <div class="!p-0 block w-full max-h-60 overflow-y-auto overflow-x-hidden !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+          <a
+            :for={language <- @user_languages}
+            href={generate_language_switch_url(@current_path, language.code)}
+            class={[
+              "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
+              "focus:outline-none focus-visible:outline-none",
+              if(language.code == @current_locale,
+                do:
+                  "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
+                else:
+                  "!text-base-content hover:bg-base-200 hover:!text-base-content focus:!text-base-content active:!text-base-content active:!bg-base-300"
+              )
+            ]}
+          >
+            <span class="text-lg">{get_language_flag(language.code)}</span>
+            <span>{language.name}</span>
+            <%= if language.code == @current_locale do %>
+              <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+            <% end %>
+          </a>
+        </div>
+      </li>
+    <% end %>
+    """
+  end
+
+  # Resolves which guest links to render: starts from the catalog, keeps
+  # only keys the caller allowed, and applies the per-feature settings
+  # gates (`allow_registration`, `magic_link_login_enabled`). Log in and
+  # forgot-password are always available; the others are gated.
+  defp visible_guest_links(allowed) do
+    allow_registration? = Settings.get_boolean_setting("allow_registration", true)
+    magic_link? = Settings.get_boolean_setting("magic_link_login_enabled", true)
+
+    @guest_link_catalog
+    |> Enum.filter(fn {key, _path, _icon} ->
+      key in allowed and guest_link_enabled?(key, allow_registration?, magic_link?)
+    end)
+    |> Enum.map(fn {key, path, icon} ->
+      %{key: key, path: path, icon: icon, label: guest_link_label(key)}
+    end)
+  end
+
+  defp guest_link_enabled?(:register, allow_registration?, _magic?), do: allow_registration?
+  defp guest_link_enabled?(:magic_link, _allow?, magic?), do: magic?
+  defp guest_link_enabled?(_key, _allow?, _magic?), do: true
+
+  defp guest_link_label(:login), do: gettext("Log in")
+  defp guest_link_label(:register), do: gettext("Sign up")
+  defp guest_link_label(:reset), do: gettext("Forgot password")
+  defp guest_link_label(:magic_link), do: gettext("Magic link")
 
   # Helper function to get user languages from Languages module
   # Returns enabled languages or falls back to English if module is disabled

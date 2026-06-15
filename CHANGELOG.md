@@ -1,3 +1,29 @@
+## 1.7.151 - 2026-06-15
+
+Anonymous (guest) state for the user-menu widget, so one dropdown serves both signed-in and logged-out visitors and always offers a language switcher.
+
+### Added
+- **Guest dropdown in `UserDashboardNav.user_dropdown/1`.** The anonymous
+  state, previously a bare "Login" button, now renders the same dropdown shape
+  as the authenticated state: a generic "not signed in" trigger
+  (`hero-user-circle`) opening a menu with guest links — **Log in**, **Sign up**,
+  **Forgot password**, **Magic link** — plus the shared language switcher. A host
+  can now rely on this single widget for everyone and drop a separate standalone
+  switcher. Guest links are gated by the `allow_registration` /
+  `magic_link_login_enabled` settings (log in and forgot-password always show).
+- **`:show_language_switcher` attr** (default `true`) on `user_dropdown/1` —
+  hides the in-menu language list in both states, for hosts that keep a
+  standalone switcher and want to avoid a duplicate.
+- **`:guest_links` attr** (default `[:login, :register, :reset, :magic_link]`) —
+  narrows which guest links may appear; the per-feature settings gates still
+  apply, so it can only narrow, never force-enable a disabled feature.
+
+### Changed
+- The authenticated and guest dropdowns now share one internal
+  `language_menu_section` component, so both states render an identical
+  language list. The guest switcher reuses the same URL logic, so locale links
+  resolve correctly on locale-less pages (`/` → `/ru`, building on 1.7.150).
+
 ## 1.7.150 - 2026-06-15
 
 Fixes locale-prefixed root URLs so anonymous visitors can switch language on a parent app's `/:locale` landing page.
