@@ -90,7 +90,7 @@ defmodule PhoenixKit.MixProject do
       {:gettext, "~> 1.0"},
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
-      {:tailwind, "~> 0.4.1", only: :dev},
+      {:tailwind, "~> 0.5", only: :dev},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
 
       # Authentication
@@ -118,7 +118,7 @@ defmodule PhoenixKit.MixProject do
       {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2.23"},
+      {:leaf, "~> 0.3"},
 
       # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
       # OpenSeadragon and replaced the wrapped-OSD viewer with a
