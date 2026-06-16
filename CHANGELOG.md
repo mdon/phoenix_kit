@@ -1,3 +1,40 @@
+## 1.7.156 - 2026-06-16
+
+MediaBrowser folder UX polish (folder-aware search, a name-it modal, an
+active-branch sidebar highlight, and a clean mobile layout) plus dependency
+upgrades.
+
+### Added
+- **Folder results in media search.** A name search in the MediaBrowser now
+  surfaces matching *folders* alongside the matching files, scoped exactly like
+  the file search (a folder's direct children when inside one, the whole subtree
+  at a scope root, everything at the real root). Backed by a new
+  `PhoenixKit.Modules.Storage.search_folders/3`.
+- **New-folder name modal.** Creating a folder opens a modal to name it — with
+  an `"untitled"` / `"untitled N"` placeholder default when left blank — instead
+  of immediately dropping an inline-rename `"untitled"` folder into the sidebar.
+  Cancel adds nothing. The `FolderExplorer`'s create button now emits
+  `open_new_folder_modal` (was `create_untitled_folder`).
+- **Active-branch highlight in the folder sidebar tree.** The guide-line
+  connectors from a root folder down to the current folder are darkened (same
+  hue, bolder alpha) so you can trace the branch you're inside. Suppressed in
+  trash view.
+
+### Changed
+- **Cleaner MediaBrowser mobile layout.**
+- **Dependency upgrades:** `leaf` 0.2 → 0.3 (its markdown backend swapped from
+  `earmark` to the `mdex` Rust NIF — transparent to PhoenixKit, which keeps its
+  own direct `earmark` dep for `Components.Core.Markdown`), `tailwind` installer
+  0.4 → 0.5, `floki` 0.38.4.
+
+### Fixed
+- **Folder rename now updates the hero header title.** Renaming a folder from
+  the sidebar keeps the hero header (and an open Edit-header panel) in sync when
+  the renamed folder is the one being shown — it no longer kept the pre-rename
+  name.
+- **Media sidebar active-turn corner.** Sharp for a mid-branch turn, rounded for
+  the last child.
+
 ## 1.7.155 - 2026-06-15
 
 Makes the integration provider registry capability-discoverable, so consumers
