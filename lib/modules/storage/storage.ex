@@ -936,6 +936,42 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
+  @doc """
+  Lists non-trashed folders whose name matches `search` (case-insensitive
+  `ilike`), within the same scope the media-browser file search uses:
+
+    * a specific `folder_uuid` → its direct child folders
+    * scope root (scope set, no `folder_uuid`) → folders anywhere under the scope
+    * real root (no scope, no `folder_uuid`) → all folders
+
+  Returns `[]` for a blank search.
+  """
+  def search_folders(search, folder_uuid \\ nil, scope_folder_id \\ nil)
+
+  def search_folders(search, _folder_uuid, _scope) when search in [nil, ""], do: []
+
+  def search_folders(search, folder_uuid, scope_folder_id) do
+    base =
+      cond do
+        folder_uuid not in [nil, ""] ->
+          from(f in Folder, where: f.parent_uuid == ^folder_uuid)
+
+        scope_folder_id ->
+          # The scope folder itself isn't a listable result — only its descendants.
+          subtree = folder_subtree_uuids(scope_folder_id)
+          from(f in Folder, where: f.uuid in ^subtree and f.uuid != ^scope_folder_id)
+
+        true ->
+          from(f in Folder)
+      end
+
+    base
+    |> where([f], is_nil(f.trashed_at))
+    |> where([f], ilike(f.name, ^"%#{search}%"))
+    |> order_by([f], asc: f.name)
+    |> repo().all()
+  end
+
   @doc "Gets a single folder by UUID."
   def get_folder(nil), do: nil
   def get_folder(uuid), do: repo().get(Folder, uuid)
