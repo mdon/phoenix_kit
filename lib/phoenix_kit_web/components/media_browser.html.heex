@@ -94,7 +94,11 @@
     <% end %>
 
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
-    <div class={["card bg-base-100 shadow-xl", @fill_height && "flex-1 min-h-0"]}>
+    <%!-- `isolate` confines the hero header's `z-30` (and the toolbar
+         dropdowns' `z-20`) to this card's own stacking context, so they no
+         longer paint over the mobile drawer/navbar. Modals live outside this
+         card and are unaffected. --%>
+    <div class={["card bg-base-100 shadow-xl isolate", @fill_height && "flex-1 min-h-0"]}>
       <div class={[
         "card-body p-2 sm:p-4 flex flex-row gap-0 overflow-hidden",
         if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
