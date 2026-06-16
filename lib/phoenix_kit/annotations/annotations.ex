@@ -21,6 +21,7 @@ defmodule PhoenixKit.Annotations do
   alias PhoenixKit.Annotations.Annotation
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.RepoHelper
 
   @type attrs :: map()
@@ -65,11 +66,20 @@ defmodule PhoenixKit.Annotations do
   def resolve_comment_resources(resource_uuids) when is_list(resource_uuids) do
     from(f in StorageFile,
       where: f.uuid in ^resource_uuids,
-      select: {f.uuid, f.original_file_name, f.file_name}
+      select: {f.uuid, f.original_file_name, f.file_name, f.file_type}
     )
     |> RepoHelper.all()
-    |> Map.new(fn {uuid, original_name, file_name} ->
-      {uuid, %{title: original_name || file_name || "File", path: "/admin/media/#{uuid}"}}
+    |> Map.new(fn {uuid, original_name, file_name, file_type} ->
+      info = %{title: original_name || file_name || "File", path: "/admin/media/#{uuid}"}
+
+      # A small signed thumbnail for image files, so the comments admin can show
+      # a preview chip. Falls back to no thumb for non-images (or missing variants).
+      info =
+        if file_type == "image",
+          do: Map.put(info, :thumb_url, URLSigner.signed_url(to_string(uuid), "thumbnail")),
+          else: info
+
+      {uuid, info}
     end)
   rescue
     _ -> %{}
