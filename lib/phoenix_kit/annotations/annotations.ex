@@ -49,6 +49,32 @@ defmodule PhoenixKit.Annotations do
 
   def has_annotations?(_), do: false
 
+  @doc """
+  Resolves `"file"` comment resources for the comments moderation admin.
+
+  Comments on files — including annotation discussions, which are anchored to
+  the file with `metadata.annotation_uuid` — carry `resource_type: "file"` and
+  `resource_uuid: file_uuid`. This maps those file uuids to the file's display
+  name and admin media path so the moderation list links to the file instead
+  of showing a bare uuid.
+
+  Registered as the `"file"` handler by `phoenix_kit_comments`'
+  `resolve_comment_resources/1` dispatch (gated on this module being loaded).
+  """
+  @spec resolve_comment_resources([uuid()]) :: %{uuid() => map()}
+  def resolve_comment_resources(resource_uuids) when is_list(resource_uuids) do
+    from(f in StorageFile,
+      where: f.uuid in ^resource_uuids,
+      select: {f.uuid, f.original_file_name, f.file_name}
+    )
+    |> RepoHelper.all()
+    |> Map.new(fn {uuid, original_name, file_name} ->
+      {uuid, %{title: original_name || file_name || "File", path: "/admin/media/#{uuid}"}}
+    end)
+  rescue
+    _ -> %{}
+  end
+
   @doc "List annotations for a file, ordered by `position` then insertion time."
   @spec list_for_file(uuid()) :: [Annotation.t()]
   def list_for_file(file_uuid) do
