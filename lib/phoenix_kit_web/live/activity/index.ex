@@ -130,6 +130,24 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
+  # Build a filtered activity path, merging the current filters with `overrides`
+  # (a keyword list like `[module: "posts"]`; pass `""` to clear a filter). Used
+  # by the toolbar filter dropdowns so picking one filter preserves the others.
+  defp filter_path(assigns, overrides) do
+    query =
+      %{
+        "module" => assigns[:filter_module],
+        "mode" => assigns[:filter_mode],
+        "action" => assigns[:filter_action],
+        "resource_type" => assigns[:filter_resource_type]
+      }
+      |> Map.merge(Map.new(overrides, fn {k, v} -> {to_string(k), v} end))
+      |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
+      |> URI.encode_query()
+
+    Routes.path("/admin/activity" <> if(query == "", do: "", else: "?#{query}"))
+  end
+
   defp parse_int(nil, default), do: default
 
   defp parse_int(str, default) when is_binary(str) do

@@ -60,52 +60,172 @@
       }
     >
       <:toolbar_title>
-        <.form for={%{}} phx-change="filter" class="flex flex-wrap items-center gap-2">
-          <span class="text-sm text-base-content/70 whitespace-nowrap">
-            {gettext("Module:")}
-          </span>
-          <select name="filter[module]" class="select select-sm w-36 min-w-0">
-            <option value="">{gettext("All Modules")}</option>
-            <%= for mod <- @modules do %>
-              <option value={mod} selected={@filter_module == mod}>
-                {String.capitalize(mod)}
-              </option>
-            <% end %>
-          </select>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">
-            {gettext("Mode:")}
-          </span>
-          <select name="filter[mode]" class="select select-sm w-32 min-w-0">
-            <option value="">{gettext("All Modes")}</option>
-            <%= for mode <- @modes do %>
-              <option value={mode} selected={@filter_mode == mode}>
-                {String.capitalize(mode)}
-              </option>
-            <% end %>
-          </select>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">
-            {gettext("Action:")}
-          </span>
-          <select name="filter[action]" class="select select-sm w-40 min-w-0">
-            <option value="">{gettext("All Actions")}</option>
-            <%= for action <- @action_types do %>
-              <option value={action} selected={@filter_action == action}>
-                {action}
-              </option>
-            <% end %>
-          </select>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">
-            {gettext("Type:")}
-          </span>
-          <select name="filter[resource_type]" class="select select-sm w-36 min-w-0">
-            <option value="">{gettext("All Types")}</option>
-            <%= for rt <- @resource_types do %>
-              <option value={rt} selected={@filter_resource_type == rt}>
-                {String.capitalize(rt)}
-              </option>
-            <% end %>
-          </select>
-        </.form>
+        <%!-- Filters as compact media-style dropdowns: each shows an icon, with
+             the active value's label (revealed on mobile only when set) so the
+             whole toolbar holds one row. Options are patch links that preserve
+             the other filters via filter_path/2. --%>
+        <div class="flex flex-wrap items-center gap-2">
+          <%!-- Module --%>
+          <div class="dropdown">
+            <div
+              tabindex="0"
+              role="button"
+              class={["btn btn-sm gap-2", @filter_module && "btn-active"]}
+            >
+              <.icon name="hero-cube" class="w-4 h-4" />
+              <span class={["sm:inline", is_nil(@filter_module) && "hidden"]}>
+                {(@filter_module && String.capitalize(@filter_module)) || gettext("Module")}
+              </span>
+              <.icon
+                name="hero-chevron-down"
+                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+              />
+            </div>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200 max-h-72 overflow-y-auto flex-nowrap"
+            >
+              <li>
+                <.link
+                  patch={filter_path(assigns, module: "")}
+                  class={is_nil(@filter_module) && "active"}
+                >
+                  {gettext("All Modules")}
+                </.link>
+              </li>
+              <li :for={mod <- @modules}>
+                <.link
+                  patch={filter_path(assigns, module: mod)}
+                  class={@filter_module == mod && "active"}
+                >
+                  {String.capitalize(mod)}
+                </.link>
+              </li>
+            </ul>
+          </div>
+          <%!-- Mode --%>
+          <div class="dropdown">
+            <div
+              tabindex="0"
+              role="button"
+              class={["btn btn-sm gap-2", @filter_mode && "btn-active"]}
+            >
+              <.icon name="hero-cog-6-tooth" class="w-4 h-4" />
+              <span class={["sm:inline", is_nil(@filter_mode) && "hidden"]}>
+                {(@filter_mode && String.capitalize(@filter_mode)) || gettext("Mode")}
+              </span>
+              <.icon
+                name="hero-chevron-down"
+                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+              />
+            </div>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200 max-h-72 overflow-y-auto flex-nowrap"
+            >
+              <li>
+                <.link
+                  patch={filter_path(assigns, mode: "")}
+                  class={is_nil(@filter_mode) && "active"}
+                >
+                  {gettext("All Modes")}
+                </.link>
+              </li>
+              <li :for={mode <- @modes}>
+                <.link
+                  patch={filter_path(assigns, mode: mode)}
+                  class={@filter_mode == mode && "active"}
+                >
+                  {String.capitalize(mode)}
+                </.link>
+              </li>
+            </ul>
+          </div>
+          <%!-- Action --%>
+          <div class="dropdown">
+            <div
+              tabindex="0"
+              role="button"
+              class={["btn btn-sm gap-2", @filter_action && "btn-active"]}
+            >
+              <.icon name="hero-bolt" class="w-4 h-4" />
+              <span class={[
+                "sm:inline truncate max-w-[10rem]",
+                is_nil(@filter_action) && "hidden"
+              ]}>
+                {@filter_action || gettext("Action")}
+              </span>
+              <.icon
+                name="hero-chevron-down"
+                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+              />
+            </div>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-56 p-2 shadow border border-base-200 max-h-72 overflow-y-auto flex-nowrap"
+            >
+              <li>
+                <.link
+                  patch={filter_path(assigns, action: "")}
+                  class={is_nil(@filter_action) && "active"}
+                >
+                  {gettext("All Actions")}
+                </.link>
+              </li>
+              <li :for={action <- @action_types}>
+                <.link
+                  patch={filter_path(assigns, action: action)}
+                  class={@filter_action == action && "active"}
+                >
+                  {action}
+                </.link>
+              </li>
+            </ul>
+          </div>
+          <%!-- Type --%>
+          <div class="dropdown">
+            <div
+              tabindex="0"
+              role="button"
+              class={["btn btn-sm gap-2", @filter_resource_type && "btn-active"]}
+            >
+              <.icon name="hero-tag" class="w-4 h-4" />
+              <span class={["sm:inline", is_nil(@filter_resource_type) && "hidden"]}>
+                {(@filter_resource_type && String.capitalize(@filter_resource_type)) ||
+                  gettext("Type")}
+              </span>
+              <.icon
+                name="hero-chevron-down"
+                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+              />
+            </div>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200 max-h-72 overflow-y-auto flex-nowrap"
+            >
+              <li>
+                <.link
+                  patch={filter_path(assigns, resource_type: "")}
+                  class={is_nil(@filter_resource_type) && "active"}
+                >
+                  {gettext("All Types")}
+                </.link>
+              </li>
+              <li :for={rt <- @resource_types}>
+                <.link
+                  patch={filter_path(assigns, resource_type: rt)}
+                  class={@filter_resource_type == rt && "active"}
+                >
+                  {String.capitalize(rt)}
+                </.link>
+              </li>
+            </ul>
+          </div>
+        </div>
       </:toolbar_title>
       <:toolbar_actions>
         <span class="text-sm text-base-content/60 whitespace-nowrap">
