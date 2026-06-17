@@ -63,6 +63,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
     * `selected_uuids` — list of already-selected file UUIDs
     * `phoenix_kit_current_user` — required for uploads to attribute the file
     * `file_type_filter` — `:all` (default), `:image`, or `:video`
+    * `browse` — `true` (default) shows the library grid + search + type filter;
+      `false` is upload-only (dropzone + Confirm; uploaded files auto-select)
     * `user_uuid` — when set, restricts the library to files owned by
       that user; nil (default) shows the full library
     * `scope_folder_id` — when set, restricts both the browse query
@@ -109,6 +111,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       # after lazy-creating their folder.
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:notify, fn -> nil end)
+      # `browse: false` → upload-only mode: hide the library grid, search,
+      # type filter, pagination, and the accepted-types hint, leaving just the
+      # dropzone + Confirm. Uploaded files auto-select, so Confirm still works.
+      |> assign_new(:browse, fn -> true end)
       |> assign_new(:file_type_filter, fn -> :all end)
       |> assign_new(:search_query, fn -> "" end)
       |> assign_new(:current_page, fn -> 1 end)
@@ -159,7 +165,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
       has_buckets ->
         allow_upload(socket, :media_files,
-          accept: :any,
+          accept: accept_for(socket.assigns[:file_type_filter]),
           max_entries: 10,
           auto_upload: true,
           progress: &handle_progress/3
@@ -170,6 +176,27 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
         socket
     end
   end
+
+  # Constrain the upload picker to the filtered type. The browse list is already
+  # scoped by `scope_files_by_type/2`; without this the upload accepted any file
+  # (`:any`), so an image/video picker would still let arbitrary files in. `:all`
+  # keeps `:any`.
+  defp accept_for(:image), do: ~w(.jpg .jpeg .png .gif .webp .svg .bmp .avif .heic .heif)
+  defp accept_for(:video), do: ~w(.mp4 .mov .webm .mkv .avi .m4v .ogv .ogg)
+  defp accept_for(_), do: :any
+
+  # Modal copy that reflects the active type filter, so an all/video picker
+  # doesn't always say "images". Referenced from the template.
+  defp selection_hint(:single, :image), do: gettext("Click on an image to select it")
+  defp selection_hint(:single, :video), do: gettext("Click on a video to select it")
+  defp selection_hint(:single, _), do: gettext("Click on a file to select it")
+  defp selection_hint(_multiple, :image), do: gettext("Select one or more images")
+  defp selection_hint(_multiple, :video), do: gettext("Select one or more videos")
+  defp selection_hint(_multiple, _), do: gettext("Select one or more files")
+
+  defp accepted_types_hint(:image), do: gettext("Images")
+  defp accepted_types_hint(:video), do: gettext("Videos")
+  defp accepted_types_hint(_), do: gettext("Images, videos, or documents")
 
   def handle_event("noop", _params, socket) do
     # No-op event to prevent click propagation
@@ -452,6 +479,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
     query =
       from(f in File, order_by: [desc: f.inserted_at])
+      # Don't suggest trashed or system-managed files in the picker.
+      |> where([f], f.status != "trashed" and f.system_managed == false)
       |> scope_files_by_user(socket.assigns[:user_uuid])
       |> scope_files_by_folder(socket.assigns[:scope_folder_id])
       |> scope_files_by_type(socket.assigns.file_type_filter)

@@ -9321,3 +9321,48 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
 msgstr ""
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:186
+#, elixir-autogen, elixir-format
+msgid "Click on a file to select it"
+msgstr "Klõpsa failil, et see valida"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:185
+#, elixir-autogen, elixir-format
+msgid "Click on a video to select it"
+msgstr "Klõpsa videol, et see valida"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:191
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "Pildid"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:189
+#, elixir-autogen, elixir-format
+msgid "Select one or more files"
+msgstr "Vali üks või mitu faili"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:188
+#, elixir-autogen, elixir-format
+msgid "Select one or more videos"
+msgstr "Vali üks või mitu videot"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:192
+#, elixir-autogen, elixir-format
+msgid "Videos"
+msgstr "Videod"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Click to upload"
+msgstr "Klõpsa üleslaadimiseks"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Confirm Selection"
+msgstr "Kinnita valik"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "or drag and drop"
+msgstr "või lohista failid siia"
