@@ -154,9 +154,17 @@
               |> Enum.find(fn {v, _} -> v == @filter_role end)
               |> then(&(&1 && elem(&1, 1))) %>
             <div class="dropdown">
-              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+              <div
+                tabindex="0"
+                role="button"
+                class={["btn btn-sm gap-2", @filter_role != "all" && "btn-active"]}
+              >
                 <.icon name="hero-user-group" class="w-4 h-4" />
-                <span class="hidden sm:inline">{role_label || gettext("Role")}</span>
+                <%!-- Show the active role on mobile too (only "All Users" collapses
+                     to the bare icon) so the current filter is always legible. --%>
+                <span class={["sm:inline", @filter_role == "all" && "hidden"]}>
+                  {role_label || gettext("Role")}
+                </span>
                 <.icon
                   name="hero-chevron-down"
                   class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
@@ -192,9 +200,13 @@
                 |> Enum.find(fn {v, _} -> v == @filter_account_type end)
                 |> then(&(&1 && elem(&1, 1))) %>
               <div class="dropdown">
-                <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <div
+                  tabindex="0"
+                  role="button"
+                  class={["btn btn-sm gap-2", @filter_account_type != "all" && "btn-active"]}
+                >
                   <.icon name="hero-identification" class="w-4 h-4" />
-                  <span class="hidden sm:inline">
+                  <span class={["sm:inline", @filter_account_type == "all" && "hidden"]}>
                     {account_type_label || gettext("Account type")}
                   </span>
                   <.icon
