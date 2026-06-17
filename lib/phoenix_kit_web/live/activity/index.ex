@@ -11,10 +11,15 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   alias PhoenixKit.Activity
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Values
+
+  # Per-admin grid/list preference for the activity table, persisted in the
+  # current user's custom_fields (mirrors the users table view toggle).
+  @view_mode_key "activity_view_mode"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -35,6 +40,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         |> assign(:modes, Activity.list_modes())
         |> assign(:action_types, Activity.list_action_types())
         |> assign(:resource_types, Activity.list_resource_types())
+        |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
         |> assign_filter_defaults()
         |> load_activities()
 
@@ -80,6 +86,16 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   @impl true
   def handle_event("clear_filters", _params, socket) do
     {:noreply, push_patch(socket, to: Routes.path("/admin/activity"))}
+  end
+
+  @impl true
+  def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["card", "table"] do
+    user = persist_user_view_mode(socket.assigns[:phoenix_kit_current_user], mode)
+
+    {:noreply,
+     socket
+     |> assign(:phoenix_kit_current_user, user)
+     |> assign(:view_mode, mode)}
   end
 
   @impl true
@@ -136,6 +152,47 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  # Per-user table/card preference, defaulting to "table". Mirrors the users
+  # table; persisted in the current user's custom_fields.
+  defp load_user_view_mode(%{} = user) do
+    case Auth.get_user_field(user, @view_mode_key) do
+      mode when mode in ["card", "table"] -> mode
+      _ -> "table"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "table"
+
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
+
+    case Auth.update_user_custom_fields(fresh, merged) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
+
+  # Build a filtered activity path, merging the current filters with `overrides`
+  # (a keyword list like `[module: "posts"]`; pass `""` to clear a filter). Used
+  # by the toolbar filter dropdowns so picking one filter preserves the others.
+  defp filter_path(assigns, overrides) do
+    query =
+      %{
+        "module" => assigns[:filter_module],
+        "mode" => assigns[:filter_mode],
+        "action" => assigns[:filter_action],
+        "resource_type" => assigns[:filter_resource_type]
+      }
+      |> Map.merge(Map.new(overrides, fn {k, v} -> {to_string(k), v} end))
+      |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
+      |> URI.encode_query()
+
+    Routes.path("/admin/activity" <> if(query == "", do: "", else: "?#{query}"))
+  end
 
   defp parse_int(nil, default), do: default
 
