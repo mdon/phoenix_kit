@@ -1,12 +1,12 @@
 <dialog
-  id="media-selector-modal-backdrop"
+  id={"media-selector-modal-backdrop-#{@id}"}
   class="fixed inset-0 z-[10001] m-0 h-full max-h-none w-full max-w-none overflow-y-auto border-0 bg-base-300/80 p-0 backdrop-blur-sm"
   phx-hook="PkDialog"
   data-show={to_string(@show)}
   data-close-event="close_modal"
   phx-click="close_modal"
   phx-target={@myself}
-  aria-labelledby="media-selector-modal-title"
+  aria-labelledby={"media-selector-modal-title-#{@id}"}
 >
   <%!-- Modal Container --%>
   <div class="min-h-screen px-2 py-2 sm:px-4 sm:py-6 flex items-center justify-center">
@@ -22,7 +22,7 @@
           <div class="flex justify-between items-start">
             <div>
               <h2
-                id="media-selector-modal-title"
+                id={"media-selector-modal-title-#{@id}"}
                 class="text-xl sm:text-2xl font-bold text-base-content"
               >
                 {gettext("Select Media")}
