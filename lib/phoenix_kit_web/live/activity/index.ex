@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Values
@@ -155,7 +156,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
 
   # Per-user table/card preference, defaulting to "table". Mirrors the users
   # table; persisted in the current user's custom_fields.
-  defp load_user_view_mode(%{} = user) do
+  defp load_user_view_mode(%User{} = user) do
     case Auth.get_user_field(user, @view_mode_key) do
       mode when mode in ["card", "table"] -> mode
       _ -> "table"
@@ -168,7 +169,14 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     fresh = Auth.get_user(uuid) || user
     merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
 
-    case Auth.update_user_custom_fields(fresh, merged) do
+    # Internal view preference: skip the custom-field-definition registration
+    # (so it never surfaces in the column customizer) and the profile-update
+    # broadcast (so toggling the view doesn't reload the users list for every
+    # admin). Mirrors the users table.
+    case Auth.update_user_custom_fields(fresh, merged,
+           ensure_definitions: false,
+           broadcast: false
+         ) do
       {:ok, updated} -> updated
       {:error, _} -> user
     end
@@ -185,7 +193,9 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         "module" => assigns[:filter_module],
         "mode" => assigns[:filter_mode],
         "action" => assigns[:filter_action],
-        "resource_type" => assigns[:filter_resource_type]
+        "resource_type" => assigns[:filter_resource_type],
+        # Preserve the per-resource deep-link scope (#599) when picking a filter.
+        "resource_uuid" => assigns[:filter_resource_uuid]
       }
       |> Map.merge(Map.new(overrides, fn {k, v} -> {to_string(k), v} end))
       |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)

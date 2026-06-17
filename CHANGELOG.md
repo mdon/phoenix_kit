@@ -35,13 +35,21 @@ bump; recorded here.
   filter-aware copy, excludes trashed / system-managed files from the browse
   list, and gives each instance a unique `<dialog>` id so two pickers on one
   page don't collide.
+- Admin **Activity page** UI follow-ups (PR #600): the filter toolbar fits one
+  row on mobile (Module / Mode / Action / Type as compact dropdowns), a
+  persisted grid/list Display toggle, and a mobile-friendly list view. The
+  user form's Cancel / primary buttons are reordered (Cancel left, primary
+  right) to match the rest of the admin UI.
 
 ### Fixed
-- The manage-users grid/list view toggle no longer registers its internal
-  `users_view_mode` preference as a user-facing custom-field definition (it was
-  leaking into the Customize Columns modal) and no longer broadcasts a
-  `user_updated` event — so toggling the view stops re-querying the users list
-  for every connected admin.
+- The manage-users **and** activity grid/list view toggles no longer register
+  their internal `users_view_mode` / `activity_view_mode` preference as a
+  user-facing custom-field definition (it was leaking into the Customize Columns
+  modal) and no longer broadcast a `user_updated` event — so toggling the view
+  stops re-querying the users list for every connected admin.
+- The Activity page's new filter dropdowns preserve the `resource_uuid`
+  deep-link scope (a per-resource feed no longer reverts to all activity when a
+  filter is picked).
 - The media picker now rejects off-type uploads server-side. The client `accept`
   list is fixed when the upload is first allowed and can't track the in-modal
   type dropdown, so an image/video picker could still store an off-type file;
