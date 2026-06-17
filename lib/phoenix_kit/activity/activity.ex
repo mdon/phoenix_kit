@@ -143,6 +143,7 @@ defmodule PhoenixKit.Activity do
   - `:action` — filter by action string (exact match or prefix with "post.*")
   - `:actor_uuid` — filter by who performed the action
   - `:resource_type` — filter by resource type
+  - `:resource_uuid` — filter by the specific resource's UUID (scope to one resource)
   - `:target_uuid` — filter by who was affected
   - `:since` — filter activities after this datetime
   - `:until` — filter activities before this datetime
@@ -358,6 +359,7 @@ defmodule PhoenixKit.Activity do
     |> maybe_filter_action(Keyword.get(opts, :action))
     |> maybe_filter_actor(Keyword.get(opts, :actor_uuid))
     |> maybe_filter_resource_type(Keyword.get(opts, :resource_type))
+    |> maybe_filter_resource_uuid(Keyword.get(opts, :resource_uuid))
     |> maybe_filter_target(Keyword.get(opts, :target_uuid))
     |> maybe_filter_since(Keyword.get(opts, :since))
     |> maybe_filter_until(Keyword.get(opts, :until))
@@ -385,6 +387,9 @@ defmodule PhoenixKit.Activity do
 
   defp maybe_filter_resource_type(query, nil), do: query
   defp maybe_filter_resource_type(query, type), do: where(query, [e], e.resource_type == ^type)
+
+  defp maybe_filter_resource_uuid(query, nil), do: query
+  defp maybe_filter_resource_uuid(query, uuid), do: where(query, [e], e.resource_uuid == ^uuid)
 
   defp maybe_filter_target(query, nil), do: query
   defp maybe_filter_target(query, uuid), do: where(query, [e], e.target_uuid == ^uuid)
