@@ -3,17 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Session Management")}
+  page_subtitle={gettext("Monitor and manage active user sessions")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/users")}
-      title={gettext("Session Management")}
-      subtitle={gettext("Monitor and manage active user sessions")}
-    />
-
     <%!-- Session Statistics --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <PhoenixKitWeb.Components.Core.StatCard.stat_card

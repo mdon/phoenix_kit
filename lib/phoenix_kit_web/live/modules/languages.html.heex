@@ -2,7 +2,8 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} Languages"
+  page_title="Languages"
+  page_subtitle="Manage available languages for your application"
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -12,12 +13,6 @@
     class="container flex flex-col mx-auto px-4 py-6"
     phx-hook="PreserveScroll"
   >
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/modules")}
-      title="Languages"
-      subtitle="Manage available languages for your application"
-    />
-
     <%!-- Summary Section --%>
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
