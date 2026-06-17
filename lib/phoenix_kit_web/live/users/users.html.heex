@@ -308,36 +308,48 @@
                             class="flex items-center gap-3 hover:opacity-80 transition-opacity"
                           >
                             <.user_avatar user={user} size="sm" />
-                            <div class="flex flex-col gap-1">
-                              <div class="flex flex-wrap items-center gap-2">
-                                <span class="font-medium link link-hover">{user.email}</span>
+                            <div class="flex flex-col gap-1 min-w-0 max-w-[18rem]">
+                              <div class="flex items-center gap-2 min-w-0">
+                                <span
+                                  class="font-medium link link-hover truncate min-w-0"
+                                  title={user.email}
+                                >
+                                  {user.email}
+                                </span>
                                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                                  <span class="badge badge-info badge-xs h-auto">
+                                  <span class="badge badge-info badge-xs h-auto shrink-0">
                                     {gettext("you")}
                                   </span>
                                 <% end %>
                                 <%= if @org_accounts_enabled && user.account_type == "organization" do %>
-                                  <span class="badge badge-primary badge-xs h-auto">
+                                  <span class="badge badge-primary badge-xs h-auto shrink-0">
                                     {gettext("Org")}
                                   </span>
                                 <% end %>
                               </div>
                               <%= if user.username do %>
-                                <div class="text-sm text-base-content/60">
+                                <div
+                                  class="text-sm text-base-content/60 truncate"
+                                  title={"@#{user.username}"}
+                                >
                                   @{user.username}
                                 </div>
                               <% end %>
                             </div>
                           </.link>
                         <% column_id == "full_name" -> %>
-                          <div class="flex flex-col gap-1">
+                          <div class="flex flex-col gap-1 min-w-0 max-w-[18rem]">
                             <%= if user.first_name || user.last_name || user.organization_name do %>
-                              <div>{PhoenixKit.Users.Auth.User.full_name(user)}</div>
+                              <% full_name = PhoenixKit.Users.Auth.User.full_name(user) %>
+                              <div class="truncate" title={full_name}>{full_name}</div>
                             <% else %>
                               <div class="text-base-content/50">-</div>
                             <% end %>
                             <%= if @org_accounts_enabled && user.organization do %>
-                              <div class="text-xs text-base-content/60">
+                              <div
+                                class="text-xs text-base-content/60 truncate"
+                                title={user.organization.organization_name}
+                              >
                                 {user.organization.organization_name}
                               </div>
                             <% end %>
