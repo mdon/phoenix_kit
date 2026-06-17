@@ -28,11 +28,7 @@
                 {gettext("Select Media")}
               </h2>
               <p class="text-base-content/70 text-sm mt-1">
-                <%= if @mode == :single do %>
-                  {gettext("Click on an image to select it")}
-                <% else %>
-                  {gettext("Select one or more images")}
-                <% end %>
+                {selection_hint(@mode, @file_type_filter)}
                 <%= if MapSet.size(@selected_uuids) > 0 do %>
                   <span class="badge badge-primary ml-2">
                     {ngettext(
@@ -124,7 +120,7 @@
                           {gettext("Drag files here or click to browse")}
                         </p>
                         <p class="text-xs text-base-content/70 mt-1">
-                          {gettext("Images, videos, or documents")}
+                          {accepted_types_hint(@file_type_filter)}
                         </p>
                       </div>
                     </div>

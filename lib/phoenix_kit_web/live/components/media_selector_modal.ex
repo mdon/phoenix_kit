@@ -179,6 +179,19 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp accept_for(:video), do: ~w(.mp4 .mov .webm .mkv .avi .m4v .ogv .ogg)
   defp accept_for(_), do: :any
 
+  # Modal copy that reflects the active type filter, so an all/video picker
+  # doesn't always say "images". Referenced from the template.
+  defp selection_hint(:single, :image), do: gettext("Click on an image to select it")
+  defp selection_hint(:single, :video), do: gettext("Click on a video to select it")
+  defp selection_hint(:single, _), do: gettext("Click on a file to select it")
+  defp selection_hint(_multiple, :image), do: gettext("Select one or more images")
+  defp selection_hint(_multiple, :video), do: gettext("Select one or more videos")
+  defp selection_hint(_multiple, _), do: gettext("Select one or more files")
+
+  defp accepted_types_hint(:image), do: gettext("Images")
+  defp accepted_types_hint(:video), do: gettext("Videos")
+  defp accepted_types_hint(_), do: gettext("Images, videos, or documents")
+
   def handle_event("noop", _params, socket) do
     # No-op event to prevent click propagation
     {:noreply, socket}
