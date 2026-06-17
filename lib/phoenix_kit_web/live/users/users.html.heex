@@ -760,15 +760,19 @@
     <%!-- Column Selection Modal --%>
     <%= if @show_column_modal do %>
       <div class="modal modal-open" id="column-modal">
-        <div class="modal-box max-w-5xl max-h-[90vh] overflow-hidden">
-          <h3 class="font-bold text-xl mb-4">{gettext("Customize Table Columns")}</h3>
-          <p class="text-base-content/70 mb-6">
+        <div class="modal-box max-w-5xl w-11/12 max-h-[90vh] flex flex-col">
+          <h3 class="font-bold text-xl mb-4 shrink-0">{gettext("Customize Table Columns")}</h3>
+          <p class="text-base-content/70 mb-6 shrink-0">
             {gettext(
               "Drag to reorder selected columns above, or add new columns from the options below. Actions column is always included."
             )}
           </p>
 
-          <form phx-submit="update_table_columns" id="column-form">
+          <form
+            phx-submit="update_table_columns"
+            id="column-form"
+            class="flex flex-col flex-1 min-h-0"
+          >
             <%!-- Hidden input to store the column order for form submission --%>
             <input
               type="hidden"
@@ -777,7 +781,7 @@
               value={Enum.join(@temp_selected_columns || @selected_columns, ",")}
             />
 
-            <div class="flex flex-col lg:flex-row gap-6 mb-6">
+            <div class="flex flex-col lg:flex-row gap-6 mb-6 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
               <%!-- Selected Columns Section (Left/Top) --%>
               <div class="flex-1">
                 <div class="flex items-center justify-between mb-3">
@@ -797,7 +801,7 @@
                   on_reorder="reorder_selected_columns"
                   layout={:list}
                   gap="space-y-2"
-                  class="min-h-[200px] max-h-[400px] overflow-y-auto border-2 border-dashed border-base-300 rounded-lg p-3 bg-base-50"
+                  class="min-h-[120px] lg:min-h-[200px] lg:max-h-[400px] lg:overflow-y-auto border-2 border-dashed border-base-300 rounded-lg p-3 bg-base-50"
                   item_class="flex items-center p-3 rounded-lg bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors"
                 >
                   <:item :let={column_id}>
@@ -842,7 +846,7 @@
                     {gettext("Click to add")}
                   </span>
                 </div>
-                <div class="max-h-[400px] overflow-y-auto border border-base-200 rounded-lg bg-base-100">
+                <div class="lg:max-h-[400px] lg:overflow-y-auto border border-base-200 rounded-lg bg-base-100">
                   <%!-- Standard Fields Section --%>
                   <%= if map_size(@available_columns.standard) > 0 do %>
                     <div class="p-3">
@@ -948,7 +952,7 @@
               </div>
             </div>
 
-            <div class="modal-action">
+            <div class="modal-action shrink-0 flex-wrap pt-4 border-t border-base-200">
               <button type="submit" class="btn btn-primary">
                 {gettext("Apply Changes")}
               </button>
