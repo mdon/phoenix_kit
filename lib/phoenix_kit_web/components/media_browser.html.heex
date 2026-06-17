@@ -1552,8 +1552,8 @@
                             <th>{gettext("Name")}</th>
                             <th class="hidden lg:table-cell">{gettext("Path")}</th>
                             <th class="hidden lg:table-cell">{gettext("Description")}</th>
-                            <th class="hidden sm:table-cell">{gettext("Type")}</th>
-                            <th class="hidden sm:table-cell">{gettext("Size")}</th>
+                            <th class="hidden md:table-cell">{gettext("Type")}</th>
+                            <th class="hidden md:table-cell">{gettext("Size")}</th>
                             <th class="hidden md:table-cell">{gettext("Date")}</th>
                             <th class="w-10"></th>
                           </tr>
@@ -1759,12 +1759,12 @@
                                       <span class="text-xs text-base-content/30">—</span>
                                     <% end %>
                                   </td>
-                                  <td class="hidden sm:table-cell">
+                                  <td class="hidden md:table-cell">
                                     <span class="badge badge-ghost badge-sm h-auto">
                                       {gettext("Folder")}
                                     </span>
                                   </td>
-                                  <td class="hidden sm:table-cell"></td>
+                                  <td class="hidden md:table-cell"></td>
                                   <td class="hidden md:table-cell text-sm text-base-content/70">
                                     {Calendar.strftime(folder.inserted_at, "%b %d, %Y")}
                                   </td>
@@ -1914,12 +1914,12 @@
                               <td class="hidden lg:table-cell">
                                 <span class="text-xs text-base-content/30">—</span>
                               </td>
-                              <td class="hidden sm:table-cell">
+                              <td class="hidden md:table-cell">
                                 <span class="badge badge-ghost badge-sm h-auto">
                                   {String.upcase(file.file_type)}
                                 </span>
                               </td>
-                              <td class="hidden sm:table-cell text-sm text-base-content/70">
+                              <td class="hidden md:table-cell text-sm text-base-content/70">
                                 {format_file_size(file.size)}
                               </td>
                               <td class="hidden md:table-cell text-sm text-base-content/70">
