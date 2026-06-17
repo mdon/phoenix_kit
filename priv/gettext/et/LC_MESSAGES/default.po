@@ -9351,3 +9351,18 @@ msgstr "Vali üks või mitu videot"
 #, elixir-autogen, elixir-format
 msgid "Videos"
 msgstr "Videod"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Click to upload"
+msgstr "Klõpsa üleslaadimiseks"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Confirm Selection"
+msgstr "Kinnita valik"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "or drag and drop"
+msgstr "või lohista failid siia"
