@@ -1,3 +1,44 @@
+## 1.7.157 - 2026-06-17
+
+Core support for the `phoenix_kit_comments` admin work — file-comment resolution
+and an annotation deep-link — plus admin navbar/MediaBrowser layout fixes and a
+dependency refresh.
+
+### Added
+- **File-comment resource resolution.** `PhoenixKit.Annotations.resolve_comment_resources/1`
+  maps `"file"` comment resources (including annotation discussions anchored via
+  `metadata.annotation_uuid`) to the file's display name and admin media path, plus a
+  signed `"thumbnail"` URL for images — so the comments moderation admin can link a
+  thumbnail chip instead of showing a bare uuid. Registered as the `"file"` handler by
+  `phoenix_kit_comments`, gated on this module being loaded.
+- **Annotation deep-link.** `MediaDetail` reads `?annotation=<uuid>` and pushes
+  `etcher:select-shape`; a new `phoenix_kit.js` bridge retries `layer.selectShape(uuid)`
+  until the Etcher canvas layer is ready, so a comment's chip lands on the file with its
+  shape selected. (No-ops on readonly shapes and on the static mount.)
+- **Plugin admin pages can forward `page_title`/`page_subtitle` to the navbar.** The plugin
+  admin layout now passes them through to `app_layout`, so plugin pages can drop their
+  in-content header and show the title/subtitle in the navbar breadcrumb (matching the core
+  media page).
+
+### Changed
+- **Dependency refresh:** `finch` 0.22 → 0.23, `phoenix_live_view` 1.2.1 → 1.2.3,
+  `sourceror` 1.12.0 → 1.12.2, `tailwind` installer 0.5.0 → 0.5.1, and `req` pinned to
+  0.5.17.
+- **MediaBrowser admin-page layout.** Always show the sidebar "Folders" header, align the
+  breadcrumb row flush with it, and drop the page padding so the browser fills the admin
+  media page.
+
+### Fixed
+- **Mobile admin navbar breadcrumb.** When a page has a title, the `Admin Panel /` prefix
+  is hidden below `sm` (and the title truncates) so it no longer overlaps the
+  theme/notifications controls.
+- **Media browser hero header z-index.** The hero's `z-30` (and the toolbar dropdowns'
+  `z-20`) are confined to the card's own stacking context via `isolate`, so they no longer
+  paint over the mobile drawer/navbar.
+- **Media list view tablet columns.** The Type/Size columns now cross over to the folded
+  mobile meta line at the same `md` breakpoint as Date, so they're no longer double-rendered
+  (column + meta line) in the `[sm, md)` tablet band.
+
 ## 1.7.156 - 2026-06-16
 
 MediaBrowser folder UX polish (folder-aware search, a name-it modal, an
