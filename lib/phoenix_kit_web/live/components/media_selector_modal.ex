@@ -479,6 +479,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
     query =
       from(f in File, order_by: [desc: f.inserted_at])
+      # Don't suggest trashed or system-managed files in the picker.
+      |> where([f], f.status != "trashed" and f.system_managed == false)
       |> scope_files_by_user(socket.assigns[:user_uuid])
       |> scope_files_by_folder(socket.assigns[:scope_folder_id])
       |> scope_files_by_type(socket.assigns.file_type_filter)
