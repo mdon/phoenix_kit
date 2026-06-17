@@ -233,20 +233,21 @@
           </.link>
         </:toolbar_actions>
         <:card_header :let={user}>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             <.user_avatar user={user} size="sm" />
             <div class="flex flex-col gap-0.5 min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="font-medium text-sm truncate">{user.email}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-medium text-sm truncate min-w-0">{user.email}</span>
                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                  <span class="badge badge-info badge-xs h-auto">{gettext("you")}</span>
-                <% end %>
-                <%= if User.full_name(user) && User.full_name(user) != "" do %>
-                  <span class="text-sm text-base-content/60">{User.full_name(user)}</span>
+                  <span class="badge badge-info badge-xs h-auto shrink-0">{gettext("you")}</span>
                 <% end %>
               </div>
+              <% full_name = User.full_name(user) %>
+              <%= if full_name && full_name != "" do %>
+                <span class="text-sm text-base-content/60 truncate">{full_name}</span>
+              <% end %>
               <%= if user.username do %>
-                <div class="text-xs text-base-content/50">@{user.username}</div>
+                <div class="text-xs text-base-content/50 truncate">@{user.username}</div>
               <% end %>
             </div>
           </div>
