@@ -3,17 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Activity")}
+  page_subtitle={gettext("Business-level activity across the platform")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={Routes.path("/admin")}
-      title={gettext("Activity")}
-      subtitle={gettext("Business-level activity across the platform")}
-    />
-
     <%!-- Activity List --%>
     <.table_default
       id="activity-table"

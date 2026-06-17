@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.157"
+  @version "1.7.158"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -119,6 +119,12 @@ defmodule PhoenixKit.MixProject do
 
       # Content editor
       {:leaf, "~> 0.3"},
+
+      # Markdown → HTML (comrak). Declared here in core so every module shares
+      # one resolved version instead of each pulling its own and risking
+      # mismatches. Modules (e.g. phoenix_kit_comments) call MDEx directly and
+      # rely on it being provided transitively through phoenix_kit.
+      {:mdex, "~> 0.13"},
 
       # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
       # OpenSeadragon and replaced the wrapped-OSD viewer with a

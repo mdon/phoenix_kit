@@ -309,7 +309,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <header class="bg-base-100 shadow-sm border-b border-base-300 fixed top-0 left-0 right-0 z-50">
               <div class="flex items-center justify-between h-16 px-4">
                 <%!-- Left: Burger Menu, Logo and Title --%>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0">
                   <%!-- Burger Menu Button (Far left) --%>
                   <label
                     for="admin-mobile-menu"

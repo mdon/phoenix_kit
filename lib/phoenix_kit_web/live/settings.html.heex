@@ -2,18 +2,13 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} Settings"
+  page_title={gettext("Settings")}
+  page_subtitle={gettext("Configure system preferences and options")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin")}
-      title={gettext("Settings")}
-      subtitle={gettext("Configure system preferences and options")}
-    />
-
     <%!-- Settings Form --%>
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">

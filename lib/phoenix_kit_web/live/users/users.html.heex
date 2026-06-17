@@ -3,17 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("User Management")}
+  page_subtitle={gettext("Manage user accounts and roles")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
-  <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin")}
-      title={gettext("User Management")}
-      subtitle={gettext("Manage user accounts and roles")}
-    />
-
+  <div class="flex flex-col w-full p-4">
     <%!-- Role Management Modal --%>
     <%= if @show_role_modal && @managing_user do %>
       <div class="modal modal-open">
@@ -84,8 +79,11 @@
       <.table_default
         id="users-table"
         variant="zebra"
-        class="w-full"
+        class="w-full table-fixed md:table-auto"
         toggleable={true}
+        show_toggle={false}
+        view_mode={@view_mode}
+        view_event="set_view_mode"
         items={@users}
         card_title={fn user -> user.email end}
         card_fields={
@@ -100,60 +98,184 @@
         }
       >
         <:toolbar_title>
-          <form phx-change="search" class="contents">
-            <label class="input input-sm w-full md:w-80 lg:w-96 min-w-0">
-              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
+          <%!-- View + filter controls live on the left (matches the media browser).
+               The slot is a plain block, so wrap them in a flex row for gap. --%>
+          <div class="flex flex-wrap items-center gap-2">
+            <%!-- Display (grid/list) — media-style dropdown --%>
+            <% display_options = [
+              {"card", gettext("Grid"), "hero-squares-2x2"},
+              {"table", gettext("List"), "hero-bars-3-bottom-left"}
+            ] %>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon
+                  name={
+                    if @view_mode == "table",
+                      do: "hero-bars-3-bottom-left",
+                      else: "hero-squares-2x2"
+                  }
+                  class="w-4 h-4"
+                />
+                <span class="hidden sm:inline">
+                  {if @view_mode == "table", do: gettext("List"), else: gettext("Grid")}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label, icon} <- display_options do %>
+                  <li>
+                    <button
+                      phx-click="set_view_mode"
+                      phx-value-mode={val}
+                      class={@view_mode == val && "active"}
+                    >
+                      <.icon name={icon} class="w-4 h-4" /> {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+            <%!-- Role Filter (media-style dropdown) --%>
+            <% role_options = [
+              {"all", gettext("All Users")},
+              {"Owner", gettext("Owners Only")},
+              {"Admin", gettext("Admins Only")},
+              {"User", gettext("Regular Users")}
+            ] %>
+            <% role_label =
+              role_options
+              |> Enum.find(fn {v, _} -> v == @filter_role end)
+              |> then(&(&1 && elem(&1, 1))) %>
+            <div class="dropdown">
+              <div
+                tabindex="0"
+                role="button"
+                class={["btn btn-sm gap-2", @filter_role != "all" && "btn-active"]}
+              >
+                <.icon name="hero-user-group" class="w-4 h-4" />
+                <%!-- Show the active role on mobile too (only "All Users" collapses
+                     to the bare icon) so the current filter is always legible. --%>
+                <span class={["sm:inline", @filter_role == "all" && "hidden"]}>
+                  {role_label || gettext("Role")}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label} <- role_options do %>
+                  <li>
+                    <button
+                      phx-click="filter_by_role"
+                      phx-value-role={val}
+                      class={@filter_role == val && "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+            <%!-- Account Type Filter (media-style dropdown) --%>
+            <%= if @org_accounts_enabled do %>
+              <% account_type_options = [
+                {"all", gettext("All Types")},
+                {"person", gettext("Person")},
+                {"organization", gettext("Organization")}
+              ] %>
+              <% account_type_label =
+                account_type_options
+                |> Enum.find(fn {v, _} -> v == @filter_account_type end)
+                |> then(&(&1 && elem(&1, 1))) %>
+              <div class="dropdown">
+                <div
+                  tabindex="0"
+                  role="button"
+                  class={["btn btn-sm gap-2", @filter_account_type != "all" && "btn-active"]}
+                >
+                  <.icon name="hero-identification" class="w-4 h-4" />
+                  <span class={["sm:inline", @filter_account_type == "all" && "hidden"]}>
+                    {account_type_label || gettext("Account type")}
+                  </span>
+                  <.icon
+                    name="hero-chevron-down"
+                    class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                  />
+                </div>
+                <ul
+                  tabindex="0"
+                  onclick="document.activeElement.blur()"
+                  class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                >
+                  <%= for {val, label} <- account_type_options do %>
+                    <li>
+                      <button
+                        phx-click="filter_by_account_type"
+                        phx-value-account_type={val}
+                        class={@filter_account_type == val && "active"}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+          </div>
+        </:toolbar_title>
+        <:sort_bar :if={@show_search or @search_query != ""}>
+          <form phx-change="search" phx-submit="search">
+            <label class="input input-sm input-bordered flex items-center gap-2 w-full">
+              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50 shrink-0" />
               <input
-                type="search"
+                id="users-search-input"
+                type="text"
                 name="search"
                 value={@search_query}
                 placeholder={gettext("Search by email, username, or name...")}
-                class="grow"
+                class="grow min-w-0"
                 phx-debounce="300"
+                autocomplete="off"
+                phx-mounted={Phoenix.LiveView.JS.focus()}
+                phx-blur="close_search_if_empty"
               />
+              <button
+                type="button"
+                phx-click="clear_search"
+                class="btn btn-ghost btn-xs btn-circle shrink-0"
+                title={gettext("Close search")}
+              >
+                <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
+              </button>
             </label>
           </form>
-        </:toolbar_title>
+        </:sort_bar>
         <:toolbar_actions>
-          <%!-- Role Filter --%>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">{gettext("Role:")}</span>
-          <form phx-change="filter_by_role" class="contents">
-            <select name="role" class="select select-sm w-36 min-w-0">
-              <option value="all" selected={@filter_role == "all"}>{gettext("All Users")}</option>
-              <option value="Owner" selected={@filter_role == "Owner"}>
-                {gettext("Owners Only")}
-              </option>
-              <option value="Admin" selected={@filter_role == "Admin"}>
-                {gettext("Admins Only")}
-              </option>
-              <option value="User" selected={@filter_role == "User"}>
-                {gettext("Regular Users")}
-              </option>
-            </select>
-          </form>
-          <%!-- Account Type Filter --%>
-          <%= if @org_accounts_enabled do %>
-            <span class="text-sm text-base-content/70 whitespace-nowrap">
-              {gettext("Account type:")}
-            </span>
-            <form phx-change="filter_by_account_type" class="contents">
-              <select
-                class="select select-sm w-40 min-w-0"
-                name="account_type"
-                value={@filter_account_type}
-              >
-                <option value="all" selected={@filter_account_type == "all"}>
-                  {gettext("All Types")}
-                </option>
-                <option value="person" selected={@filter_account_type == "person"}>
-                  {gettext("Person")}
-                </option>
-                <option value="organization" selected={@filter_account_type == "organization"}>
-                  {gettext("Organization")}
-                </option>
-              </select>
-            </form>
-          <% end %>
+          <%!-- Search (collapsed magnifier opens the row below) + actions on the
+               right, mirroring the media browser. --%>
+          <button
+            type="button"
+            phx-click="toggle_search"
+            class={[
+              "btn btn-sm btn-circle btn-ghost",
+              (@show_search or @search_query != "") && "btn-active"
+            ]}
+            title={gettext("Search")}
+          >
+            <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+          </button>
           <button
             class="btn btn-sm btn-info"
             phx-click="show_column_modal"
@@ -164,27 +286,28 @@
           <.link
             navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
             class="btn btn-sm btn-primary"
+            title={gettext("Add New User")}
           >
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" /> {gettext(
-              "Add New User"
-            )}
+            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" />
+            <span class="hidden lg:inline">{gettext("Add New User")}</span>
           </.link>
         </:toolbar_actions>
         <:card_header :let={user}>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             <.user_avatar user={user} size="sm" />
             <div class="flex flex-col gap-0.5 min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="font-medium text-sm truncate">{user.email}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-medium text-sm truncate min-w-0">{user.email}</span>
                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                  <span class="badge badge-info badge-xs h-auto">{gettext("you")}</span>
-                <% end %>
-                <%= if User.full_name(user) && User.full_name(user) != "" do %>
-                  <span class="text-sm text-base-content/60">{User.full_name(user)}</span>
+                  <span class="badge badge-info badge-xs h-auto shrink-0">{gettext("you")}</span>
                 <% end %>
               </div>
+              <% full_name = User.full_name(user) %>
+              <%= if full_name && full_name != "" do %>
+                <span class="text-sm text-base-content/60 truncate">{full_name}</span>
+              <% end %>
               <%= if user.username do %>
-                <div class="text-xs text-base-content/50">@{user.username}</div>
+                <div class="text-xs text-base-content/50 truncate">@{user.username}</div>
               <% end %>
             </div>
           </div>
@@ -193,7 +316,9 @@
           <.table_default_row>
             <%= for column_id <- @selected_columns do %>
               <%= if should_render_column?(column_id) do %>
-                <.table_default_header_cell>
+                <%!-- On mobile only the email + actions columns show; the rest
+                     collapse (hidden md:table-cell), mirroring the media list. --%>
+                <.table_default_header_cell class={mobile_col_class(column_id)}>
                   {render_column_header(column_id)}
                 </.table_default_header_cell>
               <% end %>
@@ -235,7 +360,7 @@
               <.table_default_row>
                 <%= for column_id <- @selected_columns do %>
                   <%= if should_render_column?(column_id) do %>
-                    <.table_default_cell>
+                    <.table_default_cell class={mobile_col_class(column_id)}>
                       <%= cond do %>
                         <% column_id == "email" -> %>
                           <.link
@@ -245,36 +370,59 @@
                             class="flex items-center gap-3 hover:opacity-80 transition-opacity"
                           >
                             <.user_avatar user={user} size="sm" />
-                            <div class="flex flex-col gap-1">
-                              <div class="flex flex-wrap items-center gap-2">
-                                <span class="font-medium link link-hover">{user.email}</span>
+                            <div class="flex flex-col gap-1 min-w-0 max-w-[18rem]">
+                              <div class="flex items-center gap-2 min-w-0">
+                                <span
+                                  class="font-medium link link-hover truncate min-w-0"
+                                  title={user.email}
+                                >
+                                  {user.email}
+                                </span>
                                 <%= if user.uuid == @phoenix_kit_current_user.uuid do %>
-                                  <span class="badge badge-info badge-xs h-auto">
+                                  <span class="badge badge-info badge-xs h-auto shrink-0">
                                     {gettext("you")}
                                   </span>
                                 <% end %>
                                 <%= if @org_accounts_enabled && user.account_type == "organization" do %>
-                                  <span class="badge badge-primary badge-xs h-auto">
+                                  <span class="badge badge-primary badge-xs h-auto shrink-0">
                                     {gettext("Org")}
                                   </span>
                                 <% end %>
                               </div>
                               <%= if user.username do %>
-                                <div class="text-sm text-base-content/60">
+                                <div
+                                  class="text-sm text-base-content/60 truncate"
+                                  title={"@#{user.username}"}
+                                >
                                   @{user.username}
+                                </div>
+                              <% end %>
+                              <%!-- Name shown inline on mobile only, since the
+                                   full_name column is hidden there. --%>
+                              <% mobile_full_name = User.full_name(user) %>
+                              <%= if mobile_full_name && mobile_full_name != "" do %>
+                                <div
+                                  class="md:hidden text-sm text-base-content/60 truncate"
+                                  title={mobile_full_name}
+                                >
+                                  {mobile_full_name}
                                 </div>
                               <% end %>
                             </div>
                           </.link>
                         <% column_id == "full_name" -> %>
-                          <div class="flex flex-col gap-1">
+                          <div class="flex flex-col gap-1 min-w-0 max-w-[18rem]">
                             <%= if user.first_name || user.last_name || user.organization_name do %>
-                              <div>{PhoenixKit.Users.Auth.User.full_name(user)}</div>
+                              <% full_name = PhoenixKit.Users.Auth.User.full_name(user) %>
+                              <div class="truncate" title={full_name}>{full_name}</div>
                             <% else %>
                               <div class="text-base-content/50">-</div>
                             <% end %>
                             <%= if @org_accounts_enabled && user.organization do %>
-                              <div class="text-xs text-base-content/60">
+                              <div
+                                class="text-xs text-base-content/60 truncate"
+                                title={user.organization.organization_name}
+                              >
                                 {user.organization.organization_name}
                               </div>
                             <% end %>
@@ -698,15 +846,19 @@
     <%!-- Column Selection Modal --%>
     <%= if @show_column_modal do %>
       <div class="modal modal-open" id="column-modal">
-        <div class="modal-box max-w-5xl max-h-[90vh] overflow-hidden">
-          <h3 class="font-bold text-xl mb-4">{gettext("Customize Table Columns")}</h3>
-          <p class="text-base-content/70 mb-6">
+        <div class="modal-box max-w-5xl w-11/12 max-h-[90vh] flex flex-col">
+          <h3 class="font-bold text-xl mb-4 shrink-0">{gettext("Customize Table Columns")}</h3>
+          <p class="text-base-content/70 mb-6 shrink-0">
             {gettext(
               "Drag to reorder selected columns above, or add new columns from the options below. Actions column is always included."
             )}
           </p>
 
-          <form phx-submit="update_table_columns" id="column-form">
+          <form
+            phx-submit="update_table_columns"
+            id="column-form"
+            class="flex flex-col flex-1 min-h-0"
+          >
             <%!-- Hidden input to store the column order for form submission --%>
             <input
               type="hidden"
@@ -715,7 +867,7 @@
               value={Enum.join(@temp_selected_columns || @selected_columns, ",")}
             />
 
-            <div class="flex flex-col lg:flex-row gap-6 mb-6">
+            <div class="flex flex-col lg:flex-row gap-6 mb-6 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
               <%!-- Selected Columns Section (Left/Top) --%>
               <div class="flex-1">
                 <div class="flex items-center justify-between mb-3">
@@ -735,7 +887,7 @@
                   on_reorder="reorder_selected_columns"
                   layout={:list}
                   gap="space-y-2"
-                  class="min-h-[200px] max-h-[400px] overflow-y-auto border-2 border-dashed border-base-300 rounded-lg p-3 bg-base-50"
+                  class="min-h-[120px] lg:min-h-[200px] lg:max-h-[400px] lg:overflow-y-auto border-2 border-dashed border-base-300 rounded-lg p-3 bg-base-50"
                   item_class="flex items-center p-3 rounded-lg bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors"
                 >
                   <:item :let={column_id}>
@@ -780,7 +932,7 @@
                     {gettext("Click to add")}
                   </span>
                 </div>
-                <div class="max-h-[400px] overflow-y-auto border border-base-200 rounded-lg bg-base-100">
+                <div class="lg:max-h-[400px] lg:overflow-y-auto border border-base-200 rounded-lg bg-base-100">
                   <%!-- Standard Fields Section --%>
                   <%= if map_size(@available_columns.standard) > 0 do %>
                     <div class="p-3">
@@ -886,7 +1038,7 @@
               </div>
             </div>
 
-            <div class="modal-action">
+            <div class="modal-action shrink-0 flex-wrap pt-4 border-t border-base-200">
               <button type="submit" class="btn btn-primary">
                 {gettext("Apply Changes")}
               </button>

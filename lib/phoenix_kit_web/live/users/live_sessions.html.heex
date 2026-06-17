@@ -2,21 +2,19 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={gettext("Live Sessions") <> " - " <> @project_title <> " " <> gettext("Admin")}
+  page_title={gettext("Live Sessions")}
+  page_subtitle={gettext("Real-time monitoring of all active sessions with live updates.")}
   current_path={@url_path}
   project_title={@project_title}
 >
   <div class="container mx-auto px-4 py-8">
-    <.admin_page_header back={PhoenixKit.Utils.Routes.path("/admin/users")}>
-      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
-        {gettext("Live Sessions")}
-      </h1>
-      <p class="text-sm text-base-content/60 mt-0.5">
-        {gettext("Real-time monitoring of all active sessions with live updates.")} {gettext(
-          "Last updated:"
-        )} {Calendar.strftime(@last_updated, "%H:%M:%S")}
+    <%!-- Slim action bar: title/subtitle now live in the navbar; keep the
+         live-updated timestamp and the live-monitoring controls. --%>
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4 sm:mb-6">
+      <p class="text-sm text-base-content/60">
+        {gettext("Last updated:")} {Calendar.strftime(@last_updated, "%H:%M:%S")}
       </p>
-      <:actions>
+      <div class="flex flex-wrap items-center gap-2">
         <%!-- Live Indicator --%>
         <div class="flex items-center gap-2 px-3 py-1 bg-success/10 text-success rounded-full">
           <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
@@ -37,14 +35,11 @@
           <% end %>
         </button>
         <%!-- Manual refresh --%>
-        <button
-          phx-click="refresh_now"
-          class="btn btn-sm btn-outline"
-        >
+        <button phx-click="refresh_now" class="btn btn-sm btn-outline">
           <.icon name="hero-arrow-path" class="w-5 h-5" /> {gettext("Refresh")}
         </button>
-      </:actions>
-    </.admin_page_header>
+      </div>
+    </div>
 
     <%!-- Statistics Cards --%>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -1,3 +1,16 @@
+## 1.7.158 - 2026-06-17
+
+Centralize the MDEx (markdown) dependency in core.
+
+### Changed
+- **`mdex` is now a direct dependency of `phoenix_kit`** (`~> 0.13`), so every
+  module shares one resolved version through the core dependency tree instead of
+  each declaring its own and risking version mismatches — the same arrangement
+  already used for `leaf`. Modules that render markdown (e.g.
+  `phoenix_kit_comments`) call `MDEx` directly and should rely on it being
+  provided transitively via `phoenix_kit` rather than declaring their own
+  `mdex` dep.
+
 ## 1.7.157 - 2026-06-17
 
 Core support for the `phoenix_kit_comments` admin work — file-comment resolution
