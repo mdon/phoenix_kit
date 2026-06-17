@@ -1597,15 +1597,25 @@ defmodule PhoenixKit.Users.Auth do
       iex> update_user_custom_fields(user, "invalid")
       {:error, %Ecto.Changeset{}}
   """
-  def update_user_custom_fields(%User{} = user, custom_fields) when is_map(custom_fields) do
-    CustomFields.ensure_definitions_exist(custom_fields)
+  def update_user_custom_fields(%User{} = user, custom_fields, opts \\ [])
+      when is_map(custom_fields) do
+    # Internal UI preferences (e.g. a table view toggle) also write through this
+    # function, but must not register themselves as user-facing custom-field
+    # definitions nor fan out a profile-update broadcast. Both options default
+    # to true, so every existing caller is unchanged.
+    if Keyword.get(opts, :ensure_definitions, true) do
+      CustomFields.ensure_definitions_exist(custom_fields)
+    end
 
     case user
          |> User.custom_fields_changeset(%{custom_fields: custom_fields})
          |> Repo.update() do
       {:ok, updated_user} ->
-        # Broadcast user profile update event
-        Events.broadcast_user_updated(updated_user)
+        if Keyword.get(opts, :broadcast, true) do
+          # Broadcast user profile update event
+          Events.broadcast_user_updated(updated_user)
+        end
+
         {:ok, updated_user}
 
       {:error, changeset} ->

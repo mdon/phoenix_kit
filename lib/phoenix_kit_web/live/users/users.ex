@@ -781,7 +781,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   # Read the per-user table/card preference from custom_fields, defaulting to
   # "table". Tolerant of a missing/garbage value.
-  defp load_user_view_mode(%{} = user) do
+  defp load_user_view_mode(%User{} = user) do
     case Auth.get_user_field(user, @view_mode_key) do
       mode when mode in ["card", "table"] -> mode
       _ -> "table"
@@ -797,7 +797,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     fresh = Auth.get_user(uuid) || user
     merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
 
-    case Auth.update_user_custom_fields(fresh, merged) do
+    # Internal view preference: skip the custom-field-definition registration
+    # (so it never surfaces in the column customizer) and the profile-update
+    # broadcast (so toggling the view doesn't reload the list for every admin).
+    case Auth.update_user_custom_fields(fresh, merged,
+           ensure_definitions: false,
+           broadcast: false
+         ) do
       {:ok, updated} -> updated
       {:error, _} -> user
     end

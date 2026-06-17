@@ -1,3 +1,58 @@
+## 1.7.159 - 2026-06-17
+
+Staff-support core changes (V136 employment history, Activity per-resource
+filter, media picker hardening, embedded-LiveView identity) plus follow-up
+review fixes. These changes landed on `main` after 1.7.158 without a version
+bump; recorded here.
+
+### Added
+- **V136 migration** — `phoenix_kit_staff_employments`, a per-person history of
+  employment spans (employment type, translatable `job_title`, department/team
+  snapshot, date range, `work_location`, `notes`). A partial unique index
+  enforces one open (current) span per person; the matching
+  `phoenix_kit_staff_people` columns are kept as a denormalized mirror of the
+  current span (not dropped). Backfills one open span per existing person
+  (guarded, retry-safe). `@current_version` → 136.
+- **`PhoenixKitWeb.Users.Auth.assign_embedded_current_user/2`** — reconstructs
+  `:phoenix_kit_current_user` / `:phoenix_kit_current_scope` on an off-router
+  embedded LiveView mount from a host-supplied `session["current_user_uuid"]`.
+  No-ops on a router mount, degrades to anonymous for an absent/unknown/inactive
+  uuid, and reconstructs identity (not authorization). Reference consumer:
+  `phoenix_kit_projects`.
+- **Upload-only media picker** — `MediaSelectorModal` gains a `browse: false`
+  mode that hides the library grid/search/filter, leaving a pure uploader
+  (uploaded files auto-select).
+- `update_user_custom_fields/3` gains `:broadcast` and `:ensure_definitions`
+  options (both default `true`, so existing callers are unchanged).
+
+### Changed
+- `PhoenixKit.Activity.list/1` (and `count/1`) now honour a `:resource_uuid`
+  filter, and the admin Activity page (`/admin/activity`) reads a `resource_uuid`
+  URL param — so a module can deep-link a per-resource feed. Previously
+  `:resource_uuid` was silently ignored, leaking every same-type resource's
+  events into a per-resource view.
+- `MediaSelectorModal` constrains uploads to the active type filter, shows
+  filter-aware copy, excludes trashed / system-managed files from the browse
+  list, and gives each instance a unique `<dialog>` id so two pickers on one
+  page don't collide.
+
+### Fixed
+- The manage-users grid/list view toggle no longer registers its internal
+  `users_view_mode` preference as a user-facing custom-field definition (it was
+  leaking into the Customize Columns modal) and no longer broadcasts a
+  `user_updated` event — so toggling the view stops re-querying the users list
+  for every connected admin.
+- The media picker now rejects off-type uploads server-side. The client `accept`
+  list is fixed when the upload is first allowed and can't track the in-modal
+  type dropdown, so an image/video picker could still store an off-type file;
+  `MediaSelectorModal` re-checks the type on upload and rejects mismatches.
+- The accepted-types hint is shown in the upload-only media picker (it was
+  hidden in `browse: false` mode, the one place it's most useful).
+
+### i18n
+- Internationalized the full-page media selector and the Jobs / Languages admin
+  page headers; added the new picker copy strings (et, ru).
+
 ## 1.7.158 - 2026-06-17
 
 Centralize the MDEx (markdown) dependency in core.

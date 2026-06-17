@@ -198,6 +198,21 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp accepted_types_hint(:video), do: gettext("Videos")
   defp accepted_types_hint(_), do: gettext("Images, videos, or documents")
 
+  # Authoritative server-side type gate for uploads. The client `accept` list is
+  # fixed when the upload is first allowed and can't track the in-modal type
+  # dropdown, so an off-type file can still reach the server — reject it here.
+  defp upload_type_allowed?(:image, entry), do: entry_file_type(entry) == "image"
+  defp upload_type_allowed?(:video, entry), do: entry_file_type(entry) == "video"
+  defp upload_type_allowed?(_all, _entry), do: true
+
+  defp entry_file_type(entry) do
+    (entry.client_type || MIME.from_path(entry.client_name)) |> determine_file_type()
+  end
+
+  defp off_type_upload_error(:image), do: gettext("Only image files can be added here.")
+  defp off_type_upload_error(:video), do: gettext("Only video files can be added here.")
+  defp off_type_upload_error(_), do: gettext("Only the allowed file types can be added here.")
+
   def handle_event("noop", _params, socket) do
     # No-op event to prevent click propagation
     {:noreply, socket}
@@ -345,8 +360,17 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   end
 
   defp handle_progress(:media_files, entry, socket) do
-    socket =
-      if entry.done? do
+    cond do
+      entry.done? and not upload_type_allowed?(socket.assigns.file_type_filter, entry) ->
+        # The in-modal type filter can change after the upload was allowed (the
+        # `accept` constraint is fixed at allow_upload time), so re-check the
+        # type here and reject an off-type file rather than storing it.
+        {:noreply,
+         socket
+         |> cancel_upload(:media_files, entry.ref)
+         |> put_flash(:error, off_type_upload_error(socket.assigns.file_type_filter))}
+
+      entry.done? ->
         # Consume the uploaded entry and capture the file ID
         uploaded_results =
           consume_uploaded_entry(socket, entry, fn %{path: path} ->
@@ -354,39 +378,41 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
           end)
 
         # Check if upload failed and handle error
-        case uploaded_results do
-          file_uuid when is_binary(file_uuid) ->
-            # Success - reload files and auto-select
-            {files, total_count} = load_files(socket, socket.assigns.current_page)
-            total_pages = ceil(total_count / socket.assigns.per_page)
+        socket =
+          case uploaded_results do
+            file_uuid when is_binary(file_uuid) ->
+              # Success - reload files and auto-select
+              {files, total_count} = load_files(socket, socket.assigns.current_page)
+              total_pages = ceil(total_count / socket.assigns.per_page)
 
-            selected_uuids =
-              case socket.assigns.mode do
-                :single -> MapSet.new([file_uuid])
-                :multiple -> MapSet.put(socket.assigns.selected_uuids, file_uuid)
-              end
+              selected_uuids =
+                case socket.assigns.mode do
+                  :single -> MapSet.new([file_uuid])
+                  :multiple -> MapSet.put(socket.assigns.selected_uuids, file_uuid)
+                end
 
-            socket
-            |> assign(:uploaded_files, files)
-            |> assign(:total_count, total_count)
-            |> assign(:total_pages, total_pages)
-            |> assign(:selected_uuids, selected_uuids)
+              socket
+              |> assign(:uploaded_files, files)
+              |> assign(:total_count, total_count)
+              |> assign(:total_pages, total_pages)
+              |> assign(:selected_uuids, selected_uuids)
 
-          _ ->
-            # Upload failed - show error message
-            socket
-            |> put_flash(
-              :error,
-              gettext(
-                "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
+            _ ->
+              # Upload failed - show error message
+              put_flash(
+                socket,
+                :error,
+                gettext(
+                  "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
+                )
               )
-            )
-        end
-      else
-        socket
-      end
+          end
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      true ->
+        {:noreply, socket}
+    end
   end
 
   defp process_upload(socket, path, entry) do

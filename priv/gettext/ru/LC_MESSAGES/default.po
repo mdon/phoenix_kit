@@ -9378,3 +9378,28 @@ msgstr "Подтвердить выбор"
 #, elixir-autogen, elixir-format
 msgid "or drag and drop"
 msgstr "или перетащите сюда"
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Manage available languages for your application"
+msgstr "Управление доступными языками приложения"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:212
+#, elixir-autogen, elixir-format
+msgid "Only image files can be added here."
+msgstr "Сюда можно добавлять только изображения."
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:213
+#, elixir-autogen, elixir-format
+msgid "Only video files can be added here."
+msgstr "Сюда можно добавлять только видео."
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:214
+#, elixir-autogen, elixir-format
+msgid "Only the allowed file types can be added here."
+msgstr "Сюда можно добавлять только разрешённые типы файлов."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "View background job status and history"
+msgstr "Просмотр статуса и истории фоновых задач"
