@@ -159,7 +159,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
       has_buckets ->
         allow_upload(socket, :media_files,
-          accept: :any,
+          accept: accept_for(socket.assigns[:file_type_filter]),
           max_entries: 10,
           auto_upload: true,
           progress: &handle_progress/3
@@ -170,6 +170,14 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
         socket
     end
   end
+
+  # Constrain the upload picker to the filtered type. The browse list is already
+  # scoped by `scope_files_by_type/2`; without this the upload accepted any file
+  # (`:any`), so an image/video picker would still let arbitrary files in. `:all`
+  # keeps `:any`.
+  defp accept_for(:image), do: ~w(.jpg .jpeg .png .gif .webp .svg .bmp .avif .heic .heif)
+  defp accept_for(:video), do: ~w(.mp4 .mov .webm .mkv .avi .m4v .ogv .ogg)
+  defp accept_for(_), do: :any
 
   def handle_event("noop", _params, socket) do
     # No-op event to prevent click propagation
