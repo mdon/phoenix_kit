@@ -68,6 +68,10 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
       |> maybe_put("mode", filter_params["mode"])
       |> maybe_put("action", filter_params["action"])
       |> maybe_put("resource_type", filter_params["resource_type"])
+      # No form input for resource_uuid — it's a URL-driven scope (e.g. a
+      # "view this resource's activity" deep link); preserve it across filter
+      # changes so tweaking module/action doesn't drop the resource scope.
+      |> maybe_put("resource_uuid", socket.assigns.filter_resource_uuid)
 
     query = URI.encode_query(new_params)
     {:noreply, push_patch(socket, to: Routes.path("/admin/activity?#{query}"))}
@@ -94,6 +98,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> assign(:filter_mode, nil)
     |> assign(:filter_action, nil)
     |> assign(:filter_resource_type, nil)
+    |> assign(:filter_resource_uuid, nil)
   end
 
   defp apply_params(socket, params) do
@@ -103,6 +108,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> assign(:filter_mode, Values.blank_to_nil(params["mode"]))
     |> assign(:filter_action, Values.blank_to_nil(params["action"]))
     |> assign(:filter_resource_type, Values.blank_to_nil(params["resource_type"]))
+    |> assign(:filter_resource_uuid, Values.blank_to_nil(params["resource_uuid"]))
   end
 
   defp load_activities(socket) do
@@ -114,6 +120,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         mode: socket.assigns.filter_mode,
         action: socket.assigns.filter_action,
         resource_type: socket.assigns.filter_resource_type,
+        resource_uuid: socket.assigns.filter_resource_uuid,
         preload: [:actor, :target]
       )
 
