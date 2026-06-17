@@ -81,6 +81,9 @@
         variant="zebra"
         class="w-full"
         toggleable={true}
+        show_toggle={false}
+        view_mode={@view_mode}
+        view_event="set_view_mode"
         items={@users}
         card_title={fn user -> user.email end}
         card_fields={
@@ -95,19 +98,130 @@
         }
       >
         <:toolbar_title>
-          <%!-- Collapsed search: a magnifier that opens the full-width search
-               row below the toolbar (see :sort_bar), mirroring the media browser. --%>
-          <button
-            type="button"
-            phx-click="toggle_search"
-            class={[
-              "btn btn-sm btn-circle btn-ghost",
-              (@show_search or @search_query != "") && "btn-active"
-            ]}
-            title={gettext("Search")}
-          >
-            <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-          </button>
+          <%!-- View + filter controls live on the left (matches the media browser).
+               The slot is a plain block, so wrap them in a flex row for gap. --%>
+          <div class="flex flex-wrap items-center gap-2">
+            <%!-- Display (grid/list) — media-style dropdown --%>
+            <% display_options = [
+              {"card", gettext("Grid"), "hero-squares-2x2"},
+              {"table", gettext("List"), "hero-bars-3-bottom-left"}
+            ] %>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon
+                  name={
+                    if @view_mode == "table",
+                      do: "hero-bars-3-bottom-left",
+                      else: "hero-squares-2x2"
+                  }
+                  class="w-4 h-4"
+                />
+                <span class="hidden sm:inline">
+                  {if @view_mode == "table", do: gettext("List"), else: gettext("Grid")}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label, icon} <- display_options do %>
+                  <li>
+                    <button
+                      phx-click="set_view_mode"
+                      phx-value-mode={val}
+                      class={@view_mode == val && "active"}
+                    >
+                      <.icon name={icon} class="w-4 h-4" /> {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+            <%!-- Role Filter (media-style dropdown) --%>
+            <% role_options = [
+              {"all", gettext("All Users")},
+              {"Owner", gettext("Owners Only")},
+              {"Admin", gettext("Admins Only")},
+              {"User", gettext("Regular Users")}
+            ] %>
+            <% role_label =
+              role_options
+              |> Enum.find(fn {v, _} -> v == @filter_role end)
+              |> then(&(&1 && elem(&1, 1))) %>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon name="hero-user-group" class="w-4 h-4" />
+                <span class="hidden sm:inline">{role_label || gettext("Role")}</span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label} <- role_options do %>
+                  <li>
+                    <button
+                      phx-click="filter_by_role"
+                      phx-value-role={val}
+                      class={@filter_role == val && "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+            <%!-- Account Type Filter (media-style dropdown) --%>
+            <%= if @org_accounts_enabled do %>
+              <% account_type_options = [
+                {"all", gettext("All Types")},
+                {"person", gettext("Person")},
+                {"organization", gettext("Organization")}
+              ] %>
+              <% account_type_label =
+                account_type_options
+                |> Enum.find(fn {v, _} -> v == @filter_account_type end)
+                |> then(&(&1 && elem(&1, 1))) %>
+              <div class="dropdown">
+                <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                  <.icon name="hero-identification" class="w-4 h-4" />
+                  <span class="hidden sm:inline">
+                    {account_type_label || gettext("Account type")}
+                  </span>
+                  <.icon
+                    name="hero-chevron-down"
+                    class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                  />
+                </div>
+                <ul
+                  tabindex="0"
+                  onclick="document.activeElement.blur()"
+                  class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                >
+                  <%= for {val, label} <- account_type_options do %>
+                    <li>
+                      <button
+                        phx-click="filter_by_account_type"
+                        phx-value-account_type={val}
+                        class={@filter_account_type == val && "active"}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+          </div>
         </:toolbar_title>
         <:sort_bar :if={@show_search or @search_query != ""}>
           <form phx-change="search" phx-submit="search">
@@ -137,85 +251,19 @@
           </form>
         </:sort_bar>
         <:toolbar_actions>
-          <%!-- Role Filter (media-style dropdown) --%>
-          <% role_options = [
-            {"all", gettext("All Users")},
-            {"Owner", gettext("Owners Only")},
-            {"Admin", gettext("Admins Only")},
-            {"User", gettext("Regular Users")}
-          ] %>
-          <% role_label =
-            role_options
-            |> Enum.find(fn {v, _} -> v == @filter_role end)
-            |> then(&(&1 && elem(&1, 1))) %>
-          <div class="dropdown">
-            <div tabindex="0" role="button" class="btn btn-sm gap-2">
-              <.icon name="hero-user-group" class="w-4 h-4" />
-              <span class="hidden sm:inline">{role_label || gettext("Role")}</span>
-              <.icon
-                name="hero-chevron-down"
-                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
-              />
-            </div>
-            <ul
-              tabindex="0"
-              onclick="document.activeElement.blur()"
-              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
-            >
-              <%= for {val, label} <- role_options do %>
-                <li>
-                  <button
-                    phx-click="filter_by_role"
-                    phx-value-role={val}
-                    class={@filter_role == val && "active"}
-                  >
-                    {label}
-                  </button>
-                </li>
-              <% end %>
-            </ul>
-          </div>
-          <%!-- Account Type Filter (media-style dropdown) --%>
-          <%= if @org_accounts_enabled do %>
-            <% account_type_options = [
-              {"all", gettext("All Types")},
-              {"person", gettext("Person")},
-              {"organization", gettext("Organization")}
-            ] %>
-            <% account_type_label =
-              account_type_options
-              |> Enum.find(fn {v, _} -> v == @filter_account_type end)
-              |> then(&(&1 && elem(&1, 1))) %>
-            <div class="dropdown">
-              <div tabindex="0" role="button" class="btn btn-sm gap-2">
-                <.icon name="hero-identification" class="w-4 h-4" />
-                <span class="hidden sm:inline">
-                  {account_type_label || gettext("Account type")}
-                </span>
-                <.icon
-                  name="hero-chevron-down"
-                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
-                />
-              </div>
-              <ul
-                tabindex="0"
-                onclick="document.activeElement.blur()"
-                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
-              >
-                <%= for {val, label} <- account_type_options do %>
-                  <li>
-                    <button
-                      phx-click="filter_by_account_type"
-                      phx-value-account_type={val}
-                      class={@filter_account_type == val && "active"}
-                    >
-                      {label}
-                    </button>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
-          <% end %>
+          <%!-- Search (collapsed magnifier opens the row below) + actions on the
+               right, mirroring the media browser. --%>
+          <button
+            type="button"
+            phx-click="toggle_search"
+            class={[
+              "btn btn-sm btn-circle btn-ghost",
+              (@show_search or @search_query != "") && "btn-active"
+            ]}
+            title={gettext("Search")}
+          >
+            <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+          </button>
           <button
             class="btn btn-sm btn-info"
             phx-click="show_column_modal"

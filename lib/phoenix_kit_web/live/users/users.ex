@@ -16,6 +16,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   @per_page 10
   @max_cell_length 20
 
+  # Per-admin grid/list preference for the users table, persisted in the
+  # current user's custom_fields (mirrors the media browser's view toggle).
+  @view_mode_key "users_view_mode"
+
   def mount(_params, _session, socket) do
     # Subscribe to user events for live updates
     if connected?(socket) do
@@ -53,6 +57,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:per_page, @per_page)
       |> assign(:search_query, "")
       |> assign(:show_search, false)
+      |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
       |> assign(:filter_role, "all")
       |> assign(
         :org_accounts_enabled,
@@ -118,6 +123,17 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   # Collapse the search row on blur, but only while it is empty.
   def handle_event("close_search_if_empty", _params, socket) do
     {:noreply, assign(socket, :show_search, socket.assigns.search_query != "")}
+  end
+
+  # Switch between the table and card views, persisting the choice on the
+  # current user so it survives reloads (mirrors the media browser).
+  def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["card", "table"] do
+    user = persist_user_view_mode(socket.assigns[:phoenix_kit_current_user], mode)
+
+    {:noreply,
+     socket
+     |> assign(:phoenix_kit_current_user, user)
+     |> assign(:view_mode, mode)}
   end
 
   def handle_event("filter_by_role", %{"role" => role}, socket) do
@@ -762,6 +778,32 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     |> assign(:confirmed_users, stats.confirmed_users)
     |> assign(:pending_users, stats.pending_users)
   end
+
+  # Read the per-user table/card preference from custom_fields, defaulting to
+  # "table". Tolerant of a missing/garbage value.
+  defp load_user_view_mode(%{} = user) do
+    case Auth.get_user_field(user, @view_mode_key) do
+      mode when mode in ["card", "table"] -> mode
+      _ -> "table"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "table"
+
+  # Persist the preference into a freshly-read custom_fields copy so a
+  # concurrent change elsewhere isn't clobbered. Returns the updated user (or
+  # the original on no-user / error) for the caller to re-assign.
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
+
+    case Auth.update_user_custom_fields(fresh, merged) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
 
   defp get_user_roles(user) do
     # Use preloaded roles if available
