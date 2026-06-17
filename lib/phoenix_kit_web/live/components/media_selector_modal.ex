@@ -63,6 +63,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
     * `selected_uuids` — list of already-selected file UUIDs
     * `phoenix_kit_current_user` — required for uploads to attribute the file
     * `file_type_filter` — `:all` (default), `:image`, or `:video`
+    * `browse` — `true` (default) shows the library grid + search + type filter;
+      `false` is upload-only (dropzone + Confirm; uploaded files auto-select)
     * `user_uuid` — when set, restricts the library to files owned by
       that user; nil (default) shows the full library
     * `scope_folder_id` — when set, restricts both the browse query
@@ -109,6 +111,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       # after lazy-creating their folder.
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:notify, fn -> nil end)
+      # `browse: false` → upload-only mode: hide the library grid, search,
+      # type filter, pagination, and the accepted-types hint, leaving just the
+      # dropzone + Confirm. Uploaded files auto-select, so Confirm still works.
+      |> assign_new(:browse, fn -> true end)
       |> assign_new(:file_type_filter, fn -> :all end)
       |> assign_new(:search_query, fn -> "" end)
       |> assign_new(:current_page, fn -> 1 end)
