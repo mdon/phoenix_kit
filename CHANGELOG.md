@@ -1,3 +1,16 @@
+## 1.7.160 - 2026-06-17
+
+### Fixed
+- **V122 migration on pre-locations databases** (issue #598) — `V122` creates
+  `phoenix_kit_location_spaces` with a required FK to `phoenix_kit_locations`,
+  a table created only in `V91`. Because the locations tables were added to an
+  already-released `v91.ex`, any database that passed V91 *before* that addition
+  never received the parent table, so V122 aborted the whole migration
+  transaction with `42P01 undefined_table`. `V122.up/1` now
+  `create_if_not_exists`-backfills `phoenix_kit_locations` (mirroring V91's
+  final shape) before building the FK — an idempotent no-op where V91 already
+  created it, and a repair where it was missing.
+
 ## 1.7.159 - 2026-06-17
 
 Staff-support core changes (V136 employment history, Activity per-resource
