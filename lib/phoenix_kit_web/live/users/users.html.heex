@@ -137,45 +137,84 @@
           </form>
         </:sort_bar>
         <:toolbar_actions>
-          <%!-- Role Filter --%>
-          <form phx-change="filter_by_role" class="contents">
-            <select
-              name="role"
-              class="select select-sm w-32 min-w-0"
-              title={gettext("Filter by role")}
+          <%!-- Role Filter (media-style dropdown) --%>
+          <% role_options = [
+            {"all", gettext("All Users")},
+            {"Owner", gettext("Owners Only")},
+            {"Admin", gettext("Admins Only")},
+            {"User", gettext("Regular Users")}
+          ] %>
+          <% role_label =
+            role_options
+            |> Enum.find(fn {v, _} -> v == @filter_role end)
+            |> then(&(&1 && elem(&1, 1))) %>
+          <div class="dropdown">
+            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+              <.icon name="hero-user-group" class="w-4 h-4" />
+              <span class="hidden sm:inline">{role_label || gettext("Role")}</span>
+              <.icon
+                name="hero-chevron-down"
+                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+              />
+            </div>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
             >
-              <option value="all" selected={@filter_role == "all"}>{gettext("All Users")}</option>
-              <option value="Owner" selected={@filter_role == "Owner"}>
-                {gettext("Owners Only")}
-              </option>
-              <option value="Admin" selected={@filter_role == "Admin"}>
-                {gettext("Admins Only")}
-              </option>
-              <option value="User" selected={@filter_role == "User"}>
-                {gettext("Regular Users")}
-              </option>
-            </select>
-          </form>
-          <%!-- Account Type Filter --%>
+              <%= for {val, label} <- role_options do %>
+                <li>
+                  <button
+                    phx-click="filter_by_role"
+                    phx-value-role={val}
+                    class={@filter_role == val && "active"}
+                  >
+                    {label}
+                  </button>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+          <%!-- Account Type Filter (media-style dropdown) --%>
           <%= if @org_accounts_enabled do %>
-            <form phx-change="filter_by_account_type" class="contents">
-              <select
-                class="select select-sm w-36 min-w-0"
-                name="account_type"
-                value={@filter_account_type}
-                title={gettext("Filter by account type")}
+            <% account_type_options = [
+              {"all", gettext("All Types")},
+              {"person", gettext("Person")},
+              {"organization", gettext("Organization")}
+            ] %>
+            <% account_type_label =
+              account_type_options
+              |> Enum.find(fn {v, _} -> v == @filter_account_type end)
+              |> then(&(&1 && elem(&1, 1))) %>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon name="hero-identification" class="w-4 h-4" />
+                <span class="hidden sm:inline">
+                  {account_type_label || gettext("Account type")}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
               >
-                <option value="all" selected={@filter_account_type == "all"}>
-                  {gettext("All Types")}
-                </option>
-                <option value="person" selected={@filter_account_type == "person"}>
-                  {gettext("Person")}
-                </option>
-                <option value="organization" selected={@filter_account_type == "organization"}>
-                  {gettext("Organization")}
-                </option>
-              </select>
-            </form>
+                <%= for {val, label} <- account_type_options do %>
+                  <li>
+                    <button
+                      phx-click="filter_by_account_type"
+                      phx-value-account_type={val}
+                      class={@filter_account_type == val && "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
           <% end %>
           <button
             class="btn btn-sm btn-info"
