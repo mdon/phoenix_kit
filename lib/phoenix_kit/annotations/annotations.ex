@@ -23,6 +23,7 @@ defmodule PhoenixKit.Annotations do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Utils.Routes
 
   @type attrs :: map()
   @type uuid :: String.t()
@@ -70,7 +71,10 @@ defmodule PhoenixKit.Annotations do
     )
     |> RepoHelper.all()
     |> Map.new(fn {uuid, original_name, file_name, file_type} ->
-      info = %{title: original_name || file_name || "File", path: "/admin/media/#{uuid}"}
+      info = %{
+        title: original_name || file_name || "File",
+        path: Routes.path("/admin/media/#{uuid}")
+      }
 
       # A small signed thumbnail for image files, so the comments admin can show
       # a preview chip. Falls back to no thumb for non-images (or missing variants).
