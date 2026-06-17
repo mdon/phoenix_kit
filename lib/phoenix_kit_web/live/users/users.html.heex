@@ -95,25 +95,55 @@
         }
       >
         <:toolbar_title>
-          <form phx-change="search" class="contents">
-            <label class="input input-sm w-full md:w-80 lg:w-96 min-w-0">
-              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
+          <%!-- Collapsed search: a magnifier that opens the full-width search
+               row below the toolbar (see :sort_bar), mirroring the media browser. --%>
+          <button
+            type="button"
+            phx-click="toggle_search"
+            class={[
+              "btn btn-sm btn-circle btn-ghost",
+              (@show_search or @search_query != "") && "btn-active"
+            ]}
+            title={gettext("Search")}
+          >
+            <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+          </button>
+        </:toolbar_title>
+        <:sort_bar :if={@show_search or @search_query != ""}>
+          <form phx-change="search" phx-submit="search">
+            <label class="input input-sm input-bordered flex items-center gap-2 w-full">
+              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50 shrink-0" />
               <input
-                type="search"
+                id="users-search-input"
+                type="text"
                 name="search"
                 value={@search_query}
                 placeholder={gettext("Search by email, username, or name...")}
-                class="grow"
+                class="grow min-w-0"
                 phx-debounce="300"
+                autocomplete="off"
+                phx-mounted={Phoenix.LiveView.JS.focus()}
+                phx-blur="close_search_if_empty"
               />
+              <button
+                type="button"
+                phx-click="clear_search"
+                class="btn btn-ghost btn-xs btn-circle shrink-0"
+                title={gettext("Close search")}
+              >
+                <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
+              </button>
             </label>
           </form>
-        </:toolbar_title>
+        </:sort_bar>
         <:toolbar_actions>
           <%!-- Role Filter --%>
-          <span class="text-sm text-base-content/70 whitespace-nowrap">{gettext("Role:")}</span>
           <form phx-change="filter_by_role" class="contents">
-            <select name="role" class="select select-sm w-36 min-w-0">
+            <select
+              name="role"
+              class="select select-sm w-32 min-w-0"
+              title={gettext("Filter by role")}
+            >
               <option value="all" selected={@filter_role == "all"}>{gettext("All Users")}</option>
               <option value="Owner" selected={@filter_role == "Owner"}>
                 {gettext("Owners Only")}
@@ -128,14 +158,12 @@
           </form>
           <%!-- Account Type Filter --%>
           <%= if @org_accounts_enabled do %>
-            <span class="text-sm text-base-content/70 whitespace-nowrap">
-              {gettext("Account type:")}
-            </span>
             <form phx-change="filter_by_account_type" class="contents">
               <select
-                class="select select-sm w-40 min-w-0"
+                class="select select-sm w-36 min-w-0"
                 name="account_type"
                 value={@filter_account_type}
+                title={gettext("Filter by account type")}
               >
                 <option value="all" selected={@filter_account_type == "all"}>
                   {gettext("All Types")}
@@ -159,10 +187,10 @@
           <.link
             navigate={PhoenixKit.Utils.Routes.path("/admin/users/new")}
             class="btn btn-sm btn-primary"
+            title={gettext("Add New User")}
           >
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" /> {gettext(
-              "Add New User"
-            )}
+            <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="h-4 w-4" />
+            <span class="hidden lg:inline">{gettext("Add New User")}</span>
           </.link>
         </:toolbar_actions>
         <:card_header :let={user}>

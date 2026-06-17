@@ -52,6 +52,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:page, 1)
       |> assign(:per_page, @per_page)
       |> assign(:search_query, "")
+      |> assign(:show_search, false)
       |> assign(:filter_role, "all")
       |> assign(
         :org_accounts_enabled,
@@ -95,6 +96,28 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> load_users()
 
     {:noreply, socket}
+  end
+
+  # Toggle the collapsed search row open/closed (mirrors the media browser).
+  def handle_event("toggle_search", _params, socket) do
+    {:noreply, assign(socket, :show_search, !socket.assigns.show_search)}
+  end
+
+  # Clear the query and close the search row (the ✕ button).
+  def handle_event("clear_search", _params, socket) do
+    socket =
+      socket
+      |> assign(:search_query, "")
+      |> assign(:show_search, false)
+      |> assign(:page, 1)
+      |> load_users()
+
+    {:noreply, socket}
+  end
+
+  # Collapse the search row on blur, but only while it is empty.
+  def handle_event("close_search_if_empty", _params, socket) do
+    {:noreply, assign(socket, :show_search, socket.assigns.search_query != "")}
   end
 
   def handle_event("filter_by_role", %{"role" => role}, socket) do
