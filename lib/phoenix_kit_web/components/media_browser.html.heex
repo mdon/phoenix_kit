@@ -94,7 +94,11 @@
     <% end %>
 
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
-    <div class={["card bg-base-100 shadow-xl", @fill_height && "flex-1 min-h-0"]}>
+    <%!-- `isolate` confines the hero header's `z-30` (and the toolbar
+         dropdowns' `z-20`) to this card's own stacking context, so they no
+         longer paint over the mobile drawer/navbar. Modals live outside this
+         card and are unaffected. --%>
+    <div class={["card bg-base-100 shadow-xl isolate", @fill_height && "flex-1 min-h-0"]}>
       <div class={[
         "card-body p-2 sm:p-4 flex flex-row gap-0 overflow-hidden",
         if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
@@ -132,7 +136,7 @@
 
           <div class="min-h-0 flex-1 flex flex-col">
             <div
-              class="p-2 min-h-0 flex-1 flex flex-col"
+              class="px-2 pb-2 min-h-0 flex-1 flex flex-col"
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
@@ -178,7 +182,11 @@
                 folder it becomes a clickable button followed by the ancestor
                 path and the current folder.
               --%>
-              <nav class="breadcrumbs text-sm mb-2">
+              <%!-- `!py-0` strips daisyUI's default breadcrumb padding and the
+                   removed top padding above lets this row sit flush with the
+                   sidebar's "Folders" header; `mb-3` matches that header's
+                   bottom gap so the rows below line up too. --%>
+              <nav class="breadcrumbs text-sm mb-3 !py-0 min-h-[1.5rem] flex items-center">
                 <ul>
                   <%= if @current_folder do %>
                     <li>

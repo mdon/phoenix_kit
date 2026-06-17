@@ -119,13 +119,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           style="width: 240px; max-width: 240px;"
         >
           <div class="flex items-center justify-between mb-3">
-            <%= if is_nil(@scope_folder_id) do %>
-              <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wider">
-                {gettext("Folders")}
-              </h3>
-            <% else %>
-              <div></div>
-            <% end %>
+            <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wider">
+              {gettext("Folders")}
+            </h3>
             <div class="flex gap-0.5">
               <button
                 :if={@show_create}
