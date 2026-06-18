@@ -1475,6 +1475,11 @@ if (typeof window.Chart === "undefined") {
       // re-render of the toolbar block restored its default `hidden` class.
       this._acquireTextarea();
       this._revealToolbars();
+      // Trust the server once it reports a saved state — otherwise the local
+      // `dirty` flag stays true for the page's life after the first keystroke
+      // (only set-content / changes-status clear it, which not every host pushes)
+      // and the beforeunload guard fires a bogus "unsaved changes" prompt post-save.
+      if (this.el.dataset.saveStatus === "saved") this.dirty = false;
     },
 
     destroyed() {
