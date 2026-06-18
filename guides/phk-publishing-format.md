@@ -58,7 +58,7 @@ Only a subset is required, but the publishing UI will populate everything shown 
 
 After the frontmatter, everything is standard Markdown. The renderer automatically:
 
-1. Runs Markdown through Earmark (GitHub-flavoured Markdown).
+1. Runs Markdown through MDEx (GitHub-flavoured Markdown).
 2. Scans for inline PHK components (`<Image />`, `<Hero>…</Hero>`, `<CTA />`, `<Headline>`, `<Subheadline>`).
 3. Renders those components with Phoenix components before returning HTML.
 
@@ -212,7 +212,7 @@ published_at: 2025-07-01T10:00:00Z
 ## Rendering pipeline (current behaviour)
 
 1. **Frontmatter parsing** – YAML is parsed to capture metadata.
-2. **Markdown rendering** – Earmark converts the Markdown body to HTML.
+2. **Markdown rendering** – MDEx converts the Markdown body to HTML.
 3. **Component pass** – the renderer finds inline PHK component tags and swaps them with Phoenix component output.
 4. **Storage resolution** – `<Image>` elements fetch URLs from `PhoenixKit.Storage`; caching and signed URLs ensure files are served even when only local storage exists.
 5. **Output** – the resulting HTML is cached for published posts to speed up public requests.

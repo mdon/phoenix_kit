@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.160"
+  @version "1.7.161"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -159,7 +159,6 @@ defmodule PhoenixKit.MixProject do
 
       # Utilities
       {:jason, "~> 1.4"},
-      {:earmark, "~> 1.4"},
       {:yaml_elixir, "~> 2.9"},
       {:nimble_csv, "~> 1.2"},
       {:uuidv7, "~> 1.0"},

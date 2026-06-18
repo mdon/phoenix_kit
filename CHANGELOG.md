@@ -1,3 +1,21 @@
+## 1.7.161 - 2026-06-18
+
+### Changed
+- **`Components.Core.Markdown` now renders via `MDEx`** instead of `earmark`.
+  The `<.markdown>` component consolidates onto the same Rust-NIF renderer
+  already shared across the dependency tree (`leaf`, `phoenix_kit_comments`) —
+  completing the migration begun in 1.7.158. Output is preserved: GFM
+  (strikethrough/table/autolink/tasklist), smart typography,
+  `<code class="language-…">` fenced code blocks, and raw-HTML passthrough on
+  `sanitize={false}` (the default path still runs `HtmlSanitizer`).
+- Updated the publishing format guide to name MDEx as the markdown renderer.
+
+### Removed
+- **`earmark` direct dependency.** It was retained only for
+  `Components.Core.Markdown`; with that component on `MDEx`, the dep and its
+  `mix.lock` entry are removed. `earmark_parser` remains transitively via
+  `ex_doc` and is unaffected.
+
 ## 1.7.160 - 2026-06-17
 
 ### Fixed
