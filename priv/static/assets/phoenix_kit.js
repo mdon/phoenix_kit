@@ -3994,6 +3994,28 @@ if (typeof window.Chart === "undefined") {
     layer.deleteShape(detail.uuid);
   });
 
+  // Deep-link shape selection. A comment's "file" resource link (e.g. from the
+  // comments moderation admin) can carry `?annotation=<uuid>`; MediaDetail
+  // pushes `etcher:select-shape` so the shape is pinned (selected) as if the
+  // user clicked it. The Etcher layer mounts asynchronously after the canvas
+  // hook initializes, so retry until the layer + shape exist (give up after
+  // ~6s). selectShape no-ops on readonly shapes.
+  window.addEventListener("phx:etcher:select-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var attempts = 0;
+    (function trySelect() {
+      var layer = window.Etcher && window.Etcher.layerFor &&
+                  window.Etcher.layerFor(detail.fresco_id);
+      if (layer && typeof layer.selectShape === "function" &&
+          typeof layer.getShape === "function" && layer.getShape(detail.uuid)) {
+        layer.selectShape(detail.uuid);
+        return;
+      }
+      if (attempts++ < 60) setTimeout(trySelect, 100);
+    })();
+  });
+
   window.Etcher.tooltipSlots = {
     // Header → annotation title (user-chosen label) if present;
     // otherwise the comment author; otherwise the shape kind.

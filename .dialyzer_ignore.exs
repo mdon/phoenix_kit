@@ -88,9 +88,7 @@
 
   # Integrations: Dialyzer infers boolean branches in cond/case are unreachable
   # when provider auth_type covers all spec'd atoms. False positive — defensive code.
-  # Also: :validation key not in @type provider but present in actual provider maps.
   {"lib/phoenix_kit/integrations/integrations.ex", :pattern_match},
-  {"lib/phoenix_kit/integrations/integrations.ex", :guard_fail},
 
   # Extracted module references — conditionally loaded via Code.ensure_loaded?
   # These modules live in separate packages (phoenix_kit_ecommerce, phoenix_kit_billing)

@@ -665,6 +665,13 @@
           <%!-- Form Actions --%>
           <div class="flex justify-end gap-3 pt-6 border-t border-base-300">
             <button
+              type="button"
+              phx-click="cancel"
+              class="btn btn-outline"
+            >
+              Cancel
+            </button>
+            <button
               type="submit"
               class="btn btn-primary"
               phx-disable-with={
@@ -676,13 +683,6 @@
               <% else %>
                 Update User
               <% end %>
-            </button>
-            <button
-              type="button"
-              phx-click="cancel"
-              class="btn btn-outline"
-            >
-              Cancel
             </button>
           </div>
         </.form>

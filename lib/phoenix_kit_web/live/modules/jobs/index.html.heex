@@ -2,18 +2,13 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Jobs"
+  page_title={gettext("Jobs")}
+  page_subtitle={gettext("View background job status and history")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
 >
   <div class="p-6">
-    <.admin_page_header
-      back={Routes.path("/admin/modules")}
-      title="Jobs"
-      subtitle="View background job status and history"
-    />
-
     <%!-- Stats Cards --%>
     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
       <div class="stat bg-base-100 rounded-lg shadow p-3">

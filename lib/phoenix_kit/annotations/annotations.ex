@@ -21,7 +21,9 @@ defmodule PhoenixKit.Annotations do
   alias PhoenixKit.Annotations.Annotation
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Utils.Routes
 
   @type attrs :: map()
   @type uuid :: String.t()
@@ -48,6 +50,44 @@ defmodule PhoenixKit.Annotations do
   end
 
   def has_annotations?(_), do: false
+
+  @doc """
+  Resolves `"file"` comment resources for the comments moderation admin.
+
+  Comments on files — including annotation discussions, which are anchored to
+  the file with `metadata.annotation_uuid` — carry `resource_type: "file"` and
+  `resource_uuid: file_uuid`. This maps those file uuids to the file's display
+  name and admin media path so the moderation list links to the file instead
+  of showing a bare uuid.
+
+  Registered as the `"file"` handler by `phoenix_kit_comments`'
+  `resolve_comment_resources/1` dispatch (gated on this module being loaded).
+  """
+  @spec resolve_comment_resources([uuid()]) :: %{uuid() => map()}
+  def resolve_comment_resources(resource_uuids) when is_list(resource_uuids) do
+    from(f in StorageFile,
+      where: f.uuid in ^resource_uuids,
+      select: {f.uuid, f.original_file_name, f.file_name, f.file_type}
+    )
+    |> RepoHelper.all()
+    |> Map.new(fn {uuid, original_name, file_name, file_type} ->
+      info = %{
+        title: original_name || file_name || "File",
+        path: Routes.path("/admin/media/#{uuid}")
+      }
+
+      # A small signed thumbnail for image files, so the comments admin can show
+      # a preview chip. Falls back to no thumb for non-images (or missing variants).
+      info =
+        if file_type == "image",
+          do: Map.put(info, :thumb_url, URLSigner.signed_url(to_string(uuid), "thumbnail")),
+          else: info
+
+      {uuid, info}
+    end)
+  rescue
+    _ -> %{}
+  end
 
   @doc "List annotations for a file, ordered by `position` then insertion time."
   @spec list_for_file(uuid()) :: [Annotation.t()]

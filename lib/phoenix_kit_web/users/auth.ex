@@ -807,6 +807,76 @@ defmodule PhoenixKitWeb.Users.Auth do
     Auth.ensure_active_user(user)
   end
 
+  @doc """
+  Reconstructs and assigns the current user + scope on an **embedded**
+  LiveView mount from a host-supplied `session["current_user_uuid"]`.
+
+  A LiveView rendered via `live_render/3` mounts with
+  `:not_mounted_at_router`, so it never runs a router `live_session`'s
+  `on_mount` hook (e.g. `:phoenix_kit_ensure_admin`) — leaving
+  `:phoenix_kit_current_scope` / `:phoenix_kit_current_user` absent, which
+  blinds any user-aware embedded UI (comment composers, activity-actor
+  attribution). The host bridges identity across the `live_render`
+  process boundary by passing its own authenticated user's UUID as
+  `session["current_user_uuid"]` — a **string**, never the `%User{}`
+  struct (a signed-but-not-encrypted `live_render` session would expose
+  it to the client). This helper reloads that user and assigns both
+  `:phoenix_kit_current_user` and `:phoenix_kit_current_scope`.
+
+    * No-op when `:phoenix_kit_current_scope` is already assigned (router
+      mount — the `on_mount` hook ran, before `mount/3`). Never clobbers
+      the canonical scope.
+    * An active user → assigns it + `Scope.for_user(user)`.
+    * Absent / unknown / inactive uuid, or a transient DB error →
+      anonymous (`nil` user + `Scope.for_user(nil)`), never raising.
+
+  > This reconstructs **identity** (audit, comment authorship), not
+  > **authorization** — it performs no role check. The UUID must come
+  > from the host's trusted server-side scope, never request params; and
+  > a host embedding an admin LiveView must gate the embedding page
+  > itself (the `on_mount` admin gate does not run for embeds).
+
+  Generic across embeddable feature modules — `phoenix_kit_projects` is
+  the reference consumer.
+  """
+  @spec assign_embedded_current_user(LiveView.Socket.t(), map()) :: LiveView.Socket.t()
+  def assign_embedded_current_user(socket, session) when is_map(session) do
+    if is_nil(socket.assigns[:phoenix_kit_current_scope]) do
+      {user, scope} = reconstruct_embedded_identity(Map.get(session, "current_user_uuid"))
+
+      socket
+      |> Phoenix.Component.assign(:phoenix_kit_current_user, user)
+      |> Phoenix.Component.assign(:phoenix_kit_current_scope, scope)
+    else
+      socket
+    end
+  end
+
+  def assign_embedded_current_user(socket, _session), do: socket
+
+  defp reconstruct_embedded_identity(uuid) when is_binary(uuid) and uuid != "" do
+    user = uuid |> Auth.get_user() |> Auth.ensure_active_user()
+
+    if is_nil(user) do
+      Logger.warning(
+        "[phoenix_kit] embedded current_user_uuid=#{inspect(uuid)} did not resolve " <>
+          "to an active user — embedded UI degrades to anonymous"
+      )
+    end
+
+    {user, Scope.for_user(user)}
+  rescue
+    e in [Postgrex.Error, DBConnection.ConnectionError, Ecto.QueryError] ->
+      Logger.warning(
+        "[phoenix_kit] failed to load embedded user #{inspect(uuid)}: " <>
+          Exception.message(e) <> " — degrading to anonymous"
+      )
+
+      {nil, Scope.for_user(nil)}
+  end
+
+  defp reconstruct_embedded_identity(_), do: {nil, Scope.for_user(nil)}
+
   defp mount_phoenix_kit_current_scope(socket, session, params \\ %{}) do
     socket =
       socket

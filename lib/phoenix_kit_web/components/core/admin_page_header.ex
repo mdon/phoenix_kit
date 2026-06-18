@@ -62,10 +62,10 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
     ~H"""
     <header class="mb-3 sm:mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div>
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="min-w-0">
             <%= if @title do %>
-              <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
+              <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content break-words">
                 {@title}
               </h1>
               <p :if={@subtitle} class="text-sm sm:text-base text-base-content/60 mt-0.5">

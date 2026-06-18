@@ -11,10 +11,16 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   alias PhoenixKit.Activity
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Values
+
+  # Per-admin grid/list preference for the activity table, persisted in the
+  # current user's custom_fields (mirrors the users table view toggle).
+  @view_mode_key "activity_view_mode"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -35,6 +41,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         |> assign(:modes, Activity.list_modes())
         |> assign(:action_types, Activity.list_action_types())
         |> assign(:resource_types, Activity.list_resource_types())
+        |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
         |> assign_filter_defaults()
         |> load_activities()
 
@@ -68,6 +75,10 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
       |> maybe_put("mode", filter_params["mode"])
       |> maybe_put("action", filter_params["action"])
       |> maybe_put("resource_type", filter_params["resource_type"])
+      # No form input for resource_uuid — it's a URL-driven scope (e.g. a
+      # "view this resource's activity" deep link); preserve it across filter
+      # changes so tweaking module/action doesn't drop the resource scope.
+      |> maybe_put("resource_uuid", socket.assigns.filter_resource_uuid)
 
     query = URI.encode_query(new_params)
     {:noreply, push_patch(socket, to: Routes.path("/admin/activity?#{query}"))}
@@ -76,6 +87,16 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   @impl true
   def handle_event("clear_filters", _params, socket) do
     {:noreply, push_patch(socket, to: Routes.path("/admin/activity"))}
+  end
+
+  @impl true
+  def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["card", "table"] do
+    user = persist_user_view_mode(socket.assigns[:phoenix_kit_current_user], mode)
+
+    {:noreply,
+     socket
+     |> assign(:phoenix_kit_current_user, user)
+     |> assign(:view_mode, mode)}
   end
 
   @impl true
@@ -94,6 +115,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> assign(:filter_mode, nil)
     |> assign(:filter_action, nil)
     |> assign(:filter_resource_type, nil)
+    |> assign(:filter_resource_uuid, nil)
   end
 
   defp apply_params(socket, params) do
@@ -103,6 +125,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> assign(:filter_mode, Values.blank_to_nil(params["mode"]))
     |> assign(:filter_action, Values.blank_to_nil(params["action"]))
     |> assign(:filter_resource_type, Values.blank_to_nil(params["resource_type"]))
+    |> assign(:filter_resource_uuid, Values.blank_to_nil(params["resource_uuid"]))
   end
 
   defp load_activities(socket) do
@@ -114,6 +137,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         mode: socket.assigns.filter_mode,
         action: socket.assigns.filter_action,
         resource_type: socket.assigns.filter_resource_type,
+        resource_uuid: socket.assigns.filter_resource_uuid,
         preload: [:actor, :target]
       )
 
@@ -129,6 +153,56 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  # Per-user table/card preference, defaulting to "table". Mirrors the users
+  # table; persisted in the current user's custom_fields.
+  defp load_user_view_mode(%User{} = user) do
+    case Auth.get_user_field(user, @view_mode_key) do
+      mode when mode in ["card", "table"] -> mode
+      _ -> "table"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "table"
+
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
+
+    # Internal view preference: skip the custom-field-definition registration
+    # (so it never surfaces in the column customizer) and the profile-update
+    # broadcast (so toggling the view doesn't reload the users list for every
+    # admin). Mirrors the users table.
+    case Auth.update_user_custom_fields(fresh, merged,
+           ensure_definitions: false,
+           broadcast: false
+         ) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
+
+  # Build a filtered activity path, merging the current filters with `overrides`
+  # (a keyword list like `[module: "posts"]`; pass `""` to clear a filter). Used
+  # by the toolbar filter dropdowns so picking one filter preserves the others.
+  defp filter_path(assigns, overrides) do
+    query =
+      %{
+        "module" => assigns[:filter_module],
+        "mode" => assigns[:filter_mode],
+        "action" => assigns[:filter_action],
+        "resource_type" => assigns[:filter_resource_type],
+        # Preserve the per-resource deep-link scope (#599) when picking a filter.
+        "resource_uuid" => assigns[:filter_resource_uuid]
+      }
+      |> Map.merge(Map.new(overrides, fn {k, v} -> {to_string(k), v} end))
+      |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
+      |> URI.encode_query()
+
+    Routes.path("/admin/activity" <> if(query == "", do: "", else: "?#{query}"))
+  end
 
   defp parse_int(nil, default), do: default
 

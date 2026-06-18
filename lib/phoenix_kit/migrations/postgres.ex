@@ -529,7 +529,18 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V135 - Structured staff skills ⚡ LATEST
+  ### V136 - Staff employment history ⚡ LATEST
+  - Adds `phoenix_kit_staff_employments` — a per-person history of employment
+    spans (employment type, translatable `job_title`, org placement via
+    `primary_department_uuid` + a `primary_team_uuid` snapshot, date range with
+    `employment_end_date IS NULL` = the open/current span, `work_location`,
+    `notes`). A partial unique index enforces one open span per person. The
+    matching `phoenix_kit_staff_people` columns are kept as a denormalized mirror
+    of the current span (written by the app's `sync_current/1`), not dropped.
+    Backfills one open span per existing person from those columns (guarded,
+    retry-safe; people with no employment data are skipped).
+
+  ### V135 - Structured staff skills
   - Replaces the free-text `phoenix_kit_staff_people.skills` column with a
     first-class translatable `phoenix_kit_staff_skills` entity + a
     `phoenix_kit_staff_person_skills` join. Each skill carries its own
@@ -1161,7 +1172,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 135
+  @current_version 136
   @default_prefix "public"
 
   @doc false

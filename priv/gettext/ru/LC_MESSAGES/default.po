@@ -9333,3 +9333,73 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
 msgstr ""
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:186
+#, elixir-autogen, elixir-format
+msgid "Click on a file to select it"
+msgstr "Нажмите на файл, чтобы выбрать его"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:185
+#, elixir-autogen, elixir-format
+msgid "Click on a video to select it"
+msgstr "Нажмите на видео, чтобы выбрать его"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:191
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "Изображения"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:189
+#, elixir-autogen, elixir-format
+msgid "Select one or more files"
+msgstr "Выберите один или несколько файлов"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:188
+#, elixir-autogen, elixir-format
+msgid "Select one or more videos"
+msgstr "Выберите одно или несколько видео"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:192
+#, elixir-autogen, elixir-format
+msgid "Videos"
+msgstr "Видео"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Click to upload"
+msgstr "Нажмите для загрузки"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Confirm Selection"
+msgstr "Подтвердить выбор"
+
+#: lib/phoenix_kit_web/live/users/media_selector.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "or drag and drop"
+msgstr "или перетащите сюда"
+
+#: lib/phoenix_kit_web/live/modules/languages.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Manage available languages for your application"
+msgstr "Управление доступными языками приложения"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:212
+#, elixir-autogen, elixir-format
+msgid "Only image files can be added here."
+msgstr "Сюда можно добавлять только изображения."
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:213
+#, elixir-autogen, elixir-format
+msgid "Only video files can be added here."
+msgstr "Сюда можно добавлять только видео."
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:214
+#, elixir-autogen, elixir-format
+msgid "Only the allowed file types can be added here."
+msgstr "Сюда можно добавлять только разрешённые типы файлов."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "View background job status and history"
+msgstr "Просмотр статуса и истории фоновых задач"

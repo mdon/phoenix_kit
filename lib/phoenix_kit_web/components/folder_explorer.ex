@@ -15,7 +15,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   implement the relevant `handle_event/3` clauses:
 
       navigate_folder, navigate_root, navigate_view_all,
-      toggle_folder_expand, toggle_sidebar, create_untitled_folder,
+      toggle_folder_expand, toggle_sidebar, open_new_folder_modal,
       start_rename_folder, rename_folder_input, rename_folder,
       cancel_rename_folder, toggle_trash_filter
 
@@ -84,6 +84,16 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   attr :show_trash, :boolean, default: true
 
   def folder_explorer(assigns) do
+    # UUIDs on the path from a root folder down to (and including) the
+    # current folder. Each node's guide-line connector is darkened when its
+    # uuid is in this set, so the user can trace the branch they're inside.
+    assigns =
+      assign(
+        assigns,
+        :active_path,
+        active_path_uuids(assigns.folder_tree, assigns.current_folder)
+      )
+
     ~H"""
     <div
       id={@id}
@@ -109,17 +119,13 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           style="width: 240px; max-width: 240px;"
         >
           <div class="flex items-center justify-between mb-3">
-            <%= if is_nil(@scope_folder_id) do %>
-              <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wider">
-                {gettext("Folders")}
-              </h3>
-            <% else %>
-              <div></div>
-            <% end %>
+            <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wider">
+              {gettext("Folders")}
+            </h3>
             <div class="flex gap-0.5">
               <button
                 :if={@show_create}
-                phx-click="create_untitled_folder"
+                phx-click="open_new_folder_modal"
                 phx-target={@myself}
                 class="btn btn-ghost btn-xs"
                 title={gettext("New folder")}
@@ -178,6 +184,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
               <.folder_tree_node
                 node={node}
                 current_folder={@current_folder}
+                active_path={@active_path}
                 expanded_folders={@expanded_folders}
                 renaming_folder={@renaming_folder}
                 renaming_source={@renaming_source}
@@ -222,6 +229,17 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
   attr :node, :map, required: true
   attr :current_folder, :any, required: true
+
+  attr :active_path, :any,
+    default: MapSet.new(),
+    doc: "UUIDs from a root folder to the current folder; darkens their connector lines."
+
+  attr :connector_mode, :atom,
+    default: :normal,
+    values: [:normal, :active_trunk, :active_turn],
+    doc:
+      "How this node's guide line is drawn: normal, a darkened pass-through trunk, or the darkened turn into the active branch."
+
   attr :expanded_folders, :any, required: true
   attr :renaming_folder, :any, default: nil
   attr :renaming_text, :string, default: ""
@@ -278,11 +296,30 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           assigns.renaming_source == "sidebar"
       )
 
+    # This node's own connector style comes from its parent (`@connector_mode`).
+    # For ITS children we find which one (if any) continues the active branch:
+    # children above it get a darkened vertical trunk (`:active_trunk`), the
+    # branch child itself gets the darkened turn (`:active_turn`), the rest stay
+    # normal. Suppressed in trash view (the tree highlight is off there).
+    assigns =
+      assign(
+        assigns,
+        :on_path_child_index,
+        if(assigns.filter_trash,
+          do: nil,
+          else:
+            Enum.find_index(
+              assigns.node.children,
+              &MapSet.member?(assigns.active_path, &1.folder.uuid)
+            )
+        )
+      )
+
     assigns =
       assign(
         assigns,
         :tree_connector_class,
-        tree_connector_class(assigns.depth, assigns.has_children)
+        tree_connector_class(assigns.depth, assigns.has_children, assigns.connector_mode)
       )
 
     ~H"""
@@ -419,12 +456,14 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         --%>
         <ul
           class="ml-3 overflow-hidden"
-          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}"}
+          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}; --pk-tree-line-active: #{tree_line_color_active(@node.folder.color)}"}
         >
-          <%= for child <- @node.children do %>
+          <%= for {child, idx} <- Enum.with_index(@node.children) do %>
             <.folder_tree_node
               node={child}
               current_folder={@current_folder}
+              active_path={@active_path}
+              connector_mode={child_connector_mode(@on_path_child_index, idx)}
               expanded_folders={@expanded_folders}
               renaming_folder={@renaming_folder}
               renaming_source={@renaming_source}
@@ -476,10 +515,49 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
     end
   end
 
+  # Darker (less transparent) variant of the same line color, used for the
+  # connectors on the active root→current branch — same hue, just bolder. A
+  # colored folder bumps alpha `80` (~50%) → `E6` (~90%); the neutral falls
+  # back to currentColor at 85% (still theme-adaptive, not solid black).
   @doc false
-  def tree_connector_class(0, _has_children), do: false
+  def tree_line_color_active(color) do
+    case folder_color_hex(color) do
+      nil -> "color-mix(in oklab, currentColor 85%, transparent)"
+      hex -> hex <> "E6"
+    end
+  end
 
-  def tree_connector_class(_depth, true = _has_children) do
+  # Which connector mode a child renders, given the index of the branch child
+  # in the same group (or nil when none): everything above the branch child is
+  # a darkened pass-through trunk, the branch child is the darkened turn, the
+  # rest are normal.
+  defp child_connector_mode(nil, _idx), do: :normal
+  defp child_connector_mode(branch_idx, idx) when idx < branch_idx, do: :active_trunk
+  defp child_connector_mode(branch_idx, idx) when idx == branch_idx, do: :active_turn
+  defp child_connector_mode(_branch_idx, _idx), do: :normal
+
+  # Connector classes are returned as whole literal Tailwind strings (never
+  # interpolate the utility tokens — the JIT scans source for complete class
+  # names, so each variant is spelled out in full).
+  #
+  # Three modes:
+  #   * :normal       — light vertical trunk + light elbow into the row.
+  #   * :active_trunk — the active branch descends PAST this side row, so its
+  #                     vertical trunk is darkened while the elbow into the row
+  #                     stays light (the path doesn't enter here).
+  #   * :active_turn  — the active branch turns INTO this row. The trunk stays
+  #                     light so it can continue down to later siblings, and a
+  #                     darkened L-elbow (`after`) draws the turn over its top.
+  #                     A last child has no trunk below, so its `before` becomes
+  #                     the darkened elbow instead.
+  #
+  # `w-4` vs `w-9`: a row with a disclosure chevron stops the elbow at the
+  # chevron (`w-4`); a childless row runs it across the empty chevron column to
+  # the folder icon (`w-9`).
+  @doc false
+  def tree_connector_class(0, _has_children, _mode), do: false
+
+  def tree_connector_class(_depth, true = _has_children, :normal) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
@@ -488,13 +566,81 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       "last:after:hidden"
   end
 
-  def tree_connector_class(_depth, false = _has_children) do
+  def tree_connector_class(_depth, false = _has_children, :normal) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>
       "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
       "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
+  end
+
+  def tree_connector_class(_depth, true = _has_children, :active_trunk) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
+      "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
+  end
+
+  def tree_connector_class(_depth, false = _has_children, :active_trunk) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>
+      "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
+  end
+
+  def tree_connector_class(_depth, true = _has_children, :active_turn) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-4 after:bg-transparent " <>
+      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
+  end
+
+  def tree_connector_class(_depth, false = _has_children, :active_turn) do
+    "relative pl-3.5 " <>
+      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
+      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-9 after:bg-transparent " <>
+      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
+      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:after:hidden"
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # Active-branch path (root → current folder)
+  # ──────────────────────────────────────────────────────────────
+
+  # Set of folder UUIDs on the path from a root node down to (and including)
+  # the current folder. Empty when there is no current folder or it isn't in
+  # the tree. Walks the already-nested tree, so it's O(n) over visible nodes.
+  @doc false
+  def active_path_uuids(_tree, nil), do: MapSet.new()
+
+  def active_path_uuids(tree, current_folder) do
+    case find_node_path(tree, current_folder.uuid) do
+      nil -> MapSet.new()
+      path -> MapSet.new(path)
+    end
+  end
+
+  defp find_node_path(nodes, target_uuid) do
+    Enum.find_value(nodes, fn node ->
+      if node.folder.uuid == target_uuid do
+        [target_uuid]
+      else
+        case find_node_path(node.children, target_uuid) do
+          nil -> nil
+          sub -> [node.folder.uuid | sub]
+        end
+      end
+    end)
   end
 
   # ──────────────────────────────────────────────────────────────

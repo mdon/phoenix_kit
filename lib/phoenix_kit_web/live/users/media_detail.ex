@@ -47,9 +47,24 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       |> assign(:show_delete_modal, false)
       |> load_file_data(file_uuid)
       |> assign(:viewer_annotations, MediaCanvasViewer.load_annotations_for(file_uuid))
+      |> maybe_select_annotation(file_uuid, params["annotation"])
 
     {:ok, socket}
   end
+
+  # Deep-link from a comment's "file" resource (e.g. the comments moderation
+  # admin) can carry `?annotation=<uuid>` to focus the Etcher shape the comment
+  # is anchored to. Push the select-shape event; the JS bridge retries until the
+  # canvas layer is ready (the event is a no-op on the static mount).
+  defp maybe_select_annotation(socket, file_uuid, annotation_uuid)
+       when is_binary(annotation_uuid) and annotation_uuid != "" do
+    Phoenix.LiveView.push_event(socket, "etcher:select-shape", %{
+      fresco_id: "media-zoom-" <> file_uuid,
+      uuid: annotation_uuid
+    })
+  end
+
+  defp maybe_select_annotation(socket, _file_uuid, _annotation_uuid), do: socket
 
   def handle_event("confirm_delete", _params, socket) do
     {:noreply, assign(socket, :show_delete_modal, true)}

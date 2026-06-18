@@ -2,18 +2,13 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={"#{@project_title} - Integrations"}
+  page_title={gettext("Integrations")}
+  page_subtitle={gettext("Connect external services for use across modules")}
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/settings")}
-      title={gettext("Integrations")}
-      subtitle={gettext("Connect external services for use across modules")}
-    />
-
     <%!-- Flash messages --%>
     <%!-- Connections table --%>
     <div :if={@connections != []}>

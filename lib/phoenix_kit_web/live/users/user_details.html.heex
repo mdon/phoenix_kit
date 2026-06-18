@@ -9,8 +9,10 @@
 >
   <div class="container flex-col mx-auto px-4 py-6">
     <.admin_page_header back={PhoenixKit.Utils.Routes.path("/admin/users")}>
-      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">{@page_title}</h1>
-      <p class="text-sm text-base-content/60 mt-0.5">{@user.email}</p>
+      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content break-words min-w-0">
+        {@page_title}
+      </h1>
+      <p class="text-sm text-base-content/60 mt-0.5 break-words">{@user.email}</p>
       <:actions>
         <.link
           navigate={PhoenixKit.Utils.Routes.path("/admin/users/edit/#{@user.uuid}")}
@@ -97,12 +99,15 @@
                   <.user_avatar user={@user} size="lg" class="!w-24 !h-24 !text-3xl" />
                 </div>
 
-                <%!-- Name --%>
-                <h2 class="card-title">{user_display_name(@user)}</h2>
+                <%!-- Name (block, not card-title's flex, so a long unbreakable
+                     name wraps within the card instead of overflowing both sides). --%>
+                <h2 class="text-xl font-semibold break-words w-full">
+                  {user_display_name(@user)}
+                </h2>
 
                 <%!-- Username --%>
                 <%= if @user.username do %>
-                  <p class="text-base-content/70">@{@user.username}</p>
+                  <p class="text-base-content/70 break-words w-full">@{@user.username}</p>
                 <% end %>
 
                 <%!-- Status Badges --%>

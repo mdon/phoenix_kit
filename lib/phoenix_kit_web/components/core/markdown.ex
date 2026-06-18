@@ -2,7 +2,7 @@ defmodule PhoenixKitWeb.Components.Core.Markdown do
   @moduledoc """
   Renders markdown content safely with consistent styling.
 
-  This component parses markdown to HTML using Earmark, sanitizes the output
+  This component parses markdown to HTML using MDEx, sanitizes the output
   for XSS prevention, and renders with appropriate styling.
 
   ## Usage
@@ -71,11 +71,11 @@ defmodule PhoenixKitWeb.Components.Core.Markdown do
   defp render_markdown("", _sanitize), do: ""
 
   defp render_markdown(content, sanitize) when is_binary(content) do
-    case Earmark.as_html(content, earmark_options()) do
-      {:ok, html, _warnings} ->
+    case MDEx.to_html(content, mdex_options()) do
+      {:ok, html} ->
         if sanitize, do: HtmlSanitizer.sanitize(html), else: html
 
-      {:error, _html, _errors} ->
+      {:error, _error} ->
         # Fallback: escape and return as paragraph
         Phoenix.HTML.html_escape(content) |> Phoenix.HTML.safe_to_string()
     end
@@ -83,12 +83,19 @@ defmodule PhoenixKitWeb.Components.Core.Markdown do
 
   defp render_markdown(_other, _sanitize), do: ""
 
-  defp earmark_options do
-    %Earmark.Options{
-      code_class_prefix: "language-",
-      smartypants: true,
-      gfm: true,
-      escape: false
-    }
+  # Mirrors the previous Earmark configuration:
+  #   * GFM (strikethrough/table/autolink/tasklist)
+  #   * smart typography (was `smartypants: true`)
+  #   * raw HTML passthrough (was `escape: false`) — the default render path
+  #     still runs the result through HtmlSanitizer; only `sanitize={false}`
+  #     (trusted admin content) emits raw HTML.
+  # Fenced code blocks render as `<code class="language-...">` by default
+  # (github_pre_lang is off), matching the old `code_class_prefix: "language-"`.
+  defp mdex_options do
+    [
+      extension: [strikethrough: true, table: true, autolink: true, tasklist: true],
+      parse: [smart: true],
+      render: [unsafe: true]
+    ]
   end
 end

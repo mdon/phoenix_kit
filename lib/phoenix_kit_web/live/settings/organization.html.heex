@@ -2,18 +2,13 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="{@project_title} - Organization"
+  page_title={gettext("Organization Settings")}
+  page_subtitle={gettext("Company information shared across Legal and Billing modules")}
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/settings")}
-      title={gettext("Organization Settings")}
-      subtitle={gettext("Company information shared across Legal and Billing modules")}
-    />
-
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <%!-- Company Information --%>
       <div class="card bg-base-100 shadow-xl">

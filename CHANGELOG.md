@@ -1,3 +1,239 @@
+## 1.7.161 - 2026-06-18
+
+### Changed
+- **`Components.Core.Markdown` now renders via `MDEx`** instead of `earmark`.
+  The `<.markdown>` component consolidates onto the same Rust-NIF renderer
+  already shared across the dependency tree (`leaf`, `phoenix_kit_comments`) —
+  completing the migration begun in 1.7.158. Output is preserved: GFM
+  (strikethrough/table/autolink/tasklist), smart typography,
+  `<code class="language-…">` fenced code blocks, and raw-HTML passthrough on
+  `sanitize={false}` (the default path still runs `HtmlSanitizer`).
+- Updated the publishing format guide to name MDEx as the markdown renderer.
+
+### Removed
+- **`earmark` direct dependency.** It was retained only for
+  `Components.Core.Markdown`; with that component on `MDEx`, the dep and its
+  `mix.lock` entry are removed. `earmark_parser` remains transitively via
+  `ex_doc` and is unaffected.
+
+## 1.7.160 - 2026-06-17
+
+### Fixed
+- **V122 migration on pre-locations databases** (issue #598) — `V122` creates
+  `phoenix_kit_location_spaces` with a required FK to `phoenix_kit_locations`,
+  a table created only in `V91`. Because the locations tables were added to an
+  already-released `v91.ex`, any database that passed V91 *before* that addition
+  never received the parent table, so V122 aborted the whole migration
+  transaction with `42P01 undefined_table`. `V122.up/1` now
+  `create_if_not_exists`-backfills `phoenix_kit_locations` (mirroring V91's
+  final shape) before building the FK — an idempotent no-op where V91 already
+  created it, and a repair where it was missing.
+
+## 1.7.159 - 2026-06-17
+
+Staff-support core changes (V136 employment history, Activity per-resource
+filter, media picker hardening, embedded-LiveView identity) plus follow-up
+review fixes. These changes landed on `main` after 1.7.158 without a version
+bump; recorded here.
+
+### Added
+- **V136 migration** — `phoenix_kit_staff_employments`, a per-person history of
+  employment spans (employment type, translatable `job_title`, department/team
+  snapshot, date range, `work_location`, `notes`). A partial unique index
+  enforces one open (current) span per person; the matching
+  `phoenix_kit_staff_people` columns are kept as a denormalized mirror of the
+  current span (not dropped). Backfills one open span per existing person
+  (guarded, retry-safe). `@current_version` → 136.
+- **`PhoenixKitWeb.Users.Auth.assign_embedded_current_user/2`** — reconstructs
+  `:phoenix_kit_current_user` / `:phoenix_kit_current_scope` on an off-router
+  embedded LiveView mount from a host-supplied `session["current_user_uuid"]`.
+  No-ops on a router mount, degrades to anonymous for an absent/unknown/inactive
+  uuid, and reconstructs identity (not authorization). Reference consumer:
+  `phoenix_kit_projects`.
+- **Upload-only media picker** — `MediaSelectorModal` gains a `browse: false`
+  mode that hides the library grid/search/filter, leaving a pure uploader
+  (uploaded files auto-select).
+- `update_user_custom_fields/3` gains `:broadcast` and `:ensure_definitions`
+  options (both default `true`, so existing callers are unchanged).
+
+### Changed
+- `PhoenixKit.Activity.list/1` (and `count/1`) now honour a `:resource_uuid`
+  filter, and the admin Activity page (`/admin/activity`) reads a `resource_uuid`
+  URL param — so a module can deep-link a per-resource feed. Previously
+  `:resource_uuid` was silently ignored, leaking every same-type resource's
+  events into a per-resource view.
+- `MediaSelectorModal` constrains uploads to the active type filter, shows
+  filter-aware copy, excludes trashed / system-managed files from the browse
+  list, and gives each instance a unique `<dialog>` id so two pickers on one
+  page don't collide.
+- Admin **Activity page** UI follow-ups (PR #600): the filter toolbar fits one
+  row on mobile (Module / Mode / Action / Type as compact dropdowns), a
+  persisted grid/list Display toggle, and a mobile-friendly list view. The
+  user form's Cancel / primary buttons are reordered (Cancel left, primary
+  right) to match the rest of the admin UI.
+
+### Fixed
+- The manage-users **and** activity grid/list view toggles no longer register
+  their internal `users_view_mode` / `activity_view_mode` preference as a
+  user-facing custom-field definition (it was leaking into the Customize Columns
+  modal) and no longer broadcast a `user_updated` event — so toggling the view
+  stops re-querying the users list for every connected admin.
+- The Activity page's new filter dropdowns preserve the `resource_uuid`
+  deep-link scope (a per-resource feed no longer reverts to all activity when a
+  filter is picked).
+- The media picker now rejects off-type uploads server-side. The client `accept`
+  list is fixed when the upload is first allowed and can't track the in-modal
+  type dropdown, so an image/video picker could still store an off-type file;
+  `MediaSelectorModal` re-checks the type on upload and rejects mismatches.
+- The accepted-types hint is shown in the upload-only media picker (it was
+  hidden in `browse: false` mode, the one place it's most useful).
+
+### i18n
+- Internationalized the full-page media selector and the Jobs / Languages admin
+  page headers; added the new picker copy strings (et, ru).
+
+## 1.7.158 - 2026-06-17
+
+Centralize the MDEx (markdown) dependency in core.
+
+### Changed
+- **`mdex` is now a direct dependency of `phoenix_kit`** (`~> 0.13`), so every
+  module shares one resolved version through the core dependency tree instead of
+  each declaring its own and risking version mismatches — the same arrangement
+  already used for `leaf`. Modules that render markdown (e.g.
+  `phoenix_kit_comments`) call `MDEx` directly and should rely on it being
+  provided transitively via `phoenix_kit` rather than declaring their own
+  `mdex` dep.
+
+## 1.7.157 - 2026-06-17
+
+Core support for the `phoenix_kit_comments` admin work — file-comment resolution
+and an annotation deep-link — plus admin navbar/MediaBrowser layout fixes and a
+dependency refresh.
+
+### Added
+- **File-comment resource resolution.** `PhoenixKit.Annotations.resolve_comment_resources/1`
+  maps `"file"` comment resources (including annotation discussions anchored via
+  `metadata.annotation_uuid`) to the file's display name and admin media path, plus a
+  signed `"thumbnail"` URL for images — so the comments moderation admin can link a
+  thumbnail chip instead of showing a bare uuid. Registered as the `"file"` handler by
+  `phoenix_kit_comments`, gated on this module being loaded.
+- **Annotation deep-link.** `MediaDetail` reads `?annotation=<uuid>` and pushes
+  `etcher:select-shape`; a new `phoenix_kit.js` bridge retries `layer.selectShape(uuid)`
+  until the Etcher canvas layer is ready, so a comment's chip lands on the file with its
+  shape selected. (No-ops on readonly shapes and on the static mount.)
+- **Plugin admin pages can forward `page_title`/`page_subtitle` to the navbar.** The plugin
+  admin layout now passes them through to `app_layout`, so plugin pages can drop their
+  in-content header and show the title/subtitle in the navbar breadcrumb (matching the core
+  media page).
+
+### Changed
+- **Dependency refresh:** `finch` 0.22 → 0.23, `phoenix_live_view` 1.2.1 → 1.2.3,
+  `sourceror` 1.12.0 → 1.12.2, `tailwind` installer 0.5.0 → 0.5.1, and `req` pinned to
+  0.5.17.
+- **MediaBrowser admin-page layout.** Always show the sidebar "Folders" header, align the
+  breadcrumb row flush with it, and drop the page padding so the browser fills the admin
+  media page.
+
+### Fixed
+- **Mobile admin navbar breadcrumb.** When a page has a title, the `Admin Panel /` prefix
+  is hidden below `sm` (and the title truncates) so it no longer overlaps the
+  theme/notifications controls.
+- **Media browser hero header z-index.** The hero's `z-30` (and the toolbar dropdowns'
+  `z-20`) are confined to the card's own stacking context via `isolate`, so they no longer
+  paint over the mobile drawer/navbar.
+- **Media list view tablet columns.** The Type/Size columns now cross over to the folded
+  mobile meta line at the same `md` breakpoint as Date, so they're no longer double-rendered
+  (column + meta line) in the `[sm, md)` tablet band.
+
+## 1.7.156 - 2026-06-16
+
+MediaBrowser folder UX polish (folder-aware search, a name-it modal, an
+active-branch sidebar highlight, and a clean mobile layout) plus dependency
+upgrades.
+
+### Added
+- **Folder results in media search.** A name search in the MediaBrowser now
+  surfaces matching *folders* alongside the matching files, scoped exactly like
+  the file search (a folder's direct children when inside one, the whole subtree
+  at a scope root, everything at the real root). Backed by a new
+  `PhoenixKit.Modules.Storage.search_folders/3`.
+- **New-folder name modal.** Creating a folder opens a modal to name it — with
+  an `"untitled"` / `"untitled N"` placeholder default when left blank — instead
+  of immediately dropping an inline-rename `"untitled"` folder into the sidebar.
+  Cancel adds nothing. The `FolderExplorer`'s create button now emits
+  `open_new_folder_modal` (was `create_untitled_folder`).
+- **Active-branch highlight in the folder sidebar tree.** The guide-line
+  connectors from a root folder down to the current folder are darkened (same
+  hue, bolder alpha) so you can trace the branch you're inside. Suppressed in
+  trash view.
+
+### Changed
+- **Cleaner MediaBrowser mobile layout.**
+- **Dependency upgrades:** `leaf` 0.2 → 0.3 (its markdown backend swapped from
+  `earmark` to the `mdex` Rust NIF — transparent to PhoenixKit, which keeps its
+  own direct `earmark` dep for `Components.Core.Markdown`), `tailwind` installer
+  0.4 → 0.5, `floki` 0.38.4.
+
+### Fixed
+- **Folder rename now updates the hero header title.** Renaming a folder from
+  the sidebar keeps the hero header (and an open Edit-header panel) in sync when
+  the renamed folder is the one being shown — it no longer kept the pre-rename
+  name.
+- **Media sidebar active-turn corner.** Sharp for a mid-branch turn, rounded for
+  the last child.
+
+## 1.7.155 - 2026-06-15
+
+Makes the integration provider registry capability-discoverable, so consumers
+(e.g. `phoenix_kit_ai`) can build provider lists dynamically instead of
+hardcoding them.
+
+### Added
+- **`PhoenixKit.Integrations.Providers.with_capability/1`** — returns all
+  providers (built-in + external-module) that declare a given capability, in
+  `all/0` order. An AI module can render its provider picker from
+  `with_capability(:ai_completions)` so a newly-registered chat provider
+  surfaces automatically, with no hardcoded list.
+- **`PhoenixKit.Integrations.Providers.base_url/1`** — returns a provider's
+  primary REST API base URL (or `nil`). The `:ai_completions` providers
+  (OpenAI, OpenRouter, Mistral, DeepSeek) now declare a `:base_url`, letting
+  consumers derive a default endpoint base from the registry.
+
+### Changed
+- `@type provider` now documents the optional `:base_url`, `:validation`, and
+  `:instructions` keys that real provider maps already carry (typespec accuracy
+  only — no runtime change).
+
+### Added
+- **OpenAI integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for OpenAI, alongside OpenRouter / Mistral /
+  DeepSeek / ElevenLabs. It appears automatically in the admin Integrations UI —
+  no migration or host changes needed. Connect with a single API key from
+  platform.openai.com → API Keys; **Test Connection** validates it against
+  `GET https://api.openai.com/v1/models` using standard `Authorization: Bearer`,
+  so the generic `authenticated_request/4` helper works for consumers too.
+  Declared capabilities cover OpenAI's range: `:ai_completions`,
+  `:ai_embeddings`, `:image_generation`, `:text_to_speech`, `:speech_to_text`.
+
+## 1.7.153 - 2026-06-15
+
+Adds **ElevenLabs** as a built-in integration provider for text-to-speech and voice generation.
+
+### Added
+- **ElevenLabs integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for ElevenLabs' audio AI, alongside OpenRouter /
+  Mistral / DeepSeek. It shows up automatically in the admin Integrations UI — no
+  migration or host changes needed. Connect with a single API key from
+  ElevenLabs → Settings → API Keys; **Test Connection** validates it against
+  `GET https://api.elevenlabs.io/v1/user` using ElevenLabs' custom `xi-api-key`
+  header (not `Authorization: Bearer`). Declared capabilities span the full audio
+  range: `:text_to_speech`, `:speech_to_text`, `:sound_effects`,
+  `:music_generation`. Consumers reference the connection by uuid and set the
+  `xi-api-key` header themselves (via `get_credentials/1`) — the generic
+  `authenticated_request/4` helper is Bearer-only and does not fit ElevenLabs'
+  scheme.
+
 ## 1.7.152 - 2026-06-15
 
 Fixes two user-menu language-switcher bugs on locale-prefixed / default-locale pages.
