@@ -348,6 +348,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
             type="button"
             class={[@computed_confirm_class, (@confirm_disabled || @loading) && "btn-disabled"]}
             phx-click={@on_confirm}
+            phx-disable-with={@confirm_button_text}
             disabled={@confirm_disabled || @loading}
           >
             <%= if @loading do %>
