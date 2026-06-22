@@ -17,8 +17,8 @@ defmodule PhoenixKit.Notifications.RenderTest do
   describe "render/2 link — core account actions" do
     @account_actions ~w(
       user.roles_updated user.status_changed user.password_changed user.password_reset
-      user.email_changed user.email_confirmed user.avatar_changed user.profile_updated
-      user.note_created user.note_deleted
+      user.email_changed user.email_confirmed user.email_unconfirmed user.avatar_changed
+      user.profile_updated user.note_created user.note_deleted
     )
 
     test "each account action links to the prefix/locale-correct settings path" do
@@ -40,6 +40,13 @@ defmodule PhoenixKit.Notifications.RenderTest do
     test "render/1 (no locale) falls back to Routes.path's default-locale resolution" do
       assert Render.render(notif("user.note_created")).link ==
                Routes.path("/dashboard/settings")
+    end
+
+    test "user.email_unconfirmed renders a dedicated icon/text, not the generic fallback" do
+      view = Render.render(notif("user.email_unconfirmed"), "en")
+
+      assert view.icon == "hero-exclamation-circle"
+      assert view.text == "Your email is no longer confirmed."
     end
   end
 
