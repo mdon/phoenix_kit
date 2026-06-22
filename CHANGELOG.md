@@ -1,3 +1,19 @@
+## 1.7.163 - 2026-06-22
+
+### Fixed
+- **Notification click-through links.** `Render.link_for/1` mapped only
+  `"user." <> anything` → `/dashboard/settings` (wrongly catching `user.followed`)
+  and everything else → `nil`, so social notifications (`post.*`, `comment.*`)
+  navigated nowhere and follow notifications opened the settings page. The
+  account-action → settings mapping is now an explicit whitelist;
+  `user.followed` / `post.*` / `comment.*` / `user.deleted` / unknown actions
+  return `nil` so the emitter's `notification_link` metadata drives the deep-link.
+- **Notification links now carry the recipient's locale prefix.**
+  `Render.render/2` accepts a locale that is threaded into `Routes.path`; the
+  notifications bell receives `"locale"` in its session (from `LayoutWrapper`)
+  and passes it at click time. Previously the link was built in the sticky bell's
+  process with no locale, so it used the default locale instead of the user's.
+
 ## 1.7.162 - 2026-06-18
 
 ### Added

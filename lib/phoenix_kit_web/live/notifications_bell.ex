@@ -21,19 +21,23 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
   alias PhoenixKit.Notifications.Events
   alias PhoenixKit.Notifications.Render
 
-  def mount(_params, %{"user_uuid" => user_uuid}, socket) when is_binary(user_uuid) do
+  def mount(_params, %{"user_uuid" => user_uuid} = session, socket) when is_binary(user_uuid) do
     if connected?(socket), do: Events.subscribe(user_uuid)
 
+    # Recipient's current locale, threaded from the layout so click-through links
+    # land on the right locale-prefixed path (the bell is a sticky nested LV with
+    # no locale of its own — without this, Routes.path would use the default).
     {:ok,
      socket
      |> assign(:user_uuid, user_uuid)
+     |> assign(:locale, session["locale"])
      |> refresh()}
   end
 
   # Graceful fallback for embeddings without a user session — renders an
   # empty element so the layout doesn't crash for anonymous visitors.
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :user_uuid, nil)}
+    {:ok, socket |> assign(:user_uuid, nil) |> assign(:locale, nil)}
   end
 
   # ── Events ─────────────────────────────────────────────────────────
@@ -43,7 +47,7 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
 
     case Notifications.mark_seen(user_uuid, uuid) do
       {:ok, notification} ->
-        case Render.render(notification).link do
+        case Render.render(notification, socket.assigns.locale).link do
           nil -> {:noreply, refresh(socket)}
           target -> {:noreply, push_navigate(socket, to: target)}
         end
