@@ -1391,6 +1391,268 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // MarkdownEditor
+  //
+  // Drives the core MarkdownEditor LiveComponent's textarea: cursor tracking,
+  // list auto-continue, formatting-toolbar actions (data-md-action), insert /
+  // prompt-insert pushed from the server (handleEvent), collaborative
+  // set-content sync, and unsaved-changes browser-exit protection.
+  //
+  // Replaces the component's former inline <script> + inline onclick/onmousedown
+  // handlers. Those broke under a strict Content-Security-Policy (a nonce never
+  // authorizes inline event-handler attributes, and an absent nonce blocks the
+  // <script>) and were unreliable on LiveView navigation (a patched-in <script>
+  // never re-executes). A hook always mounts on navigation and needs no inline
+  // script, so the editor now behaves like every other PhoenixKit feature.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.MarkdownEditor = {
+    mounted() {
+      this.globalId = this.el.dataset.globalId;
+      this.protectNavigation = this.el.dataset.protectNavigation === "true";
+      this.lastCursorPosition = 0;
+      this.dirty = false;
+      this._acquireTextarea();
+
+      // Reaching here means JS + the hook ran — reveal the toolbar(s), which are
+      // hidden by default so JS-dependent buttons never show as dead controls.
+      this._revealToolbars();
+
+      // Handle formatting-toolbar actions on mousedown, NOT click. preventDefault
+      // on mousedown stops focus moving to the button, so the textarea keeps its
+      // selection — a click would collapse the selection before we read it, so
+      // bold/italic/link would wrap the wrong range. This is the same reason the
+      // old markup used inline onmousedown="event.preventDefault()".
+      this._onMouseDown = (e) => this._handleToolbarMouseDown(e);
+      this.el.addEventListener("mousedown", this._onMouseDown);
+
+      // Server -> client commands. push_event from a LiveComponent fans out to
+      // EVERY MarkdownEditor hook on the page, so filter by global_id before
+      // acting (a page can host more than one editor).
+      this.handleEvent("markdown-editor-insert", ({ global_id, text }) => {
+        if (global_id === this.globalId) this._insertAtCursor(text);
+      });
+      this.handleEvent("markdown-editor-prompt-insert", ({ global_id, prompt, template }) => {
+        if (global_id !== this.globalId) return;
+        const value = window.prompt(prompt || "");
+        if (value && value.trim()) {
+          this._insertAtCursor((template || "%{value}").replace("%{value}", value.trim()));
+        }
+      });
+      this.handleEvent("set-content", ({ global_id, content }) => {
+        // No global_id → legacy broadcast to the page's editor (back-compat).
+        if (global_id && global_id !== this.globalId) return;
+        if (!this.textarea || this.textarea.value === content) return;
+        // Don't clobber the textarea mid-keystroke (collaborative spectators are
+        // read-only, so this is a safety net rather than a common path).
+        if (document.activeElement === this.textarea) return;
+        this.textarea.value = content;
+        this.lastCursorPosition = content ? content.length : 0;
+        this.dirty = false;
+      });
+      // Back-compat: publishing pushes "changes-status" on every edit. Use it to
+      // drive the unsaved-changes beforeunload guard without touching its many
+      // call sites.
+      this.handleEvent("changes-status", ({ has_changes }) => {
+        this.dirty = !!has_changes;
+      });
+
+      // Browser-exit protection for unsaved changes.
+      if (this.protectNavigation) {
+        this._beforeUnload = (e) => {
+          if (this._hasUnsavedChanges()) {
+            e.preventDefault();
+            e.returnValue = "";
+            return "";
+          }
+        };
+        window.addEventListener("beforeunload", this._beforeUnload);
+      }
+    },
+
+    updated() {
+      // morphdom usually preserves the textarea node (stable id), but re-acquire
+      // defensively in case it was replaced. Re-reveal the toolbar in case a
+      // re-render of the toolbar block restored its default `hidden` class.
+      this._acquireTextarea();
+      this._revealToolbars();
+      // Trust the server once it reports a saved state — otherwise the local
+      // `dirty` flag stays true for the page's life after the first keystroke
+      // (only set-content / changes-status clear it, which not every host pushes)
+      // and the beforeunload guard fires a bogus "unsaved changes" prompt post-save.
+      if (this.el.dataset.saveStatus === "saved") this.dirty = false;
+    },
+
+    destroyed() {
+      if (this._beforeUnload) window.removeEventListener("beforeunload", this._beforeUnload);
+    },
+
+    // --- internals ---------------------------------------------------------
+
+    _revealToolbars() {
+      this.el.querySelectorAll("[data-md-toolbar]").forEach((t) => t.classList.remove("hidden"));
+    },
+
+    _acquireTextarea() {
+      const ta = this.el.querySelector("textarea");
+      if (ta === this.textarea) return;
+      this.textarea = ta;
+      if (!ta) return;
+      ta.addEventListener("blur", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("select", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("click", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("keyup", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("input", () => { this.dirty = true; });
+      ta.addEventListener("keydown", (e) => this._handleEnter(e));
+    },
+
+    _hasUnsavedChanges() {
+      const status = this.el.dataset.saveStatus;
+      return this.dirty || status === "unsaved" || status === "saving";
+    },
+
+    // Mirror the textarea's phx-keyup binding so LiveView sees the new value.
+    _notifyChange() {
+      this.dirty = true;
+      if (this.textarea) {
+        this.textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+      }
+    },
+
+    _insertAtCursor(text) {
+      const ta = this.textarea;
+      if (!ta || text == null) return;
+      const start = Math.min(this.lastCursorPosition || 0, ta.value.length);
+      ta.value = ta.value.substring(0, start) + text + ta.value.substring(start);
+      const pos = start + text.length;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _wrap(prefix, suffix) {
+      const ta = this.textarea;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = ta.value.substring(start, end);
+      const before = ta.value.substring(0, start);
+      const after = ta.value.substring(end);
+      if (selected.length > 0) {
+        ta.value = before + prefix + selected + suffix + after;
+        ta.selectionStart = start + prefix.length;
+        ta.selectionEnd = end + prefix.length;
+      } else {
+        const placeholder = "text";
+        ta.value = before + prefix + placeholder + suffix + after;
+        ta.selectionStart = start + prefix.length;
+        ta.selectionEnd = start + prefix.length + placeholder.length;
+      }
+      ta.focus();
+      this.lastCursorPosition = ta.selectionEnd;
+      this._notifyChange();
+    },
+
+    _linePrefix(prefix) {
+      const ta = this.textarea;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const lineStart = ta.value.lastIndexOf("\n", start - 1) + 1;
+      ta.value = ta.value.substring(0, lineStart) + prefix + ta.value.substring(lineStart);
+      const pos = start + prefix.length;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _link() {
+      const ta = this.textarea;
+      if (!ta) return;
+      const url = window.prompt("Enter URL:");
+      if (!url || !url.trim()) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = ta.value.substring(start, end);
+      const linkText = selected.length > 0 ? selected : "link text";
+      ta.value =
+        ta.value.substring(0, start) +
+        "[" + linkText + "](" + url.trim() + ")" +
+        ta.value.substring(end);
+      const pos = start + linkText.length + url.trim().length + 4;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _handleToolbarMouseDown(e) {
+      if (e.button !== 0) return;
+      const toolbar = e.target.closest("[data-md-toolbar]");
+      if (!toolbar || !this.el.contains(toolbar)) return;
+      // Keep the textarea focused/selected through the button press.
+      e.preventDefault();
+      const btn = e.target.closest("[data-md-action]");
+      if (!btn) return;
+      switch (btn.dataset.mdAction) {
+        case "wrap":
+          this._wrap(btn.dataset.mdPrefix || "", btn.dataset.mdSuffix || "");
+          break;
+        case "line-prefix":
+          this._linePrefix(btn.dataset.mdPrefix || "");
+          break;
+        case "insert":
+          this._insertAtCursor(btn.dataset.mdText || "");
+          break;
+        case "link":
+          this._link();
+          break;
+      }
+    },
+
+    _handleEnter(e) {
+      if (e.key !== "Enter") return;
+      const ta = this.textarea;
+      const pos = ta.selectionStart;
+      const value = ta.value;
+      const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
+      const lineEnd = value.indexOf("\n", pos);
+      const currentLine = value.substring(lineStart, lineEnd === -1 ? value.length : lineEnd);
+      // Only auto-continue when the cursor is at the end of the line.
+      if (pos - lineStart < currentLine.length) return;
+
+      const bulletMatch = currentLine.match(/^(\s*)(-|\*|\+)\s(.*)$/);
+      if (bulletMatch) {
+        e.preventDefault();
+        const [, indent, marker, content] = bulletMatch;
+        this._continueList(ta, value, pos, lineStart, content, indent + marker + " ");
+        return;
+      }
+      const numberMatch = currentLine.match(/^(\s*)(\d+)\.\s(.*)$/);
+      if (numberMatch) {
+        e.preventDefault();
+        const [, indent, num, content] = numberMatch;
+        const next = parseInt(num, 10) + 1;
+        this._continueList(ta, value, pos, lineStart, content, indent + next + ". ");
+      }
+    },
+
+    _continueList(ta, value, pos, lineStart, content, marker) {
+      if (content.trim() === "") {
+        // Empty list item — remove the marker instead of continuing.
+        ta.value = value.substring(0, lineStart) + value.substring(pos);
+        ta.selectionStart = ta.selectionEnd = lineStart;
+      } else {
+        const insertion = "\n" + marker;
+        ta.value = value.substring(0, pos) + insertion + value.substring(pos);
+        ta.selectionStart = ta.selectionEnd = pos + insertion.length;
+      }
+      this.lastCursorPosition = ta.selectionStart;
+      this._notifyChange();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // SelectOnMount
   //
   // Focuses an input and selects all of its current value on mount. Use

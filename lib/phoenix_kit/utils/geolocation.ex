@@ -134,20 +134,25 @@ defmodule PhoenixKit.Utils.Geolocation do
     end
   end
 
+  # Uses Req (which rides its own auto-started Finch pool) rather than calling
+  # Finch directly against a `PhoenixKit.Finch` pool that nothing starts. Both
+  # APIs return JSON, so Req decodes the body to a map for us. `retry: false`
+  # keeps this single-shot — geolocation is best-effort on the registration path,
+  # so Req's default transient retries would only add latency before we fall back
+  # to IP-only tracking.
   defp make_http_request(url) do
-    case Finch.build(:get, url)
-         |> Finch.request(PhoenixKit.Finch, receive_timeout: 5_000) do
-      {:ok, %Finch.Response{status: 200, body: body}} ->
-        case Jason.decode(body) do
-          {:ok, data} -> {:ok, data}
-          {:error, _} -> {:error, "Invalid JSON response"}
-        end
+    case Req.get(url, receive_timeout: 5_000, retry: false) do
+      {:ok, %{status: 200, body: body}} when is_map(body) ->
+        {:ok, body}
 
-      {:ok, %Finch.Response{status: status}} ->
+      {:ok, %{status: 200}} ->
+        {:error, "Invalid JSON response"}
+
+      {:ok, %{status: status}} ->
         {:error, "HTTP #{status}"}
 
       {:error, reason} ->
-        {:error, reason}
+        {:error, Exception.message(reason)}
     end
   rescue
     error ->

@@ -1,3 +1,60 @@
+## 1.7.162 - 2026-06-18
+
+### Added
+- **`MarkdownEditor` `:prompt_insert` action** — a host can trigger a client-side
+  `window.prompt` (e.g. a video URL) and insert the result by substituting
+  `%{value}` in a template, via
+  `send_update(..., action: :prompt_insert, prompt:, template:)`, with no inline
+  script of its own. (#601)
+
+### Changed
+- **`Components.Core.MarkdownEditor` is now driven by a LiveView hook**
+  (`window.PhoenixKitHooks.MarkdownEditor` in `phoenix_kit.js`) instead of an
+  inline `<script>` plus inline `onclick`/`onmousedown` handlers. The old
+  approach broke under a strict Content-Security-Policy (a nonce never authorizes
+  inline event handlers; an absent nonce blocks the `<script>`) and failed on
+  LiveView navigation (a patched-in `<script>` never re-executes), so the toolbar
+  and image insertion only worked after a full page refresh. Toolbar buttons now
+  carry `data-md-action` attributes; server commands (`insert-at-cursor`,
+  `set-content`) arrive via `handleEvent` filtered by `global_id` so multiple
+  editors on one page don't cross-fire; toolbars ship hidden and the hook reveals
+  them, with a `<noscript>` hint when JS is off. The public component API
+  (`:insert_at_cursor`, the `{:editor_content_changed}` host message, the attrs)
+  is unchanged. (#601)
+- **`confirm_modal` confirm button gains `phx-disable-with`** so a fast
+  double-click can't fire `on_confirm` twice (e.g. double-enqueue an AI
+  translation). Applies to every confirm modal; no behavior change beyond the
+  in-flight disable. (#601)
+
+### Fixed
+- **`Utils.Geolocation` now uses `Req`** instead of calling Finch directly
+  against a `PhoenixKit.Finch` pool that nothing starts (not PhoenixKit's empty
+  supervisor, not the installer, which only starts `Swoosh.Finch`). Every lookup
+  previously raised "unknown registry", was swallowed by the rescue, and
+  registration fell back to IP-only — so `registration_country` / `region` /
+  `city` were never populated. IP geolocation now works with no host supervisor
+  setup (`Req` rides its own auto-started pool). `retry: false` keeps the lookup
+  single-shot on the registration path.
+- **`MarkdownEditor`'s unsaved-changes `beforeunload` prompt no longer fires
+  after a successful save** — the hook's local dirty flag now resets when the
+  server reports `save_status` `"saved"`, instead of staying armed for the page's
+  life after the first keystroke (most hosts never push the `changes-status`
+  event that previously cleared it).
+
+### Removed
+- **`MarkdownEditor` `script_nonce` attr** — unused now that the editor is
+  hook-driven. (#601)
+- **Orphaned `priv/static/assets/phoenix_kit_markdown_editor.js`** — the old
+  standalone inline-script implementation, superseded by the `MarkdownEditor`
+  hook in `phoenix_kit.js` and referenced by nothing (the installer copies only
+  `phoenix_kit.js`).
+
+### i18n
+- Gettext-wrapped the `MarkdownEditor` heading-button title (`Heading %{level}`,
+  previously a hardcoded string) and refreshed the JS-disabled `<noscript>` hint
+  copy. Both are translatable; the translation catalogs pick them up on the next
+  resync. (#601)
+
 ## 1.7.161 - 2026-06-18
 
 ### Changed
