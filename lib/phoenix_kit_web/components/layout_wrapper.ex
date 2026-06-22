@@ -372,7 +372,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     {Phoenix.Component.live_render(@socket, PhoenixKitWeb.Live.NotificationsBell,
                       id: "pk-notifications-bell",
                       sticky: true,
-                      session: %{"user_uuid" => bell_user.uuid}
+                      session: %{
+                        "user_uuid" => bell_user.uuid,
+                        "locale" => assigns[:current_locale_base]
+                      }
                     )}
                   <% end %>
                   <.admin_user_dropdown
