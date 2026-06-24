@@ -23,7 +23,6 @@ defmodule PhoenixKit.Annotations do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.RepoHelper
-  alias PhoenixKit.Utils.Routes
 
   @type attrs :: map()
   @type uuid :: String.t()
@@ -71,9 +70,12 @@ defmodule PhoenixKit.Annotations do
     )
     |> RepoHelper.all()
     |> Map.new(fn {uuid, original_name, file_name, file_type} ->
+      # Return a RAW path — the comments module applies Routes.path/1 once when
+      # rendering the chip. Pre-applying it here double-prefixed the URL under a
+      # non-root url_prefix.
       info = %{
         title: original_name || file_name || "File",
-        path: Routes.path("/admin/media/#{uuid}")
+        path: "/admin/media/#{uuid}"
       }
 
       # A small signed thumbnail for image files, so the comments admin can show

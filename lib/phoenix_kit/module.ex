@@ -230,6 +230,29 @@ defmodule PhoenixKit.Module do
             ]
 
   @doc """
+  Returns sitemap source modules this module contributes.
+
+  Each entry is a module implementing the
+  `PhoenixKit.Modules.Sitemap.Sources.Source` behaviour. The sitemap
+  `Generator` merges these with its built-in sources (router discovery,
+  static, publishing, posts, shop) so an external module's content
+  (e.g. Entities records) appears in the generated sitemap with no
+  host-app configuration — the same zero-config pattern as `css_sources/0`
+  and route discovery.
+
+  Sources are collected via `PhoenixKit.ModuleRegistry.all_sitemap_sources/0`
+  and appended to the base source list, deduplicated by module.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def sitemap_sources, do: [PhoenixKitEntities.SitemapSource]
+
+  Headless modules (no public content) skip this callback — the default is `[]`.
+  """
+  @callback sitemap_sources() :: [module()]
+
+  @doc """
   Run any one-shot legacy data migrations this module owns.
 
   Two transitions every module that touches Integrations may need:
@@ -283,6 +306,7 @@ defmodule PhoenixKit.Module do
     notification_types: 0,
     css_sources: 0,
     js_sources: 0,
+    sitemap_sources: 0,
     migrate_legacy: 0
   ]
 
@@ -342,6 +366,9 @@ defmodule PhoenixKit.Module do
       def js_sources, do: []
 
       @impl PhoenixKit.Module
+      def sitemap_sources, do: []
+
+      @impl PhoenixKit.Module
       def migrate_legacy, do: :ok
 
       defoverridable get_config: 0,
@@ -359,6 +386,7 @@ defmodule PhoenixKit.Module do
                      notification_types: 0,
                      css_sources: 0,
                      js_sources: 0,
+                     sitemap_sources: 0,
                      migrate_legacy: 0
     end
   end

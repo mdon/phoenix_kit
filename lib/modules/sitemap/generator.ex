@@ -423,8 +423,30 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   @doc false
   def get_sources do
-    Application.get_env(:phoenix_kit, :sitemap, [])
-    |> Keyword.get(:sources, default_sources())
+    base_sources =
+      Application.get_env(:phoenix_kit, :sitemap, [])
+      |> Keyword.get(:sources, default_sources())
+
+    # Append sitemap sources contributed by external modules (e.g. Entities)
+    # via the PhoenixKit.Module `sitemap_sources/0` callback. Deduplicated so
+    # a module already listed in host config / defaults isn't run twice.
+    #
+    # Semantics note: a host `config :phoenix_kit, sitemap: [sources: [...]]`
+    # is now a BASE list that module-contributed sources EXTEND — it no longer
+    # fully replaces them. A host that intentionally pruned `:sources` will
+    # still get an opted-in module's source appended. Only sources from
+    # *enabled* modules are appended (see `all_sitemap_sources/0`), so a disabled
+    # module emits nothing even in flat mode (where collection is forced and the
+    # per-source `enabled?/0` is bypassed). In index mode the source's own
+    # `enabled?/0` is still honored as a secondary gate (see `generate_module/2`).
+    (base_sources ++ module_sitemap_sources())
+    |> Enum.uniq()
+  end
+
+  defp module_sitemap_sources do
+    PhoenixKit.ModuleRegistry.all_sitemap_sources()
+  rescue
+    _ -> []
   end
 
   defp default_sources do

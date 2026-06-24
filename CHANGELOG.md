@@ -1,4 +1,4 @@
-## 1.7.165 - 2026-06-24
+## 1.7.166 - 2026-06-24
 
 ### Added
 - **`user` comment-resource handler.** `PhoenixKit.Users.CommentResources`
@@ -8,7 +8,14 @@
   instead of showing a bare uuid. Registered automatically as the `"user"`
   handler by `phoenix_kit_comments` (mirrors the existing `"file"` handler).
 
-## 1.7.164 - 2026-06-24
+### Fixed
+- **Comment resource links no longer double-prefix the URL.** Resource handlers
+  must return a *raw* path — the comments module applies `Routes.path/1` once. The
+  `"file"` handler (`PhoenixKit.Annotations`) pre-applied it, so under a non-root
+  `url_prefix` the chip link came out double-prefixed and 404'd. The `file` and
+  new `user` handlers now return raw paths, matching the `post` handler.
+
+## 1.7.165 - 2026-06-24
 
 ### Added
 - **Graceful handling for notifications with no click-through link.** Rather
@@ -27,6 +34,24 @@
   notification that has neither its own link nor a configured default logs how
   to wire one (set `notification_link` metadata via `Routes.path/1`). Off by
   default — never noise in production.
+
+## 1.7.164 - 2026-06-22
+
+### Fixed
+- **`user.email_unconfirmed` notifications regained their settings link.** PR #602
+  replaced the broad `"user." <> _` link rule with an explicit `@account_actions`
+  whitelist but omitted `user.email_unconfirmed` — the toggle-sibling of
+  `user.email_confirmed`, emitted from the same admin code path and declared an
+  `"account"` notification type. Its notification lost its `/dashboard/settings`
+  click-through. It is now in the whitelist, so the whole account toggle is
+  consistent.
+
+### Changed
+- **`user.email_unconfirmed` now renders dedicated icon/text.** Previously it fell
+  through to the generic `hero-bell` + humanized-action display while
+  `user.email_confirmed` showed a tailored message. It now renders
+  `hero-exclamation-circle` + "Your email is no longer confirmed.", matching its
+  sibling.
 
 ## 1.7.163 - 2026-06-22
 

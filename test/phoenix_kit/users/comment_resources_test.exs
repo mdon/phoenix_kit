@@ -3,7 +3,6 @@ defmodule PhoenixKit.Users.CommentResourcesTest do
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.CommentResources
-  alias PhoenixKit.Utils.Routes
 
   test "resolves a user to its display title + admin detail path" do
     {:ok, user} =
@@ -12,7 +11,8 @@ defmodule PhoenixKit.Users.CommentResourcesTest do
     result = CommentResources.resolve_comment_resources([user.uuid])
 
     assert %{title: "moderate-me@example.com", path: path} = result[user.uuid]
-    assert path == Routes.path("/admin/users/view/#{user.uuid}")
+    # Raw path — comments applies Routes.path/1 when rendering the chip.
+    assert path == "/admin/users/view/#{user.uuid}"
     # No avatar configured → no thumbnail key (chip falls back to a badge).
     refute Map.has_key?(result[user.uuid], :thumb_url)
   end

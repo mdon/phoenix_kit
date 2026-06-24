@@ -18,16 +18,17 @@ defmodule PhoenixKit.Users.CommentResources do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
-  alias PhoenixKit.Utils.Routes
 
   @spec resolve_comment_resources([binary()]) :: %{binary() => map()}
   def resolve_comment_resources(resource_uuids) when is_list(resource_uuids) do
     from(u in User, where: u.uuid in ^resource_uuids)
     |> RepoHelper.all()
     |> Map.new(fn user ->
+      # Raw path — the comments module applies Routes.path/1 once when rendering
+      # the chip (pre-applying it here would double-prefix under a url_prefix).
       info = %{
         title: display_name(user),
-        path: Routes.path("/admin/users/view/#{user.uuid}")
+        path: "/admin/users/view/#{user.uuid}"
       }
 
       info =

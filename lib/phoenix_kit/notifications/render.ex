@@ -96,6 +96,10 @@ defmodule PhoenixKit.Notifications.Render do
     {"hero-check-badge", "Your email was confirmed."}
   end
 
+  defp icon_and_text("user.email_unconfirmed", _meta) do
+    {"hero-exclamation-circle", "Your email is no longer confirmed."}
+  end
+
   defp icon_and_text("user.avatar_changed", _meta) do
     {"hero-user-circle", "Your avatar was updated."}
   end
@@ -145,8 +149,8 @@ defmodule PhoenixKit.Notifications.Render do
   # capture `user.followed` (a connections action) and send it to settings.
   @account_actions ~w(
     user.roles_updated user.status_changed user.password_changed user.password_reset
-    user.email_changed user.email_confirmed user.avatar_changed user.profile_updated
-    user.note_created user.note_deleted
+    user.email_changed user.email_confirmed user.email_unconfirmed user.avatar_changed
+    user.profile_updated user.note_created user.note_deleted
   )
 
   defp link_for(%_{action: action}, locale) when action in @account_actions do
