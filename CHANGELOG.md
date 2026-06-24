@@ -1,3 +1,13 @@
+## 1.7.165 - 2026-06-24
+
+### Added
+- **`user` comment-resource handler.** `PhoenixKit.Users.CommentResources`
+  resolves comments attached to a user (`resource_type: "user"`) to the user's
+  display name + admin detail page (`/admin/users/view/:uuid`) with their avatar
+  as the chip thumbnail — so the comments moderation admin links to the user
+  instead of showing a bare uuid. Registered automatically as the `"user"`
+  handler by `phoenix_kit_comments` (mirrors the existing `"file"` handler).
+
 ## 1.7.164 - 2026-06-24
 
 ### Added
