@@ -1,3 +1,20 @@
+## 1.7.164 - 2026-06-24
+
+### Added
+- **Graceful handling for notifications with no click-through link.** Rather
+  than a dead click (or showing users a developer error), a link-less
+  notification now reads as informational — the bell row uses a default cursor
+  instead of a pointer — and clicking still clears its unread state.
+- **`notification_default_link` setting** (Settings → Notifications): an optional
+  catch-all destination (e.g. `/dashboard`) for notifications that have no link
+  of their own. Blank (default) keeps them non-navigating. The value is run
+  through `Routes.path/1`, so the URL prefix + recipient locale are applied.
+- **Dev nudge for unwired notifications.** With
+  `config :phoenix_kit, warn_unlinked_notifications: true`, clicking a
+  notification that has neither its own link nor a configured default logs how
+  to wire one (set `notification_link` metadata via `Routes.path/1`). Off by
+  default — never noise in production.
+
 ## 1.7.163 - 2026-06-22
 
 ### Fixed

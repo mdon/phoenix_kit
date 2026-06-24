@@ -15,11 +15,15 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  require Logger
+
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
   alias PhoenixKit.Notifications
   alias PhoenixKit.Notifications.Events
   alias PhoenixKit.Notifications.Render
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, %{"user_uuid" => user_uuid} = session, socket) when is_binary(user_uuid) do
     if connected?(socket), do: Events.subscribe(user_uuid)
@@ -47,9 +51,19 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
 
     case Notifications.mark_seen(user_uuid, uuid) do
       {:ok, notification} ->
-        case Render.render(notification, socket.assigns.locale).link do
-          nil -> {:noreply, refresh(socket)}
-          target -> {:noreply, push_navigate(socket, to: target)}
+        # Effective target: the notification's own link, else the host's
+        # configured catch-all default. Both are nil → no navigation (the row
+        # is informational; the click still cleared its unread state above).
+        link = Render.render(notification, socket.assigns.locale).link
+        target = link || socket.assigns.default_link
+
+        case target do
+          nil ->
+            warn_unlinked(notification)
+            {:noreply, refresh(socket)}
+
+          target ->
+            {:noreply, push_navigate(socket, to: target)}
         end
 
       _ ->
@@ -127,16 +141,23 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
           <% else %>
             <ul class="menu menu-sm max-h-96 overflow-y-auto p-0">
               <%= for n <- @recent do %>
-                <% view = Render.render(n) %>
+                <% view = Render.render(n, @locale) %>
+                <% has_target = (view.link || @default_link) != nil %>
                 <li class={[
                   "border-b border-base-200 last:border-b-0",
                   is_nil(n.seen_at) && "bg-primary/5"
                 ]}>
+                  <%!-- Always a button (clicking marks the notification seen);
+                       pointer cursor only when there's somewhere to navigate, so
+                       a link-less notification reads as informational, not broken. --%>
                   <button
                     type="button"
                     phx-click="open_notification"
                     phx-value-uuid={n.uuid}
-                    class="flex items-start gap-3 w-full px-4 py-3 hover:bg-base-200 text-left"
+                    class={[
+                      "flex items-start gap-3 w-full px-4 py-3 hover:bg-base-200 text-left",
+                      if(has_target, do: "cursor-pointer", else: "cursor-default")
+                    ]}
                   >
                     <.icon name={view.icon} class="w-5 h-5 mt-0.5 shrink-0 text-base-content/70" />
                     <div class="flex-1 min-w-0">
@@ -169,6 +190,33 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
     socket
     |> assign(:unread_count, Notifications.count_unread(user_uuid))
     |> assign(:recent, Notifications.recent_for_user(user_uuid, 10))
+    |> assign(:default_link, default_link(socket.assigns[:locale]))
+  end
+
+  # Catch-all destination for notifications without a link of their own, from
+  # the `notification_default_link` setting (e.g. "/dashboard"). Blank → nil
+  # (such notifications stay non-navigating). Built through Routes.path so it
+  # carries the URL prefix + the recipient's locale.
+  defp default_link(locale) do
+    case Settings.get_setting("notification_default_link", "") |> to_string() |> String.trim() do
+      "/" <> _ = path -> Routes.path(path, locale: locale)
+      _ -> nil
+    end
+  end
+
+  # Dev nudge: when a clicked notification has neither its own link nor a
+  # configured default, log how to wire it. Off unless the host opts in with
+  # `config :phoenix_kit, warn_unlinked_notifications: true` — never noise in prod.
+  defp warn_unlinked(notification) do
+    if Application.get_env(:phoenix_kit, :warn_unlinked_notifications, false) do
+      action = notification.activity && Map.get(notification.activity, :action)
+
+      Logger.warning(
+        "Notification #{inspect(action)} has no click-through link. Set a " <>
+          "\"notification_link\" (built via PhoenixKit.Utils.Routes.path/1) in the activity " <>
+          "metadata when logging it, or set the \"notification_default_link\" setting for a catch-all."
+      )
+    end
   end
 
   defp display_count(n) when n > 99, do: "99+"
