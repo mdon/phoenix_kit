@@ -1,3 +1,56 @@
+## 1.7.165 - 2026-06-24
+
+### Added
+- **`sitemap_sources/0` module callback for zero-config sitemap source
+  registration.** External modules can contribute their own
+  `Sitemap.Sources.Source` modules (e.g. Entities) to the generated sitemap with
+  no host-app configuration, mirroring route / CSS / JS auto-discovery. Collected
+  via `ModuleRegistry.all_sitemap_sources/0` from **enabled** modules and appended
+  to the base source list (deduplicated, order-preserving). A host
+  `config :phoenix_kit, sitemap: [sources: [...]]` now acts as a base list that
+  module sources extend rather than fully replace. (#603)
+- **Migration V137 — email event deduplication + `aws_message_id` backfill.**
+  Backs the `Emails.Event` schema's declared unique constraints with real partial
+  unique indexes (one per `(email_log_uuid, event_type)` for single-occurrence
+  types; one per `(email_log_uuid, event_type, occurred_at)` for open/click),
+  removing pre-existing duplicates first. Backfills the indexed `aws_message_id`
+  column from the legacy `headers` JSONB (conflict-safe via `DISTINCT ON` +
+  `NOT EXISTS`). Adds pg_trgm substring-search indexes for the admin email list,
+  per-template open/click analytics composites, and an archiver body-compression
+  partial index. Host apps pick this up via `mix phoenix_kit.update`. (#604)
+- **`user` comment-resource handler.** A comment attached to a user resolves to
+  the user's display name, `/admin/users/view/:uuid`, and avatar thumbnail in the
+  comments moderation admin instead of a bare uuid. (#605)
+- **`notification_default_link` setting.** A catch-all destination for
+  notifications that have no link of their own. Defaults to `/dashboard`
+  (authenticated-only; guarded to a no-op when the user dashboard is disabled);
+  clear the field to make such notifications non-clickable. Built through
+  `Routes.path/1`, so it carries the URL prefix and the recipient's locale. An
+  opt-in `config :phoenix_kit, warn_unlinked_notifications: true` logs how to wire
+  a link when a clicked notification has neither. (#605)
+
+### Changed
+- **Link-less notifications read as informational.** The notifications bell shows
+  a default cursor (not a pointer) for a notification with no effective target,
+  and clicking it still clears its unread state rather than appearing broken.
+  (#605)
+
+### Fixed
+- **A disabled module's source no longer leaks into the flat sitemap.**
+  `all_sitemap_sources/0` now aggregates from **enabled** modules only, so a
+  disabled module contributes nothing even in flat-sitemap mode — where the
+  generator force-collects sources and bypasses each source's own `enabled?/0`.
+  The previous `all_modules/0` aggregation relied solely on that per-source gate,
+  which flat mode skips. (#603)
+- **Comment `file` resource links no longer double-prefix under a non-root
+  `url_prefix`.** Comment-resource handlers must return a raw path (the comments
+  module applies `Routes.path/1` once); the `file` handler pre-applied it. Both
+  the `file` and new `user` handlers now return raw paths, matching `post`. (#605)
+- **Notifications bell reads its default-link setting from cache.**
+  `default_link/1` used the uncached `Settings.get_setting/2` on a hot path (the
+  sticky bell's `refresh/1` runs on mount and on every notification PubSub event);
+  it now uses the ETS-backed `get_setting_cached/2`. (#605)
+
 ## 1.7.164 - 2026-06-22
 
 ### Fixed
