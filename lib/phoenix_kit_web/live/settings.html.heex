@@ -252,14 +252,14 @@
             <input
               type="text"
               name="settings[notification_default_link]"
-              value={@settings["notification_default_link"] || ""}
+              value={@settings["notification_default_link"] || "/dashboard"}
               placeholder="/dashboard"
               class="input input-bordered input-sm w-full max-w-md"
             />
             <div class="label">
               <span class="label-text-alt text-xs text-base-content/50">
                 {gettext(
-                  "Where a notification opens when it has no link of its own. Leave blank to make such notifications non-clickable. Use an app path like /dashboard — the URL prefix and locale are added automatically."
+                  "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
                 )}
               </span>
             </div>

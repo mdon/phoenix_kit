@@ -194,13 +194,29 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
   end
 
   # Catch-all destination for notifications without a link of their own, from
-  # the `notification_default_link` setting (e.g. "/dashboard"). Blank → nil
-  # (such notifications stay non-navigating). Built through Routes.path so it
-  # carries the URL prefix + the recipient's locale.
+  # the `notification_default_link` setting. Defaults to the user dashboard
+  # out of the box — it's authenticated-only (every recipient can reach it),
+  # unlike role-gated /admin. Blank → nil (non-navigating). Built through
+  # Routes.path so it carries the URL prefix + the recipient's locale.
   defp default_link(locale) do
-    case Settings.get_setting("notification_default_link", "") |> to_string() |> String.trim() do
-      "/" <> _ = path -> Routes.path(path, locale: locale)
-      _ -> nil
+    case Settings.get_setting("notification_default_link", "/dashboard")
+         |> to_string()
+         |> String.trim() do
+      "" ->
+        nil
+
+      # Guard the built-in default: /dashboard 404s when the user dashboard is
+      # disabled, so fall back to no-op rather than send the user to a dead route.
+      "/dashboard" ->
+        if PhoenixKit.Config.user_dashboard_enabled?(),
+          do: Routes.path("/dashboard", locale: locale),
+          else: nil
+
+      "/" <> _ = path ->
+        Routes.path(path, locale: locale)
+
+      _ ->
+        nil
     end
   end
 
