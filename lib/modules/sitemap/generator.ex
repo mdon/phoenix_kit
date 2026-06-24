@@ -434,9 +434,11 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     # Semantics note: a host `config :phoenix_kit, sitemap: [sources: [...]]`
     # is now a BASE list that module-contributed sources EXTEND — it no longer
     # fully replaces them. A host that intentionally pruned `:sources` will
-    # still get an opted-in module's source appended. Each source is gated at
-    # generation time by its own `enabled?/0` (see `generate_module/2`), so a
-    # source whose module is disabled simply emits nothing.
+    # still get an opted-in module's source appended. Only sources from
+    # *enabled* modules are appended (see `all_sitemap_sources/0`), so a disabled
+    # module emits nothing even in flat mode (where collection is forced and the
+    # per-source `enabled?/0` is bypassed). In index mode the source's own
+    # `enabled?/0` is still honored as a secondary gate (see `generate_module/2`).
     (base_sources ++ module_sitemap_sources())
     |> Enum.uniq()
   end

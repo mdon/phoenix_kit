@@ -181,21 +181,23 @@ defmodule PhoenixKit.ModuleRegistry do
   end
 
   @doc """
-  Collect sitemap source modules contributed by all registered modules.
+  Collect sitemap source modules contributed by all **enabled** modules.
 
   Each entry implements `PhoenixKit.Modules.Sitemap.Sources.Source`. The
   sitemap `Generator` appends these to its base source list (deduplicated)
   so module-owned content appears in the sitemap with no host config.
 
-  Iterates `all_modules/0` (every registered module), not `enabled_modules/0`:
-  whether a contributed source actually emits is decided at generation time by
-  that **source's** own `enabled?/0` (see `Generator.generate_module/2`), which
-  is the appropriate gate (a source's `enabled?/0` typically already checks its
-  owning module's feature toggle, e.g. `PhoenixKitEntities.enabled?/0`).
+  Iterates `enabled_modules/0`, so a disabled module contributes nothing — even
+  in flat-sitemap mode, where the `Generator` deliberately force-collects every
+  source and bypasses each source's own `enabled?/0` (`force: true`, see
+  `Sources.Source.safe_collect/2` and `Generator` flat-mode generation). Gating
+  at the module level here keeps the "disabled module emits no URLs" guarantee
+  in both modes. A contributed source's own `enabled?/0` remains a secondary
+  gate in index mode (see `Generator.generate_module/2`).
   """
   @spec all_sitemap_sources() :: [module()]
   def all_sitemap_sources do
-    all_modules()
+    enabled_modules()
     |> Enum.flat_map(&safe_call(&1, :sitemap_sources, []))
     |> Enum.uniq()
   end
