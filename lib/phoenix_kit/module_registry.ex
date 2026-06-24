@@ -186,6 +186,12 @@ defmodule PhoenixKit.ModuleRegistry do
   Each entry implements `PhoenixKit.Modules.Sitemap.Sources.Source`. The
   sitemap `Generator` appends these to its base source list (deduplicated)
   so module-owned content appears in the sitemap with no host config.
+
+  Iterates `all_modules/0` (every registered module), not `enabled_modules/0`:
+  whether a contributed source actually emits is decided at generation time by
+  that **source's** own `enabled?/0` (see `Generator.generate_module/2`), which
+  is the appropriate gate (a source's `enabled?/0` typically already checks its
+  owning module's feature toggle, e.g. `PhoenixKitEntities.enabled?/0`).
   """
   @spec all_sitemap_sources() :: [module()]
   def all_sitemap_sources do
