@@ -199,7 +199,10 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
   # unlike role-gated /admin. Blank → nil (non-navigating). Built through
   # Routes.path so it carries the URL prefix + the recipient's locale.
   defp default_link(locale) do
-    case Settings.get_setting("notification_default_link", "/dashboard")
+    # Cache-backed read: refresh/1 runs on mount (twice) and on every notification
+    # PubSub event, so this is a hot path — the uncached get_setting/2 would hit
+    # the DB each time. The cache is invalidated when the setting is saved.
+    case Settings.get_setting_cached("notification_default_link", "/dashboard")
          |> to_string()
          |> String.trim() do
       "" ->
