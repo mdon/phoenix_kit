@@ -423,8 +423,21 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   @doc false
   def get_sources do
-    Application.get_env(:phoenix_kit, :sitemap, [])
-    |> Keyword.get(:sources, default_sources())
+    base_sources =
+      Application.get_env(:phoenix_kit, :sitemap, [])
+      |> Keyword.get(:sources, default_sources())
+
+    # Append sitemap sources contributed by external modules (e.g. Entities)
+    # via the PhoenixKit.Module `sitemap_sources/0` callback. Deduplicated so
+    # a module already listed in host config / defaults isn't run twice.
+    (base_sources ++ module_sitemap_sources())
+    |> Enum.uniq()
+  end
+
+  defp module_sitemap_sources do
+    PhoenixKit.ModuleRegistry.all_sitemap_sources()
+  rescue
+    _ -> []
   end
 
   defp default_sources do
