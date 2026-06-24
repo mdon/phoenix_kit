@@ -244,6 +244,25 @@
                 )}
               </span>
             </div>
+
+            <%!-- Default notification destination (catch-all click target) --%>
+            <label class="label pt-3">
+              <span class="label-text">{gettext("Default notification link")}</span>
+            </label>
+            <input
+              type="text"
+              name="settings[notification_default_link]"
+              value={@settings["notification_default_link"] || "/dashboard"}
+              placeholder="/dashboard"
+              class="input input-bordered input-sm w-full max-w-md"
+            />
+            <div class="label">
+              <span class="label-text-alt text-xs text-base-content/50">
+                {gettext(
+                  "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+                )}
+              </span>
+            </div>
           </div>
 
           <%!-- Multiple Sessions (account switcher) --%>
