@@ -1,3 +1,38 @@
+## 1.7.166 - 2026-06-25
+
+### Added
+- **Annotated media thumbnails baked from Etcher shapes.** A file's Etcher
+  annotation shapes (rectangles, circles, marker/freehand strokes) are baked into
+  a single deterministic `thumbnail_annotated` PNG variant (ImageMagick, with the
+  geometry→draw mapping delegated to `Etcher.Raster`), so the markup is visible in
+  the MediaBrowser grid without rendering shapes live for every viewer. The
+  `AnnotationThumbnailJob` Oban worker debounces regeneration in the background;
+  its unique constraint is computed from the installed `Oban.Job.states/0` minus
+  the terminal states (robust across Oban 2.20/2.23) and excludes `:completed`, so
+  a finished regen never throttles the next edit. The grid prefers the baked
+  variant with a checksum-based cache-bust and falls back to the plain thumbnail.
+  Gated behind a project-wide media setting (`storage_annotated_thumbnails_enabled`,
+  off by default) — an "Annotated Thumbnails" toggle in Media Settings → Media
+  Configuration. Bumps the `:etcher` dependency to `~> 0.7`. (#607)
+- **`VariantGenerator.store_prepared_variant/5`.** Stores an already-rendered
+  variant file (produced outside the resize pipeline, e.g. the baked annotated
+  thumbnail) through the existing stats / bucket-storage / `FileInstance` /
+  file-location tail. (#607)
+
+### Changed
+- **Referrals extracted into the standalone `phoenix_kit_referrals` module.** The
+  referral-codes feature (schemas, business logic, admin UI) leaves core for the
+  auto-discovered package, mirroring how posts and user_connections are
+  structured; core keeps the database tables (migrations untouched). A new
+  runtime-dispatch facade, `PhoenixKit.Users.Referrals`, resolves the installed
+  module by its `PhoenixKit.Module` key and dispatches via `apply/3`, so core has
+  **no compile-time dependency** on the package. With the module absent every call
+  degrades safely: the system reads as disabled, lookups return `nil`, and
+  `use_code/2` is a no-op (the referral field disappears from signup). The
+  module's admin tab and routes now flow through generic module discovery
+  (`admin_tabs/0`, `settings_tabs/0`, `route_module/0`) instead of the removed
+  hardcoded subtab and route injection. (#607)
+
 ## 1.7.165 - 2026-06-24
 
 ### Added
