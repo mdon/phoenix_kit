@@ -2406,9 +2406,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     folder_paths = Map.new(folder_uuids, fn fuuid -> {fuuid, breadcrumb_path(fuuid)} end)
 
+    # Read the annotated-thumbnail toggle once for the whole batch (cached
+    # setting) — when off, the baked variant is hidden so the grid falls back
+    # to the plain thumbnail.
+    annotated_enabled? = Storage.AnnotationThumbnail.enabled?()
+
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
-      urls = generate_urls_from_instances(instances, file.uuid, file.mime_type)
+
+      urls =
+        generate_urls_from_instances(instances, file.uuid, file.mime_type, annotated_enabled?)
+
       variant_widths = generate_widths_from_instances(instances)
 
       %{
@@ -2613,19 +2621,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Style / icon helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+  defp generate_urls_from_instances(instances, file_uuid, mime_type, annotated_enabled?) do
     # For images, `put_dzi_url/3` adds a `"dzi"` manifest URL when tile
     # generation is enabled (shared with the detail page + lightbox so all
     # viewers wire deep zoom identically). Manifest + tiles are generated
     # lazily on first request; off → no `"dzi"` key, so Tessera just swaps
     # the medium/large/original rasters and never asks for tiles.
     instances
+    |> Enum.reject(fn instance ->
+      instance.variant_name == "thumbnail_annotated" and not annotated_enabled?
+    end)
     |> Enum.reduce(%{}, fn instance, acc ->
       url = URLSigner.signed_url(file_uuid, instance.variant_name)
-      Map.put(acc, instance.variant_name, url)
+      Map.put(acc, instance.variant_name, annotated_cache_bust(url, instance))
     end)
     |> URLSigner.put_dzi_url(file_uuid, mime_type)
   end
+
+  # The signed URL is content-independent (a capability token), so an
+  # overwritten `thumbnail_annotated` would serve stale from cache. Append a
+  # `?v=` derived from the variant's checksum so a re-bake busts the cache.
+  defp annotated_cache_bust(url, %{variant_name: "thumbnail_annotated", checksum: checksum})
+       when is_binary(checksum) and checksum != "" do
+    sep = if String.contains?(url, "?"), do: "&", else: "?"
+    "#{url}#{sep}v=#{String.slice(checksum, 0, 8)}"
+  end
+
+  defp annotated_cache_bust(url, _instance), do: url
 
   # Builds a parallel map of `%{variant_name => width}` from the same
   # FileInstance rows that produce the URLs. Used downstream by

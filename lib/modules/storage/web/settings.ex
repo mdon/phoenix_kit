@@ -36,6 +36,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
     tile_generation_enabled = Settings.get_setting("storage_tile_generation_enabled", "false")
 
+    annotated_thumbnails_enabled =
+      Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
+
     # Calculate maximum redundancy based on available buckets
     active_buckets = Enum.count(buckets, & &1.enabled)
     max_redundancy = if active_buckets > 0, do: active_buckets, else: 1
@@ -47,6 +50,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     form_redundancy = current_redundancy
     form_auto_generate_variants = auto_generate_variants == "true"
     form_tile_generation_enabled = tile_generation_enabled == "true"
+    form_annotated_thumbnails_enabled = annotated_thumbnails_enabled == "true"
     current_max_upload_size_mb = String.to_integer(max_upload_size_mb)
 
     # Check system dependencies
@@ -63,12 +67,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:redundancy_copies, current_redundancy)
       |> assign(:auto_generate_variants, auto_generate_variants == "true")
       |> assign(:tile_generation_enabled, tile_generation_enabled == "true")
+      |> assign(:annotated_thumbnails_enabled, annotated_thumbnails_enabled == "true")
       |> assign(:default_bucket_uuid, default_bucket_uuid)
       |> assign(:active_buckets_count, active_buckets)
       |> assign(:max_redundancy, max_redundancy)
       |> assign(:form_redundancy, form_redundancy)
       |> assign(:form_auto_generate_variants, form_auto_generate_variants)
       |> assign(:form_tile_generation_enabled, form_tile_generation_enabled)
+      |> assign(:form_annotated_thumbnails_enabled, form_annotated_thumbnails_enabled)
       |> assign(:max_upload_size_mb, current_max_upload_size_mb)
       |> assign(:form_max_upload_size_mb, current_max_upload_size_mb)
       |> assign(:imagemagick_status, imagemagick_status)
@@ -143,6 +149,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     {:noreply, assign(socket, :form_tile_generation_enabled, new_value)}
   end
 
+  def handle_event("toggle_form_annotated_thumbnails", _params, socket) do
+    new_value = not socket.assigns.form_annotated_thumbnails_enabled
+    {:noreply, assign(socket, :form_annotated_thumbnails_enabled, new_value)}
+  end
+
   def handle_event("toggle_form_variants", _params, socket) do
     new_value = not socket.assigns.form_auto_generate_variants
 
@@ -193,6 +204,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     new_tile_generation =
       if socket.assigns.form_tile_generation_enabled, do: "true", else: "false"
 
+    new_annotated_thumbnails =
+      if socket.assigns.form_annotated_thumbnails_enabled, do: "true", else: "false"
+
     new_max_upload_size_mb = socket.assigns.form_max_upload_size_mb
 
     # Validate redundancy doesn't exceed available buckets
@@ -217,6 +231,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       Settings.update_setting("storage_tile_generation_enabled", new_tile_generation)
 
       Settings.update_setting(
+        "storage_annotated_thumbnails_enabled",
+        new_annotated_thumbnails
+      )
+
+      Settings.update_setting(
         "storage_max_upload_size_mb",
         to_string(new_max_upload_size_mb)
       )
@@ -227,6 +246,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
           saved_redundancy = Settings.get_setting("storage_redundancy_copies", "1")
           saved_variants = Settings.get_setting("storage_auto_generate_variants", "true")
           saved_tile_generation = Settings.get_setting("storage_tile_generation_enabled", "false")
+
+          saved_annotated_thumbnails =
+            Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
+
           saved_max_upload = Settings.get_setting("storage_max_upload_size_mb", "500")
 
           socket =
@@ -234,9 +257,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
             |> assign(:redundancy_copies, String.to_integer(saved_redundancy))
             |> assign(:auto_generate_variants, saved_variants == "true")
             |> assign(:tile_generation_enabled, saved_tile_generation == "true")
+            |> assign(:annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
             |> assign(:form_redundancy, String.to_integer(saved_redundancy))
             |> assign(:form_auto_generate_variants, saved_variants == "true")
             |> assign(:form_tile_generation_enabled, saved_tile_generation == "true")
+            |> assign(:form_annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
             |> assign(:max_upload_size_mb, String.to_integer(saved_max_upload))
             |> assign(:form_max_upload_size_mb, String.to_integer(saved_max_upload))
             |> put_flash(:info, "Storage settings updated successfully")
