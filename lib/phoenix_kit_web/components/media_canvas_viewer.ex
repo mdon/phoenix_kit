@@ -328,6 +328,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end)
 
     if wrote? or to_delete != [] do
+      # Shapes changed — (re)bake the annotated thumbnail variant in the
+      # background (debounced) so the media grid shows the markup.
+      Storage.AnnotationThumbnailJob.enqueue(file_uuid)
+
       # A row was created / updated / deleted — reload from DB to pick up
       # fresh comment metadata + cascade changes (deleted-annotation
       # comments cascading out), then rebuild the canvas blob.

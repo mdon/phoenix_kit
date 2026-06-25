@@ -150,7 +150,7 @@ defmodule PhoenixKit.MixProject do
       # image. JS hooks lazy-load from jsdelivr pinned to the matching tag.
       {:fresco, "~> 0.6"},
       {:tessera, "~> 0.3"},
-      {:etcher, "~> 0.6.5"},
+      {:etcher, "~> 0.7"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},

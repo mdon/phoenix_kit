@@ -60,7 +60,9 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   end
 
   def resolve_url(%{file_type: "image", urls: urls}, :small) do
-    urls["thumbnail"] || urls["small"] || urls["original"]
+    # `thumbnail_annotated` (baked Etcher shapes) wins when present, so the grid
+    # shows the markup; falls back to the plain thumbnail otherwise.
+    urls["thumbnail_annotated"] || urls["thumbnail"] || urls["small"] || urls["original"]
   end
 
   def resolve_url(%{file_type: "image", urls: urls}, :medium) do

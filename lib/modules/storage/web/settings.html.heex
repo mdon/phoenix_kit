@@ -415,6 +415,30 @@
             </label>
           </div>
 
+          <%!-- Annotated Thumbnails --%>
+          <div class="form-control">
+            <label class="flex items-start gap-3 cursor-pointer py-2">
+              <input
+                type="checkbox"
+                name="form_annotated_thumbnails_enabled"
+                checked={@form_annotated_thumbnails_enabled}
+                phx-click="toggle_form_annotated_thumbnails"
+                value="true"
+                class="checkbox checkbox-primary mt-0.5 flex-shrink-0"
+              />
+              <span>
+                <span class="font-semibold text-sm">
+                  {gettext("Annotated Thumbnails")}
+                </span>
+                <span class="block text-xs text-base-content/70 mt-0.5">
+                  {gettext(
+                    "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
+                  )}
+                </span>
+              </span>
+            </label>
+          </div>
+
           <%!-- Max Upload Size --%>
           <div class="form-control">
             <div class="mb-2">
@@ -445,6 +469,7 @@
               @form_redundancy == @redundancy_copies and
                 @form_auto_generate_variants == @auto_generate_variants and
                 @form_tile_generation_enabled == @tile_generation_enabled and
+                @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and
                 @form_max_upload_size_mb == @max_upload_size_mb
             }
             phx-disable-with={gettext("Applying...")}
@@ -453,7 +478,7 @@
             <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Apply Changes")}
           </button>
           <span class="label-text-alt text-xs ml-2">
-            <%= if @form_redundancy == @redundancy_copies and @form_auto_generate_variants == @auto_generate_variants and @form_tile_generation_enabled == @tile_generation_enabled and @form_max_upload_size_mb == @max_upload_size_mb do %>
+            <%= if @form_redundancy == @redundancy_copies and @form_auto_generate_variants == @auto_generate_variants and @form_tile_generation_enabled == @tile_generation_enabled and @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and @form_max_upload_size_mb == @max_upload_size_mb do %>
               {gettext("No changes to apply")}
             <% else %>
               {gettext("Changes will be saved immediately")}
