@@ -473,6 +473,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:expanded_stacks, [])
     |> assign(:stack_previews, %{})
     |> assign(:stack_files, %{})
+    # The one stack that should animate open (the just-clicked one). Restored
+    # stacks (refresh / navigate-back) leave it nil so they appear instantly —
+    # the fly-out only plays on an explicit open click.
+    |> assign(:just_opened_stack, nil)
     |> assign(:show_move_modal, false)
     # New-folder modal: the typed name plus the default placeholder
     # ("untitled" / "untitled N") shown when left blank.
@@ -1045,13 +1049,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     socket =
       if folder_uuid in expanded do
-        assign(socket, :expanded_stacks, List.delete(expanded, folder_uuid))
+        # Close: the client already played the fly-back before pushing this,
+        # so just drop it. `just_opened_stack` clears so nothing re-animates.
+        socket
+        |> assign(:expanded_stacks, List.delete(expanded, folder_uuid))
+        |> assign(:just_opened_stack, nil)
       else
         files = stack_folder_files(socket, folder_uuid)
 
         # Prepend so the just-opened stack renders at the top, in open order.
+        # Mark it as the one to animate open (only an explicit click does).
         socket
         |> assign(:expanded_stacks, [folder_uuid | expanded])
+        |> assign(:just_opened_stack, folder_uuid)
         |> Phoenix.Component.update(:stack_files, &Map.put(&1, folder_uuid, files))
       end
 
@@ -1071,6 +1081,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       socket =
         socket
         |> assign(:expanded_stacks, valid)
+        |> assign(:just_opened_stack, nil)
         |> assign_stacks()
 
       {:noreply, push_event(socket, "pk:stacks", %{uuids: valid})}
@@ -2197,6 +2208,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     socket
     |> assign(:expanded_stacks, [])
     |> assign(:stack_files, %{})
+    |> assign(:just_opened_stack, nil)
     |> assign_stacks()
   end
 
@@ -2216,9 +2228,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     ~H"""
     <button
       type="button"
-      phx-click="toggle_stack_expand"
-      phx-target={@myself}
-      phx-value-folder-uuid={@folder.uuid}
+      phx-click={
+        if @expanded,
+          do: JS.dispatch("pk:close-stack", to: "#pk-stack-#{@folder.uuid}"),
+          else:
+            JS.push("toggle_stack_expand",
+              target: @myself,
+              value: %{"folder-uuid" => @folder.uuid}
+            )
+      }
       data-stack-tile={@folder.uuid}
       data-drop-folder={@folder.uuid}
       data-drop-color={drop_outline_color(@folder.color)}

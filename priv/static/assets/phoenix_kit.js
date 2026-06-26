@@ -4378,26 +4378,45 @@ if (typeof window.Chart === "undefined") {
 
   window.PhoenixKitHooks.StackExpand = {
     mounted() {
-      // Closing is driven by the server removing the section; phx-remove holds
-      // it for a transition + dispatches "pk:flyback" so we can reverse the FLIP
-      // (cards fly back into the pile) before it's gone.
-      this._onFlyBack = function () {
+      // Closing is driven client-side: the stack tile dispatches
+      // "pk:close-stack", we play the fly-back, then tell the server to drop
+      // the section. There's no phx-remove, so navigating away (opening a
+      // media detail page) just leaves instantly with no animation or delay.
+      this._onClose = function () {
         try {
           this.flyBack();
         } catch (e) {
-          /* never break the page over an animation */
+          // If the animation can't run, still drop the section server-side.
+          this._removeServerSide();
         }
       }.bind(this);
-      this.el.addEventListener("pk:flyback", this._onFlyBack);
+      this.el.addEventListener("pk:close-stack", this._onClose);
 
-      try {
-        this.flyOut();
-      } catch (e) {
-        /* an animation must never break the page */
+      // Only an explicitly-opened stack animates out of the pile. Restored
+      // stacks (refresh / navigate-back) carry no data-animate-open, so they
+      // appear instantly.
+      if (this.el.dataset.animateOpen) {
+        try {
+          this.flyOut();
+        } catch (e) {
+          /* an animation must never break the page */
+        }
       }
     },
     destroyed() {
-      if (this._onFlyBack) this.el.removeEventListener("pk:flyback", this._onFlyBack);
+      if (this._onClose) this.el.removeEventListener("pk:close-stack", this._onClose);
+    },
+    // Tell the LiveComponent to collapse this stack. The uuid is still in the
+    // server's expanded list (the client animated first), so toggling removes
+    // it. Runs after the fly-back so removal is seamless.
+    _removeServerSide() {
+      try {
+        this.pushEventTo(this.el, "toggle_stack_expand", {
+          "folder-uuid": this.el.dataset.stackFolder
+        });
+      } catch (e) {
+        /* component may already be gone */
+      }
     },
     // Shared geometry: the delta + scale to map a card to the stack pile.
     _toStack(card) {
@@ -4412,14 +4431,18 @@ if (typeof window.Chart === "undefined") {
         scale: Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6))
       };
     },
-    // Reverse of flyOut: send each card back into the pile, then LiveView
-    // removes the (faded) section once the phx-remove transition elapses.
+    // Reverse of flyOut: send each card back into the pile, collapse the
+    // section, then ask the server to remove it. (No prefers-reduced-motion
+    // animation, but we still remove it.)
     flyBack() {
-      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        return;
-      }
       var self = this;
       var el = this.el;
+
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        self._removeServerSide();
+        return;
+      }
+
       var cards = Array.prototype.slice.call(el.querySelectorAll("[data-stack-card]"));
       cards.forEach(function (card) {
         var t = self._toStack(card);
@@ -4451,6 +4474,12 @@ if (typeof window.Chart === "undefined") {
         el.style.height = "0px";
         el.style.marginTop = "0px";
       }, 320);
+
+      // Once the cards have retreated and the section has collapsed, tell the
+      // server to remove it (cards ~420ms+stagger, collapse 320ms@+320ms).
+      setTimeout(function () {
+        self._removeServerSide();
+      }, 720);
     },
     flyOut() {
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
