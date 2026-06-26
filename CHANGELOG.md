@@ -1,3 +1,40 @@
+## 1.7.167 - 2026-06-26
+
+### Added
+- **Basecamp-style "stacks" view for the MediaBrowser.** A third view mode
+  (alongside grid/list) renders top-level folders as photo "piles" with loose
+  files under "Everything else". Clicking a pile opens its grid inline (multiple
+  open at once, newest on top) with a FLIP fly-out/fly-back animation that fires
+  only on explicit open/close — restores on refresh/navigate-back are instant and
+  flash-free (`prefers-reduced-motion` respected). Open stacks persist across
+  refresh/navigation in `localStorage` (`StackMemory` hook), scoped per
+  virtual-root. Each stack paginates independently (`load_more_stack`, one page at
+  a time) so a folder with thousands of files stays fast, and supports drag-drop
+  of media between stacks / "Everything else" with the drop outline tinted to the
+  folder's own colour. Per-file kebab menu (Download / Move / Trash) on stack
+  cards mirrors grid view. (#608)
+- **`ViewportPopover` JS hook.** Clamps the folder Edit-header popover to the
+  viewport (flips it to open upward when there's more room above, pins Save/Done
+  as a non-scrolling footer), so Save stays reachable when the browser is embedded
+  low in a page. (#608)
+
+### Changed
+- Bumped the `:ex_ast` dependency 0.12.0 → 0.12.1 (lockfile).
+
+### Fixed
+- **`Created by %{name}` ru/et translation.** The folder-header creator label was
+  added to the Estonian/Russian catalogs as a `fuzzy` auto-fill that both
+  mistranslated it ("Create" imperative) and dropped the `%{name}` placeholder —
+  inert today (gettext falls back to English for fuzzy entries) but a latent
+  landmine if the flag were ever cleared. Corrected to `Создал %{name}` /
+  `Loonud %{name}` and de-fuzzed so the proper translation is active.
+
+### i18n
+- Estonian + Russian translation of the newly-surfaced MediaBrowser strings (and
+  other recent additions); previously-empty catalog entries dropped from 14 to 1
+  in both locales. `%{...}` placeholders, markdown links and arrows preserved.
+  (#608)
+
 ## 1.7.166 - 2026-06-25
 
 ### Added

@@ -9399,9 +9399,9 @@ msgid "Create folder"
 msgstr "Loo roll"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:693
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Created by %{name}"
-msgstr "Loo"
+msgstr "Loonud %{name}"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:250
 #, elixir-autogen, elixir-format
