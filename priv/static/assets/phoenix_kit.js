@@ -4355,6 +4355,16 @@ if (typeof window.Chart === "undefined") {
   window.PhoenixKitHooks.StackMemory = {
     mounted() {
       var key = this.el.dataset.storageKey;
+      var self = this;
+      var el = this.el;
+
+      var reveal = function () {
+        if (self._revealT) {
+          clearTimeout(self._revealT);
+          self._revealT = null;
+        }
+        el.style.visibility = "";
+      };
 
       this.handleEvent("pk:stacks", function (payload) {
         try {
@@ -4362,6 +4372,9 @@ if (typeof window.Chart === "undefined") {
         } catch (e) {
           /* private mode / quota — degrade to no-memory */
         }
+        // The restore round-trip has landed (server reopened the stacks) —
+        // show the already-open view in one shot.
+        reveal();
       });
 
       var saved = [];
@@ -4371,8 +4384,19 @@ if (typeof window.Chart === "undefined") {
         saved = [];
       }
       if (Array.isArray(saved) && saved.length) {
+        // Hide the stacks body before first paint so the user never sees the
+        // closed state flash open. mounted() runs before the browser paints
+        // the patch, so this suppresses the intermediate "stacks closed"
+        // frame; we reveal once the server echoes the reopened set. A safety
+        // timeout guarantees we never leave the view stuck hidden if the echo
+        // never arrives.
+        el.style.visibility = "hidden";
+        self._revealT = setTimeout(reveal, 600);
         this.pushEventTo(this.el, "restore_stacks", { uuids: saved });
       }
+    },
+    destroyed() {
+      if (this._revealT) clearTimeout(this._revealT);
     }
   };
 
