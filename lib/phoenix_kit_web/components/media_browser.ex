@@ -1046,15 +1046,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if folder_uuid in expanded do
       {:noreply, assign(socket, :expanded_stacks, List.delete(expanded, folder_uuid))}
     else
-      files =
-        case Storage.list_files_in_scope(scope_folder_id(socket),
-               folder_uuid: folder_uuid,
-               page: 1,
-               per_page: socket.assigns.per_page
-             ) do
-          {:error, _} -> []
-          {fs, _total} -> enrich_files(fs)
-        end
+      files = stack_folder_files(socket, folder_uuid)
 
       # Prepend so the just-opened stack renders at the top, in open order.
       {:noreply,
@@ -2150,10 +2142,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {folder.uuid, %{previews: enrich_files(files), count: count}}
       end)
 
-    assign(socket, :stack_previews, previews)
+    # Keep the open stacks' grids fresh too, so a drag-move into/out of an
+    # expanded stack (or any other reload) reflects immediately.
+    stack_files =
+      Map.new(socket.assigns.expanded_stacks, fn uuid ->
+        {uuid, stack_folder_files(socket, uuid)}
+      end)
+
+    socket
+    |> assign(:stack_previews, previews)
+    |> assign(:stack_files, stack_files)
   end
 
   defp assign_stacks(socket), do: socket
+
+  # Enriched files directly in a folder (one page), for an expanded stack grid.
+  defp stack_folder_files(socket, folder_uuid) do
+    case Storage.list_files_in_scope(scope_folder_id(socket),
+           folder_uuid: folder_uuid,
+           page: 1,
+           per_page: socket.assigns.per_page
+         ) do
+      {:error, _} -> []
+      {fs, _total} -> enrich_files(fs)
+    end
+  end
 
   # Navigating to a different folder context: collapse any open stacks (they
   # belonged to the previous folder) and recompute the new folder's previews.
@@ -2184,7 +2197,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       phx-target={@myself}
       phx-value-folder-uuid={@folder.uuid}
       data-stack-tile={@folder.uuid}
-      class="group flex flex-col items-center gap-2 w-40 focus:outline-none"
+      data-drop-folder={@folder.uuid}
+      class="group flex flex-col items-center gap-2 w-40 rounded-lg focus:outline-none"
       title={@folder.name}
     >
       <div class={[

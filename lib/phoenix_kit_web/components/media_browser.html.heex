@@ -1577,6 +1577,9 @@
                           id={"pk-stack-#{folder.uuid}"}
                           phx-hook="StackExpand"
                           data-stack-folder={folder.uuid}
+                          data-drop-folder={folder.uuid}
+                          data-drop-no-bg="true"
+                          class="rounded-lg"
                           phx-remove={
                             JS.dispatch("pk:flyback")
                             |> JS.transition(
@@ -1610,20 +1613,28 @@
                       <% end %>
 
                       <%!-- Everything else: loose files in this folder
-                           (orphaned files at the root). --%>
-                      <%= if @uploaded_files != [] do %>
-                        <div>
+                           (orphaned files at the root). Always a drop target so
+                           media can be dragged back out of a folder; shows a
+                           drop hint when empty (as long as there are folders). --%>
+                      <%= if @uploaded_files != [] or @folders != [] do %>
+                        <div data-drop-folder="root" data-drop-no-bg="true" class="rounded-lg">
                           <h2 class="text-lg font-bold mb-3">{gettext("Everything else")}</h2>
-                          <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                            <%= for file <- @uploaded_files do %>
-                              <.file_card
-                                file={file}
-                                select_mode={@select_mode}
-                                selected_files={@selected_files}
-                                myself={@myself}
-                              />
-                            <% end %>
-                          </div>
+                          <%= if @uploaded_files == [] do %>
+                            <div class="rounded-lg border-2 border-dashed border-base-300 grid place-items-center py-8 text-sm text-base-content/40">
+                              {gettext("Drop media here to remove it from a folder")}
+                            </div>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for file <- @uploaded_files do %>
+                                <.file_card
+                                  file={file}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
                         </div>
                       <% end %>
 
