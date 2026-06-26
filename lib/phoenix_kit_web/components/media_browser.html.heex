@@ -805,7 +805,8 @@
                   <% else %>
                     <% display_options = [
                       {"grid", gettext("Grid"), "hero-squares-2x2"},
-                      {"list", gettext("List"), "hero-bars-3-bottom-left"}
+                      {"list", gettext("List"), "hero-bars-3-bottom-left"},
+                      {"stacks", gettext("Stacks"), "hero-square-3-stack-3d"}
                     ] %>
                     <% sort_options = [
                       {"newest", gettext("Newest first")},
@@ -1528,6 +1529,89 @@
                               />
                             </.table_row_menu>
                           <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  <%= if @view_mode == "stacks" do %>
+                    <%!-- Stacks View — folders as photo piles up top, loose
+                         files under "Everything else" (Basecamp-style). --%>
+                    <div class="space-y-8">
+                      <%!-- Folder stacks + the New folder tile --%>
+                      <div class="flex flex-wrap gap-6">
+                        <%= for folder <- @folders do %>
+                          <% data =
+                            Map.get(@stack_previews, folder.uuid, %{previews: [], count: 0}) %>
+                          <.stack_tile
+                            folder={folder}
+                            previews={data.previews}
+                            count={data.count}
+                            expanded={MapSet.member?(@expanded_stacks, folder.uuid)}
+                            myself={@myself}
+                          />
+                        <% end %>
+
+                        <button
+                          type="button"
+                          phx-click="open_new_folder_modal"
+                          phx-target={@myself}
+                          class="group flex flex-col items-center gap-2 w-40 focus:outline-none"
+                        >
+                          <div class="w-36 h-28 grid place-items-center">
+                            <div class="w-32 h-24 rounded-lg border-2 border-dashed border-base-300 group-hover:border-primary grid place-items-center text-base-content/40 group-hover:text-primary transition-colors">
+                              <.icon name="hero-folder-plus" class="w-8 h-8" />
+                            </div>
+                          </div>
+                          <p class="text-sm font-medium text-center">{gettext("New folder")}</p>
+                        </button>
+                      </div>
+
+                      <%!-- Each expanded stack's grid (multiple can be open) --%>
+                      <%= for folder <- @folders, MapSet.member?(@expanded_stacks, folder.uuid) do %>
+                        <div>
+                          <div class="flex items-center gap-2 mb-3">
+                            <.icon name="hero-folder-open" class="w-5 h-5 text-base-content/60" />
+                            <h3 class="text-lg font-bold">{folder.name}</h3>
+                          </div>
+                          <% files = Map.get(@stack_files, folder.uuid, []) %>
+                          <%= if files == [] do %>
+                            <p class="text-sm text-base-content/50">{gettext("No images")}</p>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for file <- files do %>
+                                <.file_card
+                                  file={file}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <%!-- Everything else: loose files in this folder
+                           (orphaned files at the root). --%>
+                      <%= if @uploaded_files != [] do %>
+                        <div>
+                          <h2 class="text-lg font-bold mb-3">{gettext("Everything else")}</h2>
+                          <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                            <%= for file <- @uploaded_files do %>
+                              <.file_card
+                                file={file}
+                                select_mode={@select_mode}
+                                selected_files={@selected_files}
+                                myself={@myself}
+                              />
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%= if @folders == [] and @uploaded_files == [] do %>
+                        <div class="text-center py-12 text-base-content/50">
+                          {gettext("No media yet.")}
                         </div>
                       <% end %>
                     </div>
