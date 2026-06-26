@@ -4343,11 +4343,79 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
   window.PhoenixKitHooks.StackExpand = {
     mounted() {
+      // Closing is driven by the server removing the section; phx-remove holds
+      // it for a transition + dispatches "pk:flyback" so we can reverse the FLIP
+      // (cards fly back into the pile) before it's gone.
+      this._onFlyBack = function () {
+        try {
+          this.flyBack();
+        } catch (e) {
+          /* never break the page over an animation */
+        }
+      }.bind(this);
+      this.el.addEventListener("pk:flyback", this._onFlyBack);
+
       try {
         this.flyOut();
       } catch (e) {
         /* an animation must never break the page */
       }
+    },
+    destroyed() {
+      if (this._onFlyBack) this.el.removeEventListener("pk:flyback", this._onFlyBack);
+    },
+    // Shared geometry: the delta + scale to map a card to the stack pile.
+    _toStack(card) {
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+      var cr = card.getBoundingClientRect();
+      if (!sr) return { dx: 0, dy: -24, scale: 0.35 };
+      return {
+        dx: (sr.left + sr.width / 2) - (cr.left + cr.width / 2),
+        dy: (sr.top + sr.height / 2) - (cr.top + cr.height / 2),
+        scale: Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6))
+      };
+    },
+    // Reverse of flyOut: send each card back into the pile, then LiveView
+    // removes the (faded) section once the phx-remove transition elapses.
+    flyBack() {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+      var self = this;
+      var el = this.el;
+      var cards = Array.prototype.slice.call(el.querySelectorAll("[data-stack-card]"));
+      cards.forEach(function (card) {
+        var t = self._toStack(card);
+        var i = parseInt(card.dataset.stackCard || "0", 10);
+        var delay = Math.min(i, 16) * 18;
+        card.style.transformOrigin = "center center";
+        card.style.willChange = "transform, opacity";
+        card.style.transition =
+          "transform 420ms cubic-bezier(0.4,0,1,1) " + delay + "ms, " +
+          "opacity 380ms ease " + delay + "ms";
+        card.style.transform =
+          "translate(" + t.dx + "px," + t.dy + "px) scale(" + t.scale + ")";
+        card.style.opacity = "0";
+      });
+
+      // Once the images have retreated into the pile, collapse the section's
+      // height + margin to 0 so the stacks/Everything-else below slide up
+      // smoothly to fill the gap, instead of jumping when LiveView removes it.
+      // Deferred so the cards (which fly up out of the box) aren't clipped.
+      setTimeout(function () {
+        var rect = el.getBoundingClientRect();
+        var mt = window.getComputedStyle(el).marginTop;
+        el.style.height = rect.height + "px";
+        el.style.marginTop = mt;
+        el.style.overflow = "hidden";
+        el.getBoundingClientRect(); // commit the fixed height before transitioning
+        el.style.transition =
+          "height 320ms cubic-bezier(0.4,0,0.2,1), margin-top 320ms cubic-bezier(0.4,0,0.2,1)";
+        el.style.height = "0px";
+        el.style.marginTop = "0px";
+      }, 320);
     },
     flyOut() {
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {

@@ -1577,6 +1577,14 @@
                           id={"pk-stack-#{folder.uuid}"}
                           phx-hook="StackExpand"
                           data-stack-folder={folder.uuid}
+                          phx-remove={
+                            JS.dispatch("pk:flyback")
+                            |> JS.transition(
+                              {"transition-opacity duration-700 ease-out", "opacity-100",
+                               "opacity-0"},
+                              time: 700
+                            )
+                          }
                         >
                           <div class="flex items-center gap-2 mb-3">
                             <.icon name="hero-folder-open" class="w-5 h-5 text-base-content/60" />
