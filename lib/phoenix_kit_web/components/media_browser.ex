@@ -2261,6 +2261,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   attr :select_mode, :boolean, default: false
   attr :selected_files, :any, required: true
   attr :myself, :any, required: true
+  attr :filter_trash, :boolean, default: false
   # When set (stacks expand), `data-stack-card` marks the card for the
   # StackExpand JS hook, which makes it fly out of the pile (FLIP) staggered by
   # this index. nil = no animation (grid / "Everything else" reuse).
@@ -2328,6 +2329,56 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           {format_file_size(@file.size)}
         </div>
       </div>
+
+      <%!--
+      Per-file kebab menu. Sibling of the click target so its buttons don't
+      fire `click_file`. Mirrors the grid-view card: hidden until hover,
+      Download only when an "original" URL exists, Delete/Trash always.
+      --%>
+      <.table_row_menu
+        :if={!@select_mode}
+        id={"file-kebab-stack-#{@file.file_uuid}"}
+        class="!absolute top-1 right-1 opacity-0 group-hover:opacity-100"
+        trigger_class="!bg-black/40 hover:!bg-black/60 !text-white !border-0"
+      >
+        <.table_row_menu_button
+          :if={
+            Map.get(@file.urls || %{}, "original") ||
+              Map.get(@file.urls || %{}, :original)
+          }
+          phx-click="download_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon="hero-arrow-down-tray"
+          label={gettext("Download")}
+        />
+        <.table_row_menu_button
+          phx-click="prepare_move_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon="hero-folder-arrow-down"
+          label={gettext("Move")}
+        />
+        <.table_row_menu_button
+          phx-click="delete_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          data-confirm={
+            if @filter_trash,
+              do:
+                gettext("Permanently delete '%{name}'? This cannot be undone.",
+                  name: @file.filename
+                )
+          }
+          icon="hero-trash"
+          label={
+            if @filter_trash,
+              do: gettext("Delete Permanently"),
+              else: gettext("Move to Trash")
+          }
+          variant="error"
+        />
+      </.table_row_menu>
     </div>
     """
   end
