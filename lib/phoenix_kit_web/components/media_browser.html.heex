@@ -1536,8 +1536,15 @@
                   <% end %>
                   <%= if @view_mode == "stacks" do %>
                     <%!-- Stacks View — folders as photo piles up top, loose
-                         files under "Everything else" (Basecamp-style). --%>
-                    <div class="space-y-8">
+                         files under "Everything else" (Basecamp-style).
+                         StackMemory persists which stacks are open in
+                         localStorage and reopens them on remount/refresh. --%>
+                    <div
+                      id={"pk-stacks-#{@id}"}
+                      phx-hook="StackMemory"
+                      data-storage-key={"pk_media_stacks:#{@scope_folder_id || "root"}"}
+                      class="space-y-8"
+                    >
                       <%!-- Folder stacks + the New folder tile --%>
                       <div class="flex flex-wrap gap-6">
                         <%= for folder <- @folders do %>

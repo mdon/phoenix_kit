@@ -4344,6 +4344,38 @@ if (typeof window.Chart === "undefined") {
   // a per-card stagger. Inline styles are cleared afterwards so hover/selection
   // transforms aren't pinned. Respects prefers-reduced-motion; never throws.
   // ---------------------------------------------------------------------------
+  // Persists which media stacks the user has open across refresh / navigation
+  // away-and-back, in localStorage. On mount it pushes the saved open-set to
+  // the LiveComponent (which reopens them); after every toggle/restore the
+  // server echoes the authoritative open-set via "pk:stacks" and we persist
+  // it. We persist from the server echo rather than reading the DOM because a
+  // closing stack lingers briefly during its fly-back animation and would be
+  // misread as still-open. Key is scoped per virtual-root so scoped browsers
+  // remember independently.
+  window.PhoenixKitHooks.StackMemory = {
+    mounted() {
+      var key = this.el.dataset.storageKey;
+
+      this.handleEvent("pk:stacks", function (payload) {
+        try {
+          localStorage.setItem(key, JSON.stringify((payload && payload.uuids) || []));
+        } catch (e) {
+          /* private mode / quota — degrade to no-memory */
+        }
+      });
+
+      var saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(key) || "[]");
+      } catch (e) {
+        saved = [];
+      }
+      if (Array.isArray(saved) && saved.length) {
+        this.pushEventTo(this.el, "restore_stacks", { uuids: saved });
+      }
+    }
+  };
+
   window.PhoenixKitHooks.StackExpand = {
     mounted() {
       // Closing is driven by the server removing the section; phx-remove holds

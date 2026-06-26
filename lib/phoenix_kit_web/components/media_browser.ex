@@ -1043,16 +1043,39 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("toggle_stack_expand", %{"folder-uuid" => folder_uuid}, socket) do
     expanded = socket.assigns.expanded_stacks
 
-    if folder_uuid in expanded do
-      {:noreply, assign(socket, :expanded_stacks, List.delete(expanded, folder_uuid))}
-    else
-      files = stack_folder_files(socket, folder_uuid)
+    socket =
+      if folder_uuid in expanded do
+        assign(socket, :expanded_stacks, List.delete(expanded, folder_uuid))
+      else
+        files = stack_folder_files(socket, folder_uuid)
 
-      # Prepend so the just-opened stack renders at the top, in open order.
-      {:noreply,
-       socket
-       |> assign(:expanded_stacks, [folder_uuid | expanded])
-       |> Phoenix.Component.update(:stack_files, &Map.put(&1, folder_uuid, files))}
+        # Prepend so the just-opened stack renders at the top, in open order.
+        socket
+        |> assign(:expanded_stacks, [folder_uuid | expanded])
+        |> Phoenix.Component.update(:stack_files, &Map.put(&1, folder_uuid, files))
+      end
+
+    {:noreply, push_event(socket, "pk:stacks", %{uuids: socket.assigns.expanded_stacks})}
+  end
+
+  # Reopen the stacks the user had expanded last visit (persisted in
+  # localStorage by the StackMemory hook). Only meaningful in stacks view;
+  # unknown/out-of-scope uuids are dropped, then echoed back so the hook can
+  # prune them. Order is preserved (most-recently-opened first), matching how
+  # the hook stored it.
+  def handle_event("restore_stacks", %{"uuids" => uuids}, socket) when is_list(uuids) do
+    if socket.assigns.view_mode == "stacks" do
+      known = MapSet.new(socket.assigns.folders, & &1.uuid)
+      valid = Enum.filter(uuids, &MapSet.member?(known, &1))
+
+      socket =
+        socket
+        |> assign(:expanded_stacks, valid)
+        |> assign_stacks()
+
+      {:noreply, push_event(socket, "pk:stacks", %{uuids: valid})}
+    else
+      {:noreply, socket}
     end
   end
 
