@@ -1055,7 +1055,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         |> assign(:expanded_stacks, List.delete(expanded, folder_uuid))
         |> assign(:just_opened_stack, nil)
       else
-        files = stack_folder_files(socket, folder_uuid)
+        files = stack_folder_files(socket, folder_uuid, socket.assigns.per_page)
 
         # Prepend so the just-opened stack renders at the top, in open order.
         # Mark it as the one to animate open (only an explicit click does).
@@ -1066,6 +1066,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     {:noreply, push_event(socket, "pk:stacks", %{uuids: socket.assigns.expanded_stacks})}
+  end
+
+  # Load the next page of files into an already-open stack, appending to what's
+  # shown. Re-reads from the top at the grown limit (so it stays consistent with
+  # assign_stacks); cards already in the DOM keep their place, new ones append.
+  def handle_event("load_more_stack", %{"folder-uuid" => folder_uuid}, socket) do
+    if folder_uuid in socket.assigns.expanded_stacks do
+      loaded = length(Map.get(socket.assigns.stack_files, folder_uuid, []))
+      files = stack_folder_files(socket, folder_uuid, loaded + socket.assigns.per_page)
+      {:noreply, Phoenix.Component.update(socket, :stack_files, &Map.put(&1, folder_uuid, files))}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Reopen the stacks the user had expanded last visit (persisted in
@@ -2177,10 +2190,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end)
 
     # Keep the open stacks' grids fresh too, so a drag-move into/out of an
-    # expanded stack (or any other reload) reflects immediately.
+    # expanded stack (or any other reload) reflects immediately. Re-read at the
+    # count the user has already loaded (>= one page) so "Load more" progress
+    # survives a reload instead of snapping back to the first page.
     stack_files =
       Map.new(socket.assigns.expanded_stacks, fn uuid ->
-        {uuid, stack_folder_files(socket, uuid)}
+        loaded = length(Map.get(socket.assigns.stack_files, uuid, []))
+        limit = max(socket.assigns.per_page, loaded)
+        {uuid, stack_folder_files(socket, uuid, limit)}
       end)
 
     socket
@@ -2190,12 +2207,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp assign_stacks(socket), do: socket
 
-  # Enriched files directly in a folder (one page), for an expanded stack grid.
-  defp stack_folder_files(socket, folder_uuid) do
+  # Enriched files directly in a folder, for an expanded stack grid. `limit`
+  # caps how many are loaded (always from the top) — never the whole folder, so
+  # opening a stack with thousands of files loads one page, not all of them.
+  # Per-stack "Load more" grows the limit; assign_stacks re-reads at the current
+  # limit so a reload (drag-move, etc.) keeps everything the user has loaded.
+  defp stack_folder_files(socket, folder_uuid, limit) do
     case Storage.list_files_in_scope(scope_folder_id(socket),
            folder_uuid: folder_uuid,
            page: 1,
-           per_page: socket.assigns.per_page
+           per_page: limit
          ) do
       {:error, _} -> []
       {fs, _total} -> enrich_files(fs)

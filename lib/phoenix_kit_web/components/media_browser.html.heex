@@ -1601,6 +1601,8 @@
                             <h3 class="text-lg font-bold">{folder.name}</h3>
                           </div>
                           <% files = Map.get(@stack_files, folder.uuid, []) %>
+                          <% stack_total =
+                            Map.get(@stack_previews, folder.uuid, %{count: 0}).count %>
                           <%= if files == [] do %>
                             <p class="text-sm text-base-content/50">{gettext("No images")}</p>
                           <% else %>
@@ -1617,6 +1619,32 @@
                               <% end %>
                             </div>
                           <% end %>
+                          <%!-- Per-stack pagination: a stack only loads one page
+                               at a time (never the whole folder), so a huge
+                               folder stays fast. Load more appends the next
+                               page. --%>
+                          <div
+                            :if={length(files) < stack_total}
+                            class="flex flex-col items-center gap-2 pt-4"
+                          >
+                            <p class="text-sm text-base-content/60">
+                              {gettext("Showing %{loaded} of %{total} %{noun}",
+                                loaded: length(files),
+                                total: stack_total,
+                                noun: gettext("files")
+                              )}
+                            </p>
+                            <button
+                              type="button"
+                              phx-click="load_more_stack"
+                              phx-value-folder-uuid={folder.uuid}
+                              phx-target={@myself}
+                              phx-disable-with={gettext("Loading…")}
+                              class="btn btn-sm"
+                            >
+                              {gettext("Load more")}
+                            </button>
+                          </div>
                         </div>
                       <% end %>
 
