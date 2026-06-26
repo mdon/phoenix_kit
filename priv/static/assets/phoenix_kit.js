@@ -3932,14 +3932,17 @@ if (typeof window.Chart === "undefined") {
             target.style.backgroundColor = "";
             target.classList.add("bg-primary/10");
           }
-          // daisyUI 5 exposes the primary as a complete oklch() value
-          // in `--color-primary` (not the legacy `--p` raw components),
-          // so we use it directly without wrapping it in oklch().
+          // Outline colour: a target may carry `data-drop-color` (a folder's
+          // own colour) so the accept indicator matches the folder instead of
+          // a generic blue; otherwise fall back to the primary. daisyUI 5
+          // exposes the primary as a complete oklch() value in
+          // `--color-primary` (not the legacy `--p` raw components), so we use
+          // it directly without wrapping it in oklch().
           // `outlineOffset: -2px` insets the outline so the table's
           // `overflow-x-auto` wrapper can't clip the left/right edges
           // of list-view rows. Visually it looks like a "highlighted
           // row" instead of an outline that sticks out — same effect.
-          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outline = "2px solid " + (target.dataset.dropColor || "var(--color-primary)");
           target.style.outlineOffset = "-2px";
         };
         target.addEventListener("dragover", target._dragover);

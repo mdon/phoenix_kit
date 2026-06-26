@@ -2198,13 +2198,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       phx-value-folder-uuid={@folder.uuid}
       data-stack-tile={@folder.uuid}
       data-drop-folder={@folder.uuid}
+      data-drop-color={drop_outline_color(@folder.color)}
       class="group flex flex-col items-center gap-2 w-40 rounded-lg focus:outline-none"
       title={@folder.name}
     >
-      <div class={[
-        "relative w-36 h-28 grid place-items-center rounded-lg transition-shadow",
-        @expanded && "ring-2 ring-primary ring-offset-2 ring-offset-base-100"
-      ]}>
+      <div
+        class={[
+          "relative w-36 h-28 grid place-items-center rounded-lg transition-shadow",
+          @expanded && "ring-2 ring-offset-2 ring-offset-base-100"
+        ]}
+        style={@expanded && "--tw-ring-color: #{drop_outline_color(@folder.color)}"}
+      >
         <%= if @previews == [] do %>
           <div class="w-32 h-24 rounded-lg border-2 border-dashed border-base-300 grid place-items-center text-xs text-base-content/50">
             {gettext("No images")}
@@ -2245,6 +2249,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp stack_offset_class(0), do: "rotate-0 translate-y-0 z-20"
   defp stack_offset_class(1), do: "rotate-[5deg] translate-x-2 -translate-y-1 z-10"
   defp stack_offset_class(_), do: "-rotate-[5deg] -translate-x-2 -translate-y-0.5 z-0"
+
+  # Drag-accept outline colour for a folder drop target — the folder's own
+  # colour (matching its icon) instead of a generic blue. Default folders use
+  # the same accent their icon does.
+  defp drop_outline_color(color), do: folder_color_hex(color) || "oklch(var(--wa))"
 
   # A single file thumbnail tile, reused by the "Everything else" grid and each
   # expanded stack. Selection-aware; opens the viewer / detail on click.

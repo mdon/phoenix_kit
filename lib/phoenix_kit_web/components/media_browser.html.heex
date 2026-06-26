@@ -1201,6 +1201,7 @@
                       <%= for folder <- if(@file_view == "all", do: [], else: @folders) do %>
                         <div
                           data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
                           data-draggable-folder={folder.uuid}
                           data-selected={
                             if @select_mode && MapSet.member?(@selected_folders, folder.uuid),
@@ -1578,6 +1579,7 @@
                           phx-hook="StackExpand"
                           data-stack-folder={folder.uuid}
                           data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
                           data-drop-no-bg="true"
                           class="rounded-lg"
                           phx-remove={
@@ -1617,7 +1619,12 @@
                            media can be dragged back out of a folder; shows a
                            drop hint when empty (as long as there are folders). --%>
                       <%= if @uploaded_files != [] or @folders != [] do %>
-                        <div data-drop-folder="root" data-drop-no-bg="true" class="rounded-lg">
+                        <div
+                          data-drop-folder="root"
+                          data-drop-color="oklch(var(--bc) / 0.45)"
+                          data-drop-no-bg="true"
+                          class="rounded-lg"
+                        >
                           <h2 class="text-lg font-bold mb-3">{gettext("Everything else")}</h2>
                           <%= if @uploaded_files == [] do %>
                             <div class="rounded-lg border-2 border-dashed border-base-300 grid place-items-center py-8 text-sm text-base-content/40">
@@ -1797,6 +1804,7 @@
                                   phx-target={@myself}
                                   phx-value-folder-uuid={folder.uuid}
                                   data-drop-folder={folder.uuid}
+                                  data-drop-color={drop_outline_color(folder.color)}
                                   data-draggable-folder={folder.uuid}
                                   data-selected={
                                     if @select_mode &&
