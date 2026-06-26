@@ -4330,6 +4330,89 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // StackExpand
+  //
+  // Stacks media view: when a folder "stack" is opened, its images fly out of
+  // the pile into their grid slots (a FLIP animation). The hook sits on the
+  // expanded section; on mount it finds the matching stack tile
+  // ([data-stack-tile="<uuid>"]) and parks each card ([data-stack-card]) at the
+  // stack's position scaled down, then releases them to their natural slots with
+  // a per-card stagger. Inline styles are cleared afterwards so hover/selection
+  // transforms aren't pinned. Respects prefers-reduced-motion; never throws.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.StackExpand = {
+    mounted() {
+      try {
+        this.flyOut();
+      } catch (e) {
+        /* an animation must never break the page */
+      }
+    },
+    flyOut() {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+
+      var cards = Array.prototype.slice.call(this.el.querySelectorAll("[data-stack-card]"));
+      if (!cards.length) return;
+
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+
+      // FIRST → INVERT: start every card at the stack's position, scaled down.
+      cards.forEach(function (card) {
+        var cr = card.getBoundingClientRect();
+        var dx = 0;
+        var dy = -24;
+        var scale = 0.35;
+        if (sr) {
+          dx = (sr.left + sr.width / 2) - (cr.left + cr.width / 2);
+          dy = (sr.top + sr.height / 2) - (cr.top + cr.height / 2);
+          scale = Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6));
+        }
+        card.style.transition = "none";
+        card.style.transformOrigin = "center center";
+        card.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + scale + ")";
+        card.style.opacity = "0";
+        card.style.willChange = "transform, opacity";
+      });
+
+      // PLAY: next frame, release each card to its slot with a stagger.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          cards.forEach(function (card) {
+            var i = parseInt(card.dataset.stackCard || "0", 10);
+            var delay = Math.min(i, 16) * 35;
+            card.style.transition =
+              "transform 460ms cubic-bezier(0.2,0.7,0.3,1) " + delay + "ms, " +
+              "opacity 340ms ease " + delay + "ms";
+            card.style.transform = "translate(0,0) scale(1)";
+            card.style.opacity = "1";
+          });
+        });
+      });
+
+      // Clear inline styles once the last card settles, so hover / selection
+      // transforms aren't pinned by the leftover inline transform.
+      var last = cards[cards.length - 1];
+      var cleanup = function (e) {
+        if (e && e.propertyName && e.propertyName !== "transform") return;
+        cards.forEach(function (card) {
+          card.style.transition = "";
+          card.style.transform = "";
+          card.style.transformOrigin = "";
+          card.style.willChange = "";
+          card.style.opacity = "";
+        });
+        last.removeEventListener("transitionend", cleanup);
+      };
+      last.addEventListener("transitionend", cleanup);
+      setTimeout(cleanup, 1300);
+    }
+  };
+
   // ============================================================================
   // INITIALIZATION COMPLETE
   // ============================================================================

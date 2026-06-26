@@ -1546,7 +1546,7 @@
                             folder={folder}
                             previews={data.previews}
                             count={data.count}
-                            expanded={MapSet.member?(@expanded_stacks, folder.uuid)}
+                            expanded={folder.uuid in @expanded_stacks}
                             myself={@myself}
                           />
                         <% end %>
@@ -1567,8 +1567,17 @@
                       </div>
 
                       <%!-- Each expanded stack's grid (multiple can be open) --%>
-                      <%= for folder <- @folders, MapSet.member?(@expanded_stacks, folder.uuid) do %>
-                        <div>
+                      <%!-- Iterate the ordered open list (newest first) rather
+                           than @folders, so stacks render in the order opened
+                           with the latest on top. --%>
+                      <%= for folder_uuid <- @expanded_stacks,
+                              folder = Enum.find(@folders, &(&1.uuid == folder_uuid)),
+                              folder do %>
+                        <div
+                          id={"pk-stack-#{folder.uuid}"}
+                          phx-hook="StackExpand"
+                          data-stack-folder={folder.uuid}
+                        >
                           <div class="flex items-center gap-2 mb-3">
                             <.icon name="hero-folder-open" class="w-5 h-5 text-base-content/60" />
                             <h3 class="text-lg font-bold">{folder.name}</h3>
@@ -1578,9 +1587,10 @@
                             <p class="text-sm text-base-content/50">{gettext("No images")}</p>
                           <% else %>
                             <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                              <%= for file <- files do %>
+                              <%= for {file, i} <- Enum.with_index(files) do %>
                                 <.file_card
                                   file={file}
+                                  index={i}
                                   select_mode={@select_mode}
                                   selected_files={@selected_files}
                                   myself={@myself}

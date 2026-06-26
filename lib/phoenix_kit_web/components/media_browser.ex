@@ -468,7 +468,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # Stacks view: which folder stacks are expanded inline, a per-folder
     # {previews, count} map for the collapsed pile thumbnails, and the loaded
     # files for each expanded stack. Populated only while view_mode is "stacks".
-    |> assign(:expanded_stacks, MapSet.new())
+    # `expanded_stacks` is an ordered list (most-recently-opened first) so the
+    # sections render newest-at-top in open order, not folder order.
+    |> assign(:expanded_stacks, [])
     |> assign(:stack_previews, %{})
     |> assign(:stack_files, %{})
     |> assign(:show_move_modal, false)
@@ -1041,8 +1043,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("toggle_stack_expand", %{"folder-uuid" => folder_uuid}, socket) do
     expanded = socket.assigns.expanded_stacks
 
-    if MapSet.member?(expanded, folder_uuid) do
-      {:noreply, assign(socket, :expanded_stacks, MapSet.delete(expanded, folder_uuid))}
+    if folder_uuid in expanded do
+      {:noreply, assign(socket, :expanded_stacks, List.delete(expanded, folder_uuid))}
     else
       files =
         case Storage.list_files_in_scope(scope_folder_id(socket),
@@ -1054,9 +1056,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           {fs, _total} -> enrich_files(fs)
         end
 
+      # Prepend so the just-opened stack renders at the top, in open order.
       {:noreply,
        socket
-       |> assign(:expanded_stacks, MapSet.put(expanded, folder_uuid))
+       |> assign(:expanded_stacks, [folder_uuid | expanded])
        |> Phoenix.Component.update(:stack_files, &Map.put(&1, folder_uuid, files))}
     end
   end
@@ -2156,7 +2159,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # belonged to the previous folder) and recompute the new folder's previews.
   defp reset_stacks(socket) do
     socket
-    |> assign(:expanded_stacks, MapSet.new())
+    |> assign(:expanded_stacks, [])
     |> assign(:stack_files, %{})
     |> assign_stacks()
   end
@@ -2180,6 +2183,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       phx-click="toggle_stack_expand"
       phx-target={@myself}
       phx-value-folder-uuid={@folder.uuid}
+      data-stack-tile={@folder.uuid}
       class="group flex flex-col items-center gap-2 w-40 focus:outline-none"
       title={@folder.name}
     >
@@ -2234,11 +2238,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   attr :select_mode, :boolean, default: false
   attr :selected_files, :any, required: true
   attr :myself, :any, required: true
+  # When set (stacks expand), `data-stack-card` marks the card for the
+  # StackExpand JS hook, which makes it fly out of the pile (FLIP) staggered by
+  # this index. nil = no animation (grid / "Everything else" reuse).
+  attr :index, :integer, default: nil
 
   defp file_card(assigns) do
     ~H"""
     <div
       data-draggable-file={@file.file_uuid}
+      data-stack-card={@index}
       class={[
         "group relative aspect-square bg-base-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow",
         @select_mode && MapSet.member?(@selected_files, @file.file_uuid) && "ring-2 ring-primary"
