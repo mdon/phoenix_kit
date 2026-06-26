@@ -358,6 +358,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       )
     )
     |> auto_expand_breadcrumbs(breadcrumbs)
+    |> reset_stacks()
   end
 
   defp resolve_folder(folder_uuid, scope) do
@@ -464,6 +465,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
     |> assign(:selected_folders, MapSet.new())
+    # Stacks view: which folder stacks are expanded inline, a per-folder
+    # {previews, count} map for the collapsed pile thumbnails, and the loaded
+    # files for each expanded stack. Populated only while view_mode is "stacks".
+    # `expanded_stacks` is an ordered list (most-recently-opened first) so the
+    # sections render newest-at-top in open order, not folder order.
+    |> assign(:expanded_stacks, [])
+    |> assign(:stack_previews, %{})
+    |> assign(:stack_files, %{})
+    # The one stack that should animate open (the just-clicked one). Restored
+    # stacks (refresh / navigate-back) leave it nil so they appear instantly —
+    # the fly-out only plays on an explicit open click.
+    |> assign(:just_opened_stack, nil)
     |> assign(:show_move_modal, false)
     # New-folder modal: the typed name plus the default placeholder
     # ("untitled" / "untitled N") shown when left blank.
@@ -913,7 +926,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))}
+       |> assign(:total_pages, ceil(total_count / per_page))
+       |> reset_stacks()}
     end
   end
 
@@ -965,7 +979,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))}
+       |> assign(:total_pages, ceil(total_count / per_page))
+       |> reset_stacks()}
     end
   end
 
@@ -1012,7 +1027,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["grid", "list"] do
+  def handle_event("set_view_mode", %{"mode" => mode}, socket)
+      when mode in ["grid", "list", "stacks"] do
     # Persist the choice to user meta so the next page load renders this mode
     # directly (the server is the source of truth — see @media_view_mode_key).
     socket =
@@ -1024,7 +1040,67 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           socket
       end
 
-    {:noreply, assign(socket, :view_mode, mode)}
+    # Switching into stacks needs the per-folder previews computed once.
+    {:noreply, socket |> assign(:view_mode, mode) |> assign_stacks()}
+  end
+
+  def handle_event("toggle_stack_expand", %{"folder-uuid" => folder_uuid}, socket) do
+    expanded = socket.assigns.expanded_stacks
+
+    socket =
+      if folder_uuid in expanded do
+        # Close: the client already played the fly-back before pushing this,
+        # so just drop it. `just_opened_stack` clears so nothing re-animates.
+        socket
+        |> assign(:expanded_stacks, List.delete(expanded, folder_uuid))
+        |> assign(:just_opened_stack, nil)
+      else
+        files = stack_folder_files(socket, folder_uuid, socket.assigns.per_page)
+
+        # Prepend so the just-opened stack renders at the top, in open order.
+        # Mark it as the one to animate open (only an explicit click does).
+        socket
+        |> assign(:expanded_stacks, [folder_uuid | expanded])
+        |> assign(:just_opened_stack, folder_uuid)
+        |> Phoenix.Component.update(:stack_files, &Map.put(&1, folder_uuid, files))
+      end
+
+    {:noreply, push_event(socket, "pk:stacks", %{uuids: socket.assigns.expanded_stacks})}
+  end
+
+  # Load the next page of files into an already-open stack, appending to what's
+  # shown. Re-reads from the top at the grown limit (so it stays consistent with
+  # assign_stacks); cards already in the DOM keep their place, new ones append.
+  def handle_event("load_more_stack", %{"folder-uuid" => folder_uuid}, socket) do
+    if folder_uuid in socket.assigns.expanded_stacks do
+      loaded = length(Map.get(socket.assigns.stack_files, folder_uuid, []))
+      files = stack_folder_files(socket, folder_uuid, loaded + socket.assigns.per_page)
+      {:noreply, Phoenix.Component.update(socket, :stack_files, &Map.put(&1, folder_uuid, files))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Reopen the stacks the user had expanded last visit (persisted in
+  # localStorage by the StackMemory hook). Only meaningful in stacks view;
+  # unknown/out-of-scope uuids are dropped, then echoed back so the hook can
+  # prune them. Order is preserved (most-recently-opened first), matching how
+  # the hook stored it.
+  def handle_event("restore_stacks", %{"uuids" => uuids}, socket) when is_list(uuids) do
+    if socket.assigns.view_mode == "stacks" do
+      known = MapSet.new(socket.assigns.folders, & &1.uuid)
+      valid = Enum.filter(uuids, &MapSet.member?(known, &1))
+
+      socket =
+        socket
+        |> assign(:expanded_stacks, valid)
+        |> assign(:just_opened_stack, nil)
+        |> assign_stacks()
+
+      {:noreply, push_event(socket, "pk:stacks", %{uuids: valid})}
+    else
+      {:noreply, socket}
+    end
   end
 
   @valid_sorts ~w(newest oldest name_asc name_desc largest smallest)
@@ -2092,6 +2168,281 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:total_count, total_count)
     |> assign(:total_pages, ceil(total_count / per_page))
     |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+    |> assign_stacks()
+  end
+
+  # Stacks view: for each child folder, load a few preview thumbnails + the
+  # total file count for the collapsed "pile". No-op unless in stacks mode, so
+  # grid/list don't pay for the per-folder queries. Cheap enough for a typical
+  # folder count; revisit with a batched query if folder lists grow large.
+  defp assign_stacks(%{assigns: %{view_mode: "stacks"}} = socket) do
+    scope = scope_folder_id(socket)
+
+    previews =
+      Map.new(socket.assigns.folders, fn folder ->
+        {files, count} =
+          case Storage.list_files_in_scope(scope, folder_uuid: folder.uuid, page: 1, per_page: 4) do
+            {:error, _} -> {[], 0}
+            {fs, total} -> {fs, total}
+          end
+
+        {folder.uuid, %{previews: enrich_files(files), count: count}}
+      end)
+
+    # Keep the open stacks' grids fresh too, so a drag-move into/out of an
+    # expanded stack (or any other reload) reflects immediately. Re-read at the
+    # count the user has already loaded (>= one page) so "Load more" progress
+    # survives a reload instead of snapping back to the first page.
+    stack_files =
+      Map.new(socket.assigns.expanded_stacks, fn uuid ->
+        loaded = length(Map.get(socket.assigns.stack_files, uuid, []))
+        limit = max(socket.assigns.per_page, loaded)
+        {uuid, stack_folder_files(socket, uuid, limit)}
+      end)
+
+    socket
+    |> assign(:stack_previews, previews)
+    |> assign(:stack_files, stack_files)
+  end
+
+  defp assign_stacks(socket), do: socket
+
+  # Enriched files directly in a folder, for an expanded stack grid. `limit`
+  # caps how many are loaded (always from the top) — never the whole folder, so
+  # opening a stack with thousands of files loads one page, not all of them.
+  # Per-stack "Load more" grows the limit; assign_stacks re-reads at the current
+  # limit so a reload (drag-move, etc.) keeps everything the user has loaded.
+  defp stack_folder_files(socket, folder_uuid, limit) do
+    case Storage.list_files_in_scope(scope_folder_id(socket),
+           folder_uuid: folder_uuid,
+           page: 1,
+           per_page: limit
+         ) do
+      {:error, _} -> []
+      {fs, _total} -> enrich_files(fs)
+    end
+  end
+
+  # Navigating to a different folder context: collapse any open stacks (they
+  # belonged to the previous folder) and recompute the new folder's previews.
+  defp reset_stacks(socket) do
+    socket
+    |> assign(:expanded_stacks, [])
+    |> assign(:stack_files, %{})
+    |> assign(:just_opened_stack, nil)
+    |> assign_stacks()
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # Stacks view — function components
+  # ──────────────────────────────────────────────────────────────
+
+  # A collapsed folder "pile": up to a few preview thumbnails fanned out, the
+  # file count, and the folder name. Clicking toggles its inline grid.
+  attr :folder, :map, required: true
+  attr :previews, :list, default: []
+  attr :count, :integer, default: 0
+  attr :expanded, :boolean, default: false
+  attr :myself, :any, required: true
+
+  defp stack_tile(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click={
+        if @expanded,
+          do: JS.dispatch("pk:close-stack", to: "#pk-stack-#{@folder.uuid}"),
+          else:
+            JS.push("toggle_stack_expand",
+              target: @myself,
+              value: %{"folder-uuid" => @folder.uuid}
+            )
+      }
+      data-stack-tile={@folder.uuid}
+      data-drop-folder={@folder.uuid}
+      data-drop-color={drop_outline_color(@folder.color)}
+      class="group flex flex-col items-center gap-2 w-40 rounded-lg focus:outline-none"
+      title={@folder.name}
+    >
+      <div
+        class={[
+          "relative w-36 h-28 grid place-items-center rounded-lg transition-shadow",
+          @expanded && "ring-2 ring-offset-2 ring-offset-base-100"
+        ]}
+        style={@expanded && "--tw-ring-color: #{drop_outline_color(@folder.color)}"}
+      >
+        <%= if @previews == [] do %>
+          <div class="w-32 h-24 rounded-lg border-2 border-dashed border-base-300 grid place-items-center text-xs text-base-content/50">
+            {gettext("No images")}
+          </div>
+        <% else %>
+          <%= for {pf, i} <- @previews |> Enum.take(3) |> Enum.with_index() |> Enum.reverse() do %>
+            <div class={[
+              "absolute w-32 h-24 rounded-lg overflow-hidden shadow border border-base-100 bg-base-300",
+              stack_offset_class(i)
+            ]}>
+              <.thumbnail_url :let={url} file={pf} size={:small}>
+                <%= if url do %>
+                  <img src={url} alt="" class="w-full h-full object-cover" />
+                <% else %>
+                  <div class="w-full h-full grid place-items-center text-base-content/40">
+                    <.icon name={file_icon(pf.file_type)} class="w-8 h-8" />
+                  </div>
+                <% end %>
+              </.thumbnail_url>
+            </div>
+          <% end %>
+        <% end %>
+
+        <span
+          :if={@count > 0}
+          class="absolute -top-1 -right-1 z-30 badge badge-neutral badge-sm shadow"
+        >
+          {@count}
+        </span>
+      </div>
+      <p class="text-sm font-medium text-center truncate w-36">{@folder.name}</p>
+    </button>
+    """
+  end
+
+  # Pile fan-out: the front card (index 0) sits flat on top; the ones behind it
+  # are rotated/offset to read as a stack.
+  defp stack_offset_class(0), do: "rotate-0 translate-y-0 z-20"
+  defp stack_offset_class(1), do: "rotate-[5deg] translate-x-2 -translate-y-1 z-10"
+  defp stack_offset_class(_), do: "-rotate-[5deg] -translate-x-2 -translate-y-0.5 z-0"
+
+  # Drag-accept outline colour for a folder drop target — the folder's own
+  # colour (matching its icon) instead of a generic blue. Default folders use
+  # the same accent their icon does.
+  defp drop_outline_color(color), do: folder_color_hex(color) || "oklch(var(--wa))"
+
+  # A single file thumbnail tile, reused by the "Everything else" grid and each
+  # expanded stack. Selection-aware; opens the viewer / detail on click.
+  attr :file, :map, required: true
+  attr :select_mode, :boolean, default: false
+  attr :selected_files, :any, required: true
+  attr :myself, :any, required: true
+  attr :filter_trash, :boolean, default: false
+  # When set (stacks expand), `data-stack-card` marks the card for the
+  # StackExpand JS hook, which makes it fly out of the pile (FLIP) staggered by
+  # this index. nil = no animation (grid / "Everything else" reuse).
+  attr :index, :integer, default: nil
+
+  defp file_card(assigns) do
+    ~H"""
+    <div
+      data-draggable-file={@file.file_uuid}
+      data-stack-card={@index}
+      class={[
+        "group relative aspect-square bg-base-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow",
+        @select_mode && MapSet.member?(@selected_files, @file.file_uuid) && "ring-2 ring-primary"
+      ]}
+    >
+      <label :if={@select_mode} class="absolute top-1 left-1 z-10 cursor-pointer">
+        <input
+          type="checkbox"
+          class="checkbox checkbox-primary checkbox-sm"
+          checked={MapSet.member?(@selected_files, @file.file_uuid)}
+          phx-click="toggle_select"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+        />
+      </label>
+
+      <div
+        phx-click="click_file"
+        phx-target={@myself}
+        phx-value-file-uuid={@file.file_uuid}
+        class="block w-full h-full cursor-pointer"
+      >
+        <.thumbnail_url :let={url} file={@file} size={:small}>
+          <%= if url do %>
+            <img
+              src={url}
+              alt={@file.filename}
+              class="w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity"
+            />
+          <% else %>
+            <div class="grid place-items-center w-full aspect-square text-base-content/50">
+              <div class="flex flex-col items-center">
+                <.icon name={file_icon(@file.file_type)} class="w-12 h-12 mb-2" />
+                <p class="text-sm font-semibold">{String.upcase(@file.file_type)}</p>
+              </div>
+            </div>
+          <% end %>
+        </.thumbnail_url>
+
+        <div
+          :if={@file.file_type == "video"}
+          class="absolute top-2 left-2 bg-black/60 text-white p-1.5 rounded pointer-events-none flex items-center justify-center"
+        >
+          <.icon name="hero-play-solid" class="w-4 h-4" />
+        </div>
+
+        <div
+          :if={@file.mime_type == "application/pdf"}
+          class="absolute top-2 left-2 bg-error/80 text-white px-2 py-0.5 rounded text-xs font-bold pointer-events-none"
+        >
+          PDF
+        </div>
+
+        <div class="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded pointer-events-none">
+          {format_file_size(@file.size)}
+        </div>
+      </div>
+
+      <%!--
+      Per-file kebab menu. Sibling of the click target so its buttons don't
+      fire `click_file`. Mirrors the grid-view card: hidden until hover,
+      Download only when an "original" URL exists, Delete/Trash always.
+      --%>
+      <.table_row_menu
+        :if={!@select_mode}
+        id={"file-kebab-stack-#{@file.file_uuid}"}
+        class="!absolute top-1 right-1 opacity-0 group-hover:opacity-100"
+        trigger_class="!bg-black/40 hover:!bg-black/60 !text-white !border-0"
+      >
+        <.table_row_menu_button
+          :if={
+            Map.get(@file.urls || %{}, "original") ||
+              Map.get(@file.urls || %{}, :original)
+          }
+          phx-click="download_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon="hero-arrow-down-tray"
+          label={gettext("Download")}
+        />
+        <.table_row_menu_button
+          phx-click="prepare_move_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon="hero-folder-arrow-down"
+          label={gettext("Move")}
+        />
+        <.table_row_menu_button
+          phx-click="delete_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          data-confirm={
+            if @filter_trash,
+              do:
+                gettext("Permanently delete '%{name}'? This cannot be undone.",
+                  name: @file.filename
+                )
+          }
+          icon="hero-trash"
+          label={
+            if @filter_trash,
+              do: gettext("Delete Permanently"),
+              else: gettext("Move to Trash")
+          }
+          variant="error"
+        />
+      </.table_row_menu>
+    </div>
+    """
   end
 
   # Open the move modal, seeding its directory tree's expansion from the
@@ -2260,7 +2611,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # "grid". Tolerant of a missing/garbage value.
   defp load_user_view_mode(%{} = user) do
     case Auth.get_user_field(user, @media_view_mode_key) do
-      mode when mode in ["grid", "list"] -> mode
+      mode when mode in ["grid", "list", "stacks"] -> mode
       _ -> "grid"
     end
   end

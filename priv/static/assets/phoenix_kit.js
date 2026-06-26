@@ -2583,6 +2583,62 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ViewportPopover Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Keeps an absolutely-positioned popover (one that drops from the bottom of
+  // its anchor wrapper) inside the viewport. Clamps its max-height to the space
+  // left below the anchor, and flips it to open upward when there's little room
+  // below and more above. Without this, a tall editor opened low in the page
+  // (e.g. an embedded media browser scrolled down) runs off the bottom of the
+  // screen, leaving its footer buttons (Save) unreachable.
+  //
+  // Inline styles override the element's max-h / top classes; the server sets
+  // no style attribute on the element, so morphdom won't clobber them on
+  // re-render. Re-runs on mount, update, resize and scroll.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewportPopover = {
+    mounted() {
+      this._reposition = this.position.bind(this);
+      window.addEventListener("resize", this._reposition);
+      window.addEventListener("scroll", this._reposition, true);
+      this.position();
+    },
+    updated() {
+      this.position();
+    },
+    destroyed() {
+      window.removeEventListener("resize", this._reposition);
+      window.removeEventListener("scroll", this._reposition, true);
+    },
+    position() {
+      var el = this.el;
+      var margin = 12;
+      var anchor = el.parentElement || el;
+      var ar = anchor.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - ar.bottom - margin;
+      var spaceAbove = ar.top - margin;
+      var cap = Math.round(window.innerHeight * 0.85);
+
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        // More room above: flip the popover to open upward.
+        el.style.top = "auto";
+        el.style.bottom = "100%";
+        el.style.marginTop = "0px";
+        el.style.marginBottom = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceAbove, cap)) + "px";
+      } else {
+        el.style.bottom = "auto";
+        el.style.top = "100%";
+        el.style.marginBottom = "0px";
+        el.style.marginTop = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceBelow, cap)) + "px";
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // FadeOut Hook
   // ---------------------------------------------------------------------------
   //
@@ -3932,14 +3988,17 @@ if (typeof window.Chart === "undefined") {
             target.style.backgroundColor = "";
             target.classList.add("bg-primary/10");
           }
-          // daisyUI 5 exposes the primary as a complete oklch() value
-          // in `--color-primary` (not the legacy `--p` raw components),
-          // so we use it directly without wrapping it in oklch().
+          // Outline colour: a target may carry `data-drop-color` (a folder's
+          // own colour) so the accept indicator matches the folder instead of
+          // a generic blue; otherwise fall back to the primary. daisyUI 5
+          // exposes the primary as a complete oklch() value in
+          // `--color-primary` (not the legacy `--p` raw components), so we use
+          // it directly without wrapping it in oklch().
           // `outlineOffset: -2px` insets the outline so the table's
           // `overflow-x-auto` wrapper can't clip the left/right edges
           // of list-view rows. Visually it looks like a "highlighted
           // row" instead of an outline that sticks out — same effect.
-          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outline = "2px solid " + (target.dataset.dropColor || "var(--color-primary)");
           target.style.outlineOffset = "-2px";
         };
         target.addEventListener("dragover", target._dragover);
@@ -4327,6 +4386,242 @@ if (typeof window.Chart === "undefined") {
       }
       html += "</div></div>";
       return html;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // StackExpand
+  //
+  // Stacks media view: when a folder "stack" is opened, its images fly out of
+  // the pile into their grid slots (a FLIP animation). The hook sits on the
+  // expanded section; on mount it finds the matching stack tile
+  // ([data-stack-tile="<uuid>"]) and parks each card ([data-stack-card]) at the
+  // stack's position scaled down, then releases them to their natural slots with
+  // a per-card stagger. Inline styles are cleared afterwards so hover/selection
+  // transforms aren't pinned. Respects prefers-reduced-motion; never throws.
+  // ---------------------------------------------------------------------------
+  // Persists which media stacks the user has open across refresh / navigation
+  // away-and-back, in localStorage. On mount it pushes the saved open-set to
+  // the LiveComponent (which reopens them); after every toggle/restore the
+  // server echoes the authoritative open-set via "pk:stacks" and we persist
+  // it. We persist from the server echo rather than reading the DOM because a
+  // closing stack lingers briefly during its fly-back animation and would be
+  // misread as still-open. Key is scoped per virtual-root so scoped browsers
+  // remember independently.
+  window.PhoenixKitHooks.StackMemory = {
+    mounted() {
+      var key = this.el.dataset.storageKey;
+      var self = this;
+      var el = this.el;
+
+      var reveal = function () {
+        if (self._revealT) {
+          clearTimeout(self._revealT);
+          self._revealT = null;
+        }
+        el.style.visibility = "";
+      };
+
+      this.handleEvent("pk:stacks", function (payload) {
+        try {
+          localStorage.setItem(key, JSON.stringify((payload && payload.uuids) || []));
+        } catch (e) {
+          /* private mode / quota — degrade to no-memory */
+        }
+        // The restore round-trip has landed (server reopened the stacks) —
+        // show the already-open view in one shot.
+        reveal();
+      });
+
+      var saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(key) || "[]");
+      } catch (e) {
+        saved = [];
+      }
+      if (Array.isArray(saved) && saved.length) {
+        // Hide the stacks body before first paint so the user never sees the
+        // closed state flash open. mounted() runs before the browser paints
+        // the patch, so this suppresses the intermediate "stacks closed"
+        // frame; we reveal once the server echoes the reopened set. A safety
+        // timeout guarantees we never leave the view stuck hidden if the echo
+        // never arrives.
+        el.style.visibility = "hidden";
+        self._revealT = setTimeout(reveal, 600);
+        this.pushEventTo(this.el, "restore_stacks", { uuids: saved });
+      }
+    },
+    destroyed() {
+      if (this._revealT) clearTimeout(this._revealT);
+    }
+  };
+
+  window.PhoenixKitHooks.StackExpand = {
+    mounted() {
+      // Closing is driven client-side: the stack tile dispatches
+      // "pk:close-stack", we play the fly-back, then tell the server to drop
+      // the section. There's no phx-remove, so navigating away (opening a
+      // media detail page) just leaves instantly with no animation or delay.
+      this._onClose = function () {
+        try {
+          this.flyBack();
+        } catch (e) {
+          // If the animation can't run, still drop the section server-side.
+          this._removeServerSide();
+        }
+      }.bind(this);
+      this.el.addEventListener("pk:close-stack", this._onClose);
+
+      // Only an explicitly-opened stack animates out of the pile. Restored
+      // stacks (refresh / navigate-back) carry no data-animate-open, so they
+      // appear instantly.
+      if (this.el.dataset.animateOpen) {
+        try {
+          this.flyOut();
+        } catch (e) {
+          /* an animation must never break the page */
+        }
+      }
+    },
+    destroyed() {
+      if (this._onClose) this.el.removeEventListener("pk:close-stack", this._onClose);
+    },
+    // Tell the LiveComponent to collapse this stack. The uuid is still in the
+    // server's expanded list (the client animated first), so toggling removes
+    // it. Runs after the fly-back so removal is seamless.
+    _removeServerSide() {
+      try {
+        this.pushEventTo(this.el, "toggle_stack_expand", {
+          "folder-uuid": this.el.dataset.stackFolder
+        });
+      } catch (e) {
+        /* component may already be gone */
+      }
+    },
+    // Shared geometry: the delta + scale to map a card to the stack pile.
+    _toStack(card) {
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+      var cr = card.getBoundingClientRect();
+      if (!sr) return { dx: 0, dy: -24, scale: 0.35 };
+      return {
+        dx: (sr.left + sr.width / 2) - (cr.left + cr.width / 2),
+        dy: (sr.top + sr.height / 2) - (cr.top + cr.height / 2),
+        scale: Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6))
+      };
+    },
+    // Reverse of flyOut: send each card back into the pile, collapse the
+    // section, then ask the server to remove it. (No prefers-reduced-motion
+    // animation, but we still remove it.)
+    flyBack() {
+      var self = this;
+      var el = this.el;
+
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        self._removeServerSide();
+        return;
+      }
+
+      var cards = Array.prototype.slice.call(el.querySelectorAll("[data-stack-card]"));
+      cards.forEach(function (card) {
+        var t = self._toStack(card);
+        var i = parseInt(card.dataset.stackCard || "0", 10);
+        var delay = Math.min(i, 16) * 18;
+        card.style.transformOrigin = "center center";
+        card.style.willChange = "transform, opacity";
+        card.style.transition =
+          "transform 420ms cubic-bezier(0.4,0,1,1) " + delay + "ms, " +
+          "opacity 380ms ease " + delay + "ms";
+        card.style.transform =
+          "translate(" + t.dx + "px," + t.dy + "px) scale(" + t.scale + ")";
+        card.style.opacity = "0";
+      });
+
+      // Once the images have retreated into the pile, collapse the section's
+      // height + margin to 0 so the stacks/Everything-else below slide up
+      // smoothly to fill the gap, instead of jumping when LiveView removes it.
+      // Deferred so the cards (which fly up out of the box) aren't clipped.
+      setTimeout(function () {
+        var rect = el.getBoundingClientRect();
+        var mt = window.getComputedStyle(el).marginTop;
+        el.style.height = rect.height + "px";
+        el.style.marginTop = mt;
+        el.style.overflow = "hidden";
+        el.getBoundingClientRect(); // commit the fixed height before transitioning
+        el.style.transition =
+          "height 320ms cubic-bezier(0.4,0,0.2,1), margin-top 320ms cubic-bezier(0.4,0,0.2,1)";
+        el.style.height = "0px";
+        el.style.marginTop = "0px";
+      }, 320);
+
+      // Once the cards have retreated and the section has collapsed, tell the
+      // server to remove it (cards ~420ms+stagger, collapse 320ms@+320ms).
+      setTimeout(function () {
+        self._removeServerSide();
+      }, 720);
+    },
+    flyOut() {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+
+      var cards = Array.prototype.slice.call(this.el.querySelectorAll("[data-stack-card]"));
+      if (!cards.length) return;
+
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+
+      // FIRST → INVERT: start every card at the stack's position, scaled down.
+      cards.forEach(function (card) {
+        var cr = card.getBoundingClientRect();
+        var dx = 0;
+        var dy = -24;
+        var scale = 0.35;
+        if (sr) {
+          dx = (sr.left + sr.width / 2) - (cr.left + cr.width / 2);
+          dy = (sr.top + sr.height / 2) - (cr.top + cr.height / 2);
+          scale = Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6));
+        }
+        card.style.transition = "none";
+        card.style.transformOrigin = "center center";
+        card.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + scale + ")";
+        card.style.opacity = "0";
+        card.style.willChange = "transform, opacity";
+      });
+
+      // PLAY: next frame, release each card to its slot with a stagger.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          cards.forEach(function (card) {
+            var i = parseInt(card.dataset.stackCard || "0", 10);
+            var delay = Math.min(i, 16) * 35;
+            card.style.transition =
+              "transform 460ms cubic-bezier(0.2,0.7,0.3,1) " + delay + "ms, " +
+              "opacity 340ms ease " + delay + "ms";
+            card.style.transform = "translate(0,0) scale(1)";
+            card.style.opacity = "1";
+          });
+        });
+      });
+
+      // Clear inline styles once the last card settles, so hover / selection
+      // transforms aren't pinned by the leftover inline transform.
+      var last = cards[cards.length - 1];
+      var cleanup = function (e) {
+        if (e && e.propertyName && e.propertyName !== "transform") return;
+        cards.forEach(function (card) {
+          card.style.transition = "";
+          card.style.transform = "";
+          card.style.transformOrigin = "";
+          card.style.willChange = "";
+          card.style.opacity = "";
+        });
+        last.removeEventListener("transitionend", cleanup);
+      };
+      last.addEventListener("transitionend", cleanup);
+      setTimeout(cleanup, 1300);
     }
   };
 

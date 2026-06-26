@@ -331,6 +331,8 @@
                          except while the image picker is open. --%>
                     <%= if @editing_folder_header do %>
                       <div
+                        id="folder-header-popover"
+                        phx-hook="ViewportPopover"
                         class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-base-100 rounded-xl shadow-2xl border border-base-300 text-left cursor-default font-normal"
                         phx-click-away={!@selecting_cover && "cancel_edit_folder_header"}
                         phx-target={@myself}
@@ -351,7 +353,7 @@
                           </button>
                         </div>
 
-                        <div class="overflow-y-auto px-4 py-4">
+                        <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
                           <%!-- 1. Name + description (saved on Save below; the
                                other sections apply instantly). --%>
                           <form
@@ -562,26 +564,29 @@
                               </label>
                             <% end %>
                           </div>
+                        </div>
 
-                          <%!-- Save / Cancel — Save submits the name/description
-                               form above (the rest already applied live). --%>
-                          <div class="flex justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              phx-click="cancel_edit_folder_header"
-                              phx-target={@myself}
-                              class="btn btn-ghost btn-sm"
-                            >
-                              {gettext("Done")}
-                            </button>
-                            <button
-                              type="submit"
-                              form="folder-header-form"
-                              class="btn btn-primary btn-sm"
-                            >
-                              {gettext("Save name")}
-                            </button>
-                          </div>
+                        <%!-- Save / Cancel — pinned as a non-scrolling footer
+                             (shrink-0) so the buttons stay reachable however
+                             tall/scrolled the body is. Save submits the
+                             name/description form above (the rest applied
+                             live). --%>
+                        <div class="flex justify-end gap-2 px-4 py-3 border-t border-base-200 shrink-0">
+                          <button
+                            type="button"
+                            phx-click="cancel_edit_folder_header"
+                            phx-target={@myself}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            {gettext("Done")}
+                          </button>
+                          <button
+                            type="submit"
+                            form="folder-header-form"
+                            class="btn btn-primary btn-sm"
+                          >
+                            {gettext("Save name")}
+                          </button>
                         </div>
                       </div>
                     <% end %>
@@ -805,7 +810,8 @@
                   <% else %>
                     <% display_options = [
                       {"grid", gettext("Grid"), "hero-squares-2x2"},
-                      {"list", gettext("List"), "hero-bars-3-bottom-left"}
+                      {"list", gettext("List"), "hero-bars-3-bottom-left"},
+                      {"stacks", gettext("Stacks"), "hero-square-3-stack-3d"}
                     ] %>
                     <% sort_options = [
                       {"newest", gettext("Newest first")},
@@ -1200,6 +1206,7 @@
                       <%= for folder <- if(@file_view == "all", do: [], else: @folders) do %>
                         <div
                           data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
                           data-draggable-folder={folder.uuid}
                           data-selected={
                             if @select_mode && MapSet.member?(@selected_folders, folder.uuid),
@@ -1532,6 +1539,154 @@
                       <% end %>
                     </div>
                   <% end %>
+                  <%= if @view_mode == "stacks" do %>
+                    <%!-- Stacks View — folders as photo piles up top, loose
+                         files under "Everything else" (Basecamp-style).
+                         StackMemory persists which stacks are open in
+                         localStorage and reopens them on remount/refresh. --%>
+                    <div
+                      id={"pk-stacks-#{@id}"}
+                      phx-hook="StackMemory"
+                      data-storage-key={"pk_media_stacks:#{@scope_folder_id || "root"}"}
+                      class="space-y-8"
+                    >
+                      <%!-- Folder stacks + the New folder tile --%>
+                      <div class="flex flex-wrap gap-6">
+                        <%= for folder <- @folders do %>
+                          <% data =
+                            Map.get(@stack_previews, folder.uuid, %{previews: [], count: 0}) %>
+                          <.stack_tile
+                            folder={folder}
+                            previews={data.previews}
+                            count={data.count}
+                            expanded={folder.uuid in @expanded_stacks}
+                            myself={@myself}
+                          />
+                        <% end %>
+
+                        <button
+                          type="button"
+                          phx-click="open_new_folder_modal"
+                          phx-target={@myself}
+                          class="group flex flex-col items-center gap-2 w-40 focus:outline-none"
+                        >
+                          <div class="w-36 h-28 grid place-items-center">
+                            <div class="w-32 h-24 rounded-lg border-2 border-dashed border-base-300 group-hover:border-primary grid place-items-center text-base-content/40 group-hover:text-primary transition-colors">
+                              <.icon name="hero-folder-plus" class="w-8 h-8" />
+                            </div>
+                          </div>
+                          <p class="text-sm font-medium text-center">{gettext("New folder")}</p>
+                        </button>
+                      </div>
+
+                      <%!-- Each expanded stack's grid (multiple can be open) --%>
+                      <%!-- Iterate the ordered open list (newest first) rather
+                           than @folders, so stacks render in the order opened
+                           with the latest on top. --%>
+                      <%= for folder_uuid <- @expanded_stacks,
+                              folder = Enum.find(@folders, &(&1.uuid == folder_uuid)),
+                              folder do %>
+                        <div
+                          id={"pk-stack-#{folder.uuid}"}
+                          phx-hook="StackExpand"
+                          data-stack-folder={folder.uuid}
+                          data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
+                          data-drop-no-bg="true"
+                          data-animate-open={folder.uuid == @just_opened_stack && "true"}
+                          class="rounded-lg"
+                        >
+                          <div class="flex items-center gap-2 mb-3">
+                            <.icon name="hero-folder-open" class="w-5 h-5 text-base-content/60" />
+                            <h3 class="text-lg font-bold">{folder.name}</h3>
+                          </div>
+                          <% files = Map.get(@stack_files, folder.uuid, []) %>
+                          <% stack_total =
+                            Map.get(@stack_previews, folder.uuid, %{count: 0}).count %>
+                          <%= if files == [] do %>
+                            <p class="text-sm text-base-content/50">{gettext("No images")}</p>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for {file, i} <- Enum.with_index(files) do %>
+                                <.file_card
+                                  file={file}
+                                  index={i}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  filter_trash={@filter_trash}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
+                          <%!-- Per-stack pagination: a stack only loads one page
+                               at a time (never the whole folder), so a huge
+                               folder stays fast. Load more appends the next
+                               page. --%>
+                          <div
+                            :if={length(files) < stack_total}
+                            class="flex flex-col items-center gap-2 pt-4"
+                          >
+                            <p class="text-sm text-base-content/60">
+                              {gettext("Showing %{loaded} of %{total} %{noun}",
+                                loaded: length(files),
+                                total: stack_total,
+                                noun: gettext("files")
+                              )}
+                            </p>
+                            <button
+                              type="button"
+                              phx-click="load_more_stack"
+                              phx-value-folder-uuid={folder.uuid}
+                              phx-target={@myself}
+                              phx-disable-with={gettext("Loading…")}
+                              class="btn btn-sm"
+                            >
+                              {gettext("Load more")}
+                            </button>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%!-- Everything else: loose files in this folder
+                           (orphaned files at the root). Always a drop target so
+                           media can be dragged back out of a folder; shows a
+                           drop hint when empty (as long as there are folders). --%>
+                      <%= if @uploaded_files != [] or @folders != [] do %>
+                        <div
+                          data-drop-folder="root"
+                          data-drop-color="oklch(var(--bc) / 0.45)"
+                          data-drop-no-bg="true"
+                          class="rounded-lg"
+                        >
+                          <h2 class="text-lg font-bold mb-3">{gettext("Everything else")}</h2>
+                          <%= if @uploaded_files == [] do %>
+                            <div class="rounded-lg border-2 border-dashed border-base-300 grid place-items-center py-8 text-sm text-base-content/40">
+                              {gettext("Drop media here to remove it from a folder")}
+                            </div>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for file <- @uploaded_files do %>
+                                <.file_card
+                                  file={file}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  filter_trash={@filter_trash}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <%= if @folders == [] and @uploaded_files == [] do %>
+                        <div class="text-center py-12 text-base-content/50">
+                          {gettext("No media yet.")}
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
                   <%= if @view_mode == "list" do %>
                     <%!-- List View --%>
                     <%!-- Horizontal scroll handled by the outer scroll area
@@ -1684,6 +1839,7 @@
                                   phx-target={@myself}
                                   phx-value-folder-uuid={folder.uuid}
                                   data-drop-folder={folder.uuid}
+                                  data-drop-color={drop_outline_color(folder.color)}
                                   data-draggable-folder={folder.uuid}
                                   data-selected={
                                     if @select_mode &&
