@@ -2281,7 +2281,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
               "absolute w-32 h-24 rounded-lg overflow-hidden shadow border border-base-100 bg-base-300",
               stack_offset_class(i)
             ]}>
-              <.thumbnail_url :let={url} file={pf} size={:small}>
+              <.thumbnail_url :let={url} file={pf} size={:card}>
                 <%= if url do %>
                   <img src={url} alt="" class="w-full h-full object-cover" />
                 <% else %>
@@ -2356,7 +2356,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         phx-value-file-uuid={@file.file_uuid}
         class="block w-full h-full cursor-pointer"
       >
-        <.thumbnail_url :let={url} file={@file} size={:small}>
+        <.thumbnail_url :let={url} file={@file} size={:card}>
           <%= if url do %>
             <img
               src={url}

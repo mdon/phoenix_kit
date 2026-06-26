@@ -1435,7 +1435,7 @@
                             phx-value-file-uuid={file.file_uuid}
                             class="block w-full h-full cursor-pointer"
                           >
-                            <.thumbnail_url :let={url} file={file} size={:small}>
+                            <.thumbnail_url :let={url} file={file} size={:card}>
                               <%= if url do %>
                                 <img
                                   src={url}
