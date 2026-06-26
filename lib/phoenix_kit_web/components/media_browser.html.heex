@@ -331,6 +331,8 @@
                          except while the image picker is open. --%>
                     <%= if @editing_folder_header do %>
                       <div
+                        id="folder-header-popover"
+                        phx-hook="ViewportPopover"
                         class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-base-100 rounded-xl shadow-2xl border border-base-300 text-left cursor-default font-normal"
                         phx-click-away={!@selecting_cover && "cancel_edit_folder_header"}
                         phx-target={@myself}
@@ -351,7 +353,7 @@
                           </button>
                         </div>
 
-                        <div class="overflow-y-auto px-4 py-4">
+                        <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
                           <%!-- 1. Name + description (saved on Save below; the
                                other sections apply instantly). --%>
                           <form
@@ -562,26 +564,29 @@
                               </label>
                             <% end %>
                           </div>
+                        </div>
 
-                          <%!-- Save / Cancel — Save submits the name/description
-                               form above (the rest already applied live). --%>
-                          <div class="flex justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              phx-click="cancel_edit_folder_header"
-                              phx-target={@myself}
-                              class="btn btn-ghost btn-sm"
-                            >
-                              {gettext("Done")}
-                            </button>
-                            <button
-                              type="submit"
-                              form="folder-header-form"
-                              class="btn btn-primary btn-sm"
-                            >
-                              {gettext("Save name")}
-                            </button>
-                          </div>
+                        <%!-- Save / Cancel — pinned as a non-scrolling footer
+                             (shrink-0) so the buttons stay reachable however
+                             tall/scrolled the body is. Save submits the
+                             name/description form above (the rest applied
+                             live). --%>
+                        <div class="flex justify-end gap-2 px-4 py-3 border-t border-base-200 shrink-0">
+                          <button
+                            type="button"
+                            phx-click="cancel_edit_folder_header"
+                            phx-target={@myself}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            {gettext("Done")}
+                          </button>
+                          <button
+                            type="submit"
+                            form="folder-header-form"
+                            class="btn btn-primary btn-sm"
+                          >
+                            {gettext("Save name")}
+                          </button>
                         </div>
                       </div>
                     <% end %>

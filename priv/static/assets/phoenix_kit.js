@@ -2583,6 +2583,62 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ViewportPopover Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Keeps an absolutely-positioned popover (one that drops from the bottom of
+  // its anchor wrapper) inside the viewport. Clamps its max-height to the space
+  // left below the anchor, and flips it to open upward when there's little room
+  // below and more above. Without this, a tall editor opened low in the page
+  // (e.g. an embedded media browser scrolled down) runs off the bottom of the
+  // screen, leaving its footer buttons (Save) unreachable.
+  //
+  // Inline styles override the element's max-h / top classes; the server sets
+  // no style attribute on the element, so morphdom won't clobber them on
+  // re-render. Re-runs on mount, update, resize and scroll.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewportPopover = {
+    mounted() {
+      this._reposition = this.position.bind(this);
+      window.addEventListener("resize", this._reposition);
+      window.addEventListener("scroll", this._reposition, true);
+      this.position();
+    },
+    updated() {
+      this.position();
+    },
+    destroyed() {
+      window.removeEventListener("resize", this._reposition);
+      window.removeEventListener("scroll", this._reposition, true);
+    },
+    position() {
+      var el = this.el;
+      var margin = 12;
+      var anchor = el.parentElement || el;
+      var ar = anchor.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - ar.bottom - margin;
+      var spaceAbove = ar.top - margin;
+      var cap = Math.round(window.innerHeight * 0.85);
+
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        // More room above: flip the popover to open upward.
+        el.style.top = "auto";
+        el.style.bottom = "100%";
+        el.style.marginTop = "0px";
+        el.style.marginBottom = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceAbove, cap)) + "px";
+      } else {
+        el.style.bottom = "auto";
+        el.style.top = "100%";
+        el.style.marginBottom = "0px";
+        el.style.marginTop = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceBelow, cap)) + "px";
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // FadeOut Hook
   // ---------------------------------------------------------------------------
   //
