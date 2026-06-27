@@ -3,6 +3,7 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Users.Auth
 
   # ---------------------------------------------------------------------------
@@ -650,6 +651,31 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
 
       assert Storage.get_folder(child_a.uuid) == nil
       assert Storage.get_folder(grandchild.uuid) == nil
+      assert Repo.get(StorageFile, file.uuid) == nil
+    end
+
+    test "promotes a file linked into a folder outside the subtree (doesn't destroy it)" do
+      %{child_a: child_a, grandchild: grandchild, sibling: sibling} = build_tree()
+      file = create_file!(grandchild.uuid)
+      # Same file also lives in a folder OUTSIDE the deleted subtree.
+      {:ok, _link} = Storage.create_folder_link(sibling.uuid, file.uuid)
+
+      assert {:ok, _} = Storage.delete_folder_completely(child_a)
+
+      # Subtree gone, but the shared file survives — re-homed to the external
+      # folder, its consumed link folded into the new home.
+      assert Storage.get_folder(grandchild.uuid) == nil
+      reloaded = Repo.get(StorageFile, file.uuid)
+      assert reloaded, "shared file must not be destroyed by the folder delete"
+      assert reloaded.folder_uuid == sibling.uuid
+      refute Repo.get_by(FolderLink, folder_uuid: sibling.uuid, file_uuid: file.uuid)
+    end
+
+    test "still hard-deletes a file confined to the subtree (no external links)" do
+      %{child_a: child_a, grandchild: grandchild} = build_tree()
+      file = create_file!(grandchild.uuid)
+
+      assert {:ok, _} = Storage.delete_folder_completely(child_a)
       assert Repo.get(StorageFile, file.uuid) == nil
     end
   end
