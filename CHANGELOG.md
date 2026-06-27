@@ -1,3 +1,22 @@
+## 1.7.168 - 2026-06-27
+
+### Changed
+- **Sharper non-full-res thumbnails for grid/stack media cards.** Added a `:card`
+  size mode to `MediaThumbnail` and switched the grid card, stack card, and
+  stacks-view grid card to it. Cards now prefer the 400px baked Etcher thumbnail /
+  300px `small` variant instead of the blurry 150px `thumbnail`, so media piles
+  render crisply at 2× DPI. (#609)
+
+### Fixed
+- **`:card` thumbnails no longer load a full-res `original` when intermediate
+  variants are missing.** A file with a `thumbnail` but no `small`/`medium` (partial
+  variant generation, legacy upload, or admin-disabled dimensions) now falls back
+  to the light 150px `thumbnail` before the multi-megabyte `original` — keeping the
+  card payload light as intended. Reconciled the `MediaThumbnail` moduledoc and
+  `attr` docs with the actual `:card` priority chain. (#609 follow-up)
+- Added pure-function unit tests for `MediaThumbnail.resolve_url/2` covering every
+  size mode and the `:card` fallback chain.
+
 ## 1.7.167 - 2026-06-26
 
 ### Added

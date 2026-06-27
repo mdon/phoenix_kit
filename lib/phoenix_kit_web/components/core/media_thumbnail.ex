@@ -15,14 +15,15 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   - `:small` (default) — tiny cells (list rows, selectors): prefers the baked
     Etcher thumbnail, then the 150px thumbnail
   - `:card` — large grid/stack cards: prefers the baked Etcher thumbnail (400px),
-    then the 300px `small`; skips the blurry 150px thumbnail and never the
-    full-res original (which would force a live vector overlay)
+    then the 300px `small`, then `medium`; only after those falls back to the
+    light 150px thumbnail, keeping the full-res original (which would force a
+    live vector overlay) as the last resort
   - `:medium` — for gallery/preview: prefers medium/thumbnail variants
 
   ## Attributes
 
   - `file` - Media file map with `file_type` and `urls` fields (required)
-  - `size` - Thumbnail size preference: `:small` or `:medium` (default: `:small`)
+  - `size` - Thumbnail size preference: `:small`, `:card`, or `:medium` (default: `:small`)
 
   ## Examples
 
@@ -71,11 +72,14 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
 
   def resolve_url(%{file_type: "image", urls: urls}, :card) do
     # Large grid/stack cards: the baked Etcher thumbnail (400px) when present
-    # shows the markup at the right quality; otherwise the 300px `small`. The
-    # blurry 150px `thumbnail` is skipped, and the full-res `original` (which
-    # would force a live vector overlay) is only the last resort — keeps the
-    # page light.
-    urls["thumbnail_annotated"] || urls["small"] || urls["medium"] || urls["original"]
+    # shows the markup at the right quality; otherwise the 300px `small`, then
+    # `medium`. When a file has neither (partial variant generation, a legacy
+    # upload, or admin-disabled dimensions) we still prefer the light 150px
+    # `thumbnail` over the full-res `original` — loading the original forces a
+    # live vector overlay and a heavy payload, so it stays the true last resort.
+    # Keeps the page light.
+    urls["thumbnail_annotated"] || urls["small"] || urls["medium"] || urls["thumbnail"] ||
+      urls["original"]
   end
 
   def resolve_url(%{file_type: "image", urls: urls}, :medium) do
