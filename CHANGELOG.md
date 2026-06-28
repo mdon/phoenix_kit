@@ -1,3 +1,29 @@
+## 1.7.169 - 2026-06-28
+
+### Added
+- **V138 migration — CRM v1 interaction-tracker tables.** Five `phoenix_kit_crm_*`
+  tables laying down the CRM module's first data model: `contacts` (profile with an
+  **optional** `user_uuid` login link, partial-unique so it's 1:1 only among linked
+  rows), `companies`, `company_memberships` (M:N contact↔company with free-form
+  `role_in_company` + `department` + `is_primary` on the edge), `interactions`
+  (logged interaction: type/when/subject/body + subject contact + owner user), and
+  `interaction_parties` (flat resolvable "who was involved" — `raw_name` always
+  kept, `contact_uuid`/`staff_person_uuid` resolve under an exclusive-arc CHECK,
+  `party_snapshot` JSONB freezes the party's profile as-of-then). `staff_person_uuid`
+  is a soft ref (no FK) so the optional staff module stays optional. Migration-only;
+  idempotent up/down. (#610)
+- **Optional description slot on `Core.Checkbox`.** Passing an inner block renders a
+  muted helper line under the now-bold label and switches the row to top alignment;
+  with no slot the checkbox renders exactly as before. (#610)
+
+### Fixed
+- **`delete_folder_completely` no longer destroys a file shared into a folder
+  outside the deleted subtree.** A file also linked (via `FolderLink`) into an
+  external folder is now re-homed there — consuming that link — instead of being
+  hard-deleted, which previously cascaded the file's external links away and
+  silently stripped it from the unrelated folder. Files confined to the subtree are
+  still permanently deleted. Covered by two new integration tests. (#610)
+
 ## 1.7.168 - 2026-06-27
 
 ### Changed
