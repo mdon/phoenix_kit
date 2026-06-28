@@ -529,7 +529,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V136 - Staff employment history ⚡ LATEST
+  ### V138 - CRM v1 interaction tracker ⚡ LATEST
+  - Adds five `phoenix_kit_crm_*` tables for the CRM module's first data model:
+    `contacts` (profile + **optional** `user_uuid` login link, partial-unique so
+    it's 1:1 only among linked rows), `companies`, `company_memberships` (M:N
+    contact↔company with free-form `role_in_company` + `department` + `is_primary`
+    on the edge), `interactions` (logged interaction: type/when/body/subject
+    contact/owner user), and `interaction_parties` (flat resolvable "who was
+    involved": `raw_name` always kept, `contact_uuid`/`staff_person_uuid` resolve
+    when matched under an exclusive-arc CHECK, `party_snapshot` JSONB freezes the
+    party's profile as-of-then). `staff_person_uuid` is a soft ref (no FK) so the
+    optional staff module stays optional.
+
+  ### V136 - Staff employment history
   - Adds `phoenix_kit_staff_employments` — a per-person history of employment
     spans (employment type, translatable `job_title`, org placement via
     `primary_department_uuid` + a `primary_team_uuid` snapshot, date range with
@@ -1172,7 +1184,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 137
+  @current_version 138
   @default_prefix "public"
 
   @doc false

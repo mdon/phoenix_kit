@@ -40,7 +40,10 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   def checkbox(assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <label class="flex items-center gap-4 text-sm leading-6 text-base-content">
+      <label class={[
+        "flex gap-4 text-sm leading-6 text-base-content",
+        (@inner_block != [] && "items-start") || "items-center"
+      ]}>
         <input type="hidden" name={@name} value="false" />
 
         <input
@@ -49,12 +52,15 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
           name={@name}
           value="true"
           checked={@checked}
-          class={["checkbox checkbox-primary", @class]}
+          class={["checkbox checkbox-primary", @inner_block != [] && "mt-0.5", @class]}
           {@rest}
         />
 
         <span class="select-none cursor-pointer">
-          {@label}
+          <span class={@inner_block != [] && "font-medium"}>{@label}</span>
+          <span :if={@inner_block != []} class="block text-xs text-base-content/60">
+            {render_slot(@inner_block)}
+          </span>
         </span>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>

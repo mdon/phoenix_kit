@@ -1207,13 +1207,22 @@ defmodule PhoenixKit.Modules.Storage do
   defp do_delete_folder_completely(%Folder{} = folder) do
     subtree_uuids = folder_subtree_uuids(folder.uuid)
 
-    # Pull files first (need them for storage-backend cleanup via
-    # `delete_file_completely/1`), then delete bottom-up.
+    # Pull files home in the subtree, then delete bottom-up.
     files =
       from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
       |> repo().all()
 
-    Enum.each(files, &delete_file_completely/1)
+    # A file that is ALSO linked (via `FolderLink`) into a folder OUTSIDE this
+    # subtree lives in another folder too — re-home it there (consuming that one
+    # link) so it survives, instead of hard-deleting it. Without this, deleting a
+    # folder silently destroys a file shared into an unrelated folder (and the
+    # `FolderLink.file_uuid` cascade strips it from there). Only files confined
+    # to the subtree are deleted.
+    {to_promote, to_delete} =
+      Enum.split_with(files, &linked_outside_subtree?(&1.uuid, subtree_uuids))
+
+    Enum.each(to_promote, &promote_out_of_subtree(&1, subtree_uuids))
+    Enum.each(to_delete, &delete_file_completely/1)
 
     # Delete folders from deepest first so parent_uuid foreign keys
     # don't break. `folder_subtree_uuids/1` walks breadth-first; reverse
@@ -1226,6 +1235,36 @@ defmodule PhoenixKit.Modules.Storage do
     end)
 
     {:ok, folder}
+  end
+
+  # `FolderLink`s for `file_uuid` that point at folders OUTSIDE `subtree_uuids`.
+  defp links_outside_subtree(file_uuid, subtree_uuids) do
+    from(fl in FolderLink,
+      where: fl.file_uuid == ^file_uuid and fl.folder_uuid not in ^subtree_uuids
+    )
+    |> repo().all()
+  end
+
+  defp linked_outside_subtree?(file_uuid, subtree_uuids),
+    do: links_outside_subtree(file_uuid, subtree_uuids) != []
+
+  # Re-home a file to the first folder that links it from outside the deleted
+  # subtree (consuming that link), so it survives. Any remaining external links
+  # keep pointing at the now-rehomed file; links to subtree folders cascade away
+  # when those folders are deleted.
+  defp promote_out_of_subtree(%PhoenixKit.Modules.Storage.File{} = file, subtree_uuids) do
+    case links_outside_subtree(file.uuid, subtree_uuids) do
+      [%FolderLink{folder_uuid: new_home} = link | _] ->
+        repo().transaction(fn ->
+          file |> Ecto.Changeset.change(folder_uuid: new_home) |> repo().update!()
+          repo().delete!(link)
+        end)
+
+        :ok
+
+      [] ->
+        :ok
+    end
   end
 
   @doc """
