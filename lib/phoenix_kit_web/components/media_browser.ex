@@ -2286,7 +2286,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
                   <img src={url} alt="" class="w-full h-full object-cover" />
                 <% else %>
                   <div class="w-full h-full grid place-items-center text-base-content/40">
-                    <.icon name={file_icon(pf.file_type)} class="w-8 h-8" />
+                    <.icon name={file_icon_for(pf)} class="w-8 h-8" />
                   </div>
                 <% end %>
               </.thumbnail_url>
@@ -2366,8 +2366,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           <% else %>
             <div class="grid place-items-center w-full aspect-square text-base-content/50">
               <div class="flex flex-col items-center">
-                <.icon name={file_icon(@file.file_type)} class="w-12 h-12 mb-2" />
-                <p class="text-sm font-semibold">{String.upcase(@file.file_type)}</p>
+                <.icon name={file_icon_for(@file)} class="w-12 h-12 mb-2" />
+                <p class="text-sm font-semibold">{file_type_label(@file)}</p>
               </div>
             </div>
           <% end %>
@@ -3130,6 +3130,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       true ->
         ngettext("Move %{count} file to trash?", "Move %{count} files to trash?", file_count)
     end
+  end
+
+  # Known audio extensions — matched so audio files still get a music note in
+  # the grid/list/stack views even when an upload's generic
+  # `application/octet-stream` mime classified them as a document (mirrors the
+  # viewer's detection).
+  @audio_extensions ~w(.mp3 .wav .ogg .oga .m4a .aac .flac .opus .weba .mid .midi)
+
+  # Icon for a whole file map: audio is detected by mime/type OR extension, so
+  # mp3s show a music note regardless of how they were classified; everything
+  # else falls back to the file_type-based icon.
+  defp file_icon_for(file) do
+    if audio_file?(file), do: "hero-musical-note", else: file_icon(file.file_type)
+  end
+
+  defp audio_file?(file) do
+    mime = Map.get(file, :mime_type)
+    name = Map.get(file, :filename)
+
+    (is_binary(mime) and String.starts_with?(mime, "audio/")) or
+      Map.get(file, :file_type) == "audio" or
+      (is_binary(name) and String.ends_with?(String.downcase(name), @audio_extensions))
+  end
+
+  # Display label for a file's type — "AUDIO" for audio files (mirrors
+  # file_icon_for/1's detection), otherwise the uppercased file_type.
+  defp file_type_label(file) do
+    if audio_file?(file), do: "AUDIO", else: String.upcase(file.file_type || "FILE")
   end
 
   defp file_icon("image"), do: "hero-photo"
