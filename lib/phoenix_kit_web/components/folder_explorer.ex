@@ -579,39 +579,39 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
   def tree_connector_class(_depth, true = _has_children, :active_trunk) do
     "relative pl-3.5 " <>
-      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "before:content-[''] before:absolute before:left-[-1px] before:top-0 before:h-full before:w-1 before:bg-[var(--pk-tree-line-active)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
       "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, false = _has_children, :active_trunk) do
     "relative pl-3.5 " <>
-      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "before:content-[''] before:absolute before:left-[-1px] before:top-0 before:h-full before:w-1 before:bg-[var(--pk-tree-line-active)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>
       "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, true = _has_children, :active_turn) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
-      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-4 after:bg-transparent " <>
-      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-[-1px] after:top-0 after:h-[0.8125rem] after:w-4 after:bg-transparent " <>
+      "after:border-l-4 after:border-b-4 after:border-[var(--pk-tree-line-active)] after:rounded-bl-[0.15rem] " <>
       "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, false = _has_children, :active_turn) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
-      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-9 after:bg-transparent " <>
-      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-[-1px] after:top-0 after:h-[0.8125rem] after:w-9 after:bg-transparent " <>
+      "after:border-l-4 after:border-b-4 after:border-[var(--pk-tree-line-active)] after:rounded-bl-[0.15rem] " <>
       "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
