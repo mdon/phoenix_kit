@@ -852,9 +852,23 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp file_icon("image"), do: "hero-photo"
   defp file_icon("video"), do: "hero-play-circle"
+  defp file_icon("audio"), do: "hero-musical-note"
   defp file_icon("pdf"), do: "hero-document-text"
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
+
+  # Known audio extensions — matched as a fallback because uploads often carry a
+  # generic `application/octet-stream` mime (mp3 especially), which would
+  # otherwise classify as a document and never show a player.
+  @audio_extensions ~w(.mp3 .wav .ogg .oga .m4a .aac .flac .opus .weba .mid .midi)
+
+  defp audio?(%{} = f) do
+    (is_binary(f.mime_type) and String.starts_with?(f.mime_type, "audio/")) or
+      f.file_type == "audio" or
+      (is_binary(f.filename) and String.ends_with?(String.downcase(f.filename), @audio_extensions))
+  end
+
+  defp audio?(_), do: false
 
   @doc """
   Runtime check for whether the optional `phoenix_kit_comments` package

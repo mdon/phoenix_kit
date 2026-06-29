@@ -179,7 +179,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           <div class="divider my-1 h-0"></div>
 
           <%!-- Folder Tree --%>
-          <ul class="space-y-0.5 w-full min-h-0 flex-1 overflow-y-auto pr-1">
+          <%!-- Scrolls both ways: deep folders extend past the 240px width and
+               keep their full names (no truncation); scroll right to read them. --%>
+          <ul class="space-y-0.5 w-full min-h-0 flex-1 overflow-auto pr-1">
             <%= for node <- @folder_tree do %>
               <.folder_tree_node
                 node={node}
@@ -323,7 +325,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       )
 
     ~H"""
-    <li class={["overflow-hidden", @tree_connector_class]}>
+    <li class={[@tree_connector_class]}>
       <%!--
         Whole row is clickable to open the folder. LiveView resolves a click
         to the closest `phx-click` element, so the nested chevron (toggle) and
@@ -337,7 +339,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         phx-target={@myself}
         phx-value-folder-uuid={@node.folder.uuid}
         class={[
-          "flex items-center gap-0.5 rounded-lg px-1 py-1 transition-colors group overflow-hidden min-w-0",
+          "flex items-center gap-0.5 rounded-lg px-1 py-1 transition-colors group min-w-max",
           @hover_class,
           !@is_renaming && "cursor-pointer",
           @is_active && "font-semibold"
@@ -406,7 +408,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             phx-value-folder-uuid={@node.folder.uuid}
             data-drop-folder={@enable_drag && @node.folder.uuid}
             data-draggable-folder={@enable_drag && @node.folder.uuid}
-            class="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-sm text-left"
+            class="flex items-center gap-1.5 flex-1 text-sm text-left"
           >
             <span style={folder_icon_style(@node.folder.color, @is_active)}>
               <.icon
@@ -416,7 +418,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             </span>
             <span
               class={[
-                "truncate block min-w-0",
+                "whitespace-nowrap block",
                 @renaming_folder == @node.folder.uuid && !@is_renaming && "renaming-preview"
               ]}
               title={@node.folder.name}
@@ -455,7 +457,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           deeper nested <ul> overrides it with its own folder color.
         --%>
         <ul
-          class="ml-3 overflow-hidden"
+          class="ml-3"
           style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}; --pk-tree-line-active: #{tree_line_color_active(@node.folder.color)}"}
         >
           <%= for {child, idx} <- Enum.with_index(@node.children) do %>
@@ -577,39 +579,39 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
   def tree_connector_class(_depth, true = _has_children, :active_trunk) do
     "relative pl-3.5 " <>
-      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "before:content-[''] before:absolute before:left-[-1px] before:top-0 before:h-full before:w-1 before:bg-[var(--pk-tree-line-active)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-4 after:bg-[var(--pk-tree-line)] " <>
       "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, false = _has_children, :active_trunk) do
     "relative pl-3.5 " <>
-      "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line-active)] " <>
+      "before:content-[''] before:absolute before:left-[-1px] before:top-0 before:h-full before:w-1 before:bg-[var(--pk-tree-line-active)] " <>
       "after:content-[''] after:absolute after:left-0 after:top-[0.8125rem] after:h-0.5 after:w-9 after:bg-[var(--pk-tree-line)] " <>
       "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, true = _has_children, :active_turn) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
-      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-4 after:bg-transparent " <>
-      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-[-1px] after:top-0 after:h-[0.8125rem] after:w-4 after:bg-transparent " <>
+      "after:border-l-4 after:border-b-4 after:border-[var(--pk-tree-line-active)] after:rounded-bl-[0.15rem] " <>
       "last:before:h-[0.875rem] last:before:w-4 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 
   def tree_connector_class(_depth, false = _has_children, :active_turn) do
     "relative pl-3.5 " <>
       "before:content-[''] before:absolute before:left-0 before:top-0 before:h-full before:w-0.5 before:bg-[var(--pk-tree-line)] " <>
-      "after:content-[''] after:absolute after:left-0 after:top-0 after:h-[0.8125rem] after:w-9 after:bg-transparent " <>
-      "after:border-l-2 after:border-b-2 after:border-[var(--pk-tree-line-active)] " <>
+      "after:content-[''] after:absolute after:left-[-1px] after:top-0 after:h-[0.8125rem] after:w-9 after:bg-transparent " <>
+      "after:border-l-4 after:border-b-4 after:border-[var(--pk-tree-line-active)] after:rounded-bl-[0.15rem] " <>
       "last:before:h-[0.875rem] last:before:w-9 last:before:bg-transparent " <>
-      "last:before:border-l-2 last:before:border-b-2 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
+      "last:before:left-[-1px] last:before:border-l-4 last:before:border-b-4 last:before:border-[var(--pk-tree-line-active)] last:before:rounded-bl-lg " <>
       "last:after:hidden"
   end
 

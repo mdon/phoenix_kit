@@ -974,8 +974,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   # Per-column responsive class for the table view. On mobile (table-fixed)
   # only the email + actions columns are shown — the rest collapse — so the
   # list reads as a compact row (avatar/email/name + a `…` menu) like the
-  # media browser. The actions column is pinned narrow so email fills the rest.
-  def mobile_col_class("actions"), do: "w-12 md:w-auto"
+  # media browser. The actions column is pinned narrow and right-aligned at all
+  # sizes so the `…` menu always sits at the far-right edge (with the cell's
+  # padding) instead of drifting into a wide auto-width cell when columns are
+  # hidden.
+  def mobile_col_class("actions"), do: "w-12 text-right"
   def mobile_col_class("email"), do: ""
   def mobile_col_class(_), do: "hidden md:table-cell"
 

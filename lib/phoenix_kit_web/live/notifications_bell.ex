@@ -139,7 +139,10 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
               You're all caught up.
             </div>
           <% else %>
-            <ul class="menu menu-sm max-h-96 overflow-y-auto p-0">
+            <%!-- Plain vertical flex list, not daisyUI `menu`: `menu` sets
+                 `flex-wrap: wrap`, so a tall list past max-h-96 wraps into extra
+                 columns (horizontal overflow) instead of scrolling. --%>
+            <ul class="flex flex-col flex-nowrap max-h-96 overflow-y-auto p-0 m-0">
               <%= for n <- @recent do %>
                 <% view = Render.render(n, @locale) %>
                 <% has_target = (view.link || @default_link) != nil %>
