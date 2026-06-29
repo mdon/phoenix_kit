@@ -813,6 +813,9 @@
                       {"list", gettext("List"), "hero-bars-3-bottom-left"},
                       {"stacks", gettext("Stacks"), "hero-square-3-stack-3d"}
                     ] %>
+                    <% {_current_view, current_view_label, current_view_icon} =
+                      Enum.find(display_options, fn {v, _, _} -> v == @view_mode end) ||
+                        hd(display_options) %>
                     <% sort_options = [
                       {"newest", gettext("Newest first")},
                       {"oldest", gettext("Oldest first")},
@@ -850,18 +853,9 @@
                           <%!-- Display (grid/list) --%>
                           <div class="dropdown">
                             <div tabindex="0" role="button" class="btn btn-sm gap-2">
-                              <.icon
-                                name={
-                                  if @view_mode == "list",
-                                    do: "hero-bars-3-bottom-left",
-                                    else: "hero-squares-2x2"
-                                }
-                                class="w-4 h-4"
-                              />
+                              <.icon name={current_view_icon} class="w-4 h-4" />
                               <span class="hidden sm:inline">
-                                {if @view_mode == "list",
-                                  do: gettext("List"),
-                                  else: gettext("Grid")}
+                                {current_view_label}
                               </span>
                               <.icon
                                 name="hero-chevron-down"
