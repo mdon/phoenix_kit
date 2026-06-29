@@ -1,3 +1,36 @@
+## 1.7.170 - 2026-06-29
+
+### Added
+- **Audio playback in the media viewer.** Opening an audio file (in the in-place
+  modal or `/admin/media/:uuid`) now renders an interactive WaveSurfer waveform
+  with a play/pause button and click-to-seek instead of a document placeholder.
+  WaveSurfer is lazy-loaded via a dynamic CDN import only when audio is opened (no
+  npm/hex dependency, no cost on other pages); the hidden native `<audio>` is the
+  playback source and the fallback (native controls) if the library can't load.
+  Audio is detected by mime, `file_type`, **or** extension, so mp3s stored with a
+  generic `application/octet-stream` mime are still recognised. Grid, list, and
+  stack views show a music-note icon and an "AUDIO" label. (#611)
+
+### Changed
+- **Folder sidebar handles deep names.** Deeply nested folders keep their full
+  names and the tree scrolls horizontally instead of truncating to a few
+  characters; the root→current active path is drawn bolder (4px, was 2px) and
+  centred on the axis so the branch you're on stands out. (#611)
+
+### Fixed
+- **Media browser display dropdown label.** The display dropdown now reads
+  "Stacks" in Stacks mode (was stuck on "Grid"), driven by a lookup over the view
+  options instead of a two-way grid/list assumption. (#611)
+- **Notifications dropdown overflow.** A tall notifications list now scrolls
+  vertically instead of wrapping into extra columns — daisyUI `menu`'s
+  `flex-wrap: wrap` is replaced with a plain `flex flex-col flex-nowrap` list. (#611)
+- **Users table actions menu.** The `…` actions menu is pinned to the far-right
+  edge so it no longer drifts into a wide auto-width cell when columns are
+  hidden. (#611)
+- **Account switcher overflow.** Long emails are truncated (with a hover tooltip)
+  and the role badge is pinned, fixing horizontal overflow in the user
+  dropdown. (#611)
+
 ## 1.7.169 - 2026-06-28
 
 ### Added
