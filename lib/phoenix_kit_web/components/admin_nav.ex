@@ -220,7 +220,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
         <%!-- Dropdown Menu --%>
         <ul
           tabindex="0"
-          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto flex-nowrap"
+          class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden flex-nowrap"
         >
           <%!-- User Info Header --%>
           <li class="menu-title px-4 py-2">
@@ -314,27 +314,33 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             <%= for account <- @accounts do %>
               <li class="p-0">
                 <%= if account.active? do %>
-                  <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200">
-                    <span class="flex-1 min-w-0 break-words">{account.email}</span>
-                    <span class="badge badge-xs badge-ghost">{account.role}</span>
-                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
+                  <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200 min-w-0">
+                    <span class="flex-1 min-w-0 truncate" title={account.email}>
+                      {account.email}
+                    </span>
+                    <span class="badge badge-xs badge-ghost shrink-0">{account.role}</span>
+                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 shrink-0" />
                   </div>
                 <% else %>
-                  <div class="flex items-center gap-2 px-1">
+                  <div class="flex items-center gap-2 px-1 min-w-0">
                     <.form
                       for={%{}}
                       action={Routes.locale_aware_path(assigns, "/users/session/active")}
                       method="put"
-                      class="flex-1"
+                      class="flex-1 min-w-0"
                     >
                       <input type="hidden" name="ref" value={account.ref} />
                       <input type="hidden" name="return_to" value={@current_path} />
                       <button
                         type="submit"
-                        class="flex w-full items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
+                        class="flex w-full min-w-0 items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
                       >
-                        <span class="flex-1 min-w-0 break-words">{account.email}</span>
-                        <span class="badge badge-xs badge-ghost ml-auto">{account.role}</span>
+                        <span class="flex-1 min-w-0 truncate" title={account.email}>
+                          {account.email}
+                        </span>
+                        <span class="badge badge-xs badge-ghost ml-auto shrink-0">
+                          {account.role}
+                        </span>
                       </button>
                     </.form>
                     <%= unless account.root? do %>
@@ -348,7 +354,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                         <input type="hidden" name="return_to" value={@current_path} />
                         <button
                           type="submit"
-                          class="btn btn-ghost btn-xs btn-square text-error"
+                          class="btn btn-ghost btn-xs btn-square text-error shrink-0"
                           title="Remove"
                         >
                           ✕
