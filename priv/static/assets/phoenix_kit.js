@@ -4625,6 +4625,93 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // Interactive waveform for audio files. WaveSurfer is fetched via a lazy
+  // dynamic import the first time an audio file is opened in the viewer, so it
+  // costs nothing on any page without audio. It renders over the native <audio>
+  // element (used as both playback source and fallback), giving click-to-seek,
+  // a moving play cursor, a timeline, and zoom. If the library can't load, the
+  // native <audio controls> still plays.
+  //
+  // The CDN URLs are held in variables (not string literals at the import call)
+  // so the bundler leaves them as runtime imports instead of trying to resolve
+  // them at build time.
+  window.PhoenixKitHooks.WaveformPlayer = {
+    mounted() {
+      var el = this.el;
+      var waveDiv = el.querySelector("[data-waveform]");
+      var audioEl = el.querySelector("[data-waveform-audio]");
+      var toggleBtn = el.querySelector("[data-waveform-toggle]");
+      var playIcon = el.querySelector('[data-waveform-icon="play"]');
+      var pauseIcon = el.querySelector('[data-waveform-icon="pause"]');
+      if (!waveDiv || !audioEl) return;
+
+      var self = this;
+      self._ws = null;
+
+      var showPlay = function (playing) {
+        if (playIcon) playIcon.classList.toggle("hidden", playing);
+        if (pauseIcon) pauseIcon.classList.toggle("hidden", !playing);
+      };
+
+      var CORE_URL = "https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.esm.js";
+
+      import(CORE_URL)
+        .then(function (mod) {
+          if (self._destroyed) return;
+          var WaveSurfer = mod.default;
+
+          var ws = WaveSurfer.create({
+            container: waveDiv,
+            media: audioEl,
+            height: 96,
+            waveColor: "#94a3b8",
+            progressColor: "#6366f1",
+            cursorColor: "#4338ca",
+            cursorWidth: 2,
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2
+          });
+          self._ws = ws;
+
+          ws.on("play", function () {
+            showPlay(true);
+          });
+          ws.on("pause", function () {
+            showPlay(false);
+          });
+          ws.on("finish", function () {
+            showPlay(false);
+          });
+
+          if (toggleBtn) {
+            toggleBtn.addEventListener("click", function () {
+              try {
+                ws.playPause();
+              } catch (e) {
+                /* not ready yet — ignore */
+              }
+            });
+          }
+        })
+        .catch(function () {
+          // Library unavailable (offline / CSP) — reveal the native controls so
+          // playback still works, and hide the waveform + custom button.
+          audioEl.controls = true;
+          if (waveDiv) waveDiv.style.display = "none";
+          if (toggleBtn) toggleBtn.style.display = "none";
+        });
+    },
+    destroyed() {
+      this._destroyed = true;
+      try {
+        if (this._ws) this._ws.destroy();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  };
+
   // ============================================================================
   // INITIALIZATION COMPLETE
   // ============================================================================
