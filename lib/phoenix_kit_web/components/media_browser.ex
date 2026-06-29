@@ -3134,6 +3134,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp file_icon("image"), do: "hero-photo"
   defp file_icon("video"), do: "hero-play-circle"
+  defp file_icon("audio"), do: "hero-musical-note"
   defp file_icon("pdf"), do: "hero-document-text"
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
