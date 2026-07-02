@@ -102,11 +102,17 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   # When the SEO module's global `noindex` directive is active the site is
   # asking search engines not to index it, so we publish an empty (but valid)
-  # `<urlset>` rather than advertising crawlable URLs. This pairs with the
-  # `<meta name="robots" content="noindex">` directive host layouts emit for
-  # the same setting. Any leftover per-module files are removed.
+  # `<urlset>` rather than advertising crawlable URLs, for both flat and index
+  # modes. Note this makes `/sitemap.xml` serve a `<urlset>` (not a
+  # `<sitemapindex>`) while noindex is on — an empty urlset is schema-valid and
+  # harmless. Any leftover per-module files are removed.
+  #
+  # Keyed on `no_index_enabled?/0` alone (not `module_enabled?/0`) to stay in
+  # lockstep with the `<meta name="robots" content="noindex">` directive host
+  # layouts emit for the same setting — an empty sitemap always pairs with a
+  # noindex meta.
   defp do_generate_no_index(xsl_style, xsl_enabled) do
-    Logger.info("Sitemap: seo_no_index active — publishing empty sitemap")
+    Logger.debug("Sitemap: seo_no_index active — publishing empty sitemap")
 
     xml = build_urlset_xml([], xsl_style, xsl_enabled)
     FileStorage.save_index(xml)
@@ -362,6 +368,11 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
       style not in ["hierarchical", "grouped", "flat"] ->
         {:error, :invalid_style}
+
+      seo_no_index?() ->
+        # noindex active: never advertise URLs and never serve a stale cached
+        # HTML sitemap — render an empty one, bypassing the cache.
+        HtmlGenerator.generate(opts, [], :"html_#{style}", cache: false)
 
       true ->
         cache_key = :"html_#{style}"
