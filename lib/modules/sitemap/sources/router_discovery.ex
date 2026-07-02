@@ -20,6 +20,9 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   - `^/api` - API endpoints
   - `^/phoenix_kit` - PhoenixKit admin routes
   - `^/dev` - Development routes
+  - `^/__` - Internal/technical routes (double-underscore convention, e.g.
+    Publishing's internal dispatch scope)
+  - `^/maintenance$` - PhoenixKit's reserved maintenance page route
   - `:[a-z_]+` - Routes with parameters
   - `\\*` - Wildcard routes
 
@@ -76,6 +79,11 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     "^/dev",
     "^/test",
     "^/dashboard",
+    # Internal/technical routes (double-underscore convention, e.g. Publishing's
+    # "/__phoenix_kit_publishing_dispatch" catch-all dispatch scope) and
+    # PhoenixKit's reserved maintenance page - neither is public content
+    "^/__",
+    "^/maintenance$",
     ":[a-z_]+",
     "\\*",
     # Auth pages - should not be indexed by search engines
