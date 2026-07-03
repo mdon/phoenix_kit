@@ -1,3 +1,20 @@
+## 1.7.172 - 2026-07-03
+
+### Changed
+- Added the `rustler` dependency as optional (lockfile). `mdex_native` builds
+  from source (instead of downloading a precompiled NIF) when
+  `MDEX_NATIVE_BUILD=1` is set in the environment; that path requires rustler
+  itself, not just `rustler_precompiled`.
+
+### Fixed
+- **Gettext locale falling back to default on publishing content routes.**
+  `process_locale/1` only matched `path_params["locale"]`, but the internal
+  routes `phoenix_kit_publishing` generates for localized content
+  (`get "/:language/:group"`) bind the segment as `"language"` instead. The
+  mismatch meant `Gettext.put_locale/1` was never called on those requests, so
+  translations silently rendered in the site default locale regardless of the
+  URL prefix (e.g. `/en/articles` rendering Russian nav text).
+
 ## 1.7.171 - 2026-07-03
 
 ### Changed
