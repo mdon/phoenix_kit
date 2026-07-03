@@ -125,6 +125,10 @@ defmodule PhoenixKit.MixProject do
       # mismatches. Modules (e.g. phoenix_kit_comments) call MDEx directly and
       # rely on it being provided transitively through phoenix_kit.
       {:mdex, "~> 0.13"},
+      # mdex_native builds from source (instead of downloading a precompiled
+      # NIF) when MDEX_NATIVE_BUILD=1 is set in the environment; that path
+      # requires rustler itself, not just rustler_precompiled.
+      {:rustler, ">= 0.0.0", optional: true},
 
       # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
       # OpenSeadragon and replaced the wrapped-OSD viewer with a
