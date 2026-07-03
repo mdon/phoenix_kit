@@ -31,6 +31,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   require Logger
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.Cache
   alias PhoenixKit.Modules.Sitemap.FileStorage
@@ -86,13 +87,45 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   defp do_generate_all(base_url, opts) do
     xsl_style = Keyword.get(opts, :xsl_style, "table")
     xsl_enabled = Keyword.get(opts, :xsl_enabled, true)
-    sources = get_sources()
 
-    if Sitemap.flat_mode?() do
-      do_generate_flat(base_url, opts, sources, xsl_style, xsl_enabled)
-    else
-      do_generate_index(base_url, opts, sources, xsl_style, xsl_enabled)
+    cond do
+      seo_no_index?() ->
+        do_generate_no_index(xsl_style, xsl_enabled)
+
+      Sitemap.flat_mode?() ->
+        do_generate_flat(base_url, opts, get_sources(), xsl_style, xsl_enabled)
+
+      true ->
+        do_generate_index(base_url, opts, get_sources(), xsl_style, xsl_enabled)
     end
+  end
+
+  # When the SEO module's global `noindex` directive is active the site is
+  # asking search engines not to index it, so we publish an empty (but valid)
+  # `<urlset>` rather than advertising crawlable URLs, for both flat and index
+  # modes. Note this makes `/sitemap.xml` serve a `<urlset>` (not a
+  # `<sitemapindex>`) while noindex is on — an empty urlset is schema-valid and
+  # harmless. Any leftover per-module files are removed.
+  #
+  # Keyed on `no_index_enabled?/0` alone (not `module_enabled?/0`) to stay in
+  # lockstep with the `<meta name="robots" content="noindex">` directive host
+  # layouts emit for the same setting — an empty sitemap always pairs with a
+  # noindex meta.
+  defp do_generate_no_index(xsl_style, xsl_enabled) do
+    Logger.debug("Sitemap: seo_no_index active — publishing empty sitemap")
+
+    xml = build_urlset_xml([], xsl_style, xsl_enabled)
+    FileStorage.save_index(xml)
+    FileStorage.delete_all_modules()
+
+    {:ok, %{index_xml: xml, modules: [], total_urls: 0}}
+  end
+
+  # Defensive: never let an SEO lookup error break sitemap generation.
+  defp seo_no_index? do
+    SEO.no_index_enabled?()
+  rescue
+    _ -> false
   end
 
   defp do_generate_index(base_url, opts, sources, xsl_style, xsl_enabled) do
@@ -335,6 +368,11 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
       style not in ["hierarchical", "grouped", "flat"] ->
         {:error, :invalid_style}
+
+      seo_no_index?() ->
+        # noindex active: never advertise URLs and never serve a stale cached
+        # HTML sitemap — render an empty one, bypassing the cache.
+        HtmlGenerator.generate(opts, [], :"html_#{style}", cache: false)
 
       true ->
         cache_key = :"html_#{style}"

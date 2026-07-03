@@ -314,6 +314,109 @@ defmodule PhoenixKit.ModuleRegistryTest do
     end
   end
 
+  describe "all_reserved_route_prefixes/0" do
+    test "returns a list of strings" do
+      prefixes = ModuleRegistry.all_reserved_route_prefixes()
+      assert is_list(prefixes)
+
+      for prefix <- prefixes do
+        assert is_binary(prefix)
+      end
+    end
+
+    test "includes prefixes contributed by an enabled fake module" do
+      defmodule FakeReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: true
+        def reserved_route_prefixes, do: ["fake_reserved_prefix"]
+      end
+
+      ModuleRegistry.register(FakeReservedPrefixModule)
+
+      try do
+        assert "fake_reserved_prefix" in ModuleRegistry.all_reserved_route_prefixes()
+      after
+        ModuleRegistry.unregister(FakeReservedPrefixModule)
+      end
+    end
+
+    test "includes prefixes from a disabled fake module (unlike all_sitemap_sources/0)" do
+      # The route this guards against is normally compiled into the host's
+      # router regardless of a runtime enabled/disabled Settings toggle, so
+      # the reservation must survive disabling the module — otherwise a
+      # disabled-but-installed module's route gets hijacked the moment it's
+      # turned off. Gates on all_modules/0, not enabled_modules/0.
+      defmodule FakeDisabledReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: false
+        def reserved_route_prefixes, do: ["fake_disabled_prefix"]
+      end
+
+      ModuleRegistry.register(FakeDisabledReservedPrefixModule)
+
+      try do
+        assert "fake_disabled_prefix" in ModuleRegistry.all_reserved_route_prefixes()
+      after
+        ModuleRegistry.unregister(FakeDisabledReservedPrefixModule)
+      end
+    end
+
+    test "normalizes leading/trailing slashes from a fake module's segments" do
+      defmodule FakeSlashyReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: true
+        def reserved_route_prefixes, do: ["/leading", "trailing/", "/both/"]
+      end
+
+      ModuleRegistry.register(FakeSlashyReservedPrefixModule)
+
+      try do
+        prefixes = ModuleRegistry.all_reserved_route_prefixes()
+        assert "leading" in prefixes
+        assert "trailing" in prefixes
+        assert "both" in prefixes
+      after
+        ModuleRegistry.unregister(FakeSlashyReservedPrefixModule)
+      end
+    end
+
+    test "does not crash when a fake module returns nil instead of a list" do
+      defmodule FakeNilReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: true
+        # Wrong shape on purpose — a real implementation would return [].
+        def reserved_route_prefixes, do: nil
+      end
+
+      ModuleRegistry.register(FakeNilReservedPrefixModule)
+
+      try do
+        assert is_list(ModuleRegistry.all_reserved_route_prefixes())
+      after
+        ModuleRegistry.unregister(FakeNilReservedPrefixModule)
+      end
+    end
+
+    test "drops non-string entries from a fake module's segment list" do
+      defmodule FakeMixedTypesReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: true
+        def reserved_route_prefixes, do: [123, :an_atom, "real_prefix"]
+      end
+
+      ModuleRegistry.register(FakeMixedTypesReservedPrefixModule)
+
+      try do
+        prefixes = ModuleRegistry.all_reserved_route_prefixes()
+        assert "real_prefix" in prefixes
+        refute 123 in prefixes
+        refute :an_atom in prefixes
+      after
+        ModuleRegistry.unregister(FakeMixedTypesReservedPrefixModule)
+      end
+    end
+  end
+
   describe "enabled_modules/0" do
     test "returns a list of module atoms" do
       modules = ModuleRegistry.enabled_modules()
