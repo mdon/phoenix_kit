@@ -44,6 +44,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
+  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.Permissions
@@ -721,6 +722,14 @@ defmodule PhoenixKitWeb.Users.Auth do
       socket
       |> Phoenix.Component.assign(:url_path, path)
       |> maybe_update_locale_from_params(params)
+      # This hook fires on `handle_params` for every LiveView mounted through
+      # PhoenixKit's on_mount chain (admin and host-app public pages alike),
+      # so it is the one place that can guarantee `:seo_no_index` reaches
+      # root.html.heex's noindex meta tag before the first render — unlike
+      # LayoutWrapper.app_layout_inner/1, which only wraps admin/plugin views
+      # and never runs for a host app's own public LiveViews. assign_new is
+      # a no-op if LayoutWrapper already set it, so this is safe either way.
+      |> Phoenix.Component.assign_new(:seo_no_index, fn -> SEO.no_index_enabled?() end)
 
     {:cont, socket}
   end
