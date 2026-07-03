@@ -1,3 +1,56 @@
+## 1.7.171 - 2026-07-03
+
+### Changed
+- **`RouterDiscovery` sitemap source compiles exclude/include-only patterns
+  once per collection instead of once per route per pattern.** Same behavior,
+  fewer `Regex.compile/1` calls; invalid patterns (e.g. a bare `"*"`, which is
+  not a valid regex) are now logged instead of silently swallowed. Two more
+  default excludes: `^/__` (internal/technical routes, e.g. Publishing's
+  dispatch catch-all scope) and `^/maintenance$` (PhoenixKit's reserved
+  maintenance page) — both mainly load-bearing for installs with a non-default
+  `url_prefix`. (#614, #615)
+- **New optional `reserved_route_prefixes/0` module callback** +
+  `PhoenixKit.ModuleRegistry.all_reserved_route_prefixes/0`. Lets a module
+  declare top-level route path segments it owns (e.g. `["legal"]`), so a
+  database-driven dispatcher (e.g. Publishing's `/:language/:group/*path`
+  catch-all) can avoid swallowing another module's route just because a
+  same-named record happens to exist in its own data. Iterates all installed
+  modules (not just enabled ones), since the guarded route is normally
+  compiled into the host router independent of the module's runtime
+  enabled/disabled toggle. Declaring a prefix is passive on its own — it
+  changes nothing until a dispatcher consults it. (#614)
+- Bumped `phoenix_live_view` 1.2.4 → 1.2.5, `plug` 1.20.1 → 1.20.2, `makeup`
+  1.2.1 → 1.2.2 (lockfile).
+
+### Fixed
+- **V70 migration crash on installs missing the legacy `email_log_id` /
+  `matched_email_log_id` integer FK columns.** The re-backfill guards checked
+  that the UUID companion columns existed but not the legacy integer columns
+  the raw SQL actually joins on, so an install where those legacy columns were
+  already dropped hit an `undefined column` error. (#613)
+- **Sitemap no longer advertises URLs while the SEO module's `noindex`
+  directive is active.** `/sitemap.xml` (XML and HTML) now publishes an empty
+  but schema-valid `<urlset>` instead of the full URL list whenever
+  `seo_no_index` is enabled, and toggling the directive invalidates + triggers
+  regeneration of the cached sitemap so it doesn't keep serving a stale file.
+  (#614)
+- **Sitemap `RouterDiscovery` no longer masks richer entries from other
+  sources.** `RouterDiscovery` enumerates every GET route generically; when a
+  content source (Publishing, Entities, …) emitted a richer entry (priority,
+  `canonical_path`, hreflang alternates) for the same URL, the old
+  `loc`-based dedup kept whichever entry was listed first — always the
+  generic `RouterDiscovery` one — silently dropping priority and hreflang
+  alternates from the sitemap. Dedup now always prefers the richer,
+  non-`RouterDiscovery` entry regardless of source order. (#615)
+- **`seo_no_index` now reaches a host application's own public LiveViews.**
+  Previously only `LayoutWrapper.app_layout_inner/1` (PhoenixKit's own
+  admin/plugin views) set the `:seo_no_index` assign that `root.html.heex`
+  reads for the `noindex,nofollow` meta tags, so a host app's own public
+  LiveView — mounted through PhoenixKit's `on_mount` chain for
+  `current_user`/locale support but rendered with its own layout — never got
+  the directive even with it enabled. The assign is now set from the
+  `handle_params` hook shared by every PhoenixKit `on_mount` variant. (#616)
+
 ## 1.7.170 - 2026-06-29
 
 ### Added
