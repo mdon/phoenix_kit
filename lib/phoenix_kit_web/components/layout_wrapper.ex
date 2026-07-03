@@ -449,7 +449,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
               // Theme configuration and controller
               const themeBaseMap = <%= ThemeConfig.base_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
-              const themeLabels = <%= ThemeConfig.label_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
+              const themeLabels = <%= ThemeConfig.translated_label_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
 
               // Admin theme controller for PhoenixKit with animated slider
               const adminThemeController = {

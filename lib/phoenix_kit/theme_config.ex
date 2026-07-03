@@ -7,6 +7,8 @@ defmodule PhoenixKit.ThemeConfig do
   theme requires changing this module and the shared CSS asset only.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   @default_html_theme "phoenix-light"
 
   @custom_theme_variables %{
@@ -98,6 +100,65 @@ defmodule PhoenixKit.ThemeConfig do
     "abyss" => "Abyss",
     "silk" => "Silk"
   }
+
+  @doc """
+  Returns the translated, user-facing label for a theme key.
+
+  `@labels` is a compile-time module attribute, so it can't hold macro-expanded
+  `gettext/1` calls directly — this function is the translated counterpart,
+  with one literal `gettext/1` call per theme so `mix gettext.extract` can
+  find them.
+  """
+  def translated_label("system"), do: gettext("System")
+  def translated_label("phoenix-light"), do: gettext("Phoenix Light")
+  def translated_label("phoenix-dark"), do: gettext("Phoenix Dark")
+  def translated_label("light"), do: gettext("Light")
+  def translated_label("dark"), do: gettext("Dark")
+  def translated_label("cupcake"), do: gettext("Cupcake")
+  def translated_label("bumblebee"), do: gettext("Bumblebee")
+  def translated_label("emerald"), do: gettext("Emerald")
+  def translated_label("corporate"), do: gettext("Corporate")
+  def translated_label("synthwave"), do: gettext("Synthwave")
+  def translated_label("retro"), do: gettext("Retro")
+  def translated_label("cyberpunk"), do: gettext("Cyberpunk")
+  def translated_label("valentine"), do: gettext("Valentine")
+  def translated_label("halloween"), do: gettext("Halloween")
+  def translated_label("garden"), do: gettext("Garden")
+  def translated_label("forest"), do: gettext("Forest")
+  def translated_label("aqua"), do: gettext("Aqua")
+  def translated_label("lofi"), do: gettext("Lo-Fi")
+  def translated_label("pastel"), do: gettext("Pastel")
+  def translated_label("fantasy"), do: gettext("Fantasy")
+  def translated_label("wireframe"), do: gettext("Wireframe")
+  def translated_label("black"), do: gettext("Black")
+  def translated_label("luxury"), do: gettext("Luxury")
+  def translated_label("dracula"), do: gettext("Dracula")
+  def translated_label("cmyk"), do: gettext("CMYK")
+  def translated_label("autumn"), do: gettext("Autumn")
+  def translated_label("business"), do: gettext("Business")
+  def translated_label("acid"), do: gettext("Acid")
+  def translated_label("lemonade"), do: gettext("Lemonade")
+  def translated_label("night"), do: gettext("Night")
+  def translated_label("coffee"), do: gettext("Coffee")
+  def translated_label("winter"), do: gettext("Winter")
+  def translated_label("dim"), do: gettext("Dim")
+  def translated_label("nord"), do: gettext("Nord")
+  def translated_label("sunset"), do: gettext("Sunset")
+  def translated_label("caramellatte"), do: gettext("Caramel Latte")
+  def translated_label("abyss"), do: gettext("Abyss")
+  def translated_label("silk"), do: gettext("Silk")
+  def translated_label(theme), do: Map.get(@labels, theme, theme)
+
+  @doc """
+  Returns a map of theme names to translated, user-facing labels.
+
+  Same shape as `label_map/0` but locale-aware — use this (not
+  `label_map/0`) for anything rendered to a user, including client-side JS
+  embeds built from a JSON-encoded map.
+  """
+  def translated_label_map do
+    Map.new(@labels, fn {key, _label} -> {key, translated_label(key)} end)
+  end
 
   @dropdown_order [
     "system",
@@ -299,7 +360,7 @@ defmodule PhoenixKit.ThemeConfig do
   defp theme_to_map(theme) do
     %{
       value: theme,
-      label: Map.fetch!(@labels, theme),
+      label: translated_label(theme),
       preview_theme: Map.get(@preview_themes, theme),
       type: if(theme == "system", do: :system, else: :theme)
     }
