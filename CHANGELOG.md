@@ -1,3 +1,851 @@
+## 1.7.171 - 2026-07-03
+
+### Changed
+- **`RouterDiscovery` sitemap source compiles exclude/include-only patterns
+  once per collection instead of once per route per pattern.** Same behavior,
+  fewer `Regex.compile/1` calls; invalid patterns (e.g. a bare `"*"`, which is
+  not a valid regex) are now logged instead of silently swallowed. Two more
+  default excludes: `^/__` (internal/technical routes, e.g. Publishing's
+  dispatch catch-all scope) and `^/maintenance$` (PhoenixKit's reserved
+  maintenance page) — both mainly load-bearing for installs with a non-default
+  `url_prefix`. (#614, #615)
+- **New optional `reserved_route_prefixes/0` module callback** +
+  `PhoenixKit.ModuleRegistry.all_reserved_route_prefixes/0`. Lets a module
+  declare top-level route path segments it owns (e.g. `["legal"]`), so a
+  database-driven dispatcher (e.g. Publishing's `/:language/:group/*path`
+  catch-all) can avoid swallowing another module's route just because a
+  same-named record happens to exist in its own data. Iterates all installed
+  modules (not just enabled ones), since the guarded route is normally
+  compiled into the host router independent of the module's runtime
+  enabled/disabled toggle. Declaring a prefix is passive on its own — it
+  changes nothing until a dispatcher consults it. (#614)
+- Bumped `phoenix_live_view` 1.2.4 → 1.2.5, `plug` 1.20.1 → 1.20.2, `makeup`
+  1.2.1 → 1.2.2 (lockfile).
+
+### Fixed
+- **V70 migration crash on installs missing the legacy `email_log_id` /
+  `matched_email_log_id` integer FK columns.** The re-backfill guards checked
+  that the UUID companion columns existed but not the legacy integer columns
+  the raw SQL actually joins on, so an install where those legacy columns were
+  already dropped hit an `undefined column` error. (#613)
+- **Sitemap no longer advertises URLs while the SEO module's `noindex`
+  directive is active.** `/sitemap.xml` (XML and HTML) now publishes an empty
+  but schema-valid `<urlset>` instead of the full URL list whenever
+  `seo_no_index` is enabled, and toggling the directive invalidates + triggers
+  regeneration of the cached sitemap so it doesn't keep serving a stale file.
+  (#614)
+- **Sitemap `RouterDiscovery` no longer masks richer entries from other
+  sources.** `RouterDiscovery` enumerates every GET route generically; when a
+  content source (Publishing, Entities, …) emitted a richer entry (priority,
+  `canonical_path`, hreflang alternates) for the same URL, the old
+  `loc`-based dedup kept whichever entry was listed first — always the
+  generic `RouterDiscovery` one — silently dropping priority and hreflang
+  alternates from the sitemap. Dedup now always prefers the richer,
+  non-`RouterDiscovery` entry regardless of source order. (#615)
+- **`seo_no_index` now reaches a host application's own public LiveViews.**
+  Previously only `LayoutWrapper.app_layout_inner/1` (PhoenixKit's own
+  admin/plugin views) set the `:seo_no_index` assign that `root.html.heex`
+  reads for the `noindex,nofollow` meta tags, so a host app's own public
+  LiveView — mounted through PhoenixKit's `on_mount` chain for
+  `current_user`/locale support but rendered with its own layout — never got
+  the directive even with it enabled. The assign is now set from the
+  `handle_params` hook shared by every PhoenixKit `on_mount` variant. (#616)
+
+## 1.7.170 - 2026-06-29
+
+### Added
+- **Audio playback in the media viewer.** Opening an audio file (in the in-place
+  modal or `/admin/media/:uuid`) now renders an interactive WaveSurfer waveform
+  with a play/pause button and click-to-seek instead of a document placeholder.
+  WaveSurfer is lazy-loaded via a dynamic CDN import only when audio is opened (no
+  npm/hex dependency, no cost on other pages); the hidden native `<audio>` is the
+  playback source and the fallback (native controls) if the library can't load.
+  Audio is detected by mime, `file_type`, **or** extension, so mp3s stored with a
+  generic `application/octet-stream` mime are still recognised. Grid, list, and
+  stack views show a music-note icon and an "AUDIO" label. (#611)
+
+### Changed
+- **Folder sidebar handles deep names.** Deeply nested folders keep their full
+  names and the tree scrolls horizontally instead of truncating to a few
+  characters; the root→current active path is drawn bolder (4px, was 2px) and
+  centred on the axis so the branch you're on stands out. (#611)
+
+### Fixed
+- **Media browser display dropdown label.** The display dropdown now reads
+  "Stacks" in Stacks mode (was stuck on "Grid"), driven by a lookup over the view
+  options instead of a two-way grid/list assumption. (#611)
+- **Notifications dropdown overflow.** A tall notifications list now scrolls
+  vertically instead of wrapping into extra columns — daisyUI `menu`'s
+  `flex-wrap: wrap` is replaced with a plain `flex flex-col flex-nowrap` list. (#611)
+- **Users table actions menu.** The `…` actions menu is pinned to the far-right
+  edge so it no longer drifts into a wide auto-width cell when columns are
+  hidden. (#611)
+- **Account switcher overflow.** Long emails are truncated (with a hover tooltip)
+  and the role badge is pinned, fixing horizontal overflow in the user
+  dropdown. (#611)
+
+## 1.7.169 - 2026-06-28
+
+### Added
+- **V138 migration — CRM v1 interaction-tracker tables.** Five `phoenix_kit_crm_*`
+  tables laying down the CRM module's first data model: `contacts` (profile with an
+  **optional** `user_uuid` login link, partial-unique so it's 1:1 only among linked
+  rows), `companies`, `company_memberships` (M:N contact↔company with free-form
+  `role_in_company` + `department` + `is_primary` on the edge), `interactions`
+  (logged interaction: type/when/subject/body + subject contact + owner user), and
+  `interaction_parties` (flat resolvable "who was involved" — `raw_name` always
+  kept, `contact_uuid`/`staff_person_uuid` resolve under an exclusive-arc CHECK,
+  `party_snapshot` JSONB freezes the party's profile as-of-then). `staff_person_uuid`
+  is a soft ref (no FK) so the optional staff module stays optional. Migration-only;
+  idempotent up/down. (#610)
+- **Optional description slot on `Core.Checkbox`.** Passing an inner block renders a
+  muted helper line under the now-bold label and switches the row to top alignment;
+  with no slot the checkbox renders exactly as before. (#610)
+
+### Fixed
+- **`delete_folder_completely` no longer destroys a file shared into a folder
+  outside the deleted subtree.** A file also linked (via `FolderLink`) into an
+  external folder is now re-homed there — consuming that link — instead of being
+  hard-deleted, which previously cascaded the file's external links away and
+  silently stripped it from the unrelated folder. Files confined to the subtree are
+  still permanently deleted. Covered by two new integration tests. (#610)
+
+## 1.7.168 - 2026-06-27
+
+### Changed
+- **Sharper non-full-res thumbnails for grid/stack media cards.** Added a `:card`
+  size mode to `MediaThumbnail` and switched the grid card, stack card, and
+  stacks-view grid card to it. Cards now prefer the 400px baked Etcher thumbnail /
+  300px `small` variant instead of the blurry 150px `thumbnail`, so media piles
+  render crisply at 2× DPI. (#609)
+
+### Fixed
+- **`:card` thumbnails no longer load a full-res `original` when intermediate
+  variants are missing.** A file with a `thumbnail` but no `small`/`medium` (partial
+  variant generation, legacy upload, or admin-disabled dimensions) now falls back
+  to the light 150px `thumbnail` before the multi-megabyte `original` — keeping the
+  card payload light as intended. Reconciled the `MediaThumbnail` moduledoc and
+  `attr` docs with the actual `:card` priority chain. (#609 follow-up)
+- Added pure-function unit tests for `MediaThumbnail.resolve_url/2` covering every
+  size mode and the `:card` fallback chain.
+
+## 1.7.167 - 2026-06-26
+
+### Added
+- **Basecamp-style "stacks" view for the MediaBrowser.** A third view mode
+  (alongside grid/list) renders top-level folders as photo "piles" with loose
+  files under "Everything else". Clicking a pile opens its grid inline (multiple
+  open at once, newest on top) with a FLIP fly-out/fly-back animation that fires
+  only on explicit open/close — restores on refresh/navigate-back are instant and
+  flash-free (`prefers-reduced-motion` respected). Open stacks persist across
+  refresh/navigation in `localStorage` (`StackMemory` hook), scoped per
+  virtual-root. Each stack paginates independently (`load_more_stack`, one page at
+  a time) so a folder with thousands of files stays fast, and supports drag-drop
+  of media between stacks / "Everything else" with the drop outline tinted to the
+  folder's own colour. Per-file kebab menu (Download / Move / Trash) on stack
+  cards mirrors grid view. (#608)
+- **`ViewportPopover` JS hook.** Clamps the folder Edit-header popover to the
+  viewport (flips it to open upward when there's more room above, pins Save/Done
+  as a non-scrolling footer), so Save stays reachable when the browser is embedded
+  low in a page. (#608)
+
+### Changed
+- Bumped the `:ex_ast` dependency 0.12.0 → 0.12.1 (lockfile).
+
+### Fixed
+- **`Created by %{name}` ru/et translation.** The folder-header creator label was
+  added to the Estonian/Russian catalogs as a `fuzzy` auto-fill that both
+  mistranslated it ("Create" imperative) and dropped the `%{name}` placeholder —
+  inert today (gettext falls back to English for fuzzy entries) but a latent
+  landmine if the flag were ever cleared. Corrected to `Создал %{name}` /
+  `Loonud %{name}` and de-fuzzed so the proper translation is active.
+
+### i18n
+- Estonian + Russian translation of the newly-surfaced MediaBrowser strings (and
+  other recent additions); previously-empty catalog entries dropped from 14 to 1
+  in both locales. `%{...}` placeholders, markdown links and arrows preserved.
+  (#608)
+
+## 1.7.166 - 2026-06-25
+
+### Added
+- **Annotated media thumbnails baked from Etcher shapes.** A file's Etcher
+  annotation shapes (rectangles, circles, marker/freehand strokes) are baked into
+  a single deterministic `thumbnail_annotated` PNG variant (ImageMagick, with the
+  geometry→draw mapping delegated to `Etcher.Raster`), so the markup is visible in
+  the MediaBrowser grid without rendering shapes live for every viewer. The
+  `AnnotationThumbnailJob` Oban worker debounces regeneration in the background;
+  its unique constraint is computed from the installed `Oban.Job.states/0` minus
+  the terminal states (robust across Oban 2.20/2.23) and excludes `:completed`, so
+  a finished regen never throttles the next edit. The grid prefers the baked
+  variant with a checksum-based cache-bust and falls back to the plain thumbnail.
+  Gated behind a project-wide media setting (`storage_annotated_thumbnails_enabled`,
+  off by default) — an "Annotated Thumbnails" toggle in Media Settings → Media
+  Configuration. Bumps the `:etcher` dependency to `~> 0.7`. (#607)
+- **`VariantGenerator.store_prepared_variant/5`.** Stores an already-rendered
+  variant file (produced outside the resize pipeline, e.g. the baked annotated
+  thumbnail) through the existing stats / bucket-storage / `FileInstance` /
+  file-location tail. (#607)
+
+### Changed
+- **Referrals extracted into the standalone `phoenix_kit_referrals` module.** The
+  referral-codes feature (schemas, business logic, admin UI) leaves core for the
+  auto-discovered package, mirroring how posts and user_connections are
+  structured; core keeps the database tables (migrations untouched). A new
+  runtime-dispatch facade, `PhoenixKit.Users.Referrals`, resolves the installed
+  module by its `PhoenixKit.Module` key and dispatches via `apply/3`, so core has
+  **no compile-time dependency** on the package. With the module absent every call
+  degrades safely: the system reads as disabled, lookups return `nil`, and
+  `use_code/2` is a no-op (the referral field disappears from signup). The
+  module's admin tab and routes now flow through generic module discovery
+  (`admin_tabs/0`, `settings_tabs/0`, `route_module/0`) instead of the removed
+  hardcoded subtab and route injection. (#607)
+
+## 1.7.165 - 2026-06-24
+
+### Added
+- **`sitemap_sources/0` module callback for zero-config sitemap source
+  registration.** External modules can contribute their own
+  `Sitemap.Sources.Source` modules (e.g. Entities) to the generated sitemap with
+  no host-app configuration, mirroring route / CSS / JS auto-discovery. Collected
+  via `ModuleRegistry.all_sitemap_sources/0` from **enabled** modules and appended
+  to the base source list (deduplicated, order-preserving). A host
+  `config :phoenix_kit, sitemap: [sources: [...]]` now acts as a base list that
+  module sources extend rather than fully replace. (#603)
+- **Migration V137 — email event deduplication + `aws_message_id` backfill.**
+  Backs the `Emails.Event` schema's declared unique constraints with real partial
+  unique indexes (one per `(email_log_uuid, event_type)` for single-occurrence
+  types; one per `(email_log_uuid, event_type, occurred_at)` for open/click),
+  removing pre-existing duplicates first. Backfills the indexed `aws_message_id`
+  column from the legacy `headers` JSONB (conflict-safe via `DISTINCT ON` +
+  `NOT EXISTS`). Adds pg_trgm substring-search indexes for the admin email list,
+  per-template open/click analytics composites, and an archiver body-compression
+  partial index. Host apps pick this up via `mix phoenix_kit.update`. (#604)
+- **`user` comment-resource handler.** A comment attached to a user resolves to
+  the user's display name, `/admin/users/view/:uuid`, and avatar thumbnail in the
+  comments moderation admin instead of a bare uuid. (#605)
+- **`notification_default_link` setting.** A catch-all destination for
+  notifications that have no link of their own. Defaults to `/dashboard`
+  (authenticated-only; guarded to a no-op when the user dashboard is disabled);
+  clear the field to make such notifications non-clickable. Built through
+  `Routes.path/1`, so it carries the URL prefix and the recipient's locale. An
+  opt-in `config :phoenix_kit, warn_unlinked_notifications: true` logs how to wire
+  a link when a clicked notification has neither. (#605)
+
+### Changed
+- **Link-less notifications read as informational.** The notifications bell shows
+  a default cursor (not a pointer) for a notification with no effective target,
+  and clicking it still clears its unread state rather than appearing broken.
+  (#605)
+
+### Fixed
+- **A disabled module's source no longer leaks into the flat sitemap.**
+  `all_sitemap_sources/0` now aggregates from **enabled** modules only, so a
+  disabled module contributes nothing even in flat-sitemap mode — where the
+  generator force-collects sources and bypasses each source's own `enabled?/0`.
+  The previous `all_modules/0` aggregation relied solely on that per-source gate,
+  which flat mode skips. (#603)
+- **Comment `file` resource links no longer double-prefix under a non-root
+  `url_prefix`.** Comment-resource handlers must return a raw path (the comments
+  module applies `Routes.path/1` once); the `file` handler pre-applied it. Both
+  the `file` and new `user` handlers now return raw paths, matching `post`. (#605)
+- **Notifications bell reads its default-link setting from cache.**
+  `default_link/1` used the uncached `Settings.get_setting/2` on a hot path (the
+  sticky bell's `refresh/1` runs on mount and on every notification PubSub event);
+  it now uses the ETS-backed `get_setting_cached/2`. (#605)
+
+## 1.7.164 - 2026-06-22
+
+### Fixed
+- **`user.email_unconfirmed` notifications regained their settings link.** PR #602
+  replaced the broad `"user." <> _` link rule with an explicit `@account_actions`
+  whitelist but omitted `user.email_unconfirmed` — the toggle-sibling of
+  `user.email_confirmed`, emitted from the same admin code path and declared an
+  `"account"` notification type. Its notification lost its `/dashboard/settings`
+  click-through. It is now in the whitelist, so the whole account toggle is
+  consistent.
+
+### Changed
+- **`user.email_unconfirmed` now renders dedicated icon/text.** Previously it fell
+  through to the generic `hero-bell` + humanized-action display while
+  `user.email_confirmed` showed a tailored message. It now renders
+  `hero-exclamation-circle` + "Your email is no longer confirmed.", matching its
+  sibling.
+
+## 1.7.163 - 2026-06-22
+
+### Fixed
+- **Notification click-through links.** `Render.link_for/1` mapped only
+  `"user." <> anything` → `/dashboard/settings` (wrongly catching `user.followed`)
+  and everything else → `nil`, so social notifications (`post.*`, `comment.*`)
+  navigated nowhere and follow notifications opened the settings page. The
+  account-action → settings mapping is now an explicit whitelist;
+  `user.followed` / `post.*` / `comment.*` / `user.deleted` / unknown actions
+  return `nil` so the emitter's `notification_link` metadata drives the deep-link.
+- **Notification links now carry the recipient's locale prefix.**
+  `Render.render/2` accepts a locale that is threaded into `Routes.path`; the
+  notifications bell receives `"locale"` in its session (from `LayoutWrapper`)
+  and passes it at click time. Previously the link was built in the sticky bell's
+  process with no locale, so it used the default locale instead of the user's.
+
+## 1.7.162 - 2026-06-18
+
+### Added
+- **`MarkdownEditor` `:prompt_insert` action** — a host can trigger a client-side
+  `window.prompt` (e.g. a video URL) and insert the result by substituting
+  `%{value}` in a template, via
+  `send_update(..., action: :prompt_insert, prompt:, template:)`, with no inline
+  script of its own. (#601)
+
+### Changed
+- **`Components.Core.MarkdownEditor` is now driven by a LiveView hook**
+  (`window.PhoenixKitHooks.MarkdownEditor` in `phoenix_kit.js`) instead of an
+  inline `<script>` plus inline `onclick`/`onmousedown` handlers. The old
+  approach broke under a strict Content-Security-Policy (a nonce never authorizes
+  inline event handlers; an absent nonce blocks the `<script>`) and failed on
+  LiveView navigation (a patched-in `<script>` never re-executes), so the toolbar
+  and image insertion only worked after a full page refresh. Toolbar buttons now
+  carry `data-md-action` attributes; server commands (`insert-at-cursor`,
+  `set-content`) arrive via `handleEvent` filtered by `global_id` so multiple
+  editors on one page don't cross-fire; toolbars ship hidden and the hook reveals
+  them, with a `<noscript>` hint when JS is off. The public component API
+  (`:insert_at_cursor`, the `{:editor_content_changed}` host message, the attrs)
+  is unchanged. (#601)
+- **`confirm_modal` confirm button gains `phx-disable-with`** so a fast
+  double-click can't fire `on_confirm` twice (e.g. double-enqueue an AI
+  translation). Applies to every confirm modal; no behavior change beyond the
+  in-flight disable. (#601)
+
+### Fixed
+- **`Utils.Geolocation` now uses `Req`** instead of calling Finch directly
+  against a `PhoenixKit.Finch` pool that nothing starts (not PhoenixKit's empty
+  supervisor, not the installer, which only starts `Swoosh.Finch`). Every lookup
+  previously raised "unknown registry", was swallowed by the rescue, and
+  registration fell back to IP-only — so `registration_country` / `region` /
+  `city` were never populated. IP geolocation now works with no host supervisor
+  setup (`Req` rides its own auto-started pool). `retry: false` keeps the lookup
+  single-shot on the registration path.
+- **`MarkdownEditor`'s unsaved-changes `beforeunload` prompt no longer fires
+  after a successful save** — the hook's local dirty flag now resets when the
+  server reports `save_status` `"saved"`, instead of staying armed for the page's
+  life after the first keystroke (most hosts never push the `changes-status`
+  event that previously cleared it).
+
+### Removed
+- **`MarkdownEditor` `script_nonce` attr** — unused now that the editor is
+  hook-driven. (#601)
+- **Orphaned `priv/static/assets/phoenix_kit_markdown_editor.js`** — the old
+  standalone inline-script implementation, superseded by the `MarkdownEditor`
+  hook in `phoenix_kit.js` and referenced by nothing (the installer copies only
+  `phoenix_kit.js`).
+
+### i18n
+- Gettext-wrapped the `MarkdownEditor` heading-button title (`Heading %{level}`,
+  previously a hardcoded string) and refreshed the JS-disabled `<noscript>` hint
+  copy. Both are translatable; the translation catalogs pick them up on the next
+  resync. (#601)
+
+## 1.7.161 - 2026-06-18
+
+### Changed
+- **`Components.Core.Markdown` now renders via `MDEx`** instead of `earmark`.
+  The `<.markdown>` component consolidates onto the same Rust-NIF renderer
+  already shared across the dependency tree (`leaf`, `phoenix_kit_comments`) —
+  completing the migration begun in 1.7.158. Output is preserved: GFM
+  (strikethrough/table/autolink/tasklist), smart typography,
+  `<code class="language-…">` fenced code blocks, and raw-HTML passthrough on
+  `sanitize={false}` (the default path still runs `HtmlSanitizer`).
+- Updated the publishing format guide to name MDEx as the markdown renderer.
+
+### Removed
+- **`earmark` direct dependency.** It was retained only for
+  `Components.Core.Markdown`; with that component on `MDEx`, the dep and its
+  `mix.lock` entry are removed. `earmark_parser` remains transitively via
+  `ex_doc` and is unaffected.
+
+## 1.7.160 - 2026-06-17
+
+### Fixed
+- **V122 migration on pre-locations databases** (issue #598) — `V122` creates
+  `phoenix_kit_location_spaces` with a required FK to `phoenix_kit_locations`,
+  a table created only in `V91`. Because the locations tables were added to an
+  already-released `v91.ex`, any database that passed V91 *before* that addition
+  never received the parent table, so V122 aborted the whole migration
+  transaction with `42P01 undefined_table`. `V122.up/1` now
+  `create_if_not_exists`-backfills `phoenix_kit_locations` (mirroring V91's
+  final shape) before building the FK — an idempotent no-op where V91 already
+  created it, and a repair where it was missing.
+
+## 1.7.159 - 2026-06-17
+
+Staff-support core changes (V136 employment history, Activity per-resource
+filter, media picker hardening, embedded-LiveView identity) plus follow-up
+review fixes. These changes landed on `main` after 1.7.158 without a version
+bump; recorded here.
+
+### Added
+- **V136 migration** — `phoenix_kit_staff_employments`, a per-person history of
+  employment spans (employment type, translatable `job_title`, department/team
+  snapshot, date range, `work_location`, `notes`). A partial unique index
+  enforces one open (current) span per person; the matching
+  `phoenix_kit_staff_people` columns are kept as a denormalized mirror of the
+  current span (not dropped). Backfills one open span per existing person
+  (guarded, retry-safe). `@current_version` → 136.
+- **`PhoenixKitWeb.Users.Auth.assign_embedded_current_user/2`** — reconstructs
+  `:phoenix_kit_current_user` / `:phoenix_kit_current_scope` on an off-router
+  embedded LiveView mount from a host-supplied `session["current_user_uuid"]`.
+  No-ops on a router mount, degrades to anonymous for an absent/unknown/inactive
+  uuid, and reconstructs identity (not authorization). Reference consumer:
+  `phoenix_kit_projects`.
+- **Upload-only media picker** — `MediaSelectorModal` gains a `browse: false`
+  mode that hides the library grid/search/filter, leaving a pure uploader
+  (uploaded files auto-select).
+- `update_user_custom_fields/3` gains `:broadcast` and `:ensure_definitions`
+  options (both default `true`, so existing callers are unchanged).
+
+### Changed
+- `PhoenixKit.Activity.list/1` (and `count/1`) now honour a `:resource_uuid`
+  filter, and the admin Activity page (`/admin/activity`) reads a `resource_uuid`
+  URL param — so a module can deep-link a per-resource feed. Previously
+  `:resource_uuid` was silently ignored, leaking every same-type resource's
+  events into a per-resource view.
+- `MediaSelectorModal` constrains uploads to the active type filter, shows
+  filter-aware copy, excludes trashed / system-managed files from the browse
+  list, and gives each instance a unique `<dialog>` id so two pickers on one
+  page don't collide.
+- Admin **Activity page** UI follow-ups (PR #600): the filter toolbar fits one
+  row on mobile (Module / Mode / Action / Type as compact dropdowns), a
+  persisted grid/list Display toggle, and a mobile-friendly list view. The
+  user form's Cancel / primary buttons are reordered (Cancel left, primary
+  right) to match the rest of the admin UI.
+
+### Fixed
+- The manage-users **and** activity grid/list view toggles no longer register
+  their internal `users_view_mode` / `activity_view_mode` preference as a
+  user-facing custom-field definition (it was leaking into the Customize Columns
+  modal) and no longer broadcast a `user_updated` event — so toggling the view
+  stops re-querying the users list for every connected admin.
+- The Activity page's new filter dropdowns preserve the `resource_uuid`
+  deep-link scope (a per-resource feed no longer reverts to all activity when a
+  filter is picked).
+- The media picker now rejects off-type uploads server-side. The client `accept`
+  list is fixed when the upload is first allowed and can't track the in-modal
+  type dropdown, so an image/video picker could still store an off-type file;
+  `MediaSelectorModal` re-checks the type on upload and rejects mismatches.
+- The accepted-types hint is shown in the upload-only media picker (it was
+  hidden in `browse: false` mode, the one place it's most useful).
+
+### i18n
+- Internationalized the full-page media selector and the Jobs / Languages admin
+  page headers; added the new picker copy strings (et, ru).
+
+## 1.7.158 - 2026-06-17
+
+Centralize the MDEx (markdown) dependency in core.
+
+### Changed
+- **`mdex` is now a direct dependency of `phoenix_kit`** (`~> 0.13`), so every
+  module shares one resolved version through the core dependency tree instead of
+  each declaring its own and risking version mismatches — the same arrangement
+  already used for `leaf`. Modules that render markdown (e.g.
+  `phoenix_kit_comments`) call `MDEx` directly and should rely on it being
+  provided transitively via `phoenix_kit` rather than declaring their own
+  `mdex` dep.
+
+## 1.7.157 - 2026-06-17
+
+Core support for the `phoenix_kit_comments` admin work — file-comment resolution
+and an annotation deep-link — plus admin navbar/MediaBrowser layout fixes and a
+dependency refresh.
+
+### Added
+- **File-comment resource resolution.** `PhoenixKit.Annotations.resolve_comment_resources/1`
+  maps `"file"` comment resources (including annotation discussions anchored via
+  `metadata.annotation_uuid`) to the file's display name and admin media path, plus a
+  signed `"thumbnail"` URL for images — so the comments moderation admin can link a
+  thumbnail chip instead of showing a bare uuid. Registered as the `"file"` handler by
+  `phoenix_kit_comments`, gated on this module being loaded.
+- **Annotation deep-link.** `MediaDetail` reads `?annotation=<uuid>` and pushes
+  `etcher:select-shape`; a new `phoenix_kit.js` bridge retries `layer.selectShape(uuid)`
+  until the Etcher canvas layer is ready, so a comment's chip lands on the file with its
+  shape selected. (No-ops on readonly shapes and on the static mount.)
+- **Plugin admin pages can forward `page_title`/`page_subtitle` to the navbar.** The plugin
+  admin layout now passes them through to `app_layout`, so plugin pages can drop their
+  in-content header and show the title/subtitle in the navbar breadcrumb (matching the core
+  media page).
+
+### Changed
+- **Dependency refresh:** `finch` 0.22 → 0.23, `phoenix_live_view` 1.2.1 → 1.2.3,
+  `sourceror` 1.12.0 → 1.12.2, `tailwind` installer 0.5.0 → 0.5.1, and `req` pinned to
+  0.5.17.
+- **MediaBrowser admin-page layout.** Always show the sidebar "Folders" header, align the
+  breadcrumb row flush with it, and drop the page padding so the browser fills the admin
+  media page.
+
+### Fixed
+- **Mobile admin navbar breadcrumb.** When a page has a title, the `Admin Panel /` prefix
+  is hidden below `sm` (and the title truncates) so it no longer overlaps the
+  theme/notifications controls.
+- **Media browser hero header z-index.** The hero's `z-30` (and the toolbar dropdowns'
+  `z-20`) are confined to the card's own stacking context via `isolate`, so they no longer
+  paint over the mobile drawer/navbar.
+- **Media list view tablet columns.** The Type/Size columns now cross over to the folded
+  mobile meta line at the same `md` breakpoint as Date, so they're no longer double-rendered
+  (column + meta line) in the `[sm, md)` tablet band.
+
+## 1.7.156 - 2026-06-16
+
+MediaBrowser folder UX polish (folder-aware search, a name-it modal, an
+active-branch sidebar highlight, and a clean mobile layout) plus dependency
+upgrades.
+
+### Added
+- **Folder results in media search.** A name search in the MediaBrowser now
+  surfaces matching *folders* alongside the matching files, scoped exactly like
+  the file search (a folder's direct children when inside one, the whole subtree
+  at a scope root, everything at the real root). Backed by a new
+  `PhoenixKit.Modules.Storage.search_folders/3`.
+- **New-folder name modal.** Creating a folder opens a modal to name it — with
+  an `"untitled"` / `"untitled N"` placeholder default when left blank — instead
+  of immediately dropping an inline-rename `"untitled"` folder into the sidebar.
+  Cancel adds nothing. The `FolderExplorer`'s create button now emits
+  `open_new_folder_modal` (was `create_untitled_folder`).
+- **Active-branch highlight in the folder sidebar tree.** The guide-line
+  connectors from a root folder down to the current folder are darkened (same
+  hue, bolder alpha) so you can trace the branch you're inside. Suppressed in
+  trash view.
+
+### Changed
+- **Cleaner MediaBrowser mobile layout.**
+- **Dependency upgrades:** `leaf` 0.2 → 0.3 (its markdown backend swapped from
+  `earmark` to the `mdex` Rust NIF — transparent to PhoenixKit, which keeps its
+  own direct `earmark` dep for `Components.Core.Markdown`), `tailwind` installer
+  0.4 → 0.5, `floki` 0.38.4.
+
+### Fixed
+- **Folder rename now updates the hero header title.** Renaming a folder from
+  the sidebar keeps the hero header (and an open Edit-header panel) in sync when
+  the renamed folder is the one being shown — it no longer kept the pre-rename
+  name.
+- **Media sidebar active-turn corner.** Sharp for a mid-branch turn, rounded for
+  the last child.
+
+## 1.7.155 - 2026-06-15
+
+Makes the integration provider registry capability-discoverable, so consumers
+(e.g. `phoenix_kit_ai`) can build provider lists dynamically instead of
+hardcoding them.
+
+### Added
+- **`PhoenixKit.Integrations.Providers.with_capability/1`** — returns all
+  providers (built-in + external-module) that declare a given capability, in
+  `all/0` order. An AI module can render its provider picker from
+  `with_capability(:ai_completions)` so a newly-registered chat provider
+  surfaces automatically, with no hardcoded list.
+- **`PhoenixKit.Integrations.Providers.base_url/1`** — returns a provider's
+  primary REST API base URL (or `nil`). The `:ai_completions` providers
+  (OpenAI, OpenRouter, Mistral, DeepSeek) now declare a `:base_url`, letting
+  consumers derive a default endpoint base from the registry.
+
+### Changed
+- `@type provider` now documents the optional `:base_url`, `:validation`, and
+  `:instructions` keys that real provider maps already carry (typespec accuracy
+  only — no runtime change).
+
+### Added
+- **OpenAI integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for OpenAI, alongside OpenRouter / Mistral /
+  DeepSeek / ElevenLabs. It appears automatically in the admin Integrations UI —
+  no migration or host changes needed. Connect with a single API key from
+  platform.openai.com → API Keys; **Test Connection** validates it against
+  `GET https://api.openai.com/v1/models` using standard `Authorization: Bearer`,
+  so the generic `authenticated_request/4` helper works for consumers too.
+  Declared capabilities cover OpenAI's range: `:ai_completions`,
+  `:ai_embeddings`, `:image_generation`, `:text_to_speech`, `:speech_to_text`.
+
+## 1.7.153 - 2026-06-15
+
+Adds **ElevenLabs** as a built-in integration provider for text-to-speech and voice generation.
+
+### Added
+- **ElevenLabs integration provider** (`PhoenixKit.Integrations.Providers`). A new
+  built-in `api_key` provider for ElevenLabs' audio AI, alongside OpenRouter /
+  Mistral / DeepSeek. It shows up automatically in the admin Integrations UI — no
+  migration or host changes needed. Connect with a single API key from
+  ElevenLabs → Settings → API Keys; **Test Connection** validates it against
+  `GET https://api.elevenlabs.io/v1/user` using ElevenLabs' custom `xi-api-key`
+  header (not `Authorization: Bearer`). Declared capabilities span the full audio
+  range: `:text_to_speech`, `:speech_to_text`, `:sound_effects`,
+  `:music_generation`. Consumers reference the connection by uuid and set the
+  `xi-api-key` header themselves (via `get_credentials/1`) — the generic
+  `authenticated_request/4` helper is Bearer-only and does not fit ElevenLabs'
+  scheme.
+
+## 1.7.152 - 2026-06-15
+
+Fixes two user-menu language-switcher bugs on locale-prefixed / default-locale pages.
+
+### Fixed
+- **`user_dropdown` / guest dropdown no longer crash on a bare `/:locale`
+  path.** `remove_locale_from_path/1` fed the post-strip remainder to
+  `Path.join/1`, which raised `FunctionClauseError` on an empty list — so
+  rendering the in-menu language switcher on a path that is *only* a locale
+  segment (e.g. `/ru`, `/fr`, `/en-GB`) 500'd the page. A path that reduces to
+  just a locale now returns `/`, so the switch links resolve correctly (`/ru`,
+  `/fr`, …). Surfaced by hosts adopting locale-prefixed landings (1.7.150+).
+  Locale detection stays narrow (2-char base or 5-char dialect) so a real 3-char
+  page segment like `/faq` isn't mistaken for a locale.
+- **Current language now highlights on the default locale.** The in-menu list
+  compared the enabled dialect against `@current_locale` with full-dialect
+  equality, so on the default page (where the active locale resolves to a fixed
+  dialect like `en-US` while English is enabled as `en-GB`) nothing matched and
+  the active language wasn't marked. Highlighting now compares **base codes**
+  (`en`/`en-GB`/`en-US` all match), matching `Core.LanguageSwitcher`, and works
+  whether the caller passes a base or a dialect.
+- **Guest dropdown trigger matches the authenticated avatar shape.** The
+  logged-out trigger was a round `hero-user-circle`; it's now a rounded-rectangle
+  placeholder (`w-10 h-10 rounded-lg`) with a person silhouette, consistent with
+  the signed-in avatar.
+
+## 1.7.151 - 2026-06-15
+
+Anonymous (guest) state for the user-menu widget, so one dropdown serves both signed-in and logged-out visitors and always offers a language switcher.
+
+### Added
+- **Guest dropdown in `UserDashboardNav.user_dropdown/1`.** The anonymous
+  state, previously a bare "Login" button, now renders the same dropdown shape
+  as the authenticated state: a generic "not signed in" trigger
+  (`hero-user-circle`) opening a menu with guest links — **Log in**, **Sign up**,
+  **Forgot password**, **Magic link** — plus the shared language switcher. A host
+  can now rely on this single widget for everyone and drop a separate standalone
+  switcher. Guest links are gated by the `allow_registration` /
+  `magic_link_login_enabled` settings (log in and forgot-password always show).
+- **`:show_language_switcher` attr** (default `true`) on `user_dropdown/1` —
+  hides the in-menu language list in both states, for hosts that keep a
+  standalone switcher and want to avoid a duplicate.
+- **`:guest_links` attr** (default `[:login, :register, :reset, :magic_link]`) —
+  narrows which guest links may appear; the per-feature settings gates still
+  apply, so it can only narrow, never force-enable a disabled feature.
+
+### Changed
+- The authenticated and guest dropdowns now share one internal
+  `language_menu_section` component, so both states render an identical
+  language list. The guest switcher reuses the same URL logic, so locale links
+  resolve correctly on locale-less pages (`/` → `/ru`, building on 1.7.150).
+
+## 1.7.150 - 2026-06-15
+
+Fixes locale-prefixed root URLs so anonymous visitors can switch language on a parent app's `/:locale` landing page.
+
+### Fixed
+- **`Routes.path("/", locale: x)` no longer emits a trailing slash.** The
+  locale-prefixed root was built as `/{locale}/` (e.g. `/ru/`); Phoenix routers
+  don't match a trailing slash, so a parent app's `/:locale` landing route 404'd
+  and the language switcher's link on `/` led nowhere for anonymous visitors.
+  Core now emits `/{locale}` (e.g. `/ru`) for the bare root while every other
+  path is unchanged. The standalone
+  `LanguageSwitcher.language_switcher_dropdown` routes through this primitive, so
+  its anonymous-landing links resolve correctly. phoenix_kit keeps its
+  URL-as-truth locale model (no session/cookie locale) — the parent app declares
+  a `/:locale` landing and the switcher's link now reaches it.
+
+## 1.7.149 - 2026-06-15
+
+Structured staff skills: the V135 migration (PR #594) replaces the free-text staff `skills` column with a first-class, translatable skill entity.
+
+### Added
+- **V135 migration — structured staff skills.** Replaces the free-text
+  `phoenix_kit_staff_people.skills` column with a first-class, translatable
+  `phoenix_kit_staff_skills` entity (globally unique by `lower(name)`) and a
+  `phoenix_kit_staff_person_skills` many-to-many join. Each skill carries its
+  own per-skill, translatable proficiency levels (`levels` JSONB array of
+  `{id, name, translations}`) plus an `allow_multiple_levels` boolean; the
+  join's `proficiency_levels` JSONB array holds the selected level ids. The
+  comma-separated free-text is split, trimmed, case-insensitively de-duplicated
+  into skill rows, linked to each person, and the column is dropped — guarded on
+  the column's existence so a partial re-run is a safe no-op. Lossy by design:
+  per-locale `translations["skills"]` overrides don't map to structured skills
+  and are stripped (structured skills carry their own translations going
+  forward). `down/1` is a lossy rollback (re-adds an empty `skills` column).
+- **Partial birthday index** on `phoenix_kit_staff_people(date_of_birth)`
+  (active + non-null DOB only) so `Staff.upcoming_birthdays/1` scans a small
+  index instead of the full people table.
+
+### Fixed
+- **V135 data migration caps skill tokens at 255 chars.** The source
+  `skills` column is unbounded `TEXT` but `phoenix_kit_staff_skills.name` is
+  `VARCHAR(255)` (the `Skill` changeset's max), so a >255-char token would raise
+  `value too long` and wedge the migration on every host. Both the skill INSERT
+  and the link-INSERT join now truncate with `LEFT(trim(tok), 255)` so a long
+  token stores and links on the same truncated form.
+
+## 1.7.148 - 2026-06-14
+
+Follow-up to 1.7.147: scopes the embedded-`MediaBrowser` header fix and adds `URLSigner.put_dzi_url/3` test coverage.
+
+### Fixed
+- **Scoped `MediaBrowser` header fallback** — an embedded browser scoped to a
+  customized folder was rendering that folder's header customizations
+  (description / logo / cover / creation-info) under the all-files / orphaned /
+  trash / search views as well as at its root, so the `<h2>` title ("All Files" /
+  "Trash" / …) disagreed with the metadata below it. The scope folder's header
+  now shows only at the effective root. `header_folder_target/6` is the single
+  source of truth shared by the nav data path and the template, and the hero
+  cover-image arm is gated so the scope-folder cover can't bleed into those views
+  either. The header stays read-only at the scoped root.
+
+## 1.7.147 - 2026-06-14
+
+Media viewer deep-zoom: progressive resolution + DZI tile streaming via Tessera 0.3.
+
+### Added
+- **Progressive resolution + DZI tile streaming** in the media canvas viewer
+  (`/admin/media/:uuid`, the in-place modal, and the lightbox), backed by the
+  rewritten **Tessera 0.3.1** (now a Fresco peer layer, no OpenSeadragon). The
+  viewer opens on the cheap **medium** variant and swaps **medium → large** on
+  zoom; past the sharpest raster it streams **DZI tiles of the original** (only
+  the visible region) for images over 4K, or shows the full **original** raster
+  for ≤4K. Tiles ride Fresco's stage transform so they stay glued to the image
+  during pan/zoom; tile generation respects EXIF orientation.
+
+### Changed
+- `URLSigner.put_dzi_url/3` is now the single source of truth for the signed
+  `"dzi"` manifest URL, shared by the media browser, detail page, and lightbox
+  (previously only the browser produced it, so deep zoom was missing on the
+  other two). Built in the non-localized route scope so it resolves on any
+  locale.
+- `{:tessera, "~> 0.3"}` (was `~> 0.2`); the jsDelivr hook pin tracks `v0.3.1`.
+
+## 1.7.146 - 2026-06-14
+
+### Added
+- **`js_sources/0`** — a zero-config mechanism for external PhoenixKit modules to
+  ship LiveView JS hook bundles into the host app, mirroring `css_sources/0`. A
+  module declares `%{app:, file:, global:}` entries; the new
+  `:phoenix_kit_js_sources` compiler resolves each bundle via `:code.priv_dir/1`
+  (Hex + path deps), IIFE-wraps and concatenates them into
+  `priv/static/assets/vendor/phoenix_kit_modules.js`, and folds each
+  `window.<Global>` into `window.PhoenixKitHooks` (already spread into the host's
+  `LiveSocket`). One stable `<script>` tag is added by `mix phoenix_kit.install`;
+  `mix phoenix_kit.update` backfills it on existing installs. The compiler fails
+  loudly on a missing bundle, a duplicate global, or a non-identifier global.
+  Hook **names** must also be namespaced to stay unique across modules and the
+  core hooks (documented on the callback) — the merge is last-write-wins.
+
+### Changed
+- PhoenixKit self-doc links now point at `phoenix-kit.hexdocs.pm` instead of the
+  `hexdocs.pm/phoenix_kit` path form (install/update task footers, the
+  not-installed warning, and the per-module-i18n guide).
+
+### Fixed
+- Media sidebar tree-state persistence no longer clobbers other `custom_fields`
+  keys. `persist_tree_state/1` re-reads the user fresh from the DB before
+  writing (matching `persist_user_view_mode/2`), because
+  `update_user_custom_fields` replaces the entire `custom_fields` map with no
+  server-side merge. The 1.7.145 version wrote from the stale in-socket copy, so
+  expanding/collapsing a folder could silently revert a `custom_fields` value
+  saved elsewhere since the browser loaded (e.g. notification preferences).
+- The CSS/JS source compilers are now **prepended** to `Mix.compilers()` instead
+  of replacing the list when a host has no `compilers:` key yet (the `css_sources`
+  analogue had the same latent bug), in both install and update.
+- `seed_modules_js_file/1` surfaces a seed-write failure as an installer warning
+  instead of swallowing it (the file is still recreated on the next compile).
+
+## 1.7.145 - 2026-06-13
+
+Media browser overhaul: folder hero header + full customization, unified
+toolbar, a shared folder-tree component, persisted tree state, and selection UX.
+
+### Added
+- **Folder hero header**: the folder header is now a hero block with a cover
+  image background (or a soft folder-color gradient, neutral on non-folder
+  views), faded to the page at the bottom, with the title, description,
+  created-by avatar + name, date, and file count overlaid. New
+  `cover_file_uuid` column on `phoenix_kit_media_folders` (migration **V134**).
+- **Folder header customization** (V134, same migration): a **logo/icon**
+  (`logo_file_uuid`, transparent-PNG aware), a **header size** (`header_size`:
+  small / medium / large), and independent per-element visibility toggles —
+  title, icon, **creator**, **date created**, **file count**, description, and
+  background (`header_show_*` columns). Creator / date / file-count are separate
+  toggles so users show only the pieces they want.
+- **Edit header** panel to edit a folder's name + description together (muted,
+  clickable "No description — add one" placeholder when empty), plus **logo** and
+  **cover image** selectors that open the shared media picker scoped to the
+  folder — pick an existing image or upload a new one; **Remove** clears it (the
+  image stays in the folder). Opens as a popover dropping from the Edit header
+  button (not a centered modal), ordered name/description → logo/background →
+  size → toggles.
+- **Display / Sort / Filter toolbar**: Display switches grid/list, Sort orders
+  by newest/oldest/name/size, Filter narrows by file type. Each trigger shows
+  the current selection with a chevron; sort + filter run through
+  `list_files_in_scope`.
+- **Long-press to multi-select**: holding a file/folder card ~450ms (without
+  moving) enters select mode and selects it (subtle vibrate where supported);
+  the trailing click is swallowed. Via `setupLongPress` on the `MediaDragDrop`
+  hook + a `long_press_select` server handler.
+- Media settings **Quick Actions** gained info icons + hover tooltips, plus a
+  **Find Orphaned Files** and **Repair Media Module** action.
+
+### Changed
+- **Unified header/toolbar**: the toolbar, search, Add Media, Select and folder
+  meta all live inside the hero. Layout is view-controls-left / actions-right,
+  with secondary actions (Select, New folder) in a ⋯ overflow; the redundant
+  result count and the standalone grid/list toggle were dropped. Add Media
+  toggles in place to a fixed-width **Cancel** (toolbar doesn't shift), search is
+  an inline expand-on-click field, and the list view has a sticky column header.
+- **Media page header moved into the admin topbar** as a breadcrumb
+  (`{ProjectName} Admin Panel / Media · subtitle`) via a new `page_subtitle`
+  attr on the app layout, freeing the full content area for the browser. Generic
+  — any admin page that sets `page_title` gets the breadcrumb.
+- **Shared folder-tree node**: the sidebar and the Move modal now render the same
+  parameterized `FolderExplorer.folder_tree_node` (config: navigate/toggle event,
+  rename, drag, hover), so guide-line and structure changes stay in sync. The
+  duplicate `move_folder_option` was removed.
+- **Sidebar tree state persists server-side**: expanded folders + collapsed flag
+  are stored in user meta and rendered on first paint (like the grid/list view
+  mode), removing the collapsed-then-jump-open flash after connect.
+- **Select-mode toolbar** reworked: it stays inside the header (no jump on
+  toggle), with a clear **Done** exit button + count + Select all / Clear on the
+  left and bulk Move / Download / Delete (Delete red) on the right, shown only
+  when something is selected.
+- **Folder tree guide lines** (sidebar + Move modal): per-row connectors with a
+  `├` tee and a rounded `└` curl on the last row, elbows that reach the item,
+  and 50% line opacity via an inheriting `--pk-tree-line` variable.
+  `tree_connector_class/2` + `tree_line_color/1` are shared helpers.
+- Media folder sidebar rows are fully clickable to open a folder (chevron still
+  toggles, rename pencil still renames).
+- Decluttered the media settings page: top banners folded into the
+  subtitle/Quick Actions and the stale "Advanced Features Coming Soon" card
+  removed.
+
+### Fixed
+- Edit header popover click-away routed its event to the parent LiveView and
+  crashed with a `FunctionClauseError`; it now targets the component.
+- Transparent-PNG logos render transparently (`object-contain` + drop shadow)
+  instead of as a black/white box.
+- Colored folders now show the blue selection highlight (the inline folder color
+  was outranking the tint; it's now `!important`).
+- Uncolored tree guide lines no longer render solid black (daisyUI-5 renamed
+  `--bc`; replaced with a valid `currentColor`-based color).
+- The orphaned-files view no longer mixes in folder cards (files only).
+- The folder-header description no longer shows a large top blank line
+  (`whitespace-pre-line` preserved the HEEx-indented expression's newline).
+- A folder's chosen cover/logo no longer appears as a loose file in that
+  folder's grid/list — `list_files_in_scope/2` excludes the folder's own
+  `cover_file_uuid`/`logo_file_uuid` (the design intent the schema documented but
+  didn't enforce). They remain real files, re-selectable from the header picker.
+- Header media (creator avatar, cover, logo) is loaded only when its
+  `header_show_*` toggle is on, dropping up to three queries + two signed-URL
+  builds per folder navigation; the Edit-header previews still load them on open.
+- `cover_file_uuid` / `logo_file_uuid` are now FK columns to
+  `phoenix_kit_files(uuid)` with `ON DELETE SET NULL`, so deleting a referenced
+  file self-heals the header reference; `header_size` is now `NOT NULL` (V134).
+- Media file sort is case-insensitive for name and carries a stable `uuid`
+  tiebreaker so equal sizes/names/timestamps can't shuffle across pages.
+- Sidebar tree state persists from the in-socket user instead of re-reading the
+  user from the DB on every expand/collapse; toolbar sort/filter/size handlers
+  ignore out-of-whitelist values instead of crashing the component.
+
 ## 1.7.144 - 2026-06-10
 
 ### Added

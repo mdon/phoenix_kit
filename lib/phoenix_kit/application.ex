@@ -23,7 +23,7 @@ defmodule PhoenixKit.Application do
       Logger.warning("""
       PhoenixKit is added as a dependency but not installed.
       Run: mix phoenix_kit.install
-      See: https://hexdocs.pm/phoenix_kit
+      See: https://phoenix-kit.hexdocs.pm
       """)
     end
   end

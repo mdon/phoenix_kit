@@ -13,6 +13,13 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   - `sitemap_router_discovery_include_only` - JSON array of regex patterns for whitelist mode
   - `sitemap_protected_pipelines` - JSON array of pipeline names that require authentication
 
+  ## Pattern Syntax
+
+  Exclude and include-only patterns are **regular expressions** (compiled with
+  `Regex.compile/1`), not shell globs. A bare `"*"` is an invalid regex and is
+  ignored with a logged warning — use `".*"` to match everything or `"^/prefix"`
+  to match a path prefix. Invalid patterns never silently disable the source.
+
   ## Default Exclusions
 
   By default, the following patterns are excluded:
@@ -20,6 +27,9 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   - `^/api` - API endpoints
   - `^/phoenix_kit` - PhoenixKit admin routes
   - `^/dev` - Development routes
+  - `^/__` - Internal/technical routes (double-underscore convention, e.g.
+    Publishing's internal dispatch scope)
+  - `^/maintenance$` - PhoenixKit's reserved maintenance page route
   - `:[a-z_]+` - Routes with parameters
   - `\\*` - Wildcard routes
 
@@ -76,6 +86,11 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     "^/dev",
     "^/test",
     "^/dashboard",
+    # Internal/technical routes (double-underscore convention, e.g. Publishing's
+    # "/__phoenix_kit_publishing_dispatch" catch-all dispatch scope) and
+    # PhoenixKit's reserved maintenance page - neither is public content
+    "^/__",
+    "^/maintenance$",
     ":[a-z_]+",
     "\\*",
     # Auth pages - should not be indexed by search engines
@@ -153,8 +168,8 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
   defp do_collect(opts) do
     base_url = Keyword.get(opts, :base_url)
-    exclude_patterns = get_exclude_patterns()
-    include_only = get_include_only_patterns()
+    exclude_patterns = compile_patterns(get_exclude_patterns(), "exclude")
+    include_only = compile_include_only(get_include_only_patterns())
 
     RouteResolver.get_routes()
     |> Enum.filter(&valid_for_sitemap?(&1, exclude_patterns, include_only))
@@ -256,25 +271,41 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     route.verb == :get
   end
 
-  defp excluded?(path, patterns) do
-    Enum.any?(patterns, fn pattern ->
-      case Regex.compile(pattern) do
-        {:ok, regex} -> Regex.match?(regex, path)
-        _ -> false
-      end
-    end)
+  defp excluded?(path, regexes) do
+    Enum.any?(regexes, &Regex.match?(&1, path))
   end
 
-  defp included?(_path, []) do
-    # Empty include_only = include all
-    true
-  end
+  # `:all` means no include-only patterns were configured → include everything.
+  defp included?(_path, :all), do: true
+  defp included?(path, {:whitelist, regexes}), do: Enum.any?(regexes, &Regex.match?(&1, path))
 
-  defp included?(path, patterns) do
-    Enum.any?(patterns, fn pattern ->
+  # An unset/empty whitelist keeps the "include all" behavior; a configured
+  # whitelist is compiled so an all-invalid list still excludes everything
+  # (now with a logged warning) rather than silently flipping to include-all.
+  defp compile_include_only([]), do: :all
+
+  defp compile_include_only(patterns),
+    do: {:whitelist, compile_patterns(patterns, "include_only")}
+
+  # Compile raw pattern strings into `Regex` structs, logging and dropping any
+  # that fail to compile. Patterns are regular expressions (not shell globs):
+  # a bare "*" fails to compile and would otherwise be swallowed silently,
+  # masking a misconfiguration (e.g. an include-only "*" would suppress the
+  # entire source with no diagnostic trail).
+  defp compile_patterns(patterns, context) do
+    Enum.flat_map(patterns, fn pattern ->
       case Regex.compile(pattern) do
-        {:ok, regex} -> Regex.match?(regex, path)
-        _ -> false
+        {:ok, regex} ->
+          [regex]
+
+        {:error, reason} ->
+          Logger.warning(
+            "RouterDiscovery: ignoring invalid #{context} pattern #{inspect(pattern)} " <>
+              "(#{inspect(reason)}). Patterns are regular expressions, not globs — " <>
+              "use \".*\" to match everything or \"^/prefix\" for a path prefix."
+          )
+
+          []
       end
     end)
   end

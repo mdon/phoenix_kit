@@ -16,6 +16,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   @per_page 10
   @max_cell_length 20
 
+  # Per-admin grid/list preference for the users table, persisted in the
+  # current user's custom_fields (mirrors the media browser's view toggle).
+  @view_mode_key "users_view_mode"
+
   def mount(_params, _session, socket) do
     # Subscribe to user events for live updates
     if connected?(socket) do
@@ -52,6 +56,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:page, 1)
       |> assign(:per_page, @per_page)
       |> assign(:search_query, "")
+      |> assign(:show_search, false)
+      |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
       |> assign(:filter_role, "all")
       |> assign(
         :org_accounts_enabled,
@@ -95,6 +101,39 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> load_users()
 
     {:noreply, socket}
+  end
+
+  # Toggle the collapsed search row open/closed (mirrors the media browser).
+  def handle_event("toggle_search", _params, socket) do
+    {:noreply, assign(socket, :show_search, !socket.assigns.show_search)}
+  end
+
+  # Clear the query and close the search row (the ✕ button).
+  def handle_event("clear_search", _params, socket) do
+    socket =
+      socket
+      |> assign(:search_query, "")
+      |> assign(:show_search, false)
+      |> assign(:page, 1)
+      |> load_users()
+
+    {:noreply, socket}
+  end
+
+  # Collapse the search row on blur, but only while it is empty.
+  def handle_event("close_search_if_empty", _params, socket) do
+    {:noreply, assign(socket, :show_search, socket.assigns.search_query != "")}
+  end
+
+  # Switch between the table and card views, persisting the choice on the
+  # current user so it survives reloads (mirrors the media browser).
+  def handle_event("set_view_mode", %{"mode" => mode}, socket) when mode in ["card", "table"] do
+    user = persist_user_view_mode(socket.assigns[:phoenix_kit_current_user], mode)
+
+    {:noreply,
+     socket
+     |> assign(:phoenix_kit_current_user, user)
+     |> assign(:view_mode, mode)}
   end
 
   def handle_event("filter_by_role", %{"role" => role}, socket) do
@@ -740,6 +779,38 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     |> assign(:pending_users, stats.pending_users)
   end
 
+  # Read the per-user table/card preference from custom_fields, defaulting to
+  # "table". Tolerant of a missing/garbage value.
+  defp load_user_view_mode(%User{} = user) do
+    case Auth.get_user_field(user, @view_mode_key) do
+      mode when mode in ["card", "table"] -> mode
+      _ -> "table"
+    end
+  end
+
+  defp load_user_view_mode(_), do: "table"
+
+  # Persist the preference into a freshly-read custom_fields copy so a
+  # concurrent change elsewhere isn't clobbered. Returns the updated user (or
+  # the original on no-user / error) for the caller to re-assign.
+  defp persist_user_view_mode(%{uuid: uuid} = user, mode) when is_binary(uuid) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @view_mode_key, mode)
+
+    # Internal view preference: skip the custom-field-definition registration
+    # (so it never surfaces in the column customizer) and the profile-update
+    # broadcast (so toggling the view doesn't reload the list for every admin).
+    case Auth.update_user_custom_fields(fresh, merged,
+           ensure_definitions: false,
+           broadcast: false
+         ) do
+      {:ok, updated} -> updated
+      {:error, _} -> user
+    end
+  end
+
+  defp persist_user_view_mode(user, _mode), do: user
+
   defp get_user_roles(user) do
     # Use preloaded roles if available
     case Ecto.assoc_loaded?(user.roles) do
@@ -899,6 +970,17 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     # Always render "actions" column
     column_id == "actions" || TableColumns.get_column_metadata(column_id) != nil
   end
+
+  # Per-column responsive class for the table view. On mobile (table-fixed)
+  # only the email + actions columns are shown — the rest collapse — so the
+  # list reads as a compact row (avatar/email/name + a `…` menu) like the
+  # media browser. The actions column is pinned narrow and right-aligned at all
+  # sizes so the `…` menu always sits at the far-right edge (with the cell's
+  # padding) instead of drifting into a wide auto-width cell when columns are
+  # hidden.
+  def mobile_col_class("actions"), do: "w-12 text-right"
+  def mobile_col_class("email"), do: ""
+  def mobile_col_class(_), do: "hidden md:table-cell"
 
   # Get valid columns only (filters out deleted custom fields)
   def get_valid_columns(columns) do

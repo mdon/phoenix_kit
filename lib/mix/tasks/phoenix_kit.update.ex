@@ -378,6 +378,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Ensure :phoenix_kit_css_sources compiler is registered in mix.exs
       igniter = ensure_css_sources_compiler(igniter)
 
+      # Ensure the external-module JS integration is wired (compiler + aggregate
+      # script tag). Picks up the feature on hosts installed before it existed.
+      igniter = JsIntegration.ensure_module_js_integration(igniter)
+
       # Check if this is the first pass (config missing) or second pass (config exists)
       config_status = Process.get(:phoenix_kit_config_status, :ok)
 
@@ -816,7 +820,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       DOCUMENTATION
         For more information, visit:
-        https://hexdocs.pm/phoenix_kit
+        https://phoenix-kit.hexdocs.pm
       """)
     end
 
@@ -940,7 +944,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     defp ensure_css_sources_compiler(igniter) do
       Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
         nil ->
-          {:ok, {:code, [:phoenix_kit_css_sources]}}
+          # No :compilers key yet — keep the defaults by prepending.
+          {:ok, {:code, quote(do: [:phoenix_kit_css_sources] ++ Mix.compilers())}}
 
         zipper ->
           case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_css_sources) do

@@ -22,10 +22,18 @@ defmodule PhoenixKit.Notifications.Render do
   @doc """
   Returns the display payload for a notification.
 
-  `notification.activity` must be preloaded.
+  `notification.activity` must be preloaded. `locale` is the recipient's current
+  locale (base code, e.g. `"en"`); it's threaded into the built link so the
+  click-through lands on the right locale-prefixed path. When `nil`, link
+  building falls back to `Routes.path`'s `determine_locale/0` (the process
+  Gettext locale) — used by callers that don't track a locale (e.g. the admin
+  inbox). The metadata `notification_link` override is returned verbatim and is
+  expected to already be prefix/locale-correct (built via `Routes.path/1`).
   """
-  @spec render(Notification.t()) :: render_result()
-  def render(%Notification{activity: %_{} = activity}) do
+  @spec render(Notification.t(), String.t() | nil) :: render_result()
+  def render(notification, locale \\ nil)
+
+  def render(%Notification{activity: %_{} = activity}, locale) do
     meta = activity.metadata || %{}
     {default_icon, default_text} = icon_and_text(activity.action, meta)
 
@@ -34,12 +42,12 @@ defmodule PhoenixKit.Notifications.Render do
     %{
       icon: meta_string(meta, "notification_icon") || default_icon,
       text: meta_string(meta, "notification_text") || default_text,
-      link: meta_string(meta, "notification_link") || link_for(activity),
+      link: meta_string(meta, "notification_link") || link_for(activity, locale),
       actor_uuid: activity.actor_uuid
     }
   end
 
-  def render(%Notification{} = notification) do
+  def render(%Notification{} = notification, _locale) do
     # Standalone notification (V126): `activity` is nil, so this clause —
     # not the `%_{}` activity clause above — matches. (An activity-linked
     # row that wasn't preloaded carries `%Ecto.Association.NotLoaded{}`,
@@ -88,6 +96,10 @@ defmodule PhoenixKit.Notifications.Render do
     {"hero-check-badge", "Your email was confirmed."}
   end
 
+  defp icon_and_text("user.email_unconfirmed", _meta) do
+    {"hero-exclamation-circle", "Your email is no longer confirmed."}
+  end
+
   defp icon_and_text("user.avatar_changed", _meta) do
     {"hero-user-circle", "Your avatar was updated."}
   end
@@ -130,10 +142,26 @@ defmodule PhoenixKit.Notifications.Render do
 
   # ── Action → link ────────────────────────────────────────────────────
 
-  defp link_for(%_{action: "user." <> _verb}), do: Routes.path("/dashboard/settings")
+  # Core account actions that land on the user's settings page. These are the
+  # only links core can build itself; everything else (social/module actions)
+  # must ship a `notification_link` in metadata (see moduledoc). Matched
+  # explicitly — NOT via a broad `"user." <> _` prefix, which used to wrongly
+  # capture `user.followed` (a connections action) and send it to settings.
+  @account_actions ~w(
+    user.roles_updated user.status_changed user.password_changed user.password_reset
+    user.email_changed user.email_confirmed user.email_unconfirmed user.avatar_changed
+    user.profile_updated user.note_created user.note_deleted
+  )
 
-  # No default deep-link target: the caller decides what to do when `link` is nil.
-  defp link_for(_activity), do: nil
+  defp link_for(%_{action: action}, locale) when action in @account_actions do
+    Routes.path("/dashboard/settings", locale: locale)
+  end
+
+  # No default deep-link target for module-owned actions (user.followed, post.*,
+  # comment.*) or unknown actions, nor for user.deleted (the account is gone).
+  # The caller decides what to do when `link` is nil; a deep-link must come from
+  # the emitter's `notification_link` metadata.
+  defp link_for(_activity, _locale), do: nil
 
   # ── Helpers ──────────────────────────────────────────────────────────
 

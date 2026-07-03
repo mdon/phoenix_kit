@@ -109,6 +109,7 @@ defmodule PhoenixKit.Migrations.Postgres.V70 do
 
     if table_exists?(events_table, escaped_prefix) and
          table_exists?(logs_table, escaped_prefix) and
+         column_exists?(events_table, "email_log_id", escaped_prefix) and
          column_exists?(events_table, "email_log_uuid", escaped_prefix) and
          column_exists?(logs_table, "uuid", escaped_prefix) do
       events = prefix_table(events_table, prefix)
@@ -169,6 +170,7 @@ defmodule PhoenixKit.Migrations.Postgres.V70 do
 
     if table_exists?(orphaned_table, escaped_prefix) and
          table_exists?(logs_table, escaped_prefix) and
+         column_exists?(orphaned_table, "matched_email_log_id", escaped_prefix) and
          column_exists?(orphaned_table, "matched_email_log_uuid", escaped_prefix) and
          column_exists?(logs_table, "uuid", escaped_prefix) do
       orphaned = prefix_table(orphaned_table, prefix)

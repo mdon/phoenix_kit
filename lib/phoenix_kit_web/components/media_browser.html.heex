@@ -94,9 +94,13 @@
     <% end %>
 
     <%!-- Main Layout: Sidebar + Content in a unified card --%>
-    <div class={["card bg-base-100 shadow-xl", @fill_height && "flex-1 min-h-0"]}>
+    <%!-- `isolate` confines the hero header's `z-30` (and the toolbar
+         dropdowns' `z-20`) to this card's own stacking context, so they no
+         longer paint over the mobile drawer/navbar. Modals live outside this
+         card and are unaffected. --%>
+    <div class={["card bg-base-100 shadow-xl isolate", @fill_height && "flex-1 min-h-0"]}>
       <div class={[
-        "card-body p-4 flex flex-row gap-0 overflow-hidden",
+        "card-body p-2 sm:p-4 flex flex-row gap-0 overflow-hidden",
         if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
       ]}>
         <%!-- Folder Sidebar --%>
@@ -118,7 +122,7 @@
         />
 
         <%!-- Main content area --%>
-        <div class="flex-1 min-w-0 min-h-0 pl-4 flex flex-col">
+        <div class="flex-1 min-w-0 min-h-0 lg:pl-4 flex flex-col">
           <%!-- Hidden upload input for folder drag-drop (always in DOM when in a folder) --%>
           <%= if @has_buckets && !@show_upload && assigns[:parent_uploads] do %>
             <form
@@ -132,7 +136,7 @@
 
           <div class="min-h-0 flex-1 flex flex-col">
             <div
-              class="p-2 min-h-0 flex-1 flex flex-col"
+              class="px-2 pb-2 min-h-0 flex-1 flex flex-col"
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
@@ -178,7 +182,11 @@
                 folder it becomes a clickable button followed by the ancestor
                 path and the current folder.
               --%>
-              <nav class="breadcrumbs text-sm mb-2">
+              <%!-- `!py-0` strips daisyUI's default breadcrumb padding and the
+                   removed top padding above lets this row sit flush with the
+                   sidebar's "Folders" header; `mb-3` matches that header's
+                   bottom gap so the rows below line up too. --%>
+              <nav class="breadcrumbs text-sm mb-3 !py-0 min-h-[1.5rem] flex items-center">
                 <ul>
                   <%= if @current_folder do %>
                     <li>
@@ -217,371 +225,904 @@
                 </ul>
               </nav>
 
-              <%!-- Page title — sits above the folder description so it reads
-                   title → description. Contextual: Trash / Orphaned / All
-                   Files / the current folder name / the scope root. --%>
-              <h2 class="card-title text-xl mb-2">
+              <%!--
+                Folder hero header: a cover image (or a soft folder-color
+                gradient when none is set) as the background, faded to the page
+                at the bottom, with the title + created-by/file-count and the
+                "Edit header" action overlaid. Non-folder views (Trash /
+                Orphaned / All Files / root) just show a plain title. The
+                cover-image upload itself lives in the Edit-header modal.
+              --%>
+              <%!-- Unified header: a hero block (cover image / folder-color
+                   gradient for folders, neutral gradient otherwise) that also
+                   holds the toolbar at the bottom. `overflow-hidden` is avoided
+                   so the toolbar dropdown menus aren't clipped — the background
+                   layers are each rounded instead. --%>
+              <%!-- The folder whose header customizations to display. Falls
+                   back to the scope folder only at the effective root of an
+                   embedded (scoped) browser — never under the all-files /
+                   orphaned / trash / search views, where the `<h2>` title below
+                   would disagree with the scope folder's metadata. See
+                   `header_folder_target/6`. --%>
+              <% header_folder =
+                header_folder_target(
+                  @current_folder,
+                  @file_view,
+                  @filter_orphaned,
+                  @search_query,
+                  @filter_trash,
+                  @scope_folder
+                ) %>
+              <% hero_hex = header_folder && folder_color_hex(header_folder.color) %>
+              <%!-- Folder-header customization (Edit header): size + per-element
+                   visibility toggles. Non-folder views ignore them (defaults). --%>
+              <% header_min_h =
+                header_folder &&
+                  case header_folder.header_size do
+                    "small" -> "min-h-[100px] sm:min-h-[140px]"
+                    "large" -> "min-h-[160px] sm:min-h-[320px]"
+                    _ -> "min-h-[130px] sm:min-h-[200px]"
+                  end %>
+              <% show_background = !header_folder || header_folder.header_show_background %>
+              <% show_logo =
+                header_folder && header_folder.header_show_icon && @folder_logo_url %>
+              <% show_title = !header_folder || header_folder.header_show_title %>
+              <% show_creator =
+                header_folder && header_folder.header_show_creator && @folder_creator_name %>
+              <% show_date = header_folder && header_folder.header_show_date %>
+              <% show_file_count = header_folder && header_folder.header_show_file_count %>
+              <% show_creation_info = show_creator || show_date || show_file_count %>
+              <% show_description = header_folder && header_folder.header_show_description %>
+              <%!-- `relative z-30` lifts the whole header above the list's
+                   scroll area (which comes later in the DOM), so the toolbar
+                   dropdowns open *over* the sticky table header instead of
+                   being painted behind it. --%>
+              <div class={[
+                "relative z-30 rounded-xl mb-3 sm:mb-4 flex flex-col justify-end",
+                header_min_h
+              ]}>
+                <%!-- Background: cover image (when shown), folder-color gradient,
+                     or neutral --%>
                 <%= cond do %>
-                  <% @filter_trash -> %>
-                    {gettext("Trash")}
-                  <% @filter_orphaned -> %>
-                    {gettext("Orphaned Files")}
-                  <% @file_view == "all" -> %>
-                    {gettext("All Files")}
-                  <% @current_folder -> %>
-                    {@current_folder.name}
-                  <% true -> %>
-                    {if @scope_folder_id, do: @scope_folder_name, else: gettext("All Media")}
-                <% end %>
-              </h2>
-
-              <%= if @current_folder do %>
-                <%!-- Folder description: view + inline edit/add --%>
-                <div class="mb-4">
-                  <%= if @editing_folder_description == @current_folder.uuid do %>
-                    <form
-                      phx-submit="save_folder_description"
-                      phx-change="folder_description_input"
-                      phx-target={@myself}
-                    >
-                      <input type="hidden" name="folder_uuid" value={@current_folder.uuid} />
-                      <textarea
-                        name="description"
-                        rows="3"
-                        maxlength="2000"
-                        placeholder={gettext("Describe what this folder is for...")}
-                        class="textarea textarea-bordered textarea-sm w-full block"
-                        phx-mounted={JS.focus()}
-                        phx-keydown="cancel_edit_folder_description"
-                        phx-target={@myself}
-                        phx-key="Escape"
-                        phx-debounce="300"
-                      >{@folder_description_text}</textarea>
-                      <div class="flex items-center gap-2 mt-3">
-                        <button type="submit" class="btn btn-sm btn-primary">
-                          {gettext("Save")}
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="cancel_edit_folder_description"
-                          phx-target={@myself}
-                          class="btn btn-sm btn-ghost"
-                        >
-                          {gettext("Cancel")}
-                        </button>
-                      </div>
-                    </form>
-                  <% else %>
-                    <%= if @current_folder.description not in [nil, ""] do %>
-                      <div class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200/40 px-3 py-2">
-                        <.icon
-                          name="hero-information-circle"
-                          class="w-4 h-4 text-base-content/40 shrink-0"
-                        />
-                        <p
-                          class="text-sm text-base-content/80 truncate flex-1 min-w-0"
-                          title={@current_folder.description}
-                        >
-                          {@current_folder.description}
-                        </p>
-                        <button
-                          type="button"
-                          phx-click="start_edit_folder_description"
-                          phx-value-folder-uuid={@current_folder.uuid}
-                          phx-target={@myself}
-                          class="btn btn-xs btn-ghost gap-1 shrink-0"
-                          title={gettext("Edit description")}
-                        >
-                          <.icon name="hero-pencil-square" class="w-3.5 h-3.5" />
-                          {gettext("Edit")}
-                        </button>
-                      </div>
-                    <% else %>
-                      <button
-                        type="button"
-                        phx-click="start_edit_folder_description"
-                        phx-value-folder-uuid={@current_folder.uuid}
-                        phx-target={@myself}
-                        class="btn btn-sm btn-outline gap-2"
-                      >
-                        <.icon name="hero-plus" class="w-4 h-4" />
-                        {gettext("Add a folder description")}
-                      </button>
-                    <% end %>
-                  <% end %>
-                </div>
-              <% end %>
-
-              <%!-- Search Bar (toggleable) --%>
-              <%= if @show_search or @search_query != "" do %>
-                <form phx-change="search" phx-target={@myself} phx-submit="search" class="mb-4">
-                  <label class="input input-bordered input-sm w-full flex items-center gap-2">
-                    <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/40" />
-                    <input
-                      type="text"
-                      name="q"
-                      value={@search_query}
-                      placeholder={gettext("Search files...")}
-                      class="grow bg-transparent border-none outline-none focus:outline-none"
-                      phx-debounce="300"
-                      autocomplete="off"
-                      phx-mounted={JS.focus()}
+                  <%!-- `header_folder &&` gates the cover so a scope-folder
+                       cover URL still held in assigns (it's only refreshed on
+                       the nav path) can't bleed into the all-files / trash /
+                       orphaned / search views where `header_folder` is nil. --%>
+                  <% header_folder && show_background && @folder_cover_url -> %>
+                    <img
+                      src={@folder_cover_url}
+                      alt=""
+                      class="absolute inset-0 w-full h-full object-cover rounded-xl"
                     />
-                    <%= if @search_query != "" do %>
-                      <button
-                        type="button"
-                        phx-click="clear_search"
-                        phx-target={@myself}
-                        class="btn btn-ghost btn-xs btn-circle"
-                      >
-                        <.icon name="hero-x-mark" class="w-4 h-4" />
-                      </button>
-                    <% end %>
-                  </label>
-                </form>
-              <% end %>
+                  <% hero_hex -> %>
+                    <div
+                      class="absolute inset-0 rounded-xl"
+                      style={"background-image: linear-gradient(160deg, #{hero_hex}59 0%, #{hero_hex}1a 55%, transparent 100%);"}
+                    >
+                    </div>
+                  <% true -> %>
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-br from-base-200 to-base-300">
+                    </div>
+                <% end %>
 
-              <%!-- Header --%>
-              <div class="flex justify-between items-center mb-4">
-                <%= if @select_mode do %>
-                  <%!-- Selection Mode Header --%>
-                  <div class="flex items-center gap-2 flex-wrap">
+                <%!-- Bottom fade to the page background for the clean,
+                     faded-out look and readable overlaid text. --%>
+                <div class="absolute inset-0 rounded-xl bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
+                </div>
+
+                <%!-- Action(s), top-right. `z-20` keeps it above the content
+                     block (also z-10, but later in the DOM) so a tall header
+                     with lots of content can't cover the button's click area. --%>
+                <%= if @current_folder do %>
+                  <div class="absolute top-3 right-3 z-40 flex flex-col items-end gap-2">
                     <button
-                      phx-click="toggle_select_mode"
+                      type="button"
+                      phx-click="start_edit_folder_header"
+                      phx-value-folder-uuid={@current_folder.uuid}
                       phx-target={@myself}
-                      class="btn btn-sm btn-error gap-2"
+                      class="btn btn-sm gap-1.5 border-0 bg-base-100/70 hover:bg-base-100 backdrop-blur text-base-content shadow"
                     >
-                      <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+                      <.icon name="hero-pencil-square" class="w-4 h-4" />
+                      {gettext("Edit header")}
                     </button>
-                    <span class="text-sm font-semibold">
-                      {ngettext(
-                        "%{count} selected",
-                        "%{count} selected",
-                        MapSet.size(@selected_files) + MapSet.size(@selected_folders)
-                      )}
-                    </span>
-                    <button
-                      phx-click="show_move_modal"
-                      phx-target={@myself}
-                      disabled={
-                        MapSet.size(@selected_files) + MapSet.size(@selected_folders) == 0
-                      }
-                      title={gettext("Select items to move")}
-                      class="btn btn-sm btn-primary gap-1"
-                    >
-                      <.icon name="hero-folder-arrow-down" class="w-4 h-4" /> {gettext("Move")}
-                    </button>
-                    <%= if MapSet.size(@selected_files) + MapSet.size(@selected_folders) > 0 do %>
-                      <div class="dropdown dropdown-end">
-                        <label
-                          tabindex="0"
-                          class="btn btn-sm btn-ghost px-2"
-                          title={gettext("More actions")}
-                        >
-                          <.icon name="hero-ellipsis-horizontal" class="w-5 h-5" />
-                        </label>
-                        <ul
-                          tabindex="0"
-                          class="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg border border-base-200"
-                        >
-                          <%= if MapSet.size(@selected_files) > 0 do %>
-                            <li>
-                              <button phx-click="download_selected" phx-target={@myself}>
-                                <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext(
-                                  "Download"
+
+                    <%!-- Edit-header editor as a popover dropping from the
+                         button (not a centered modal). Closes on click-away,
+                         except while the image picker is open. --%>
+                    <%= if @editing_folder_header do %>
+                      <div
+                        id="folder-header-popover"
+                        phx-hook="ViewportPopover"
+                        class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-base-100 rounded-xl shadow-2xl border border-base-300 text-left cursor-default font-normal"
+                        phx-click-away={!@selecting_cover && "cancel_edit_folder_header"}
+                        phx-target={@myself}
+                      >
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-base-200 shrink-0">
+                          <h3 class="font-semibold text-sm flex items-center gap-2">
+                            <.icon name="hero-pencil-square" class="w-4 h-4 text-primary" />
+                            {gettext("Edit header")}
+                          </h3>
+                          <button
+                            type="button"
+                            phx-click="cancel_edit_folder_header"
+                            phx-target={@myself}
+                            class="btn btn-ghost btn-xs btn-circle"
+                            title={gettext("Close")}
+                          >
+                            <.icon name="hero-x-mark" class="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+                          <%!-- 1. Name + description (saved on Save below; the
+                               other sections apply instantly). --%>
+                          <form
+                            id="folder-header-form"
+                            phx-submit="save_folder_header"
+                            phx-change="folder_header_input"
+                            phx-target={@myself}
+                            class="mb-4"
+                          >
+                            <input
+                              type="hidden"
+                              name="folder_uuid"
+                              value={@editing_folder_header}
+                            />
+                            <div class="mb-3">
+                              <label
+                                class="text-xs font-medium mb-1 block text-base-content/70"
+                                for="folder-header-name"
+                              >
+                                {gettext("Name")}
+                              </label>
+                              <input
+                                id="folder-header-name"
+                                type="text"
+                                name="name"
+                                value={@folder_header_name}
+                                maxlength="255"
+                                required
+                                placeholder={gettext("Folder name")}
+                                class="input input-bordered input-sm w-full"
+                                phx-debounce="300"
+                              />
+                            </div>
+                            <div>
+                              <label
+                                class="text-xs font-medium mb-1 block text-base-content/70"
+                                for="folder-header-description"
+                              >
+                                {gettext("Description")}
+                              </label>
+                              <textarea
+                                id="folder-header-description"
+                                name="description"
+                                rows="3"
+                                maxlength="2000"
+                                placeholder={gettext("Describe what this folder is for...")}
+                                class="textarea textarea-bordered textarea-sm w-full"
+                                phx-debounce="300"
+                              >{@folder_header_description}</textarea>
+                            </div>
+                          </form>
+
+                          <%!-- 2. Icon + background image --%>
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Icon")}
+                            </label>
+                            <div class="flex items-center gap-3">
+                              <button
+                                type="button"
+                                phx-click="open_logo_picker"
+                                phx-target={@myself}
+                                class="group relative w-16 h-16 rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer shrink-0"
+                              >
+                                <%= if @folder_logo_url do %>
+                                  <img
+                                    src={@folder_logo_url}
+                                    alt=""
+                                    class="absolute inset-0 w-full h-full object-contain p-1"
+                                  />
+                                <% else %>
+                                  <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
+                                    <.icon name="hero-photo" class="w-6 h-6" />
+                                  </div>
+                                <% end %>
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                                  <.icon
+                                    name="hero-arrow-up-tray"
+                                    class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                  />
+                                </div>
+                              </button>
+                              <div class="flex-1 min-w-0">
+                                <p class="text-xs text-base-content/50">
+                                  {gettext("Pick or upload a small icon image.")}
+                                </p>
+                                <%= if @folder_logo_url do %>
+                                  <button
+                                    type="button"
+                                    phx-click="remove_folder_logo"
+                                    phx-value-folder-uuid={@editing_folder_header}
+                                    phx-target={@myself}
+                                    class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                                  >
+                                    <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext(
+                                      "Remove"
+                                    )}
+                                  </button>
+                                <% end %>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Background image")}
+                            </label>
+                            <button
+                              type="button"
+                              phx-click="open_cover_picker"
+                              phx-target={@myself}
+                              class="group relative block w-full aspect-[16/7] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
+                            >
+                              <%= if @folder_cover_url do %>
+                                <img
+                                  src={@folder_cover_url}
+                                  alt=""
+                                  class="absolute inset-0 w-full h-full object-cover"
+                                />
+                              <% else %>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
+                                  <.icon name="hero-photo" class="w-7 h-7" />
+                                  <span class="text-xs">{gettext("No background")}</span>
+                                </div>
+                              <% end %>
+                              <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                                <span class="opacity-0 group-hover:opacity-100 transition-opacity btn btn-xs gap-1 border-0 bg-base-100/90 text-base-content">
+                                  <.icon name="hero-photo" class="w-3.5 h-3.5" />
+                                  {if @folder_cover_url,
+                                    do: gettext("Change"),
+                                    else: gettext("Choose")}
+                                </span>
+                              </div>
+                            </button>
+                            <%= if @folder_cover_url do %>
+                              <button
+                                type="button"
+                                phx-click="remove_folder_cover"
+                                phx-value-folder-uuid={@editing_folder_header}
+                                phx-target={@myself}
+                                class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                              >
+                                <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext(
+                                  "Remove"
                                 )}
                               </button>
-                            </li>
+                            <% end %>
+                          </div>
+
+                          <%!-- 3. Header size --%>
+                          <div class="mb-4">
+                            <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                              {gettext("Header size")}
+                            </label>
+                            <div class="join w-full">
+                              <%= for {val, label} <- [
+                                    {"small", gettext("Small")},
+                                    {"medium", gettext("Medium")},
+                                    {"large", gettext("Large")}
+                                  ] do %>
+                                <button
+                                  type="button"
+                                  phx-click="set_header_size"
+                                  phx-value-size={val}
+                                  phx-value-folder-uuid={@editing_folder_header}
+                                  phx-target={@myself}
+                                  class={[
+                                    "btn btn-sm join-item flex-1",
+                                    @current_folder.header_size == val && "btn-primary"
+                                  ]}
+                                >
+                                  {label}
+                                </button>
+                              <% end %>
+                            </div>
+                          </div>
+
+                          <%!-- 4. Element visibility toggles --%>
+                          <div class="mb-4 divide-y divide-base-200">
+                            <%= for {opt, label, icon, on} <- [
+                                  {"title", gettext("Show title"), "hero-bars-3-bottom-left",
+                                   @current_folder.header_show_title},
+                                  {"icon", gettext("Show icon"), "hero-photo",
+                                   @current_folder.header_show_icon},
+                                  {"creator", gettext("Show creator"), "hero-user",
+                                   @current_folder.header_show_creator},
+                                  {"date", gettext("Show date created"), "hero-calendar",
+                                   @current_folder.header_show_date},
+                                  {"file_count", gettext("Show file count"), "hero-document",
+                                   @current_folder.header_show_file_count},
+                                  {"description", gettext("Show description"), "hero-document-text",
+                                   @current_folder.header_show_description},
+                                  {"background", gettext("Show background"), "hero-swatch",
+                                   @current_folder.header_show_background}
+                                ] do %>
+                              <label class="flex items-center gap-2.5 py-2 cursor-pointer">
+                                <.icon name={icon} class="w-4 h-4 text-base-content/50 shrink-0" />
+                                <span class="text-sm flex-1">{label}</span>
+                                <input
+                                  type="checkbox"
+                                  class="toggle toggle-primary toggle-sm"
+                                  checked={on}
+                                  phx-click="toggle_header_option"
+                                  phx-value-option={opt}
+                                  phx-value-folder-uuid={@editing_folder_header}
+                                  phx-target={@myself}
+                                />
+                              </label>
+                            <% end %>
+                          </div>
+                        </div>
+
+                        <%!-- Save / Cancel — pinned as a non-scrolling footer
+                             (shrink-0) so the buttons stay reachable however
+                             tall/scrolled the body is. Save submits the
+                             name/description form above (the rest applied
+                             live). --%>
+                        <div class="flex justify-end gap-2 px-4 py-3 border-t border-base-200 shrink-0">
+                          <button
+                            type="button"
+                            phx-click="cancel_edit_folder_header"
+                            phx-target={@myself}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            {gettext("Done")}
+                          </button>
+                          <button
+                            type="submit"
+                            form="folder-header-form"
+                            class="btn btn-primary btn-sm"
+                          >
+                            {gettext("Save name")}
+                          </button>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <%!-- Title + meta, bottom-left over the faded area. The
+                       description must NOT use `whitespace-pre-line` — the
+                       HEEx-indented `{...}` would render its leading newline as
+                       a blank line ("crazy top padding"). --%>
+                <%!-- Content (title / description / meta / toolbar) over the
+                     faded bottom area. The toolbar is folded in below. --%>
+                <div class="relative z-10 p-3 sm:p-4 flex flex-col gap-1">
+                  <% small_header = header_folder && header_folder.header_size == "small" %>
+                  <%!-- Logo + text. On a SMALL header the logo sits to the LEFT
+                       of the title/description (so it can be larger despite the
+                       short header); otherwise it sits above them. --%>
+                  <div class={[
+                    "flex min-w-0",
+                    if(small_header, do: "flex-row items-center gap-3", else: "flex-col gap-1")
+                  ]}>
+                    <%= if show_logo do %>
+                      <%!-- Transparent logos (e.g. PNG) show the header
+                           background through, not a solid square: no bg,
+                           object-contain (full logo, uncropped), and a
+                           drop-shadow that follows the logo's alpha shape. --%>
+                      <img
+                        src={@folder_logo_url}
+                        alt=""
+                        class={[
+                          "object-contain shrink-0 drop-shadow-lg",
+                          case header_folder.header_size do
+                            "small" -> "w-12 h-12 sm:w-16 sm:h-16"
+                            "large" -> "w-14 h-14 sm:w-20 sm:h-20"
+                            _ -> "w-10 h-10 sm:w-14 sm:h-14"
+                          end
+                        ]}
+                      />
+                    <% end %>
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                      <%= if show_title do %>
+                        <h2 class="text-lg sm:text-2xl font-bold text-base-content break-words leading-tight">
+                          <%= cond do %>
+                            <% @filter_trash -> %>
+                              {gettext("Trash")}
+                            <% @filter_orphaned -> %>
+                              {gettext("Orphaned Files")}
+                            <% @file_view == "all" -> %>
+                              {gettext("All Files")}
+                            <% @current_folder -> %>
+                              <%!-- Live-preview the sidebar rename so the header
+                                   title tracks what's being typed, then settles
+                                   on the saved name. --%>
+                              <%= if @renaming_folder == @current_folder.uuid && @renaming_text != "" do %>
+                                {@renaming_text}
+                              <% else %>
+                                {@current_folder.name}
+                              <% end %>
+                            <% true -> %>
+                              {if @scope_folder_id,
+                                do: @scope_folder_name,
+                                else: gettext("All Media")}
                           <% end %>
-                          <li>
+                        </h2>
+                      <% end %>
+                      <%= if header_folder do %>
+                        <%!-- Description (folders only). Must NOT use
+                             whitespace-pre-line (the HEEx-indented expression's
+                             leading newline would render as a blank line). --%>
+                        <%= if show_description do %>
+                          <%= if header_folder.description not in [nil, ""] do %>
+                            <p class="text-xs sm:text-sm text-base-content/80 max-w-2xl line-clamp-2 sm:line-clamp-none">
+                              {header_folder.description}
+                            </p>
+                          <% else %>
+                            <%!-- Placeholder so users see where a description
+                                 would appear and how to add one. Opens the Edit
+                                 header panel (description field) on click. Only
+                                 shown when actually inside a folder (editable) —
+                                 at a scoped root the header is read-only. --%>
                             <button
-                              phx-click="delete_selected"
+                              :if={@current_folder}
+                              type="button"
+                              phx-click="start_edit_folder_header"
+                              phx-value-folder-uuid={@current_folder.uuid}
                               phx-target={@myself}
-                              data-confirm={
-                                delete_selected_confirm(
-                                  @selected_files,
-                                  @selected_folders,
-                                  @filter_trash
-                                )
-                              }
-                              class="text-error"
+                              class="inline-flex items-center gap-1.5 text-sm italic text-base-content/40 hover:text-base-content/70 transition-colors"
                             >
-                              <.icon name="hero-trash" class="w-4 h-4" />
+                              <.icon name="hero-pencil-square" class="w-3.5 h-3.5 shrink-0" />
+                              {gettext("No description — add one")}
+                            </button>
+                          <% end %>
+                        <% end %>
+                        <%= if show_creation_info do %>
+                          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
+                            <%!-- Creator / date / file-count are independent
+                                 toggles; bullets render only between two visible
+                                 pieces so the row never starts/ends with one. --%>
+                            <span :if={show_creator} class="inline-flex items-center gap-1.5">
+                              <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
+                                user={@folder_creator_user}
+                                size="xs"
+                              />
+                              {gettext("Created by %{name}", name: @folder_creator_name)}
+                            </span>
+                            <span
+                              :if={show_creator && (show_date || show_file_count)}
+                              class="text-base-content/40"
+                            >
+                              •
+                            </span>
+                            <span :if={show_date} class="inline-flex items-center gap-1">
+                              <.icon name="hero-calendar" class="w-3.5 h-3.5" />
+                              {Calendar.strftime(header_folder.inserted_at, "%b %d, %Y")}
+                            </span>
+                            <span :if={show_date && show_file_count} class="text-base-content/40">
+                              •
+                            </span>
+                            <span :if={show_file_count} class="inline-flex items-center gap-1">
+                              <.icon name="hero-document" class="w-3.5 h-3.5" />
+                              {ngettext("%{count} file", "%{count} files", @total_count)}
+                            </span>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <%!-- Toolbar area: in select mode it's the selection header
+                       (exit + count + select-all/clear on the left, bulk
+                       Move/Download/Delete on the right); otherwise the normal
+                       Display/Sort/Filter + search + Add Media row. Both live
+                       inside the hero so the controls don't jump on toggle. --%>
+                  <%= if @select_mode do %>
+                    <% selected_count =
+                      MapSet.size(@selected_files) + MapSet.size(@selected_folders) %>
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                      <%!-- Count on the left; every control sits in the
+                           right-aligned cluster (Select all / Clear, the bulk
+                           actions, then Done) to match the actions-on-the-right
+                           convention used across the toolbars. --%>
+                      <span class="text-sm font-semibold">
+                        {ngettext("%{count} selected", "%{count} selected", selected_count)}
+                      </span>
+                      <div class="flex flex-wrap items-center justify-end gap-2 ml-auto">
+                        <button
+                          phx-click="select_all"
+                          phx-target={@myself}
+                          class="btn btn-xs btn-ghost"
+                        >
+                          {gettext("Select all")}
+                        </button>
+                        <%= if selected_count > 0 do %>
+                          <button
+                            phx-click="deselect_all"
+                            phx-target={@myself}
+                            class="btn btn-xs btn-ghost"
+                          >
+                            {gettext("Clear")}
+                          </button>
+                        <% end %>
+
+                        <%!-- Bulk actions, only with a selection --%>
+                        <%= if selected_count > 0 do %>
+                          <button
+                            phx-click="show_move_modal"
+                            phx-target={@myself}
+                            class="btn btn-sm btn-primary gap-1"
+                            title={gettext("Move")}
+                          >
+                            <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+                            <span class="hidden sm:inline">{gettext("Move")}</span>
+                          </button>
+                          <%= if MapSet.size(@selected_files) > 0 do %>
+                            <button
+                              phx-click="download_selected"
+                              phx-target={@myself}
+                              class="btn btn-sm btn-ghost gap-1"
+                              title={gettext("Download")}
+                            >
+                              <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Download")}</span>
+                            </button>
+                          <% end %>
+                          <button
+                            phx-click="delete_selected"
+                            phx-target={@myself}
+                            data-confirm={
+                              delete_selected_confirm(
+                                @selected_files,
+                                @selected_folders,
+                                @filter_trash
+                              )
+                            }
+                            class="btn btn-sm btn-error gap-1"
+                            title={
+                              if @filter_trash,
+                                do: gettext("Delete permanently"),
+                                else: gettext("Delete")
+                            }
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" />
+                            <span class="hidden sm:inline">
                               {if @filter_trash,
                                 do: gettext("Delete permanently"),
                                 else: gettext("Delete")}
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
-                    <% end %>
-                    <button
-                      phx-click="select_all"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost"
-                    >
-                      {gettext("Select all")}
-                    </button>
-                    <button
-                      phx-click="deselect_all"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost"
-                    >
-                      {gettext("Clear")}
-                    </button>
-                  </div>
-                <% else %>
-                  <%!-- Normal Header — actions only; the title now sits above
-                       the folder description (see the page title above). --%>
-                  <div class="flex items-center gap-3 flex-wrap">
-                    <%= if @filter_trash do %>
-                      <%= if @select_mode and MapSet.size(@selected_files) > 0 do %>
-                        <button
-                          phx-click="restore_selected"
-                          phx-target={@myself}
-                          class="btn btn-sm btn-success gap-1"
-                        >
-                          <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> {gettext(
-                            "Restore"
-                          )}
-                        </button>
-                      <% end %>
-                      <%= if @total_count > 0 do %>
-                        <button
-                          phx-click="empty_trash"
-                          phx-target={@myself}
-                          data-confirm={
-                            ngettext(
-                              "Permanently delete %{count} trashed file?",
-                              "Permanently delete all %{count} trashed files?",
-                              @total_count
-                            )
-                          }
-                          class="btn btn-sm btn-error gap-1"
-                        >
-                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
-                        </button>
-                      <% end %>
-                    <% end %>
-                    <button
-                      phx-click="toggle_search"
-                      phx-target={@myself}
-                      class={[
-                        "btn btn-sm btn-circle",
-                        if(@show_search or @search_query != "",
-                          do: "btn-primary",
-                          else: "btn-ghost"
-                        )
-                      ]}
-                      title={gettext("Search")}
-                    >
-                      <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-                    </button>
-                    <%= unless @show_upload or @filter_trash do %>
-                      <button
-                        phx-click="toggle_upload"
-                        phx-target={@myself}
-                        class="btn btn-sm btn-primary gap-2"
-                      >
-                        <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
-                      </button>
-                    <% end %>
-                    <button
-                      phx-click="toggle_select_mode"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-secondary btn-outline gap-2"
-                      phx-disable-with={gettext("Select")}
-                    >
-                      <.icon name="hero-check-circle" class="w-4 h-4" /> {gettext("Select")}
-                    </button>
-                    <button
-                      phx-click="create_untitled_folder"
-                      phx-target={@myself}
-                      class="btn btn-sm btn-ghost gap-2 lg:hidden"
-                    >
-                      <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext("New Folder")}
-                    </button>
-                    <%!-- Orphan filter is only meaningful at the global root (no scope set) --%>
-                    <%= if is_nil(@scope_folder_id) do %>
-                      <button
-                        phx-click="toggle_orphan_filter"
-                        phx-target={@myself}
-                        class={[
-                          "btn btn-sm gap-2",
-                          if(@filter_orphaned, do: "btn-warning", else: "btn-ghost")
-                        ]}
-                      >
-                        <.icon name="hero-funnel" class="w-4 h-4" />
-                        <%= if @filter_orphaned do %>
-                          {gettext("Showing orphaned (%{count})", count: @orphaned_count)}
-                        <% else %>
-                          {gettext("Find orphaned (%{count})", count: @orphaned_count)}
+                            </span>
+                          </button>
                         <% end %>
-                      </button>
-                      <%= if @filter_orphaned && @total_count > 0 do %>
+
                         <button
-                          phx-click="delete_all_orphaned"
+                          phx-click="toggle_select_mode"
                           phx-target={@myself}
-                          data-confirm={
-                            ngettext(
-                              "Delete %{count} orphaned file?",
-                              "Delete all %{count} orphaned files?",
-                              @total_count
-                            )
-                          }
-                          class="btn btn-sm btn-error gap-2"
+                          class="btn btn-sm btn-neutral gap-1.5"
+                          title={gettext("Exit selection")}
                         >
-                          <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
-                            "Delete all orphaned"
-                          )}
+                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
                         </button>
-                      <% end %>
-                    <% end %>
-                  </div>
-                <% end %>
-                <div class="flex items-center gap-2">
-                  <%!--
-                    Show the grid/list toggle + count whenever we're in a
-                    browseable view — there are files, there are folders, or
-                    we're inside a folder (even an empty one). Gating on
-                    `@total_count > 0` alone hid the toggle and count in an
-                    empty folder and in folders-with-no-files.
-                  --%>
-                  <%= if @total_count > 0 or @folders != [] or not is_nil(@current_folder) do %>
-                    <div class="join">
-                      <button
-                        phx-click="set_view_mode"
-                        phx-target={@myself}
-                        phx-value-mode="grid"
-                        class={[
-                          "btn btn-xs join-item",
-                          if(@view_mode == "grid", do: "btn-active")
-                        ]}
-                        title={gettext("Grid view")}
-                      >
-                        <.icon name="hero-squares-2x2" class="w-3 h-3" />
-                      </button>
-                      <button
-                        phx-click="set_view_mode"
-                        phx-target={@myself}
-                        phx-value-mode="list"
-                        class={[
-                          "btn btn-xs join-item",
-                          if(@view_mode == "list", do: "btn-active")
-                        ]}
-                        title={gettext("List view")}
-                      >
-                        <.icon name="hero-bars-3-bottom-left" class="w-3 h-3" />
-                      </button>
+                      </div>
                     </div>
-                    <.pagination_info
-                      page={@current_page}
-                      per_page={@per_page}
-                      total_count={@total_count}
-                    />
+                  <% else %>
+                    <% display_options = [
+                      {"grid", gettext("Grid"), "hero-squares-2x2"},
+                      {"list", gettext("List"), "hero-bars-3-bottom-left"},
+                      {"stacks", gettext("Stacks"), "hero-square-3-stack-3d"}
+                    ] %>
+                    <% {_current_view, current_view_label, current_view_icon} =
+                      Enum.find(display_options, fn {v, _, _} -> v == @view_mode end) ||
+                        hd(display_options) %>
+                    <% sort_options = [
+                      {"newest", gettext("Newest first")},
+                      {"oldest", gettext("Oldest first")},
+                      {"name_asc", gettext("Name A–Z")},
+                      {"name_desc", gettext("Name Z–A")},
+                      {"largest", gettext("Largest first")},
+                      {"smallest", gettext("Smallest first")}
+                    ] %>
+                    <% filter_options = [
+                      {"all", gettext("All types")},
+                      {"image", gettext("Images")},
+                      {"video", gettext("Videos")},
+                      {"document", gettext("Documents")},
+                      {"audio", gettext("Audio")},
+                      {"archive", gettext("Archives")},
+                      {"other", gettext("Other")}
+                    ] %>
+                    <% sort_label =
+                      sort_options
+                      |> Enum.find(fn {v, _} -> v == @sort_by end)
+                      |> then(&(&1 && elem(&1, 1))) %>
+                    <% filter_label =
+                      filter_options
+                      |> Enum.find(fn {v, _} -> v == @file_type_filter end)
+                      |> then(&(&1 && elem(&1, 1))) %>
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                      <%= if not @filter_trash and not @filter_orphaned do %>
+                        <%!-- Display / Sort / Filter group. On mobile this hides
+                             while the search field is open so search fills the
+                             toolbar row as a single clean bar. --%>
+                        <div class={[
+                          "flex flex-wrap items-center gap-2",
+                          (@show_search or @search_query != "") && "hidden sm:flex"
+                        ]}>
+                          <%!-- Display (grid/list) --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon name={current_view_icon} class="w-4 h-4" />
+                              <span class="hidden sm:inline">
+                                {current_view_label}
+                              </span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label, icon} <- display_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_view_mode"
+                                    phx-value-mode={val}
+                                    phx-target={@myself}
+                                    class={@view_mode == val && "active"}
+                                  >
+                                    <.icon name={icon} class="w-4 h-4" /> {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </div>
+
+                          <%!-- Sort --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon name="hero-arrows-up-down" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{sort_label || gettext("Sort")}</span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label} <- sort_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_sort"
+                                    phx-value-sort={val}
+                                    phx-target={@myself}
+                                    class={@sort_by == val && "active"}
+                                  >
+                                    {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </div>
+
+                          <%!-- Filter (file type) --%>
+                          <div class="dropdown">
+                            <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                              <.icon name="hero-funnel" class="w-4 h-4" />
+                              <span class={[
+                                "sm:inline",
+                                @file_type_filter == "all" && "hidden"
+                              ]}>
+                                {if @file_type_filter == "all",
+                                  do: gettext("Filter"),
+                                  else: filter_label}
+                              </span>
+                              <.icon
+                                name="hero-chevron-down"
+                                class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                              />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              onclick="document.activeElement.blur()"
+                              class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            >
+                              <%= for {val, label} <- filter_options do %>
+                                <li>
+                                  <button
+                                    phx-click="set_file_filter"
+                                    phx-value-type={val}
+                                    phx-target={@myself}
+                                    class={@file_type_filter == val && "active"}
+                                  >
+                                    {label}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%!-- Actions, pushed to the right. Contextual destructive
+                           actions + Search + the primary Add Media; secondary
+                           actions (Select, New folder) live in the ⋯ overflow.
+                           On mobile, opening search hides every sibling button
+                           (and the filter group above) and the cluster goes
+                           `w-full`, so the search field becomes a single clean
+                           full-width bar instead of squeezing the icon toolbar. --%>
+                      <div class={[
+                        "flex flex-wrap items-center justify-end gap-2 ml-auto",
+                        (@show_search or @search_query != "") && "w-full sm:w-auto"
+                      ]}>
+                        <%!-- Empty Trash (trash view) --%>
+                        <%= if @filter_trash and @total_count > 0 do %>
+                          <button
+                            phx-click="empty_trash"
+                            phx-target={@myself}
+                            data-confirm={
+                              ngettext(
+                                "Permanently delete %{count} trashed file?",
+                                "Permanently delete all %{count} trashed files?",
+                                @total_count
+                              )
+                            }
+                            class={[
+                              "btn btn-sm btn-error gap-1",
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
+                            ]}
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
+                          </button>
+                        <% end %>
+
+                        <%!-- Delete all orphaned (orphaned view, global root only) --%>
+                        <%= if is_nil(@scope_folder_id) and @filter_orphaned and @total_count > 0 do %>
+                          <button
+                            phx-click="delete_all_orphaned"
+                            phx-target={@myself}
+                            data-confirm={
+                              ngettext(
+                                "Delete %{count} orphaned file?",
+                                "Delete all %{count} orphaned files?",
+                                @total_count
+                              )
+                            }
+                            class={[
+                              "btn btn-sm btn-error gap-2",
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
+                            ]}
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
+                              "Delete all orphaned"
+                            )}
+                          </button>
+                        <% end %>
+
+                        <%!-- Search: collapsed magnifier that expands in place
+                             into an input. Collapses back when emptied (✕) or
+                             blurred while empty. --%>
+                        <%= if @show_search or @search_query != "" do %>
+                          <form
+                            phx-change="search"
+                            phx-submit="search"
+                            phx-target={@myself}
+                            class="w-full sm:w-auto min-w-0"
+                          >
+                            <label class="input input-bordered input-sm flex items-center gap-1.5 w-full sm:w-44 max-w-none sm:max-w-[60vw] pr-1">
+                              <.icon
+                                name="hero-magnifying-glass"
+                                class="w-4 h-4 text-base-content/40 shrink-0"
+                              />
+                              <input
+                                id="media-search-input"
+                                type="text"
+                                name="q"
+                                value={@search_query}
+                                placeholder={gettext("Search files...")}
+                                class="grow bg-transparent border-none outline-none focus:outline-none min-w-0"
+                                phx-debounce="300"
+                                autocomplete="off"
+                                phx-mounted={JS.focus()}
+                                phx-blur="close_search_if_empty"
+                                phx-target={@myself}
+                              />
+                              <button
+                                type="button"
+                                phx-click="clear_search"
+                                phx-target={@myself}
+                                class="btn btn-ghost btn-xs btn-circle shrink-0"
+                                title={gettext("Close search")}
+                              >
+                                <.icon name="hero-x-mark" class="w-3.5 h-3.5" />
+                              </button>
+                            </label>
+                          </form>
+                        <% else %>
+                          <button
+                            phx-click="toggle_search"
+                            phx-target={@myself}
+                            class="btn btn-sm btn-circle btn-ghost"
+                            title={gettext("Search")}
+                          >
+                            <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+                          </button>
+                        <% end %>
+
+                        <%!-- Add Media ⇄ Cancel: stays in place (fixed min-width)
+                             so the toolbar doesn't shift when the uploader opens. --%>
+                        <%= unless @filter_trash do %>
+                          <button
+                            phx-click="toggle_upload"
+                            phx-target={@myself}
+                            class={[
+                              "btn btn-sm gap-2 sm:min-w-[8.5rem]",
+                              if(@show_upload, do: "btn-error", else: "btn-primary"),
+                              (@show_search or @search_query != "") && "hidden sm:inline-flex"
+                            ]}
+                          >
+                            <%= if @show_upload do %>
+                              <.icon name="hero-x-mark" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Cancel")}</span>
+                            <% else %>
+                              <.icon name="hero-plus" class="w-4 h-4" />
+                              <span class="hidden sm:inline">{gettext("Add Media")}</span>
+                            <% end %>
+                          </button>
+                        <% end %>
+
+                        <%!-- Overflow: secondary actions --%>
+                        <div class={[
+                          "dropdown dropdown-end",
+                          (@show_search or @search_query != "") && "hidden sm:block"
+                        ]}>
+                          <div
+                            tabindex="0"
+                            role="button"
+                            class="btn btn-sm btn-ghost btn-circle"
+                            title={gettext("More actions")}
+                          >
+                            <.icon name="hero-ellipsis-vertical" class="w-5 h-5" />
+                          </div>
+                          <ul
+                            tabindex="0"
+                            onclick="document.activeElement.blur()"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                          >
+                            <li>
+                              <button
+                                phx-click="toggle_select_mode"
+                                phx-target={@myself}
+                                phx-disable-with={gettext("Select")}
+                              >
+                                <.icon name="hero-check-circle" class="w-4 h-4" /> {gettext(
+                                  "Select"
+                                )}
+                              </button>
+                            </li>
+                            <li>
+                              <button phx-click="open_new_folder_modal" phx-target={@myself}>
+                                <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext(
+                                  "New folder"
+                                )}
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
                   <% end %>
                 </div>
+                <%!-- /content --%>
               </div>
+              <%!-- /hero header (search now lives inline in the toolbar) --%>
 
               <%!--
                 Main-area drop target. Dropping a folder or file onto the
@@ -596,7 +1137,7 @@
                 so the wrapper isn't a drop target there.
               --%>
               <div
-                class="rounded-lg min-h-0 flex-1 overflow-y-auto pr-1"
+                class="rounded-lg min-h-0 flex-1 overflow-auto pr-1"
                 data-drop-folder={
                   if not @filter_trash and @file_view != "all" do
                     if @current_folder, do: @current_folder.uuid, else: "root"
@@ -659,6 +1200,7 @@
                       <%= for folder <- if(@file_view == "all", do: [], else: @folders) do %>
                         <div
                           data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
                           data-draggable-folder={folder.uuid}
                           data-selected={
                             if @select_mode && MapSet.member?(@selected_folders, folder.uuid),
@@ -667,7 +1209,7 @@
                           class={[
                             "group relative flex flex-col items-center justify-center aspect-square bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 hover:shadow-lg transition-colors",
                             @select_mode && MapSet.member?(@selected_folders, folder.uuid) &&
-                              "ring-2 ring-primary"
+                              "ring-2 ring-primary !bg-primary/20"
                           ]}
                           style={folder_bg_style(folder.color)}
                           phx-click={if @select_mode, do: "toggle_select_folder"}
@@ -887,7 +1429,7 @@
                             phx-value-file-uuid={file.file_uuid}
                             class="block w-full h-full cursor-pointer"
                           >
-                            <.thumbnail_url :let={url} file={file} size={:small}>
+                            <.thumbnail_url :let={url} file={file} size={:card}>
                               <%= if url do %>
                                 <img
                                   src={url}
@@ -907,11 +1449,11 @@
                                 <div class="grid place-items-center w-full aspect-square text-base-content/50 group-hover:bg-base-200 transition-colors">
                                   <div class="flex flex-col items-center">
                                     <.icon
-                                      name={file_icon(file.file_type)}
+                                      name={file_icon_for(file)}
                                       class="w-12 h-12 mb-2"
                                     />
                                     <p class="text-sm font-semibold">
-                                      {String.upcase(file.file_type)}
+                                      {file_type_label(file)}
                                     </p>
                                   </div>
                                 </div>
@@ -991,22 +1533,177 @@
                       <% end %>
                     </div>
                   <% end %>
+                  <%= if @view_mode == "stacks" do %>
+                    <%!-- Stacks View — folders as photo piles up top, loose
+                         files under "Everything else" (Basecamp-style).
+                         StackMemory persists which stacks are open in
+                         localStorage and reopens them on remount/refresh. --%>
+                    <div
+                      id={"pk-stacks-#{@id}"}
+                      phx-hook="StackMemory"
+                      data-storage-key={"pk_media_stacks:#{@scope_folder_id || "root"}"}
+                      class="space-y-8"
+                    >
+                      <%!-- Folder stacks + the New folder tile --%>
+                      <div class="flex flex-wrap gap-6">
+                        <%= for folder <- @folders do %>
+                          <% data =
+                            Map.get(@stack_previews, folder.uuid, %{previews: [], count: 0}) %>
+                          <.stack_tile
+                            folder={folder}
+                            previews={data.previews}
+                            count={data.count}
+                            expanded={folder.uuid in @expanded_stacks}
+                            myself={@myself}
+                          />
+                        <% end %>
+
+                        <button
+                          type="button"
+                          phx-click="open_new_folder_modal"
+                          phx-target={@myself}
+                          class="group flex flex-col items-center gap-2 w-40 focus:outline-none"
+                        >
+                          <div class="w-36 h-28 grid place-items-center">
+                            <div class="w-32 h-24 rounded-lg border-2 border-dashed border-base-300 group-hover:border-primary grid place-items-center text-base-content/40 group-hover:text-primary transition-colors">
+                              <.icon name="hero-folder-plus" class="w-8 h-8" />
+                            </div>
+                          </div>
+                          <p class="text-sm font-medium text-center">{gettext("New folder")}</p>
+                        </button>
+                      </div>
+
+                      <%!-- Each expanded stack's grid (multiple can be open) --%>
+                      <%!-- Iterate the ordered open list (newest first) rather
+                           than @folders, so stacks render in the order opened
+                           with the latest on top. --%>
+                      <%= for folder_uuid <- @expanded_stacks,
+                              folder = Enum.find(@folders, &(&1.uuid == folder_uuid)),
+                              folder do %>
+                        <div
+                          id={"pk-stack-#{folder.uuid}"}
+                          phx-hook="StackExpand"
+                          data-stack-folder={folder.uuid}
+                          data-drop-folder={folder.uuid}
+                          data-drop-color={drop_outline_color(folder.color)}
+                          data-drop-no-bg="true"
+                          data-animate-open={folder.uuid == @just_opened_stack && "true"}
+                          class="rounded-lg"
+                        >
+                          <div class="flex items-center gap-2 mb-3">
+                            <.icon name="hero-folder-open" class="w-5 h-5 text-base-content/60" />
+                            <h3 class="text-lg font-bold">{folder.name}</h3>
+                          </div>
+                          <% files = Map.get(@stack_files, folder.uuid, []) %>
+                          <% stack_total =
+                            Map.get(@stack_previews, folder.uuid, %{count: 0}).count %>
+                          <%= if files == [] do %>
+                            <p class="text-sm text-base-content/50">{gettext("No images")}</p>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for {file, i} <- Enum.with_index(files) do %>
+                                <.file_card
+                                  file={file}
+                                  index={i}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  filter_trash={@filter_trash}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
+                          <%!-- Per-stack pagination: a stack only loads one page
+                               at a time (never the whole folder), so a huge
+                               folder stays fast. Load more appends the next
+                               page. --%>
+                          <div
+                            :if={length(files) < stack_total}
+                            class="flex flex-col items-center gap-2 pt-4"
+                          >
+                            <p class="text-sm text-base-content/60">
+                              {gettext("Showing %{loaded} of %{total} %{noun}",
+                                loaded: length(files),
+                                total: stack_total,
+                                noun: gettext("files")
+                              )}
+                            </p>
+                            <button
+                              type="button"
+                              phx-click="load_more_stack"
+                              phx-value-folder-uuid={folder.uuid}
+                              phx-target={@myself}
+                              phx-disable-with={gettext("Loading…")}
+                              class="btn btn-sm"
+                            >
+                              {gettext("Load more")}
+                            </button>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%!-- Everything else: loose files in this folder
+                           (orphaned files at the root). Always a drop target so
+                           media can be dragged back out of a folder; shows a
+                           drop hint when empty (as long as there are folders). --%>
+                      <%= if @uploaded_files != [] or @folders != [] do %>
+                        <div
+                          data-drop-folder="root"
+                          data-drop-color="oklch(var(--bc) / 0.45)"
+                          data-drop-no-bg="true"
+                          class="rounded-lg"
+                        >
+                          <h2 class="text-lg font-bold mb-3">{gettext("Everything else")}</h2>
+                          <%= if @uploaded_files == [] do %>
+                            <div class="rounded-lg border-2 border-dashed border-base-300 grid place-items-center py-8 text-sm text-base-content/40">
+                              {gettext("Drop media here to remove it from a folder")}
+                            </div>
+                          <% else %>
+                            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                              <%= for file <- @uploaded_files do %>
+                                <.file_card
+                                  file={file}
+                                  select_mode={@select_mode}
+                                  selected_files={@selected_files}
+                                  filter_trash={@filter_trash}
+                                  myself={@myself}
+                                />
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <%= if @folders == [] and @uploaded_files == [] do %>
+                        <div class="text-center py-12 text-base-content/50">
+                          {gettext("No media yet.")}
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
                   <%= if @view_mode == "list" do %>
                     <%!-- List View --%>
-                    <div data-media-list class="overflow-x-auto">
+                    <%!-- Horizontal scroll handled by the outer scroll area
+                         (not a nested overflow div) so the sticky header below
+                         pins to the top of that area while scrolling. --%>
+                    <div data-media-list>
                       <table class="table table-sm">
-                        <thead>
+                        <%!-- Sticky column header: stays glued to the top of
+                             the scroll area. `th`-level sticky (not `thead`) is
+                             the cross-browser-safe form; each cell needs an
+                             opaque bg so rows scroll under it. --%>
+                        <thead class="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-base-100">
                           <tr>
                             <%= if @select_mode do %>
                               <th class="w-8"></th>
                             <% end %>
                             <th class="w-12"></th>
                             <th>{gettext("Name")}</th>
-                            <th>{gettext("Path")}</th>
-                            <th>{gettext("Description")}</th>
-                            <th>{gettext("Type")}</th>
-                            <th>{gettext("Size")}</th>
-                            <th>{gettext("Date")}</th>
+                            <th class="hidden lg:table-cell">{gettext("Path")}</th>
+                            <th class="hidden lg:table-cell">{gettext("Description")}</th>
+                            <th class="hidden md:table-cell">{gettext("Type")}</th>
+                            <th class="hidden md:table-cell">{gettext("Size")}</th>
+                            <th class="hidden md:table-cell">{gettext("Date")}</th>
                             <th class="w-10"></th>
                           </tr>
                         </thead>
@@ -1136,6 +1833,7 @@
                                   phx-target={@myself}
                                   phx-value-folder-uuid={folder.uuid}
                                   data-drop-folder={folder.uuid}
+                                  data-drop-color={drop_outline_color(folder.color)}
                                   data-draggable-folder={folder.uuid}
                                   data-selected={
                                     if @select_mode &&
@@ -1145,7 +1843,7 @@
                                   class={[
                                     "hover cursor-pointer",
                                     @select_mode && MapSet.member?(@selected_folders, folder.uuid) &&
-                                      "bg-primary/10"
+                                      "!bg-primary/20"
                                   ]}
                                   style={folder_bg_style(folder.color)}
                                 >
@@ -1181,8 +1879,16 @@
                                         {folder.name}
                                       <% end %>
                                     </span>
+                                    <%!-- Mobile-only meta line: the hidden Type/Date
+                                         columns folded under the name so the row
+                                         stays readable without horizontal scroll. --%>
+                                    <div class="md:hidden flex items-center gap-1.5 text-xs text-base-content/50 mt-0.5">
+                                      <span>{gettext("Folder")}</span>
+                                      <span>·</span>
+                                      <span>{Calendar.strftime(folder.inserted_at, "%b %d, %Y")}</span>
+                                    </div>
                                   </td>
-                                  <td>
+                                  <td class="hidden lg:table-cell">
                                     <%= if folders_path do %>
                                       <span class="text-xs text-base-content/50">
                                         {folders_path}
@@ -1191,7 +1897,7 @@
                                       <span class="text-xs text-base-content/30">/</span>
                                     <% end %>
                                   </td>
-                                  <td>
+                                  <td class="hidden lg:table-cell">
                                     <%= if folder.description not in [nil, ""] do %>
                                       <span
                                         class="text-xs text-base-content/60 line-clamp-2"
@@ -1203,13 +1909,13 @@
                                       <span class="text-xs text-base-content/30">—</span>
                                     <% end %>
                                   </td>
-                                  <td>
+                                  <td class="hidden md:table-cell">
                                     <span class="badge badge-ghost badge-sm h-auto">
                                       {gettext("Folder")}
                                     </span>
                                   </td>
-                                  <td></td>
-                                  <td class="text-sm text-base-content/70">
+                                  <td class="hidden md:table-cell"></td>
+                                  <td class="hidden md:table-cell text-sm text-base-content/70">
                                     {Calendar.strftime(folder.inserted_at, "%b %d, %Y")}
                                   </td>
                                   <td>
@@ -1327,16 +2033,26 @@
                                       />
                                     <% else %>
                                       <div class="grid place-items-center w-full h-full text-base-content/40">
-                                        <.icon name={file_icon(file.file_type)} class="w-5 h-5" />
+                                        <.icon name={file_icon_for(file)} class="w-5 h-5" />
                                       </div>
                                     <% end %>
                                   </.thumbnail_url>
                                 </div>
                               </td>
                               <td>
-                                <span class="font-medium text-sm">{file.filename}</span>
+                                <span class="font-medium text-sm break-all">{file.filename}</span>
+                                <%!-- Mobile-only meta line: the hidden Type/Size/Date
+                                     columns folded under the filename so the row
+                                     stays readable without horizontal scroll. --%>
+                                <div class="md:hidden flex flex-wrap items-center gap-1.5 text-xs text-base-content/50 mt-0.5">
+                                  <span>{file_type_label(file)}</span>
+                                  <span>·</span>
+                                  <span>{format_file_size(file.size)}</span>
+                                  <span>·</span>
+                                  <span>{Calendar.strftime(file.inserted_at, "%b %d, %Y")}</span>
+                                </div>
                               </td>
-                              <td>
+                              <td class="hidden lg:table-cell">
                                 <%= if file.folder_path do %>
                                   <span class="text-xs text-base-content/50">
                                     {file.folder_path}
@@ -1345,18 +2061,18 @@
                                   <span class="text-xs text-base-content/30">/</span>
                                 <% end %>
                               </td>
-                              <td>
+                              <td class="hidden lg:table-cell">
                                 <span class="text-xs text-base-content/30">—</span>
                               </td>
-                              <td>
+                              <td class="hidden md:table-cell">
                                 <span class="badge badge-ghost badge-sm h-auto">
-                                  {String.upcase(file.file_type)}
+                                  {file_type_label(file)}
                                 </span>
                               </td>
-                              <td class="text-sm text-base-content/70">
+                              <td class="hidden md:table-cell text-sm text-base-content/70">
                                 {format_file_size(file.size)}
                               </td>
-                              <td class="text-sm text-base-content/70">
+                              <td class="hidden md:table-cell text-sm text-base-content/70">
                                 {Calendar.strftime(file.inserted_at, "%b %d, %Y")}
                               </td>
                               <td>
@@ -1481,7 +2197,7 @@
               <button
                 phx-click="move_selected_to_folder"
                 phx-target={@myself}
-                phx-value-folder_uuid=""
+                phx-value-folder-uuid=""
                 class={[
                   "flex items-center gap-1.5 w-full min-w-0 text-left rounded-lg px-1 py-1 hover:bg-base-300 transition-colors",
                   @current_folder == nil && "font-semibold"
@@ -1491,8 +2207,27 @@
                 <span class="truncate">{@scope_folder_name}</span>
               </button>
             </li>
+            <%!--
+              Same recursive tree node as the left sidebar
+              (`FolderExplorer.folder_tree_node`) so guide lines / structure
+              stay in sync. Move-mode config: clicking a row selects it as the
+              destination, the chevron drives the modal's own `move_expanded`
+              set, and rename + drag are off. No active highlight (current_folder
+              left nil — you're picking where to move TO).
+            --%>
             <%= for node <- @folder_tree do %>
-              <.move_folder_option node={node} move_expanded={@move_expanded} myself={@myself} />
+              <.folder_tree_node
+                node={node}
+                current_folder={nil}
+                expanded_folders={@move_expanded}
+                depth={0}
+                myself={@myself}
+                on_navigate="move_selected_to_folder"
+                on_toggle="toggle_move_folder"
+                show_rename={false}
+                enable_drag={false}
+                hover_class="hover:bg-base-300"
+              />
             <% end %>
           </ul>
           <div class="modal-action">
@@ -1504,6 +2239,73 @@
         <div class="modal-backdrop" phx-click="close_move_modal" phx-target={@myself}></div>
       </div>
     <% end %>
+
+    <%!-- New Folder Modal — name the folder before it's created; Cancel
+         (button / backdrop / Esc) adds nothing. The placeholder is the next
+         default name, used as-is when the field is left blank. --%>
+    <%= if @show_new_folder_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-sm">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <.icon name="hero-folder-plus" class="w-5 h-5 text-primary" />
+            {gettext("New folder")}
+          </h3>
+          <p class="text-sm text-base-content/60 mt-1 mb-4">
+            {gettext("Name your folder, or leave it blank to use the default.")}
+          </p>
+          <form phx-submit="submit_new_folder" phx-change="new_folder_input" phx-target={@myself}>
+            <input
+              id="new-folder-name-input"
+              type="text"
+              name="name"
+              value={@new_folder_name}
+              placeholder={@new_folder_placeholder}
+              maxlength="255"
+              autocomplete="off"
+              class="input input-bordered w-full"
+              phx-mounted={JS.focus()}
+              phx-keydown="close_new_folder_modal"
+              phx-key="Escape"
+              phx-target={@myself}
+            />
+            <div class="modal-action">
+              <button
+                type="button"
+                phx-click="close_new_folder_modal"
+                phx-target={@myself}
+                class="btn btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-primary gap-2">
+                <.icon name="hero-folder-plus" class="w-4 h-4" />
+                {gettext("Create folder")}
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-backdrop" phx-click="close_new_folder_modal" phx-target={@myself}></div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%!-- ── Cover-image media picker ───────────────────────────────────────────
+       Reuses the shared MediaSelectorModal, scoped to the folder being edited,
+       so the user can pick an existing image from the folder or upload a new
+       one. Single-select; the choice is reported back to this component via
+       `notify`, where set_cover_from_selection/2 records it as the cover. --%>
+  <%= if @editing_folder_header do %>
+    <.live_component
+      module={PhoenixKitWeb.Live.Components.MediaSelectorModal}
+      id={"#{@id}-cover-selector"}
+      show={@selecting_cover}
+      mode={:single}
+      file_type_filter={:image}
+      scope_folder_id={@editing_folder_header}
+      selected_uuids={[]}
+      phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+      notify={{PhoenixKitWeb.Components.MediaBrowser, @id}}
+    />
   <% end %>
 
   <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>

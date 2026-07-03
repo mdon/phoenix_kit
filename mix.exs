@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.144"
+  @version "1.7.171"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -90,7 +90,7 @@ defmodule PhoenixKit.MixProject do
       {:gettext, "~> 1.0"},
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
-      {:tailwind, "~> 0.4.1", only: :dev},
+      {:tailwind, "~> 0.5", only: :dev},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
 
       # Authentication
@@ -118,7 +118,13 @@ defmodule PhoenixKit.MixProject do
       {:hackney, "~> 1.16"},
 
       # Content editor
-      {:leaf, "~> 0.2.23"},
+      {:leaf, "~> 0.3"},
+
+      # Markdown → HTML (comrak). Declared here in core so every module shares
+      # one resolved version instead of each pulling its own and risking
+      # mismatches. Modules (e.g. phoenix_kit_comments) call MDEx directly and
+      # rely on it being provided transitively through phoenix_kit.
+      {:mdex, "~> 0.13"},
 
       # Pan-zoom image viewer + annotation overlay. Fresco 0.5 dropped
       # OpenSeadragon and replaced the wrapped-OSD viewer with a
@@ -137,11 +143,14 @@ defmodule PhoenixKit.MixProject do
       # apps either import them directly in `app.js` or rely on the
       # lazy-load wrappers in phoenix_kit.js (jsdelivr-pinned to the
       # matching version).
-      # Tessera 0.2 was OSD-backed and is broken against Fresco 0.5
-      # (residual TODO; resurrect when a Tessera 0.5 ships).
+      # Tessera 0.3 was rewritten for Fresco's engine — a peer layer (like
+      # Etcher) that swaps raster resolutions on zoom and streams DZI tiles
+      # of the original for deep zoom on >4K images (no OpenSeadragon). The
+      # tile overlay rides Fresco's stage transform so it stays glued to the
+      # image. JS hooks lazy-load from jsdelivr pinned to the matching tag.
       {:fresco, "~> 0.6"},
-      {:tessera, "~> 0.2"},
-      {:etcher, "~> 0.6.5"},
+      {:tessera, "~> 0.3"},
+      {:etcher, "~> 0.7"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
@@ -150,7 +159,6 @@ defmodule PhoenixKit.MixProject do
 
       # Utilities
       {:jason, "~> 1.4"},
-      {:earmark, "~> 1.4"},
       {:yaml_elixir, "~> 2.9"},
       {:nimble_csv, "~> 1.2"},
       {:uuidv7, "~> 1.0"},

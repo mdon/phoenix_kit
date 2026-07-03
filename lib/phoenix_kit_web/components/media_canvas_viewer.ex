@@ -328,6 +328,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end)
 
     if wrote? or to_delete != [] do
+      # Shapes changed — (re)bake the annotated thumbnail variant in the
+      # background (debounced) so the media grid shows the markup.
+      Storage.AnnotationThumbnailJob.enqueue(file_uuid)
+
       # A row was created / updated / deleted — reload from DB to pick up
       # fresh comment metadata + cascade changes (deleted-annotation
       # comments cascading out), then rebuild the canvas blob.
@@ -398,7 +402,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp build_viewer_canvas(nil, _annotations), do: nil
 
   defp build_viewer_canvas(file, annotations) when is_map(file) do
-    src = file.urls["original"] || file.urls["large"] || file.urls["medium"]
+    # Open on the cheap medium variant; Tessera swaps up to large (and DZI
+    # tiles for >4K images) as the user zooms. The canvas keeps the full
+    # original dimensions so the coordinate space matches the DZI pyramid.
+    src = file.urls["medium"] || file.urls["large"] || file.urls["original"]
 
     if is_binary(src) and src != "" do
       width = Map.get(file, :width) || 1000
@@ -845,9 +852,23 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp file_icon("image"), do: "hero-photo"
   defp file_icon("video"), do: "hero-play-circle"
+  defp file_icon("audio"), do: "hero-musical-note"
   defp file_icon("pdf"), do: "hero-document-text"
   defp file_icon("document"), do: "hero-document"
   defp file_icon(_), do: "hero-document-arrow-down"
+
+  # Known audio extensions — matched as a fallback because uploads often carry a
+  # generic `application/octet-stream` mime (mp3 especially), which would
+  # otherwise classify as a document and never show a player.
+  @audio_extensions ~w(.mp3 .wav .ogg .oga .m4a .aac .flac .opus .weba .mid .midi)
+
+  defp audio?(%{} = f) do
+    (is_binary(f.mime_type) and String.starts_with?(f.mime_type, "audio/")) or
+      f.file_type == "audio" or
+      (is_binary(f.filename) and String.ends_with?(String.downcase(f.filename), @audio_extensions))
+  end
+
+  defp audio?(_), do: false
 
   @doc """
   Runtime check for whether the optional `phoenix_kit_comments` package

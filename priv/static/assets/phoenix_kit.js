@@ -1391,6 +1391,268 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // MarkdownEditor
+  //
+  // Drives the core MarkdownEditor LiveComponent's textarea: cursor tracking,
+  // list auto-continue, formatting-toolbar actions (data-md-action), insert /
+  // prompt-insert pushed from the server (handleEvent), collaborative
+  // set-content sync, and unsaved-changes browser-exit protection.
+  //
+  // Replaces the component's former inline <script> + inline onclick/onmousedown
+  // handlers. Those broke under a strict Content-Security-Policy (a nonce never
+  // authorizes inline event-handler attributes, and an absent nonce blocks the
+  // <script>) and were unreliable on LiveView navigation (a patched-in <script>
+  // never re-executes). A hook always mounts on navigation and needs no inline
+  // script, so the editor now behaves like every other PhoenixKit feature.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.MarkdownEditor = {
+    mounted() {
+      this.globalId = this.el.dataset.globalId;
+      this.protectNavigation = this.el.dataset.protectNavigation === "true";
+      this.lastCursorPosition = 0;
+      this.dirty = false;
+      this._acquireTextarea();
+
+      // Reaching here means JS + the hook ran — reveal the toolbar(s), which are
+      // hidden by default so JS-dependent buttons never show as dead controls.
+      this._revealToolbars();
+
+      // Handle formatting-toolbar actions on mousedown, NOT click. preventDefault
+      // on mousedown stops focus moving to the button, so the textarea keeps its
+      // selection — a click would collapse the selection before we read it, so
+      // bold/italic/link would wrap the wrong range. This is the same reason the
+      // old markup used inline onmousedown="event.preventDefault()".
+      this._onMouseDown = (e) => this._handleToolbarMouseDown(e);
+      this.el.addEventListener("mousedown", this._onMouseDown);
+
+      // Server -> client commands. push_event from a LiveComponent fans out to
+      // EVERY MarkdownEditor hook on the page, so filter by global_id before
+      // acting (a page can host more than one editor).
+      this.handleEvent("markdown-editor-insert", ({ global_id, text }) => {
+        if (global_id === this.globalId) this._insertAtCursor(text);
+      });
+      this.handleEvent("markdown-editor-prompt-insert", ({ global_id, prompt, template }) => {
+        if (global_id !== this.globalId) return;
+        const value = window.prompt(prompt || "");
+        if (value && value.trim()) {
+          this._insertAtCursor((template || "%{value}").replace("%{value}", value.trim()));
+        }
+      });
+      this.handleEvent("set-content", ({ global_id, content }) => {
+        // No global_id → legacy broadcast to the page's editor (back-compat).
+        if (global_id && global_id !== this.globalId) return;
+        if (!this.textarea || this.textarea.value === content) return;
+        // Don't clobber the textarea mid-keystroke (collaborative spectators are
+        // read-only, so this is a safety net rather than a common path).
+        if (document.activeElement === this.textarea) return;
+        this.textarea.value = content;
+        this.lastCursorPosition = content ? content.length : 0;
+        this.dirty = false;
+      });
+      // Back-compat: publishing pushes "changes-status" on every edit. Use it to
+      // drive the unsaved-changes beforeunload guard without touching its many
+      // call sites.
+      this.handleEvent("changes-status", ({ has_changes }) => {
+        this.dirty = !!has_changes;
+      });
+
+      // Browser-exit protection for unsaved changes.
+      if (this.protectNavigation) {
+        this._beforeUnload = (e) => {
+          if (this._hasUnsavedChanges()) {
+            e.preventDefault();
+            e.returnValue = "";
+            return "";
+          }
+        };
+        window.addEventListener("beforeunload", this._beforeUnload);
+      }
+    },
+
+    updated() {
+      // morphdom usually preserves the textarea node (stable id), but re-acquire
+      // defensively in case it was replaced. Re-reveal the toolbar in case a
+      // re-render of the toolbar block restored its default `hidden` class.
+      this._acquireTextarea();
+      this._revealToolbars();
+      // Trust the server once it reports a saved state — otherwise the local
+      // `dirty` flag stays true for the page's life after the first keystroke
+      // (only set-content / changes-status clear it, which not every host pushes)
+      // and the beforeunload guard fires a bogus "unsaved changes" prompt post-save.
+      if (this.el.dataset.saveStatus === "saved") this.dirty = false;
+    },
+
+    destroyed() {
+      if (this._beforeUnload) window.removeEventListener("beforeunload", this._beforeUnload);
+    },
+
+    // --- internals ---------------------------------------------------------
+
+    _revealToolbars() {
+      this.el.querySelectorAll("[data-md-toolbar]").forEach((t) => t.classList.remove("hidden"));
+    },
+
+    _acquireTextarea() {
+      const ta = this.el.querySelector("textarea");
+      if (ta === this.textarea) return;
+      this.textarea = ta;
+      if (!ta) return;
+      ta.addEventListener("blur", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("select", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("click", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("keyup", () => { this.lastCursorPosition = ta.selectionStart; });
+      ta.addEventListener("input", () => { this.dirty = true; });
+      ta.addEventListener("keydown", (e) => this._handleEnter(e));
+    },
+
+    _hasUnsavedChanges() {
+      const status = this.el.dataset.saveStatus;
+      return this.dirty || status === "unsaved" || status === "saving";
+    },
+
+    // Mirror the textarea's phx-keyup binding so LiveView sees the new value.
+    _notifyChange() {
+      this.dirty = true;
+      if (this.textarea) {
+        this.textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+      }
+    },
+
+    _insertAtCursor(text) {
+      const ta = this.textarea;
+      if (!ta || text == null) return;
+      const start = Math.min(this.lastCursorPosition || 0, ta.value.length);
+      ta.value = ta.value.substring(0, start) + text + ta.value.substring(start);
+      const pos = start + text.length;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _wrap(prefix, suffix) {
+      const ta = this.textarea;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = ta.value.substring(start, end);
+      const before = ta.value.substring(0, start);
+      const after = ta.value.substring(end);
+      if (selected.length > 0) {
+        ta.value = before + prefix + selected + suffix + after;
+        ta.selectionStart = start + prefix.length;
+        ta.selectionEnd = end + prefix.length;
+      } else {
+        const placeholder = "text";
+        ta.value = before + prefix + placeholder + suffix + after;
+        ta.selectionStart = start + prefix.length;
+        ta.selectionEnd = start + prefix.length + placeholder.length;
+      }
+      ta.focus();
+      this.lastCursorPosition = ta.selectionEnd;
+      this._notifyChange();
+    },
+
+    _linePrefix(prefix) {
+      const ta = this.textarea;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const lineStart = ta.value.lastIndexOf("\n", start - 1) + 1;
+      ta.value = ta.value.substring(0, lineStart) + prefix + ta.value.substring(lineStart);
+      const pos = start + prefix.length;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _link() {
+      const ta = this.textarea;
+      if (!ta) return;
+      const url = window.prompt("Enter URL:");
+      if (!url || !url.trim()) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = ta.value.substring(start, end);
+      const linkText = selected.length > 0 ? selected : "link text";
+      ta.value =
+        ta.value.substring(0, start) +
+        "[" + linkText + "](" + url.trim() + ")" +
+        ta.value.substring(end);
+      const pos = start + linkText.length + url.trim().length + 4;
+      ta.selectionStart = ta.selectionEnd = pos;
+      this.lastCursorPosition = pos;
+      ta.focus();
+      this._notifyChange();
+    },
+
+    _handleToolbarMouseDown(e) {
+      if (e.button !== 0) return;
+      const toolbar = e.target.closest("[data-md-toolbar]");
+      if (!toolbar || !this.el.contains(toolbar)) return;
+      // Keep the textarea focused/selected through the button press.
+      e.preventDefault();
+      const btn = e.target.closest("[data-md-action]");
+      if (!btn) return;
+      switch (btn.dataset.mdAction) {
+        case "wrap":
+          this._wrap(btn.dataset.mdPrefix || "", btn.dataset.mdSuffix || "");
+          break;
+        case "line-prefix":
+          this._linePrefix(btn.dataset.mdPrefix || "");
+          break;
+        case "insert":
+          this._insertAtCursor(btn.dataset.mdText || "");
+          break;
+        case "link":
+          this._link();
+          break;
+      }
+    },
+
+    _handleEnter(e) {
+      if (e.key !== "Enter") return;
+      const ta = this.textarea;
+      const pos = ta.selectionStart;
+      const value = ta.value;
+      const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
+      const lineEnd = value.indexOf("\n", pos);
+      const currentLine = value.substring(lineStart, lineEnd === -1 ? value.length : lineEnd);
+      // Only auto-continue when the cursor is at the end of the line.
+      if (pos - lineStart < currentLine.length) return;
+
+      const bulletMatch = currentLine.match(/^(\s*)(-|\*|\+)\s(.*)$/);
+      if (bulletMatch) {
+        e.preventDefault();
+        const [, indent, marker, content] = bulletMatch;
+        this._continueList(ta, value, pos, lineStart, content, indent + marker + " ");
+        return;
+      }
+      const numberMatch = currentLine.match(/^(\s*)(\d+)\.\s(.*)$/);
+      if (numberMatch) {
+        e.preventDefault();
+        const [, indent, num, content] = numberMatch;
+        const next = parseInt(num, 10) + 1;
+        this._continueList(ta, value, pos, lineStart, content, indent + next + ". ");
+      }
+    },
+
+    _continueList(ta, value, pos, lineStart, content, marker) {
+      if (content.trim() === "") {
+        // Empty list item — remove the marker instead of continuing.
+        ta.value = value.substring(0, lineStart) + value.substring(pos);
+        ta.selectionStart = ta.selectionEnd = lineStart;
+      } else {
+        const insertion = "\n" + marker;
+        ta.value = value.substring(0, pos) + insertion + value.substring(pos);
+        ta.selectionStart = ta.selectionEnd = pos + insertion.length;
+      }
+      this.lastCursorPosition = ta.selectionStart;
+      this._notifyChange();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // SelectOnMount
   //
   // Focuses an input and selects all of its current value on mount. Use
@@ -2321,6 +2583,62 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ViewportPopover Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Keeps an absolutely-positioned popover (one that drops from the bottom of
+  // its anchor wrapper) inside the viewport. Clamps its max-height to the space
+  // left below the anchor, and flips it to open upward when there's little room
+  // below and more above. Without this, a tall editor opened low in the page
+  // (e.g. an embedded media browser scrolled down) runs off the bottom of the
+  // screen, leaving its footer buttons (Save) unreachable.
+  //
+  // Inline styles override the element's max-h / top classes; the server sets
+  // no style attribute on the element, so morphdom won't clobber them on
+  // re-render. Re-runs on mount, update, resize and scroll.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewportPopover = {
+    mounted() {
+      this._reposition = this.position.bind(this);
+      window.addEventListener("resize", this._reposition);
+      window.addEventListener("scroll", this._reposition, true);
+      this.position();
+    },
+    updated() {
+      this.position();
+    },
+    destroyed() {
+      window.removeEventListener("resize", this._reposition);
+      window.removeEventListener("scroll", this._reposition, true);
+    },
+    position() {
+      var el = this.el;
+      var margin = 12;
+      var anchor = el.parentElement || el;
+      var ar = anchor.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - ar.bottom - margin;
+      var spaceAbove = ar.top - margin;
+      var cap = Math.round(window.innerHeight * 0.85);
+
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        // More room above: flip the popover to open upward.
+        el.style.top = "auto";
+        el.style.bottom = "100%";
+        el.style.marginTop = "0px";
+        el.style.marginBottom = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceAbove, cap)) + "px";
+      } else {
+        el.style.bottom = "auto";
+        el.style.top = "100%";
+        el.style.marginBottom = "0px";
+        el.style.marginTop = "0.5rem";
+        el.style.maxHeight = Math.max(140, Math.min(spaceBelow, cap)) + "px";
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // FadeOut Hook
   // ---------------------------------------------------------------------------
   //
@@ -3242,14 +3560,19 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
   // TESSERA LAYER (loaded from CDN)
   //
-  // Lazy-fetches Tessera's deep-zoom (DZI) tile-source layer JS. Pairs with
-  // Fresco — the host viewer must mount first, then the Tessera layer
-  // attaches via `fresco_id`. Comes from the {:tessera, "~> 0.2.1"} hex
+  // Lazy-fetches Tessera's progressive-resolution + DZI deep-zoom layer JS.
+  // Pairs with Fresco — the host viewer must mount first, then the Tessera
+  // layer attaches via `fresco_id`. Comes from the {:tessera, "~> 0.3"} hex
   // dependency. Same parent-pre-import short-circuit as Fresco.
+  //
+  // Keep this version pin in sync with the hex dep + the GitHub release tag
+  // (jsDelivr resolves `gh/<user>/<repo>@<tag>`). A stale pin silently serves
+  // an old tessera.js — the OSD-era 0.2 build no longer works against Fresco's
+  // engine, so the layer would be a silent no-op.
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.2.1/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.1/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 
@@ -3383,28 +3706,12 @@ if (typeof window.Chart === "undefined") {
 
   window.PhoenixKitHooks.MediaDragDrop = {
     mounted: function() {
-      // View mode (grid/list) is persisted server-side in the user's meta and
-      // rendered on first paint, so there's no localStorage→push restore here
-      // anymore (that caused a grid→list flash after connect).
-
-      // Restore tree state from localStorage
-      var expandedRaw = localStorage.getItem("phoenix_kit_media_expanded_folders");
-      var sidebarCollapsed = localStorage.getItem("phoenix_kit_media_sidebar_collapsed") === "true";
-      var expanded = [];
-      try { expanded = expandedRaw ? JSON.parse(expandedRaw) : []; } catch(e) {}
-      if (expanded.length > 0 || sidebarCollapsed) {
-        this.pushEventTo(this.el, "restore_tree_state", {
-          expanded: expanded,
-          sidebar_collapsed: sidebarCollapsed
-        });
-      }
-
-      // Listen for tree state changes from server
-      var self = this;
-      this.handleEvent("save_tree_state", function(data) {
-        localStorage.setItem("phoenix_kit_media_expanded_folders", JSON.stringify(data.expanded || []));
-        localStorage.setItem("phoenix_kit_media_sidebar_collapsed", data.sidebar_collapsed ? "true" : "false");
-      });
+      // View mode (grid/list) AND the sidebar folder-tree state (expanded
+      // folders + collapsed flag) are both persisted server-side in the user's
+      // meta and rendered on first paint. There is intentionally no
+      // localStorage→push restore here anymore — that ran only after connect
+      // and made the grid flash to list / the tree flash from collapsed to its
+      // open positions.
 
       // Bulk download: server pushes a list of {url, name}; we trigger one anchor click per file
       this.handleEvent("download_files", function(data) {
@@ -3423,10 +3730,74 @@ if (typeof window.Chart === "undefined") {
       });
 
       this.setupDragDrop();
+      this.setupLongPress();
     },
 
     updated: function() {
       this.setupDragDrop();
+      this.setupLongPress();
+    },
+
+    // Long-press (hold ~450ms without moving) on a file/folder card enters
+    // select mode and selects that item — the standard touch gesture for
+    // multi-select. Moving (scroll/drag) or releasing early cancels it. The
+    // click that follows the release is swallowed so the item isn't also
+    // opened/navigated. Native HTML5 drag is mouse-only, so this doesn't
+    // fight drag-to-move on touch.
+    setupLongPress: function() {
+      var self = this;
+      var LONG_PRESS_MS = 450;
+      var MOVE_TOLERANCE = 10;
+      var items = this.el.querySelectorAll("[data-draggable-file], [data-draggable-folder]");
+      items.forEach(function(el) {
+        var fileUuid = el.dataset.draggableFile;
+        var folderUuid = el.dataset.draggableFolder;
+        var type = fileUuid ? "file" : "folder";
+        var uuid = fileUuid || folderUuid;
+        if (!uuid) return;
+
+        el.removeEventListener("pointerdown", el._lpDown);
+        el.removeEventListener("pointermove", el._lpMove);
+        el.removeEventListener("pointerup", el._lpUp);
+        el.removeEventListener("pointercancel", el._lpUp);
+        el.removeEventListener("pointerleave", el._lpUp);
+        if (el._lpClick) el.removeEventListener("click", el._lpClick, true);
+
+        var timer = null, startX = 0, startY = 0;
+        var cancel = function() { if (timer) { clearTimeout(timer); timer = null; } };
+
+        el._lpDown = function(e) {
+          if (typeof e.button === "number" && e.button !== 0) return;
+          startX = e.clientX; startY = e.clientY;
+          cancel();
+          timer = setTimeout(function() {
+            timer = null;
+            el._lpFired = true;
+            if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
+            self.pushEventTo(self.el, "long_press_select", { type: type, uuid: uuid });
+          }, LONG_PRESS_MS);
+        };
+        el._lpMove = function(e) {
+          if (!timer) return;
+          if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE ||
+              Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+            cancel();
+          }
+        };
+        el._lpUp = function() { cancel(); };
+        // Capture phase beats LiveView's window/bubble click listener, so this
+        // reliably swallows the post-long-press click.
+        el._lpClick = function(e) {
+          if (el._lpFired) { e.preventDefault(); e.stopPropagation(); el._lpFired = false; }
+        };
+
+        el.addEventListener("pointerdown", el._lpDown);
+        el.addEventListener("pointermove", el._lpMove);
+        el.addEventListener("pointerup", el._lpUp);
+        el.addEventListener("pointercancel", el._lpUp);
+        el.addEventListener("pointerleave", el._lpUp);
+        el.addEventListener("click", el._lpClick, true);
+      });
     },
 
     setupDragDrop: function() {
@@ -3617,14 +3988,17 @@ if (typeof window.Chart === "undefined") {
             target.style.backgroundColor = "";
             target.classList.add("bg-primary/10");
           }
-          // daisyUI 5 exposes the primary as a complete oklch() value
-          // in `--color-primary` (not the legacy `--p` raw components),
-          // so we use it directly without wrapping it in oklch().
+          // Outline colour: a target may carry `data-drop-color` (a folder's
+          // own colour) so the accept indicator matches the folder instead of
+          // a generic blue; otherwise fall back to the primary. daisyUI 5
+          // exposes the primary as a complete oklch() value in
+          // `--color-primary` (not the legacy `--p` raw components), so we use
+          // it directly without wrapping it in oklch().
           // `outlineOffset: -2px` insets the outline so the table's
           // `overflow-x-auto` wrapper can't clip the left/right edges
           // of list-view rows. Visually it looks like a "highlighted
           // row" instead of an outline that sticks out — same effect.
-          target.style.outline = "2px solid var(--color-primary)";
+          target.style.outline = "2px solid " + (target.dataset.dropColor || "var(--color-primary)");
           target.style.outlineOffset = "-2px";
         };
         target.addEventListener("dragover", target._dragover);
@@ -3941,6 +4315,28 @@ if (typeof window.Chart === "undefined") {
     layer.deleteShape(detail.uuid);
   });
 
+  // Deep-link shape selection. A comment's "file" resource link (e.g. from the
+  // comments moderation admin) can carry `?annotation=<uuid>`; MediaDetail
+  // pushes `etcher:select-shape` so the shape is pinned (selected) as if the
+  // user clicked it. The Etcher layer mounts asynchronously after the canvas
+  // hook initializes, so retry until the layer + shape exist (give up after
+  // ~6s). selectShape no-ops on readonly shapes.
+  window.addEventListener("phx:etcher:select-shape", function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.fresco_id || !detail.uuid) return;
+    var attempts = 0;
+    (function trySelect() {
+      var layer = window.Etcher && window.Etcher.layerFor &&
+                  window.Etcher.layerFor(detail.fresco_id);
+      if (layer && typeof layer.selectShape === "function" &&
+          typeof layer.getShape === "function" && layer.getShape(detail.uuid)) {
+        layer.selectShape(detail.uuid);
+        return;
+      }
+      if (attempts++ < 60) setTimeout(trySelect, 100);
+    })();
+  });
+
   window.Etcher.tooltipSlots = {
     // Header → annotation title (user-chosen label) if present;
     // otherwise the comment author; otherwise the shape kind.
@@ -3990,6 +4386,329 @@ if (typeof window.Chart === "undefined") {
       }
       html += "</div></div>";
       return html;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // StackExpand
+  //
+  // Stacks media view: when a folder "stack" is opened, its images fly out of
+  // the pile into their grid slots (a FLIP animation). The hook sits on the
+  // expanded section; on mount it finds the matching stack tile
+  // ([data-stack-tile="<uuid>"]) and parks each card ([data-stack-card]) at the
+  // stack's position scaled down, then releases them to their natural slots with
+  // a per-card stagger. Inline styles are cleared afterwards so hover/selection
+  // transforms aren't pinned. Respects prefers-reduced-motion; never throws.
+  // ---------------------------------------------------------------------------
+  // Persists which media stacks the user has open across refresh / navigation
+  // away-and-back, in localStorage. On mount it pushes the saved open-set to
+  // the LiveComponent (which reopens them); after every toggle/restore the
+  // server echoes the authoritative open-set via "pk:stacks" and we persist
+  // it. We persist from the server echo rather than reading the DOM because a
+  // closing stack lingers briefly during its fly-back animation and would be
+  // misread as still-open. Key is scoped per virtual-root so scoped browsers
+  // remember independently.
+  window.PhoenixKitHooks.StackMemory = {
+    mounted() {
+      var key = this.el.dataset.storageKey;
+      var self = this;
+      var el = this.el;
+
+      var reveal = function () {
+        if (self._revealT) {
+          clearTimeout(self._revealT);
+          self._revealT = null;
+        }
+        el.style.visibility = "";
+      };
+
+      this.handleEvent("pk:stacks", function (payload) {
+        try {
+          localStorage.setItem(key, JSON.stringify((payload && payload.uuids) || []));
+        } catch (e) {
+          /* private mode / quota — degrade to no-memory */
+        }
+        // The restore round-trip has landed (server reopened the stacks) —
+        // show the already-open view in one shot.
+        reveal();
+      });
+
+      var saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(key) || "[]");
+      } catch (e) {
+        saved = [];
+      }
+      if (Array.isArray(saved) && saved.length) {
+        // Hide the stacks body before first paint so the user never sees the
+        // closed state flash open. mounted() runs before the browser paints
+        // the patch, so this suppresses the intermediate "stacks closed"
+        // frame; we reveal once the server echoes the reopened set. A safety
+        // timeout guarantees we never leave the view stuck hidden if the echo
+        // never arrives.
+        el.style.visibility = "hidden";
+        self._revealT = setTimeout(reveal, 600);
+        this.pushEventTo(this.el, "restore_stacks", { uuids: saved });
+      }
+    },
+    destroyed() {
+      if (this._revealT) clearTimeout(this._revealT);
+    }
+  };
+
+  window.PhoenixKitHooks.StackExpand = {
+    mounted() {
+      // Closing is driven client-side: the stack tile dispatches
+      // "pk:close-stack", we play the fly-back, then tell the server to drop
+      // the section. There's no phx-remove, so navigating away (opening a
+      // media detail page) just leaves instantly with no animation or delay.
+      this._onClose = function () {
+        try {
+          this.flyBack();
+        } catch (e) {
+          // If the animation can't run, still drop the section server-side.
+          this._removeServerSide();
+        }
+      }.bind(this);
+      this.el.addEventListener("pk:close-stack", this._onClose);
+
+      // Only an explicitly-opened stack animates out of the pile. Restored
+      // stacks (refresh / navigate-back) carry no data-animate-open, so they
+      // appear instantly.
+      if (this.el.dataset.animateOpen) {
+        try {
+          this.flyOut();
+        } catch (e) {
+          /* an animation must never break the page */
+        }
+      }
+    },
+    destroyed() {
+      if (this._onClose) this.el.removeEventListener("pk:close-stack", this._onClose);
+    },
+    // Tell the LiveComponent to collapse this stack. The uuid is still in the
+    // server's expanded list (the client animated first), so toggling removes
+    // it. Runs after the fly-back so removal is seamless.
+    _removeServerSide() {
+      try {
+        this.pushEventTo(this.el, "toggle_stack_expand", {
+          "folder-uuid": this.el.dataset.stackFolder
+        });
+      } catch (e) {
+        /* component may already be gone */
+      }
+    },
+    // Shared geometry: the delta + scale to map a card to the stack pile.
+    _toStack(card) {
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+      var cr = card.getBoundingClientRect();
+      if (!sr) return { dx: 0, dy: -24, scale: 0.35 };
+      return {
+        dx: (sr.left + sr.width / 2) - (cr.left + cr.width / 2),
+        dy: (sr.top + sr.height / 2) - (cr.top + cr.height / 2),
+        scale: Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6))
+      };
+    },
+    // Reverse of flyOut: send each card back into the pile, collapse the
+    // section, then ask the server to remove it. (No prefers-reduced-motion
+    // animation, but we still remove it.)
+    flyBack() {
+      var self = this;
+      var el = this.el;
+
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        self._removeServerSide();
+        return;
+      }
+
+      var cards = Array.prototype.slice.call(el.querySelectorAll("[data-stack-card]"));
+      cards.forEach(function (card) {
+        var t = self._toStack(card);
+        var i = parseInt(card.dataset.stackCard || "0", 10);
+        var delay = Math.min(i, 16) * 18;
+        card.style.transformOrigin = "center center";
+        card.style.willChange = "transform, opacity";
+        card.style.transition =
+          "transform 420ms cubic-bezier(0.4,0,1,1) " + delay + "ms, " +
+          "opacity 380ms ease " + delay + "ms";
+        card.style.transform =
+          "translate(" + t.dx + "px," + t.dy + "px) scale(" + t.scale + ")";
+        card.style.opacity = "0";
+      });
+
+      // Once the images have retreated into the pile, collapse the section's
+      // height + margin to 0 so the stacks/Everything-else below slide up
+      // smoothly to fill the gap, instead of jumping when LiveView removes it.
+      // Deferred so the cards (which fly up out of the box) aren't clipped.
+      setTimeout(function () {
+        var rect = el.getBoundingClientRect();
+        var mt = window.getComputedStyle(el).marginTop;
+        el.style.height = rect.height + "px";
+        el.style.marginTop = mt;
+        el.style.overflow = "hidden";
+        el.getBoundingClientRect(); // commit the fixed height before transitioning
+        el.style.transition =
+          "height 320ms cubic-bezier(0.4,0,0.2,1), margin-top 320ms cubic-bezier(0.4,0,0.2,1)";
+        el.style.height = "0px";
+        el.style.marginTop = "0px";
+      }, 320);
+
+      // Once the cards have retreated and the section has collapsed, tell the
+      // server to remove it (cards ~420ms+stagger, collapse 320ms@+320ms).
+      setTimeout(function () {
+        self._removeServerSide();
+      }, 720);
+    },
+    flyOut() {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+
+      var cards = Array.prototype.slice.call(this.el.querySelectorAll("[data-stack-card]"));
+      if (!cards.length) return;
+
+      var folder = this.el.dataset.stackFolder;
+      var stack = folder && document.querySelector('[data-stack-tile="' + folder + '"]');
+      var sr = stack ? stack.getBoundingClientRect() : null;
+
+      // FIRST → INVERT: start every card at the stack's position, scaled down.
+      cards.forEach(function (card) {
+        var cr = card.getBoundingClientRect();
+        var dx = 0;
+        var dy = -24;
+        var scale = 0.35;
+        if (sr) {
+          dx = (sr.left + sr.width / 2) - (cr.left + cr.width / 2);
+          dy = (sr.top + sr.height / 2) - (cr.top + cr.height / 2);
+          scale = Math.max(0.18, Math.min(sr.width / Math.max(cr.width, 1), 0.6));
+        }
+        card.style.transition = "none";
+        card.style.transformOrigin = "center center";
+        card.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + scale + ")";
+        card.style.opacity = "0";
+        card.style.willChange = "transform, opacity";
+      });
+
+      // PLAY: next frame, release each card to its slot with a stagger.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          cards.forEach(function (card) {
+            var i = parseInt(card.dataset.stackCard || "0", 10);
+            var delay = Math.min(i, 16) * 35;
+            card.style.transition =
+              "transform 460ms cubic-bezier(0.2,0.7,0.3,1) " + delay + "ms, " +
+              "opacity 340ms ease " + delay + "ms";
+            card.style.transform = "translate(0,0) scale(1)";
+            card.style.opacity = "1";
+          });
+        });
+      });
+
+      // Clear inline styles once the last card settles, so hover / selection
+      // transforms aren't pinned by the leftover inline transform.
+      var last = cards[cards.length - 1];
+      var cleanup = function (e) {
+        if (e && e.propertyName && e.propertyName !== "transform") return;
+        cards.forEach(function (card) {
+          card.style.transition = "";
+          card.style.transform = "";
+          card.style.transformOrigin = "";
+          card.style.willChange = "";
+          card.style.opacity = "";
+        });
+        last.removeEventListener("transitionend", cleanup);
+      };
+      last.addEventListener("transitionend", cleanup);
+      setTimeout(cleanup, 1300);
+    }
+  };
+
+  // Interactive waveform for audio files. WaveSurfer is fetched via a lazy
+  // dynamic import the first time an audio file is opened in the viewer, so it
+  // costs nothing on any page without audio. It renders over the native <audio>
+  // element (used as both playback source and fallback), giving click-to-seek,
+  // a moving play cursor, a timeline, and zoom. If the library can't load, the
+  // native <audio controls> still plays.
+  //
+  // The CDN URLs are held in variables (not string literals at the import call)
+  // so the bundler leaves them as runtime imports instead of trying to resolve
+  // them at build time.
+  window.PhoenixKitHooks.WaveformPlayer = {
+    mounted() {
+      var el = this.el;
+      var waveDiv = el.querySelector("[data-waveform]");
+      var audioEl = el.querySelector("[data-waveform-audio]");
+      var toggleBtn = el.querySelector("[data-waveform-toggle]");
+      var playIcon = el.querySelector('[data-waveform-icon="play"]');
+      var pauseIcon = el.querySelector('[data-waveform-icon="pause"]');
+      if (!waveDiv || !audioEl) return;
+
+      var self = this;
+      self._ws = null;
+
+      var showPlay = function (playing) {
+        if (playIcon) playIcon.classList.toggle("hidden", playing);
+        if (pauseIcon) pauseIcon.classList.toggle("hidden", !playing);
+      };
+
+      var CORE_URL = "https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.esm.js";
+
+      import(CORE_URL)
+        .then(function (mod) {
+          if (self._destroyed) return;
+          var WaveSurfer = mod.default;
+
+          var ws = WaveSurfer.create({
+            container: waveDiv,
+            media: audioEl,
+            height: 96,
+            waveColor: "#94a3b8",
+            progressColor: "#6366f1",
+            cursorColor: "#4338ca",
+            cursorWidth: 2,
+            barWidth: 2,
+            barGap: 1,
+            barRadius: 2
+          });
+          self._ws = ws;
+
+          ws.on("play", function () {
+            showPlay(true);
+          });
+          ws.on("pause", function () {
+            showPlay(false);
+          });
+          ws.on("finish", function () {
+            showPlay(false);
+          });
+
+          if (toggleBtn) {
+            toggleBtn.addEventListener("click", function () {
+              try {
+                ws.playPause();
+              } catch (e) {
+                /* not ready yet — ignore */
+              }
+            });
+          }
+        })
+        .catch(function () {
+          // Library unavailable (offline / CSP) — reveal the native controls so
+          // playback still works, and hide the waveform + custom button.
+          audioEl.controls = true;
+          if (waveDiv) waveDiv.style.display = "none";
+          if (toggleBtn) toggleBtn.style.display = "none";
+        });
+    },
+    destroyed() {
+      this._destroyed = true;
+      try {
+        if (this._ws) this._ws.destroy();
+      } catch (e) {
+        /* ignore */
+      }
     }
   };
 

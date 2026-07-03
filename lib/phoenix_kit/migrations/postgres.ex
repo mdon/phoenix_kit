@@ -529,7 +529,51 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V133 - Dashboards table ⚡ LATEST
+  ### V138 - CRM v1 interaction tracker ⚡ LATEST
+  - Adds five `phoenix_kit_crm_*` tables for the CRM module's first data model:
+    `contacts` (profile + **optional** `user_uuid` login link, partial-unique so
+    it's 1:1 only among linked rows), `companies`, `company_memberships` (M:N
+    contact↔company with free-form `role_in_company` + `department` + `is_primary`
+    on the edge), `interactions` (logged interaction: type/when/body/subject
+    contact/owner user), and `interaction_parties` (flat resolvable "who was
+    involved": `raw_name` always kept, `contact_uuid`/`staff_person_uuid` resolve
+    when matched under an exclusive-arc CHECK, `party_snapshot` JSONB freezes the
+    party's profile as-of-then). `staff_person_uuid` is a soft ref (no FK) so the
+    optional staff module stays optional.
+
+  ### V136 - Staff employment history
+  - Adds `phoenix_kit_staff_employments` — a per-person history of employment
+    spans (employment type, translatable `job_title`, org placement via
+    `primary_department_uuid` + a `primary_team_uuid` snapshot, date range with
+    `employment_end_date IS NULL` = the open/current span, `work_location`,
+    `notes`). A partial unique index enforces one open span per person. The
+    matching `phoenix_kit_staff_people` columns are kept as a denormalized mirror
+    of the current span (written by the app's `sync_current/1`), not dropped.
+    Backfills one open span per existing person from those columns (guarded,
+    retry-safe; people with no employment data are skipped).
+
+  ### V135 - Structured staff skills
+  - Replaces the free-text `phoenix_kit_staff_people.skills` column with a
+    first-class translatable `phoenix_kit_staff_skills` entity + a
+    `phoenix_kit_staff_person_skills` join. Each skill carries its own
+    per-skill, translatable proficiency levels (`levels` JSONB array of
+    `{id, name, translations}`) and an `allow_multiple_levels` boolean; the
+    join's `proficiency_levels` JSONB array holds the selected level ids.
+    Migrates the comma-separated free-text into structured rows (case-insensitive
+    dedup, guarded for retry-safety) and drops the column. Lossy by design:
+    per-locale `translations["skills"]` overrides don't map to structured skills
+    and are stripped. Also adds a partial index on
+    `phoenix_kit_staff_people(date_of_birth)` (active + non-null DOB only) for
+    `Staff.upcoming_birthdays/1`.
+
+  ### V134 - Folder header customization
+  - Adds the folder hero-header columns to `phoenix_kit_media_folders`:
+    `cover_file_uuid` (background image), `logo_file_uuid` (icon),
+    `header_size` (small/medium/large), and the `header_show_*` visibility
+    toggles (title / icon / creator / date / file_count / description /
+    background). All nullable/defaulted; `ADD COLUMN IF NOT EXISTS`, idempotent.
+
+  ### V133 - Dashboards table
   - Creates `phoenix_kit_dashboards`, backing the `phoenix_kit_dashboards` plugin
     module. A dashboard is a page of placed widgets whose layout is stored as a
     JSONB list of widget instances. Supports personal / system / role scopes;
@@ -1140,7 +1184,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 133
+  @current_version 138
   @default_prefix "public"
 
   @doc false

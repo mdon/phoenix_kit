@@ -3,17 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Activity Detail")}
+  page_subtitle={@entry.action}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={Routes.path("/admin/activity")}
-      title={gettext("Activity Detail")}
-      subtitle={@entry.action}
-    />
-
     <div class="max-w-4xl mx-auto w-full space-y-6">
       <%!-- Action & Status --%>
       <div class="card bg-base-100 shadow-sm">

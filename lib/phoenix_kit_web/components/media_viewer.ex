@@ -115,7 +115,7 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
 
       file ->
         instances = safe(fn -> Storage.list_file_instances(file_uuid) end, [])
-        urls = signed_urls(file_uuid, instances)
+        urls = URLSigner.put_dzi_url(signed_urls(file_uuid, instances), file_uuid, file.mime_type)
 
         %{
           file_uuid: file.uuid,

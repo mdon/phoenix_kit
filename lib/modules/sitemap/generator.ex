@@ -31,6 +31,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   require Logger
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.Cache
   alias PhoenixKit.Modules.Sitemap.FileStorage
@@ -86,13 +87,45 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   defp do_generate_all(base_url, opts) do
     xsl_style = Keyword.get(opts, :xsl_style, "table")
     xsl_enabled = Keyword.get(opts, :xsl_enabled, true)
-    sources = get_sources()
 
-    if Sitemap.flat_mode?() do
-      do_generate_flat(base_url, opts, sources, xsl_style, xsl_enabled)
-    else
-      do_generate_index(base_url, opts, sources, xsl_style, xsl_enabled)
+    cond do
+      seo_no_index?() ->
+        do_generate_no_index(xsl_style, xsl_enabled)
+
+      Sitemap.flat_mode?() ->
+        do_generate_flat(base_url, opts, get_sources(), xsl_style, xsl_enabled)
+
+      true ->
+        do_generate_index(base_url, opts, get_sources(), xsl_style, xsl_enabled)
     end
+  end
+
+  # When the SEO module's global `noindex` directive is active the site is
+  # asking search engines not to index it, so we publish an empty (but valid)
+  # `<urlset>` rather than advertising crawlable URLs, for both flat and index
+  # modes. Note this makes `/sitemap.xml` serve a `<urlset>` (not a
+  # `<sitemapindex>`) while noindex is on — an empty urlset is schema-valid and
+  # harmless. Any leftover per-module files are removed.
+  #
+  # Keyed on `no_index_enabled?/0` alone (not `module_enabled?/0`) to stay in
+  # lockstep with the `<meta name="robots" content="noindex">` directive host
+  # layouts emit for the same setting — an empty sitemap always pairs with a
+  # noindex meta.
+  defp do_generate_no_index(xsl_style, xsl_enabled) do
+    Logger.debug("Sitemap: seo_no_index active — publishing empty sitemap")
+
+    xml = build_urlset_xml([], xsl_style, xsl_enabled)
+    FileStorage.save_index(xml)
+    FileStorage.delete_all_modules()
+
+    {:ok, %{index_xml: xml, modules: [], total_urls: 0}}
+  end
+
+  # Defensive: never let an SEO lookup error break sitemap generation.
+  defp seo_no_index? do
+    SEO.no_index_enabled?()
+  rescue
+    _ -> false
   end
 
   defp do_generate_index(base_url, opts, sources, xsl_style, xsl_enabled) do
@@ -336,6 +369,11 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
       style not in ["hierarchical", "grouped", "flat"] ->
         {:error, :invalid_style}
 
+      seo_no_index?() ->
+        # noindex active: never advertise URLs and never serve a stale cached
+        # HTML sitemap — render an empty one, bypassing the cache.
+        HtmlGenerator.generate(opts, [], :"html_#{style}", cache: false)
+
       true ->
         cache_key = :"html_#{style}"
 
@@ -423,8 +461,30 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   @doc false
   def get_sources do
-    Application.get_env(:phoenix_kit, :sitemap, [])
-    |> Keyword.get(:sources, default_sources())
+    base_sources =
+      Application.get_env(:phoenix_kit, :sitemap, [])
+      |> Keyword.get(:sources, default_sources())
+
+    # Append sitemap sources contributed by external modules (e.g. Entities)
+    # via the PhoenixKit.Module `sitemap_sources/0` callback. Deduplicated so
+    # a module already listed in host config / defaults isn't run twice.
+    #
+    # Semantics note: a host `config :phoenix_kit, sitemap: [sources: [...]]`
+    # is now a BASE list that module-contributed sources EXTEND — it no longer
+    # fully replaces them. A host that intentionally pruned `:sources` will
+    # still get an opted-in module's source appended. Only sources from
+    # *enabled* modules are appended (see `all_sitemap_sources/0`), so a disabled
+    # module emits nothing even in flat mode (where collection is forced and the
+    # per-source `enabled?/0` is bypassed). In index mode the source's own
+    # `enabled?/0` is still honored as a secondary gate (see `generate_module/2`).
+    (base_sources ++ module_sitemap_sources())
+    |> Enum.uniq()
+  end
+
+  defp module_sitemap_sources do
+    PhoenixKit.ModuleRegistry.all_sitemap_sources()
+  rescue
+    _ -> []
   end
 
   defp default_sources do
@@ -446,7 +506,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
       Logger.debug("Sitemap: Collected #{length(entries)} entries from #{inspect(source_module)}")
       entries
     end)
-    |> Enum.uniq_by(& &1.loc)
+    |> dedupe_by_loc()
     |> Enum.sort_by(& &1.loc)
   end
 
@@ -535,7 +595,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
         entry
       end
     end)
-    |> Enum.uniq_by(& &1.loc)
+    |> dedupe_by_loc()
     |> Enum.sort_by(& &1.loc)
   end
 
@@ -551,6 +611,36 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
       [_, lang] -> lang
       _ -> Routes.get_default_admin_locale()
     end
+  end
+
+  # Deduplicates entries by `loc`, preferring the entry with the richer
+  # sitemap metadata when a URL is emitted by more than one source. This
+  # matters because RouterDiscovery blindly enumerates every GET route and
+  # can emit the same `loc` as a content source (Publishing, Entities, ...)
+  # that also generates a richer entry (canonical_path/alternates for
+  # hreflang, higher priority) for that same URL. A RouterDiscovery entry
+  # always loses to a same-loc entry from any other source: it only carries
+  # generic route metadata (priority 0.5, no hreflang) and must never mask
+  # an authoritative content-source entry. `Enum.uniq_by/2` alone is not
+  # enough here since it keeps whichever entry happens to come first, which
+  # depends on source ordering rather than which entry is actually richer.
+  defp dedupe_by_loc(entries) do
+    entries
+    |> Enum.group_by(& &1.loc)
+    |> Enum.map(fn {_loc, group} -> Enum.max_by(group, &entry_richness/1) end)
+  end
+
+  # RouterDiscovery entries always score lowest (0), so any other source
+  # wins a same-loc collision regardless of its own priority/canonical_path.
+  # Among non-RouterDiscovery entries, richer entries win ties.
+  defp entry_richness(%UrlEntry{source: :router_discovery}), do: 0
+
+  defp entry_richness(%UrlEntry{} = entry) do
+    canonical_bonus = if entry.canonical_path in [nil, ""], do: 0, else: 2
+    alternates_bonus = if entry.alternates in [nil, []], do: 0, else: 2
+    priority = UrlEntry.parse_priority(entry.priority) || 0.0
+
+    1 + canonical_bonus + alternates_bonus + priority
   end
 
   # ── Internal: XML building ─────────────────────────────────────────

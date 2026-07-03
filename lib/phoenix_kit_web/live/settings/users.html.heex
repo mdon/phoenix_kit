@@ -2,18 +2,13 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={@project_title <> " " <> gettext("User Settings")}
+  page_title={gettext("User Settings")}
+  page_subtitle={gettext("Manage user registration, defaults, and custom fields")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/settings")}
-      title={gettext("User Settings")}
-      subtitle={gettext("Manage user registration, defaults, and custom fields")}
-    />
-
     <%!-- Settings Form --%>
     <div class="space-y-6">
       <%!-- User Configuration Settings Card --%>

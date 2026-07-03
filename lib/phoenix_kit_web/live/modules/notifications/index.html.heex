@@ -2,23 +2,18 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Notifications"
+  page_title={gettext("Notifications")}
+  page_subtitle={gettext("Per-user in-app notifications driven by the activity log")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
 >
   <div class="p-6">
-    <.admin_page_header
-      back={Routes.path("/admin/modules")}
-      title={gettext("Notifications")}
-      subtitle={gettext("Per-user in-app notifications driven by the activity log")}
-    >
-      <:actions>
-        <button type="button" phx-click="refresh" class="btn btn-sm btn-ghost gap-2">
-          <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Refresh")}
-        </button>
-      </:actions>
-    </.admin_page_header>
+    <div class="flex justify-end mb-4">
+      <button type="button" phx-click="refresh" class="btn btn-sm btn-ghost gap-2">
+        <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Refresh")}
+      </button>
+    </div>
 
     <%!-- Aggregate counts --%>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

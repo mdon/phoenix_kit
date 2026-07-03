@@ -81,6 +81,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :phoenix_kit_current_scope, :any, default: nil
   attr :phoenix_kit_current_user, :any, default: nil
   attr :page_title, :string, default: nil
+  attr :page_subtitle, :string, default: nil
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
@@ -251,6 +252,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               socket: assigns[:socket],
               phoenix_kit_current_user: assigns[:phoenix_kit_current_user],
               current_path: assigns[:current_path],
+              page_title: assigns[:page_title],
+              page_subtitle: assigns[:page_subtitle],
               phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
               project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
               current_locale: assigns[:current_locale],
@@ -306,7 +309,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <header class="bg-base-100 shadow-sm border-b border-base-300 fixed top-0 left-0 right-0 z-50">
               <div class="flex items-center justify-between h-16 px-4">
                 <%!-- Left: Burger Menu, Logo and Title --%>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0">
                   <%!-- Burger Menu Button (Far left) --%>
                   <label
                     for="admin-mobile-menu"
@@ -328,7 +331,29 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     >
                       {@project_title}
                     </.link>
-                    <span class="font-bold text-base-content shrink-0">{gettext("Admin Panel")}</span>
+                    <%!-- On mobile, when a page has a title, hide the "Admin
+                         Panel /" prefix and show just the page title — the full
+                         breadcrumb is too wide and overlaps the right-side theme
+                         / notifications controls. --%>
+                    <span class={[
+                      "font-bold text-base-content shrink-0",
+                      @page_title && "hidden sm:inline"
+                    ]}>
+                      {gettext("Admin Panel")}
+                    </span>
+                    <%!-- Current page breadcrumb: " / Page Title · subtitle".
+                         Pushed in via page_title / page_subtitle so pages can
+                         drop their own in-content header and reclaim the space. --%>
+                    <span :if={@page_title} class="flex items-center gap-1.5 min-w-0">
+                      <span class="text-base-content/30 shrink-0 hidden sm:inline">/</span>
+                      <span class="font-semibold text-base-content truncate min-w-0">{@page_title}</span>
+                      <span
+                        :if={@page_subtitle}
+                        class="text-sm text-base-content/50 truncate hidden md:inline"
+                      >
+                        {@page_subtitle}
+                      </span>
+                    </span>
                   </div>
                 </div>
 
@@ -347,7 +372,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     {Phoenix.Component.live_render(@socket, PhoenixKitWeb.Live.NotificationsBell,
                       id: "pk-notifications-bell",
                       sticky: true,
-                      session: %{"user_uuid" => bell_user.uuid}
+                      session: %{
+                        "user_uuid" => bell_user.uuid,
+                        "locale" => assigns[:current_locale_base]
+                      }
                     )}
                   <% end %>
                   <.admin_user_dropdown

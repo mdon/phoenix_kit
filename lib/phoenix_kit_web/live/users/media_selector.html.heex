@@ -13,31 +13,36 @@
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-2xl sm:text-4xl font-bold text-base-content mb-2">
-            Select Media
+            {gettext("Select Media")}
           </h1>
           <p class="text-base sm:text-lg text-base-content/70">
             <%= if @selection_mode == :single do %>
-              Click on an image to select it
+              {gettext("Click on an image to select it")}
             <% else %>
-              Select one or more images
+              {gettext("Select one or more images")}
             <% end %>
             <%= if MapSet.size(@selected_uuids) > 0 do %>
               <span class="badge badge-primary ml-2">
-                {MapSet.size(@selected_uuids)} selected
+                {ngettext(
+                  "%{count} selected",
+                  "%{count} selected",
+                  MapSet.size(@selected_uuids),
+                  count: MapSet.size(@selected_uuids)
+                )}
               </span>
             <% end %>
           </p>
         </div>
         <div class="flex gap-2">
           <button phx-click="cancel_selection" class="btn btn-outline">
-            <.icon name="hero-x-mark" class="w-4 h-4 mr-1" /> Cancel
+            <.icon name="hero-x-mark" class="w-4 h-4 mr-1" /> {gettext("Cancel")}
           </button>
           <button
             phx-click="confirm_selection"
             class="btn btn-primary"
             disabled={MapSet.size(@selected_uuids) == 0}
           >
-            <.icon name="hero-check" class="w-4 h-4 mr-1" /> Confirm Selection
+            <.icon name="hero-check" class="w-4 h-4 mr-1" /> {gettext("Confirm Selection")}
           </button>
         </div>
       </div>
@@ -47,7 +52,7 @@
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
         <h3 class="card-title text-lg mb-4">
-          <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> Upload New Files
+          <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> {gettext("Upload New Files")}
         </h3>
         <.form for={%{}} phx-change="validate" phx-submit="save">
           <.live_file_input upload={@uploads.media_files} class="hidden" id="file-upload-input" />
@@ -59,9 +64,13 @@
             <div class="flex flex-col items-center justify-center pt-5 pb-6">
               <.icon name="hero-cloud-arrow-up" class="w-10 h-10 mb-3 text-base-content/50" />
               <p class="mb-2 text-sm text-base-content/70">
-                <span class="font-semibold">Click to upload</span> or drag and drop
+                <span class="font-semibold">{gettext("Click to upload")}</span> {gettext(
+                  "or drag and drop"
+                )}
               </p>
-              <p class="text-xs text-base-content/50">Images, videos, or documents</p>
+              <p class="text-xs text-base-content/50">
+                {gettext("Images, videos, or documents")}
+              </p>
             </div>
           </label>
 
@@ -95,7 +104,7 @@
                   type="text"
                   name="search[query]"
                   value={@search_query}
-                  placeholder="Search by filename..."
+                  placeholder={gettext("Search by filename...")}
                   class="input input-bordered join-item flex-1"
                 />
                 <button type="submit" class="btn btn-primary join-item">
@@ -112,9 +121,15 @@
                 phx-change="filter_type"
                 name="filter"
               >
-                <option value="all" selected={@file_type_filter == :all}>All Files</option>
-                <option value="image" selected={@file_type_filter == :image}>Images Only</option>
-                <option value="video" selected={@file_type_filter == :video}>Videos Only</option>
+                <option value="all" selected={@file_type_filter == :all}>
+                  {gettext("All Files")}
+                </option>
+                <option value="image" selected={@file_type_filter == :image}>
+                  {gettext("Images Only")}
+                </option>
+                <option value="video" selected={@file_type_filter == :video}>
+                  {gettext("Videos Only")}
+                </option>
               </select>
             </label>
           </div>
@@ -128,9 +143,9 @@
         <%= if Enum.empty?(@uploaded_files) do %>
           <div class="text-center py-12">
             <.icon name="hero-photo" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
-            <p class="text-lg text-base-content/70 mb-2">No media files found</p>
+            <p class="text-lg text-base-content/70 mb-2">{gettext("No media files found")}</p>
             <p class="text-sm text-base-content/50">
-              Upload files using the area above or adjust your search filters
+              {gettext("Upload files using the area above or adjust your search filters")}
             </p>
           </div>
         <% else %>

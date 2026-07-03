@@ -9,6 +9,7 @@ defmodule PhoenixKit.Modules.SEO do
   use PhoenixKit.Module
 
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Modules.Sitemap.Generator
   alias PhoenixKit.Settings
 
   @module_enabled_key "seo_module_enabled"
@@ -69,7 +70,23 @@ defmodule PhoenixKit.Modules.SEO do
   Updates the directive to the provided boolean value.
   """
   def update_no_index(enabled?) when is_boolean(enabled?) do
-    Settings.update_boolean_setting_with_module(@no_index_key, enabled?, @module_name)
+    result = Settings.update_boolean_setting_with_module(@no_index_key, enabled?, @module_name)
+
+    # The directive flips what the sitemap must advertise. Drop the cached
+    # sitemap and regenerate so `/sitemap.xml` reflects the new state instead of
+    # serving a stale file. Best-effort — never let it break the toggle.
+    refresh_sitemap()
+
+    result
+  end
+
+  # Invalidate + regenerate the sitemap after a noindex change. Wrapped so a
+  # sitemap/Oban hiccup can never fail the settings write.
+  defp refresh_sitemap do
+    Generator.invalidate_and_regenerate()
+    :ok
+  rescue
+    _ -> :ok
   end
 
   @impl PhoenixKit.Module

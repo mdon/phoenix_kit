@@ -59,6 +59,46 @@ defmodule PhoenixKit.Migrations.Postgres.V122 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
+    # ── Backfill `phoenix_kit_locations` parent (issue #598) ────────
+    # `phoenix_kit_location_spaces` below carries a required FK to
+    # `phoenix_kit_locations`, which is created only in V91. Because the
+    # locations tables were added to an already-released `v91.ex`, any
+    # database that passed V91 *before* that addition never received the
+    # parent table — so V122 would abort with `42P01 undefined_table`
+    # while building the FK. Recreate it here (mirroring V91's final
+    # shape) so the FK target always exists. Idempotent no-op on installs
+    # where V91 already created it.
+    create_if_not_exists table(:phoenix_kit_locations,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:name, :string, null: false, size: 255)
+      add(:description, :text)
+      add(:public_notes, :text)
+
+      add(:address_line_1, :string, size: 500)
+      add(:address_line_2, :string, size: 500)
+      add(:city, :string, size: 255)
+      add(:state, :string, size: 255)
+      add(:postal_code, :string, size: 20)
+      add(:country, :string, size: 255)
+
+      add(:phone, :string, size: 50)
+      add(:email, :string, size: 255)
+      add(:website, :string, size: 500)
+
+      add(:notes, :text)
+      add(:status, :string, default: "active", size: 20)
+
+      add(:features, :map, default: %{})
+      add(:data, :map, default: %{})
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create_if_not_exists(index(:phoenix_kit_locations, [:status], prefix: prefix))
+
     create_if_not_exists table(:phoenix_kit_location_spaces,
                            primary_key: false,
                            prefix: prefix

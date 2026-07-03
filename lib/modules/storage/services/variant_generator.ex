@@ -146,6 +146,39 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
+  @doc """
+  Stores an already-rendered variant file as `variant_name` on `file`.
+
+  Use this when the variant bytes are produced outside the normal resize
+  pipeline (e.g. the baked annotated thumbnail). Handles stats, bucket storage,
+  the `FileInstance` row, and file-location records — then removes `prepared_path`.
+
+  Returns `{:ok, instance}` or `{:error, reason}`.
+  """
+  def store_prepared_variant(file, variant_name, prepared_path, variant_ext, variant_mime_type) do
+    base_name = file.file_checksum || Path.basename(file.file_name, Path.extname(file.file_name))
+    variant_filename = "#{base_name}_#{variant_name}.#{variant_ext}"
+    variant_storage_path = "#{file.file_path}/#{variant_filename}"
+
+    with {:ok, file_stats} <- get_variant_file_stats(prepared_path),
+         {:ok, storage_info} <-
+           store_variant_file(prepared_path, variant_name, variant_storage_path, file.uuid),
+         {:ok, instance} <-
+           create_variant_instance(
+             file,
+             variant_name,
+             variant_storage_path,
+             variant_mime_type,
+             variant_ext,
+             file_stats
+           ),
+         {:ok, _locations} <-
+           create_variant_file_locations(instance, storage_info.bucket_ids, variant_storage_path) do
+      cleanup_temp_files([prepared_path])
+      {:ok, instance}
+    end
+  end
+
   # Private functions
 
   defp get_variant_file_stats(variant_path) do

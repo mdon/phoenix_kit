@@ -176,6 +176,108 @@ defmodule PhoenixKit.Module do
   @callback css_sources() :: [atom() | String.t()]
 
   @doc """
+  Returns JavaScript hook bundles this module needs registered in the host's
+  `LiveSocket`.
+
+  A LiveView JS hook must be present in the host's single `LiveSocket` at
+  construction time — a nested LiveView cannot register one at runtime. This
+  callback lets a module declare a prebuilt bundle (e.g. a standalone Hex
+  package's hooks) so the `:phoenix_kit_js_sources` compiler can wire it into
+  the host automatically, the same way `css_sources/0` wires Tailwind sources.
+
+  Each entry is a map:
+
+    * `:app` — the OTP app shipping the bundle. Resolved at compile time via
+      `:code.priv_dir/1`, so it works for Hex installs and path deps alike (no
+      `deps/<app>` path arithmetic).
+    * `:file` — path to the prebuilt bundle **inside that app's `priv/`**, e.g.
+      `"static/assets/my_hooks.js"`. The file must ship in the app's `priv/`.
+    * `:global` — the `window.<Name>` the bundle assigns its hooks to. The
+      compiler folds it into `window.PhoenixKitHooks` (which the host already
+      spreads into `LiveSocket`), so no per-module `app.js` edit is needed. Must
+      be unique across all modules — two bundles sharing a global would clobber
+      each other, so the compiler fails loudly on a collision.
+
+  ## Hook names must be globally unique too
+
+  The compiler enforces unique `:global` names, but it cannot see *inside* a
+  prebuilt bundle. The final fold is `Object.assign(window.PhoenixKitHooks,
+  <bundle globals…>)`, which is last-write-wins on the **hook names** each
+  bundle exports. So two modules with distinct globals that happen to export a
+  hook of the same name (e.g. both define `Chart`) will silently clobber one
+  another — and a bundle hook whose name matches a core PhoenixKit hook (e.g.
+  `RowMenu`, `SortableGrid`) overrides the core one. Namespace your hook names
+  (e.g. prefix them with the module name) to keep them unique across every
+  module and the core set.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def js_sources do
+        [%{app: :phoenix_live_gantt,
+           file: "static/assets/phoenix_live_gantt.js",
+           global: "PhoenixLiveGanttHooks"}]
+      end
+
+  Modules with no JS hooks skip this callback — the default is `[]`.
+  """
+  @callback js_sources() :: [
+              %{
+                required(:app) => atom(),
+                required(:file) => String.t(),
+                required(:global) => String.t()
+              }
+            ]
+
+  @doc """
+  Returns sitemap source modules this module contributes.
+
+  Each entry is a module implementing the
+  `PhoenixKit.Modules.Sitemap.Sources.Source` behaviour. The sitemap
+  `Generator` merges these with its built-in sources (router discovery,
+  static, publishing, posts, shop) so an external module's content
+  (e.g. Entities records) appears in the generated sitemap with no
+  host-app configuration — the same zero-config pattern as `css_sources/0`
+  and route discovery.
+
+  Sources are collected via `PhoenixKit.ModuleRegistry.all_sitemap_sources/0`
+  and appended to the base source list, deduplicated by module.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def sitemap_sources, do: [PhoenixKitEntities.SitemapSource]
+
+  Headless modules (no public content) skip this callback — the default is `[]`.
+  """
+  @callback sitemap_sources() :: [module()]
+
+  @doc """
+  Returns top-level route path segments this module owns for its own
+  LiveViews/controllers (e.g. a host app declares `live "/legal", LegalLive`
+  and this module IS the "legal" feature).
+
+  Consulted by modules that dispatch requests based on a database-driven
+  path segment (e.g. Publishing's `/:language/:group/*path` catch-all, which
+  treats any first segment matching a stored group slug as one of its own
+  groups) so they don't swallow a route another module owns just because a
+  same-named record happens to exist in their own data. Collected via
+  `PhoenixKit.ModuleRegistry.all_reserved_route_prefixes/0`.
+
+  Segments are compared literally (no leading/trailing slash, e.g. `"legal"`
+  not `"/legal"`).
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def reserved_route_prefixes, do: ["legal"]
+
+  Modules that don't own a reserved top-level segment skip this callback —
+  the default is `[]`.
+  """
+  @callback reserved_route_prefixes() :: [String.t()]
+
+  @doc """
   Run any one-shot legacy data migrations this module owns.
 
   Two transitions every module that touches Integrations may need:
@@ -228,6 +330,9 @@ defmodule PhoenixKit.Module do
     integration_providers: 0,
     notification_types: 0,
     css_sources: 0,
+    js_sources: 0,
+    sitemap_sources: 0,
+    reserved_route_prefixes: 0,
     migrate_legacy: 0
   ]
 
@@ -284,6 +389,15 @@ defmodule PhoenixKit.Module do
       def css_sources, do: []
 
       @impl PhoenixKit.Module
+      def js_sources, do: []
+
+      @impl PhoenixKit.Module
+      def sitemap_sources, do: []
+
+      @impl PhoenixKit.Module
+      def reserved_route_prefixes, do: []
+
+      @impl PhoenixKit.Module
       def migrate_legacy, do: :ok
 
       defoverridable get_config: 0,
@@ -300,6 +414,9 @@ defmodule PhoenixKit.Module do
                      integration_providers: 0,
                      notification_types: 0,
                      css_sources: 0,
+                     js_sources: 0,
+                     sitemap_sources: 0,
+                     reserved_route_prefixes: 0,
                      migrate_legacy: 0
     end
   end

@@ -936,6 +936,42 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
+  @doc """
+  Lists non-trashed folders whose name matches `search` (case-insensitive
+  `ilike`), within the same scope the media-browser file search uses:
+
+    * a specific `folder_uuid` → its direct child folders
+    * scope root (scope set, no `folder_uuid`) → folders anywhere under the scope
+    * real root (no scope, no `folder_uuid`) → all folders
+
+  Returns `[]` for a blank search.
+  """
+  def search_folders(search, folder_uuid \\ nil, scope_folder_id \\ nil)
+
+  def search_folders(search, _folder_uuid, _scope) when search in [nil, ""], do: []
+
+  def search_folders(search, folder_uuid, scope_folder_id) do
+    base =
+      cond do
+        folder_uuid not in [nil, ""] ->
+          from(f in Folder, where: f.parent_uuid == ^folder_uuid)
+
+        scope_folder_id ->
+          # The scope folder itself isn't a listable result — only its descendants.
+          subtree = folder_subtree_uuids(scope_folder_id)
+          from(f in Folder, where: f.uuid in ^subtree and f.uuid != ^scope_folder_id)
+
+        true ->
+          from(f in Folder)
+      end
+
+    base
+    |> where([f], is_nil(f.trashed_at))
+    |> where([f], ilike(f.name, ^"%#{search}%"))
+    |> order_by([f], asc: f.name)
+    |> repo().all()
+  end
+
   @doc "Gets a single folder by UUID."
   def get_folder(nil), do: nil
   def get_folder(uuid), do: repo().get(Folder, uuid)
@@ -1171,13 +1207,22 @@ defmodule PhoenixKit.Modules.Storage do
   defp do_delete_folder_completely(%Folder{} = folder) do
     subtree_uuids = folder_subtree_uuids(folder.uuid)
 
-    # Pull files first (need them for storage-backend cleanup via
-    # `delete_file_completely/1`), then delete bottom-up.
+    # Pull files home in the subtree, then delete bottom-up.
     files =
       from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
       |> repo().all()
 
-    Enum.each(files, &delete_file_completely/1)
+    # A file that is ALSO linked (via `FolderLink`) into a folder OUTSIDE this
+    # subtree lives in another folder too — re-home it there (consuming that one
+    # link) so it survives, instead of hard-deleting it. Without this, deleting a
+    # folder silently destroys a file shared into an unrelated folder (and the
+    # `FolderLink.file_uuid` cascade strips it from there). Only files confined
+    # to the subtree are deleted.
+    {to_promote, to_delete} =
+      Enum.split_with(files, &linked_outside_subtree?(&1.uuid, subtree_uuids))
+
+    Enum.each(to_promote, &promote_out_of_subtree(&1, subtree_uuids))
+    Enum.each(to_delete, &delete_file_completely/1)
 
     # Delete folders from deepest first so parent_uuid foreign keys
     # don't break. `folder_subtree_uuids/1` walks breadth-first; reverse
@@ -1190,6 +1235,36 @@ defmodule PhoenixKit.Modules.Storage do
     end)
 
     {:ok, folder}
+  end
+
+  # `FolderLink`s for `file_uuid` that point at folders OUTSIDE `subtree_uuids`.
+  defp links_outside_subtree(file_uuid, subtree_uuids) do
+    from(fl in FolderLink,
+      where: fl.file_uuid == ^file_uuid and fl.folder_uuid not in ^subtree_uuids
+    )
+    |> repo().all()
+  end
+
+  defp linked_outside_subtree?(file_uuid, subtree_uuids),
+    do: links_outside_subtree(file_uuid, subtree_uuids) != []
+
+  # Re-home a file to the first folder that links it from outside the deleted
+  # subtree (consuming that link), so it survives. Any remaining external links
+  # keep pointing at the now-rehomed file; links to subtree folders cascade away
+  # when those folders are deleted.
+  defp promote_out_of_subtree(%PhoenixKit.Modules.Storage.File{} = file, subtree_uuids) do
+    case links_outside_subtree(file.uuid, subtree_uuids) do
+      [%FolderLink{folder_uuid: new_home} = link | _] ->
+        repo().transaction(fn ->
+          file |> Ecto.Changeset.change(folder_uuid: new_home) |> repo().update!()
+          repo().delete!(link)
+        end)
+
+        :ok
+
+      [] ->
+        :ok
+    end
   end
 
   @doc """
@@ -1366,6 +1441,9 @@ defmodule PhoenixKit.Modules.Storage do
     include_orphaned = Keyword.get(opts, :include_orphaned, false)
     page = Keyword.get(opts, :page, 1)
     per_page = Keyword.get(opts, :per_page, 20)
+    # Optional UI sort + file-type filter (media browser toolbar).
+    sort = opts[:sort] || "newest"
+    file_type = opts[:file_type]
 
     if not is_nil(folder_uuid) and not is_nil(scope_folder_id) and
          not within_scope?(folder_uuid, scope_folder_id) do
@@ -1375,12 +1453,14 @@ defmodule PhoenixKit.Modules.Storage do
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
         |> exclude_system_managed()
+        |> exclude_folder_header_assets(folder_uuid)
+        |> maybe_filter_file_type(file_type)
 
       total = repo().aggregate(query, :count, :uuid)
 
       files =
         query
-        |> order_by([f], desc: f.inserted_at)
+        |> apply_file_sort(sort)
         |> offset(^((page - 1) * per_page))
         |> limit(^per_page)
         |> repo().all()
@@ -1388,6 +1468,49 @@ defmodule PhoenixKit.Modules.Storage do
       {files, total}
     end
   end
+
+  # Narrows the listing to a single file_type ("image", "video", "document",
+  # "audio", "archive", "other"); "all"/nil leaves it unfiltered.
+  defp maybe_filter_file_type(query, type) when type in [nil, "all", ""], do: query
+  defp maybe_filter_file_type(query, type), do: where(query, [f], f.file_type == ^type)
+
+  # A folder's own cover/logo are folder assets, not part of its visible file
+  # listing — drop them from the per-folder grid. They remain real files
+  # (re-selectable via the header's media picker); we just don't show them as
+  # loose files in the folder they decorate. Only applies when listing a
+  # specific folder; flat views (all/orphaned/search) pass folder_uuid = nil.
+  defp exclude_folder_header_assets(query, nil), do: query
+
+  defp exclude_folder_header_assets(query, folder_uuid) do
+    case get_folder(folder_uuid) do
+      %{} = folder ->
+        case Enum.reject([folder.cover_file_uuid, folder.logo_file_uuid], &is_nil/1) do
+          [] -> query
+          excluded -> where(query, [f], f.uuid not in ^excluded)
+        end
+
+      _ ->
+        query
+    end
+  end
+
+  # Sort whitelist for the media browser toolbar — defaults to newest first.
+  # Every order carries `f.uuid` as a stable tiebreaker so equal values
+  # (same size, same name, same insert time) can't shuffle across pages.
+  # Name sorts compare case-insensitively (lower/?) so "apple" and "Zebra"
+  # order naturally instead of uppercase-before-lowercase.
+  defp apply_file_sort(query, "oldest"),
+    do: order_by(query, [f], asc: f.inserted_at, asc: f.uuid)
+
+  defp apply_file_sort(query, "name_asc"),
+    do: order_by(query, [f], asc: fragment("lower(?)", f.original_file_name), asc: f.uuid)
+
+  defp apply_file_sort(query, "name_desc"),
+    do: order_by(query, [f], desc: fragment("lower(?)", f.original_file_name), asc: f.uuid)
+
+  defp apply_file_sort(query, "largest"), do: order_by(query, [f], desc: f.size, asc: f.uuid)
+  defp apply_file_sort(query, "smallest"), do: order_by(query, [f], asc: f.size, asc: f.uuid)
+  defp apply_file_sort(query, _newest), do: order_by(query, [f], desc: f.inserted_at, asc: f.uuid)
 
   defp build_scope_file_query(nil, nil, nil, false) do
     from(f in PhoenixKit.Modules.Storage.File)

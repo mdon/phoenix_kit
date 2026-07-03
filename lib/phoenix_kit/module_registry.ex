@@ -159,7 +159,7 @@ defmodule PhoenixKit.ModuleRegistry do
   @doc """
   Build a feature_enabled_checks map from registered modules.
 
-  Returns `%{"referrals" => {PhoenixKit.Modules.Referrals, :enabled?}, ...}`
+  Returns `%{"storage" => {PhoenixKit.Modules.Storage, :enabled?}, ...}`
   """
   @spec feature_enabled_checks() :: %{String.t() => {module(), atom()}}
   def feature_enabled_checks do
@@ -178,6 +178,67 @@ defmodule PhoenixKit.ModuleRegistry do
     all_modules()
     |> Enum.map(&safe_call(&1, :route_module, nil))
     |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Collect sitemap source modules contributed by all **enabled** modules.
+
+  Each entry implements `PhoenixKit.Modules.Sitemap.Sources.Source`. The
+  sitemap `Generator` appends these to its base source list (deduplicated)
+  so module-owned content appears in the sitemap with no host config.
+
+  Iterates `enabled_modules/0`, so a disabled module contributes nothing — even
+  in flat-sitemap mode, where the `Generator` deliberately force-collects every
+  source and bypasses each source's own `enabled?/0` (`force: true`, see
+  `Sources.Source.safe_collect/2` and `Generator` flat-mode generation). Gating
+  at the module level here keeps the "disabled module emits no URLs" guarantee
+  in both modes. A contributed source's own `enabled?/0` remains a secondary
+  gate in index mode (see `Generator.generate_module/2`).
+  """
+  @spec all_sitemap_sources() :: [module()]
+  def all_sitemap_sources do
+    enabled_modules()
+    |> Enum.flat_map(&safe_call(&1, :sitemap_sources, []))
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Collect top-level route path segments reserved by all installed modules.
+
+  Each entry is a literal path segment (no slashes, e.g. `"legal"`) a module
+  owns for its own LiveViews/controllers. A dispatcher that routes requests
+  based on database-driven path segments (e.g. Publishing's group catch-all)
+  should treat any segment in this list as NOT its own, even if it happens to
+  have matching data, so it doesn't swallow a route another module owns.
+  Declaring a prefix is passive — it changes nothing unless a dispatcher
+  actively consults this function.
+
+  Iterates `all_modules/0`, **not** `enabled_modules/0` (unlike
+  `all_sitemap_sources/0`): the route this guards against is normally
+  compiled into the host's router (e.g. `live "/legal", LegalLive`), which
+  exists independent of the owning module's runtime enabled/disabled
+  Settings toggle. Gating on `enabled_modules/0` would drop the reservation
+  the moment a module is disabled while its data (and the host's compiled
+  route) still exist, reopening the exact hijack this is meant to prevent
+  for as long as the module stays disabled.
+
+  Each module's returned segments are trimmed of leading/trailing slashes
+  and non-list/non-string returns are dropped, so a malformed
+  `reserved_route_prefixes/0` implementation (e.g. returning `"/legal"` or a
+  bare string instead of a list) can't silently defeat the reservation or
+  crash this per-request-hot-path aggregation.
+  """
+  @spec all_reserved_route_prefixes() :: [String.t()]
+  def all_reserved_route_prefixes do
+    all_modules()
+    |> Enum.flat_map(fn mod ->
+      mod
+      |> safe_call(:reserved_route_prefixes, [])
+      |> List.wrap()
+      |> Enum.filter(&is_binary/1)
+    end)
+    |> Enum.map(&String.trim(&1, "/"))
+    |> Enum.uniq()
   end
 
   @doc """
@@ -474,7 +535,6 @@ defmodule PhoenixKit.ModuleRegistry do
     [
       PhoenixKit.Modules.Languages,
       PhoenixKit.Modules.Maintenance,
-      PhoenixKit.Modules.Referrals,
       PhoenixKit.Modules.SEO,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,

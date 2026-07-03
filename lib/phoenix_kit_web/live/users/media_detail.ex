@@ -47,9 +47,24 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       |> assign(:show_delete_modal, false)
       |> load_file_data(file_uuid)
       |> assign(:viewer_annotations, MediaCanvasViewer.load_annotations_for(file_uuid))
+      |> maybe_select_annotation(file_uuid, params["annotation"])
 
     {:ok, socket}
   end
+
+  # Deep-link from a comment's "file" resource (e.g. the comments moderation
+  # admin) can carry `?annotation=<uuid>` to focus the Etcher shape the comment
+  # is anchored to. Push the select-shape event; the JS bridge retries until the
+  # canvas layer is ready (the event is a no-op on the static mount).
+  defp maybe_select_annotation(socket, file_uuid, annotation_uuid)
+       when is_binary(annotation_uuid) and annotation_uuid != "" do
+    Phoenix.LiveView.push_event(socket, "etcher:select-shape", %{
+      fresco_id: "media-zoom-" <> file_uuid,
+      uuid: annotation_uuid
+    })
+  end
+
+  defp maybe_select_annotation(socket, _file_uuid, _annotation_uuid), do: socket
 
   def handle_event("confirm_delete", _params, socket) do
     {:noreply, assign(socket, :show_delete_modal, true)}
@@ -199,7 +214,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
       file ->
         instances = load_file_instances(file_uuid, repo)
-        urls = generate_urls_from_instances(instances, file_uuid)
+        urls = generate_urls_from_instances(instances, file_uuid, file.mime_type)
         variant_dimensions = build_variant_dimensions(instances)
         locations = load_original_locations(instances, repo)
         {title, description, tags} = extract_metadata_fields(file.metadata)
@@ -312,11 +327,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   # Generate URLs from pre-loaded instances (no database query needed)
-  defp generate_urls_from_instances(instances, file_uuid) do
-    Enum.reduce(instances, %{}, fn instance, acc ->
+  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+    instances
+    |> Enum.reduce(%{}, fn instance, acc ->
       url = URLSigner.signed_url(file_uuid, instance.variant_name)
       Map.put(acc, instance.variant_name, url)
     end)
+    |> URLSigner.put_dzi_url(file_uuid, mime_type)
   end
 
   # Load file locations with bucket information

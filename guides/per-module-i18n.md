@@ -534,6 +534,6 @@ Phase 2 modules are independent of one another — they can be migrated in paral
 
 ## Reference
 
-- [`PhoenixKit.Dashboard.Tab`](https://hexdocs.pm/phoenix_kit/PhoenixKit.Dashboard.Tab.html) — `localized_label/1`, `localized_tooltip/1`, `divider/1`, `group_header/1`
-- [`PhoenixKit.Dashboard.Group`](https://hexdocs.pm/phoenix_kit/PhoenixKit.Dashboard.Group.html) — `localized_label/1`
+- [`PhoenixKit.Dashboard.Tab`](https://phoenix-kit.hexdocs.pm/PhoenixKit.Dashboard.Tab.html) — `localized_label/1`, `localized_tooltip/1`, `divider/1`, `group_header/1`
+- [`PhoenixKit.Dashboard.Group`](https://phoenix-kit.hexdocs.pm/PhoenixKit.Dashboard.Group.html) — `localized_label/1`
 - [Gettext docs](https://hexdocs.pm/gettext/) — `dgettext`, `Gettext.Backend`, `mix gettext.extract`, `mix gettext.merge`

@@ -105,9 +105,19 @@ defmodule PhoenixKit.Utils.Routes do
     if default_locale?(locale_value) and prefixless_primary?() do
       "#{base_path}#{url_path}"
     else
-      "#{base_path}/#{locale_value}#{url_path}"
+      locale_prefixed_path(base_path, locale_value, url_path)
     end
   end
+
+  # Builds a locale-prefixed URL (`/{locale}{url_path}`).
+  #
+  # The bare root (`url_path == "/"`) is special-cased to emit
+  # `/{locale}` rather than `/{locale}/`: Phoenix routers do not match a
+  # trailing slash, so a `/:locale` landing route declared by the parent
+  # app would 404 on `/{locale}/`. Every other path keeps its leading
+  # slash, so the concatenation is already correct.
+  defp locale_prefixed_path(base_path, locale, "/"), do: "#{base_path}/#{locale}"
+  defp locale_prefixed_path(base_path, locale, url_path), do: "#{base_path}/#{locale}#{url_path}"
 
   # Check if a path is an admin path.
   defp admin_path?(url_path), do: String.starts_with?(url_path, "/admin")
