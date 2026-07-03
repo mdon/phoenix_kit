@@ -1750,9 +1750,19 @@ defmodule PhoenixKitWeb.Users.Auth do
   @reserved_path_segments ~w(admin api webhooks assets static files images dashboard users)
 
   # Locale processing logic
+  #
+  # The locale segment normally binds as `path_params["locale"]`, but
+  # `phoenix_kit_publishing`'s internal localized-content routes
+  # (`integration.ex`'s `get "/:language/:group"` scope) bind the same
+  # segment as `path_params["language"]` instead. Accept either so
+  # Gettext gets set correctly on those routes too — otherwise this
+  # falls through to the default-locale branch and headers/translations
+  # silently render in the site default language regardless of the URL.
   defp process_locale(conn) do
-    case conn.path_params do
-      %{"locale" => locale} when is_binary(locale) ->
+    locale_param = conn.path_params["locale"] || conn.path_params["language"]
+
+    case locale_param do
+      locale when is_binary(locale) ->
         cond do
           # Check if this is a reserved path segment (admin, api, etc.)
           # These should be treated as regular paths, not locale codes
@@ -1807,7 +1817,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Example: /:locale/dashboard captures /admin with locale="admin"
   # We redirect to /dashboard so the correct route can match
   defp process_as_default_locale(conn) do
-    locale = conn.path_params["locale"]
+    locale = conn.path_params["locale"] || conn.path_params["language"]
 
     # Remove the locale segment from the path
     # /admin (with "admin" as locale) → /
