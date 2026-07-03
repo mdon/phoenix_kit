@@ -314,6 +314,49 @@ defmodule PhoenixKit.ModuleRegistryTest do
     end
   end
 
+  describe "all_reserved_route_prefixes/0" do
+    test "returns a list of strings" do
+      prefixes = ModuleRegistry.all_reserved_route_prefixes()
+      assert is_list(prefixes)
+
+      for prefix <- prefixes do
+        assert is_binary(prefix)
+      end
+    end
+
+    test "includes prefixes contributed by an enabled fake module" do
+      defmodule FakeReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: true
+        def reserved_route_prefixes, do: ["fake_reserved_prefix"]
+      end
+
+      ModuleRegistry.register(FakeReservedPrefixModule)
+
+      try do
+        assert "fake_reserved_prefix" in ModuleRegistry.all_reserved_route_prefixes()
+      after
+        ModuleRegistry.unregister(FakeReservedPrefixModule)
+      end
+    end
+
+    test "excludes prefixes from a disabled fake module" do
+      defmodule FakeDisabledReservedPrefixModule do
+        @moduledoc false
+        def enabled?, do: false
+        def reserved_route_prefixes, do: ["fake_disabled_prefix"]
+      end
+
+      ModuleRegistry.register(FakeDisabledReservedPrefixModule)
+
+      try do
+        refute "fake_disabled_prefix" in ModuleRegistry.all_reserved_route_prefixes()
+      after
+        ModuleRegistry.unregister(FakeDisabledReservedPrefixModule)
+      end
+    end
+  end
+
   describe "enabled_modules/0" do
     test "returns a list of module atoms" do
       modules = ModuleRegistry.enabled_modules()

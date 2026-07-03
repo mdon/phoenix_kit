@@ -253,6 +253,31 @@ defmodule PhoenixKit.Module do
   @callback sitemap_sources() :: [module()]
 
   @doc """
+  Returns top-level route path segments this module owns for its own
+  LiveViews/controllers (e.g. a host app declares `live "/legal", LegalLive`
+  and this module IS the "legal" feature).
+
+  Consulted by modules that dispatch requests based on a database-driven
+  path segment (e.g. Publishing's `/:language/:group/*path` catch-all, which
+  treats any first segment matching a stored group slug as one of its own
+  groups) so they don't swallow a route another module owns just because a
+  same-named record happens to exist in their own data. Collected via
+  `PhoenixKit.ModuleRegistry.all_reserved_route_prefixes/0`.
+
+  Segments are compared literally (no leading/trailing slash, e.g. `"legal"`
+  not `"/legal"`).
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def reserved_route_prefixes, do: ["legal"]
+
+  Modules that don't own a reserved top-level segment skip this callback —
+  the default is `[]`.
+  """
+  @callback reserved_route_prefixes() :: [String.t()]
+
+  @doc """
   Run any one-shot legacy data migrations this module owns.
 
   Two transitions every module that touches Integrations may need:
@@ -307,6 +332,7 @@ defmodule PhoenixKit.Module do
     css_sources: 0,
     js_sources: 0,
     sitemap_sources: 0,
+    reserved_route_prefixes: 0,
     migrate_legacy: 0
   ]
 
@@ -369,6 +395,9 @@ defmodule PhoenixKit.Module do
       def sitemap_sources, do: []
 
       @impl PhoenixKit.Module
+      def reserved_route_prefixes, do: []
+
+      @impl PhoenixKit.Module
       def migrate_legacy, do: :ok
 
       defoverridable get_config: 0,
@@ -387,6 +416,7 @@ defmodule PhoenixKit.Module do
                      css_sources: 0,
                      js_sources: 0,
                      sitemap_sources: 0,
+                     reserved_route_prefixes: 0,
                      migrate_legacy: 0
     end
   end

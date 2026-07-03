@@ -203,6 +203,25 @@ defmodule PhoenixKit.ModuleRegistry do
   end
 
   @doc """
+  Collect top-level route path segments reserved by all **enabled** modules.
+
+  Each entry is a literal path segment (no slashes, e.g. `"legal"`) a module
+  owns for its own LiveViews/controllers. A dispatcher that routes requests
+  based on database-driven path segments (e.g. Publishing's group catch-all)
+  should treat any segment in this list as NOT its own, even if it happens to
+  have matching data, so it doesn't swallow a route another module owns.
+
+  Iterates `enabled_modules/0` — a disabled module's reservation doesn't
+  apply, mirroring `all_sitemap_sources/0`.
+  """
+  @spec all_reserved_route_prefixes() :: [String.t()]
+  def all_reserved_route_prefixes do
+    enabled_modules()
+    |> Enum.flat_map(&safe_call(&1, :reserved_route_prefixes, []))
+    |> Enum.uniq()
+  end
+
+  @doc """
   Collect modules that have versioned migrations.
 
   Returns a list of `{module_name, migration_module}` tuples for all registered
