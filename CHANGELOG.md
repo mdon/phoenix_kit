@@ -1,3 +1,23 @@
+## 1.7.174 - 2026-07-05
+
+### Fixed
+- **Host layouts now tolerate both `{@inner_content}` and `render_slot(@inner_block)`.**
+  PhoenixKit LiveViews set their `:layout` to the host's configured
+  `config :phoenix_kit, layout:` function. Phoenix always invokes a LiveView
+  `:layout` with `@inner_content` (a `%Phoenix.LiveView.Rendered{}`) and never an
+  `@inner_block` slot, so a host layout written in the Phoenix 1.8
+  function-component idiom (`slot :inner_block` + `render_slot(@inner_block)`)
+  crashed with `KeyError: key :inner_block not found` on auth pages and
+  admin/dashboard chrome. The `:layout` now routes through a new adapter,
+  `PhoenixKitWeb.Components.LayoutWrapper.render_host_layout/1`, which synthesizes
+  an `inner_block` slot from `@inner_content` (keeping `@inner_content` intact)
+  before delegating to the host layout — so both conventions work. Transparent
+  pass-through for hosts already following the documented `{@inner_content}`
+  contract (the extra assign is unused; output is byte-identical). Layout
+  resolution is otherwise unchanged (same `LayoutConfig.get_layout/0` resolver,
+  same `{PhoenixKitWeb.Layouts, :app}` default). Controllers rendering a host
+  layout still receive `@inner_content` only — out of scope for this change.
+
 ## 1.7.173 - 2026-07-05
 
 ### Changed

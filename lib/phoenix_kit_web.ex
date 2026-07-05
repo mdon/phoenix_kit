@@ -47,8 +47,14 @@ defmodule PhoenixKitWeb do
 
   def live_view do
     quote do
+      # Route the outer layout through PhoenixKit's host-layout adapter rather
+      # than pointing `:layout` straight at the configured host layout. Phoenix
+      # invokes a `:layout` with `@inner_content` only; the adapter synthesizes
+      # an `@inner_block` slot so a host layout works whether it renders
+      # `{@inner_content}` or `render_slot(@inner_block)` (Phoenix 1.8 idiom).
+      # See `PhoenixKitWeb.Components.LayoutWrapper.render_host_layout/1`.
       use Phoenix.LiveView,
-        layout: PhoenixKit.LayoutConfig.get_layout()
+        layout: {PhoenixKitWeb.Components.LayoutWrapper, :render_host_layout}
 
       use Gettext, backend: PhoenixKitWeb.Gettext
 

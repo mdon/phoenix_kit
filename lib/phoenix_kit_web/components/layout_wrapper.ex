@@ -118,6 +118,39 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
+  @doc """
+  LiveView `:layout` adapter — wired as the layout for every PhoenixKit
+  LiveView in `PhoenixKitWeb.__using__(:live_view)`.
+
+  Phoenix always invokes a LiveView `:layout` with `@inner_content` (a
+  `%Phoenix.LiveView.Rendered{}`) and never an `@inner_block` slot. A host
+  layout configured via `config :phoenix_kit, layout:` that follows the
+  Phoenix 1.8 function-component idiom (`slot :inner_block` +
+  `render_slot(@inner_block)`) would therefore crash with
+  `KeyError: key :inner_block not found` on every PhoenixKit page whose outer
+  chrome is that layout (auth pages, and admin/dashboard chrome).
+
+  This adapter closes the gap: it synthesizes an `inner_block` slot from
+  `@inner_content` (keeping `@inner_content` intact) via
+  `normalize_content_assigns/1`, then delegates to the configured host layout.
+  A host layout works whether it renders `{@inner_content}` (the documented
+  contract — see `PhoenixKitWeb.Integration` "Layout Templates") or
+  `render_slot(@inner_block)`. For a `{@inner_content}` host it is a transparent
+  pass-through — the extra `inner_block` assign is simply unused — so correctly
+  configured hosts see byte-identical output.
+
+  `PhoenixKit.LayoutConfig.get_layout/0` is the same resolver the `:layout`
+  option used before this indirection (defaulting to `{PhoenixKitWeb.Layouts,
+  :app}` when no host layout is configured), so layout resolution is unchanged.
+  """
+  def render_host_layout(assigns) do
+    {module, function} = PhoenixKit.LayoutConfig.get_layout()
+
+    assigns
+    |> normalize_content_assigns()
+    |> then(&apply(module, function, [&1]))
+  end
+
   defp app_layout_inner(assigns) do
     # Batch load all page settings in a single operation for optimal database performance
     assigns =
