@@ -47,14 +47,14 @@ defmodule PhoenixKitWeb do
 
   def live_view do
     quote do
-      # Route the outer layout through PhoenixKit's host-layout adapter rather
-      # than pointing `:layout` straight at the configured host layout. Phoenix
-      # invokes a `:layout` with `@inner_content` only; the adapter synthesizes
-      # an `@inner_block` slot so a host layout works whether it renders
-      # `{@inner_content}` or `render_slot(@inner_block)` (Phoenix 1.8 idiom).
-      # See `PhoenixKitWeb.Components.LayoutWrapper.render_host_layout/1`.
+      # The native `:layout` is a pure passthrough (`PhoenixKitWeb.Layouts.app`
+      # renders only `{@inner_content}`). PhoenixKit LiveViews apply the host's
+      # configured `config :phoenix_kit, layout:` themselves, once, via
+      # `LayoutWrapper.app_layout` in their render — so routing `:layout` at the
+      # host layout too would render the host chrome twice. Keeping `:layout` a
+      # passthrough makes `app_layout` the single owner of the host layout.
       use Phoenix.LiveView,
-        layout: {PhoenixKitWeb.Components.LayoutWrapper, :render_host_layout}
+        layout: {PhoenixKitWeb.Layouts, :app}
 
       use Gettext, backend: PhoenixKitWeb.Gettext
 

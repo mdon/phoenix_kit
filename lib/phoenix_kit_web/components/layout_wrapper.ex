@@ -118,76 +118,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
-  @doc """
-  LiveView `:layout` adapter — wired as the layout for every PhoenixKit
-  LiveView in `PhoenixKitWeb.__using__(:live_view)`.
-
-  Solves two problems that arise when a host points `config :phoenix_kit,
-  layout:` at its own layout function.
-
-  ## 1. Both inner conventions work (no `KeyError`)
-
-  Phoenix always invokes a LiveView `:layout` with `@inner_content` (a
-  `%Phoenix.LiveView.Rendered{}`) and never an `@inner_block` slot. A host
-  layout following the Phoenix 1.8 function-component idiom (`slot :inner_block`
-  + `render_slot(@inner_block)`) would otherwise crash with
-  `KeyError: key :inner_block not found`. When this adapter does invoke the host
-  layout it first synthesizes an `inner_block` slot from `@inner_content`
-  (keeping `@inner_content` intact) via `normalize_content_assigns/1`, so the
-  host layout works whether it renders `{@inner_content}` (the documented
-  contract — see `PhoenixKitWeb.Integration` "Layout Templates") or
-  `render_slot(@inner_block)`. For a `{@inner_content}` host that branch is a
-  transparent pass-through — the extra `inner_block` assign is unused.
-
-  ## 2. No double-wrapped host chrome
-
-  Most PhoenixKit LiveViews already self-wrap their own render in `app_layout`
-  (auth pages via `AuthPageWrapper`, admin/dashboard via their templates), and
-  for a configured host layout that self-wrap applies the host chrome itself
-  (`render_modern_parent_layout/3`). Applying the host layout *again* here — as
-  Phoenix's native `:layout` — would double it (two headers / navs / footers,
-  singular body). `render_modern_parent_layout/3` sets a process flag when it
-  applies the host chrome; this adapter consumes the flag and passes the
-  already-wrapped `@inner_content` straight through instead of re-wrapping.
-  `Process.delete/1` both reads and clears, so a stale flag from a prior render
-  cannot leak into this one. When the flag is absent (a LiveView that does not
-  self-wrap), the adapter applies the host layout itself — with the
-  dual-convention handling above.
-
-  `PhoenixKit.LayoutConfig.get_layout/0` is the same resolver the `:layout`
-  option used before this indirection (defaulting to `{PhoenixKitWeb.Layouts,
-  :app}` when no host layout is configured), so layout resolution is unchanged.
-  """
-  def render_host_layout(assigns) do
-    if Process.delete(:phoenix_kit_host_chrome_rendered) do
-      render_inner_content(assigns)
-    else
-      apply_host_layout(assigns)
-    end
-  end
-
-  # Invoke the configured host layout with a synthesized `inner_block` slot.
-  # Rescues `UndefinedFunctionError` and falls back to PhoenixKit's own layout —
-  # mirroring the sibling `render_modern_parent_layout/3` so a misconfigured
-  # `config :phoenix_kit, layout:` (renamed/removed function) degrades instead of
-  # 500-ing every page.
-  defp apply_host_layout(assigns) do
-    {module, function} = PhoenixKit.LayoutConfig.get_layout()
-
-    assigns
-    |> normalize_content_assigns()
-    |> then(&apply(module, function, [&1]))
-  rescue
-    UndefinedFunctionError ->
-      render_with_phoenix_kit_layout(normalize_content_assigns(assigns))
-  end
-
-  # Passthrough for the "chrome already applied" branch: emit the
-  # already-wrapped content the LiveView's own render produced, unchanged.
-  defp render_inner_content(assigns) do
-    ~H"{@inner_content}"
-  end
-
   defp app_layout_inner(assigns) do
     # Batch load all page settings in a single operation for optimal database performance
     assigns =
@@ -249,11 +179,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   defp has_inner_content?(assigns), do: assigns[:inner_content] != nil
 
   # Must return a strict boolean: `needs_inner_block_conversion?/1` calls
-  # `not has_inner_block?(...)`, and when the LiveView `:layout` invokes this
-  # adapter there is no `inner_block` key at all (Phoenix passes only
-  # `inner_content`), so the old `assigns[:inner_block] && ...` short-circuited
-  # to `nil` and `not nil` raised ArgumentError. `not in [nil, []]` normalizes
-  # both "absent" (nil) and "declared-but-empty slot" ([]) to `false`.
+  # `not has_inner_block?(...)`. When `app_layout` is reached with only an
+  # `inner_content` (the legacy Phoenix 1.7 flow) and no `inner_block` key at
+  # all, the old `assigns[:inner_block] && ...` short-circuited to `nil`, and
+  # `not nil` raised ArgumentError. `not in [nil, []]` normalizes both "absent"
+  # (nil) and "declared-but-empty slot" ([]) to `false`.
   defp has_inner_block?(assigns), do: assigns[:inner_block] not in [nil, []]
 
   defp convert_inner_content_to_block(assigns) do
@@ -268,12 +198,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     assign(assigns, :inner_block, inner_block)
   end
 
-  # Synthesize a one-entry slot whose body yields `inner_content`. Phoenix's
-  # native `:layout` mechanism passes `@inner_content` as a
-  # `%Phoenix.LiveView.Rendered{}` (return it verbatim — it is already
+  # Synthesize a one-entry slot whose body yields `inner_content`. `inner_content`
+  # may be a `%Phoenix.LiveView.Rendered{}` (return it verbatim — it is already
   # renderable; `Phoenix.HTML.raw/1` has no struct clause and would raise
-  # FunctionClauseError on it). The legacy Phoenix 1.7- flow can pass a binary
-  # instead, which must be marked safe via `raw/1`.
+  # FunctionClauseError on it) or a binary from the legacy Phoenix 1.7- flow
+  # (mark it safe via `raw/1`).
   defp build_synthetic_inner_block(inner_content) do
     body =
       case inner_content do
@@ -782,24 +711,45 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   # Phoenix v1.8+ approach - function components
   defp render_modern_parent_layout(assigns, module, function) do
-    # Signal to the native `:layout` adapter (`render_host_layout/1`) that this
-    # render already applied the host layout, so it can skip re-applying it and
-    # avoid double-wrapping the host chrome. Guarded on `from_layout` for the
-    # same reason as `:phoenix_kit_admin_chrome_rendered`: only the LiveView's
-    # own render should set it, never the layout's own `app_layout` call.
-    unless assigns[:from_layout] do
-      Process.put(:phoenix_kit_host_chrome_rendered, true)
-    end
-
     # Wrap inner content with admin navigation if needed
     assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
 
-    # Use apply/3 to dynamically call the parent layout function
-    apply(module, function, [assigns])
+    # `app_layout` is the single owner of the host layout (the native `:layout`
+    # is a passthrough — see `PhoenixKitWeb.__using__(:live_view)`), so this is
+    # the one place the host layout is applied.
+    apply_host_layout(assigns, module, function)
+  end
+
+  # Apply the configured host layout, giving it BOTH inner conventions so it
+  # works whether it renders `{@inner_content}` (the documented contract) or
+  # `render_slot(@inner_block)` (the Phoenix 1.8 idiom). `app_layout` is invoked
+  # with an `inner_block` slot; `ensure_inner_content_from_block/1` derives a
+  # lazy `@inner_content` from it when absent. Rescues a bad
+  # `config :phoenix_kit, layout:` (renamed/removed function) to PhoenixKit's own
+  # layout instead of 500-ing every page. Public for regression testing.
+  @doc false
+  def apply_host_layout(assigns, module, function) do
+    assigns
+    |> ensure_inner_content_from_block()
+    |> then(&apply(module, function, [&1]))
   rescue
     UndefinedFunctionError ->
-      # Fallback to PhoenixKit layout if parent function doesn't exist
       render_with_phoenix_kit_layout(assigns)
+  end
+
+  # Derive `@inner_content` from the `inner_block` slot when the caller only
+  # supplied a slot. Kept lazy (a `%Rendered{}`) so a host layout using
+  # `{@inner_content}` still change-tracks correctly on connected updates.
+  defp ensure_inner_content_from_block(assigns) do
+    if has_inner_content?(assigns) do
+      assigns
+    else
+      assign(assigns, :inner_content, render_inner_block(assigns))
+    end
+  end
+
+  defp render_inner_block(assigns) do
+    ~H"{render_slot(@inner_block)}"
   end
 
   # Phoenix v1.7- approach - templates (legacy support)

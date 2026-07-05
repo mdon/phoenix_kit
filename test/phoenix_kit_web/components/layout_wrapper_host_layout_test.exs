@@ -1,35 +1,27 @@
 defmodule PhoenixKitWeb.Components.LayoutWrapperHostLayoutTest do
   @moduledoc """
-  Regression coverage for `LayoutWrapper.render_host_layout/1` — the LiveView
-  `:layout` adapter wired in `PhoenixKitWeb.__using__(:live_view)`.
+  Regression coverage for `LayoutWrapper.apply_host_layout/3` — the single place
+  a host's configured `config :phoenix_kit, layout:` is applied (the native
+  `:layout` is a pure passthrough, so this is invoked once per page via
+  `app_layout`).
 
-  Phoenix invokes a LiveView `:layout` with `@inner_content` (a
-  `%Phoenix.LiveView.Rendered{}`, NOT a binary) and never an `@inner_block`
-  slot. These tests feed a real `%Rendered{}` so they exercise the production
-  data shape — an earlier version fed a binary string, which hit
-  `Phoenix.HTML.raw/1`'s binary clause and masked a `raw(%Rendered{})`
-  FunctionClauseError.
+  Pins that a host layout renders the page body — exactly once, no double-wrap —
+  whether it uses:
 
-  Pins:
-  - `{@inner_content}` host layout renders content (transparent pass-through),
-  - `render_slot(@inner_block)` host layout renders content (no KeyError, and
-    no `raw(%Rendered{})` crash — the synthetic slot yields the `%Rendered{}`
-    verbatim),
-  - the double-wrap dedup: when the LiveView already applied the host chrome
-    (flag set), the adapter passes `@inner_content` through instead of
-    re-wrapping.
+  - `{@inner_content}` (the documented contract), or
+  - `render_slot(@inner_block)` (the Phoenix 1.8 function-component idiom).
 
-  `async: false` because it mutates the global `:phoenix_kit, :layout` env; the
-  original value is restored in `on_exit`.
+  `apply_host_layout/3` is given an `inner_block` slot and derives a lazy
+  `@inner_content` from it, so both conventions work off the same slot.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Phoenix.Component, only: [sigil_H: 2]
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
 
   alias PhoenixKitWeb.Components.LayoutWrapper
 
-  @marker "PHOENIX_KIT_INNER_MARKER"
+  @marker "PK_BODY_MARKER"
 
   # Host layout following the documented `{@inner_content}` contract.
   defmodule InnerContentHost do
@@ -42,8 +34,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperHostLayoutTest do
     end
   end
 
-  # Host layout written in the Phoenix 1.8 function-component idiom. This is the
-  # shape that crashed (KeyError, then FunctionClauseError) before the fix.
+  # Host layout written in the Phoenix 1.8 function-component idiom.
   defmodule InnerBlockHost do
     use Phoenix.Component
 
@@ -56,70 +47,47 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperHostLayoutTest do
     end
   end
 
-  # A real %Phoenix.LiveView.Rendered{} — what Phoenix passes as @inner_content.
-  defp inner_content do
-    assigns = %{__changed__: nil, marker: @marker}
+  # A realistic page body, as a %Rendered{} produced by an inner_block slot.
+  defp body_rendered do
+    assigns = %{__changed__: nil}
 
     ~H"""
-    <span id="the-inner">{@marker}</span>
+    <span id="the-body">PK_BODY_MARKER</span>
     """
   end
 
-  setup do
-    original = Application.get_env(:phoenix_kit, :layout)
-
-    on_exit(fn ->
-      case original do
-        nil -> Application.delete_env(:phoenix_kit, :layout)
-        value -> Application.put_env(:phoenix_kit, :layout, value)
-      end
-    end)
-
-    :ok
+  # Assigns as app_layout would hand them to apply_host_layout/3: an inner_block
+  # slot, no inner_content.
+  defp assigns_with_block do
+    %{
+      __changed__: nil,
+      inner_block: [%{inner_block: fn _slot, _idx -> body_rendered() end}]
+    }
   end
 
-  defp render_via_adapter(host_module) do
-    Application.put_env(:phoenix_kit, :layout, {host_module, :frontend})
+  defp occurrences(haystack, needle), do: length(String.split(haystack, needle)) - 1
 
-    %{__changed__: nil, inner_content: inner_content()}
-    |> LayoutWrapper.render_host_layout()
-    |> rendered_to_string()
-  end
-
-  describe "render_host_layout/1" do
-    test "host layout using {@inner_content} renders page content (transparent pass-through)" do
-      html = render_via_adapter(InnerContentHost)
-
-      assert html =~ ~s(id="host-shell")
-      assert html =~ ~s(id="the-inner")
-      assert html =~ @marker
-    end
-
-    test "host layout using render_slot(@inner_block) renders content (no KeyError / no raw crash)" do
-      html = render_via_adapter(InnerBlockHost)
-
-      assert html =~ ~s(id="host-shell")
-      assert html =~ ~s(id="the-inner")
-      assert html =~ @marker
-    end
-
-    test "passes @inner_content through when host chrome was already applied (no double-wrap)" do
-      Application.put_env(:phoenix_kit, :layout, {InnerBlockHost, :frontend})
-      # Simulate the LiveView's own render having already applied the host
-      # layout via app_layout -> render_modern_parent_layout.
-      Process.put(:phoenix_kit_host_chrome_rendered, true)
-
+  describe "apply_host_layout/3" do
+    test "host layout using {@inner_content} renders the body exactly once" do
       html =
-        %{__changed__: nil, inner_content: inner_content()}
-        |> LayoutWrapper.render_host_layout()
+        assigns_with_block()
+        |> LayoutWrapper.apply_host_layout(InnerContentHost, :frontend)
         |> rendered_to_string()
 
-      # Content present exactly once; the host shell was NOT re-applied.
-      assert html =~ @marker
-      assert html =~ ~s(id="the-inner")
-      refute html =~ ~s(id="host-shell")
-      # Flag consumed so it can't leak into a later render.
-      refute Process.get(:phoenix_kit_host_chrome_rendered)
+      assert html =~ ~s(id="host-shell")
+      assert html =~ ~s(id="the-body")
+      assert occurrences(html, @marker) == 1
+    end
+
+    test "host layout using render_slot(@inner_block) renders the body exactly once" do
+      html =
+        assigns_with_block()
+        |> LayoutWrapper.apply_host_layout(InnerBlockHost, :frontend)
+        |> rendered_to_string()
+
+      assert html =~ ~s(id="host-shell")
+      assert html =~ ~s(id="the-body")
+      assert occurrences(html, @marker) == 1
     end
   end
 end
