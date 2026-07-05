@@ -5,9 +5,10 @@
   current_path={assigns[:url_path] || "/users/log-in"}
   dev_mailbox_message={gettext("confirmation emails")}
 >
-  <h1 class="text-2xl font-bold text-center mb-6">
-    {@project_title} {gettext("Sign in")}
-  </h1>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Welcome back")}</h1>
+  <p class="text-center text-base-content/60 text-sm mb-6">
+    {gettext("Sign in to %{project_title}", project_title: @project_title)}
+  </p>
   <.form
     for={@form}
     id="login_form"
@@ -29,7 +30,6 @@
         name="user[email_or_username]"
         type="text"
         class="input w-full transition-colors focus:input-primary"
-        placeholder={gettext("Enter your email or username")}
         value={@form.params["email_or_username"] || ""}
         autocomplete="username"
         required
@@ -47,7 +47,6 @@
         name="user[password]"
         type="password"
         class="input w-full transition-colors focus:input-primary"
-        placeholder={gettext("Enter your password")}
         autocomplete="current-password"
         required
       />

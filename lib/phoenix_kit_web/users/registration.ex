@@ -74,6 +74,7 @@ defmodule PhoenixKitWeb.Users.Registration do
       socket =
         socket
         |> assign(trigger_submit: false, check_errors: false)
+        |> assign(username_edited: false)
         |> assign(project_title: project_title)
         |> assign(referral_codes_enabled: referral_codes_config.enabled)
         |> assign(referral_codes_required: referral_codes_config.required)
@@ -103,6 +104,10 @@ defmodule PhoenixKitWeb.Users.Registration do
 
   def handle_event("save", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
+
+    # If the username was never manually edited, let the schema (re)generate it
+    # from the final email rather than persisting a possibly-stale preview value.
+    user_params = maybe_sync_username(user_params, socket.assigns.username_edited)
 
     # Validate referral code if system is enabled
     case validate_referral_code(referral_code, socket) do
@@ -179,6 +184,12 @@ defmodule PhoenixKitWeb.Users.Registration do
   def handle_event("validate", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
 
+    # Track whether the user owns the username field, then keep it in sync with
+    # the email while it's still auto-managed.
+    username_edited = username_manually_edited?(socket, params, user_params)
+    user_params = maybe_sync_username(user_params, username_edited)
+    socket = assign(socket, username_edited: username_edited)
+
     # Validate referral code and update error state
     case validate_referral_code(referral_code, socket) do
       {:ok, _} ->
@@ -200,6 +211,27 @@ defmodule PhoenixKitWeb.Users.Registration do
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
     end
   end
+
+  # Determines whether the user has taken manual ownership of the username field.
+  #
+  # `phx-change` reports the touched field in `_target`. Typing a non-empty value
+  # into the username field claims it (auto-sync stops); clearing it releases
+  # ownership so auto-sync from email resumes. Any other field leaves the current
+  # ownership state untouched.
+  defp username_manually_edited?(socket, params, user_params) do
+    case params["_target"] do
+      ["user", "username"] -> String.trim(user_params["username"] || "") != ""
+      _ -> socket.assigns.username_edited
+    end
+  end
+
+  # While the username is still auto-managed, blank it so the registration
+  # changeset regenerates it from the (possibly just-corrected) email. Once the
+  # user owns the field, their value is passed through unchanged.
+  defp maybe_sync_username(user_params, true = _username_edited), do: user_params
+
+  defp maybe_sync_username(user_params, false = _username_edited),
+    do: Map.put(user_params, "username", "")
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     form = to_form(changeset, as: "user")

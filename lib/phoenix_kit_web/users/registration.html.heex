@@ -5,9 +5,10 @@
   current_path={assigns[:url_path] || "/users/register"}
   dev_mailbox_message={gettext("confirmation emails")}
 >
-  <h1 class="text-2xl font-bold text-center mb-6">
-    {@project_title} {gettext("Create account")}
-  </h1>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Create account")}</h1>
+  <p class="text-center text-base-content/60 text-sm mb-6">
+    {gettext("Join %{project_title} today", project_title: @project_title)}
+  </p>
 
   <%!-- Invitation banner: shown when user arrives via org invitation link --%>
   <%= if @pending_invitation do %>
@@ -45,7 +46,6 @@
         <.input
           field={@form[:email]}
           type="email"
-          placeholder={gettext("Enter your email address")}
           autocomplete="email"
           class="transition-colors focus:input-primary"
           required
@@ -64,12 +64,11 @@
           <.input
             field={@form[:username]}
             type="text"
-            placeholder={gettext("Choose a unique username (optional)")}
             autocomplete="username"
             class="transition-colors focus:input-primary"
           />
           <div class="text-xs text-base-content/60 mt-1">
-            {gettext("If not provided, we'll generate one from your email")}
+            {gettext("Auto-filled from your email — edit it to choose your own")}
           </div>
         </div>
       <% end %>
@@ -93,7 +92,6 @@
                  (@check_errors && @referral_codes_required &&
                     (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
             ]}
-            placeholder={gettext("Enter your referral code")}
             value={@referral_code || ""}
             required={@referral_codes_required}
           />
@@ -143,12 +141,7 @@
                 )}
               </span>
             </label>
-            <.input
-              field={@form[:organization_name]}
-              type="text"
-              placeholder={gettext("Enter organization name")}
-              required
-            />
+            <.input field={@form[:organization_name]} type="text" required />
           </div>
         <% end %>
       <% end %>
@@ -164,7 +157,6 @@
         <.input
           field={@form[:password]}
           type="password"
-          placeholder={gettext("Choose a secure password")}
           autocomplete="new-password"
           class="transition-colors focus:input-primary"
           required

@@ -14,7 +14,7 @@
   <.form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
     <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">{gettext("Resend Confirmation")}</legend>
-      <.input field={@form[:email]} type="email" placeholder={gettext("Email")} required />
+      <.input field={@form[:email]} type="email" label={gettext("Email")} required />
       <button
         type="submit"
         phx-disable-with={gettext("Sending...")}

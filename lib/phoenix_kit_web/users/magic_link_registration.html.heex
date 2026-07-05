@@ -35,7 +35,6 @@
         <.input
           field={@form[:username]}
           type="text"
-          placeholder={gettext("Choose a unique username")}
           autocomplete="username"
           class="transition-colors focus:input-primary"
         />
@@ -53,7 +52,6 @@
         <.input
           field={@form[:password]}
           type="password"
-          placeholder={gettext("Choose a secure password")}
           autocomplete="new-password"
           class="transition-colors focus:input-primary"
           required
@@ -63,12 +61,14 @@
       <%!-- First Name Field (optional) --%>
       <div phx-feedback-for="user[first_name]">
         <label class="label" for="user_first_name">
-          <span class="label-text">{gettext("First Name")}</span>
+          <span class="label-text">
+            {gettext("First Name")}
+            <span class="text-base-content/50 font-normal">({gettext("optional")})</span>
+          </span>
         </label>
         <.input
           field={@form[:first_name]}
           type="text"
-          placeholder={gettext("Your first name (optional)")}
           autocomplete="given-name"
           class="transition-colors focus:input-primary"
         />
@@ -77,12 +77,14 @@
       <%!-- Last Name Field (optional) --%>
       <div phx-feedback-for="user[last_name]">
         <label class="label" for="user_last_name">
-          <span class="label-text">{gettext("Last Name")}</span>
+          <span class="label-text">
+            {gettext("Last Name")}
+            <span class="text-base-content/50 font-normal">({gettext("optional")})</span>
+          </span>
         </label>
         <.input
           field={@form[:last_name]}
           type="text"
-          placeholder={gettext("Your last name (optional)")}
           autocomplete="family-name"
           class="transition-colors focus:input-primary"
         />
@@ -107,7 +109,6 @@
                  (@check_errors && @referral_codes_required &&
                     (is_nil(@referral_code) || @referral_code == ""))) && "input-error"
             ]}
-            placeholder={gettext("Enter your referral code")}
             value={@referral_code || ""}
             required={@referral_codes_required}
           />
