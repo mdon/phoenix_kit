@@ -1,22 +1,38 @@
 ## 1.7.174 - 2026-07-05
 
 ### Fixed
-- **Host layouts now tolerate both `{@inner_content}` and `render_slot(@inner_block)`.**
-  PhoenixKit LiveViews set their `:layout` to the host's configured
-  `config :phoenix_kit, layout:` function. Phoenix always invokes a LiveView
-  `:layout` with `@inner_content` (a `%Phoenix.LiveView.Rendered{}`) and never an
-  `@inner_block` slot, so a host layout written in the Phoenix 1.8
-  function-component idiom (`slot :inner_block` + `render_slot(@inner_block)`)
-  crashed with `KeyError: key :inner_block not found` on auth pages and
-  admin/dashboard chrome. The `:layout` now routes through a new adapter,
-  `PhoenixKitWeb.Components.LayoutWrapper.render_host_layout/1`, which synthesizes
-  an `inner_block` slot from `@inner_content` (keeping `@inner_content` intact)
-  before delegating to the host layout — so both conventions work. Transparent
-  pass-through for hosts already following the documented `{@inner_content}`
-  contract (the extra assign is unused; output is byte-identical). Layout
-  resolution is otherwise unchanged (same `LayoutConfig.get_layout/0` resolver,
-  same `{PhoenixKitWeb.Layouts, :app}` default). Controllers rendering a host
-  layout still receive `@inner_content` only — out of scope for this change.
+- **Host layouts now tolerate both `{@inner_content}` and `render_slot(@inner_block)`,
+  and are no longer double-wrapped.** PhoenixKit LiveViews set their `:layout` to
+  the host's configured `config :phoenix_kit, layout:` function. Two problems came
+  out of that:
+  - Phoenix invokes a LiveView `:layout` with `@inner_content` (a
+    `%Phoenix.LiveView.Rendered{}`) and never an `@inner_block` slot, so a host
+    layout written in the Phoenix 1.8 function-component idiom (`slot :inner_block`
+    + `render_slot(@inner_block)`) crashed with `KeyError: key :inner_block not
+    found` on auth pages and admin/dashboard chrome.
+  - Most PhoenixKit LiveViews also self-wrap their render in `app_layout` (auth
+    pages via `AuthPageWrapper`), which applies the *same* host layout — so a
+    chrome-ful host layout rendered twice (doubled header / nav / footer), only
+    the body singular.
+
+  The `:layout` now routes through a new adapter,
+  `PhoenixKitWeb.Components.LayoutWrapper.render_host_layout/1`. When the LiveView's
+  render already applied the host chrome, the adapter passes `@inner_content`
+  through unchanged (no double-wrap); otherwise it invokes the host layout with an
+  `inner_block` slot synthesized from `@inner_content` (kept intact) so both inner
+  conventions work. Transparent pass-through for hosts on the documented
+  `{@inner_content}` contract. Layout resolution is otherwise unchanged (same
+  `LayoutConfig.get_layout/0` resolver, same `{PhoenixKitWeb.Layouts, :app}`
+  default). Controllers rendering a host layout still receive `@inner_content`
+  only — out of scope.
+- **Layout content no longer freezes on connected updates.** The synthetic
+  `inner_block` slot is now attached with `Phoenix.Component.assign/3` (not a raw
+  `Map.put`), so `__changed__[:inner_block]` is marked and a host layout's
+  `render_slot(@inner_block)` re-renders on diffs instead of going stale after
+  first paint. The synthetic slot also yields the `%Rendered{}` verbatim (a
+  binary is still `raw/1`-wrapped), fixing a `FunctionClauseError` from
+  `Phoenix.HTML.raw/1` on the struct. `render_host_layout/1` mirrors the sibling
+  parent-layout path's `rescue UndefinedFunctionError` fallback.
 
 ## 1.7.173 - 2026-07-05
 
