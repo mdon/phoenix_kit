@@ -20,6 +20,7 @@ msgstr ""
 ## effect: edit them in PO (`.po`) files instead.
 ## Dashboard page translations
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:130
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -1339,7 +1340,7 @@ msgstr "Juriidiline moodul lubatud"
 msgid "Line Break"
 msgstr "Reavahe"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:308
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:315
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:39
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1870,6 +1871,7 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:210
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:140
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
@@ -7799,7 +7801,7 @@ msgid "You need to configure at least one storage bucket before you can upload f
 msgstr "Enne failide üleslaadimist tuleb seadistada vähemalt üks salvestushoidla."
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:342
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:101
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:108
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr "Halduspaneel"
@@ -9289,7 +9291,7 @@ msgstr "AI mudelid OpenAI kaudu (GPT, vektorid, pildid, heli)"
 msgid "About"
 msgstr "Teave"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:185
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:192
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account menu"
 msgstr "Konto"
@@ -9517,7 +9519,7 @@ msgstr "Kaust teisaldatud"
 msgid "Folder name can't be blank"
 msgstr "Kausta nimi ei tohi olla tühi"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:310
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Forgot password"
 msgstr "Unustasid parooli"
@@ -9586,7 +9588,7 @@ msgstr "Ikoon"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Kui sinu konto kuulub mitmesse organisatsiooni, on võtmed seotud organisatsiooniga, mis oli võtme loomise ajal valitud."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:256
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:263
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Language"
 msgstr "Keeled"
@@ -9610,7 +9612,7 @@ msgstr "Suurimad enne"
 msgid "List"
 msgstr "Loendivaade"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:311
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Magic link"
 msgstr "Magic Link"
@@ -9666,7 +9668,7 @@ msgstr "Pilte pole"
 msgid "No media yet."
 msgstr "Meediat veel pole."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:203
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:210
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Pole sisse logitud"
@@ -9763,7 +9765,7 @@ msgid "Show title"
 msgstr "Näita pealkirja"
 
 ## Login page translations
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:309
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sign up"
 msgstr "Logi sisse"
@@ -10013,3 +10015,8 @@ msgstr ""
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your browser does not support the audio tag."
 msgstr "Teie brauser ei toeta video-elementi."
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log Out"
+msgstr "Väljalogimine"

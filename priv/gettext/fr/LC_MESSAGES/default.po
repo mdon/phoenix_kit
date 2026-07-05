@@ -12,6 +12,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n>1);\n"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:130
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -1328,7 +1329,7 @@ msgstr "Module Légal activé"
 msgid "Line Break"
 msgstr "Saut de ligne"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:308
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:315
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:39
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1859,6 +1860,7 @@ msgstr "Sélectionnez les sections et modules auxquels ce rôle peut accéder. V
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:210
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:140
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
@@ -7786,7 +7788,7 @@ msgid "You need to configure at least one storage bucket before you can upload f
 msgstr "Vous devez configurer au moins un compartiment de stockage avant de pouvoir envoyer des fichiers."
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:342
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:101
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:108
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr "Panneau d'administration"
@@ -9275,7 +9277,7 @@ msgstr "Modèles d'IA via OpenAI (GPT, embeddings, images, audio)"
 msgid "About"
 msgstr "À propos"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:185
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:192
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Menu du compte"
@@ -9503,7 +9505,7 @@ msgstr "Nom du dossier"
 msgid "Folder name can't be blank"
 msgstr "Le nom du dossier ne peut pas être vide"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:310
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr "Mot de passe oublié"
@@ -9572,7 +9574,7 @@ msgstr "Icône"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Si votre compte appartient à plusieurs organisations, les clés sont limitées à l'organisation sélectionnée au moment de leur création."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:256
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:263
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Langue"
@@ -9596,7 +9598,7 @@ msgstr "Plus volumineux en premier"
 msgid "List"
 msgstr "Liste"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:311
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr "Lien magique"
@@ -9652,7 +9654,7 @@ msgstr "Aucune image"
 msgid "No media yet."
 msgstr "Aucun média pour le moment."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:203
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:210
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Non connecté"
@@ -9748,7 +9750,7 @@ msgstr "Afficher l'icône"
 msgid "Show title"
 msgstr "Afficher le titre"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:309
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "S'inscrire"
@@ -9998,3 +10000,8 @@ msgstr "Wireframe"
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the audio tag."
 msgstr "Votre navigateur ne prend pas en charge la balise audio."
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log Out"
+msgstr "Déconnexion"

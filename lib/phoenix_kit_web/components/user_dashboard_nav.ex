@@ -46,6 +46,12 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
       `[:login, :register, :reset, :magic_link]` (default: all). Links are also
       gated by the `allow_registration` / `magic_link_login_enabled` settings, so
       this list can only narrow, never force-enable a disabled feature.
+    * `:authenticated_links` — which authenticated-menu entries may appear, e.g.
+      `[:admin, :dashboard, :settings, :logout]` (default: all). Same narrowing
+      rule as `:guest_links` — `:admin` still requires `Scope.admin?/1` to be
+      true, so listing it can't grant an entry a non-admin shouldn't see. Use
+      this to hide entries (e.g. `:dashboard`) a host app's own navigation
+      already covers.
   """
   attr(:scope, :any, default: nil)
   attr(:current_path, :string, default: "")
@@ -54,6 +60,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
   attr(:admin_edit_label, :string, default: nil)
   attr(:show_language_switcher, :boolean, default: true)
   attr(:guest_links, :list, default: [:login, :register, :reset, :magic_link])
+  attr(:authenticated_links, :list, default: [:admin, :dashboard, :settings, :logout])
 
   def user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -91,7 +98,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
           <div class="divider my-0"></div>
 
-          <%= if PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+          <%= if :admin in @authenticated_links && PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
             <li>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin")}
@@ -114,23 +121,23 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
             <% end %>
           <% end %>
 
-          <li>
+          <li :if={:dashboard in @authenticated_links}>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/dashboard", locale: @current_locale)}
               class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/dashboard"), do: " bg-primary text-primary-content", else: "")}
             >
               <.icon name="hero-home" class="w-4 h-4" />
-              <span>Dashboard</span>
+              <span>{gettext("Dashboard")}</span>
             </.link>
           </li>
 
-          <li>
+          <li :if={:settings in @authenticated_links}>
             <.link
               navigate={PhoenixKit.Utils.Routes.path("/dashboard/settings", locale: @current_locale)}
               class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/dashboard/settings"), do: " bg-primary text-primary-content", else: "")}
             >
               <.icon name="hero-cog-6-tooth" class="w-4 h-4" />
-              <span>Settings</span>
+              <span>{gettext("Settings")}</span>
             </.link>
           </li>
 
@@ -142,14 +149,14 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
           <div class="divider my-0"></div>
 
-          <li>
+          <li :if={:logout in @authenticated_links}>
             <.link
               navigate={Routes.path("/users/log-out")}
               method="delete"
               class="flex items-center gap-3 text-error hover:bg-error hover:text-error-content"
             >
               <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" />
-              <span>Log Out</span>
+              <span>{gettext("Log Out")}</span>
             </.link>
           </li>
         </ul>

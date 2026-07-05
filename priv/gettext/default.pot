@@ -8,6 +8,7 @@
 ## effect: edit them in PO (`.po`) files instead.
 ## Dashboard page translations
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:130
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -1327,7 +1328,7 @@ msgstr ""
 msgid "Line Break"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:308
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:315
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:39
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1858,6 +1859,7 @@ msgstr ""
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:210
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:140
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
@@ -7785,7 +7787,7 @@ msgid "You need to configure at least one storage bucket before you can upload f
 msgstr ""
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:342
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:101
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:108
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr ""
@@ -9274,7 +9276,7 @@ msgstr ""
 msgid "About"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:185
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:192
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr ""
@@ -9502,7 +9504,7 @@ msgstr ""
 msgid "Folder name can't be blank"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:310
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr ""
@@ -9571,7 +9573,7 @@ msgstr ""
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:256
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:263
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr ""
@@ -9595,7 +9597,7 @@ msgstr ""
 msgid "List"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:311
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr ""
@@ -9651,7 +9653,7 @@ msgstr ""
 msgid "No media yet."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:203
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:210
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr ""
@@ -9747,7 +9749,7 @@ msgstr ""
 msgid "Show title"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:309
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -9996,4 +9998,9 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the audio tag."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#, elixir-autogen, elixir-format
+msgid "Log Out"
 msgstr ""
