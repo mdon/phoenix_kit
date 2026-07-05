@@ -1,3 +1,50 @@
+## 1.7.173 - 2026-07-05
+
+### Changed
+- **DaisyUI theme names are now translatable.** `ThemeConfig`'s `@labels` map
+  (System, Light, Dark, and 34 other theme names) was hardcoded without gettext
+  wrapping, so it rendered in English regardless of locale. Adds
+  `translated_label/1` and `translated_label_map/0`; the theme-switcher dropdown
+  and the layout wrapper's client-side JS label map now use them.
+- **User dashboard nav gains an `:authenticated_links` attribute.**
+  `PhoenixKitWeb.Components.UserDashboardNav.user_dropdown/1` now accepts
+  `authenticated_links` (default `[:admin, :dashboard, :settings, :logout]`),
+  mirroring the existing `:guest_links` narrowing. Lets a host app hide menu
+  entries its own navigation already covers (e.g. `:dashboard`). Narrowing-only:
+  `:admin` still requires `Scope.admin?/1`, so it can never grant access.
+- **Dependency bumps:** `ex_ast` 0.12.5 → 0.12.7, `mdex` 0.13.2 → 0.13.3,
+  `mdex_native` 0.2.3 → 0.2.4, `swoosh` 1.26.2 → 1.26.3 (lockfile).
+
+### Fixed
+- **V80 migration could corrupt email-template data on a retried multi-version
+  run.** V80 was the only version module that never recorded its own
+  `COMMENT ON TABLE phoenix_kit IS '80'` checkpoint. Because update migrations
+  run with `@disable_ddl_transaction` (each step auto-commits individually), a
+  failure in a later version would cause a subsequent `mix ecto.migrate` to
+  resume from V80 and re-run its `ALTER COLUMN ... TYPE jsonb USING
+  jsonb_build_object('en', ...)` against already-converted columns,
+  double-wrapping the values (`{"en": {"en": "..."}}`). V80 now writes its
+  checkpoint like every other version and guards the conversion on the column's
+  current type so it's idempotent. (#612)
+
+### i18n
+- **French UI strings translated.** French was ~5% translated (1688 of 1776
+  msgids blank in `default.po`, all 8 blank in `phoenix_kit.po`) despite most
+  strings being reachable from public-facing pages (theme switcher, "Log in",
+  etc.). All ~1782 blank entries across `default.po` / `phoenix_kit.po` /
+  `errors.po` are now translated to idiomatic French (formal register, plural
+  forms per entry).
+- Localized three previously-hardcoded labels in the user dashboard nav
+  ("Dashboard", "Settings", "Log Out") via `gettext/1`, matching the rest of the
+  component; new msgids extracted across all locale catalogs.
+
+### Internal
+- Ignore a `Gettext.Backend`-generated `call_without_opaque` Dialyzer false
+  positive (Expo's opaque `PluralForms` struct passed into
+  `Gettext.Plural.plural/2`) so `mix precommit` passes on Erlang 28 / Elixir
+  1.19. Already on the latest `gettext` 1.0.2 / `expo` 1.1.1; no user code is
+  involved.
+
 ## 1.7.172 - 2026-07-03
 
 ### Changed
