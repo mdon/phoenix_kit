@@ -105,5 +105,15 @@
   {"lib/phoenix_kit_web/components/annotation_composer.ex", :unknown_function},
 
   # Integrations — URI authority is opaque, cond guard false positive
-  {"lib/phoenix_kit_web/live/settings/integration_form.ex", :opaque_guard}
+  {"lib/phoenix_kit_web/live/settings/integration_form.ex", :opaque_guard},
+
+  # Gettext backend — `use Gettext.Backend` generates plural-resolution code
+  # that passes Expo's opaque `Expo.PluralForms` struct into
+  # `Gettext.Plural.plural/2`. Dialyzer flags the generated call as peeking
+  # into the opaque type (call_without_opaque at gettext.ex:1, the module
+  # line). It's a cross-library spec mismatch between gettext and expo, not a
+  # runtime bug — the module body is just `use Gettext.Backend`, no user code
+  # touches PluralForms. Already on the latest gettext 1.0.2 / expo 1.1.1, so
+  # there's no upgrade that resolves it.
+  {"lib/phoenix_kit_web/gettext.ex", :call_without_opaque}
 ]
