@@ -13,24 +13,35 @@ defmodule PhoenixKit.Migrations.Postgres.V80 do
   def up(%{prefix: prefix} = _opts) do
     p = prefix_str(prefix)
 
-    # Convert template content fields to JSONB
-    # Existing string values are preserved as {"en": "original_value"}
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_email_templates
-      ALTER COLUMN subject TYPE jsonb
-        USING jsonb_build_object('en', subject),
-      ALTER COLUMN html_body TYPE jsonb
-        USING jsonb_build_object('en', html_body),
-      ALTER COLUMN text_body TYPE jsonb
-        USING jsonb_build_object('en', text_body),
-      ALTER COLUMN display_name TYPE jsonb
-        USING jsonb_build_object('en', display_name),
-      ALTER COLUMN description TYPE jsonb
-        USING CASE
-          WHEN description IS NULL THEN NULL
-          ELSE jsonb_build_object('en', description)
-        END
-    """)
+    # Convert template content fields to JSONB. Guarded on the current type of
+    # `subject` (all 5 columns are converted together, so one check covers the
+    # group) — without it, re-running this migration against an
+    # already-converted database double-wraps the JSONB values
+    # (`jsonb_build_object('en', subject)` where `subject` is itself already
+    # `{"en": "..."}`). A retry can happen because this version previously
+    # didn't record its own "COMMENT ON TABLE ... IS '80'" marker like every
+    # other version module does, so a failure later in the same multi-version
+    # migration run (disable_ddl_transaction; each step auto-commits) would
+    # cause a subsequent `mix ecto.migrate` to resume from V80 again.
+    if column_type(prefix, "phoenix_kit_email_templates", "subject") != "jsonb" do
+      # Existing string values are preserved as {"en": "original_value"}
+      execute("""
+      ALTER TABLE #{p}phoenix_kit_email_templates
+        ALTER COLUMN subject TYPE jsonb
+          USING jsonb_build_object('en', subject),
+        ALTER COLUMN html_body TYPE jsonb
+          USING jsonb_build_object('en', html_body),
+        ALTER COLUMN text_body TYPE jsonb
+          USING jsonb_build_object('en', text_body),
+        ALTER COLUMN display_name TYPE jsonb
+          USING jsonb_build_object('en', display_name),
+        ALTER COLUMN description TYPE jsonb
+          USING CASE
+            WHEN description IS NULL THEN NULL
+            ELSE jsonb_build_object('en', description)
+          END
+      """)
+    end
 
     # Add locale tracking to email logs
     execute("""
@@ -42,6 +53,8 @@ defmodule PhoenixKit.Migrations.Postgres.V80 do
     CREATE INDEX IF NOT EXISTS idx_email_logs_locale
       ON #{p}phoenix_kit_email_logs (locale)
     """)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '80'")
   end
 
   def down(%{prefix: prefix} = _opts) do
@@ -68,6 +81,22 @@ defmodule PhoenixKit.Migrations.Postgres.V80 do
     ALTER TABLE #{p}phoenix_kit_email_logs
       DROP COLUMN IF EXISTS locale
     """)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '79'")
+  end
+
+  defp column_type(prefix, table, column) do
+    schema = prefix || "public"
+
+    query = """
+    SELECT data_type FROM information_schema.columns
+    WHERE table_schema = '#{schema}' AND table_name = '#{table}' AND column_name = '#{column}'
+    """
+
+    case repo().query(query, [], log: false) do
+      {:ok, %{rows: [[data_type]]}} -> data_type
+      _ -> nil
+    end
   end
 
   defp prefix_str(nil), do: ""
