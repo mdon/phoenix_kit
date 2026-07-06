@@ -89,7 +89,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:composing_annotation_uuid, nil)
      |> assign(:etcher_colors, @default_etcher_colors)
      |> assign(:etcher_line_params, @default_etcher_line_params)
-     |> assign(:viewer_only, false)}
+     |> assign(:viewer_only, false)
+     |> assign(:viewer_rotation, 0)
+     |> assign(:persist_rotation, false)}
   end
 
   @impl true
@@ -126,6 +128,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:has_prev, assigns[:has_prev] || false)
       |> assign(:has_next, assigns[:has_next] || false)
       |> assign(:viewer_only, assigns[:viewer_only] || false)
+      # Opt-in: only admin-context hosts persist a rotation back to the shared
+      # file row (see handle_event "fresco:rotate"). Public hosts still seed
+      # `initial_rotation` below so everyone sees the saved orientation.
+      |> assign(:persist_rotation, assigns[:persist_rotation] || false)
 
     # First mount (or file changed via re-mount): hydrate annotations
     # + canvas. Because the id encodes the file uuid, the parent's
@@ -138,6 +144,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         socket
         |> assign(:viewer_annotations, annotations)
         |> assign(:viewer_canvas, build_viewer_canvas(file, annotations))
+        # Seed the saved rotation so the image paints already-rotated on open
+        # (no flash of unrotated → rotated). Read from the file's metadata row.
+        |> assign(:viewer_rotation, load_saved_rotation(file.file_uuid))
         # Read fresh from the DB (not the parent-passed struct) so the
         # palette is correct even on modal prev/next after an in-session
         # edit, where the parent's `current_user` may be stale.
@@ -251,6 +260,84 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
     {:noreply, socket}
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Rotation persistence
+  # ──────────────────────────────────────────────────────────────
+
+  # Fresco's opt-in server bridge: fires on every rotation change when the
+  # canvas is mounted with `persist_rotation`. The rotation lives on the shared
+  # file row (`metadata["rotation"]`) — it's the image's saved orientation for
+  # every viewer, not a per-user preference — so only persist when the host
+  # opted in (admin contexts). Seeds `initial_rotation` on the next open.
+  @impl true
+  def handle_event("fresco:rotate", %{"rotation" => rotation}, socket) do
+    file = socket.assigns[:file]
+
+    if socket.assigns[:persist_rotation] and is_map(file) do
+      {:noreply, persist_rotation(socket, file.file_uuid, normalize_rotation(rotation))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # The image's saved orientation (degrees), read from the file row's metadata.
+  # A lightweight PK fetch at viewer-open — negligible next to loading the image
+  # + annotations. Missing/garbage → 0 (unrotated). Never crashes the viewer.
+  defp load_saved_rotation(file_uuid) do
+    case Storage.get_file(file_uuid) do
+      %{metadata: meta} when is_map(meta) -> normalize_rotation(Map.get(meta, "rotation"))
+      _ -> 0
+    end
+  rescue
+    _ -> 0
+  end
+
+  # Write `rotation` into the file's metadata JSONB, skipping the DB round-trip
+  # when it hasn't changed (Fresco fires `rotate` on every change, including the
+  # Reset-view snap back to the already-saved home rotation).
+  defp persist_rotation(socket, file_uuid, rotation) do
+    case Storage.get_file(file_uuid) do
+      %Storage.File{} = file ->
+        current = normalize_rotation(Map.get(file.metadata || %{}, "rotation"))
+
+        if current == rotation do
+          assign(socket, :viewer_rotation, rotation)
+        else
+          merged = Map.put(file.metadata || %{}, "rotation", rotation)
+
+          case Storage.update_file(file, %{metadata: merged}) do
+            {:ok, _updated} -> assign(socket, :viewer_rotation, rotation)
+            {:error, _changeset} -> socket
+          end
+        end
+
+      _ ->
+        socket
+    end
+  rescue
+    e ->
+      Logger.warning("Failed to persist media rotation for #{file_uuid}: #{inspect(e)}")
+      socket
+  end
+
+  # Coerce a rotation to one of the four snapped angles Fresco supports; any
+  # other/garbage value collapses to 0 so we never store a bogus orientation.
+  defp normalize_rotation(deg) when is_integer(deg) do
+    case Integer.mod(deg, 360) do
+      n when n in [0, 90, 180, 270] -> n
+      _ -> 0
+    end
+  end
+
+  defp normalize_rotation(deg) when is_binary(deg) do
+    case Integer.parse(deg) do
+      {n, _} -> normalize_rotation(n)
+      :error -> 0
+    end
+  end
+
+  defp normalize_rotation(_), do: 0
 
   # ──────────────────────────────────────────────────────────────
   # Annotation persistence + canvas blob

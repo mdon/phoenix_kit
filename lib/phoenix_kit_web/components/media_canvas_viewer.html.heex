@@ -83,6 +83,8 @@
               canvas={@viewer_canvas}
               class="w-full h-full lg:rounded"
               theme={:inherit}
+              initial_rotation={@viewer_rotation}
+              persist_rotation={@persist_rotation}
             />
             <Etcher.layer
               fresco_id={"media-zoom-" <> f.file_uuid}
