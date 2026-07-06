@@ -1,3 +1,29 @@
+## 1.7.176 - 2026-07-06
+
+### Added
+- **Activity feed entries now deep-link to the resource they acted on.** A new
+  shared `PhoenixKit.ResourceLinks` resolver turns an entry's
+  `(resource_type, resource_uuid)` into a navigable link to the underlying
+  record, reusing the comments-moderation two-tier mechanism (auto-registered
+  handler modules for `post`/`file`/`user`, then `comment_resource_paths` string
+  templates). A core `<.resource_link>` chip renders the resolved title with a
+  thumbnail or type icon on both the Activity index Subject cell and the detail
+  page, falling back to the resolved user email and then a truncated uuid.
+  Resolution is batched per resource type and fails open to the uuid fallback,
+  so a missing or throwing handler never crashes the admin feed. (#619)
+- **Image rotation in the media viewer is now persisted.** Rotating an image in
+  the admin media viewer saves the angle to the file row's `metadata["rotation"]`
+  and restores it on the next open, via fresco 0.8's opt-in `persist_rotation`
+  server bridge. Every viewer (including public galleries) seeds the saved
+  orientation on first paint, but only admin-context hosts — the `MediaBrowser`
+  modal (gated on `@admin`) and the admin-only media-detail page — write back to
+  the shared file row. (#618)
+
+### Changed
+- **Updated fresco to 0.8.0, etcher to 0.7.2, tessera to 0.3.2.** fresco 0.8's
+  new `persist_rotation` bridge backs the media-viewer rotation persistence
+  above.
+
 ## 1.7.175 - 2026-07-06
 
 ### Added
