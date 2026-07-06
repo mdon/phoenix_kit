@@ -21,6 +21,14 @@
   implements it yet — this is purely an extension point for
   settings that don't already have a home in the core UI.
 
+### Fixed
+- **Toggling a source-contributed boolean setting no longer crashes the sitemap
+  settings page when the field declares a non-boolean default.** The extension
+  toggle handler now reads the current value through the same rescue-protected
+  path the render uses, so a source that declares `%{type: :boolean, default: nil}`
+  (allowed by the `term()` default type) can't raise `FunctionClauseError` from
+  `Settings.get_boolean_setting/2`'s `is_boolean/1` guard on click.
+
 ## 1.7.174 - 2026-07-05
 
 ### Fixed

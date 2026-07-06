@@ -514,8 +514,12 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   @impl true
   def handle_event("toggle_extension_setting", %{"key" => key}, socket) do
     case find_extension_field(socket, key) do
-      %{type: :boolean, default: default} ->
-        current = Settings.get_boolean_setting(key, default)
+      %{type: :boolean} = field ->
+        # Read the current value through the rescue-protected helper (same as
+        # the render path) so a source that declares a boolean field with a
+        # non-boolean default can't crash the toggle: `get_boolean_setting/2`
+        # guards on `is_boolean(default)` and would otherwise raise here.
+        current = read_extension_field(field) == true
 
         case Settings.update_boolean_setting(key, !current) do
           {:ok, _} ->

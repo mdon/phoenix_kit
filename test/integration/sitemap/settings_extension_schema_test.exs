@@ -59,6 +59,38 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsExtensionSchemaTest do
     def collect(_opts), do: []
   end
 
+  defmodule BadDefaultSource do
+    @moduledoc false
+    @behaviour PhoenixKit.Modules.Sitemap.Sources.Source
+
+    @impl true
+    def source_name, do: :bad_default
+
+    @impl true
+    def enabled?, do: true
+
+    @impl true
+    def collect(_opts), do: []
+
+    # A boolean field whose declared default is NOT a boolean — an easy
+    # mistake for a third-party source author (`settings_field.default` is
+    # typed `term()`). `Settings.get_boolean_setting/2` guards on
+    # `is_boolean(default)`, so the toggle handler must not pass this default
+    # straight through or it raises and kills the settings page.
+    @impl true
+    def sitemap_settings_schema do
+      [
+        %{
+          key: "sitemap_bad_default_flag",
+          type: :boolean,
+          label: "Flag with a bad default",
+          help: nil,
+          default: nil
+        }
+      ]
+    end
+  end
+
   describe "build_extension_sources/1 (pure data prep, no LiveView needed)" do
     test "includes only sources that declare a settings schema, with values attached" do
       assert [{FakeSource, [field]}] =
@@ -105,6 +137,33 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsExtensionSchemaTest do
       |> render_click()
 
       assert Settings.get_boolean_setting("sitemap_fake_entities_include_index", true) == false
+    end
+  end
+
+  describe "boolean field declared with a non-boolean default" do
+    setup %{conn: conn} do
+      {user, _token} = create_admin_user()
+      conn = log_in_user(conn, user)
+
+      original_env = Application.get_env(:phoenix_kit, :sitemap, [])
+      Application.put_env(:phoenix_kit, :sitemap, sources: [BadDefaultSource])
+      on_exit(fn -> Application.put_env(:phoenix_kit, :sitemap, original_env) end)
+
+      %{conn: conn}
+    end
+
+    test "renders and toggles without crashing the settings page", %{conn: conn} do
+      {:ok, view, html} = live(conn, @path)
+      assert html =~ "Flag with a bad default"
+
+      # Before the fix this raised a FunctionClauseError from
+      # get_boolean_setting/2 (guard: is_boolean(default)) and killed the LV.
+      view
+      |> element("input[phx-value-key='sitemap_bad_default_flag']")
+      |> render_click()
+
+      # nil default is treated as false, so the first toggle stores true.
+      assert Settings.get_boolean_setting("sitemap_bad_default_flag", false) == true
     end
   end
 end
