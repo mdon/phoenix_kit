@@ -15,11 +15,30 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Source do
 
   - `sitemap_filename/0` - Custom filename for the module's sitemap file
   - `sub_sitemaps/1` - Split into multiple sub-sitemap files (e.g., per-blog, per-entity-type)
+  - `sitemap_settings_schema/0` - Declare source-specific settings for the admin UI
   """
 
   require Logger
 
   alias PhoenixKit.Modules.Sitemap.UrlEntry
+
+  @typedoc """
+  Describes one source-specific setting for the admin settings UI.
+
+  - `key` - the `PhoenixKit.Settings` key this field reads/writes
+  - `type` - controls both the input widget and how the stored string is
+    parsed (`:boolean` -> toggle, `:string` -> text input, `:integer` -> number input)
+  - `label` - field label shown to the admin
+  - `help` - optional helper text shown below the label
+  - `default` - value used when the setting has never been saved
+  """
+  @type settings_field :: %{
+          key: String.t(),
+          type: :boolean | :string | :integer,
+          label: String.t(),
+          help: String.t() | nil,
+          default: term()
+        }
 
   @doc """
   Returns the unique name/identifier for this source.
@@ -53,7 +72,36 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Source do
   """
   @callback sub_sitemaps(opts :: keyword()) :: [{String.t(), [UrlEntry.t()]}] | nil
 
-  @optional_callbacks [sitemap_filename: 0, sub_sitemaps: 1]
+  @doc """
+  Declares source-specific settings for the sitemap admin settings page.
+
+  Optional. A source that implements this returns a list of field
+  descriptors; the settings page renders one input per field (grouped
+  under the source's name), reads/writes each through `PhoenixKit.Settings`
+  using its `key` and `default`, and invalidates the sitemap cache on save
+  — the same way the page's built-in settings work.
+
+  Only add this for settings that don't already have a UI. Don't
+  reimplement fields the core sitemap settings page already exposes (e.g.
+  the built-in `sitemap_include_*` toggles).
+
+  ## Example
+
+      def sitemap_settings_schema do
+        [
+          %{
+            key: "sitemap_entities_include_index",
+            type: :boolean,
+            label: "Include entity index pages",
+            help: "Adds the /entities listing page alongside individual entries",
+            default: true
+          }
+        ]
+      end
+  """
+  @callback sitemap_settings_schema() :: [settings_field()]
+
+  @optional_callbacks [sitemap_filename: 0, sub_sitemaps: 1, sitemap_settings_schema: 0]
 
   @doc """
   Helper function to check if a source module is valid.
@@ -97,6 +145,21 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Source do
       source_module.sub_sitemaps(opts)
     else
       nil
+    end
+  end
+
+  @doc """
+  Returns the settings schema for a source module.
+
+  Calls the optional `sitemap_settings_schema/0` callback if implemented,
+  otherwise returns `[]` (no source-specific settings to render).
+  """
+  @spec get_settings_schema(module()) :: [settings_field()]
+  def get_settings_schema(source_module) do
+    if function_exported?(source_module, :sitemap_settings_schema, 0) do
+      source_module.sitemap_settings_schema()
+    else
+      []
     end
   end
 

@@ -166,6 +166,48 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
       []
   end
 
+  ## Settings UI helpers
+
+  @doc """
+  Returns the subset of `patterns` that fail to compile as regexes.
+
+  Mirrors the same `Regex.compile/1` check `compile_patterns/2` applies at
+  collection time, so a pattern accepted here is guaranteed not to be
+  silently dropped later. Used by the settings UI to reject invalid
+  exclude/include-only patterns before saving, instead of persisting them
+  and only discovering the problem in the logs.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery.invalid_patterns(["^/admin", "*"])
+      ["*"]
+  """
+  @spec invalid_patterns([String.t()]) :: [String.t()]
+  def invalid_patterns(patterns) when is_list(patterns) do
+    Enum.filter(patterns, &match?({:error, _}, Regex.compile(&1)))
+  end
+
+  @doc """
+  Returns the built-in default exclude patterns.
+
+  These apply whenever `sitemap_router_discovery_exclude_patterns` is unset.
+  Once that setting is saved (even as an empty list), it replaces this list
+  entirely rather than adding to it. Exposed so the settings UI can show
+  admins what's excluded today, before they touch the setting.
+  """
+  @spec default_exclude_patterns() :: [String.t()]
+  def default_exclude_patterns, do: @default_exclude_patterns
+
+  @doc """
+  Returns the built-in default protected pipelines.
+
+  Unlike exclude patterns, `sitemap_protected_pipelines` only *adds* to this
+  list — these defaults always apply. Exposed so the settings UI can show
+  admins which pipelines are already protected without configuration.
+  """
+  @spec default_protected_pipelines() :: [atom()]
+  def default_protected_pipelines, do: @default_protected_pipelines
+
   defp do_collect(opts) do
     base_url = Keyword.get(opts, :base_url)
     exclude_patterns = compile_patterns(get_exclude_patterns(), "exclude")

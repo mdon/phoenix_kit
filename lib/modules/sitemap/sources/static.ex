@@ -91,6 +91,18 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
   @impl true
   def sitemap_filename, do: "sitemap-static"
 
+  @doc """
+  Returns the built-in default static routes (always includes the homepage).
+
+  These apply whenever `sitemap_static_routes` is unset. Once that setting
+  is saved (even as an empty list), it replaces this list entirely — so
+  saving `[]` removes the homepage entry too. Exposed so the settings UI can
+  pre-fill the editor with the current effective routes instead of an empty
+  list that looks safe to submit as-is but isn't.
+  """
+  @spec default_static_routes() :: [map()]
+  def default_static_routes, do: @default_static_routes
+
   @impl true
   def collect(opts \\ []) do
     is_default = Keyword.get(opts, :is_default_language, true)

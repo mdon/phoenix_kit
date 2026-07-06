@@ -1,3 +1,26 @@
+## 1.7.175 - 2026-07-06
+
+### Added
+- **Sitemap settings page now exposes Router Discovery exclude patterns,
+  protected pipelines, custom URLs, and static routes.** These four settings
+  (`sitemap_router_discovery_exclude_patterns`, `sitemap_protected_pipelines`,
+  `sitemap_custom_urls`, `sitemap_static_routes`) previously had no admin UI —
+  changing them required editing the database directly. They're now editable
+  from a new "Advanced" section on `/admin/settings/sitemap`, with the
+  exclude-patterns field validated against `Regex.compile/1` before saving
+  (an invalid pattern is rejected with an inline error instead of being
+  silently dropped later) and pipeline names restricted to identifier-safe
+  characters.
+- **Sitemap sources can now declare their own settings via
+  `PhoenixKit.Modules.Sitemap.Sources.Source.sitemap_settings_schema/0`.**
+  This new optional callback lets a source module (built-in or contributed by
+  another package, e.g. an Entities module) describe boolean/string/integer
+  settings with a label, help text, and default; the sitemap settings page
+  discovers and renders them automatically, reading/writing through
+  `PhoenixKit.Settings` the same way built-in settings work. No core source
+  implements it yet — this is purely an extension point for
+  settings that don't already have a home in the core UI.
+
 ## 1.7.174 - 2026-07-05
 
 ### Fixed
