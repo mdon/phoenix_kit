@@ -126,6 +126,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.UserInfo
       import PhoenixKitWeb.Components.Core.Pagination
       import PhoenixKitWeb.Components.Core.FileDisplay
+      import PhoenixKitWeb.Components.Core.ResourceLink
       import PhoenixKitWeb.Components.Core.EmailActivityBadges
       import PhoenixKitWeb.Components.Core.MessageTagBadge
       import PhoenixKitWeb.Components.Core.NumberFormatter

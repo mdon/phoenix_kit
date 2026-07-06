@@ -142,10 +142,12 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
       )
 
     resource_users = Activity.resolve_resource_users(result.entries)
+    resource_links = PhoenixKit.ResourceLinks.resolve(result.entries)
 
     socket
     |> assign(:entries, result.entries)
     |> assign(:resource_users, resource_users)
+    |> assign(:resource_links, resource_links)
     |> assign(:total, result.total)
     |> assign(:total_pages, result.total_pages)
   end

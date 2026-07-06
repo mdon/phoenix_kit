@@ -28,12 +28,17 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
           project_title = Settings.get_project_title()
           resource_user = resolve_resource_user(entry)
 
+          resource_link =
+            PhoenixKit.ResourceLinks.resolve([entry])
+            |> PhoenixKit.ResourceLinks.info_for(entry.resource_type, entry.resource_uuid)
+
           socket =
             socket
             |> assign(:page_title, gettext("Activity Detail"))
             |> assign(:project_title, project_title)
             |> assign(:entry, entry)
             |> assign(:resource_user, resource_user)
+            |> assign(:resource_link, resource_link)
 
           {:ok, socket}
       end
