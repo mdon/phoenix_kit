@@ -439,6 +439,59 @@
         </div>
       </div>
 
+      <%!-- Source-Contributed Settings (extension point: Source.sitemap_settings_schema/0) --%>
+      <div :for={{mod, fields} <- @extension_sources} class="card bg-base-200 shadow-md">
+        <div class="card-body">
+          <h2 class="card-title">
+            <.icon name="hero-puzzle-piece" class="w-5 h-5" /> {source_display_name(mod)}
+          </h2>
+
+          <div class="space-y-3 mt-2">
+            <div :for={field <- fields}>
+              <label
+                :if={field.type == :boolean}
+                class="flex items-center justify-between cursor-pointer"
+              >
+                <div>
+                  <span class="label-text font-medium">{field.label}</span>
+                  <span :if={field.help} class="text-xs text-base-content/60 block">
+                    {field.help}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm toggle-primary"
+                  checked={field.value}
+                  phx-click="toggle_extension_setting"
+                  phx-value-key={field.key}
+                />
+              </label>
+
+              <form
+                :if={field.type != :boolean}
+                phx-submit="save_extension_setting"
+                phx-value-key={field.key}
+                class="form-control"
+              >
+                <label class="label">
+                  <span class="label-text font-medium">{field.label}</span>
+                </label>
+                <p :if={field.help} class="text-xs text-base-content/60 mb-1">{field.help}</p>
+                <div class="flex gap-2">
+                  <input
+                    type={if field.type == :integer, do: "number", else: "text"}
+                    name="value"
+                    value={field.value}
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <button type="submit" class="btn btn-sm btn-primary">{gettext("Save")}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <%!-- Configuration Card --%>
         <div class="card bg-base-200 shadow-md">
@@ -625,6 +678,115 @@
               do: gettext("/sitemap.xml contains all URLs in a single <urlset>"),
               else: gettext("/sitemap.xml is a sitemapindex referencing per-module sitemap files")}
           </p>
+        </div>
+      </div>
+
+      <%!-- Advanced Settings --%>
+      <div class="card bg-base-200 shadow-md">
+        <div class="card-body">
+          <h2 class="card-title">
+            <.icon name="hero-wrench-screwdriver" class="w-5 h-5" /> {gettext("Advanced")}
+          </h2>
+          <p class="text-sm text-base-content/60 mb-2">
+            {gettext(
+              "Low-level Router Discovery and static-page settings. Most sites won't need these — they were previously only reachable by editing the database directly."
+            )}
+          </p>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+            <%!-- Exclude Patterns --%>
+            <form phx-submit="save_exclude_patterns" class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">
+                  {gettext("Router Discovery: Exclude Patterns")}
+                </span>
+              </label>
+              <p class="text-xs text-base-content/60 mb-1">
+                {gettext(
+                  "One regular expression per line. Replaces the built-in defaults entirely when saved — an empty list means nothing is excluded."
+                )}
+              </p>
+              <textarea
+                name="patterns"
+                rows="6"
+                class="textarea textarea-bordered font-mono text-xs w-full"
+              >{@exclude_patterns_text}</textarea>
+              <div :if={@exclude_patterns_error} class="alert alert-error mt-2 py-2 text-xs">
+                {@exclude_patterns_error}
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary mt-2 self-start">
+                {gettext("Save Exclude Patterns")}
+              </button>
+            </form>
+
+            <%!-- Protected Pipelines --%>
+            <form phx-submit="save_protected_pipelines" class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">{gettext("Protected Pipelines")}</span>
+              </label>
+              <p class="text-xs text-base-content/60 mb-1">
+                {gettext("One pipeline name per line. Added on top of the built-in defaults:")}
+                <span class="font-mono">{@protected_pipelines_defaults_text}</span>
+              </p>
+              <textarea
+                name="pipelines"
+                rows="6"
+                class="textarea textarea-bordered font-mono text-xs w-full"
+              >{@protected_pipelines_text}</textarea>
+              <div :if={@protected_pipelines_error} class="alert alert-error mt-2 py-2 text-xs">
+                {@protected_pipelines_error}
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary mt-2 self-start">
+                {gettext("Save Protected Pipelines")}
+              </button>
+            </form>
+
+            <%!-- Custom URLs --%>
+            <form phx-submit="save_custom_urls" class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">{gettext("Custom URLs")}</span>
+              </label>
+              <p class="text-xs text-base-content/60 mb-1">
+                {gettext(
+                  "JSON array of extra static URL entries (path, priority, changefreq, title, category)."
+                )}
+              </p>
+              <textarea
+                name="json"
+                rows="8"
+                class="textarea textarea-bordered font-mono text-xs w-full"
+              >{@custom_urls_text}</textarea>
+              <div :if={@custom_urls_error} class="alert alert-error mt-2 py-2 text-xs">
+                {@custom_urls_error}
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary mt-2 self-start">
+                {gettext("Save Custom URLs")}
+              </button>
+            </form>
+
+            <%!-- Static Routes --%>
+            <form phx-submit="save_static_routes" class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">{gettext("Static Routes")}</span>
+              </label>
+              <p class="text-xs text-base-content/60 mb-1">
+                {gettext(
+                  "JSON array of route configurations (plug or path, priority, changefreq, title, category). Replaces the built-in defaults entirely when saved — an empty list removes the homepage entry too."
+                )}
+              </p>
+              <textarea
+                name="json"
+                rows="8"
+                class="textarea textarea-bordered font-mono text-xs w-full"
+              >{@static_routes_text}</textarea>
+              <div :if={@static_routes_error} class="alert alert-error mt-2 py-2 text-xs">
+                {@static_routes_error}
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary mt-2 self-start">
+                {gettext("Save Static Routes")}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

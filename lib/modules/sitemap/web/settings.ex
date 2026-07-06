@@ -14,10 +14,15 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  require Logger
+
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.FileStorage
   alias PhoenixKit.Modules.Sitemap.Generator
   alias PhoenixKit.Modules.Sitemap.SchedulerWorker
+  alias PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery
+  alias PhoenixKit.Modules.Sitemap.Sources.Source
+  alias PhoenixKit.Modules.Sitemap.Sources.Static
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -56,6 +61,16 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
       |> assign(:include_registration, Sitemap.include_registration?())
       |> assign(:publishing_split_by_group, Sitemap.publishing_split_by_group?())
       |> assign(:module_enabled, get_module_enabled_status())
+      |> assign(:exclude_patterns_text, exclude_patterns_text())
+      |> assign(:exclude_patterns_error, nil)
+      |> assign(:protected_pipelines_text, protected_pipelines_text())
+      |> assign(:protected_pipelines_defaults_text, protected_pipelines_defaults_text())
+      |> assign(:protected_pipelines_error, nil)
+      |> assign(:custom_urls_text, custom_urls_text())
+      |> assign(:custom_urls_error, nil)
+      |> assign(:static_routes_text, static_routes_text())
+      |> assign(:static_routes_error, nil)
+      |> assign(:extension_sources, build_extension_sources(Generator.get_sources()))
 
     {:ok, socket}
   end
@@ -382,6 +397,156 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
     end
   end
 
+  @impl true
+  def handle_event("save_exclude_patterns", %{"patterns" => text}, socket) do
+    patterns = parse_lines(text)
+
+    case RouterDiscovery.invalid_patterns(patterns) do
+      [] ->
+        case Settings.update_setting(
+               "sitemap_router_discovery_exclude_patterns",
+               Jason.encode!(patterns)
+             ) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:exclude_patterns_text, Enum.join(patterns, "\n"))
+             |> assign(:exclude_patterns_error, nil)
+             |> bump_and_broadcast("router_discovery_exclude_patterns")
+             |> put_flash(:info, "Exclude patterns updated")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update exclude patterns")}
+        end
+
+      invalid ->
+        {:noreply,
+         socket
+         |> assign(:exclude_patterns_text, text)
+         |> assign(
+           :exclude_patterns_error,
+           "Invalid regex pattern(s), not saved: #{Enum.join(invalid, ", ")}"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("save_protected_pipelines", %{"pipelines" => text}, socket) do
+    names = parse_lines(text)
+
+    case invalid_pipeline_names(names) do
+      [] ->
+        case Settings.update_setting("sitemap_protected_pipelines", Jason.encode!(names)) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:protected_pipelines_text, Enum.join(names, "\n"))
+             |> assign(:protected_pipelines_error, nil)
+             |> bump_and_broadcast("protected_pipelines")
+             |> put_flash(:info, "Protected pipelines updated")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update protected pipelines")}
+        end
+
+      invalid ->
+        {:noreply,
+         socket
+         |> assign(:protected_pipelines_text, text)
+         |> assign(
+           :protected_pipelines_error,
+           "Invalid pipeline name(s) — use letters, digits and underscores only, not saved: " <>
+             Enum.join(invalid, ", ")
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("save_custom_urls", %{"json" => text}, socket) do
+    case decode_object_list(text) do
+      {:ok, list} ->
+        case Settings.update_setting("sitemap_custom_urls", Jason.encode!(list)) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:custom_urls_text, Jason.encode!(list, pretty: true))
+             |> assign(:custom_urls_error, nil)
+             |> bump_and_broadcast("custom_urls")
+             |> put_flash(:info, "Custom URLs updated")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update custom URLs")}
+        end
+
+      {:error, message} ->
+        {:noreply,
+         socket
+         |> assign(:custom_urls_text, text)
+         |> assign(:custom_urls_error, message)}
+    end
+  end
+
+  @impl true
+  def handle_event("save_static_routes", %{"json" => text}, socket) do
+    case decode_object_list(text) do
+      {:ok, list} ->
+        case Settings.update_setting("sitemap_static_routes", Jason.encode!(list)) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:static_routes_text, Jason.encode!(list, pretty: true))
+             |> assign(:static_routes_error, nil)
+             |> bump_and_broadcast("static_routes")
+             |> put_flash(:info, "Static routes updated")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update static routes")}
+        end
+
+      {:error, message} ->
+        {:noreply,
+         socket
+         |> assign(:static_routes_text, text)
+         |> assign(:static_routes_error, message)}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_extension_setting", %{"key" => key}, socket) do
+    case find_extension_field(socket, key) do
+      %{type: :boolean, default: default} ->
+        current = Settings.get_boolean_setting(key, default)
+
+        case Settings.update_boolean_setting(key, !current) do
+          {:ok, _} ->
+            {:noreply, socket |> refresh_extension_sources() |> bump_and_broadcast(key)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update setting")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Unknown setting")}
+    end
+  end
+
+  @impl true
+  def handle_event("save_extension_setting", %{"key" => key, "value" => raw_value}, socket) do
+    case find_extension_field(socket, key) do
+      %{type: :integer} ->
+        case Integer.parse(raw_value) do
+          {int, _} -> {:noreply, save_extension_value(socket, key, Integer.to_string(int))}
+          :error -> {:noreply, put_flash(socket, :error, "Invalid number")}
+        end
+
+      %{type: :string} ->
+        {:noreply, save_extension_value(socket, key, raw_value)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Unknown setting")}
+    end
+  end
+
   # Handle PubSub message when sitemap generation completes
   @impl true
   def handle_info({:sitemap_generated, %{url_count: count}}, socket) do
@@ -486,6 +651,177 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   end
 
   def format_timestamp(_), do: "Never"
+
+  # ============================================================================
+  # Advanced settings (Router Discovery exclude patterns, protected pipelines,
+  # custom URLs, static routes) — raw text <-> stored JSON conversions.
+  # ============================================================================
+
+  # Helper: read a JSON-encoded setting, falling back to `default_term` when
+  # unset or invalid — mirrors the exact fallback each source module already
+  # applies when it reads the same key, so what's shown here matches what's
+  # actually in effect.
+  defp decoded_setting(key, default_term) do
+    case Settings.get_setting(key) do
+      nil ->
+        default_term
+
+      json when is_binary(json) ->
+        case Jason.decode(json) do
+          {:ok, term} -> term
+          _ -> default_term
+        end
+    end
+  end
+
+  def exclude_patterns_text do
+    decoded_setting(
+      "sitemap_router_discovery_exclude_patterns",
+      RouterDiscovery.default_exclude_patterns()
+    )
+    |> Enum.join("\n")
+  end
+
+  def protected_pipelines_text do
+    decoded_setting("sitemap_protected_pipelines", [])
+    |> Enum.map_join("\n", &to_string/1)
+  end
+
+  def protected_pipelines_defaults_text do
+    RouterDiscovery.default_protected_pipelines()
+    |> Enum.map_join(", ", &to_string/1)
+  end
+
+  def custom_urls_text do
+    decoded_setting("sitemap_custom_urls", [])
+    |> Jason.encode!(pretty: true)
+  end
+
+  def static_routes_text do
+    decoded_setting("sitemap_static_routes", Static.default_static_routes())
+    |> Jason.encode!(pretty: true)
+  end
+
+  # Helper: textarea -> trimmed, non-blank lines (one setting value per line)
+  defp parse_lines(text) do
+    text
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @pipeline_name_pattern ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+  # Pipeline names become atoms via String.to_atom/1 at collection time
+  # (see RouterDiscovery.safe_to_atom/1) — restrict to identifier-safe
+  # characters so a stray typo can't create an arbitrary atom.
+  defp invalid_pipeline_names(names) do
+    Enum.reject(names, &Regex.match?(@pipeline_name_pattern, &1))
+  end
+
+  # Helper: decode a JSON textarea value expected to hold an array of
+  # objects (sitemap_custom_urls / sitemap_static_routes shape).
+  defp decode_object_list(text) do
+    case Jason.decode(text) do
+      {:ok, list} when is_list(list) ->
+        if Enum.all?(list, &is_map/1) do
+          {:ok, list}
+        else
+          {:error, "Must be a JSON array of objects"}
+        end
+
+      {:ok, _other} ->
+        {:error, "Must be a JSON array of objects"}
+
+      {:error, %Jason.DecodeError{} = error} ->
+        {:error, "Invalid JSON: #{Jason.DecodeError.message(error)}"}
+    end
+  end
+
+  # Shared tail for every advanced/extension setting save: bust the generated
+  # sitemap cache, bump the version so connected clients refresh, and notify
+  # other open tabs — the same three steps every other handler in this module
+  # performs inline after a successful Settings update.
+  defp bump_and_broadcast(socket, source_key) do
+    Generator.invalidate_cache()
+    new_version = UtilsDate.utc_now() |> DateTime.to_unix()
+    broadcast_settings_change(:source_changed, %{source: source_key, version: new_version})
+    assign(socket, :sitemap_version, new_version)
+  end
+
+  # ============================================================================
+  # Extension point: source-contributed settings
+  # (PhoenixKit.Modules.Sitemap.Sources.Source.sitemap_settings_schema/0)
+  # ============================================================================
+
+  # Builds the render-ready list of `{source_module, fields}` for every
+  # source that declares a settings schema, with each field's current value
+  # attached. Public (not just used by `mount/3`) so it can be unit tested
+  # directly against a mock source module, without needing a live DB-backed
+  # LiveView mount.
+  def build_extension_sources(source_modules) do
+    source_modules
+    |> Enum.map(fn mod -> {mod, safe_get_settings_schema(mod)} end)
+    |> Enum.reject(fn {_mod, schema} -> schema == [] end)
+    |> Enum.map(fn {mod, schema} ->
+      {mod, Enum.map(schema, &Map.put(&1, :value, read_extension_field(&1)))}
+    end)
+  end
+
+  # A source's schema is arbitrary data from another module — never let a
+  # malformed one crash the settings page for every admin (mirrors the same
+  # safety net `Source.safe_collect/2` applies to sitemap generation).
+  defp safe_get_settings_schema(mod) do
+    Source.get_settings_schema(mod)
+  rescue
+    error ->
+      Logger.warning(
+        "Sitemap source #{inspect(mod)} returned an invalid settings schema: #{inspect(error)}"
+      )
+
+      []
+  end
+
+  defp read_extension_field(field) do
+    case field.type do
+      :boolean -> Settings.get_boolean_setting(field.key, field.default)
+      :integer -> Settings.get_integer_setting(field.key, field.default)
+      :string -> Settings.get_setting(field.key, field.default)
+    end
+  rescue
+    _ -> field.default
+  end
+
+  # Helper: human-readable card title for a source module in the extension
+  # section (e.g. `:router_discovery` -> "Router discovery").
+  def source_display_name(mod) do
+    mod.source_name() |> to_string() |> Phoenix.Naming.humanize()
+  rescue
+    _ -> mod |> to_string() |> String.trim_leading("Elixir.") |> Phoenix.Naming.humanize()
+  end
+
+  defp find_extension_field(socket, key) do
+    Enum.find_value(socket.assigns.extension_sources, fn {_mod, fields} ->
+      Enum.find(fields, &(&1.key == key))
+    end)
+  end
+
+  defp refresh_extension_sources(socket) do
+    assign(socket, :extension_sources, build_extension_sources(Generator.get_sources()))
+  end
+
+  defp save_extension_value(socket, key, value) do
+    case Settings.update_setting(key, value) do
+      {:ok, _} ->
+        socket
+        |> refresh_extension_sources()
+        |> bump_and_broadcast(key)
+        |> put_flash(:info, "Setting updated")
+
+      {:error, _} ->
+        put_flash(socket, :error, "Failed to update setting")
+    end
+  end
 
   # Check which parent modules are actually enabled (not just sitemap toggles)
   defp get_module_enabled_status do
