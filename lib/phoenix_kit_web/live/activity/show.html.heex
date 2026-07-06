@@ -114,7 +114,12 @@
               <div class="text-xs text-base-content/50 mb-1">{gettext("ID")}</div>
               <%= if @entry.resource_uuid do %>
                 <div>
-                  <%= if @resource_user do %>
+                  <%!-- Deep-link to the underlying resource when it resolves
+                       (same mechanism as the comments moderation admin). --%>
+                  <div :if={@resource_link} class="mb-1">
+                    <.resource_link info={@resource_link} />
+                  </div>
+                  <%= if @resource_user && is_nil(@resource_link) do %>
                     <span class="font-semibold">{@resource_user.email}</span>
                   <% end %>
                   <div class="text-xs text-base-content/40 mt-0.5">

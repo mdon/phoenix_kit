@@ -402,16 +402,24 @@
             </.table_default_cell>
             <.table_default_cell class="hidden md:table-cell">
               <%= if entry.resource_type do %>
+                <% link_info =
+                  Map.get(@resource_links, {entry.resource_type, entry.resource_uuid}) %>
                 <span class="badge badge-ghost badge-xs">{entry.resource_type}</span>
-                <%= case Map.get(@resource_users, entry.resource_uuid) do %>
-                  <% %{email: email} -> %>
-                    <span class="text-xs ml-1">{email}</span>
-                  <% _ -> %>
-                    <%= if entry.resource_uuid do %>
-                      <span class="text-xs text-base-content/40 ml-1">
-                        {String.slice(to_string(entry.resource_uuid), 0..7)}
-                      </span>
-                    <% end %>
+                <%!-- Deep-link chip to the underlying resource when it resolves
+                     (same mechanism as the comments moderation admin). Falls
+                     back to the resolved user email or a truncated uuid. --%>
+                <%= cond do %>
+                  <% link_info -> %>
+                    <.resource_link info={link_info} class="ml-1" />
+                  <% match?(%{email: _}, Map.get(@resource_users, entry.resource_uuid)) -> %>
+                    <span class="text-xs ml-1">
+                      {Map.get(@resource_users, entry.resource_uuid).email}
+                    </span>
+                  <% entry.resource_uuid -> %>
+                    <span class="text-xs text-base-content/40 ml-1">
+                      {String.slice(to_string(entry.resource_uuid), 0..7)}
+                    </span>
+                  <% true -> %>
                 <% end %>
               <% else %>
                 <span class="text-base-content/30">—</span>
