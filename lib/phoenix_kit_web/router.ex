@@ -34,6 +34,18 @@ defmodule PhoenixKitWeb.Router do
   # PhoenixKit routes - main integration point
   phoenix_kit_routes()
 
+  # Test-only: a routable stand-in for a host app's own public LiveView,
+  # backing test/phoenix_kit_web/users/auth_seo_no_index_test.exs. Needs a
+  # real route (not live_isolated/3) because :phoenix_kit_mount_current_scope
+  # attaches a :handle_params hook that requires a non-nil socket.router.
+  if Mix.env() == :test do
+    scope "/", PhoenixKitWeb.Test do
+      pipe_through :browser
+
+      live "/__test/seo-no-index-probe", PublicHostAppLive
+    end
+  end
+
   defp ensure_session_uuid(conn, _opts) do
     case Plug.Conn.get_session(conn, :phoenix_kit_session_uuid) do
       nil ->
