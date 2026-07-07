@@ -115,14 +115,24 @@ defmodule PhoenixKit.ResourceLinks do
   @doc """
   The registered `resource_type => handler_module` map.
 
-  Merges the auto-registered defaults (loaded post/file/user modules) with the
-  host's `config :phoenix_kit, :comment_resource_handlers` overrides. Exposed so
-  other consumers (e.g. the comments notification-callback dispatch) resolve a
-  resource type against the same registry the deep-links use.
+  Merges, in increasing precedence: the auto-registered core defaults (loaded
+  post/file/user/integration modules), the module-declared handlers (the
+  `resource_links/0` `PhoenixKit.Module` callback entries whose value is a
+  resolver module), and the host's `config :phoenix_kit, :comment_resource_handlers`
+  overrides. Exposed so other consumers (e.g. the comments notification-callback
+  dispatch) resolve a resource type against the same registry the deep-links use.
   """
   def handlers do
     configured = Application.get_env(:phoenix_kit, :comment_resource_handlers, %{})
-    Map.merge(default_resource_handlers(), configured)
+
+    module_handlers =
+      module_resolvers()
+      |> Enum.filter(fn {_type, resolver} -> is_atom(resolver) end)
+      |> Map.new()
+
+    default_resource_handlers()
+    |> Map.merge(module_handlers)
+    |> Map.merge(configured)
   end
 
   # ── Resolution ──────────────────────────────────────────────────────
@@ -142,6 +152,12 @@ defmodule PhoenixKit.ResourceLinks do
         do: Map.put(handlers, "file", PhoenixKit.Annotations),
         else: handlers
 
+    # Integration resources resolve to the integration's edit page in Settings.
+    handlers =
+      if Code.ensure_loaded?(PhoenixKit.Integrations.ResourceLinks),
+        do: Map.put(handlers, "integration", PhoenixKit.Integrations.ResourceLinks),
+        else: handlers
+
     # User resources resolve to the user's admin detail page (with avatar) via
     # phoenix_kit core's Users context.
     if Code.ensure_loaded?(PhoenixKit.Users.CommentResources),
@@ -149,15 +165,62 @@ defmodule PhoenixKit.ResourceLinks do
       else: handlers
   end
 
+  # Resolver entries declared by discovered modules via the `resource_links/0`
+  # `PhoenixKit.Module` callback: `%{resource_type => module | template_string
+  # | %{"path" => ..., "title" => ...}}`. Module values become handlers; string/
+  # map values become internal path templates (see `module_templates/0`).
+  defp module_resolvers do
+    if Code.ensure_loaded?(PhoenixKit.ModuleRegistry) do
+      PhoenixKit.ModuleRegistry.all_modules()
+      |> Enum.reduce(%{}, fn mod, acc ->
+        if Code.ensure_loaded?(mod) and function_exported?(mod, :resource_links, 0) do
+          Map.merge(acc, safe_module_resource_links(mod))
+        else
+          acc
+        end
+      end)
+    else
+      %{}
+    end
+  rescue
+    _ -> %{}
+  end
+
+  defp safe_module_resource_links(mod) do
+    case mod.resource_links() do
+      map when is_map(map) -> map
+      _ -> %{}
+    end
+  rescue
+    e ->
+      Logger.warning("[ResourceLinks] #{inspect(mod)}.resource_links/0 failed: #{inspect(e)}")
+      %{}
+  end
+
+  # The non-module (string / map) entries from `resource_links/0` — no-code
+  # internal path templates, resolved as SPA-navigated phoenix_kit routes.
+  defp module_templates do
+    module_resolvers()
+    |> Enum.reject(fn {_type, resolver} -> is_atom(resolver) end)
+    |> Map.new()
+  end
+
+  # Precedence per resource_type: a resolver module (rich, prefixed navigate) →
+  # a module-declared internal template (prefixed navigate) → a host
+  # `comment_resource_paths` setting template (external href).
   defp resolve_for_type(resource_type, items) do
     resource_uuids = items |> Enum.map(&field(&1, :resource_uuid)) |> Enum.uniq()
+    handler = resolve_via_handler(resource_type, resource_uuids)
 
-    case resolve_via_handler(resource_type, resource_uuids) do
-      result when map_size(result) > 0 ->
-        Map.new(result, fn {id, info} -> {id, Map.put(info, :prefixed, true)} end)
+    cond do
+      map_size(handler) > 0 ->
+        Map.new(handler, fn {id, info} -> {id, Map.put(info, :prefixed, true)} end)
 
-      _ ->
-        resolve_via_path_template(resource_type, items)
+      map_size(mod_tpl = resolve_via_module_template(resource_type, items)) > 0 ->
+        mod_tpl
+
+      true ->
+        resolve_via_setting_template(resource_type, items)
     end
   rescue
     e ->
@@ -179,27 +242,37 @@ defmodule PhoenixKit.ResourceLinks do
     end
   end
 
-  defp resolve_via_path_template(resource_type, items) do
-    templates = get_resource_path_templates()
-
-    case Map.get(templates, resource_type) do
-      nil ->
-        %{}
-
-      config ->
-        path_template = path_from_config(config)
-        title_template = title_from_config(config)
-
-        Map.new(items, fn item ->
-          metadata = field(item, :metadata) || %{}
-          uuid = field(item, :resource_uuid)
-          path = apply_path_template(path_template, uuid, metadata)
-          title = resolve_title(title_template, resource_type, uuid, metadata)
-          full_title = resolve_full_title(title_template, resource_type, uuid, metadata)
-
-          {uuid, %{title: title, full_title: full_title, path: path, prefixed: false}}
-        end)
+  # Module-declared templates are internal phoenix_kit routes → prefixed
+  # (Routes.path applied at render, SPA-navigated).
+  defp resolve_via_module_template(resource_type, items) do
+    case Map.get(module_templates(), resource_type) do
+      nil -> %{}
+      config -> resolve_via_template(resource_type, items, config, true)
     end
+  end
+
+  # Host `comment_resource_paths` templates are for controller/external pages →
+  # not prefixed (rendered as a plain href, `:prefix` substituted into the path).
+  defp resolve_via_setting_template(resource_type, items) do
+    case Map.get(get_resource_path_templates(), resource_type) do
+      nil -> %{}
+      config -> resolve_via_template(resource_type, items, config, false)
+    end
+  end
+
+  defp resolve_via_template(resource_type, items, config, prefixed) do
+    path_template = path_from_config(config)
+    title_template = title_from_config(config)
+
+    Map.new(items, fn item ->
+      metadata = field(item, :metadata) || %{}
+      uuid = field(item, :resource_uuid)
+      path = apply_path_template(path_template, uuid, metadata, prefixed)
+      title = resolve_title(title_template, resource_type, uuid, metadata)
+      full_title = resolve_full_title(title_template, resource_type, uuid, metadata)
+
+      {uuid, %{title: title, full_title: full_title, path: path, prefixed: prefixed}}
+    end)
   end
 
   defp resolve_title(nil, resource_type, uuid, _metadata) do
@@ -230,10 +303,13 @@ defmodule PhoenixKit.ResourceLinks do
   defp title_from_config(%{"title" => title}), do: title
   defp title_from_config(_), do: nil
 
-  defp apply_path_template(template, resource_uuid, metadata) do
+  # `prefixed?` = true for internal phoenix_kit routes: leave `:prefix` alone
+  # (Routes.path/1 prepends the url_prefix at render). false for external/host
+  # templates: substitute `:prefix` with the configured prefix here.
+  defp apply_path_template(template, resource_uuid, metadata, prefixed?) do
     template
     |> replace_metadata_url_placeholders(metadata)
-    |> String.replace(":prefix", prefix_value())
+    |> then(fn t -> if prefixed?, do: t, else: String.replace(t, ":prefix", prefix_value()) end)
     |> String.replace(":uuid", url_encode(to_string(resource_uuid)))
   end
 

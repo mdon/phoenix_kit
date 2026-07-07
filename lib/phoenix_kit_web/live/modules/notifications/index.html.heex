@@ -43,6 +43,82 @@
       </div>
     </div>
 
+    <%!-- All notifications (who each is for + what it's about) --%>
+    <div class="card bg-base-100 shadow mb-6">
+      <div class="card-body p-0">
+        <div class="px-4 py-3 border-b border-base-200 flex items-center justify-between">
+          <h3 class="font-semibold text-sm">{gettext("All notifications")}</h3>
+          <span class="text-xs text-base-content/50">
+            {gettext("%{count} total", count: @total)}
+          </span>
+        </div>
+
+        <%= if @notifications == [] do %>
+          <div class="px-4 py-10 text-center text-base-content/50">
+            {gettext("No notifications yet.")}
+          </div>
+        <% else %>
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>{gettext("Recipient")}</th>
+                  <th>{gettext("Notification")}</th>
+                  <th>{gettext("Status")}</th>
+                  <th>{gettext("Date")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= for n <- @notifications do %>
+                  <% view = render_notification(n, assigns[:current_locale]) %>
+                  <% {status_label, status_class} = status_meta(n) %>
+                  <tr>
+                    <td>
+                      <%= if n.recipient do %>
+                        <.resource_email_link
+                          info={Map.get(@recipient_links, {"user", n.recipient_uuid})}
+                          label={n.recipient.email}
+                        />
+                      <% else %>
+                        <span class="text-base-content/40">—</span>
+                      <% end %>
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <.icon name={view.icon} class="w-4 h-4 text-base-content/50 shrink-0" />
+                        <span>{view.text}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span class={"badge badge-sm #{status_class}"}>{status_label}</span>
+                    </td>
+                    <td class="text-xs text-base-content/60 whitespace-nowrap">
+                      {format_datetime(n.inserted_at)}
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%= if @total_pages > 1 do %>
+            <div class="flex justify-center py-4">
+              <div class="join">
+                <%= for page <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+                  <.link
+                    patch={Routes.path("/admin/notifications?page=#{page}")}
+                    class={["join-item btn btn-sm", if(page == @page, do: "btn-active", else: "")]}
+                  >
+                    {page}
+                  </.link>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
     <%!-- Module info --%>
     <div class="card bg-base-100 shadow">
       <div class="card-body p-4">

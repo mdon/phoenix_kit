@@ -142,7 +142,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
       )
 
     resource_users = Activity.resolve_resource_users(result.entries)
-    resource_links = PhoenixKit.ResourceLinks.resolve(result.entries)
+    resource_links = resolve_links(result.entries)
 
     socket
     |> assign(:entries, result.entries)
@@ -150,6 +150,21 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> assign(:resource_links, resource_links)
     |> assign(:total, result.total)
     |> assign(:total_pages, result.total_pages)
+  end
+
+  # Resolve deep-links for both each entry's resource AND its actor/target (both
+  # users). Actor/target are added as synthetic `"user"` items so the resulting
+  # map is keyed by `{resource_type, uuid}` for all three — the template reads
+  # `{"user", actor_uuid}` / `{"user", target_uuid}` to link the who-did/who-for.
+  defp resolve_links(entries) do
+    user_items =
+      entries
+      |> Enum.flat_map(fn e -> [e.actor_uuid, e.target_uuid] end)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+      |> Enum.map(&%{resource_type: "user", resource_uuid: &1})
+
+    PhoenixKit.ResourceLinks.resolve(entries ++ user_items)
   end
 
   defp maybe_put(map, _key, nil), do: map
