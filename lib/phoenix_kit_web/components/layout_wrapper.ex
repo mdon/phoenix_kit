@@ -302,6 +302,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               <%= HTML.raw(ThemeConfig.custom_theme_css()) %>
             </style>
             <style>
+              /* daisyUI 5 reserves a scrollbar gutter while a modal/drawer is open
+                 (`:where(:root:has(.modal-open, …)) { scrollbar-gutter: stable }` in
+                 @layer base). On a page without a scrollbar the fixed backdrop can't
+                 cover that reserved strip, so classic-scrollbar users (Firefox, macOS
+                 "always show") see an uncovered gap at the window's right edge whenever
+                 a modal opens. UNLAYERED here, so it beats the layered zero-specificity
+                 original regardless of stylesheet order. */
+              :root:has(.modal-open, .modal[open], .modal:target, .modal-toggle:checked, .drawer:not(.drawer-open) > .drawer-toggle:checked) {
+                scrollbar-gutter: auto;
+              }
+
               /* Custom sidebar control for desktop - override lg:drawer-open grid layout when closed */
               @media (min-width: 1024px) {
                 /* Override the grid to collapse sidebar column when closed */

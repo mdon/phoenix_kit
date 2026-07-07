@@ -60,6 +60,7 @@ defmodule PhoenixKit.Install.JsIntegration do
     |> add_js_sources_compiler()
     |> seed_modules_js_file()
     |> add_modules_script_tag_to_layout()
+    |> add_viewport_param_to_app_js()
   end
 
   @doc """
@@ -258,6 +259,83 @@ defmodule PhoenixKit.Install.JsIntegration do
     else
       add_hooks_manual_notice(igniter)
     end
+  end
+
+  # Add `viewport_width` to the LiveSocket connect params (as a closure, so
+  # reconnects re-read the width). PhoenixKit LiveViews with responsive layouts
+  # (e.g. the dashboards builder) use it to pick the right tier server-side on
+  # the FIRST render instead of detecting it with a hook round-trip behind a
+  # loading state. They all degrade gracefully without it.
+  defp add_viewport_param_to_app_js(igniter) do
+    app_js_path = Path.join([File.cwd!(), "assets", "js", "app.js"])
+
+    if File.exists?(app_js_path) do
+      content = File.read!(app_js_path)
+
+      case inject_viewport_param(content) do
+        :already ->
+          igniter
+
+        {:ok, updated} ->
+          File.write!(app_js_path, updated)
+
+          Igniter.add_notice(
+            igniter,
+            "✅ Added viewport_width to the LiveSocket connect params in assets/js/app.js"
+          )
+
+        :manual ->
+          viewport_manual_notice(igniter)
+      end
+    else
+      viewport_manual_notice(igniter)
+    end
+  end
+
+  @doc false
+  # Pure transform (public for tests): rewrite the common phx.new shape
+  # `params: {_csrf_token: csrfToken}` into a closure carrying viewport_width.
+  # Anything fancier (already a function, nested braces) is left alone with a
+  # manual notice — regex surgery on arbitrary host code must stay conservative.
+  def inject_viewport_param(content) do
+    cond do
+      String.contains?(content, "viewport_width") ->
+        :already
+
+      Regex.match?(~r/params:\s*\{[^{}]*\}/, content) ->
+        updated =
+          Regex.replace(
+            ~r/params:\s*\{([^{}]*)\}/,
+            content,
+            fn _, inner ->
+              inner = inner |> String.trim() |> String.trim_trailing(",")
+              prefix = if inner == "", do: "", else: inner <> ", "
+              "params: () => ({#{prefix}viewport_width: window.innerWidth})"
+            end,
+            global: false
+          )
+
+        {:ok, updated}
+
+      true ->
+        :manual
+    end
+  end
+
+  defp viewport_manual_notice(igniter) do
+    Igniter.add_notice(
+      igniter,
+      """
+      ℹ️  Optional: pass the viewport in your LiveSocket connect params so
+      PhoenixKit's responsive LiveViews (e.g. dashboards) load straight into
+      the right layout tier:
+
+          const liveSocket = new LiveSocket("/live", Socket, {
+            params: () => ({_csrf_token: csrfToken, viewport_width: window.innerWidth}),
+            ...
+          })
+      """
+    )
   end
 
   defp add_hooks_manual_notice(igniter) do
