@@ -307,13 +307,13 @@
                   <.table_default_row
                     class="cursor-pointer hover:bg-base-200"
                     phx-click="show_scheduled_job"
-                    phx-value-id={job.id}
+                    phx-value-id={job.uuid}
                   >
                     <.table_default_cell>
                       <span class="badge badge-sm badge-outline">{job.job_type}</span>
                     </.table_default_cell>
                     <.table_default_cell class="font-mono text-xs">
-                      {job.resource_type}/{String.slice(job.resource_id || "", 0, 8)}...
+                      {job.resource_type}/{String.slice(job.resource_uuid || "", 0, 8)}...
                     </.table_default_cell>
                     <.table_default_cell>
                       <span class={"badge badge-sm #{scheduled_job_badge_class(job.status)}"}>
@@ -511,7 +511,7 @@
             </span>
           </h3>
           <p class="text-xs text-base-content/50 mb-4">
-            {@selected_scheduled_job.resource_type}/{@selected_scheduled_job.resource_id}
+            {@selected_scheduled_job.resource_type}/{@selected_scheduled_job.resource_uuid}
           </p>
 
           <%!-- Basic Info Grid --%>
