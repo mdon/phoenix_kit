@@ -292,33 +292,45 @@ defmodule PhoenixKit.Install.JsIntegration do
     end
   end
 
+  # A params object further than this from `new LiveSocket(` is assumed to
+  # belong to something else (another socket, a config literal) — manual notice.
+  @viewport_params_window 500
+
   @doc false
   # Pure transform (public for tests): rewrite the common phx.new shape
   # `params: {_csrf_token: csrfToken}` into a closure carrying viewport_width.
-  # Anything fancier (already a function, nested braces) is left alone with a
-  # manual notice — regex surgery on arbitrary host code must stay conservative.
+  # Deliberately conservative — regex surgery on arbitrary host code must not
+  # corrupt it, so anything fancier gets a manual notice instead:
+  #   * only the params object INSIDE the `new LiveSocket(` options is touched
+  #     (an earlier `new Socket("/socket", {params: …})` must not be rewritten
+  #     while the real LiveSocket params stay bare),
+  #   * objects containing comments are refused (appending after a trailing
+  #     `// …` would swallow the new code into the comment),
+  #   * already a closure / nested braces → no simple-object match → refused.
   def inject_viewport_param(content) do
-    cond do
-      String.contains?(content, "viewport_width") ->
-        :already
+    if String.contains?(content, "viewport_width"),
+      do: :already,
+      else: rewrite_livesocket_params(content)
+  end
 
-      Regex.match?(~r/params:\s*\{[^{}]*\}/, content) ->
-        updated =
-          Regex.replace(
-            ~r/params:\s*\{([^{}]*)\}/,
-            content,
-            fn _, inner ->
-              inner = inner |> String.trim() |> String.trim_trailing(",")
-              prefix = if inner == "", do: "", else: inner <> ", "
-              "params: () => ({#{prefix}viewport_width: window.innerWidth})"
-            end,
-            global: false
-          )
+  defp rewrite_livesocket_params(content) do
+    with [head, rest] <- String.split(content, "new LiveSocket(", parts: 2),
+         [{start, len}, {inner_start, inner_len}] <-
+           Regex.run(~r/params:\s*\{([^{}]*)\}/, rest, return: :index),
+         true <- start <= @viewport_params_window,
+         inner = binary_part(rest, inner_start, inner_len),
+         false <- String.contains?(inner, "//") or String.contains?(inner, "/*") do
+      trimmed = inner |> String.trim() |> String.trim_trailing(",")
+      prefix = if trimmed == "", do: "", else: trimmed <> ", "
 
-        {:ok, updated}
+      rewritten =
+        binary_part(rest, 0, start) <>
+          "params: () => ({#{prefix}viewport_width: window.innerWidth})" <>
+          binary_part(rest, start + len, byte_size(rest) - start - len)
 
-      true ->
-        :manual
+      {:ok, head <> "new LiveSocket(" <> rewritten}
+    else
+      _ -> :manual
     end
   end
 

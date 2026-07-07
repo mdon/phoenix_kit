@@ -308,7 +308,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                  cover that reserved strip, so classic-scrollbar users (Firefox, macOS
                  "always show") see an uncovered gap at the window's right edge whenever
                  a modal opens. UNLAYERED here, so it beats the layered zero-specificity
-                 original regardless of stylesheet order. */
+                 original regardless of stylesheet order. Accepted trade-off: on pages
+                 that DO scroll, classic-scrollbar users see a ~15px reflow when a modal
+                 opens (scrollbar hides, nothing reserves its width) — less jarring than
+                 the mispainted strip, which host background overrides make common. */
               :root:has(.modal-open, .modal[open], .modal:target, .modal-toggle:checked, .drawer:not(.drawer-open) > .drawer-toggle:checked) {
                 scrollbar-gutter: auto;
               }
