@@ -316,12 +316,9 @@ defmodule PhoenixKit.Install.JsIntegration do
   end
 
   defp rewrite_livesocket_params(content) do
-    with [head, rest] <- String.split(content, "new LiveSocket(", parts: 2),
-         [{start, len}, {inner_start, inner_len}] <-
-           Regex.run(~r/params:\s*\{([^{}]*)\}/, rest, return: :index),
-         true <- start <= @viewport_params_window,
-         inner = binary_part(rest, inner_start, inner_len),
-         false <- String.contains?(inner, "//") or String.contains?(inner, "/*") do
+    with {:ok, anchor_end} <- livesocket_anchor(content),
+         rest = binary_part(content, anchor_end, byte_size(content) - anchor_end),
+         {:ok, {start, len}, inner} <- top_level_params(rest) do
       trimmed = inner |> String.trim() |> String.trim_trailing(",")
       prefix = if trimmed == "", do: "", else: trimmed <> ", "
 
@@ -330,9 +327,66 @@ defmodule PhoenixKit.Install.JsIntegration do
           "params: () => ({#{prefix}viewport_width: window.innerWidth})" <>
           binary_part(rest, start + len, byte_size(rest) - start - len)
 
-      {:ok, head <> "new LiveSocket(" <> rewritten}
+      {:ok, binary_part(content, 0, anchor_end) <> rewritten}
     else
       _ -> :manual
+    end
+  end
+
+  # The first `new LiveSocket(` that isn't on a commented line — a documentation
+  # example (`// Example: new LiveSocket(...)`) must not anchor the patch away
+  # from the real call below it.
+  defp livesocket_anchor(content) do
+    :binary.matches(content, "new LiveSocket(")
+    |> Enum.find_value(:manual, fn {pos, len} ->
+      if commented_at?(content, pos), do: nil, else: {:ok, pos + len}
+    end)
+  end
+
+  defp commented_at?(content, pos) do
+    line_prefix =
+      content
+      |> binary_part(0, pos)
+      |> String.split("\n")
+      |> List.last()
+
+    String.contains?(line_prefix, "//") or String.contains?(line_prefix, "/*") or
+      line_prefix |> String.trim_leading() |> String.starts_with?("*")
+  end
+
+  # The first simple `params: {…}` at the TOP level of the LiveSocket options
+  # object (brace depth exactly 1 relative to the call's `(`): a nested
+  # `params:` inside a hook body (`this.pushEvent("load", {params: {page: 1}})`)
+  # must never be rewritten. Comment-bearing objects are refused (appending
+  # after a trailing `// …` would swallow the new code into the comment), as is
+  # anything farther than the window (assumed to belong to something else).
+  defp top_level_params(rest) do
+    ~r/params:\s*\{([^{}]*)\}/
+    |> Regex.scan(rest, return: :index)
+    |> Enum.find_value(:manual, fn [{start, len}, {inner_start, inner_len}] ->
+      inner = binary_part(rest, inner_start, inner_len)
+
+      cond do
+        start > @viewport_params_window -> :manual
+        brace_depth(binary_part(rest, 0, start)) != 1 -> nil
+        String.contains?(inner, "//") or String.contains?(inner, "/*") -> :manual
+        true -> {:ok, {start, len}, inner}
+      end
+    end)
+    |> case do
+      {:ok, _, _} = ok -> ok
+      _ -> :manual
+    end
+  end
+
+  defp brace_depth(segment) do
+    for <<char <- segment>>, reduce: 0 do
+      depth ->
+        case char do
+          ?{ -> depth + 1
+          ?} -> depth - 1
+          _ -> depth
+        end
     end
   end
 
