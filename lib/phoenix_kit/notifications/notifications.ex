@@ -241,6 +241,32 @@ defmodule PhoenixKit.Notifications do
   end
 
   @doc """
+  Returns `{notifications, total_count}` across ALL users, newest first, for the
+  admin overview. Recipient and activity(+actor) are preloaded so the admin
+  table can show who each notification is for and what it's about.
+
+  Options: `:page` (default 1) / `:per_page` (default 25).
+  """
+  def admin_list(opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 25)
+
+    total = repo().aggregate(Notification, :count, :uuid)
+
+    rows =
+      Notification
+      |> order_by([n], desc: n.inserted_at)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> repo().all()
+      |> repo().preload([:recipient, activity: [:actor]])
+
+    {rows, total}
+  rescue
+    _ -> {[], 0}
+  end
+
+  @doc """
   Returns the N most-recent undismissed notifications for a user.
 
   Drives the bell dropdown. Activity (and actor) are preloaded.
