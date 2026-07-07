@@ -1270,12 +1270,23 @@ defmodule PhoenixKit.Integrations do
   defp log_activity(action, provider, name, metadata, mode, actor_uuid)
        when is_binary(provider) and is_binary(name) do
     if Code.ensure_loaded?(PhoenixKit.Activity) do
+      # Stamp the storage row's uuid so the activity deep-links to the
+      # connection's edit page (via PhoenixKit.Integrations.ResourceLinks).
+      # nil when the row can't be resolved (e.g. a disconnect that removed it) —
+      # the feed still renders, just without a link.
+      resource_uuid =
+        case find_uuid_by_provider_name({provider, name}) do
+          {:ok, uuid} -> uuid
+          _ -> nil
+        end
+
       PhoenixKit.Activity.log(%{
         action: action,
         module: "integrations",
         mode: mode,
         actor_uuid: actor_uuid,
         resource_type: "integration",
+        resource_uuid: resource_uuid,
         metadata:
           Map.merge(metadata, %{
             "provider" => provider,

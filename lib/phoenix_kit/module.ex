@@ -151,6 +151,43 @@ defmodule PhoenixKit.Module do
   @callback notification_types() :: [map()]
 
   @doc """
+  Declares how this module's resource types deep-link to their pages.
+
+  Lets the activity feed, notifications, and the comments moderation admin turn
+  a `(resource_type, resource_uuid)` pair from *this* module into a clickable
+  link to the underlying record — with zero host configuration. Returns a map of
+  `resource_type => resolver`, where a resolver is either:
+
+    * **a module** implementing `resolve_comment_resources/1` (the same contract
+      core's `"user"`/`"file"`/`"post"` handlers use) — for rich resolution with
+      a title and optional thumbnail. Return `%{uuid => %{title:, path:}}` with a
+      **raw** phoenix_kit path (`Routes.path/1` is applied once at render).
+
+    * **a path-template string** — the no-code shortcut, e.g.
+      `"/admin/widgets/:uuid"`. Placeholders: `:uuid` and `:metadata.<key>`
+      (pulled from the activity/comment metadata). Treated as an internal
+      phoenix_kit route (SPA-navigated, prefix/locale applied). Use the map form
+      `%{"path" => "...", "title" => ":metadata.name"}` to set a display title.
+
+  ## Examples
+
+      # No-code: a raw admin route with a uuid segment
+      def resource_links, do: %{"widget" => "/admin/widgets/:uuid"}
+
+      # Titled template
+      def resource_links,
+        do: %{"widget" => %{"path" => "/admin/widgets/:uuid", "title" => ":metadata.name"}}
+
+      # Rich: point at a resolver module (title + thumbnail via a DB lookup)
+      def resource_links, do: %{"widget" => MyApp.WidgetLinks}
+
+  Merges with core's built-in handlers and the host's `comment_resource_paths`
+  setting via `PhoenixKit.ResourceLinks`. Modules with no linkable resources can
+  skip this callback — the default is `%{}`.
+  """
+  @callback resource_links() :: %{optional(String.t()) => module() | String.t() | map()}
+
+  @doc """
   Returns Tailwind CSS source roots for scanning.
 
   Each entry is either:
@@ -329,6 +366,7 @@ defmodule PhoenixKit.Module do
     required_integrations: 0,
     integration_providers: 0,
     notification_types: 0,
+    resource_links: 0,
     css_sources: 0,
     js_sources: 0,
     sitemap_sources: 0,
@@ -386,6 +424,9 @@ defmodule PhoenixKit.Module do
       def notification_types, do: []
 
       @impl PhoenixKit.Module
+      def resource_links, do: %{}
+
+      @impl PhoenixKit.Module
       def css_sources, do: []
 
       @impl PhoenixKit.Module
@@ -413,6 +454,7 @@ defmodule PhoenixKit.Module do
                      required_integrations: 0,
                      integration_providers: 0,
                      notification_types: 0,
+                     resource_links: 0,
                      css_sources: 0,
                      js_sources: 0,
                      sitemap_sources: 0,

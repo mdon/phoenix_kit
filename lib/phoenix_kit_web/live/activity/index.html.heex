@@ -370,7 +370,11 @@
             </.table_default_cell>
             <.table_default_cell class="text-sm hidden md:table-cell">
               <%= if entry.actor do %>
-                <span class="font-semibold">{entry.actor.email}</span>
+                <.resource_email_link
+                  info={Map.get(@resource_links, {"user", entry.actor_uuid})}
+                  label={entry.actor.email}
+                  class="font-semibold"
+                />
                 <%= if entry.metadata["actor_role"] do %>
                   <span class={[
                     "badge badge-xs ml-1",
@@ -390,7 +394,10 @@
               <%= if entry.target && entry.target_uuid != entry.resource_uuid do %>
                 <div class="mb-0.5">
                   <span class="text-base-content/50">&rarr;</span>
-                  <span>{entry.target.email}</span>
+                  <.resource_email_link
+                    info={Map.get(@resource_links, {"user", entry.target_uuid})}
+                    label={entry.target.email}
+                  />
                 </div>
               <% end %>
               <% summary = summarize_details(entry.metadata) %>

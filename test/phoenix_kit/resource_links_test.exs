@@ -73,9 +73,24 @@ defmodule PhoenixKit.ResourceLinksTest do
     test "auto-registers the loaded core handlers" do
       handlers = ResourceLinks.handlers()
 
-      # The user + file handlers ship in core and are always loaded in the suite.
+      # The user + file + integration handlers ship in core and are always loaded.
       assert handlers["user"] == PhoenixKit.Users.CommentResources
       assert handlers["file"] == PhoenixKit.Annotations
+      assert handlers["integration"] == PhoenixKit.Integrations.ResourceLinks
+    end
+  end
+
+  describe "integration handler" do
+    test "resolves an integration uuid to its edit page (prefixed navigate)" do
+      uuid = "01900000-0000-7000-8000-0000000000ff"
+      items = [%{resource_type: "integration", resource_uuid: uuid, metadata: %{}}]
+
+      info = ResourceLinks.resolve(items) |> ResourceLinks.info_for("integration", uuid)
+
+      assert info.path == "/admin/settings/integrations/#{uuid}"
+      assert info.prefixed == true
+      # Title falls back to a generic label with no DB connection to read.
+      assert is_binary(info.title)
     end
   end
 end

@@ -28,9 +28,12 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
           project_title = Settings.get_project_title()
           resource_user = resolve_resource_user(entry)
 
-          resource_link =
-            PhoenixKit.ResourceLinks.resolve([entry])
-            |> PhoenixKit.ResourceLinks.info_for(entry.resource_type, entry.resource_uuid)
+          # Resolve deep-links for the resource AND the actor/target (both users),
+          # so the who-did-it / who-it's-for identities are clickable too.
+          links =
+            [entry]
+            |> Enum.concat(user_items(entry))
+            |> PhoenixKit.ResourceLinks.resolve()
 
           socket =
             socket
@@ -38,7 +41,9 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
             |> assign(:project_title, project_title)
             |> assign(:entry, entry)
             |> assign(:resource_user, resource_user)
-            |> assign(:resource_link, resource_link)
+            |> assign(:resource_link, links[{entry.resource_type, entry.resource_uuid}])
+            |> assign(:actor_link, links[{"user", entry.actor_uuid}])
+            |> assign(:target_link, links[{"user", entry.target_uuid}])
 
           {:ok, socket}
       end
@@ -53,6 +58,15 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
   @impl true
   def handle_params(_params, url, socket) do
     {:noreply, assign(socket, :url_path, URI.parse(url).path)}
+  end
+
+  # Synthetic `"user"` items for the actor + target uuids, so ResourceLinks can
+  # resolve them alongside the entry's own resource in one pass.
+  defp user_items(entry) do
+    [entry.actor_uuid, entry.target_uuid]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.map(&%{resource_type: "user", resource_uuid: &1})
   end
 
   defp resolve_resource_user(entry) do

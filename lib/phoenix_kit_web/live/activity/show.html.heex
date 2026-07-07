@@ -56,7 +56,11 @@
               </div>
               <%= if @entry.actor do %>
                 <div class="flex items-center gap-2">
-                  <span class="font-semibold">{@entry.actor.email}</span>
+                  <.resource_email_link
+                    info={@actor_link}
+                    label={@entry.actor.email}
+                    class="font-semibold"
+                  />
                   <%= if @entry.metadata["actor_role"] do %>
                     <span class={[
                       "badge badge-xs",
@@ -83,7 +87,11 @@
                 {gettext("Target (who was affected)")}
               </div>
               <%= if @entry.target do %>
-                <div class="font-semibold">{@entry.target.email}</div>
+                <.resource_email_link
+                  info={@target_link}
+                  label={@entry.target.email}
+                  class="font-semibold"
+                />
                 <div class="text-xs text-base-content/40 mt-0.5">
                   {to_string(@entry.target_uuid)}
                 </div>
