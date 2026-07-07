@@ -27,19 +27,13 @@
       </div>
 
       <label class="label" for="magic_link_email">
-        <span class="label-text flex items-center">
-          <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> {gettext(
-            "Email"
-          )}
-        </span>
+        <span class="label-text">{gettext("Email")}</span>
       </label>
-      <.input
-        field={@form[:email]}
-        type="email"
-        autocomplete="email"
-        class="transition-colors focus:input-primary"
-        required
-      />
+      <.input field={@form[:email]} type="email" autocomplete="email" required>
+        <:icon>
+          <PhoenixKitWeb.Components.Core.Icons.icon_email class="h-[1em] w-[1em] opacity-50" />
+        </:icon>
+      </.input>
 
       <%!-- `@loading` already swaps the button content; redundant
            `phx-disable-with` was removed because the double swap

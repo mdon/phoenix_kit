@@ -37,36 +37,26 @@
 
       <div phx-feedback-for="user[email]">
         <label class="label" for="user_email">
-          <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> {gettext(
-              "Email"
-            )}
-          </span>
+          <span class="label-text">{gettext("Email")}</span>
         </label>
-        <.input
-          field={@form[:email]}
-          type="email"
-          autocomplete="email"
-          class="transition-colors focus:input-primary"
-          required
-        />
+        <.input field={@form[:email]} type="email" autocomplete="email" required>
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_email class="h-[1em] w-[1em] opacity-50" />
+          </:icon>
+        </.input>
       </div>
 
       <%!-- Username Field (optional, controlled by admin setting) --%>
       <%= if @show_username do %>
         <div phx-feedback-for="user[username]">
           <label class="label" for="user_username">
-            <span class="label-text flex items-center">
-              <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
-              {gettext("Username")}
-            </span>
+            <span class="label-text">{gettext("Username")}</span>
           </label>
-          <.input
-            field={@form[:username]}
-            type="text"
-            autocomplete="username"
-            class="transition-colors focus:input-primary"
-          />
+          <.input field={@form[:username]} type="text" autocomplete="username">
+            <:icon>
+              <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="h-[1em] w-[1em] opacity-50" />
+            </:icon>
+          </.input>
           <div class="text-xs text-base-content/60 mt-1">
             {gettext("Auto-filled from your email — edit it to choose your own")}
           </div>
@@ -105,11 +95,7 @@
       <%= if @org_accounts_enabled do %>
         <div phx-feedback-for="user[account_type]">
           <label class="label" for="user_account_type">
-            <span class="label-text flex items-center">
-              <.icon name="hero-building-office-2" class="w-4 h-4 mr-2" /> {gettext(
-                "Account Type"
-              )}
-            </span>
+            <span class="label-text">{gettext("Account Type")}</span>
           </label>
           <select
             id="user_account_type"
@@ -135,32 +121,26 @@
         <%= if Phoenix.HTML.Form.input_value(@form, :account_type) == "organization" do %>
           <div phx-feedback-for="user[organization_name]">
             <label class="label" for="user_organization_name">
-              <span class="label-text flex items-center">
-                <.icon name="hero-building-office" class="w-4 h-4 mr-2" /> {gettext(
-                  "Organization Name"
-                )}
-              </span>
+              <span class="label-text">{gettext("Organization Name")}</span>
             </label>
-            <.input field={@form[:organization_name]} type="text" required />
+            <.input field={@form[:organization_name]} type="text" required>
+              <:icon>
+                <.icon name="hero-building-office" class="h-[1em] w-[1em] opacity-50" />
+              </:icon>
+            </.input>
           </div>
         <% end %>
       <% end %>
 
       <div phx-feedback-for="user[password]">
         <label class="label" for="user_password">
-          <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> {gettext(
-              "Password"
-            )}
-          </span>
+          <span class="label-text">{gettext("Password")}</span>
         </label>
-        <.input
-          field={@form[:password]}
-          type="password"
-          autocomplete="new-password"
-          class="transition-colors focus:input-primary"
-          required
-        />
+        <.input field={@form[:password]} type="password" autocomplete="new-password" required>
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="h-[1em] w-[1em] opacity-50" />
+          </:icon>
+        </.input>
       </div>
 
       <button

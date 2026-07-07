@@ -62,7 +62,10 @@ defmodule PhoenixKitWeb.Components.Core.Input do
                 multiple pattern placeholder readonly required rows size step)
 
   slot :inner_block
-  slot :icon, doc: "the icon to display next to the label"
+
+  slot :icon,
+    doc:
+      "an icon rendered *inside* the field (daisyUI 5 `<label class=\"input\">` wrapper). Size it with `h-[1em] w-[1em] opacity-50` to match daisyUI."
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -77,13 +80,31 @@ defmodule PhoenixKitWeb.Components.Core.Input do
     ~H"""
     <div phx-feedback-for={@name} class={@wrapper_class}>
       <label :if={@label && @label != ""} class="label mb-2" for={@id}>
-        <span :if={@icon != []} class="label-text flex items-center">
-          {render_slot(@icon)}
-          {@label}
-        </span>
-        <span :if={@icon == []} class="label-text font-semibold">{@label}</span>
+        <span class="label-text font-semibold">{@label}</span>
+      </label>
+      <%!-- Icon-inside variant: daisyUI 5 puts the `input` class on a <label>
+           wrapper so the icon sits inside the field. Focus color comes from
+           `focus-within` since the wrapping label never receives focus. --%>
+      <label
+        :if={@icon != []}
+        class={[
+          "input w-full transition-colors focus-within:input-primary",
+          @errors != [] && "input-error",
+          @class
+        ]}
+      >
+        {render_slot(@icon)}
+        <input
+          type={@type}
+          name={@name}
+          id={@id}
+          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+          class="grow"
+          {@rest}
+        />
       </label>
       <input
+        :if={@icon == []}
         type={@type}
         name={@name}
         id={@id}

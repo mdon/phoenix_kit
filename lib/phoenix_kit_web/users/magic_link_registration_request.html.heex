@@ -53,21 +53,13 @@
 
       <div>
         <label class="label" for="email">
-          <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-4 h-4 mr-2" /> {gettext(
-              "Email Address"
-            )}
-          </span>
+          <span class="label-text">{gettext("Email Address")}</span>
         </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          value={@email}
-          class="input w-full transition-colors focus:input-primary"
-          required
-          autofocus
-        />
+        <.input type="email" id="email" name="email" value={@email} required autofocus>
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_email class="h-[1em] w-[1em] opacity-50" />
+          </:icon>
+        </.input>
       </div>
 
       <button

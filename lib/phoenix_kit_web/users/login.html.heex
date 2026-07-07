@@ -20,36 +20,36 @@
       <legend class="fieldset-legend sr-only">{gettext("Login with Password")}</legend>
 
       <label class="label" for="user_email_or_username">
-        <span class="label-text flex items-center">
-          <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
-          {gettext("Email or Username")}
-        </span>
+        <span class="label-text">{gettext("Email or Username")}</span>
       </label>
-      <input
+      <.input
+        type="text"
         id="user_email_or_username"
         name="user[email_or_username]"
-        type="text"
-        class="input w-full transition-colors focus:input-primary"
         value={@form.params["email_or_username"] || ""}
         autocomplete="username"
         required
-      />
+      >
+        <:icon>
+          <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="h-[1em] w-[1em] opacity-50" />
+        </:icon>
+      </.input>
 
       <label class="label" for="user_password">
-        <span class="label-text flex items-center">
-          <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> {gettext(
-            "Password"
-          )}
-        </span>
+        <span class="label-text">{gettext("Password")}</span>
       </label>
-      <input
+      <.input
+        type="password"
         id="user_password"
         name="user[password]"
-        type="password"
-        class="input w-full transition-colors focus:input-primary"
+        value=""
         autocomplete="current-password"
         required
-      />
+      >
+        <:icon>
+          <PhoenixKitWeb.Components.Core.Icons.icon_lock class="h-[1em] w-[1em] opacity-50" />
+        </:icon>
+      </.input>
 
       <div class="form-control mt-4">
         <.checkbox

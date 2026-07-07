@@ -27,35 +27,25 @@
       <%!-- Username Field --%>
       <div phx-feedback-for="user[username]">
         <label class="label" for="user_username">
-          <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="w-4 h-4 mr-2" />
-            {gettext("Username")}
-          </span>
+          <span class="label-text">{gettext("Username")}</span>
         </label>
-        <.input
-          field={@form[:username]}
-          type="text"
-          autocomplete="username"
-          class="transition-colors focus:input-primary"
-        />
+        <.input field={@form[:username]} type="text" autocomplete="username">
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_user_profile class="h-[1em] w-[1em] opacity-50" />
+          </:icon>
+        </.input>
       </div>
 
       <%!-- Password Field --%>
       <div phx-feedback-for="user[password]">
         <label class="label" for="user_password">
-          <span class="label-text flex items-center">
-            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="w-4 h-4 mr-2" /> {gettext(
-              "Password"
-            )}
-          </span>
+          <span class="label-text">{gettext("Password")}</span>
         </label>
-        <.input
-          field={@form[:password]}
-          type="password"
-          autocomplete="new-password"
-          class="transition-colors focus:input-primary"
-          required
-        />
+        <.input field={@form[:password]} type="password" autocomplete="new-password" required>
+          <:icon>
+            <PhoenixKitWeb.Components.Core.Icons.icon_lock class="h-[1em] w-[1em] opacity-50" />
+          </:icon>
+        </.input>
       </div>
 
       <%!-- First Name Field (optional) --%>
