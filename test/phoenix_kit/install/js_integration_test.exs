@@ -91,6 +91,43 @@ defmodule PhoenixKit.Install.JsIntegrationTest do
       assert updated =~ "params: () => ({_csrf_token: csrfToken, viewport_width:"
     end
 
+    test "braces inside string literals cannot fake depth at a nested site" do
+      content = """
+      const liveSocket = new LiveSocket("/live", Socket, {
+        metadata: {
+          click: (e, el) => {
+            const close = "}}}";
+            return {params: {source: "click"}}
+          }
+        },
+        params: {_csrf_token: csrfToken}
+      })
+      """
+
+      assert {:ok, updated} = JsIntegration.inject_viewport_param(content)
+      # The nested return payload stays byte-identical; only the real one moves.
+      assert updated =~ ~s|return {params: {source: "click"}}|
+      assert updated =~ "params: () => ({_csrf_token: csrfToken, viewport_width:"
+    end
+
+    test "a BLOCK-commented example call does not anchor the patch" do
+      content = """
+      /*
+      Example:
+      new LiveSocket("/live", Socket, {
+        params: {_csrf_token: fake}
+      })
+      */
+      const liveSocket = new LiveSocket("/live", Socket, {
+        params: {_csrf_token: csrfToken}
+      })
+      """
+
+      assert {:ok, updated} = JsIntegration.inject_viewport_param(content)
+      assert updated =~ "params: {_csrf_token: fake}"
+      assert updated =~ "params: () => ({_csrf_token: csrfToken, viewport_width:"
+    end
+
     test "a params object containing comments is refused (manual notice)" do
       content = """
       const liveSocket = new LiveSocket("/live", Socket, {

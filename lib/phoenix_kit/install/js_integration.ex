@@ -344,14 +344,19 @@ defmodule PhoenixKit.Install.JsIntegration do
   end
 
   defp commented_at?(content, pos) do
-    line_prefix =
-      content
-      |> binary_part(0, pos)
-      |> String.split("\n")
-      |> List.last()
+    before = binary_part(content, 0, pos)
+    line_prefix = before |> String.split("\n") |> List.last()
 
     String.contains?(line_prefix, "//") or String.contains?(line_prefix, "/*") or
-      line_prefix |> String.trim_leading() |> String.starts_with?("*")
+      line_prefix |> String.trim_leading() |> String.starts_with?("*") or
+      inside_block_comment?(before)
+  end
+
+  # An unclosed /* before the position means we're inside a multi-line block
+  # comment (whose lines need no leading *) — e.g. a commented-out example call
+  # would otherwise anchor the patch away from the real call below it.
+  defp inside_block_comment?(before) do
+    length(:binary.matches(before, "/*")) > length(:binary.matches(before, "*/"))
   end
 
   # The first simple `params: {…}` at the TOP level of the LiveSocket options
@@ -379,8 +384,12 @@ defmodule PhoenixKit.Install.JsIntegration do
     end
   end
 
+  # Brace depth of the segment with string literals and comments blanked out
+  # first — a `"}}}"` inside a hook option must not fake depth 1 at a nested
+  # site (that produced a WRONG rewrite in review; imperfect blanking merely
+  # skews depth away from 1, which fails closed to :manual).
   defp brace_depth(segment) do
-    for <<char <- segment>>, reduce: 0 do
+    for <<char <- blank_strings_and_comments(segment)>>, reduce: 0 do
       depth ->
         case char do
           ?{ -> depth + 1
@@ -388,6 +397,16 @@ defmodule PhoenixKit.Install.JsIntegration do
           _ -> depth
         end
     end
+  end
+
+  defp blank_strings_and_comments(segment) do
+    segment
+    |> String.replace(~r/\\./, "")
+    |> String.replace(~r/"[^"]*"/, "\"\"")
+    |> String.replace(~r/'[^']*'/, "''")
+    |> String.replace(~r/`[^`]*`/s, "``")
+    |> String.replace(~r{/\*.*?\*/}s, "")
+    |> String.replace(~r{//[^\n]*}, "")
   end
 
   defp viewport_manual_notice(igniter) do
