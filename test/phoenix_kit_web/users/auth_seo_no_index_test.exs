@@ -44,6 +44,7 @@ defmodule PhoenixKitWeb.Users.AuthSeoNoIndexTest do
     html = conn |> get(@probe_path) |> html_response(200)
 
     assert html =~ ~s(<meta name="robots" content="noindex,nofollow">)
+    assert html =~ ~s(<meta name="googlebot" content="noindex,nofollow">)
     assert html =~ ~s(data-seo-no-index="true")
   end
 
@@ -54,6 +55,7 @@ defmodule PhoenixKitWeb.Users.AuthSeoNoIndexTest do
     html = conn |> get(@probe_path) |> html_response(200)
 
     refute html =~ ~s(<meta name="robots" content="noindex,nofollow">)
+    refute html =~ ~s(<meta name="googlebot" content="noindex,nofollow">)
     assert html =~ ~s(data-seo-no-index="false")
   end
 end
