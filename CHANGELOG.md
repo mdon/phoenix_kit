@@ -1,3 +1,27 @@
+## 1.7.177 - 2026-07-07
+
+### Changed
+- **Auth form fields now render their leading icon *inside* the input.** The
+  email/username/password/organization-name fields on the registration, login,
+  and magic-link forms previously showed their icon in a separate label above
+  the field; they now follow daisyUI 5's `<label class="input">` wrapper pattern
+  so the icon sits inside the field border (text labels are retained above). The
+  shared `PhoenixKitWeb.Components.Core.Input` `:icon` slot renders inside the
+  field accordingly. The organization account-type `<select>`'s label icon was
+  dropped for consistency (daisyUI has no icon-inside variant for selects).
+- **Updated phoenix to 1.8.9, phoenix_live_view to 1.2.6, websock_adapter to
+  0.6.0, and ex_ast to 0.12.9.**
+
+### Fixed
+- **The `auth_seo_no_index` regression test no longer raises at mount and breaks
+  `mix test`.** Its stand-in `PublicHostAppLive` mounted through
+  `:phoenix_kit_mount_current_scope`, whose `handle_params` hook needs a non-nil
+  `socket.router` — which `live_isolated/3` never provides. The test now drives a
+  routed, test-only LiveView (`PhoenixKitWeb.Test.PublicHostAppLive`, routed only
+  under `Mix.env() == :test`) via a real HTTP request, and asserts against the
+  actual rendered `noindex`/`nofollow` meta tags a crawler would see rather than
+  the raw `:seo_no_index` assign. (#620)
+
 ## 1.7.176 - 2026-07-06
 
 ### Added
