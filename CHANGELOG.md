@@ -1,3 +1,46 @@
+## 1.7.178 - 2026-07-07
+
+### Added
+- **Extensible resource deep-links across the activity feed and notifications.**
+  External modules can declare how their resource types link to their pages via the
+  new optional `resource_links/0` `PhoenixKit.Module` callback — a
+  `resource_type => resolver` map where a resolver is a module implementing
+  `resolve_comment_resources/1`, a path-template string (`"/admin/widgets/:uuid"`),
+  or a `%{"path" => ..., "title" => ...}` map. Merged into `PhoenixKit.ResourceLinks`
+  with a documented precedence (resolver module → module template → host
+  `comment_resource_paths` setting). (#621)
+- **Integration activities deep-link to their Settings edit page.**
+  `Integrations.log_activity` now stamps the connection's storage-row `resource_uuid`,
+  and the new `PhoenixKit.Integrations.ResourceLinks` resolves `"integration"`
+  resources to `/admin/settings/integrations/:uuid`, titled `provider / name`. (#621)
+- **Actor and target identities are now clickable in the activity feed and the
+  notifications admin list.** A lightweight `resource_email_link/1` component links
+  the who-did-it / who-it's-for emails to those users' admin pages, falling back to
+  plain text when unresolved. (#621)
+- **"All notifications" overview on the Notifications admin page.** A paginated table
+  (via `Notifications.admin_list/1`) shows every notification's recipient, rendered
+  text, per-user seen/dismissed state, and date. (#621)
+
+### Fixed
+- **Jobs admin scheduled-jobs tab no longer crashes.** The template referenced
+  `job.id` / `job.resource_id`, which do not exist on the
+  `PhoenixKit.ScheduledJobs.ScheduledJob` schema (`@primary_key {:uuid, ...}`,
+  `field :resource_uuid`) — every render raised `KeyError`. Now uses `job.uuid` /
+  `job.resource_uuid`, consistent with the `repo.get(ScheduledJob, uuid)` lookup. (#622)
+- **Notifications admin pagination no longer renders a runaway button list** for an
+  out-of-range `?page=` query param. An explicit `//1` range step makes an
+  out-of-range page yield an empty range instead of a descending one. (post-merge review)
+
+### Security
+- **hackney 1.25.0 advisory batch (EEF-CVE-2026-47069 / 47071 / 47075 / 47076)
+  reviewed and accepted — no code change.** There is no fixed hackney 1.x; the fix
+  lives only in hackney 4.x, which the dependency tree cannot reach while
+  `ueberauth_apple` pins `httpoison < 3.0` (→ `hackney < 2.0`). Real-world exposure is
+  low: hackney is only the default HTTP backend for `ex_aws` and the Apple-OAuth path
+  (fixed endpoints, no SOCKS5, no user-controlled URLs/cookies/query strings). Full
+  analysis and the eventual upgrade trigger:
+  `dev_docs/audits/2026-07-07-hackney-cve-2026-advisories-audit.md`.
+
 ## 1.7.177 - 2026-07-07
 
 ### Changed

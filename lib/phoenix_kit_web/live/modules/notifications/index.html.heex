@@ -104,7 +104,7 @@
           <%= if @total_pages > 1 do %>
             <div class="flex justify-center py-4">
               <div class="join">
-                <%= for page <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+                <%= for page <- max(1, @page - 2)..min(@total_pages, @page + 2)//1 do %>
                   <.link
                     patch={Routes.path("/admin/notifications?page=#{page}")}
                     class={["join-item btn btn-sm", if(page == @page, do: "btn-active", else: "")]}
