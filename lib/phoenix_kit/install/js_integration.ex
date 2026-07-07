@@ -308,7 +308,9 @@ defmodule PhoenixKit.Install.JsIntegration do
   #     `// …` would swallow the new code into the comment),
   #   * already a closure / nested braces → no simple-object match → refused.
   def inject_viewport_param(content) do
-    if String.contains?(content, "viewport_width"),
+    # The KEY form specifically — a prose mention in a comment ("add
+    # viewport_width someday") must not make the installer skip the patch.
+    if Regex.match?(~r/viewport_width\s*:/, content),
       do: :already,
       else: rewrite_livesocket_params(content)
   end
