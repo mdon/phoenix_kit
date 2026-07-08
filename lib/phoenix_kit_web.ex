@@ -148,6 +148,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.DraggableList
       import PhoenixKitWeb.Components.Core.PkLink
       import PhoenixKitWeb.Components.Core.Modal
+      import PhoenixKitWeb.Components.Core.PopoverPanel
       import PhoenixKitWeb.Components.Core.MediaThumbnail
       import PhoenixKitWeb.Components.Core.AdminPageHeader
       import PhoenixKitWeb.Components.Core.UserDashboardHeader
