@@ -1,3 +1,39 @@
+## 1.7.179 - 2026-07-08
+
+### Added
+- **V139 migration: per-dashboard `config` column.** Adds a JSONB `config` column
+  (`NOT NULL DEFAULT '{}'`) to `phoenix_kit_dashboards` for dashboard-level
+  presentation state (layout mode, pixel-mode zoom, home tier, per-tier markers),
+  read and written whole like `layout`. Idempotent (`ADD COLUMN IF NOT EXISTS`);
+  unblocks the dashboards module's next Hex floor. (#623)
+- **Installer wires a `viewport_width` LiveSocket connect param.**
+  `mix phoenix_kit.install` / `mix phoenix_kit.update` now add
+  `viewport_width: window.innerWidth` to the host's LiveSocket `params:` (rewritten
+  into a closure so reconnects re-read the width). Responsive PhoenixKit LiveViews
+  (e.g. the dashboards builder) use it to resolve the right layout tier server-side
+  on the first render instead of a client-hook round-trip; everything degrades
+  gracefully without it. The rewrite is deliberately conservative — it anchors on
+  the real `new LiveSocket(` call, only patches a `params:` object at the options'
+  top brace depth, blanks string literals and comments before depth counting, and
+  refuses every ambiguous shape with a manual-instructions notice rather than risk
+  corrupting host `app.js`. Pinned by 13 tests in `js_integration_test.exs`. (#623)
+
+### Fixed
+- **daisyUI 5.0.x modal scrollbar-gutter strip.** daisyUI 5.0.x reserves a scrollbar
+  gutter while a modal/drawer is open and paints it with a base-100 trick that
+  mismatches on non-base-100 pages, so classic-scrollbar users saw an uncovered strip
+  at the window's right edge on every admin page. An unlayered
+  `:root:has(.modal-open, …) { scrollbar-gutter: auto }` counter-rule in the admin
+  `LayoutWrapper` and the core root layout beats the layered original regardless of
+  stylesheet order. Documented trade-off: scrollable pages get a small reflow on
+  modal open instead of the mispainted strip. Upstream fixed this properly in daisyUI
+  5.1.0–5.6.x; an `AGENTS.md` TODO tracks removing the rule once hosts upgrade. (#623)
+
+### Changed
+- **Migration-history doc block tracks V139.** `Migrations.Postgres`'s version list
+  now carries the `### V139` entry and the `⚡ LATEST` marker, which the merge left
+  pointing at V138. (post-merge review)
+
 ## 1.7.178 - 2026-07-07
 
 ### Added

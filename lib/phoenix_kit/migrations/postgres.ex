@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V138 - CRM v1 interaction tracker ⚡ LATEST
+  ### V139 - Dashboard `config` column ⚡ LATEST
+  - Adds a JSONB `config` column (`NOT NULL DEFAULT '{}'`) to
+    `phoenix_kit_dashboards` for per-dashboard presentation settings, read and
+    written whole like `layout`. Backs the dashboards plugin module.
+  - Idempotent (`ADD COLUMN IF NOT EXISTS`); rollback drops the column.
+
+  ### V138 - CRM v1 interaction tracker
   - Adds five `phoenix_kit_crm_*` tables for the CRM module's first data model:
     `contacts` (profile + **optional** `user_uuid` login link, partial-unique so
     it's 1:1 only among linked rows), `companies`, `company_memberships` (M:N
