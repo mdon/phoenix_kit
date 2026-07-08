@@ -529,7 +529,15 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V140 - Warehouse module tables ⚡ LATEST
+  ### V142 - Wider role-permission keys ⚡ LATEST
+  - Widens `phoenix_kit_role_permissions.module_key` from `VARCHAR(50)` to
+    `VARCHAR(120)` so fine-grained sub-permissions can be stored as composed
+    dotted keys (`"calendar.view_others"` — base and sub parts are each
+    capped at 50 chars, so a composed key can reach 101).
+  - Rollback deletes rows over 50 chars (sub-permission grants are additive
+    and re-grantable) before narrowing the column back.
+
+  ### V140 - Warehouse module tables
   - Creates `phoenix_kit_warehouse_stock`, `phoenix_kit_warehouse_inventory_documents`,
     `phoenix_kit_warehouse_internal_orders`, `phoenix_kit_warehouse_supplier_orders`,
     `phoenix_kit_warehouse_goods_receipts`, and `phoenix_kit_warehouse_goods_issues` —
