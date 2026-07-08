@@ -537,6 +537,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Rollback deletes rows over 50 chars (sub-permission grants are additive
     and re-grantable) before narrowing the column back.
 
+  ### V141 - Calendar events
+  - Adds `phoenix_kit_calendar_events` for the `phoenix_kit_calendar` module:
+    one implicit personal calendar per user (`owner_uuid` FK, CASCADE on user
+    delete). Timed events use an exclusive-end UTC pair; all-day events use an
+    exclusive-end DATE pair; a CHECK enforces exactly one pair per row matching
+    the `all_day` flag, with end > start. Status is confirmed/cancelled.
+  - Rollback drops the table.
+
   ### V140 - Warehouse module tables
   - Creates `phoenix_kit_warehouse_stock`, `phoenix_kit_warehouse_inventory_documents`,
     `phoenix_kit_warehouse_internal_orders`, `phoenix_kit_warehouse_supplier_orders`,
@@ -1216,7 +1224,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 140
+  @current_version 141
   @default_prefix "public"
 
   @doc false
