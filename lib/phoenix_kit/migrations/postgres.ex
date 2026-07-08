@@ -529,7 +529,22 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V139 - Dashboard `config` column ⚡ LATEST
+  ### V140 - Warehouse module tables ⚡ LATEST
+  - Creates `phoenix_kit_warehouse_stock`, `phoenix_kit_warehouse_inventory_documents`,
+    `phoenix_kit_warehouse_internal_orders`, `phoenix_kit_warehouse_supplier_orders`,
+    `phoenix_kit_warehouse_goods_receipts`, and `phoenix_kit_warehouse_goods_issues` —
+    the storage layer for the standalone `phoenix_kit_warehouse` package.
+  - `internal_orders` and `goods_issues` have no FK to any order table — the
+    relationship lives in a generic `source_refs` JSONB column instead, resolved
+    by a host-registered callback so the package has zero dependency on any
+    particular "order" concept.
+  - Intra-module FKs preserved: `supplier_orders.internal_order_uuid` →
+    `internal_orders`; `goods_receipts.supplier_order_uuid` → `supplier_orders`;
+    `goods_issues.internal_order_uuid` → `internal_orders`.
+  - No data is copied from any existing table — these tables are empty until a
+    consuming app populates them.
+
+  ### V139 - Dashboard `config` column
   - Adds a JSONB `config` column (`NOT NULL DEFAULT '{}'`) to
     `phoenix_kit_dashboards` for per-dashboard presentation settings, read and
     written whole like `layout`. Backs the dashboards plugin module.
@@ -1190,7 +1205,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 139
+  @current_version 140
   @default_prefix "public"
 
   @doc false
