@@ -441,6 +441,27 @@ The mechanism generalizes; for now hardcoded to publishing — lift to a registr
 
 Workspace-tracked items not ready for inline `# TODO` in `lib/`.
 
+### Remove the daisyUI modal-gutter counter-rule after vendored daisyUI upgrades
+
+`layout_wrapper.ex` (admin `<style>` block) and `layouts/root.html.heex` carry an
+unlayered `:root:has(.modal-open, …) { scrollbar-gutter: auto }` rule. It counters
+a **daisyUI 5.0.x** defect: on modal/drawer open, old daisyUI unconditionally
+reserves a scrollbar gutter and paints it with a base-100 trick that mismatches on
+non-base-100 pages — classic-scrollbar users see an uncovered strip at the
+window's right edge. Upstream fixed this properly across 5.1.0→5.6.x
+(`rootscrollgutter.css`: `animation-timeline: scroll()` detects a real scrollbar;
+gutter reserved only then).
+
+Hosts vendor their own `daisyui.js` (parent was on 5.0.35 when this was added), so
+the rule protects any host still on old daisyUI. Once hosts are on daisyUI ≥ 5.6,
+remove the rule from both files — it's redundant there, and in browsers that honor
+`scrollbar-gutter` under `overflow: hidden` it would defeat upstream's smarter
+conditional reservation. The `phoenix_kit_dashboards` module carries a per-page
+copy (`gutter_fix_style/0` in both LiveViews) that's deletable as soon as its core
+pin includes this rule, independent of the daisyUI version. Verified 2026-07-08:
+6-page pixel-diff of 5.0.35 vs 5.6.14 showed only 1-2px badge-padding drift, so
+the vendored upgrade itself is low-risk.
+
 ### Component test coverage for `phoenix_kit_web/components/core/`
 
 Partial coverage exists in `test/phoenix_kit_web/components/core/` — written for the modal-to-native-dialog sweep. Remaining gaps:
