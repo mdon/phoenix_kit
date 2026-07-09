@@ -1,3 +1,50 @@
+## 1.7.180 - 2026-07-09
+
+### Added
+- **V140 migration: `phoenix_kit_warehouse` tables.** Creates the six tables backing
+  the standalone `phoenix_kit_warehouse` package — `phoenix_kit_warehouse_stock`,
+  `_inventory_documents`, `_internal_orders`, `_supplier_orders`, `_goods_receipts`,
+  `_goods_issues`. Intra-module FKs are kept (`supplier_orders.internal_order_uuid` →
+  `internal_orders`, `goods_receipts.supplier_order_uuid` → `supplier_orders`,
+  `goods_issues.internal_order_uuid` → `internal_orders`), as is
+  `performed_by_uuid` → `phoenix_kit_users`. The host-specific `sub_order_uuid` FK is
+  replaced by a generic `source_refs` JSONB column resolved through a host-registered
+  callback, so the package depends on no particular "order" concept. Tables ship
+  empty — nothing reads or writes them yet. (#624)
+
+### Fixed
+- **V140 `quantity >= 0` check was silently skipped on non-`public` schemas.** The
+  constraint-existence guard matched `pg_constraint.conname` alone, but constraint
+  names are unique per `(schema, table)` — not globally. A second PhoenixKit install
+  into another schema in the same database found the first schema's constraint, took
+  the `IF NOT EXISTS` false branch, and created `phoenix_kit_warehouse_stock` with no
+  non-negative-quantity check while reporting success. Now scoped with
+  `AND conrelid = '<prefixed table>'::regclass`, matching V41/V72/V78.
+  (post-merge review)
+- **V140 `source_refs` reverse lookups were unindexed.** Dropping the indexed
+  `sub_order_uuid` FK column in favour of JSONB removed the index behind "which
+  documents reference this order?", turning it into a sequential scan. Added
+  `USING GIN (source_refs)` on `internal_orders`, `supplier_orders`,
+  `goods_receipts`, and `goods_issues`. (post-merge review)
+- **V140 `phoenix_kit_warehouse_stock` could not be queried by location.** Its only
+  index was `UNIQUE (item_uuid, location_uuid)`, which a composite btree cannot serve
+  for a bare `WHERE location_uuid = $1` — the most natural query against a stock
+  table, and one every other warehouse table already had an index for. Added
+  `phoenix_kit_warehouse_stock_location_uuid_index`. (post-merge review)
+
+### Changed
+- **V140 moduledoc corrected.** It justified `item_uuid` / `location_uuid` /
+  `storage_folder_uuid` / `supplier_uuid` as FK-less "cross-package references", but
+  all four targets (`phoenix_kit_cat_items`, `phoenix_kit_locations`,
+  `phoenix_kit_media_folders`, `phoenix_kit_cat_suppliers`) are created by this same
+  core migration set — V122 already declares an FK on `location_uuid`. The doc now
+  states the truth: an FK is possible, it is omitted pending a delete-semantics
+  decision, and referential integrity for those columns is not enforced by the
+  database. Also genericised the private downstream app's table names, which were
+  rendering on hexdocs. (post-merge review)
+- **Dependency bumps.** `ecto` 3.14.0 → 3.14.1, `postgrex` 0.22.2 → 0.22.3,
+  `plug` 1.20.2 → 1.20.3, `mdex_native` 0.2.4 → 0.2.5.
+
 ## 1.7.179 - 2026-07-08
 
 ### Added

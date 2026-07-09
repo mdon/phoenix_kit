@@ -6,30 +6,35 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
   `phoenix_kit_warehouse` package: `stock`, `inventory_documents`,
   `internal_orders`, `supplier_orders`, `goods_receipts`, `goods_issues`.
 
-  These mirror the shape of Andi's existing `andi_warehouse_stock` /
-  `andi_inventory_documents` / `andi_internal_orders` / `andi_supplier_orders`
-  / `andi_goods_receipts` / `andi_goods_issues` tables, minus every FK that
-  pointed at an Andi-specific table:
+  These mirror the shape of the host-application tables the module was
+  extracted from, minus every FK that pointed at a host-specific table:
 
   - `internal_orders` and `goods_issues` drop the `sub_order_uuid` FK — that
     relationship now lives exclusively in the generic `source_refs` JSONB
     column (`[%{"kind" => "sub_order", "uuid" => ...}, ...]`), resolved by a
     host-registered callback rather than a hard FK to an order table this
-    package doesn't own.
+    package doesn't own. A GIN index on `source_refs` stands in for the index
+    the dropped FK column used to provide, so the reverse lookup ("which
+    documents reference this order?") stays off a sequential scan.
   - Intra-module FKs are kept: `supplier_orders.internal_order_uuid` →
     `internal_orders`, `goods_receipts.supplier_order_uuid` →
     `supplier_orders`, `goods_issues.internal_order_uuid` → `internal_orders`.
   - `performed_by_uuid` stays FK'd to `phoenix_kit_users` on every document
-    table (core-to-core reference, unchanged from the Andi originals).
-  - `location_uuid`, `storage_folder_uuid`, and `supplier_uuid` are plain UUID
-    columns (no cross-package FK) — resolved through `phoenix_kit_locations`,
-    core's Storage module, and `phoenix_kit_catalogue` respectively, matching
-    the established pattern for cross-package references elsewhere in this
-    schema.
+    table (core-to-core reference, unchanged from the originals).
+  - `item_uuid`, `location_uuid`, `storage_folder_uuid`, and `supplier_uuid`
+    are plain UUID columns. Their targets (`phoenix_kit_cat_items`,
+    `phoenix_kit_locations`, `phoenix_kit_media_folders`,
+    `phoenix_kit_cat_suppliers`) are all created by this same core migration
+    set, so an FK would be physically possible. It is omitted because the
+    delete semantics — restrict a location that still holds stock, versus
+    cascade the documents away with it — are a product decision the warehouse
+    package has not made yet. Until it does, referential integrity for these
+    four columns is **not** enforced by the database, and a dangling
+    `location_uuid` will not be rejected on insert.
 
   This migration ships the tables only — no application code reads or writes
-  them yet, and no data is copied from the `andi_*` tables (that is a
-  separate, later Andi-side data migration, run only after the new package
+  them yet, and no data is copied from the host's legacy tables (that is a
+  separate, later host-side data migration, run only after the new package
   and its LiveViews are built and verified).
   """
 
@@ -57,12 +62,20 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     ON #{p}phoenix_kit_warehouse_stock (item_uuid, location_uuid)
     """)
 
+    # The composite index above only serves item_uuid-leading lookups; "what is
+    # stored at this location" needs location_uuid on its own.
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_stock_location_uuid_index
+    ON #{p}phoenix_kit_warehouse_stock (location_uuid)
+    """)
+
     execute("""
     DO $$
     BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_warehouse_stock_quantity_non_negative'
+        AND conrelid = '#{p}phoenix_kit_warehouse_stock'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_warehouse_stock
         ADD CONSTRAINT phoenix_kit_warehouse_stock_quantity_non_negative
@@ -168,6 +181,13 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     ON #{p}phoenix_kit_warehouse_internal_orders (location_uuid)
     """)
 
+    # Replaces the index the dropped sub_order_uuid FK used to provide: without
+    # it, "which orders reference this source?" is a sequential scan.
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_internal_orders_source_refs_index
+    ON #{p}phoenix_kit_warehouse_internal_orders USING GIN (source_refs)
+    """)
+
     create_supplier_orders(p)
     create_goods_receipts(p)
     create_goods_issues(p)
@@ -263,6 +283,11 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_supplier_orders_internal_order_uuid_index
     ON #{p}phoenix_kit_warehouse_supplier_orders (internal_order_uuid)
     """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_supplier_orders_source_refs_index
+    ON #{p}phoenix_kit_warehouse_supplier_orders USING GIN (source_refs)
+    """)
   end
 
   defp create_goods_receipts(p) do
@@ -319,6 +344,11 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_goods_receipts_supplier_order_uuid_index
     ON #{p}phoenix_kit_warehouse_goods_receipts (supplier_order_uuid)
     """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_goods_receipts_source_refs_index
+    ON #{p}phoenix_kit_warehouse_goods_receipts USING GIN (source_refs)
+    """)
   end
 
   defp create_goods_issues(p) do
@@ -373,6 +403,11 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_goods_issues_internal_order_uuid_index
     ON #{p}phoenix_kit_warehouse_goods_issues (internal_order_uuid)
+    """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_goods_issues_source_refs_index
+    ON #{p}phoenix_kit_warehouse_goods_issues USING GIN (source_refs)
     """)
   end
 

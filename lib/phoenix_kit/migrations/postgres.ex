@@ -537,10 +537,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - `internal_orders` and `goods_issues` have no FK to any order table — the
     relationship lives in a generic `source_refs` JSONB column instead, resolved
     by a host-registered callback so the package has zero dependency on any
-    particular "order" concept.
+    particular "order" concept. GIN-indexed for reverse lookups.
   - Intra-module FKs preserved: `supplier_orders.internal_order_uuid` →
     `internal_orders`; `goods_receipts.supplier_order_uuid` → `supplier_orders`;
     `goods_issues.internal_order_uuid` → `internal_orders`.
+  - `item_uuid`, `location_uuid`, `storage_folder_uuid`, `supplier_uuid` are
+    plain UUID columns — no FK, so the database does not enforce referential
+    integrity for them (delete semantics still undecided).
   - No data is copied from any existing table — these tables are empty until a
     consuming app populates them.
 
