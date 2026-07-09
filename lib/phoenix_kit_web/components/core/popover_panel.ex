@@ -66,7 +66,8 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanel do
   def hide_popover(js \\ %JS{}, id) do
     JS.hide(js,
       to: "##{id}",
-      transition: {"transition ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
+      transition:
+        {"transition ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
   end
 
