@@ -37,10 +37,13 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
       <.search_picker
         id="party-search"
         dropdown_id="party-dropdown"
-        target={"#\#{@id}"}
         text_event="stage_text"
         placeholder={gettext("Type a name…")}
       />
+
+  Events auto-route to the closest LiveComponent/LiveView containing the
+  input — no target needed when the picker renders inside the component
+  that handles its events.
 
   The chips themselves stay consumer-rendered — their look and remove
   semantics differ per feature.
@@ -55,9 +58,12 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
 
   - `id` — input DOM id (required; must be page-unique)
   - `dropdown_id` — dropdown DOM id (required)
-  - `target` — CSS selector of the element whose LiveComponent should
-    receive the pushed events (e.g. `"#my-component"`). Omit to auto-route
-    to the closest LiveComponent/LiveView containing the input.
+  - `target` — CSS selector of an element inside the LiveComponent that
+    should receive the pushed events. ONLY needed when the picker renders
+    OUTSIDE that component's DOM tree; omitted, events auto-route to the
+    closest LiveComponent/LiveView containing the input (the usual case).
+    The selector must actually match an element or every push is dropped
+    with a console error.
   - `mode` — `"multi"` (default) or `"single"` (see moduledoc)
   - `name`/`value` — form field wiring for single mode
   - `search_event` / `results_event` / `pick_event` / `text_event` /
