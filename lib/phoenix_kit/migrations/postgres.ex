@@ -537,13 +537,22 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Rollback deletes rows over 50 chars (sub-permission grants are additive
     and re-grantable) before narrowing the column back.
 
-  ### V141 - Calendar events
+  ### V141 - Calendar events + participants
   - Adds `phoenix_kit_calendar_events` for the `phoenix_kit_calendar` module:
     one implicit personal calendar per user (`owner_uuid` FK, CASCADE on user
     delete). Timed events use an exclusive-end UTC pair; all-day events use an
     exclusive-end DATE pair; a CHECK enforces exactly one pair per row matching
     the `all_day` flag, with end > start. Status is confirmed/cancelled.
-  - Rollback drops the table.
+    `location_uuid` loosely links a stored location (name snapshotted into the
+    `location` string — no cross-module FK).
+  - Adds `phoenix_kit_calendar_event_participants`: loose `kind` + `target_uuid`
+    references (user / staff_person / crm_contact / crm_company / free_text)
+    with a `display_name` snapshot and `added_by_uuid` audit. Visibility is
+    resolved LIVE at query time against the physical staff/CRM tables, so a
+    company participant means "current members" and no module code is needed.
+    Partial uniques dedup targets per event and free-text case-insensitively.
+  - Extended in place while unreleased (idempotent-additive statements).
+  - Rollback drops both tables.
 
   ### V140 - Warehouse module tables
   - Creates `phoenix_kit_warehouse_stock`, `phoenix_kit_warehouse_inventory_documents`,
