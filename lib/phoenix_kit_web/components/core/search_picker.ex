@@ -24,6 +24,15 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
     `%{"name" => text}` — the "Add … as text" row renders only when this
     attr is set.
 
+  ## Multiple pickers in one view
+
+  `push_event` replies broadcast to EVERY hook listening on the event
+  name, so two pickers sharing names would cross-populate (and a staged
+  confirm would clear both). Give each picker distinct event names — or
+  keep shared names and echo the `id` the hook sends with every push
+  (`%{"id" => input_id}`) back in the results/staged payloads; when
+  present, each instance drops payloads addressed to another `id`.
+
   ## Single-select mode
 
   `mode="single"` turns the picker into a suggestion box for ONE value: a

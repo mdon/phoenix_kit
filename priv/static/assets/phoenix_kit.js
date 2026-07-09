@@ -4899,6 +4899,11 @@ if (typeof window.Chart === "undefined") {
       this.dd.addEventListener("mousedown", (e) => this.onPick(e));
 
       this.handleEvent(this.evResults, (payload) => {
+        // push_event broadcasts to every hook listening on this name — a
+        // second picker sharing the event name would render our rows.
+        // Servers echoing back the `id` we send get exact routing; the
+        // check is skipped when absent for backwards compatibility.
+        if (payload.id && payload.id !== this.el.id) return;
         if (this.stagingNow) return;
         if (this.el.value.trim() !== (payload.q || "")) return; // stale
         var incoming = payload.results || [];
@@ -4919,7 +4924,8 @@ if (typeof window.Chart === "undefined") {
         this.render();
       });
 
-      this.handleEvent(this.evStaged, () => {
+      this.handleEvent(this.evStaged, (payload) => {
+        if (payload && payload.id && payload.id !== this.el.id) return;
         this.stagingNow = false;
         clearTimeout(this.stageT);
         this.clear();
@@ -4950,7 +4956,11 @@ if (typeof window.Chart === "undefined") {
     },
 
     search(q) {
-      this.pushEventTo(this.target, this.evSearch, { q: q, limit: this.limit });
+      this.pushEventTo(this.target, this.evSearch, {
+        q: q,
+        limit: this.limit,
+        id: this.el.id,
+      });
     },
 
     kickSearch() {
@@ -4979,7 +4989,7 @@ if (typeof window.Chart === "undefined") {
         e.preventDefault();
         var q = this.el.value.trim();
         if (q && this.evText && this.mode !== "single") {
-          this.pushEventTo(this.target, this.evText, { name: q });
+          this.pushEventTo(this.target, this.evText, { name: q, id: this.el.id });
           this.staging();
         }
       } else if (e.key === "Escape") {
@@ -5008,12 +5018,13 @@ if (typeof window.Chart === "undefined") {
       if (btn.dataset.pick === "text") {
         var q = this.el.value.trim();
         if (!q || !this.evText) return;
-        this.pushEventTo(this.target, this.evText, { name: q });
+        this.pushEventTo(this.target, this.evText, { name: q, id: this.el.id });
       } else {
         this.pushEventTo(this.target, this.evPick, {
           kind: btn.dataset.kind,
           uuid: btn.dataset.uuid,
           label: btn.dataset.label,
+          id: this.el.id,
         });
       }
       this.staging();
