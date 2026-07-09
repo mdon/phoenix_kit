@@ -74,6 +74,11 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
     The selector must actually match an element or every push is dropped
     with a console error.
   - `mode` — `"multi"` (default) or `"single"` (see moduledoc)
+  - `direction` — `"down"` (default) or `"up"`. Use `"up"` when the input
+    sits near the BOTTOM of a scrollable container (e.g. the last field
+    of a modal): a downward dropdown there extends the container's
+    scroll area instead of floating, so the suggestions end up below the
+    fold — users read that as "no suggestions".
   - `name`/`value` — form field wiring for single mode
   - `search_event` / `results_event` / `pick_event` / `text_event` /
     `staged_event` — event-name overrides (defaults in moduledoc;
@@ -85,6 +90,7 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
   attr :dropdown_id, :string, required: true
   attr :target, :any, default: nil
   attr :mode, :string, default: "multi", values: ["multi", "single"]
+  attr :direction, :string, default: "down", values: ["down", "up"]
   attr :name, :string, default: nil
   attr :value, :string, default: nil
   attr :search_event, :string, default: "picker_search"
@@ -135,7 +141,10 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
       <div
         id={@dropdown_id}
         phx-update="ignore"
-        class="hidden absolute left-0 right-0 z-20 mt-1 border border-base-200 rounded-box bg-base-100 shadow overflow-hidden"
+        class={[
+          "hidden absolute left-0 right-0 z-20 border border-base-200 rounded-box bg-base-100 shadow overflow-hidden",
+          if(@direction == "up", do: "bottom-full mb-1", else: "top-full mt-1")
+        ]}
       >
       </div>
       <%!-- Keep the hook's client-rendered classes in the CSS bundle. --%>

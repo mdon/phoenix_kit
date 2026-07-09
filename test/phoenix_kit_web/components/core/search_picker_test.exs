@@ -23,6 +23,20 @@ defmodule PhoenixKitWeb.Components.Core.SearchPickerTest do
     assert html =~ ~s(id="party-dropdown")
     assert html =~ ~s(phx-update="ignore")
     assert html =~ "hidden absolute"
+    # default direction: opens downward
+    assert html =~ "top-full mt-1"
+  end
+
+  test "direction=up floats the dropdown above the input (bottom-of-modal fields)" do
+    assigns = %{}
+
+    html =
+      render(~H"""
+      <.search_picker id="p" dropdown_id="d" direction="up" />
+      """)
+
+    assert html =~ "bottom-full mb-1"
+    refute html =~ "top-full"
   end
 
   test "default event names cover the full multi-select contract" do
