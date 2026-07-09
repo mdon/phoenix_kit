@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   alias PhoenixKit.Settings.Events, as: SettingsEvents
   alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   require Logger
 
@@ -234,5 +235,16 @@ defmodule PhoenixKitWeb.Live.Settings do
 
   def signed_preview_url(file_uuid, variant) do
     URLSigner.signed_url(file_uuid, variant)
+  end
+
+  # Host shown in the browser-tab preview's address bar. Best-effort — the
+  # mockup is decorative, so any failure just falls back to a placeholder.
+  def site_host do
+    case URI.parse(Routes.url("/")).host do
+      host when is_binary(host) and host != "" -> host
+      _ -> "example.com"
+    end
+  rescue
+    _ -> "example.com"
   end
 end
