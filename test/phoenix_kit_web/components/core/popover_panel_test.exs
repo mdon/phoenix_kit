@@ -7,24 +7,34 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanelTest do
 
   defp render(template), do: rendered_to_string(template)
 
-  test "renders the panel with content, backdrop, and close wiring" do
+  test "renders hidden by default with content and close wiring" do
     assigns = %{}
 
     html =
       render(~H"""
-      <.popover_panel id="test-panel" on_close="close_it">
+      <.popover_panel id="test-panel">
         <p>Panel content</p>
       </.popover_panel>
       """)
 
     assert html =~ ~s(id="test-panel")
     assert html =~ "Panel content"
-    # Escape closes
-    assert html =~ ~s(phx-window-keydown="close_it")
+    # closed until the client-side toggle runs — no server round-trip to open
+    assert html =~ ~s(class="hidden fixed)
+    # Escape hides client-side (a JS command, not a named server event)
+    assert html =~ ~s(phx-window-keydown)
     assert html =~ ~s(phx-key="escape")
-    # backdrop click closes
-    assert html =~ ~s(phx-click="close_it")
     assert html =~ ~s(role="dialog")
+  end
+
+  test "toggle_popover/2 and hide_popover/2 emit client-side JS targeting the id" do
+    toggle = toggle_popover("test-panel") |> Phoenix.json_library().encode!()
+    hide = hide_popover("test-panel") |> Phoenix.json_library().encode!()
+
+    assert toggle =~ "toggle"
+    assert toggle =~ "#test-panel"
+    assert hide =~ "hide"
+    assert hide =~ "#test-panel"
   end
 
   test "the card stacks ABOVE the click-away backdrop" do
@@ -35,15 +45,11 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanelTest do
 
     html =
       render(~H"""
-      <.popover_panel id="stack-panel" on_close="close_it">
+      <.popover_panel id="stack-panel">
         <p>content</p>
       </.popover_panel>
       """)
 
-    [_before, card_and_after] = String.split(html, "card bg-base-100", parts: 2)
-    _ = card_and_after
-
-    # the card div carries z-10 + positioning in BOTH breakpoints
     assert html =~ "absolute inset-x-2 top-12 z-10"
     assert html =~ "sm:relative"
   end
@@ -53,12 +59,12 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanelTest do
 
     end_html =
       render(~H"""
-      <.popover_panel id="p1" on_close="x">content</.popover_panel>
+      <.popover_panel id="p1">content</.popover_panel>
       """)
 
     start_html =
       render(~H"""
-      <.popover_panel id="p2" on_close="x" align="start">content</.popover_panel>
+      <.popover_panel id="p2" align="start">content</.popover_panel>
       """)
 
     assert end_html =~ "sm:right-0"
@@ -70,7 +76,7 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanelTest do
 
     html =
       render(~H"""
-      <.popover_panel id="p3" on_close="x" width_class="sm:w-72" class="p-1">
+      <.popover_panel id="p3" width_class="sm:w-72" class="p-1">
         content
       </.popover_panel>
       """)

@@ -1,54 +1,82 @@
 defmodule PhoenixKitWeb.Components.Core.PopoverPanel do
   @moduledoc """
   An anchored popover panel for arbitrary rich content — filter panels,
-  pickers, mini-forms — with click-away and Escape-to-close.
+  pickers, mini-forms — that opens INSTANTLY.
+
+  Open/close is pure client-side (`Phoenix.LiveView.JS`): the panel is
+  always rendered (hidden), and the trigger toggles it without a server
+  round-trip, so there is no perceptible delay and nothing to spin on.
+  Backdrop click and Escape hide it the same way. LiveView's JS commands
+  are DOM-patch aware, so server re-renders (e.g. the panel's own
+  interactions updating assigns) don't flip the panel shut.
 
   Unlike `TableRowMenu` (a JS-hook dropdown for short action lists), this
-  is LiveView-state-driven and holds any markup: forms, search inputs,
-  scrollable checklists. The open/close state lives in the caller's
-  assigns, so the panel survives re-renders and interacting with inputs
-  inside it never closes it.
+  holds any markup: forms, search inputs, scrollable checklists —
+  interacting inside never closes it (the click-away backdrop paints
+  BELOW the card; keep that stacking).
 
   ## Layout contract
 
   Render the panel INSIDE a `relative` wrapper next to its trigger; on
   `sm+` screens the card anchors under the trigger (aligned via `:align`),
   while on small screens it becomes a full-screen overlay with a dimmed
-  backdrop. The click-away backdrop always paints BELOW the card (the card
-  is `relative z-10` over the `fixed` backdrop — keeping that ordering is
-  what makes clicks and scrolls inside the panel safe).
+  backdrop.
 
   ## Example
 
       <div class="relative">
-        <button type="button" phx-click="toggle_panel" class="btn btn-sm">
+        <button type="button" phx-click={toggle_popover("my-filters")} class="btn btn-sm">
           Filters
         </button>
 
-        <.popover_panel :if={@panel_open} id="my-filters" on_close="close_panel">
+        <.popover_panel id="my-filters">
           <form phx-change="search">…</form>
           <ul class="max-h-80 overflow-y-auto">…</ul>
         </.popover_panel>
       </div>
 
-  The caller owns the state:
+  Since content inside still talks to the server, give those interactions
+  their own loading affordances, e.g. a spinner revealed by the form's
+  `phx-change-loading` class:
 
-      def handle_event("toggle_panel", _p, socket),
-        do: {:noreply, assign(socket, :panel_open, not socket.assigns.panel_open)}
-
-      def handle_event("close_panel", _p, socket),
-        do: {:noreply, assign(socket, :panel_open, false)}
+      <span class={["loading loading-spinner loading-xs invisible",
+                    "[.phx-change-loading_&]:visible"]} />
   """
 
   use Phoenix.Component
 
+  alias Phoenix.LiveView.JS
+
   @doc """
-  Renders the anchored popover panel.
+  Client-side command that toggles the panel with a quick fade/scale.
+  Attach to the trigger's `phx-click` (composable with other JS commands).
+  """
+  def toggle_popover(js \\ %JS{}, id) do
+    JS.toggle(js,
+      to: "##{id}",
+      in: {"transition ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100"},
+      out: {"transition ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
+    )
+  end
+
+  @doc """
+  Client-side command that hides the panel. Used internally by the
+  backdrop and Escape; exposed for custom close buttons inside the panel.
+  """
+  def hide_popover(js \\ %JS{}, id) do
+    JS.hide(js,
+      to: "##{id}",
+      transition: {"transition ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
+    )
+  end
+
+  @doc """
+  Renders the (initially hidden) popover panel. Toggle it with
+  `toggle_popover/2` on the trigger.
 
   ## Attributes
 
-  - `id` - DOM id (required)
-  - `on_close` - event pushed on backdrop click and Escape (required)
+  - `id` - DOM id (required; the toggle/hide commands target it)
   - `align` - which trigger edge the card hugs on `sm+`: `"end"` (right,
     default) or `"start"` (left)
   - `width_class` - card width on `sm+` (default `"sm:w-96"`); complete
@@ -60,7 +88,6 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanel do
   - `inner_block` - the panel content (required)
   """
   attr :id, :string, required: true
-  attr :on_close, :string, required: true
   attr :align, :string, default: "end", values: ["end", "start"]
   attr :width_class, :string, default: "sm:w-96"
   attr :class, :string, default: nil
@@ -72,19 +99,20 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanel do
     <div
       id={@id}
       class={[
-        "fixed inset-0 z-40 sm:absolute sm:inset-auto sm:top-full sm:mt-2",
+        "hidden fixed inset-0 z-40 sm:absolute sm:inset-auto sm:top-full sm:mt-2",
         align_class(@align)
       ]}
-      phx-window-keydown={@on_close}
+      phx-window-keydown={hide_popover(@id)}
       phx-key="escape"
       role="dialog"
       aria-modal="true"
     >
       <%!-- click-away backdrop: dims on mobile, invisible on desktop.
-           It must stay BELOW the card (see moduledoc). --%>
+           It must stay BELOW the card — with the card static the backdrop
+           paints on top and swallows every click/scroll inside the panel. --%>
       <div
         class="fixed inset-0 bg-base-content/30 sm:bg-transparent"
-        phx-click={@on_close}
+        phx-click={hide_popover(@id)}
         aria-hidden="true"
       >
       </div>
