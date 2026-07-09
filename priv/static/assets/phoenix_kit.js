@@ -4847,7 +4847,7 @@ if (typeof window.Chart === "undefined") {
 //                        dispatches an input event (so a surrounding form's
 //                        phx-change sees it) and closes; no staging round-trip
 //   data-t-*             translated strings (searching/add-prefix/add-suffix/
-//                        adding/more/loading-more)
+//                        adding/more/loading-more/no-matches)
 (function () {
   function esc(s) {
     var d = document.createElement("div");
@@ -5058,6 +5058,7 @@ if (typeof window.Chart === "undefined") {
       var tAddSuffix = esc(this.el.dataset.tAddSuffix || "as text");
       var tMore = esc(this.el.dataset.tMore || "Load more");
       var tLoadingMore = esc(this.el.dataset.tLoadingMore || "Loading…");
+      var tNoMatches = esc(this.el.dataset.tNoMatches || "No matches");
 
       var top = "";
       if (this.searching) {
@@ -5089,6 +5090,10 @@ if (typeof window.Chart === "undefined") {
           esc(r.sublabel || "") +
           "</span></button>";
       });
+      if (!this.searching && !this.loadingMore && this.results.length === 0 && q) {
+        list +=
+          '<div class="px-3 py-2 text-sm text-base-content/50">' + tNoMatches + "</div>";
+      }
       if (this.loadingMore) {
         list +=
           '<div class="flex items-center justify-center gap-2 px-3 py-2 text-xs text-base-content/50">' +

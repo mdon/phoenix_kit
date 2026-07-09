@@ -100,6 +100,7 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
   attr :adding_label, :string, default: "Adding…"
   attr :more_label, :string, default: "Load more"
   attr :loading_more_label, :string, default: "Loading…"
+  attr :no_matches_label, :string, default: "No matches"
   attr :rest, :global
 
   def search_picker(assigns) do
@@ -125,6 +126,7 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
         data-t-adding={@adding_label}
         data-t-more={@more_label}
         data-t-loading-more={@loading_more_label}
+        data-t-no-matches={@no_matches_label}
         placeholder={@placeholder}
         class={@class}
         autocomplete="off"
