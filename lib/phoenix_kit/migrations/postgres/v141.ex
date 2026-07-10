@@ -64,7 +64,7 @@ defmodule PhoenixKit.Migrations.Postgres.V141 do
       starts_on DATE,
       ends_on DATE,
       color VARCHAR(50),
-      status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
       inserted_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
       CONSTRAINT calendar_event_time_shape CHECK (
@@ -82,8 +82,30 @@ defmodule PhoenixKit.Migrations.Postgres.V141 do
           AND ends_on > starts_on
         )
       ),
-      CONSTRAINT calendar_event_status CHECK (status IN ('confirmed', 'cancelled'))
+      CONSTRAINT calendar_event_status CHECK (status IN ('active', 'cancelled'))
     )
+    """)
+
+    # Status vocabulary: the only meaningful states are active vs cancelled
+    # (there was never a "tentative"), so 'confirmed' was renamed to 'active'.
+    # Idempotent + safe for BOTH fresh installs (the drop+re-add nets to the
+    # same constraint the CREATE TABLE above already made) and existing ones
+    # (migrates legacy rows and swaps the CHECK). Runs on each up/1.
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_calendar_events DROP CONSTRAINT IF EXISTS calendar_event_status"
+    )
+
+    execute(
+      "UPDATE #{p}phoenix_kit_calendar_events SET status = 'active' WHERE status = 'confirmed'"
+    )
+
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_calendar_events ALTER COLUMN status SET DEFAULT 'active'"
+    )
+
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_calendar_events
+    ADD CONSTRAINT calendar_event_status CHECK (status IN ('active', 'cancelled'))
     """)
 
     # Loose link to a stored location (locations module); the name is
