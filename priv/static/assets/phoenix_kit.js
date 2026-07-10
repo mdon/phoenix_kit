@@ -4858,6 +4858,13 @@ if (typeof window.Chart === "undefined") {
     return esc(s).replace(/"/g, "&quot;");
   }
 
+  // Stable identity for de-duplicating rows across "Load more" pages. The
+  // server may send `dedup_id` (a PERSON identity that survives a row
+  // changing source/kind between pages); otherwise fall back to kind:uuid.
+  function dedupKey(r) {
+    return r.dedup_id != null ? "d:" + r.dedup_id : r.kind + ":" + r.uuid;
+  }
+
   window.PhoenixKitHooks.SearchPicker = {
     mounted() {
       this.dd = document.getElementById(this.el.dataset.dropdown);
@@ -4906,11 +4913,32 @@ if (typeof window.Chart === "undefined") {
         if (payload.id && payload.id !== this.el.id) return;
         if (this.stagingNow) return;
         if (this.el.value.trim() !== (payload.q || "")) return; // stale
-        // The server always answers with the FULL page for the requested
-        // limit — REPLACE the list, never merge: merging by kind+uuid can
-        // duplicate a person whose row legitimately changed source between
-        // pages (server-side dedup upgraded it, e.g. staff row -> user row).
-        this.results = payload.results || [];
+        var incoming = payload.results || [];
+
+        if (this.loadingMore) {
+          // "Load more" grows a per-source page, so a naive replace would
+          // re-order the flattened list (new rows land BETWEEN sources) and
+          // the user loses their place. APPEND only rows not already shown,
+          // so everything on screen stays put and the new ones arrive at the
+          // end. Dedup by `dedup_id` (a stable PERSON identity the server
+          // sends) rather than kind+uuid, so a person whose row flips source
+          // between pages (staff -> user once their user row enters the
+          // window) isn't shown twice. Falls back to kind:uuid when the
+          // server doesn't send dedup_id.
+          var seen = {};
+          this.results.forEach((r) => {
+            seen[dedupKey(r)] = true;
+          });
+          incoming.forEach((r) => {
+            if (!seen[dedupKey(r)]) {
+              this.results.push(r);
+              seen[dedupKey(r)] = true;
+            }
+          });
+        } else {
+          this.results = incoming;
+        }
+
         this.hasMore = !!payload.has_more;
         this.searching = false;
         this.loadingMore = false;
