@@ -5090,7 +5090,7 @@ if (typeof window.Chart === "undefined") {
           esc(r.sublabel || "") +
           "</span></button>";
       });
-      if (!this.searching && !this.loadingMore && this.results.length === 0 && q) {
+      if (!this.searching && !this.loadingMore && this.results.length === 0) {
         list +=
           '<div class="px-3 py-2 text-sm text-base-content/50">' + tNoMatches + "</div>";
       }
