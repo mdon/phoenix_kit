@@ -1,3 +1,63 @@
+## 1.7.182 - 2026-07-10
+
+### Added
+- **Fine-grained sub-permissions.** Modules can declare additive permissions under
+  their base key via the optional `sub_permissions` field of `permission_metadata/0`
+  (e.g. `"calendar.view_others"`), stored in `phoenix_kit_role_permissions.module_key`
+  as composed dotted keys. A sub-permission implies its base: granting a sub
+  auto-grants the base, revoking the base cascades its subs off, and every write
+  path (`grant_permission/3`, `revoke_permission/3`, `set_permissions/3`) normalizes
+  the set so no orphan sub-key row can persist. Modules check sub-grants with
+  `Scope.can?/2` (key held **and** module enabled). The permission matrix renders
+  subs as indented rows under their module. (#627)
+- **`V141` — personal calendar events + participants** for the standalone
+  `phoenix_kit_calendar` module: `phoenix_kit_calendar_events` (one implicit
+  personal calendar per user, timed/all-day exclusive-end pairs with a CHECK,
+  cascade on user delete, loose `location_uuid` link) and
+  `phoenix_kit_calendar_event_participants` (loose `kind`/`target_uuid` refs with a
+  snapshotted `display_name`, visibility resolved live against staff/CRM tables). (#627)
+- **Reusable core UI components.** `SearchPicker` (client-instant typeahead with
+  browse-on-focus, per-instance event scoping, `direction=up`, cross-source dedup,
+  load-more paging), `PopoverPanel` (anchored rich-content popover, client-side
+  open/close with click-away), and the `PkDialogDraft` JS hook (preserves an open
+  form's draft across a LiveView reconnect). Both function components are imported
+  into `PhoenixKitWeb`. (#627)
+
+### Changed
+- **Admin is now genuinely permission-gated.** Only `Owner` is hard-coded as
+  all-access; `Admin` (and every other role) is governed by the permission matrix.
+  Admin defaults to all keys via seeding/auto-grant, and a boot-time Task
+  (`auto_grant_new_keys_to_admin/0`) fills newly-installed module keys — but an
+  Owner's revocation now sticks everywhere, including fresh mounts (previously the
+  system-role bypass ignored revocations on fresh mounts). The full-access fallback
+  keys on **table presence** (`permissions_table_ready?/0`), not row count, so
+  stripping a role bare can no longer restore access, and a DB blip fails closed. (#627)
+- **`V142`** widens `phoenix_kit_role_permissions.module_key` `VARCHAR(50) → VARCHAR(120)`
+  so composed sub-permission keys fit. (#627)
+- **Role changes are authorized in the context.** `sync_user_roles/3` takes an
+  `:actor` and drops changes the actor isn't allowed to make (a non-Owner can't
+  grant or strip Owner/Admin); the last Owner can never be removed. The quick
+  role-toggle and the permission-matrix revoke route through the same guards. The
+  function now returns `{:ok, %{assignments, roles_before, roles_after}}` so audit
+  logs record the delta **actually applied**, not the submitted set. (#627)
+- **`Checkbox` `checked` default is now `nil`** ("derive from the field's value") —
+  a non-nil attr default defeated the field clause's `assign_new`, so a field-bound
+  checkbox always rendered unchecked. (#627)
+- **`AdminPageHeader` accepts a `class`** to override its default bottom margin
+  (e.g. `"mb-0"` when the page owns spacing). (#627)
+
+### Fixed
+- **Role/permission mutations are race-free under concurrent admins.**
+  Transaction-scoped Postgres advisory locks + in-transaction re-reads: the last
+  Owner can never reach zero (shared lock at `count_remaining_owners`), the matrix
+  revoke re-reads the role's held keys under a `(role, base)` lock and rejects
+  (`:unauthorized`) if a cascaded sub falls outside the actor's grantable set, and
+  `set_permissions/3` locks the `Role` row so two concurrent calls can't leave the
+  union of disjoint desired sets. (#627)
+- **Post-merge review:** refactored `grant_permission/3` to satisfy
+  `credo --strict` (removed a redundant `with` clause and one nesting level) — the
+  base-then-sub cascade and rollback behavior are unchanged. (#627)
+
 ## 1.7.181 - 2026-07-10
 
 ### Changed

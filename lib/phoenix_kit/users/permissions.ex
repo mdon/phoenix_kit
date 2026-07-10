@@ -746,35 +746,40 @@ defmodule PhoenixKit.Users.Permissions do
     if is_nil(role_uuid) do
       {:error, :role_not_found}
     else
-      # Take the same advisory lock as revoke, so a base revoke's
-      # authorize-then-cascade can't interleave a concurrent sub grant. A
-      # sub-permission also pulls in its base — a sub row must never exist
-      # without module access, whatever path grants it. The base insert is an
-      # idempotent upsert, so an already-held base is unaffected.
-      base = base_key_of(module_key)
+      grant_permission_locked(repo, role_uuid, module_key, granted_by_uuid)
+    end
+  end
 
-      repo.transaction(fn ->
-        lock_role_module(repo, role_uuid, base)
+  # Take the same advisory lock as revoke, so a base revoke's
+  # authorize-then-cascade can't interleave a concurrent sub grant. A
+  # sub-permission also pulls in its base — a sub row must never exist
+  # without module access, whatever path grants it. The base insert is an
+  # idempotent upsert, so an already-held base is unaffected.
+  defp grant_permission_locked(repo, role_uuid, module_key, granted_by_uuid) do
+    base = base_key_of(module_key)
 
-        outcome =
-          case parent_key(module_key) do
-            nil ->
-              grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid)
+    repo.transaction(fn ->
+      lock_role_module(repo, role_uuid, base)
 
-            parent ->
-              with {:ok, _base} <-
-                     grant_permission_insert(repo, role_uuid, parent, granted_by_uuid),
-                   {:ok, sub} <-
-                     grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid) do
-                {:ok, sub}
-              end
-          end
+      case do_grant(repo, role_uuid, module_key, granted_by_uuid) do
+        {:ok, record} -> record
+        {:error, changeset} -> repo.rollback(changeset)
+      end
+    end)
+  end
 
-        case outcome do
-          {:ok, record} -> record
-          {:error, changeset} -> repo.rollback(changeset)
+  # Grant `module_key`, first pulling in its base when it is a sub-permission —
+  # a sub row must never exist without module access. The base insert is an
+  # idempotent upsert, so an already-held base is unaffected.
+  defp do_grant(repo, role_uuid, module_key, granted_by_uuid) do
+    case parent_key(module_key) do
+      nil ->
+        grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid)
+
+      parent ->
+        with {:ok, _base} <- grant_permission_insert(repo, role_uuid, parent, granted_by_uuid) do
+          grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid)
         end
-      end)
     end
   end
 
