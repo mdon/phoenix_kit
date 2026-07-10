@@ -1003,10 +1003,16 @@ defmodule PhoenixKit.Users.Roles do
   - `role_names`: List of role names the user should have
   - `opts`: `:actor` — the acting `%User{}` (see above)
 
+  Returns `{:ok, %{assignments: [...], roles_before: [...], roles_after: [...]}}`
+  on success — `roles_before`/`roles_after` are the role-name lists captured
+  inside the transaction, so callers can audit the exact delta this transaction
+  applied (which can differ from what was submitted when unauthorized changes
+  are dropped or a concurrent edit intervened).
+
   ## Examples
 
       iex> sync_user_roles(user, ["Admin", "Manager"], actor: current_user)
-      {:ok, [%RoleAssignment{}, %RoleAssignment{}]}
+      {:ok, %{assignments: [%RoleAssignment{}], roles_before: ["Manager"], roles_after: ["Admin", "Manager"]}}
   """
   def sync_user_roles(user, role_names, opts \\ [])
 
@@ -1015,12 +1021,13 @@ defmodule PhoenixKit.Users.Roles do
     actor = Keyword.get(opts, :actor, :system)
 
     case repo.transaction(fn ->
-           # Get current user roles
-           current_roles = get_user_roles(user)
+           # The role set BEFORE this transaction's changes (read inside the
+           # transaction, so it's the true baseline for an exact audit diff).
+           roles_before = get_user_roles(user)
 
            # Determine roles to add and remove
-           roles_to_add = role_names -- current_roles
-           roles_to_remove = current_roles -- role_names
+           roles_to_add = role_names -- roles_before
+           roles_to_remove = roles_before -- role_names
 
            # Drop changes the actor isn't authorized to make (system-role
            # grants/revocations require Owner). Silently leaving them
@@ -1038,15 +1045,16 @@ defmodule PhoenixKit.Users.Roles do
            # Add roles that should be present
            assignments = Enum.map(roles_to_add, &assign_role_or_rollback(user, &1, repo))
 
-           new_user_roles = get_user_roles(user)
+           # The role set AFTER, still inside the transaction.
+           roles_after = get_user_roles(user)
 
-           %{assignments: assignments, new_user_roles: new_user_roles}
+           %{assignments: assignments, roles_before: roles_before, roles_after: roles_after}
          end) do
-      {:ok, %{assignments: assignments, new_user_roles: new_user_roles}} ->
-        Events.broadcast_user_roles_synced(user, new_user_roles)
+      {:ok, %{roles_after: roles_after} = result} ->
+        Events.broadcast_user_roles_synced(user, roles_after)
         ScopeNotifier.broadcast_roles_updated(user)
 
-        {:ok, assignments}
+        {:ok, result}
 
       {:error, reason} ->
         {:error, reason}
@@ -1073,8 +1081,17 @@ defmodule PhoenixKit.Users.Roles do
   defp guard_last_owner_removal(repo, %User{} = user, roles_to_remove) do
     owner = Role.system_roles().owner
 
-    if owner in roles_to_remove and count_remaining_owners(repo, user.uuid) < 1 do
-      repo.rollback(:cannot_remove_last_owner)
+    if owner in roles_to_remove do
+      # Serialize concurrent Owner removals: without this, two transactions each
+      # removing a *different* Owner both count one other Owner remaining and
+      # both commit, leaving zero. The transaction-scoped advisory lock (released
+      # on commit/rollback) makes the count-then-delete atomic across sessions,
+      # so the second remover observes the first's committed deletion.
+      repo.query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_last_owner_guard'))")
+
+      if count_remaining_owners(repo, user.uuid) < 1 do
+        repo.rollback(:cannot_remove_last_owner)
+      end
     end
   end
 

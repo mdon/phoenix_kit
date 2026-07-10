@@ -214,6 +214,20 @@ defmodule PhoenixKit.Integration.Users.RolesTest do
       assert Roles.user_has_role?(target, "Manager")
     end
 
+    test "returns the before/after role sets captured in the transaction (exact audit)" do
+      {:ok, _} = Roles.create_role(%{name: "Manager", description: "d"})
+      target = create_user()
+      before_roles = Roles.get_user_roles(target)
+
+      {:ok, result} =
+        Roles.sync_user_roles(target, before_roles ++ ["Manager"], actor: :system)
+
+      assert %{roles_before: rb, roles_after: ra, assignments: _} = result
+      assert Enum.sort(rb) == Enum.sort(before_roles)
+      assert "Manager" in ra
+      refute "Manager" in rb
+    end
+
     test "a non-Owner submitting an Owner's modal cannot strip Owner (disabled-checkbox wipe)" do
       # seed owner is the FIRST user; the target here is that seed owner
       seed_owner = create_user()

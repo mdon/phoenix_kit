@@ -218,25 +218,23 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   def handle_event("sync_user_roles", params, socket) do
     user = socket.assigns.managing_user
-    current_roles = socket.assigns.user_roles
     selected_roles = Map.get(params, "roles", %{})
     role_names = Map.values(selected_roles)
     actor = socket.assigns.phoenix_kit_current_user
 
     case Roles.sync_user_roles(user, role_names, actor: actor) do
-      {:ok, _assignments} ->
+      {:ok, %{roles_before: roles_before, roles_after: roles_after}} ->
         admin = socket.assigns.phoenix_kit_current_user
 
-        # Audit what was ACTUALLY applied, not what was submitted — the context
-        # silently drops role changes the actor isn't authorized to make (and
-        # preserves the last Owner), so the submitted set can differ from reality.
-        # Reads fresh by uuid (returns [] if the user was deleted mid-op — no crash).
-        applied_roles = Roles.get_user_roles(user)
-        added = applied_roles -- current_roles
-        removed = current_roles -- applied_roles
+        # Audit the exact delta this transaction applied — the context captures
+        # before/after inside the transaction and silently drops changes the
+        # actor isn't authorized to make (and preserves the last Owner), so the
+        # applied delta can differ from what was submitted.
+        added = roles_after -- roles_before
+        removed = roles_before -- roles_after
 
         if added != [] or removed != [] do
-          log_roles_updated(admin, user, current_roles, applied_roles, added, removed)
+          log_roles_updated(admin, user, roles_before, roles_after, added, removed)
         end
 
         socket =
@@ -286,7 +284,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       socket = put_flash(socket, :error, gettext("Cannot modify your own roles"))
       {:noreply, socket}
     else
-      handle_role_toggle_result(toggle_user_role(user, role_name, current_user), role_name, socket)
+      handle_role_toggle_result(
+        toggle_user_role(user, role_name, current_user),
+        role_name,
+        socket
+      )
     end
   end
 
@@ -851,8 +853,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         else: [role_name | get_user_roles(user)]
 
     case Roles.sync_user_roles(user, desired_roles, actor: actor) do
-      {:ok, _assignments} ->
-        now_has? = role_name in Roles.get_user_roles(user)
+      {:ok, %{roles_after: roles_after}} ->
+        now_has? = role_name in roles_after
 
         cond do
           now_has? and not had_role? -> {:ok, :added}

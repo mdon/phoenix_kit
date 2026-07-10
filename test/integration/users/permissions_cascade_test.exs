@@ -98,6 +98,41 @@ defmodule PhoenixKit.Integration.Users.PermissionsCascadeTest do
     end
   end
 
+  describe "revoke_permission/3 authorization" do
+    test "revoking a base is rejected when the actor can't manage a cascaded sub" do
+      role_uuid = get_role_uuid("User")
+      :ok = Permissions.set_permissions(role_uuid, [@base, @sub_view, @sub_edit])
+
+      # The actor may manage the base + view_others, but NOT edit_others.
+      grantable = MapSet.new([@base, @sub_view])
+
+      assert {:error, :unauthorized} =
+               Permissions.revoke_permission(role_uuid, @base, authorized_keys: grantable)
+
+      # The whole revoke rolled back — nothing was removed.
+      assert Enum.sort(Permissions.get_permissions_for_role(role_uuid)) ==
+               Enum.sort([@base, @sub_view, @sub_edit])
+    end
+
+    test "revoking a base succeeds when the actor can manage every cascaded key" do
+      role_uuid = get_role_uuid("User")
+      :ok = Permissions.set_permissions(role_uuid, [@base, @sub_view, @sub_edit])
+
+      grantable = MapSet.new([@base, @sub_view, @sub_edit])
+
+      assert :ok = Permissions.revoke_permission(role_uuid, @base, authorized_keys: grantable)
+      assert Permissions.get_permissions_for_role(role_uuid) == []
+    end
+
+    test "omitting authorized_keys skips the check (system caller)" do
+      role_uuid = get_role_uuid("User")
+      :ok = Permissions.set_permissions(role_uuid, [@base, @sub_view])
+
+      assert :ok = Permissions.revoke_permission(role_uuid, @base)
+      assert Permissions.get_permissions_for_role(role_uuid) == []
+    end
+  end
+
   describe "set_permissions/3 normalization" do
     test "a requested sub key pulls in its base key" do
       role_uuid = get_role_uuid("User")

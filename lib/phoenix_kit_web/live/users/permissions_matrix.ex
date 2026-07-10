@@ -91,7 +91,7 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
       # too, or an editor without "calendar.edit_others" could strip it from a
       # role by revoking the "calendar" base.
       if MapSet.subset?(affected_keys(key, role_key_set), grantable) do
-        toggle_role_permission(socket, role, key, scope)
+        toggle_role_permission(socket, role, key, scope, grantable)
       else
         {:noreply, put_flash(socket, :error, gettext("You can only manage permissions you have"))}
       end
@@ -131,14 +131,18 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
     end
   end
 
-  defp toggle_role_permission(socket, role, key, scope) do
+  defp toggle_role_permission(socket, role, key, scope, grantable) do
     granted_by_uuid = Scope.user_uuid(scope)
     role_uuid = to_string(role.uuid)
     role_keys = Map.get(socket.assigns.matrix, role_uuid, MapSet.new())
     label = Permissions.module_label(key)
 
     if MapSet.member?(role_keys, key) do
-      case Permissions.revoke_permission(role_uuid, key) do
+      # Authoritative, race-free revoke authorization: the context re-checks the
+      # role's actual held keys under a lock (the cached matrix above can be
+      # stale). `:unauthorized` means a concurrently-granted sub-key would have
+      # been cascaded — refresh so the editor sees the current state.
+      case Permissions.revoke_permission(role_uuid, key, authorized_keys: grantable) do
         :ok ->
           {:noreply,
            socket
@@ -149,6 +153,12 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
                role_name: role.name
              )
            )
+           |> refresh_matrix()}
+
+        {:error, :unauthorized} ->
+          {:noreply,
+           socket
+           |> put_flash(:error, gettext("You can only manage permissions you have"))
            |> refresh_matrix()}
 
         {:error, _reason} ->

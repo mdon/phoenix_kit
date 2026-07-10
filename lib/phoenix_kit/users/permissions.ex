@@ -743,29 +743,50 @@ defmodule PhoenixKit.Users.Permissions do
 
     role_uuid = resolve_role_uuid(role_uuid)
 
-    cond do
-      is_nil(role_uuid) ->
-        {:error, :role_not_found}
+    if is_nil(role_uuid) do
+      {:error, :role_not_found}
+    else
+      # Take the same advisory lock as revoke, so a base revoke's
+      # authorize-then-cascade can't interleave a concurrent sub grant. A
+      # sub-permission also pulls in its base — a sub row must never exist
+      # without module access, whatever path grants it. The base insert is an
+      # idempotent upsert, so an already-held base is unaffected.
+      base = base_key_of(module_key)
 
-      parent = parent_key(module_key) ->
-        grant_sub_with_parent(repo, role_uuid, parent, module_key, granted_by_uuid)
+      repo.transaction(fn ->
+        lock_role_module(repo, role_uuid, base)
 
-      true ->
-        grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid)
+        outcome =
+          case parent_key(module_key) do
+            nil ->
+              grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid)
+
+            parent ->
+              with {:ok, _base} <-
+                     grant_permission_insert(repo, role_uuid, parent, granted_by_uuid),
+                   {:ok, sub} <-
+                     grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid) do
+                {:ok, sub}
+              end
+          end
+
+        case outcome do
+          {:ok, record} -> record
+          {:error, changeset} -> repo.rollback(changeset)
+        end
+      end)
     end
   end
 
-  # Grants base + sub atomically. The base insert is an idempotent upsert, so
-  # a role that already holds the base key is unaffected by it.
-  defp grant_sub_with_parent(repo, role_uuid, parent, module_key, granted_by_uuid) do
-    repo.transaction(fn ->
-      with {:ok, _base} <- grant_permission_insert(repo, role_uuid, parent, granted_by_uuid),
-           {:ok, sub} <- grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid) do
-        sub
-      else
-        {:error, changeset} -> repo.rollback(changeset)
-      end
-    end)
+  defp base_key_of(module_key), do: parent_key(module_key) || module_key
+
+  # Transaction-scoped advisory lock serializing grant/revoke of one role's
+  # module tree (base + its sub-keys). Released automatically on commit/rollback.
+  defp lock_role_module(repo, role_uuid, base_key) do
+    repo.query!(
+      "SELECT pg_advisory_xact_lock(hashtext($1))",
+      ["pk_role_perm:#{role_uuid}:#{base_key}"]
+    )
   end
 
   defp grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid) do
@@ -797,29 +818,63 @@ defmodule PhoenixKit.Users.Permissions do
   Revoking a base module key also revokes all of its sub-permission keys in
   the same statement — a sub-permission row must never outlive module access.
   Revoking a sub-permission key removes only that key.
+
+  Pass `authorized_keys: MapSet.t()` to restrict the revoke to keys the caller
+  is allowed to manage: the role's currently-held keys among the cascade are
+  read **inside the transaction under an advisory lock**, and if any falls
+  outside `authorized_keys` the whole revoke is rejected with `:unauthorized`.
+  This closes the race where a caller's cached view misses a concurrently
+  granted sub-key it doesn't hold. Omitted (or `:all`) skips the check — for
+  system/internal callers.
   """
-  @spec revoke_permission(integer() | String.t(), String.t()) :: :ok | {:error, :not_found}
-  def revoke_permission(role_uuid, module_key) do
+  @spec revoke_permission(integer() | String.t(), String.t(), keyword()) ::
+          :ok | {:error, :not_found | :unauthorized}
+  def revoke_permission(role_uuid, module_key, opts \\ []) do
     repo = RepoHelper.repo()
-
     role_uuid = resolve_role_uuid(role_uuid)
+    authorized = Keyword.get(opts, :authorized_keys, :all)
+    base = base_key_of(module_key)
 
-    keys_to_remove = [
-      module_key | Enum.map(sub_permissions_for(module_key), & &1.key)
-    ]
+    keys_to_remove = [module_key | Enum.map(sub_permissions_for(module_key), & &1.key)]
 
-    from(rp in RolePermission,
-      where: rp.role_uuid == ^role_uuid and rp.module_key in ^keys_to_remove
-    )
-    |> repo.delete_all()
+    repo.transaction(fn ->
+      # Serialize with concurrent grants of this role's module tree, then read
+      # what the role ACTUALLY holds under the lock — so authorization can't
+      # miss a sub-key granted after the caller's (cached) view was built, and
+      # the base's cascade can't drop a key the caller isn't allowed to manage.
+      lock_role_module(repo, role_uuid, base)
+
+      present =
+        from(rp in RolePermission,
+          where: rp.role_uuid == ^role_uuid and rp.module_key in ^keys_to_remove,
+          select: rp.module_key
+        )
+        |> repo.all()
+
+      cond do
+        present == [] ->
+          repo.rollback(:not_found)
+
+        authorized != :all and not MapSet.subset?(MapSet.new(present), authorized) ->
+          repo.rollback(:unauthorized)
+
+        true ->
+          from(rp in RolePermission,
+            where: rp.role_uuid == ^role_uuid and rp.module_key in ^keys_to_remove
+          )
+          |> repo.delete_all()
+
+          :revoked
+      end
+    end)
     |> case do
-      {0, _} ->
-        {:error, :not_found}
-
-      {_, _} ->
+      {:ok, :revoked} ->
         Events.broadcast_permission_revoked(role_uuid, module_key)
         notify_affected_users(role_uuid)
         :ok
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
