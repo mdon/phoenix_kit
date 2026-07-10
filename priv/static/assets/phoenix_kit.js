@@ -4906,18 +4906,11 @@ if (typeof window.Chart === "undefined") {
         if (payload.id && payload.id !== this.el.id) return;
         if (this.stagingNow) return;
         if (this.el.value.trim() !== (payload.q || "")) return; // stale
-        var incoming = payload.results || [];
-        if (this.loadingMore) {
-          var seen = {};
-          this.results.forEach((r) => {
-            seen[r.kind + ":" + r.uuid] = true;
-          });
-          this.results = this.results.concat(
-            incoming.filter((r) => !seen[r.kind + ":" + r.uuid])
-          );
-        } else {
-          this.results = incoming;
-        }
+        // The server always answers with the FULL page for the requested
+        // limit — REPLACE the list, never merge: merging by kind+uuid can
+        // duplicate a person whose row legitimately changed source between
+        // pages (server-side dedup upgraded it, e.g. staff row -> user row).
+        this.results = payload.results || [];
         this.hasMore = !!payload.has_more;
         this.searching = false;
         this.loadingMore = false;
