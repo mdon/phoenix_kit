@@ -2291,6 +2291,106 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // PkDialogDraft — preserves an in-progress form across a LiveView RECONNECT
+  // (a websocket drop, e.g. on flaky/slow internet). A reconnect re-mounts the
+  // LiveView with fresh assigns, so a modal driven by a server flag collapses
+  // and the typed data is lost — LiveView's native form recovery can't help
+  // because the form isn't rendered after remount (a skeleton is). This hook
+  // keeps a live snapshot of the form in a JS variable (memory only — cleared
+  // on close and on unload, so a tab close / refresh is NOT preserved, by
+  // design) and, once reconnected, pushes it back so the server rebuilds the
+  // modal exactly where the user left off.
+  //
+  // Attach to a STABLE element that is always rendered (NOT the <dialog>,
+  // which already carries PkDialog and whose body is conditionally rendered):
+  //   <div phx-hook="PkDialogDraft" id="…"
+  //        data-draft-form="calendar-event-form"   (the <form> id to snapshot)
+  //        data-draft-restore-event="restore_event_draft"
+  //        data-draft-scope="#calendar-event-modal" (where owner/tz inputs live,
+  //                                                   outside the <form>)
+  //        data-draft-active="true|false"           (server: modal open + editable)
+  //        data-draft-key="new|<uuid>">             (which event)
+  var pkDialogDrafts = {};
+  var pkWasDisconnected = false;
+  if (typeof window !== "undefined") {
+    window.addEventListener("phx:disconnected", function () {
+      pkWasDisconnected = true;
+    });
+  }
+
+  window.PhoenixKitHooks.PkDialogDraft = {
+    mounted() {
+      var self = this;
+      this.formId = this.el.dataset.draftForm;
+      this.restoreEvent = this.el.dataset.draftRestoreEvent || "restore_draft";
+      this.scopeSel = this.el.dataset.draftScope;
+
+      this._snapshot = function () {
+        if (self.el.dataset.draftActive !== "true") {
+          delete pkDialogDrafts[self.el.id];
+          return;
+        }
+        var form = document.getElementById(self.formId);
+        if (!form) return;
+        var ev = {};
+        new FormData(form).forEach(function (v, k) {
+          var m = k.match(/^event\[(.+)\]$/);
+          if (m) ev[m[1]] = v;
+        });
+        // owner / owner_tz_entry live OUTSIDE the <form> (in the modal box)
+        var scope = self.scopeSel ? document.querySelector(self.scopeSel) : document;
+        var owner = scope && scope.querySelector('[name="owner"]');
+        var ownerTz = scope && scope.querySelector('[name="owner_tz_entry"]');
+        pkDialogDrafts[self.el.id] = {
+          key: self.el.dataset.draftKey || "new",
+          event: ev,
+          owner: owner ? owner.value : null,
+          owner_tz_entry: ownerTz && ownerTz.checked ? "true" : null,
+        };
+      };
+
+      this._onInput = function () {
+        self._snapshot();
+      };
+      // capture on every edit (bubbles up from the form's inputs)
+      document.addEventListener("input", this._onInput, true);
+      document.addEventListener("change", this._onInput, true);
+
+      this._onUnload = function () {
+        delete pkDialogDrafts[self.el.id];
+      };
+      window.addEventListener("beforeunload", this._onUnload);
+
+      // Reconnect restore: mounted() runs again after a reconnect re-mount.
+      // If we were disconnected and still hold a draft, hand it back so the
+      // server can reopen the modal with the user's data.
+      this._maybeRestore();
+    },
+
+    updated() {
+      this._maybeRestore();
+    },
+
+    _maybeRestore() {
+      if (!pkWasDisconnected) return;
+      var draft = pkDialogDrafts[this.el.id];
+      if (!draft) {
+        pkWasDisconnected = false;
+        return;
+      }
+      // only restore into a modal the server hasn't already reopened
+      if (this.el.dataset.draftActive === "true") return;
+      pkWasDisconnected = false;
+      this.pushEvent(this.restoreEvent, draft);
+    },
+
+    destroyed() {
+      document.removeEventListener("input", this._onInput, true);
+      document.removeEventListener("change", this._onInput, true);
+      window.removeEventListener("beforeunload", this._onUnload);
+    },
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();
