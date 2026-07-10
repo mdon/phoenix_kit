@@ -172,6 +172,31 @@ defmodule PhoenixKit.Integration.Users.PermissionsCascadeTest do
       assert :ok = Permissions.auto_grant_new_keys_to_admin()
       assert Permissions.count_permissions_for_role(admin_uuid) == count_first
     end
+
+    test "a NEW sub-key does not resurrect a base the Owner revoked" do
+      admin_uuid = get_role_uuid("Admin")
+
+      # first boot: base + subs granted, flags set
+      assert :ok = Permissions.auto_grant_new_keys_to_admin()
+      assert @base in Permissions.get_permissions_for_role(admin_uuid)
+
+      # Owner revokes the whole module from Admin (cascades subs off) and it
+      # must STICK — mark the base as manually revoked by clearing its rows
+      assert :ok = Permissions.revoke_permission(admin_uuid, @base)
+      refute @base in Permissions.get_permissions_for_role(admin_uuid)
+
+      # simulate a later release adding a brand-new sub-key: clear only its
+      # auto-grant flag so the next boot treats it as unseen
+      Settings.update_setting("auto_granted_perm:#{@sub_view}", "false")
+
+      assert :ok = Permissions.auto_grant_new_keys_to_admin()
+
+      perms = Permissions.get_permissions_for_role(admin_uuid)
+      # the sub's cascade must NOT re-insert the revoked base...
+      refute @base in perms
+      # ...and the sub itself is withheld while the base is revoked
+      refute @sub_view in perms
+    end
   end
 
   describe "Scope.for_user/1 Admin fallback scoping" do

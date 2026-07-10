@@ -1105,17 +1105,7 @@ defmodule PhoenixKit.Users.Permissions do
     else
       case Roles.get_role_by_name(Role.system_roles().admin) do
         %{uuid: admin_uuid} when not is_nil(admin_uuid) ->
-          case grant_permission(admin_uuid, key, nil) do
-            {:ok, _} ->
-              Settings.update_setting(flag_key, "true")
-
-            {:error, _} ->
-              Logger.warning(
-                "[Permissions] grant_permission failed for Admin role on key #{inspect(key)}, will retry next boot"
-              )
-          end
-
-          :ok
+          maybe_auto_grant(admin_uuid, key, flag_key)
 
         _ ->
           # Admin role not found (pre-V53 or missing), skip
@@ -1133,6 +1123,33 @@ defmodule PhoenixKit.Users.Permissions do
       end
 
       :ok
+  end
+
+  # Auto-grant one key, but never let a NEW sub-key resurrect a base that an
+  # Owner has revoked from Admin. Granting a sub normally cascades a grant of
+  # its base (grant_sub_with_parent); at boot that would silently undo the
+  # revocation. So a sub is auto-granted only while Admin still holds its
+  # base — and when it doesn't, we skip WITHOUT flagging, so a later
+  # re-grant of the base lets the sub auto-grant on a subsequent boot.
+  defp maybe_auto_grant(admin_uuid, key, flag_key) do
+    parent = parent_key(key)
+
+    if parent && not role_has_permission?(admin_uuid, parent) do
+      :ok
+    else
+      case grant_permission(admin_uuid, key, nil) do
+        {:ok, _} ->
+          Settings.update_setting(flag_key, "true")
+          :ok
+
+        {:error, _} ->
+          Logger.warning(
+            "[Permissions] grant_permission failed for Admin role on key #{inspect(key)}, will retry next boot"
+          )
+
+          :ok
+      end
+    end
   end
 
   # Coerces a value to a string, returning the default for nil.
