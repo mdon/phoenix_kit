@@ -888,6 +888,12 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   defp count_remaining_owners(repo, excluding_user_uuid) do
+    # Serialize EVERY Owner-removal decision at this shared chokepoint (sync,
+    # safely_remove_role/demote all count here before removing an Owner), so two
+    # concurrent removals can't both observe one remaining Owner and leave zero.
+    # Transaction-scoped advisory lock, released on the outer commit/rollback.
+    repo.query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_last_owner_guard'))")
+
     roles = Role.system_roles()
 
     repo.one(
@@ -1021,6 +1027,13 @@ defmodule PhoenixKit.Users.Roles do
     actor = Keyword.get(opts, :actor, :system)
 
     case repo.transaction(fn ->
+           # Serialize concurrent role edits for THIS user (per-user key, so
+           # different users never contend), so before/after reflect only this
+           # transaction's changes — an exact audit, and no interleaving.
+           repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+             "pk_user_roles:#{user.uuid}"
+           ])
+
            # The role set BEFORE this transaction's changes (read inside the
            # transaction, so it's the true baseline for an exact audit diff).
            roles_before = get_user_roles(user)
@@ -1081,17 +1094,10 @@ defmodule PhoenixKit.Users.Roles do
   defp guard_last_owner_removal(repo, %User{} = user, roles_to_remove) do
     owner = Role.system_roles().owner
 
-    if owner in roles_to_remove do
-      # Serialize concurrent Owner removals: without this, two transactions each
-      # removing a *different* Owner both count one other Owner remaining and
-      # both commit, leaving zero. The transaction-scoped advisory lock (released
-      # on commit/rollback) makes the count-then-delete atomic across sessions,
-      # so the second remover observes the first's committed deletion.
-      repo.query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_last_owner_guard'))")
-
-      if count_remaining_owners(repo, user.uuid) < 1 do
-        repo.rollback(:cannot_remove_last_owner)
-      end
+    # count_remaining_owners/2 takes the shared advisory lock, so the
+    # count-then-delete here is atomic against every other Owner-removal path.
+    if owner in roles_to_remove and count_remaining_owners(repo, user.uuid) < 1 do
+      repo.rollback(:cannot_remove_last_owner)
     end
   end
 
