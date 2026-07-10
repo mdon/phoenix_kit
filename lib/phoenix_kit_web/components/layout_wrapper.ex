@@ -285,7 +285,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 (assigns[:phoenix_kit_current_scope] &&
                    assigns[:phoenix_kit_current_scope].multi_session_allowed?) || false,
               auth_logo_url:
-                case PhoenixKit.Settings.get_setting("auth_logo_file_uuid", "") do
+                case PhoenixKit.Settings.get_logo_uuid() do
                   uuid when is_binary(uuid) and uuid != "" -> URLSigner.signed_url(uuid, "medium")
                   _ -> nil
                 end

@@ -92,7 +92,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
         socket
         |> put_flash(
           :error,
-          "Cannot set redundancy to #{requested_copies} copies. Only #{max_redundancy} active bucket(s) available."
+          gettext(
+            "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available.",
+            count: requested_copies,
+            max: max_redundancy
+          )
         )
 
       {:noreply, socket}
@@ -105,13 +109,17 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
             |> assign(:redundancy_copies, requested_copies)
             |> put_flash(
               :info,
-              "Redundancy settings updated to #{requested_copies} #{if requested_copies == 1, do: "copy", else: "copies"}"
+              ngettext(
+                "Redundancy settings updated to %{count} copy",
+                "Redundancy settings updated to %{count} copies",
+                requested_copies
+              )
             )
 
           {:noreply, socket}
 
         {:error, _changeset} ->
-          socket = put_flash(socket, :error, "Failed to update redundancy settings")
+          socket = put_flash(socket, :error, gettext("Failed to update redundancy settings"))
           {:noreply, socket}
       end
     end
@@ -217,7 +225,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
         socket
         |> put_flash(
           :error,
-          "Cannot set redundancy to #{new_redundancy} copies. Only #{max_redundancy} active bucket(s) available."
+          gettext(
+            "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available.",
+            count: new_redundancy,
+            max: max_redundancy
+          )
         )
 
       {:noreply, socket}
@@ -264,20 +276,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
             |> assign(:form_annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
             |> assign(:max_upload_size_mb, String.to_integer(saved_max_upload))
             |> assign(:form_max_upload_size_mb, String.to_integer(saved_max_upload))
-            |> put_flash(:info, "Storage settings updated successfully")
+            |> put_flash(:info, gettext("Storage settings updated successfully"))
 
           {:noreply, socket}
 
         {{:error, _}, {:ok, _}} ->
-          socket = put_flash(socket, :error, "Failed to update redundancy settings")
+          socket = put_flash(socket, :error, gettext("Failed to update redundancy settings"))
           {:noreply, socket}
 
         {{:ok, _}, {:error, _}} ->
-          socket = put_flash(socket, :error, "Failed to update variant settings")
+          socket = put_flash(socket, :error, gettext("Failed to update variant settings"))
           {:noreply, socket}
 
         {{:error, _}, {:error, _}} ->
-          socket = put_flash(socket, :error, "Failed to update storage settings")
+          socket = put_flash(socket, :error, gettext("Failed to update storage settings"))
           {:noreply, socket}
       end
     end
@@ -294,13 +306,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
           |> assign(:auto_generate_variants, new_value == "true")
           |> put_flash(
             :info,
-            "Auto-variant generation #{if new_value == "true", do: "enabled", else: "disabled"}"
+            if(new_value == "true",
+              do: gettext("Auto-variant generation enabled"),
+              else: gettext("Auto-variant generation disabled")
+            )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update variant settings")
+        socket = put_flash(socket, :error, gettext("Failed to update variant settings"))
         {:noreply, socket}
     end
   end
@@ -313,12 +328,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
         socket =
           socket
           |> assign(:default_bucket_uuid, new_value)
-          |> put_flash(:info, "Default bucket updated")
+          |> put_flash(:info, gettext("Default bucket updated"))
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update default bucket")
+        socket = put_flash(socket, :error, gettext("Failed to update default bucket"))
         {:noreply, socket}
     end
   end
@@ -326,19 +341,23 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   def handle_event("toggle_bucket", %{"id" => bucket_uuid}, socket) do
     case Storage.get_bucket(bucket_uuid) do
       nil ->
-        {:noreply, put_flash(socket, :error, "Bucket not found")}
+        {:noreply, put_flash(socket, :error, gettext("Bucket not found"))}
 
       bucket ->
         new_enabled = !bucket.enabled
 
         case Storage.update_bucket(bucket, %{enabled: new_enabled}) do
           {:ok, _bucket} ->
-            action = if new_enabled, do: "enabled", else: "disabled"
+            message =
+              if new_enabled,
+                do: gettext("Bucket enabled successfully"),
+                else: gettext("Bucket disabled successfully")
+
             socket = reload_settings_data(socket)
-            {:noreply, put_flash(socket, :info, "Bucket #{action} successfully")}
+            {:noreply, put_flash(socket, :info, message)}
 
           {:error, _changeset} ->
-            {:noreply, put_flash(socket, :error, "Failed to update bucket")}
+            {:noreply, put_flash(socket, :error, gettext("Failed to update bucket"))}
         end
     end
   end
@@ -358,12 +377,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
           |> assign(:buckets, buckets)
           |> assign(:active_buckets_count, active_buckets_count)
           |> assign(:max_redundancy, max_redundancy)
-          |> put_flash(:info, "Bucket deleted successfully")
+          |> put_flash(:info, gettext("Bucket deleted successfully"))
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to delete bucket")
+        socket = put_flash(socket, :error, gettext("Failed to delete bucket"))
         {:noreply, socket}
     end
   end
@@ -376,12 +395,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
         socket =
           socket
           |> reload_settings_data()
-          |> put_flash(:info, "Storage module repaired: #{repair_summary}")
+          |> put_flash(
+            :info,
+            gettext("Storage module repaired: %{summary}", summary: repair_summary)
+          )
 
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, "Failed to repair: #{inspect(reason)}")
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to repair: %{reason}", reason: inspect(reason))
+          )
+
         {:noreply, socket}
     end
   end

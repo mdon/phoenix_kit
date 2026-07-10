@@ -174,4 +174,81 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
     "#{site_url}#{url_prefix}/users/auth/#{provider}/callback"
   end
+
+  @doc """
+  Collapsible per-provider OAuth setup guide: the callback-URL box with a copy
+  button, the provider-specific console steps (slot), and the reverse-proxy
+  notice. One component instead of four hand-copied ~95-line blocks.
+  """
+  attr :callback_url, :string, required: true
+  attr :copy_hint, :string, required: true, doc: "e.g. \"Copy this URL to Google Cloud Console\""
+  slot :steps, required: true, doc: "provider-specific <li> instruction items"
+
+  def oauth_setup_instructions(assigns) do
+    ~H"""
+    <div class="collapse collapse-arrow bg-base-200 mt-4">
+      <input type="checkbox" class="peer" />
+      <div class="collapse-title text-sm font-medium">
+        {gettext("Setup Instructions")}
+      </div>
+      <div class="collapse-content text-sm space-y-4">
+        <%!-- Callback URL --%>
+        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+          <div class="flex items-start gap-3">
+            <.icon
+              name="hero-information-circle"
+              class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
+            />
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold text-base-content mb-2">
+                {gettext("Callback URL")}
+              </div>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
+                  {@callback_url}
+                </code>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-square btn-outline"
+                  onclick={"navigator.clipboard.writeText('#{@callback_url}')"}
+                  title={gettext("Copy to clipboard")}
+                >
+                  <.icon name="hero-clipboard" class="h-4 w-4" />
+                </button>
+              </div>
+              <div class="text-xs text-base-content/60 mt-2">{@copy_hint}</div>
+            </div>
+          </div>
+        </div>
+
+        <%!-- Provider-specific steps --%>
+        <div class="space-y-3">
+          <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+            {render_slot(@steps)}
+          </ol>
+        </div>
+
+        <%!-- Reverse Proxy Notice --%>
+        <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+          <div class="flex items-start gap-2">
+            <.icon name="hero-information-circle" class="h-4 w-4 text-info shrink-0 mt-0.5" />
+            <div class="text-base-content/80">
+              <strong class="text-base-content">
+                {gettext("Reverse Proxy Users:")}
+              </strong>
+              {gettext("If behind nginx/apache, ensure")}
+              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                X-Forwarded-Proto
+              </code>
+              {gettext("header is set to")}
+              <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
+                https
+              </code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

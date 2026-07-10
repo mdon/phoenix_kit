@@ -45,6 +45,8 @@
             value={@saved_settings["track_registration_geolocation"]}
           />
 
+          <.section_header icon="hero-identification" title={gettext("Site Identity")} />
+
           <%!-- Project Title Setting --%>
           <div class="form-control w-full">
             <label class="label">
@@ -61,20 +63,10 @@
               placeholder={gettext("Enter project title")}
               phx-debounce="500"
             />
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["project_title"] != @saved_settings["project_title"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {@settings["project_title"]}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {@saved_settings["project_title"]}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {@settings["project_title"]}
-                <% end %>
-              </span>
-            </div>
+            <.unsaved_hint
+              dirty={@settings["project_title"] != @saved_settings["project_title"]}
+              saved={@saved_settings["project_title"]}
+            />
           </div>
 
           <%!-- Project Logo --%>
@@ -116,16 +108,24 @@
             <div class="label">
               <span class="label-text-alt text-xs text-base-content/50">
                 {gettext(
-                  "Logo displayed across the application. Leave empty to show project title text."
+                  "Logo displayed across the application. Falls back to the site icon, then the project title text."
                 )}
+                <%= if (@settings["auth_logo_file_uuid"] || "") == "" &&
+                      (@settings["site_icon_file_uuid"] || "") != "" do %>
+                  <span class="text-info">{gettext("Currently using the site icon.")}</span>
+                <% end %>
               </span>
             </div>
           </div>
 
-          <%!-- Site Icon (Favicon) --%>
+          <%!-- Browser Tab: site icon + default tab title as one identity group,
+               with a live browser-chrome preview (WordPress site-icon style). --%>
           <div class="form-control w-full">
             <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Site Icon")}</span>
+              <span class="label-text text-base font-medium">{gettext("Browser Tab")}</span>
+              <span class="label-text-alt text-sm text-base-content/60">
+                {gettext("Site icon and tab title")}
+              </span>
             </label>
             <input
               type="hidden"
@@ -133,86 +133,183 @@
               value={@settings["site_icon_file_uuid"]}
             />
 
-            <%!-- Browser Tab Preview --%>
-            <div class="mb-3">
-              <div class="inline-flex items-center bg-base-200 rounded-t-lg border border-base-300 px-3 py-1.5 gap-2 max-w-xs">
-                <%= if (@settings["site_icon_file_uuid"] || "") != "" do %>
-                  <img
-                    src={signed_preview_url(@settings["site_icon_file_uuid"], "thumbnail")}
-                    alt=""
-                    class="w-4 h-4 rounded-sm object-cover"
+            <%!-- The favicon defaults to the project logo when unset (and vice
+                 versa) — mirror that fallback so the preview shows what the
+                 browser will actually render. --%>
+            <% preview_icon_uuid =
+              if (@settings["site_icon_file_uuid"] || "") != "",
+                do: @settings["site_icon_file_uuid"],
+                else: @settings["auth_logo_file_uuid"] %>
+
+            <div class="rounded-box border border-base-300 overflow-hidden">
+              <%!-- Live preview: tab strip. The title updates as you type
+                   (the form's phx-change refreshes @settings). --%>
+              <div class="bg-base-200 px-4 pt-3">
+                <div class="flex items-end gap-2">
+                  <div class="hidden sm:flex items-center gap-1.5 mb-2.5 mr-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-error/60"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-warning/60"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-success/60"></span>
+                  </div>
+                  <div class="flex items-center gap-2 bg-base-100 rounded-t-lg px-3 py-2 min-w-0 max-w-[260px] shadow-sm">
+                    <%= if (preview_icon_uuid || "") != "" do %>
+                      <img
+                        src={signed_preview_url(preview_icon_uuid, "thumbnail")}
+                        alt=""
+                        class="w-4 h-4 rounded-sm object-cover shrink-0"
+                      />
+                    <% else %>
+                      <.icon name="hero-globe-alt" class="w-4 h-4 text-base-content/30 shrink-0" />
+                    <% end %>
+                    <span class="text-xs font-medium truncate">
+                      {if (@settings["default_tab_title"] || "") != "",
+                        do: @settings["default_tab_title"],
+                        else: @settings["project_title"] || "My Site"}
+                    </span>
+                    <.icon
+                      name="hero-x-mark"
+                      class="w-3 h-3 text-base-content/40 shrink-0 ml-auto"
+                    />
+                  </div>
+                  <div class="mb-2.5 ml-1 text-base-content/40">
+                    <.icon name="hero-plus" class="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </div>
+              <%!-- Address bar --%>
+              <div class="bg-base-100 border-b border-base-300 px-4 py-2 flex items-center gap-3">
+                <div class="hidden sm:flex items-center gap-2 text-base-content/25">
+                  <.icon name="hero-arrow-left" class="w-3.5 h-3.5" />
+                  <.icon name="hero-arrow-right" class="w-3.5 h-3.5" />
+                  <.icon name="hero-arrow-path" class="w-3.5 h-3.5" />
+                </div>
+                <div class="flex items-center gap-1.5 bg-base-200 rounded-full px-3 py-1 flex-1 max-w-xs min-w-0">
+                  <.icon name="hero-lock-closed" class="w-3 h-3 text-base-content/40 shrink-0" />
+                  <span class="text-xs text-base-content/50 truncate">{site_host()}</span>
+                </div>
+              </div>
+
+              <%!-- Controls --%>
+              <div class="p-4 sm:p-5 bg-base-100 flex flex-col sm:flex-row gap-5">
+                <div class="flex items-start gap-4">
+                  <%= if (@settings["site_icon_file_uuid"] || "") != "" do %>
+                    <img
+                      src={signed_preview_url(@settings["site_icon_file_uuid"], "thumbnail")}
+                      alt={gettext("Site icon preview")}
+                      class="w-16 h-16 rounded-2xl object-cover ring-1 ring-base-300 shadow-sm shrink-0"
+                    />
+                    <div class="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm"
+                        phx-click="open_media_selector"
+                        phx-value-target="site_icon"
+                      >
+                        {gettext("Change icon")}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm text-error"
+                        phx-click="clear_image"
+                        phx-value-target="site_icon"
+                      >
+                        {gettext("Remove")}
+                      </button>
+                    </div>
+                  <% else %>
+                    <button
+                      type="button"
+                      class="w-16 h-16 rounded-2xl border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors shrink-0"
+                      title={gettext("Select site icon")}
+                      phx-click="open_media_selector"
+                      phx-value-target="site_icon"
+                    >
+                      <.icon name="hero-photo" class="w-6 h-6" />
+                    </button>
+                    <div class="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm"
+                        phx-click="open_media_selector"
+                        phx-value-target="site_icon"
+                      >
+                        {gettext("Select site icon")}
+                      </button>
+                      <p class="text-xs text-base-content/50 max-w-[16rem]">
+                        {gettext("Square, at least 512×512 pixels.")}
+                        <%= if (@settings["auth_logo_file_uuid"] || "") != "" do %>
+                          {gettext("Currently using the project logo.")}
+                        <% end %>
+                      </p>
+                    </div>
+                  <% end %>
+                </div>
+
+                <div class="divider divider-horizontal m-0 hidden sm:flex"></div>
+
+                <div class="flex-1 min-w-0">
+                  <label class="label pt-0 pb-1">
+                    <span class="label-text text-sm font-medium">
+                      {gettext("Default Tab Title")}
+                    </span>
+                  </label>
+                  <input
+                    name="settings[default_tab_title]"
+                    type="text"
+                    value={@settings["default_tab_title"]}
+                    class="input input-bordered w-full focus:input-primary"
+                    placeholder={@settings["project_title"] || gettext("e.g. Welcome to My Site")}
+                    phx-debounce="300"
                   />
-                <% else %>
-                  <div class="w-4 h-4 rounded-sm bg-base-300"></div>
-                <% end %>
-                <span class="text-xs truncate max-w-[180px]">
-                  {if (@settings["default_tab_title"] || "") != "",
-                    do: @settings["default_tab_title"],
-                    else: @settings["project_title"] || "My Site"}
-                </span>
-                <span class="text-base-content/30 text-xs">×</span>
+                  <p class="text-xs text-base-content/50 mt-2">
+                    {gettext(
+                      "Shown when a page doesn't set its own title. Leave empty to use the project title."
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <%= if (@settings["site_icon_file_uuid"] || "") != "" do %>
-              <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg">
-                <img
-                  src={signed_preview_url(@settings["site_icon_file_uuid"], "thumbnail")}
-                  alt="Site icon preview"
-                  class="h-12 w-12 rounded object-cover"
-                />
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  phx-click="clear_image"
-                  phx-value-target="site_icon"
-                >
-                  {gettext("Remove")}
-                </button>
-              </div>
-            <% else %>
-              <button
-                type="button"
-                class="btn btn-outline btn-sm w-fit"
-                phx-click="open_media_selector"
-                phx-value-target="site_icon"
-              >
-                {gettext("Select Image")}
-              </button>
-            <% end %>
             <div class="label">
               <span class="label-text-alt text-xs text-base-content/50">
                 {gettext(
-                  "Shown in browser tabs and bookmarks. Should be square, at least 512×512 pixels."
+                  "The icon appears in browser tabs, bookmarks, and on phone home screens."
                 )}
               </span>
             </div>
           </div>
 
-          <%!-- Default Tab Title --%>
+          <.section_header icon="hero-globe-alt" title={gettext("Site Address")} />
+
+          <%!-- Site Address URL Setting --%>
           <div class="form-control w-full">
             <label class="label">
               <span class="label-text text-base font-medium">
-                {gettext("Default Tab Title")}
+                {gettext("Site Address (URL)")}
               </span>
               <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("Browser tab fallback")}
+                {gettext("Public base URL of this application")}
               </span>
             </label>
             <input
-              name="settings[default_tab_title]"
-              type="text"
-              value={@settings["default_tab_title"]}
+              name="settings[site_url]"
+              type="url"
+              value={@settings["site_url"]}
               class="input input-bordered w-full focus:input-primary"
-              placeholder={gettext("e.g. Welcome to My Site")}
+              placeholder="https://site.com"
               phx-debounce="500"
             />
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                {gettext("Text shown in the browser tab when a page doesn't set its own title.")}
-              </span>
-            </div>
+            <.unsaved_hint
+              dirty={@settings["site_url"] != @saved_settings["site_url"]}
+              saved={
+                if @saved_settings["site_url"] != "",
+                  do: @saved_settings["site_url"],
+                  else: gettext("(empty)")
+              }
+            />
           </div>
+
+          <.section_header icon="hero-adjustments-horizontal" title={gettext("Features")} />
 
           <%!-- Notifications --%>
           <div class="form-control w-full">
@@ -297,208 +394,124 @@
             </div>
           </div>
 
-          <%!-- Site Address URL Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">
-                {gettext("Site Address (URL)")}
-              </span>
-            </label>
-            <input
-              name="settings[site_url]"
-              type="url"
-              value={@settings["site_url"]}
-              class="input input-bordered w-full focus:input-primary"
-              placeholder="https://site.com"
-              phx-debounce="500"
-            />
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["site_url"] != @saved_settings["site_url"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {if @settings["site_url"] != "",
-                      do: @settings["site_url"],
-                      else: gettext("(empty)")}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {if @saved_settings["site_url"] != "",
-                      do: @saved_settings["site_url"],
-                      else: gettext("(empty)")}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {if @settings["site_url"] != "",
-                    do: @settings["site_url"],
-                    else: gettext("(empty)")}
-                <% end %>
-              </span>
-            </div>
-          </div>
+          <.section_header icon="hero-clock" title={gettext("Date & Time")} />
 
-          <%!-- Week Start Day Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Week Start On")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("First day of the week")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[week_start_day]">
-                <%= for {label, value} <- @setting_options["week_start_day"] do %>
-                  <option value={value} selected={value == @settings["week_start_day"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["week_start_day"] != @saved_settings["week_start_day"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["week_start_day"],
-                      @setting_options["week_start_day"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["week_start_day"],
-                      @setting_options["week_start_day"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["week_start_day"],
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            <%!-- Week Start Day Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Week Start On")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("First day of the week")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[week_start_day]">
+                  <%= for {label, value} <- @setting_options["week_start_day"] do %>
+                    <option value={value} selected={value == @settings["week_start_day"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <.unsaved_hint
+                dirty={@settings["week_start_day"] != @saved_settings["week_start_day"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["week_start_day"],
                     @setting_options["week_start_day"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
-          </div>
 
-          <%!-- Time Zone Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Time Zone")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("System default timezone")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[time_zone]">
-                <%= for {label, value} <- @setting_options["time_zone"] do %>
-                  <option value={value} selected={value == @settings["time_zone"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["time_zone"] != @saved_settings["time_zone"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_timezone_label(
-                      @settings["time_zone"],
-                      @setting_options
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_timezone_label(
-                      @saved_settings["time_zone"],
-                      @setting_options
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_timezone_label(
-                    @settings["time_zone"],
-                    @setting_options
-                  )}
-                <% end %>
-              </span>
+            <%!-- Time Zone Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Time Zone")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("System default timezone")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[time_zone]">
+                  <%= for {label, value} <- @setting_options["time_zone"] do %>
+                    <option value={value} selected={value == @settings["time_zone"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <.unsaved_hint
+                dirty={@settings["time_zone"] != @saved_settings["time_zone"]}
+                saved={get_timezone_label(@saved_settings["time_zone"], @setting_options)}
+              />
             </div>
-          </div>
 
-          <%!-- Date Format Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Date Format")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("How dates are displayed")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[date_format]">
-                <%= for {label, value} <- @setting_options["date_format"] do %>
-                  <option value={value} selected={value == @settings["date_format"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["date_format"] != @saved_settings["date_format"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["date_format"],
-                      @setting_options["date_format"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["date_format"],
-                      @setting_options["date_format"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["date_format"],
+            <%!-- Date Format Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Date Format")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("How dates are displayed")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[date_format]">
+                  <%= for {label, value} <- @setting_options["date_format"] do %>
+                    <option value={value} selected={value == @settings["date_format"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext("Example:")} {get_current_date_example(@settings["date_format"])}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["date_format"] != @saved_settings["date_format"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["date_format"],
                     @setting_options["date_format"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
-          </div>
 
-          <%!-- Time Format Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Time Format")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("How times are displayed")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[time_format]">
-                <%= for {label, value} <- @setting_options["time_format"] do %>
-                  <option value={value} selected={value == @settings["time_format"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["time_format"] != @saved_settings["time_format"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["time_format"],
-                      @setting_options["time_format"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["time_format"],
-                      @setting_options["time_format"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["time_format"],
+            <%!-- Time Format Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Time Format")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("How times are displayed")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[time_format]">
+                  <%= for {label, value} <- @setting_options["time_format"] do %>
+                    <option value={value} selected={value == @settings["time_format"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext("Example:")} {get_current_time_example(@settings["time_format"])}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["time_format"] != @saved_settings["time_format"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["time_format"],
                     @setting_options["time_format"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
           </div>
 
@@ -523,6 +536,11 @@
               type="button"
               class="btn btn-outline"
               phx-click="reset_to_defaults"
+              data-confirm={
+                gettext(
+                  "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
+                )
+              }
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-4 h-4 mr-2" /> {gettext(
                 "Reset"
@@ -531,55 +549,14 @@
           </div>
         </.form>
 
-        <%!-- Information Panel --%>
-        <div class="divider">{gettext("Information")}</div>
-
-        <div class="bg-base-200 rounded-lg p-4 mt-6">
-          <div class="flex items-start gap-3">
-            <div class="text-2xl">💡</div>
-            <div class="flex-1">
-              <h3 class="font-semibold text-base-content mb-2">
-                {gettext("About System Settings")}
-              </h3>
-              <ul class="text-sm text-base-content/70 space-y-1">
-                <li>
-                  {gettext("• Make changes to dropdowns and click \"Save All Settings\" to apply")}
-                </li>
-                <li>
-                  {gettext("• Changes show \"Selected\" vs \"Saved\" values until you click Save")}
-                </li>
-                <li>
-                  {gettext(
-                    "• User settings (registration, defaults, custom fields) are managed separately"
-                  )}
-                </li>
-                <li>
-                  {gettext(
-                    "• Week start day controls which day begins the week (useful for calendar features)"
-                  )}
-                </li>
-                <li>
-                  {gettext("• Time zone affects date/time display throughout the system")}
-                </li>
-                <li>
-                  {gettext(
-                    "• Date formats control how dates appear (e.g. Users dashboard \"Registered\" field)"
-                  )}
-                </li>
-                <li>{gettext("• Time formats control 12-hour vs 24-hour time display")}</li>
-                <li>
-                  {gettext(
-                    "• Settings are applied system-wide and use Timex for robust formatting"
-                  )}
-                </li>
-                <li>
-                  {gettext(
-                    "• Currently supports 6 date formats including \"September 2, 2025\" style"
-                  )}
-                </li>
-              </ul>
-            </div>
-          </div>
+        <%!-- Footnote --%>
+        <div class="flex items-start gap-2 mt-6 text-xs text-base-content/50">
+          <.icon name="hero-information-circle" class="w-4 h-4 shrink-0 mt-0.5" />
+          <p>
+            {gettext(
+              "Changes apply system-wide after \"Save All Settings\". Registration and user defaults are managed on the Users page."
+            )}
+          </p>
         </div>
       </div>
     </div>

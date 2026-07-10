@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Storage Dimensions"
+  page_title={gettext("Instance Dimensions")}
   current_path={@current_path}
   current_locale={@current_locale}
   project_title={@project_title}
@@ -11,36 +11,35 @@
       back={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
       title={gettext("Instance Dimensions")}
       subtitle={gettext("Manage dimension presets for automatic file instance generation")}
-    />
+    >
+      <:actions>
+        <button
+          phx-click="reset_dimensions_to_defaults"
+          data-confirm={
+            gettext(
+              "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
+            )
+          }
+          class="btn btn-outline btn-error btn-sm"
+        >
+          <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext("Reset to Defaults")}
+        </button>
+      </:actions>
+    </.admin_page_header>
 
     <%!-- Info Alert --%>
     <div class="alert alert-info mb-6">
       <.icon name="hero-information-circle" class="w-5 h-5" />
       <div>
-        <div class="flex justify-between items-start">
-          <div>
-            <h3 class="font-bold">{gettext("Dimension Presets")}</h3>
-            <p class="text-sm">
-              {gettext(
-                "Dimensions define the target sizes for automatic variant generation. Images are resized and videos are transcoded to these preset sizes."
-              )}
-              {gettext(
-                "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
-              )}
-            </p>
-          </div>
-          <button
-            phx-click="reset_dimensions_to_defaults"
-            data-confirm={
-              gettext(
-                "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
-              )
-            }
-            class="btn btn-error btn-sm"
-          >
-            <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext("Reset to Defaults")}
-          </button>
-        </div>
+        <h3 class="font-bold">{gettext("Dimension Presets")}</h3>
+        <p class="text-sm">
+          {gettext(
+            "Dimensions define the target sizes for automatic variant generation. Images are resized and videos are transcoded to these preset sizes."
+          )}
+          {gettext(
+            "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
+          )}
+        </p>
       </div>
     </div>
 
@@ -61,7 +60,7 @@
                 navigate={
                   PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/image")
                 }
-                class="btn btn-info"
+                class="btn btn-primary"
               >
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Image Dimension")}
               </.link>
@@ -69,7 +68,7 @@
                 navigate={
                   PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/video")
                 }
-                class="btn btn-warning"
+                class="btn btn-outline"
               >
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
               </.link>
@@ -78,19 +77,18 @@
         <% else %>
           <%!-- Image Dimensions --%>
           <div class="mb-8">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-2xl font-bold text-info">
-                <.icon name="hero-photo" class="w-6 h-6 mr-2" /> {gettext("Image Dimensions")}
-              </h3>
-              <.link
-                navigate={
-                  PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/image")
-                }
-                class="btn btn-info"
-              >
-                <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Image Dimension")}
-              </.link>
-            </div>
+            <.section_header icon="hero-photo" title={gettext("Image Dimensions")} class="mb-4">
+              <:actions>
+                <.link
+                  navigate={
+                    PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/image")
+                  }
+                  class="btn btn-primary btn-sm"
+                >
+                  <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Image Dimension")}
+                </.link>
+              </:actions>
+            </.section_header>
 
             <% image_dims =
               Enum.filter(@dimensions, &(&1.applies_to in ["image", "both"])) %>
@@ -279,21 +277,22 @@
 
           <%!-- Video Dimensions --%>
           <div>
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-2xl font-bold text-warning">
-                <.icon name="hero-video-camera" class="w-6 h-6 mr-2" /> {gettext(
-                  "Video Dimensions"
-                )}
-              </h3>
-              <.link
-                navigate={
-                  PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/video")
-                }
-                class="btn btn-warning"
-              >
-                <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
-              </.link>
-            </div>
+            <.section_header
+              icon="hero-video-camera"
+              title={gettext("Video Dimensions")}
+              class="mb-4"
+            >
+              <:actions>
+                <.link
+                  navigate={
+                    PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/video")
+                  }
+                  class="btn btn-primary btn-sm"
+                >
+                  <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
+                </.link>
+              </:actions>
+            </.section_header>
 
             <% video_dims =
               Enum.filter(@dimensions, &(&1.applies_to in ["video", "both"])) %>

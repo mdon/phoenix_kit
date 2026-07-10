@@ -249,6 +249,46 @@ defmodule PhoenixKit.Settings do
   end
 
   @doc """
+  Resolved site-icon file uuid: the `site_icon_file_uuid` setting, falling
+  back to the project logo (`auth_logo_file_uuid`) when unset — the two
+  branding images default to each other, so setting either brands both the
+  browser tab and the app chrome. Returns `""` when neither is set.
+
+  Cache-backed reads — the favicon renders in `<head>` on every page.
+  """
+  def get_site_icon_uuid do
+    first_present_setting(
+      ["site_icon_file_uuid", "auth_logo_file_uuid"],
+      &get_setting_cached(&1, "")
+    )
+  end
+
+  @doc """
+  Resolved project-logo file uuid: the `auth_logo_file_uuid` setting, falling
+  back to the site icon (`site_icon_file_uuid`) when unset — the counterpart
+  of `get_site_icon_uuid/0`. Returns `""` when neither is set (consumers then
+  fall back to the project title text).
+
+  Uncached reads, matching the layout wrappers' existing read strategy (so a
+  logo change shows cluster-wide without a restart).
+  """
+  def get_logo_uuid do
+    first_present_setting(
+      ["auth_logo_file_uuid", "site_icon_file_uuid"],
+      &get_setting(&1, "")
+    )
+  end
+
+  defp first_present_setting(keys, getter) do
+    Enum.find_value(keys, "", fn key ->
+      case getter.(key) do
+        uuid when is_binary(uuid) and uuid != "" -> uuid
+        _ -> nil
+      end
+    end)
+  end
+
+  @doc """
   Gets a setting value from cache with fallback to database.
 
   This is the preferred method for getting settings as it provides

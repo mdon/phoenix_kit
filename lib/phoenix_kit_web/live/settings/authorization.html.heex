@@ -77,10 +77,7 @@
             value={@saved_settings["track_registration_geolocation"]}
           />
 
-          <%!-- Login Page Branding --%>
-          <div class="divider text-sm text-base-content/50">
-            {gettext("Login Page Branding")}
-          </div>
+          <.section_header icon="hero-paint-brush" title={gettext("Login Page Branding")} />
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="form-control w-full">
@@ -94,32 +91,43 @@
                 name="settings[auth_background_image_file_uuid]"
                 value={@settings["auth_background_image_file_uuid"]}
               />
-              <%= if @settings["auth_background_image_file_uuid"] != "" do %>
-                <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg">
+              <%= if (@settings["auth_background_image_file_uuid"] || "") != "" do %>
+                <div class="flex items-center gap-4">
                   <img
                     src={
                       signed_preview_url(@settings["auth_background_image_file_uuid"], "medium")
                     }
-                    alt="Background preview"
-                    class="h-16 w-24 object-cover rounded"
+                    alt={gettext("Background preview")}
+                    class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
                   />
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-sm"
-                    phx-click="clear_branding_image"
-                    phx-value-target="background"
-                  >
-                    {gettext("Remove")}
-                  </button>
+                  <div class="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-outline btn-sm"
+                      phx-click="open_media_selector"
+                      phx-value-target="background"
+                    >
+                      {gettext("Change image")}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm text-error"
+                      phx-click="clear_branding_image"
+                      phx-value-target="background"
+                    >
+                      {gettext("Remove")}
+                    </button>
+                  </div>
                 </div>
               <% else %>
                 <button
                   type="button"
-                  class="btn btn-outline btn-sm w-fit"
+                  class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
+                  title={gettext("Select Image")}
                   phx-click="open_media_selector"
                   phx-value-target="background"
                 >
-                  {gettext("Select Image")}
+                  <.icon name="hero-photo" class="w-6 h-6" />
                 </button>
               <% end %>
               <div class="label">
@@ -129,6 +137,10 @@
                   )}
                 </span>
               </div>
+              <.unsaved_hint dirty={
+                @settings["auth_background_image_file_uuid"] !=
+                  @saved_settings["auth_background_image_file_uuid"]
+              } />
             </div>
 
             <div class="form-control w-full">
@@ -142,8 +154,8 @@
                 name="settings[auth_background_image_mobile_file_uuid]"
                 value={@settings["auth_background_image_mobile_file_uuid"]}
               />
-              <%= if @settings["auth_background_image_mobile_file_uuid"] != "" do %>
-                <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg">
+              <%= if (@settings["auth_background_image_mobile_file_uuid"] || "") != "" do %>
+                <div class="flex items-center gap-4">
                   <img
                     src={
                       signed_preview_url(
@@ -151,26 +163,37 @@
                         "medium"
                       )
                     }
-                    alt="Mobile background preview"
-                    class="h-16 w-24 object-cover rounded"
+                    alt={gettext("Mobile background preview")}
+                    class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
                   />
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-sm"
-                    phx-click="clear_branding_image"
-                    phx-value-target="background_mobile"
-                  >
-                    {gettext("Remove")}
-                  </button>
+                  <div class="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-outline btn-sm"
+                      phx-click="open_media_selector"
+                      phx-value-target="background_mobile"
+                    >
+                      {gettext("Change image")}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm text-error"
+                      phx-click="clear_branding_image"
+                      phx-value-target="background_mobile"
+                    >
+                      {gettext("Remove")}
+                    </button>
+                  </div>
                 </div>
               <% else %>
                 <button
                   type="button"
-                  class="btn btn-outline btn-sm w-fit"
+                  class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
+                  title={gettext("Select Image")}
                   phx-click="open_media_selector"
                   phx-value-target="background_mobile"
                 >
-                  {gettext("Select Image")}
+                  <.icon name="hero-photo" class="w-6 h-6" />
                 </button>
               <% end %>
               <div class="label">
@@ -180,6 +203,10 @@
                   )}
                 </span>
               </div>
+              <.unsaved_hint dirty={
+                @settings["auth_background_image_mobile_file_uuid"] !=
+                  @saved_settings["auth_background_image_mobile_file_uuid"]
+              } />
             </div>
           </div>
 
@@ -204,19 +231,18 @@
                 )}
               </span>
             </div>
+            <.unsaved_hint
+              dirty={
+                @settings["auth_background_color"] != @saved_settings["auth_background_color"]
+              }
+              saved={@saved_settings["auth_background_color"]}
+            />
           </div>
+
+          <.section_header icon="hero-key" title={gettext("Authentication Methods")} />
 
           <%!-- Authentication Methods Setting --%>
           <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">
-                {gettext("Authentication Methods")}
-              </span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("Control available login/registration methods")}
-              </span>
-            </label>
-
             <%!-- Magic Link Methods --%>
             <div class="mb-3">
               <div class="text-sm font-semibold text-base-content/70 mb-2">
@@ -422,103 +448,42 @@
                     {gettext("Test Credentials")}
                   </button>
 
-                  <%!-- Google OAuth Setup Instructions --%>
-                  <div class="collapse collapse-arrow bg-base-200 mt-4">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title text-sm font-medium">
-                      {gettext("Setup Instructions")}
-                    </div>
-                    <div class="collapse-content text-sm space-y-4">
-                      <%!-- Callback URL Section --%>
-                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                        <div class="flex items-start gap-3">
-                          <.icon
-                            name="hero-information-circle"
-                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                          />
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-base-content mb-2">
-                              {gettext("Callback URL")}
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                {get_oauth_callback_url(@settings, "google")}
-                              </code>
-                              <button
-                                type="button"
-                                class="btn btn-sm btn-square btn-outline"
-                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "google")}')"}
-                                title={gettext("Copy to clipboard")}
-                              >
-                                <.icon name="hero-clipboard" class="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div class="text-xs text-base-content/60 mt-2">
-                              {gettext("Copy this URL to Google Cloud Console")}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <%!-- Step-by-step Instructions --%>
-                      <div class="space-y-3">
-                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                          <li>
-                            {gettext("Visit")}
-                            <a
-                              href="https://console.cloud.google.com/apis/credentials"
-                              target="_blank"
-                              class="link link-primary"
-                            >
-                              Google Cloud Console
-                            </a>
-                          </li>
-                          <li>{gettext("Create project or select existing one")}</li>
-                          <li>
-                            {gettext("Go to")} <strong>Credentials</strong>
-                            → <strong>Create Credentials</strong>
-                            → <strong>OAuth client ID</strong>
-                          </li>
-                          <li>
-                            {gettext("Select")}
-                            <strong>Web application</strong> {gettext("type")}
-                          </li>
-                          <li>
-                            {gettext("Add callback URL above to")}
-                            <strong>Authorized redirect URIs</strong>
-                          </li>
-                          <li>{gettext("Copy Client ID and Secret to fields above")}</li>
-                          <li>
-                            {gettext("Click")}
-                            <strong>Test Credentials</strong> {gettext("to verify setup")}
-                          </li>
-                        </ol>
-                      </div>
-
-                      <%!-- Reverse Proxy Notice --%>
-                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                        <div class="flex items-start gap-2">
-                          <.icon
-                            name="hero-information-circle"
-                            class="h-4 w-4 text-info shrink-0 mt-0.5"
-                          />
-                          <div class="text-base-content/80">
-                            <strong class="text-base-content">
-                              {gettext("Reverse Proxy Users:")}
-                            </strong>
-                            {gettext("If behind nginx/apache, ensure")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              X-Forwarded-Proto
-                            </code>
-                            {gettext("header is set to")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              https
-                            </code>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <.oauth_setup_instructions
+                    callback_url={get_oauth_callback_url(@settings, "google")}
+                    copy_hint={gettext("Copy this URL to Google Cloud Console")}
+                  >
+                    <:steps>
+                      <li>
+                        {gettext("Visit")}
+                        <a
+                          href="https://console.cloud.google.com/apis/credentials"
+                          target="_blank"
+                          class="link link-primary"
+                        >
+                          Google Cloud Console
+                        </a>
+                      </li>
+                      <li>{gettext("Create project or select existing one")}</li>
+                      <li>
+                        {gettext("Go to")} <strong>Credentials</strong>
+                        → <strong>Create Credentials</strong>
+                        → <strong>OAuth client ID</strong>
+                      </li>
+                      <li>
+                        {gettext("Select")}
+                        <strong>Web application</strong> {gettext("type")}
+                      </li>
+                      <li>
+                        {gettext("Add callback URL above to")}
+                        <strong>Authorized redirect URIs</strong>
+                      </li>
+                      <li>{gettext("Copy Client ID and Secret to fields above")}</li>
+                      <li>
+                        {gettext("Click")}
+                        <strong>Test Credentials</strong> {gettext("to verify setup")}
+                      </li>
+                    </:steps>
+                  </.oauth_setup_instructions>
                 </div>
               </div>
 
@@ -594,115 +559,54 @@
                     {gettext("Test Credentials")}
                   </button>
 
-                  <%!-- Apple OAuth Setup Instructions --%>
-                  <div class="collapse collapse-arrow bg-base-200 mt-4">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title text-sm font-medium">
-                      {gettext("Setup Instructions")}
-                    </div>
-                    <div class="collapse-content text-sm space-y-4">
-                      <%!-- Callback URL Section --%>
-                      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                        <div class="flex items-start gap-3">
-                          <.icon
-                            name="hero-information-circle"
-                            class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                          />
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-base-content mb-2">
-                              {gettext("Callback URL")}
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                                {get_oauth_callback_url(@settings, "apple")}
-                              </code>
-                              <button
-                                type="button"
-                                class="btn btn-sm btn-square btn-outline"
-                                onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "apple")}')"}
-                                title={gettext("Copy to clipboard")}
-                              >
-                                <.icon name="hero-clipboard" class="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div class="text-xs text-base-content/60 mt-2">
-                              {gettext("Copy this URL to Apple Developer Console")}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <%!-- Step-by-step Instructions --%>
-                      <div class="space-y-3">
-                        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                          <li>
-                            {gettext("Visit")}
-                            <a
-                              href="https://developer.apple.com/account/resources/identifiers/list"
-                              target="_blank"
-                              class="link link-primary"
-                            >
-                              Apple Developer Console
-                            </a>
-                          </li>
-                          <li>{gettext("Create an App ID or select existing one")}</li>
-                          <li>
-                            {gettext("Enable")}
-                            <strong>Sign in with Apple</strong> {gettext("capability")}
-                          </li>
-                          <li>
-                            {gettext("Create a")}
-                            <strong>Services ID</strong> {gettext("for web authentication")}
-                          </li>
-                          <li>
-                            {gettext("Configure")}
-                            <strong>Sign in with Apple</strong> {gettext("for the Services ID")}
-                          </li>
-                          <li>
-                            {gettext("Add callback URL above to")} <strong>Return URLs</strong>
-                          </li>
-                          <li>
-                            {gettext("Create a")} <strong>Private Key</strong>
-                            {gettext("with Sign in with Apple enabled")}
-                          </li>
-                          <li>
-                            {gettext("Copy")} <strong>Team ID</strong>, <strong>Key ID</strong>,
-                            <strong>Client ID</strong>
-                            ({gettext("Services ID")}), {gettext("and")}
-                            <strong>Private Key</strong>
-                            {gettext("to fields above")}
-                          </li>
-                          <li>
-                            {gettext("Click")}
-                            <strong>Test Credentials</strong> {gettext("to verify setup")}
-                          </li>
-                        </ol>
-                      </div>
-
-                      <%!-- Reverse Proxy Notice --%>
-                      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                        <div class="flex items-start gap-2">
-                          <.icon
-                            name="hero-information-circle"
-                            class="h-4 w-4 text-info shrink-0 mt-0.5"
-                          />
-                          <div class="text-base-content/80">
-                            <strong class="text-base-content">
-                              {gettext("Reverse Proxy Users:")}
-                            </strong>
-                            {gettext("If behind nginx/apache, ensure")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              X-Forwarded-Proto
-                            </code>
-                            {gettext("header is set to")}
-                            <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                              https
-                            </code>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <.oauth_setup_instructions
+                    callback_url={get_oauth_callback_url(@settings, "apple")}
+                    copy_hint={gettext("Copy this URL to Apple Developer Console")}
+                  >
+                    <:steps>
+                      <li>
+                        {gettext("Visit")}
+                        <a
+                          href="https://developer.apple.com/account/resources/identifiers/list"
+                          target="_blank"
+                          class="link link-primary"
+                        >
+                          Apple Developer Console
+                        </a>
+                      </li>
+                      <li>{gettext("Create an App ID or select existing one")}</li>
+                      <li>
+                        {gettext("Enable")}
+                        <strong>Sign in with Apple</strong> {gettext("capability")}
+                      </li>
+                      <li>
+                        {gettext("Create a")}
+                        <strong>Services ID</strong> {gettext("for web authentication")}
+                      </li>
+                      <li>
+                        {gettext("Configure")}
+                        <strong>Sign in with Apple</strong> {gettext("for the Services ID")}
+                      </li>
+                      <li>
+                        {gettext("Add callback URL above to")} <strong>Return URLs</strong>
+                      </li>
+                      <li>
+                        {gettext("Create a")} <strong>Private Key</strong>
+                        {gettext("with Sign in with Apple enabled")}
+                      </li>
+                      <li>
+                        {gettext("Copy")} <strong>Team ID</strong>, <strong>Key ID</strong>,
+                        <strong>Client ID</strong>
+                        ({gettext("Services ID")}), {gettext("and")}
+                        <strong>Private Key</strong>
+                        {gettext("to fields above")}
+                      </li>
+                      <li>
+                        {gettext("Click")}
+                        <strong>Test Credentials</strong> {gettext("to verify setup")}
+                      </li>
+                    </:steps>
+                  </.oauth_setup_instructions>
                 </div>
               </div>
 
@@ -753,107 +657,46 @@
                   {gettext("Test Credentials")}
                 </button>
 
-                <%!-- GitHub OAuth Setup Instructions --%>
-                <div class="collapse collapse-arrow bg-base-200 mt-4">
-                  <input type="checkbox" class="peer" />
-                  <div class="collapse-title text-sm font-medium">
-                    {gettext("Setup Instructions")}
-                  </div>
-                  <div class="collapse-content text-sm space-y-4">
-                    <%!-- Callback URL Section --%>
-                    <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                      <div class="flex items-start gap-3">
-                        <.icon
-                          name="hero-information-circle"
-                          class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                        />
-                        <div class="flex-1 min-w-0">
-                          <div class="text-sm font-semibold text-base-content mb-2">
-                            {gettext("Callback URL")}
-                          </div>
-                          <div class="flex items-center gap-2">
-                            <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                              {get_oauth_callback_url(@settings, "github")}
-                            </code>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-square btn-outline"
-                              onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "github")}')"}
-                              title={gettext("Copy to clipboard")}
-                            >
-                              <.icon name="hero-clipboard" class="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div class="text-xs text-base-content/60 mt-2">
-                            {gettext("Copy this URL to GitHub OAuth Apps")}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <%!-- Step-by-step Instructions --%>
-                    <div class="space-y-3">
-                      <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                        <li>
-                          {gettext("Visit")}
-                          <a
-                            href="https://github.com/settings/developers"
-                            target="_blank"
-                            class="link link-primary"
-                          >
-                            GitHub Developer Settings
-                          </a>
-                        </li>
-                        <li>
-                          {gettext("Go to")} <strong>OAuth Apps</strong>
-                          → <strong>New OAuth App</strong>
-                        </li>
-                        <li>
-                          {gettext("Enter")} <strong>Application name</strong>
-                          {gettext("and")} <strong>Homepage URL</strong>
-                        </li>
-                        <li>
-                          {gettext("Add callback URL above to")}
-                          <strong>Authorization callback URL</strong>
-                        </li>
-                        <li>
-                          {gettext("Click")} <strong>Register application</strong>
-                        </li>
-                        <li>
-                          {gettext("Copy")} <strong>Client ID</strong>
-                          {gettext("and generate/copy")} <strong>Client Secret</strong>
-                        </li>
-                        <li>
-                          {gettext("Click")}
-                          <strong>Test Credentials</strong> {gettext("to verify setup")}
-                        </li>
-                      </ol>
-                    </div>
-
-                    <%!-- Reverse Proxy Notice --%>
-                    <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                      <div class="flex items-start gap-2">
-                        <.icon
-                          name="hero-information-circle"
-                          class="h-4 w-4 text-info shrink-0 mt-0.5"
-                        />
-                        <div class="text-base-content/80">
-                          <strong class="text-base-content">
-                            {gettext("Reverse Proxy Users:")}
-                          </strong>
-                          {gettext("If behind nginx/apache, ensure")}
-                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                            X-Forwarded-Proto
-                          </code>
-                          {gettext("header is set to")}
-                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                            https
-                          </code>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <.oauth_setup_instructions
+                  callback_url={get_oauth_callback_url(@settings, "github")}
+                  copy_hint={gettext("Copy this URL to GitHub OAuth Apps")}
+                >
+                  <:steps>
+                    <li>
+                      {gettext("Visit")}
+                      <a
+                        href="https://github.com/settings/developers"
+                        target="_blank"
+                        class="link link-primary"
+                      >
+                        GitHub Developer Settings
+                      </a>
+                    </li>
+                    <li>
+                      {gettext("Go to")} <strong>OAuth Apps</strong>
+                      → <strong>New OAuth App</strong>
+                    </li>
+                    <li>
+                      {gettext("Enter")} <strong>Application name</strong>
+                      {gettext("and")} <strong>Homepage URL</strong>
+                    </li>
+                    <li>
+                      {gettext("Add callback URL above to")}
+                      <strong>Authorization callback URL</strong>
+                    </li>
+                    <li>
+                      {gettext("Click")} <strong>Register application</strong>
+                    </li>
+                    <li>
+                      {gettext("Copy")} <strong>Client ID</strong>
+                      {gettext("and generate/copy")} <strong>Client Secret</strong>
+                    </li>
+                    <li>
+                      {gettext("Click")}
+                      <strong>Test Credentials</strong> {gettext("to verify setup")}
+                    </li>
+                  </:steps>
+                </.oauth_setup_instructions>
               </div>
 
               <%!-- Facebook OAuth Credentials --%>
@@ -903,115 +746,54 @@
                   {gettext("Test Credentials")}
                 </button>
 
-                <%!-- Facebook OAuth Setup Instructions --%>
-                <div class="collapse collapse-arrow bg-base-200 mt-4">
-                  <input type="checkbox" class="peer" />
-                  <div class="collapse-title text-sm font-medium">
-                    {gettext("Setup Instructions")}
-                  </div>
-                  <div class="collapse-content text-sm space-y-4">
-                    <%!-- Callback URL Section --%>
-                    <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                      <div class="flex items-start gap-3">
-                        <.icon
-                          name="hero-information-circle"
-                          class="stroke-current shrink-0 h-5 w-5 text-info mt-0.5"
-                        />
-                        <div class="flex-1 min-w-0">
-                          <div class="text-sm font-semibold text-base-content mb-2">
-                            {gettext("Callback URL")}
-                          </div>
-                          <div class="flex items-center gap-2">
-                            <code class="flex-1 px-3 py-2 bg-base-200 text-base-content border border-base-300 rounded font-mono text-xs break-all">
-                              {get_oauth_callback_url(@settings, "facebook")}
-                            </code>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-square btn-outline"
-                              onclick={"navigator.clipboard.writeText('#{get_oauth_callback_url(@settings, "facebook")}')"}
-                              title={gettext("Copy to clipboard")}
-                            >
-                              <.icon name="hero-clipboard" class="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div class="text-xs text-base-content/60 mt-2">
-                            {gettext("Copy this URL to Facebook App Settings")}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <%!-- Step-by-step Instructions --%>
-                    <div class="space-y-3">
-                      <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-                        <li>
-                          {gettext("Visit")}
-                          <a
-                            href="https://developers.facebook.com/apps"
-                            target="_blank"
-                            class="link link-primary"
-                          >
-                            Facebook Developers Console
-                          </a>
-                        </li>
-                        <li>
-                          {gettext("Create a new app or select existing one")}
-                        </li>
-                        <li>
-                          {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
-                        </li>
-                        <li>
-                          {gettext("Go to")} <strong>Facebook Login</strong>
-                          → <strong>Settings</strong>
-                        </li>
-                        <li>
-                          {gettext("Add callback URL above to")}
-                          <strong>Valid OAuth Redirect URIs</strong>
-                        </li>
-                        <li>
-                          {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
-                        </li>
-                        <li>
-                          {gettext("Copy")} <strong>App ID</strong>
-                          {gettext("and")} <strong>App Secret</strong>
-                          {gettext("to fields above")}
-                        </li>
-                        <li>
-                          {gettext("Switch app from")} <strong>Development</strong>
-                          {gettext("to")} <strong>Live</strong>
-                          {gettext("mode")}
-                        </li>
-                        <li>
-                          {gettext("Click")}
-                          <strong>Test Credentials</strong> {gettext("to verify setup")}
-                        </li>
-                      </ol>
-                    </div>
-
-                    <%!-- Reverse Proxy Notice --%>
-                    <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-                      <div class="flex items-start gap-2">
-                        <.icon
-                          name="hero-information-circle"
-                          class="h-4 w-4 text-info shrink-0 mt-0.5"
-                        />
-                        <div class="text-base-content/80">
-                          <strong class="text-base-content">
-                            {gettext("Reverse Proxy Users:")}
-                          </strong>
-                          {gettext("If behind nginx/apache, ensure")}
-                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                            X-Forwarded-Proto
-                          </code>
-                          {gettext("header is set to")}
-                          <code class="px-1 py-0.5 bg-base-300 text-base-content rounded text-xs">
-                            https
-                          </code>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <.oauth_setup_instructions
+                  callback_url={get_oauth_callback_url(@settings, "facebook")}
+                  copy_hint={gettext("Copy this URL to Facebook App Settings")}
+                >
+                  <:steps>
+                    <li>
+                      {gettext("Visit")}
+                      <a
+                        href="https://developers.facebook.com/apps"
+                        target="_blank"
+                        class="link link-primary"
+                      >
+                        Facebook Developers Console
+                      </a>
+                    </li>
+                    <li>
+                      {gettext("Create a new app or select existing one")}
+                    </li>
+                    <li>
+                      {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
+                    </li>
+                    <li>
+                      {gettext("Go to")} <strong>Facebook Login</strong>
+                      → <strong>Settings</strong>
+                    </li>
+                    <li>
+                      {gettext("Add callback URL above to")}
+                      <strong>Valid OAuth Redirect URIs</strong>
+                    </li>
+                    <li>
+                      {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
+                    </li>
+                    <li>
+                      {gettext("Copy")} <strong>App ID</strong>
+                      {gettext("and")} <strong>App Secret</strong>
+                      {gettext("to fields above")}
+                    </li>
+                    <li>
+                      {gettext("Switch app from")} <strong>Development</strong>
+                      {gettext("to")} <strong>Live</strong>
+                      {gettext("mode")}
+                    </li>
+                    <li>
+                      {gettext("Click")}
+                      <strong>Test Credentials</strong> {gettext("to verify setup")}
+                    </li>
+                  </:steps>
+                </.oauth_setup_instructions>
               </div>
 
               <%!-- OAuth Configuration Notice --%>

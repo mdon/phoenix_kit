@@ -27,7 +27,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
     socket =
       socket
       |> assign(:current_path, Routes.path("/admin/settings/media/dimensions"))
-      |> assign(:page_title, "Storage Dimensions")
+      |> assign(:page_title, gettext("Instance Dimensions"))
       |> assign(:project_title, project_title)
       |> assign(:dimensions, dimensions)
       |> assign(:current_locale, locale)
@@ -48,12 +48,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
         socket =
           socket
           |> assign(:dimensions, dimensions)
-          |> put_flash(:info, "Dimension deleted successfully")
+          |> put_flash(:info, gettext("Dimension deleted successfully"))
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to delete dimension")
+        socket = put_flash(socket, :error, gettext("Failed to delete dimension"))
         {:noreply, socket}
     end
   end
@@ -71,12 +71,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
         socket =
           socket
           |> assign(:dimensions, dimensions)
-          |> put_flash(:info, "Dimension status updated")
+          |> put_flash(:info, gettext("Dimension status updated"))
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update dimension")
+        socket = put_flash(socket, :error, gettext("Failed to update dimension"))
         {:noreply, socket}
     end
   end
@@ -90,12 +90,18 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
         socket =
           socket
           |> assign(:dimensions, dimensions)
-          |> put_flash(:info, "Dimensions reset to defaults successfully")
+          |> put_flash(:info, gettext("Dimensions reset to defaults successfully"))
 
         {:noreply, socket}
 
       {:error, reason} ->
-        socket = put_flash(socket, :error, "Failed to reset dimensions: #{inspect(reason)}")
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("Failed to reset dimensions: %{reason}", reason: inspect(reason))
+          )
+
         {:noreply, socket}
     end
   end
