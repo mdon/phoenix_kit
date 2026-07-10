@@ -931,9 +931,13 @@ defmodule PhoenixKitWeb.Users.UserForm do
       true ->
         case Roles.sync_user_roles(user, pending_roles, actor: current_user) do
           {:ok, _} = result ->
-            added = pending_roles -- current_roles
-            removed = current_roles -- pending_roles
-            log_roles_updated(current_user, user, current_roles, pending_roles, added, removed)
+            # Audit what was ACTUALLY applied, not what was submitted — the
+            # context silently drops changes the actor isn't authorized to make
+            # (and preserves the last Owner), so re-read the real role set.
+            applied_roles = user.uuid |> Auth.get_user_with_roles() |> Roles.get_user_roles()
+            added = applied_roles -- current_roles
+            removed = current_roles -- applied_roles
+            log_roles_updated(current_user, user, current_roles, applied_roles, added, removed)
             result
 
           error ->

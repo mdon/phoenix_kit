@@ -542,7 +542,7 @@ defmodule PhoenixKit.Migrations.Postgres do
     one implicit personal calendar per user (`owner_uuid` FK, CASCADE on user
     delete). Timed events use an exclusive-end UTC pair; all-day events use an
     exclusive-end DATE pair; a CHECK enforces exactly one pair per row matching
-    the `all_day` flag, with end > start. Status is confirmed/cancelled.
+    the `all_day` flag, with end > start. Status is active/cancelled.
     `location_uuid` loosely links a stored location (name snapshotted into the
     `location` string — no cross-module FK).
   - Adds `phoenix_kit_calendar_event_participants`: loose `kind` + `target_uuid`
