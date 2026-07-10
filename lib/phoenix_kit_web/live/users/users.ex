@@ -218,18 +218,23 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   def handle_event("sync_user_roles", params, socket) do
     user = socket.assigns.managing_user
-    current_roles = socket.assigns.user_roles
     selected_roles = Map.get(params, "roles", %{})
     role_names = Map.values(selected_roles)
+    actor = socket.assigns.phoenix_kit_current_user
 
-    case Roles.sync_user_roles(user, role_names) do
-      {:ok, _assignments} ->
+    case Roles.sync_user_roles(user, role_names, actor: actor) do
+      {:ok, %{roles_before: roles_before, roles_after: roles_after}} ->
         admin = socket.assigns.phoenix_kit_current_user
-        added = role_names -- current_roles
-        removed = current_roles -- role_names
+
+        # Audit the exact delta this transaction applied — the context captures
+        # before/after inside the transaction and silently drops changes the
+        # actor isn't authorized to make (and preserves the last Owner), so the
+        # applied delta can differ from what was submitted.
+        added = roles_after -- roles_before
+        removed = roles_before -- roles_after
 
         if added != [] or removed != [] do
-          log_roles_updated(admin, user, current_roles, role_names, added, removed)
+          log_roles_updated(admin, user, roles_before, roles_after, added, removed)
         end
 
         socket =
@@ -279,7 +284,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       socket = put_flash(socket, :error, gettext("Cannot modify your own roles"))
       {:noreply, socket}
     else
-      handle_role_toggle_result(toggle_user_role(user, role_name), role_name, socket)
+      handle_role_toggle_result(
+        toggle_user_role(user, role_name, current_user),
+        role_name,
+        socket
+      )
     end
   end
 
@@ -830,22 +839,46 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     role_name in get_user_roles(user)
   end
 
-  defp toggle_user_role(user, role_name) do
-    if user_has_role?(user, role_name) do
-      case Roles.remove_role(user, role_name) do
-        {:ok, _} -> {:ok, :removed}
-        {:error, reason} -> {:error, reason}
-      end
-    else
-      case Roles.assign_role(user, role_name) do
-        {:ok, _} -> {:ok, :added}
-        {:error, reason} -> {:error, reason}
-      end
+  # Route through sync_user_roles/3 so the quick toggle enforces the SAME actor
+  # authorization + last-Owner guard as the full role modal — a `users`-permission
+  # holder can't use this shortcut to grant Owner/Admin or wipe the last Owner.
+  # Unauthorized system-role changes are silently dropped by the context, so we
+  # re-read the actual role set to report what truly happened.
+  defp toggle_user_role(user, role_name, actor) do
+    had_role? = user_has_role?(user, role_name)
+
+    desired_roles =
+      if had_role?,
+        do: get_user_roles(user) -- [role_name],
+        else: [role_name | get_user_roles(user)]
+
+    case Roles.sync_user_roles(user, desired_roles, actor: actor) do
+      {:ok, %{roles_after: roles_after}} ->
+        now_has? = role_name in roles_after
+
+        cond do
+          now_has? and not had_role? -> {:ok, :added}
+          not now_has? and had_role? -> {:ok, :removed}
+          true -> {:ok, :unchanged}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   defp handle_role_toggle_result(result, role_name, socket) do
     case result do
+      {:ok, :unchanged} ->
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("You are not allowed to change the %{role} role", role: role_name)
+          )
+
+        {:noreply, socket}
+
       {:ok, action} ->
         role_flash_msg =
           if action == :added,

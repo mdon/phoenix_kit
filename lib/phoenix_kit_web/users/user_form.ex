@@ -223,7 +223,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     else
       role_names = socket.assigns.pending_roles
 
-      case Roles.sync_user_roles(user, role_names) do
+      case Roles.sync_user_roles(user, role_names, actor: current_user) do
         {:ok, _assignments} ->
           socket =
             socket
@@ -265,7 +265,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
         |> Enum.filter(fn {_key, value} -> value != "false" end)
         |> Enum.map(fn {key, _value} -> key end)
 
-      case Roles.sync_user_roles(user, role_names) do
+      case Roles.sync_user_roles(user, role_names, actor: current_user) do
         {:ok, _assignments} ->
           socket =
             socket
@@ -929,11 +929,20 @@ defmodule PhoenixKitWeb.Users.UserForm do
 
       # Roles have changed and it's allowed, update them
       true ->
-        case Roles.sync_user_roles(user, pending_roles) do
-          {:ok, _} = result ->
-            added = pending_roles -- current_roles
-            removed = current_roles -- pending_roles
-            log_roles_updated(current_user, user, current_roles, pending_roles, added, removed)
+        case Roles.sync_user_roles(user, pending_roles, actor: current_user) do
+          {:ok, %{roles_before: roles_before, roles_after: roles_after}} = result ->
+            # Audit the exact delta the transaction applied (before/after captured
+            # inside it), not the submitted set — the context silently drops
+            # changes the actor isn't authorized to make. Skip the log when
+            # nothing actually changed (e.g. a fully-rejected submission),
+            # mirroring the LiveView role modal.
+            added = roles_after -- roles_before
+            removed = roles_before -- roles_after
+
+            if added != [] or removed != [] do
+              log_roles_updated(current_user, user, roles_before, roles_after, added, removed)
+            end
+
             result
 
           error ->

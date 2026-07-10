@@ -55,12 +55,20 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
   attr :title, :string, default: nil
   attr :subtitle, :string, default: nil
 
+  attr :class, :string,
+    default: nil,
+    doc: """
+    Replaces the header's default bottom margin (`"mb-3 sm:mb-6"`) when set —
+    pass e.g. `"mb-0"` when the page layout controls spacing itself (a flex
+    gap), so margins don't compound.
+    """
+
   slot :inner_block
   slot :actions
 
   def admin_page_header(assigns) do
     ~H"""
-    <header class="mb-3 sm:mb-6">
+    <header class={@class || "mb-3 sm:mb-6"}>
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
           <div class="min-w-0">

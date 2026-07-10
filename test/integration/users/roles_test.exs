@@ -184,6 +184,70 @@ defmodule PhoenixKit.Integration.Users.RolesTest do
     end
   end
 
+  describe "sync_user_roles/3 authorization" do
+    # first-created user is the seed Owner; make some named actors
+    defp make(actor_roles) do
+      _seed_owner = create_user()
+      user = create_user()
+      Enum.each(actor_roles, fn r -> {:ok, _} = Roles.assign_role(user, r) end)
+      user
+    end
+
+    test "a non-Owner cannot grant Owner or Admin to another account (no escalation)" do
+      editor = make([])
+      target = create_user()
+
+      {:ok, _} = Roles.sync_user_roles(target, ["Admin"], actor: editor)
+      refute Roles.user_has_role?(target, "Admin")
+
+      # Owner is additionally un-assignable system-wide; either way it never lands
+      _ = Roles.sync_user_roles(target, ["Owner"], actor: editor)
+      refute Roles.user_has_role?(target, "Owner")
+    end
+
+    test "a non-Owner CAN manage custom roles" do
+      editor = make([])
+      {:ok, _} = Roles.create_role(%{name: "Manager", description: "d"})
+      target = create_user()
+
+      {:ok, _} = Roles.sync_user_roles(target, ["Manager"], actor: editor)
+      assert Roles.user_has_role?(target, "Manager")
+    end
+
+    test "returns the before/after role sets captured in the transaction (exact audit)" do
+      {:ok, _} = Roles.create_role(%{name: "Manager", description: "d"})
+      target = create_user()
+      before_roles = Roles.get_user_roles(target)
+
+      {:ok, result} =
+        Roles.sync_user_roles(target, before_roles ++ ["Manager"], actor: :system)
+
+      assert %{roles_before: rb, roles_after: ra, assignments: _} = result
+      assert Enum.sort(rb) == Enum.sort(before_roles)
+      assert "Manager" in ra
+      refute "Manager" in rb
+    end
+
+    test "a non-Owner submitting an Owner's modal cannot strip Owner (disabled-checkbox wipe)" do
+      # seed owner is the FIRST user; the target here is that seed owner
+      seed_owner = create_user()
+      editor = create_user()
+      # the disabled Owner checkbox never submits → role_names lacks Owner
+      {:ok, _} = Roles.sync_user_roles(seed_owner, [], actor: editor)
+      assert Roles.user_has_role?(seed_owner, "Owner")
+    end
+
+    test "the last Owner cannot be removed even by an Owner actor" do
+      seed_owner = create_user()
+      assert Roles.user_has_role?(seed_owner, "Owner")
+
+      assert {:error, :cannot_remove_last_owner} =
+               Roles.sync_user_roles(seed_owner, [], actor: seed_owner)
+
+      assert Roles.user_has_role?(seed_owner, "Owner")
+    end
+  end
+
   describe "custom role CRUD" do
     test "create_role/1 creates a custom role" do
       assert {:ok, role} = Roles.create_role(%{name: "Editor", description: "Can edit content"})

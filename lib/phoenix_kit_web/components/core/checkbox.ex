@@ -16,7 +16,11 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   attr :name, :any
   attr :label, :string, default: nil
   attr :errors, :list, default: []
-  attr :checked, :boolean, default: false
+  # nil (the default) means "derive from the field's value". A non-nil
+  # default would defeat that: attr defaults are materialized into assigns
+  # before the component runs, so `assign_new` in the field clause would
+  # never fire and a field-bound checkbox would ALWAYS render unchecked.
+  attr :checked, :boolean, default: nil
 
   attr :class, :any,
     default: nil,
@@ -28,12 +32,12 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   slot :inner_block
 
   def checkbox(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
-    checked = Form.normalize_value("checkbox", field.value)
+    derived = Form.normalize_value("checkbox", field.value)
 
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
     |> assign_new(:name, fn -> field.name end)
-    |> assign_new(:checked, fn -> checked end)
+    |> assign(:checked, if(is_nil(assigns.checked), do: derived, else: assigns.checked))
     |> checkbox()
   end
 

@@ -18,12 +18,14 @@ defmodule PhoenixKitWeb.Users.Auth do
   ## on_mount Hooks
 
   - `:phoenix_kit_ensure_admin` — Requires Owner/Admin role, or a custom role
-    with at least one permission. For custom roles, also checks the specific
-    permission key mapped to the current admin view. Unmapped views deny
-    custom roles but allow Owner/Admin.
-  - `:phoenix_kit_ensure_module_access` — For custom roles, checks that the
-    feature module is both enabled and permitted. Owner/Admin bypass both
-    the enabled and permission checks.
+    with at least one permission. Every role is then checked against the
+    permission key mapped to the current admin view: Owner passes because its
+    scope holds every key by construction; Admin holds keys as real,
+    Owner-revocable rows (seeded/auto-granted by default). Disabled modules
+    block everyone. Views that resolve to no permission key allow Owner/Admin
+    and deny custom roles (fail-closed where a key could exist).
+  - `:phoenix_kit_ensure_module_access` — Checks that the feature module is
+    permitted for the scope and (for custom roles) enabled.
 
   ## Usage
 
@@ -650,7 +652,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         {:halt, socket}
 
       Scope.has_module_access?(scope, module_key) and
-          (Scope.system_role?(scope) or
+          (Scope.owner?(scope) or
              MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
         socket = attach_locale_hook(socket)
         {:cont, socket}
@@ -1162,7 +1164,12 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp enforce_admin_view_permission(socket, scope) do
     case permission_key_for_admin_view(socket.view) do
       nil ->
-        # Unmapped views: fail-closed for custom roles, allow Admin/Owner
+        # Unmapped views: fail-closed for custom roles, allow Admin/Owner.
+        # This deliberately keeps `system_role?` (not `owner?`): an unmapped
+        # view has NO permission key and NO module to enable, so Admin here
+        # isn't bypassing a revocation or a disabled module — it's the
+        # no-mapping fallback. Restricting it to Owner would lock Admin out
+        # of legitimately-unmapped core admin views with no security gain.
         Logger.debug(
           "[Auth] Admin view #{inspect(socket.view)} has no permission mapping — " <>
             "allowing system roles, denying custom roles"
@@ -1185,11 +1192,12 @@ defmodule PhoenixKitWeb.Users.Auth do
           not module_enabled ->
             deny_module_disabled(socket, module_key)
 
-          # System roles (Owner/Admin) bypass permission checks
-          Scope.system_role?(scope) ->
-            {:cont, socket}
-
-          # Custom roles need explicit permission
+          # Every role — Admin included — needs the permission key. Owner
+          # passes because its scope holds every key by construction; Admin
+          # holds keys as real rows (seeded/auto-granted, Owner-revocable).
+          # The old system-role bypass here made Owner's revocations on the
+          # Admin role effective everywhere EXCEPT fresh mounts — sidebar,
+          # plugs, and the mid-session PubSub kick all honored them already.
           Scope.has_module_access?(scope, module_key) ->
             {:cont, socket}
 
@@ -1705,7 +1713,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             |> halt()
 
           Scope.has_module_access?(scope, module_key) and
-              (Scope.system_role?(scope) or
+              (Scope.owner?(scope) or
                  MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
             conn
 

@@ -529,7 +529,32 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V140 - Warehouse module tables ⚡ LATEST
+  ### V142 - Wider role-permission keys ⚡ LATEST
+  - Widens `phoenix_kit_role_permissions.module_key` from `VARCHAR(50)` to
+    `VARCHAR(120)` so fine-grained sub-permissions can be stored as composed
+    dotted keys (`"calendar.view_others"` — base and sub parts are each
+    capped at 50 chars, so a composed key can reach 101).
+  - Rollback deletes rows over 50 chars (sub-permission grants are additive
+    and re-grantable) before narrowing the column back.
+
+  ### V141 - Calendar events + participants
+  - Adds `phoenix_kit_calendar_events` for the `phoenix_kit_calendar` module:
+    one implicit personal calendar per user (`owner_uuid` FK, CASCADE on user
+    delete). Timed events use an exclusive-end UTC pair; all-day events use an
+    exclusive-end DATE pair; a CHECK enforces exactly one pair per row matching
+    the `all_day` flag, with end > start. Status is active/cancelled.
+    `location_uuid` loosely links a stored location (name snapshotted into the
+    `location` string — no cross-module FK).
+  - Adds `phoenix_kit_calendar_event_participants`: loose `kind` + `target_uuid`
+    references (user / staff_person / crm_contact / crm_company / free_text)
+    with a `display_name` snapshot and `added_by_uuid` audit. Visibility is
+    resolved LIVE at query time against the physical staff/CRM tables, so a
+    company participant means "current members" and no module code is needed.
+    Partial uniques dedup targets per event and free-text case-insensitively.
+  - Extended in place while unreleased (idempotent-additive statements).
+  - Rollback drops both tables.
+
+  ### V140 - Warehouse module tables
   - Creates `phoenix_kit_warehouse_stock`, `phoenix_kit_warehouse_inventory_documents`,
     `phoenix_kit_warehouse_internal_orders`, `phoenix_kit_warehouse_supplier_orders`,
     `phoenix_kit_warehouse_goods_receipts`, and `phoenix_kit_warehouse_goods_issues` —
@@ -1208,7 +1233,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 140
+  @current_version 142
   @default_prefix "public"
 
   @doc false
