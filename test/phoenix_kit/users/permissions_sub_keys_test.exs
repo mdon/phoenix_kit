@@ -72,6 +72,23 @@ defmodule PhoenixKit.Users.PermissionsSubKeysTest do
     end
   end
 
+  defmodule FakeDottedBase do
+    # A module whose BASE key illegally contains a dot — it would collide
+    # with FakeCalendar's composed "fake_calendar.view_others" sub-key.
+    def module_key, do: "fake_calendar.view_others"
+    def module_name, do: "Fake Dotted Base"
+    def enabled?, do: true
+
+    def permission_metadata do
+      %{
+        key: "fake_calendar.view_others",
+        label: "Dotted Base",
+        icon: "hero-bug-ant",
+        description: "Illegal dotted base key"
+      }
+    end
+  end
+
   setup do
     ModuleRegistry.register(FakeCalendar)
     ModuleRegistry.register(FakeDisabled)
@@ -80,6 +97,7 @@ defmodule PhoenixKit.Users.PermissionsSubKeysTest do
       ModuleRegistry.unregister(FakeCalendar)
       ModuleRegistry.unregister(FakeDisabled)
       ModuleRegistry.unregister(FakeMalformedSubs)
+      ModuleRegistry.unregister(FakeDottedBase)
     end)
 
     :ok
@@ -252,6 +270,18 @@ defmodule PhoenixKit.Users.PermissionsSubKeysTest do
       refute Scope.can?(scope, "fake_calendar.view_others")
     end
 
+    test "false for a sub whose BASE is not held (orphan sub)" do
+      # the cascade keeps this from happening normally, but a sub row can
+      # outlive its base if a module/sub temporarily leaves the registry —
+      # can?/2 must not honor a dotted key whose base the role lacks
+      scope = scope_with(["fake_calendar.view_others"])
+      refute Scope.can?(scope, "fake_calendar.view_others")
+
+      # holding the base too makes it effective again
+      scope = scope_with(["fake_calendar", "fake_calendar.view_others"])
+      assert Scope.can?(scope, "fake_calendar.view_others")
+    end
+
     test "false when the parent module is disabled, even if the key is cached" do
       # a scope snapshotted before the module was disabled must not keep
       # authorizing its actions
@@ -262,6 +292,37 @@ defmodule PhoenixKit.Users.PermissionsSubKeysTest do
 
     test "false for anonymous scope" do
       refute Scope.can?(Scope.for_user(nil), "fake_calendar.view_others")
+    end
+  end
+
+  describe "dotted base key rejection" do
+    test "a module base key containing a dot is not a valid feature key" do
+      ModuleRegistry.register(FakeDottedBase)
+
+      refute "fake_calendar.view_others" in ModuleRegistry.all_feature_keys()
+      # ...and the legit sub of the same string still resolves to its base
+      assert Permissions.parent_key("fake_calendar.view_others") == "fake_calendar"
+    end
+
+    test "valid_base_key?/1 rejects dots, uppercase, and overlength" do
+      assert ModuleRegistry.valid_base_key?("calendar")
+      refute ModuleRegistry.valid_base_key?("calendar.view_others")
+      refute ModuleRegistry.valid_base_key?("Calendar")
+      refute ModuleRegistry.valid_base_key?(String.duplicate("a", 60))
+    end
+
+    test "a dotted-base module cannot declare composing sub-permissions" do
+      # If FakeDottedBase declared subs, "fake_calendar.view_others.x" would
+      # compose ambiguously — its subs must be dropped entirely.
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          ModuleRegistry.register(FakeDottedBase)
+          refute Map.has_key?(ModuleRegistry.sub_permission_map(), "fake_calendar.view_others")
+        end)
+
+      _ = log
     end
   end
 end

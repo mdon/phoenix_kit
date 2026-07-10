@@ -840,6 +840,15 @@ defmodule PhoenixKit.Users.Permissions do
     repo.transaction(fn ->
       role_uuid = resolve_role_uuid(role_uuid)
 
+      # Lock the ROLE row FOR UPDATE first. Locking only the permission rows
+      # (below) is insufficient when the role currently has ZERO of them —
+      # there is nothing to lock, so two concurrent set_permissions calls both
+      # observe an empty set and insert disjoint desired sets, leaving their
+      # union rather than either requested state. The role-row lock serializes
+      # them regardless of how many permission rows exist.
+      from(r in Role, where: r.uuid == ^role_uuid, select: r.uuid, lock: "FOR UPDATE")
+      |> repo.one()
+
       # Lock existing permission rows FOR UPDATE to prevent concurrent set_permissions
       # from reading the same state and computing conflicting diffs.
       current_keys =

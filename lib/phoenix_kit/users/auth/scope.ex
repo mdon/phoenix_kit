@@ -444,10 +444,23 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @spec can?(t(), String.t()) :: boolean()
   def can?(%__MODULE__{cached_permissions: perms}, key)
       when is_binary(key) and not is_nil(perms) do
-    MapSet.member?(perms, key) and Permissions.feature_enabled?(key)
+    MapSet.member?(perms, key) and base_held?(perms, key) and Permissions.feature_enabled?(key)
   end
 
   def can?(_, _), do: false
+
+  # A sub-permission is only effective while its BASE is also held. The cascade
+  # guarantees this in normal operation (granting a sub grants its base), so
+  # this is defensive: it closes the orphan case where a sub row survives its
+  # base being removed (e.g. a module/sub-key temporarily leaves the registry
+  # and returns) — without it, `can?/2` would honor a dotted key whose base
+  # the role no longer holds.
+  defp base_held?(perms, key) do
+    case Permissions.parent_key(key) do
+      nil -> true
+      base -> MapSet.member?(perms, base)
+    end
+  end
 
   @doc """
   Returns the set of module keys the user can access.

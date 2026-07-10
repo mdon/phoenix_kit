@@ -652,7 +652,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         {:halt, socket}
 
       Scope.has_module_access?(scope, module_key) and
-          (Scope.system_role?(scope) or
+          (Scope.owner?(scope) or
              MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
         socket = attach_locale_hook(socket)
         {:cont, socket}
@@ -1164,7 +1164,12 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp enforce_admin_view_permission(socket, scope) do
     case permission_key_for_admin_view(socket.view) do
       nil ->
-        # Unmapped views: fail-closed for custom roles, allow Admin/Owner
+        # Unmapped views: fail-closed for custom roles, allow Admin/Owner.
+        # This deliberately keeps `system_role?` (not `owner?`): an unmapped
+        # view has NO permission key and NO module to enable, so Admin here
+        # isn't bypassing a revocation or a disabled module — it's the
+        # no-mapping fallback. Restricting it to Owner would lock Admin out
+        # of legitimately-unmapped core admin views with no security gain.
         Logger.debug(
           "[Auth] Admin view #{inspect(socket.view)} has no permission mapping — " <>
             "allowing system roles, denying custom roles"
@@ -1708,7 +1713,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             |> halt()
 
           Scope.has_module_access?(scope, module_key) and
-              (Scope.system_role?(scope) or
+              (Scope.owner?(scope) or
                  MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
             conn
 
