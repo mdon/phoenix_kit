@@ -118,13 +118,23 @@ defmodule PhoenixKit.Integration.Users.PermissionsCascadeTest do
     end
   end
 
-  describe "any_permissions_exist?/0" do
+  describe "any_permissions_exist?/0 (deprecated)" do
     test "true on a seeded install, false once all rows are gone" do
       # V53 seeded the Admin role, so the test DB starts seeded
       assert Permissions.any_permissions_exist?()
 
       Repo.delete_all(RolePermission)
       refute Permissions.any_permissions_exist?()
+    end
+  end
+
+  describe "permissions_table_ready?/0" do
+    test "stays true whether the table has rows or not (keys on presence)" do
+      assert Permissions.permissions_table_ready?()
+
+      Repo.delete_all(RolePermission)
+      # unlike any_permissions_exist?/0, an empty-but-present table is READY
+      assert Permissions.permissions_table_ready?()
     end
   end
 
@@ -200,15 +210,23 @@ defmodule PhoenixKit.Integration.Users.PermissionsCascadeTest do
       assert Scope.admin?(scope)
     end
 
-    test "genuinely unseeded install falls back to full access",
+    test "emptying the table (present, migrated) does NOT restore Admin full access",
          %{admin_user: admin_user} do
+      # The old count-based fallback treated zero rows as 'unseeded' and
+      # restored full access — so an Owner stripping every role bare
+      # ironically re-privileged Admin. The fallback is now keyed on table
+      # PRESENCE, not row count.
       Repo.delete_all(RolePermission)
 
-      scope = Scope.for_user(admin_user)
+      # the table is still present/migrated
+      assert Permissions.permissions_table_ready?()
 
-      assert Scope.has_module_access?(scope, "dashboard")
-      assert Scope.has_module_access?(scope, @base)
-      assert Scope.has_module_access?(scope, @sub_edit)
+      scope = Scope.for_user(admin_user)
+      assert Scope.accessible_modules(scope) == MapSet.new()
+      refute Scope.has_module_access?(scope, "dashboard")
+      refute Scope.has_module_access?(scope, @base)
+      # only a genuinely MISSING table (pre-V53) unlocks the full-access
+      # escape hatch — see permissions_table_ready?/0.
     end
 
     test "Owner always holds every key regardless of rows" do

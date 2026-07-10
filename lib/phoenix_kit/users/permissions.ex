@@ -551,13 +551,31 @@ defmodule PhoenixKit.Users.Permissions do
   end
 
   @doc """
-  Returns true when at least one permission row exists (any role, any key).
+  Whether the permissions table is present (migrated), regardless of how many
+  rows it holds.
 
-  Used to distinguish a genuinely unseeded install (pre-V53 / migrations not
-  yet run — the Admin role falls back to full access) from a seeded install
-  where an Owner has deliberately revoked keys. Returns `false` when the
-  table is missing.
+  This is the ONLY signal that unlocks the Admin full-access fallback: a
+  genuinely unmigrated install (pre-V53, table missing) returns `false`, and
+  scope treats that as "not yet seeded → grant Admin everything". Once the
+  table exists, zero rows for an Admin means an Owner deliberately revoked
+  them — no access — and that must stick; row COUNT must never re-open the
+  fallback (the old `any_permissions_exist?` did, so stripping every role
+  bare ironically restored full access).
+
+  Fails CLOSED: a transient/other query error returns `true` (table assumed
+  present), so a DB blip de-privileges an Admin to their explicit rows rather
+  than escalating them to full access.
   """
+  @spec permissions_table_ready?() :: boolean()
+  def permissions_table_ready? do
+    repo = RepoHelper.repo()
+    _ = repo.exists?(from(rp in RolePermission, select: true))
+    true
+  rescue
+    e -> not table_missing_error?(e)
+  end
+
+  @deprecated "Use permissions_table_ready?/0 — count-based checks re-open the full-access fallback"
   @spec any_permissions_exist?() :: boolean()
   def any_permissions_exist? do
     repo = RepoHelper.repo()

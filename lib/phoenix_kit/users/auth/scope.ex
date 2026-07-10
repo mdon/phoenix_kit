@@ -114,14 +114,15 @@ defmodule PhoenixKit.Users.Auth.Scope do
         roles.admin in cached_roles ->
           case Permissions.get_permissions_for_user(user) do
             # Admin with no explicit permissions falls back to full access
-            # ONLY on a genuinely unseeded install (no permission rows at
-            # all — pre-V53, or migrations not yet run). On a seeded
-            # install, zero rows means an Owner deliberately revoked
-            # everything from this admin's roles, and that must stick —
-            # otherwise revoking the last key would ironically restore
-            # full access.
+            # ONLY when the permissions table is genuinely MISSING (pre-V53
+            # / migrations not yet run). Once the table exists, zero rows
+            # means an Owner deliberately revoked everything from this
+            # admin's roles, and that must stick — keyed on table presence,
+            # NOT row count, so stripping every role bare can never restore
+            # full access, and a transient query error fails closed to
+            # empty rather than escalating.
             [] ->
-              if Permissions.any_permissions_exist?() do
+              if Permissions.permissions_table_ready?() do
                 MapSet.new()
               else
                 MapSet.new(Permissions.all_module_keys())
