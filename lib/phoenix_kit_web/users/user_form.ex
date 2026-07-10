@@ -933,11 +933,18 @@ defmodule PhoenixKitWeb.Users.UserForm do
           {:ok, _} = result ->
             # Audit what was ACTUALLY applied, not what was submitted — the
             # context silently drops changes the actor isn't authorized to make
-            # (and preserves the last Owner), so re-read the real role set.
-            applied_roles = user.uuid |> Auth.get_user_with_roles() |> Roles.get_user_roles()
+            # (and preserves the last Owner), so re-read the real role set (fresh
+            # by uuid; [] if the user was deleted mid-op — no crash). Skip the
+            # log entirely when nothing actually changed (e.g. a fully-rejected
+            # unauthorized submission), mirroring the LiveView role modal.
+            applied_roles = Roles.get_user_roles(user)
             added = applied_roles -- current_roles
             removed = current_roles -- applied_roles
-            log_roles_updated(current_user, user, current_roles, applied_roles, added, removed)
+
+            if added != [] or removed != [] do
+              log_roles_updated(current_user, user, current_roles, applied_roles, added, removed)
+            end
+
             result
 
           error ->

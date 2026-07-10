@@ -230,7 +230,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         # Audit what was ACTUALLY applied, not what was submitted — the context
         # silently drops role changes the actor isn't authorized to make (and
         # preserves the last Owner), so the submitted set can differ from reality.
-        applied_roles = user.uuid |> Auth.get_user_with_roles() |> Roles.get_user_roles()
+        # Reads fresh by uuid (returns [] if the user was deleted mid-op — no crash).
+        applied_roles = Roles.get_user_roles(user)
         added = applied_roles -- current_roles
         removed = current_roles -- applied_roles
 
