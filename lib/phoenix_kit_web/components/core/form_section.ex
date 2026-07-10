@@ -85,6 +85,8 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   attr :title, :string, required: true
   attr :class, :string, default: nil
 
+  slot :actions, doc: "optional right-aligned controls (e.g. an Add button)"
+
   def section_header(assigns) do
     ~H"""
     <div class={["flex items-center gap-2 pt-4 first:pt-0", @class]}>
@@ -93,6 +95,7 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
         {@title}
       </h3>
       <div class="flex-1 border-t border-base-300 ml-2"></div>
+      <div :if={@actions != []} class="shrink-0">{render_slot(@actions)}</div>
     </div>
     """
   end

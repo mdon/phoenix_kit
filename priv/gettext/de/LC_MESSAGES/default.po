@@ -360,10 +360,10 @@ msgid "Active"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:18
-#: lib/modules/storage/web/dimensions.html.heex:137
-#: lib/modules/storage/web/dimensions.html.heex:200
-#: lib/modules/storage/web/dimensions.html.heex:333
-#: lib/modules/storage/web/dimensions.html.heex:400
+#: lib/modules/storage/web/dimensions.html.heex:135
+#: lib/modules/storage/web/dimensions.html.heex:198
+#: lib/modules/storage/web/dimensions.html.heex:332
+#: lib/modules/storage/web/dimensions.html.heex:399
 #: lib/modules/storage/web/settings.html.heex:139
 #: lib/modules/storage/web/settings.html.heex:202
 #: lib/phoenix_kit_web/live/dashboard.html.heex:365
@@ -468,8 +468,8 @@ msgid "Account Information"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:69
-#: lib/modules/storage/web/dimensions.html.heex:151
-#: lib/modules/storage/web/dimensions.html.heex:351
+#: lib/modules/storage/web/dimensions.html.heex:149
+#: lib/modules/storage/web/dimensions.html.heex:350
 #: lib/modules/storage/web/settings.html.heex:152
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:79
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:123
@@ -898,10 +898,10 @@ msgstr ""
 msgid "Data that will be permanently deleted:"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:239
-#: lib/modules/storage/web/dimensions.html.heex:274
-#: lib/modules/storage/web/dimensions.html.heex:439
-#: lib/modules/storage/web/dimensions.html.heex:474
+#: lib/modules/storage/web/dimensions.html.heex:237
+#: lib/modules/storage/web/dimensions.html.heex:272
+#: lib/modules/storage/web/dimensions.html.heex:438
+#: lib/modules/storage/web/dimensions.html.heex:473
 #: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:192
 #: lib/phoenix_kit_web/components/media_browser.html.heex:788
@@ -953,10 +953,10 @@ msgid "Description"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:18
-#: lib/modules/storage/web/dimensions.html.heex:137
-#: lib/modules/storage/web/dimensions.html.heex:204
-#: lib/modules/storage/web/dimensions.html.heex:333
-#: lib/modules/storage/web/dimensions.html.heex:404
+#: lib/modules/storage/web/dimensions.html.heex:135
+#: lib/modules/storage/web/dimensions.html.heex:202
+#: lib/modules/storage/web/dimensions.html.heex:332
+#: lib/modules/storage/web/dimensions.html.heex:403
 #: lib/modules/storage/web/settings.html.heex:139
 #: lib/modules/storage/web/settings.html.heex:206
 #: lib/phoenix_kit_web/components/core/badge.ex:191
@@ -988,10 +988,10 @@ msgstr ""
 msgid "Draft"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:220
-#: lib/modules/storage/web/dimensions.html.heex:257
-#: lib/modules/storage/web/dimensions.html.heex:420
-#: lib/modules/storage/web/dimensions.html.heex:457
+#: lib/modules/storage/web/dimensions.html.heex:218
+#: lib/modules/storage/web/dimensions.html.heex:255
+#: lib/modules/storage/web/dimensions.html.heex:419
+#: lib/modules/storage/web/dimensions.html.heex:456
 #: lib/modules/storage/web/settings.html.heex:257
 #: lib/phoenix_kit_web/live/settings/users.html.heex:429
 #: lib/phoenix_kit_web/live/settings/users.html.heex:469
@@ -1184,8 +1184,8 @@ msgstr ""
 msgid "Forgot your password?"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:125
-#: lib/modules/storage/web/dimensions.html.heex:149
+#: lib/modules/storage/web/dimensions.html.heex:123
+#: lib/modules/storage/web/dimensions.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Format"
 msgstr ""
@@ -1331,10 +1331,10 @@ msgstr ""
 msgid "Manage your cookie settings"
 msgstr "Verwalten Sie Ihre Cookie-Einstellungen"
 
-#: lib/modules/storage/web/dimensions.html.heex:116
-#: lib/modules/storage/web/dimensions.html.heex:147
-#: lib/modules/storage/web/dimensions.html.heex:319
-#: lib/modules/storage/web/dimensions.html.heex:345
+#: lib/modules/storage/web/dimensions.html.heex:114
+#: lib/modules/storage/web/dimensions.html.heex:145
+#: lib/modules/storage/web/dimensions.html.heex:318
+#: lib/modules/storage/web/dimensions.html.heex:344
 #: lib/phoenix_kit_web/live/activity/index.html.heex:158
 #: lib/phoenix_kit_web/live/activity/index.html.heex:303
 #, elixir-autogen, elixir-format
@@ -1887,10 +1887,10 @@ msgstr ""
 msgid "State/Province"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:136
-#: lib/modules/storage/web/dimensions.html.heex:150
-#: lib/modules/storage/web/dimensions.html.heex:332
-#: lib/modules/storage/web/dimensions.html.heex:350
+#: lib/modules/storage/web/dimensions.html.heex:134
+#: lib/modules/storage/web/dimensions.html.heex:148
+#: lib/modules/storage/web/dimensions.html.heex:331
+#: lib/modules/storage/web/dimensions.html.heex:349
 #: lib/modules/storage/web/health.html.heex:202
 #: lib/modules/storage/web/health.html.heex:221
 #: lib/modules/storage/web/settings.html.heex:138
@@ -2241,10 +2241,10 @@ msgstr ""
 msgid "Delete bucket"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:228
-#: lib/modules/storage/web/dimensions.html.heex:265
-#: lib/modules/storage/web/dimensions.html.heex:428
-#: lib/modules/storage/web/dimensions.html.heex:465
+#: lib/modules/storage/web/dimensions.html.heex:226
+#: lib/modules/storage/web/dimensions.html.heex:263
+#: lib/modules/storage/web/dimensions.html.heex:427
+#: lib/modules/storage/web/dimensions.html.heex:464
 #: lib/modules/storage/web/settings.html.heex:228
 #: lib/modules/storage/web/settings.html.heex:264
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:126
@@ -2259,10 +2259,10 @@ msgstr ""
 msgid "Edit bucket"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:228
-#: lib/modules/storage/web/dimensions.html.heex:265
-#: lib/modules/storage/web/dimensions.html.heex:428
-#: lib/modules/storage/web/dimensions.html.heex:465
+#: lib/modules/storage/web/dimensions.html.heex:226
+#: lib/modules/storage/web/dimensions.html.heex:263
+#: lib/modules/storage/web/dimensions.html.heex:427
+#: lib/modules/storage/web/dimensions.html.heex:464
 #: lib/modules/storage/web/settings.html.heex:228
 #: lib/modules/storage/web/settings.html.heex:264
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:579
@@ -2338,8 +2338,8 @@ msgstr ""
 msgid "Set Default"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:108
-#: lib/modules/storage/web/dimensions.html.heex:146
+#: lib/modules/storage/web/dimensions.html.heex:106
+#: lib/modules/storage/web/dimensions.html.heex:144
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1705
 #, elixir-autogen, elixir-format
 msgid "Size"
@@ -2461,14 +2461,14 @@ msgstr ""
 msgid "Add First Field"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:66
-#: lib/modules/storage/web/dimensions.html.heex:91
+#: lib/modules/storage/web/dimensions.html.heex:65
+#: lib/modules/storage/web/dimensions.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Add Image Dimension"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:74
-#: lib/modules/storage/web/dimensions.html.heex:294
+#: lib/modules/storage/web/dimensions.html.heex:73
+#: lib/modules/storage/web/dimensions.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Add Video Dimension"
 msgstr ""
@@ -2550,23 +2550,23 @@ msgstr ""
 msgid "Are you sure you want to delete this bucket? This will remove all location records."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:236
-#: lib/modules/storage/web/dimensions.html.heex:271
-#: lib/modules/storage/web/dimensions.html.heex:436
-#: lib/modules/storage/web/dimensions.html.heex:471
+#: lib/modules/storage/web/dimensions.html.heex:234
+#: lib/modules/storage/web/dimensions.html.heex:269
+#: lib/modules/storage/web/dimensions.html.heex:435
+#: lib/modules/storage/web/dimensions.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this dimension?"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:35
+#: lib/modules/storage/web/dimensions.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:119
-#: lib/modules/storage/web/dimensions.html.heex:172
-#: lib/modules/storage/web/dimensions.html.heex:322
-#: lib/modules/storage/web/dimensions.html.heex:372
+#: lib/modules/storage/web/dimensions.html.heex:117
+#: lib/modules/storage/web/dimensions.html.heex:170
+#: lib/modules/storage/web/dimensions.html.heex:321
+#: lib/modules/storage/web/dimensions.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Aspect Ratio"
 msgstr ""
@@ -2677,8 +2677,8 @@ msgstr ""
 msgid "Client Secret"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:328
-#: lib/modules/storage/web/dimensions.html.heex:349
+#: lib/modules/storage/web/dimensions.html.heex:327
+#: lib/modules/storage/web/dimensions.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Codec"
 msgstr ""
@@ -2786,7 +2786,7 @@ msgstr ""
 msgid "Create project or select existing one"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:57
+#: lib/modules/storage/web/dimensions.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Create your first dimension preset to start generating file variants."
 msgstr ""
@@ -2821,12 +2821,12 @@ msgstr ""
 msgid "Dimension Name"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:22
+#: lib/modules/storage/web/dimensions.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Dimension Presets"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:24
+#: lib/modules/storage/web/dimensions.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Dimensions define the target sizes for automatic variant generation. Images are resized and videos are transcoded to these preset sizes."
 msgstr ""
@@ -2916,10 +2916,10 @@ msgstr ""
 msgid "First day of the week"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:120
-#: lib/modules/storage/web/dimensions.html.heex:176
-#: lib/modules/storage/web/dimensions.html.heex:323
-#: lib/modules/storage/web/dimensions.html.heex:376
+#: lib/modules/storage/web/dimensions.html.heex:118
+#: lib/modules/storage/web/dimensions.html.heex:174
+#: lib/modules/storage/web/dimensions.html.heex:322
+#: lib/modules/storage/web/dimensions.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Fixed"
 msgstr ""
@@ -2929,7 +2929,7 @@ msgstr ""
 msgid "Format Override"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:493
+#: lib/modules/storage/web/dimensions.html.heex:492
 #, elixir-autogen, elixir-format
 msgid "Format Override:"
 msgstr ""
@@ -2982,7 +2982,7 @@ msgstr ""
 msgid "If behind nginx/apache, ensure"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:83
+#: lib/modules/storage/web/dimensions.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Image Dimensions"
 msgstr ""
@@ -2997,7 +2997,7 @@ msgstr ""
 msgid "ImageMagick is required for image processing and variant generation."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:490
+#: lib/modules/storage/web/dimensions.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Images use 1-100 scale (compression quality)"
 msgstr ""
@@ -3008,6 +3008,8 @@ msgstr ""
 msgid "Installation:"
 msgstr ""
 
+#: lib/modules/storage/web/dimensions.ex:30
+#: lib/modules/storage/web/dimensions.html.heex:4
 #: lib/modules/storage/web/dimensions.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Instance Dimensions"
@@ -3029,7 +3031,7 @@ msgstr ""
 msgid "Label"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:494
+#: lib/modules/storage/web/dimensions.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Leave empty to preserve original format, or specify jpg/png/webp/mp4"
 msgstr ""
@@ -3091,8 +3093,8 @@ msgstr ""
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:145
-#: lib/modules/storage/web/dimensions.html.heex:341
+#: lib/modules/storage/web/dimensions.html.heex:143
+#: lib/modules/storage/web/dimensions.html.heex:340
 #: lib/modules/storage/web/settings.html.heex:147
 #: lib/phoenix_kit_web/components/media_browser.html.heex:376
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1701
@@ -3138,7 +3140,7 @@ msgstr ""
 msgid "No custom fields defined yet"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:54
+#: lib/modules/storage/web/dimensions.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "No dimensions configured"
 msgstr ""
@@ -3188,10 +3190,10 @@ msgstr ""
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:127
-#: lib/modules/storage/web/dimensions.html.heex:187
-#: lib/modules/storage/web/dimensions.html.heex:329
-#: lib/modules/storage/web/dimensions.html.heex:387
+#: lib/modules/storage/web/dimensions.html.heex:125
+#: lib/modules/storage/web/dimensions.html.heex:185
+#: lib/modules/storage/web/dimensions.html.heex:328
+#: lib/modules/storage/web/dimensions.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Original"
 msgstr ""
@@ -3222,20 +3224,20 @@ msgid "Project Title"
 msgstr ""
 
 #: lib/modules/storage/web/dimension_form.html.heex:139
-#: lib/modules/storage/web/dimensions.html.heex:123
-#: lib/modules/storage/web/dimensions.html.heex:148
+#: lib/modules/storage/web/dimensions.html.heex:121
+#: lib/modules/storage/web/dimensions.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Quality"
 msgstr ""
 
 #: lib/modules/storage/web/dimension_form.html.heex:137
-#: lib/modules/storage/web/dimensions.html.heex:326
-#: lib/modules/storage/web/dimensions.html.heex:347
+#: lib/modules/storage/web/dimensions.html.heex:325
+#: lib/modules/storage/web/dimensions.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Quality (CRF)"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:489
+#: lib/modules/storage/web/dimensions.html.heex:488
 #, elixir-autogen, elixir-format
 msgid "Quality Settings:"
 msgstr ""
@@ -3271,13 +3273,13 @@ msgstr ""
 msgid "Reset"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:41
+#: lib/modules/storage/web/dimensions.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Reset to Defaults"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:311
-#: lib/modules/storage/web/dimensions.html.heex:343
+#: lib/modules/storage/web/dimensions.html.heex:310
+#: lib/modules/storage/web/dimensions.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Resolution"
 msgstr ""
@@ -3458,7 +3460,7 @@ msgstr ""
 msgid "The first user (Owner) will always be active regardless of this setting."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:27
+#: lib/modules/storage/web/dimensions.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
 msgstr ""
@@ -3550,22 +3552,22 @@ msgstr ""
 msgid "Uses free APIs: IP-API.com (45 requests/minute) with ipapi.co (1000 requests/day) fallback. Defaults to OFF for privacy."
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:487
+#: lib/modules/storage/web/dimensions.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Variant Generation System"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:284
+#: lib/modules/storage/web/dimensions.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Video Dimensions"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:491
+#: lib/modules/storage/web/dimensions.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Video Settings:"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:492
+#: lib/modules/storage/web/dimensions.html.heex:491
 #, elixir-autogen, elixir-format
 msgid "Videos use CRF 0-51 scale (lower = higher quality)"
 msgstr ""
@@ -4310,8 +4312,8 @@ msgstr ""
 msgid "Detailed message shown below the header"
 msgstr ""
 
-#: lib/modules/storage/web/dimensions.html.heex:211
-#: lib/modules/storage/web/dimensions.html.heex:411
+#: lib/modules/storage/web/dimensions.html.heex:209
+#: lib/modules/storage/web/dimensions.html.heex:410
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Dimension actions"
 msgstr ""
@@ -10014,12 +10016,12 @@ msgstr ""
 msgid "The icon appears in browser tabs, bookmarks, and on phone home screens."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:113
+#: lib/phoenix_kit_web/components/core/form_section.ex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unsaved change"
 msgstr "Nicht gespeicherte Änderung"
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:115
+#: lib/phoenix_kit_web/components/core/form_section.ex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "saved:"
 msgstr "gespeichert:"
@@ -10128,3 +10130,33 @@ msgstr "Speichermodul repariert: %{summary}"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Storage settings updated successfully"
 msgstr "Speichereinstellungen erfolgreich aktualisiert"
+
+#: lib/modules/storage/web/dimensions.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dimension deleted successfully"
+msgstr "Abmessung erfolgreich gelöscht"
+
+#: lib/modules/storage/web/dimensions.ex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dimension status updated"
+msgstr "Status der Abmessung aktualisiert"
+
+#: lib/modules/storage/web/dimensions.ex:93
+#, elixir-autogen, elixir-format
+msgid "Dimensions reset to defaults successfully"
+msgstr "Abmessungen auf Standardwerte zurückgesetzt"
+
+#: lib/modules/storage/web/dimensions.ex:56
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to delete dimension"
+msgstr "Abmessung konnte nicht gelöscht werden"
+
+#: lib/modules/storage/web/dimensions.ex:102
+#, elixir-autogen, elixir-format
+msgid "Failed to reset dimensions: %{reason}"
+msgstr "Abmessungen konnten nicht zurückgesetzt werden: %{reason}"
+
+#: lib/modules/storage/web/dimensions.ex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update dimension"
+msgstr "Abmessung konnte nicht aktualisiert werden"
