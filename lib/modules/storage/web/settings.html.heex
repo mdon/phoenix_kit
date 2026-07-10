@@ -1,7 +1,7 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title="Media Settings"
+  page_title={gettext("Media Settings")}
   current_path={@current_path}
   current_locale={@current_locale}
   project_title={@project_title}
@@ -72,7 +72,7 @@
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
         <div class="flex justify-between items-center mb-4">
-          <h2 class="card-title text-2xl">
+          <h2 class="card-title text-lg">
             <.icon name="hero-inbox-stack" class="w-6 h-6 mr-2" /> {gettext("Media Buckets")}
           </h2>
           <.link
@@ -312,7 +312,7 @@
     <%!-- Media Configuration --%>
     <div class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
-        <h2 class="card-title text-2xl mb-4">
+        <h2 class="card-title text-lg mb-4">
           <.icon name="hero-cog-6-tooth" class="w-6 h-6 mr-2" /> {gettext("Media Configuration")}
         </h2>
 
@@ -341,9 +341,11 @@
                 <div class="alert alert-warning">
                   <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
                   <span class="text-sm">
-                    Current setting (#{@form_redundancy} copies) exceeds available buckets (#{@max_redundancy}). {gettext(
-                      "Reduce redundancy or enable more buckets."
-                    )}
+                    {gettext(
+                      "Current setting (%{count} copies) exceeds available buckets (%{max}).",
+                      count: @form_redundancy,
+                      max: @max_redundancy
+                    )} {gettext("Reduce redundancy or enable more buckets.")}
                   </span>
                 </div>
               <% end %>
@@ -461,24 +463,24 @@
         </.form>
 
         <%!-- Apply Button --%>
+        <% storage_form_clean =
+          @form_redundancy == @redundancy_copies and
+            @form_auto_generate_variants == @auto_generate_variants and
+            @form_tile_generation_enabled == @tile_generation_enabled and
+            @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and
+            @form_max_upload_size_mb == @max_upload_size_mb %>
         <div class="form-control mt-4">
           <button
             type="button"
             phx-click="apply_storage_settings"
-            disabled={
-              @form_redundancy == @redundancy_copies and
-                @form_auto_generate_variants == @auto_generate_variants and
-                @form_tile_generation_enabled == @tile_generation_enabled and
-                @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and
-                @form_max_upload_size_mb == @max_upload_size_mb
-            }
+            disabled={storage_form_clean}
             phx-disable-with={gettext("Applying...")}
             class="btn btn-primary"
           >
             <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Apply Changes")}
           </button>
           <span class="label-text-alt text-xs ml-2">
-            <%= if @form_redundancy == @redundancy_copies and @form_auto_generate_variants == @auto_generate_variants and @form_tile_generation_enabled == @tile_generation_enabled and @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and @form_max_upload_size_mb == @max_upload_size_mb do %>
+            <%= if storage_form_clean do %>
               {gettext("No changes to apply")}
             <% else %>
               {gettext("Changes will be saved immediately")}
@@ -612,35 +614,3 @@
     </div>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
-
-<%!-- Add CSS for drag and drop --%>
-<style>
-  #upload-dropzone.dragover {
-    @apply border-primary bg-primary/5;
-  }
-</style>
-
-<script>
-  // Simple drag and drop styling
-  document.addEventListener('DOMContentLoaded', function() {
-    const dropzone = document.getElementById('upload-dropzone');
-    const fileInput = document.getElementById('file-upload');
-
-    if (dropzone && fileInput) {
-      dropzone.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-      });
-
-      dropzone.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-      });
-
-      dropzone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-      });
-    }
-  });
-</script>

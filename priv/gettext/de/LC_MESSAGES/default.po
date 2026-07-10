@@ -2314,7 +2314,7 @@ msgid "Provider"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:617
-#: lib/modules/storage/web/settings.html.heex:490
+#: lib/modules/storage/web/settings.html.heex:492
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr ""
@@ -2533,13 +2533,13 @@ msgstr ""
 msgid "Application name display"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:478
+#: lib/modules/storage/web/settings.html.heex:480
 #: lib/phoenix_kit_web/live/users/users.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:475
+#: lib/modules/storage/web/settings.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr ""
@@ -2591,12 +2591,12 @@ msgstr ""
 msgid "Authorization Settings"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:386
+#: lib/modules/storage/web/settings.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:388
+#: lib/modules/storage/web/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to configured dimensions"
 msgstr ""
@@ -2647,7 +2647,7 @@ msgstr ""
 msgid "Callback URL"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:484
+#: lib/modules/storage/web/settings.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr ""
@@ -2861,7 +2861,7 @@ msgstr ""
 msgid "Enter"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:359
+#: lib/modules/storage/web/settings.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr ""
@@ -3066,7 +3066,7 @@ msgstr ""
 msgid "Maintain Aspect Ratio"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:514
+#: lib/modules/storage/web/settings.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Manage Dimensions"
 msgstr ""
@@ -3086,7 +3086,7 @@ msgstr ""
 msgid "Manage user registration, defaults, and custom fields"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:365
+#: lib/modules/storage/web/settings.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr ""
@@ -3128,7 +3128,7 @@ msgstr ""
 msgid "No active sessions found."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr ""
@@ -3183,7 +3183,7 @@ msgstr ""
 msgid "OAuth Setup Instructions"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:361
+#: lib/modules/storage/web/settings.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr ""
@@ -3246,7 +3246,7 @@ msgstr ""
 msgid "Random"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:344
+#: lib/modules/storage/web/settings.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr ""
@@ -3394,7 +3394,7 @@ msgstr ""
 msgid "Site Address (URL)"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:526
+#: lib/modules/storage/web/settings.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr ""
@@ -3420,7 +3420,7 @@ msgstr ""
 msgid "Switch app from"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:544
+#: lib/modules/storage/web/settings.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Sync Files"
 msgstr ""
@@ -3468,7 +3468,7 @@ msgstr ""
 msgid "The storage path"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:579
+#: lib/modules/storage/web/settings.html.heex:581
 #, elixir-autogen, elixir-format
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr ""
@@ -3583,7 +3583,7 @@ msgstr ""
 msgid "Week Start On"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:607
+#: lib/modules/storage/web/settings.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
 msgstr ""
@@ -4270,7 +4270,7 @@ msgstr ""
 msgid "Create an OpenRouter account"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:458
+#: lib/modules/storage/web/settings.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr ""
@@ -4485,7 +4485,7 @@ msgstr ""
 msgid "File"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:604
+#: lib/modules/storage/web/settings.html.heex:606
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr ""
@@ -4746,12 +4746,12 @@ msgstr ""
 msgid "Manual Toggle"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:445
+#: lib/modules/storage/web/settings.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:447
+#: lib/modules/storage/web/settings.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr ""
@@ -4771,17 +4771,18 @@ msgstr ""
 msgid "Media Health"
 msgstr ""
 
+#: lib/modules/storage/web/settings.html.heex:4
 #: lib/modules/storage/web/settings.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Media Settings"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:525
+#: lib/modules/storage/web/settings.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:599
+#: lib/modules/storage/web/settings.html.heex:601
 #, elixir-autogen, elixir-format
 msgid "Media System Architecture"
 msgstr ""
@@ -5056,7 +5057,7 @@ msgstr ""
 msgid "Remove this member from the organization?"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:585
+#: lib/modules/storage/web/settings.html.heex:587
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Repair Media Module"
 msgstr ""
@@ -5263,7 +5264,7 @@ msgstr ""
 msgid "Testing..."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:601
+#: lib/modules/storage/web/settings.html.heex:603
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The media system is designed for distributed file management with automatic redundancy."
 msgstr ""
@@ -7333,7 +7334,7 @@ msgstr ""
 msgid "Could not post comment"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:407
+#: lib/modules/storage/web/settings.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr ""
@@ -7429,7 +7430,7 @@ msgstr ""
 msgid "Giphy search failed"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:410
+#: lib/modules/storage/web/settings.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr ""
@@ -9081,7 +9082,7 @@ msgstr ""
 msgid "All types"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:431
+#: lib/modules/storage/web/settings.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr ""
@@ -9107,12 +9108,12 @@ msgstr ""
 msgid "Background image"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:434
+#: lib/modules/storage/web/settings.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:553
+#: lib/modules/storage/web/settings.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr ""
@@ -9159,7 +9160,7 @@ msgstr ""
 msgid "Create an OpenAI account"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:505
+#: lib/modules/storage/web/settings.html.heex:507
 #, elixir-autogen, elixir-format
 msgid "Create and edit the image/video size presets used to generate variants of uploaded media."
 msgstr ""
@@ -9268,7 +9269,7 @@ msgstr "Einstellung konnte nicht aktualisiert werden"
 msgid "Filter"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:562
+#: lib/modules/storage/web/settings.html.heex:564
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Find Orphaned Files"
 msgstr ""
@@ -9447,7 +9448,7 @@ msgstr ""
 msgid "Oldest first"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:535
+#: lib/modules/storage/web/settings.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
 msgstr ""
@@ -9478,7 +9479,7 @@ msgstr ""
 msgid "Pick or upload a small icon image."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:571
+#: lib/modules/storage/web/settings.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
 msgstr ""
@@ -9574,7 +9575,7 @@ msgstr ""
 msgid "View Notifications"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:522
+#: lib/modules/storage/web/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr ""
@@ -10027,3 +10028,103 @@ msgstr "gespeichert:"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "New User Defaults"
 msgstr "Standardwerte für neue Benutzer"
+
+#: lib/modules/storage/web/settings.ex:311
+#, elixir-autogen, elixir-format
+msgid "Auto-variant generation disabled"
+msgstr "Automatische Variantenerzeugung deaktiviert"
+
+#: lib/modules/storage/web/settings.ex:310
+#, elixir-autogen, elixir-format
+msgid "Auto-variant generation enabled"
+msgstr "Automatische Variantenerzeugung aktiviert"
+
+#: lib/modules/storage/web/settings.ex:380
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket deleted successfully"
+msgstr "Bucket erfolgreich gelöscht"
+
+#: lib/modules/storage/web/settings.ex:354
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket disabled successfully"
+msgstr "Bucket erfolgreich deaktiviert"
+
+#: lib/modules/storage/web/settings.ex:353
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket enabled successfully"
+msgstr "Bucket erfolgreich aktiviert"
+
+#: lib/modules/storage/web/settings.ex:344
+#, elixir-autogen, elixir-format
+msgid "Bucket not found"
+msgstr "Bucket nicht gefunden"
+
+#: lib/modules/storage/web/settings.ex:95
+#: lib/modules/storage/web/settings.ex:228
+#, elixir-autogen, elixir-format
+msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
+msgstr "Redundanz kann nicht auf %{count} Kopien gesetzt werden. Nur %{max} aktive Buckets verfügbar."
+
+#: lib/modules/storage/web/settings.html.heex:344
+#, elixir-autogen, elixir-format
+msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
+msgstr "Die aktuelle Einstellung (%{count} Kopien) übersteigt die verfügbaren Buckets (%{max})."
+
+#: lib/modules/storage/web/settings.ex:331
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Default bucket updated"
+msgstr "Standard-Bucket aktualisiert"
+
+#: lib/modules/storage/web/settings.ex:385
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to delete bucket"
+msgstr "Bucket konnte nicht gelöscht werden"
+
+#: lib/modules/storage/web/settings.ex:410
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to repair: %{reason}"
+msgstr "Reparatur fehlgeschlagen: %{reason}"
+
+#: lib/modules/storage/web/settings.ex:360
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update bucket"
+msgstr "Bucket konnte nicht aktualisiert werden"
+
+#: lib/modules/storage/web/settings.ex:336
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update default bucket"
+msgstr "Standard-Bucket konnte nicht aktualisiert werden"
+
+#: lib/modules/storage/web/settings.ex:122
+#: lib/modules/storage/web/settings.ex:284
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update redundancy settings"
+msgstr "Redundanz-Einstellungen konnten nicht aktualisiert werden"
+
+#: lib/modules/storage/web/settings.ex:292
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update storage settings"
+msgstr "Speichereinstellungen konnten nicht aktualisiert werden"
+
+#: lib/modules/storage/web/settings.ex:288
+#: lib/modules/storage/web/settings.ex:318
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update variant settings"
+msgstr "Varianten-Einstellungen konnten nicht aktualisiert werden"
+
+#: lib/modules/storage/web/settings.ex:112
+#, elixir-autogen, elixir-format
+msgid "Redundancy settings updated to %{count} copy"
+msgid_plural "Redundancy settings updated to %{count} copies"
+msgstr[0] "Redundanz-Einstellungen aktualisiert: %{count} Kopie"
+msgstr[1] "Redundanz-Einstellungen aktualisiert: %{count} Kopien"
+
+#: lib/modules/storage/web/settings.ex:400
+#, elixir-autogen, elixir-format
+msgid "Storage module repaired: %{summary}"
+msgstr "Speichermodul repariert: %{summary}"
+
+#: lib/modules/storage/web/settings.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Storage settings updated successfully"
+msgstr "Speichereinstellungen erfolgreich aktualisiert"

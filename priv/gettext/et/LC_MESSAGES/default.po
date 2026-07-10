@@ -2326,7 +2326,7 @@ msgid "Provider"
 msgstr "Teenusepakkuja"
 
 #: lib/modules/sitemap/web/settings.html.heex:617
-#: lib/modules/storage/web/settings.html.heex:490
+#: lib/modules/storage/web/settings.html.heex:492
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr "Kiiraktsioonid"
@@ -2545,13 +2545,13 @@ msgstr "Apple sisselogimine"
 msgid "Application name display"
 msgstr "Rakenduse nime kuvamine"
 
-#: lib/modules/storage/web/settings.html.heex:478
+#: lib/modules/storage/web/settings.html.heex:480
 #: lib/phoenix_kit_web/live/users/users.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Rakenda muudatused"
 
-#: lib/modules/storage/web/settings.html.heex:475
+#: lib/modules/storage/web/settings.html.heex:477
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Applying..."
 msgstr "Rakendamine..."
@@ -2603,12 +2603,12 @@ msgstr "Volitamise konfiguratsioon"
 msgid "Authorization Settings"
 msgstr "Volitamise seaded"
 
-#: lib/modules/storage/web/settings.html.heex:386
+#: lib/modules/storage/web/settings.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr "Automaatselt genereeri variante"
 
-#: lib/modules/storage/web/settings.html.heex:388
+#: lib/modules/storage/web/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to configured dimensions"
 msgstr "Automaatselt muuda piltide ja videote suurust konfigureeritud dimensioonidele"
@@ -2659,7 +2659,7 @@ msgstr "CSS värv või gradient autentimislehe taustaks. Ignoreeritakse, kui tau
 msgid "Callback URL"
 msgstr "Tagasihelistamise URL"
 
-#: lib/modules/storage/web/settings.html.heex:484
+#: lib/modules/storage/web/settings.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Muudatused salvestatakse kohe"
@@ -2873,7 +2873,7 @@ msgstr "Lõpp-punkt"
 msgid "Enter"
 msgstr "Sisesta"
 
-#: lib/modules/storage/web/settings.html.heex:359
+#: lib/modules/storage/web/settings.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr "Sisesta koopiate arv"
@@ -3078,7 +3078,7 @@ msgstr "Magic Link"
 msgid "Maintain Aspect Ratio"
 msgstr "Säilita kuvasuhe"
 
-#: lib/modules/storage/web/settings.html.heex:514
+#: lib/modules/storage/web/settings.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Manage Dimensions"
 msgstr "Halda dimensioone"
@@ -3098,7 +3098,7 @@ msgstr "Halda sisselogimislehe kujundust ja autentimismeetodeid"
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Halda kasutajate registreerimist, vaikimisi seadeid ja kohandatud välju"
 
-#: lib/modules/storage/web/settings.html.heex:365
+#: lib/modules/storage/web/settings.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i)."
@@ -3140,7 +3140,7 @@ msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfiguree
 msgid "No active sessions found."
 msgstr "Aktiivseid seansse ei leitud."
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Pole muudatusi rakendamiseks"
@@ -3195,7 +3195,7 @@ msgstr "OAuth teenusepakkujad"
 msgid "OAuth Setup Instructions"
 msgstr "OAuth seadistamisjuhised"
 
-#: lib/modules/storage/web/settings.html.heex:361
+#: lib/modules/storage/web/settings.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr "Ainult 1 aktiivne bucket saadaval. Lisa rohkem buckete redundantsuse lubamiseks."
@@ -3258,7 +3258,7 @@ msgstr "Kvaliteedi seaded:"
 msgid "Random"
 msgstr "Juhuslik"
 
-#: lib/modules/storage/web/settings.html.heex:344
+#: lib/modules/storage/web/settings.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr "Vähenda redundantsust või luba rohkem buckete."
@@ -3406,7 +3406,7 @@ msgstr "Näita kasutajanime välja registreerimisel"
 msgid "Site Address (URL)"
 msgstr "Saidi aadress (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:526
+#: lib/modules/storage/web/settings.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Varsti"
@@ -3432,7 +3432,7 @@ msgstr "Õnnestus!"
 msgid "Switch app from"
 msgstr "Vaheta rakendus"
 
-#: lib/modules/storage/web/settings.html.heex:544
+#: lib/modules/storage/web/settings.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Sync Files"
 msgstr "Sünkrooni failid"
@@ -3480,7 +3480,7 @@ msgstr "Migratsioon loob 8 vaikimisi dimensiooni: 4 pildi suurust (pisipilt, vä
 msgid "The storage path"
 msgstr "Salvestustee"
 
-#: lib/modules/storage/web/settings.html.heex:579
+#: lib/modules/storage/web/settings.html.heex:581
 #, elixir-autogen, elixir-format
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "See lähtestab dimensioonid ja seaded vaikimisi väärtustele ning loob kohaliku bucketi, kui ühtegi pole. Teie üleslaaditud faile EI kustutata. Jätkata?"
@@ -3596,7 +3596,7 @@ msgstr "Külasta"
 msgid "Week Start On"
 msgstr "Nädal algab"
 
-#: lib/modules/storage/web/settings.html.heex:607
+#: lib/modules/storage/web/settings.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
 msgstr "Kui failile pääseb juurde, proovib süsteem automaatselt iga asukohta, kuni fail on edukalt kätte saadud."
@@ -4283,7 +4283,7 @@ msgstr "Loo OAuth klient"
 msgid "Create an OpenRouter account"
 msgstr "Loo konto"
 
-#: lib/modules/storage/web/settings.html.heex:458
+#: lib/modules/storage/web/settings.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Praegune limiit: %{size} MB"
@@ -4498,7 +4498,7 @@ msgstr "Avatari uuendamine ebaõnnestus"
 msgid "File"
 msgstr "Fail"
 
-#: lib/modules/storage/web/settings.html.heex:604
+#: lib/modules/storage/web/settings.html.heex:606
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr "Faile jälgitakse PostgreSQL-is mitme meediumiasukoha toega (kohalik, S3, kaugserverid)."
@@ -4759,12 +4759,12 @@ msgstr "Halda oma konto seadeid ja eelistusi"
 msgid "Manual Toggle"
 msgstr "Käsitsi lüliti"
 
-#: lib/modules/storage/web/settings.html.heex:445
+#: lib/modules/storage/web/settings.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Maksimaalne üleslaadimise suurus (MB)"
 
-#: lib/modules/storage/web/settings.html.heex:447
+#: lib/modules/storage/web/settings.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Maksimaalne failisuurus üleslaadimise kohta"
@@ -4784,17 +4784,18 @@ msgstr "Meedia konfiguratsioon"
 msgid "Media Health"
 msgstr "Meedia seisund"
 
+#: lib/modules/storage/web/settings.html.heex:4
 #: lib/modules/storage/web/settings.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Media Settings"
 msgstr "Meedia seaded"
 
-#: lib/modules/storage/web/settings.html.heex:525
+#: lib/modules/storage/web/settings.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Meedia statistika"
 
-#: lib/modules/storage/web/settings.html.heex:599
+#: lib/modules/storage/web/settings.html.heex:601
 #, elixir-autogen, elixir-format
 msgid "Media System Architecture"
 msgstr "Meediasüsteemi arhitektuur"
@@ -5069,7 +5070,7 @@ msgstr "Eemalda organisatsioonist"
 msgid "Remove this member from the organization?"
 msgstr "Eemaldada see liige organisatsioonist?"
 
-#: lib/modules/storage/web/settings.html.heex:585
+#: lib/modules/storage/web/settings.html.heex:587
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Repair Media Module"
 msgstr "Paranda meediamoodulit"
@@ -5276,7 +5277,7 @@ msgstr "Test ebaõnnestus"
 msgid "Testing..."
 msgstr "Testimine..."
 
-#: lib/modules/storage/web/settings.html.heex:601
+#: lib/modules/storage/web/settings.html.heex:603
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The media system is designed for distributed file management with automatic redundancy."
 msgstr "Meediasüsteem on loodud hajutatud failihalduseks automaatse redundantsusega."
@@ -7346,7 +7347,7 @@ msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
 msgid "Could not post comment"
 msgstr "Kommentaari postitamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:407
+#: lib/modules/storage/web/settings.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
@@ -7442,7 +7443,7 @@ msgstr "Kaust jäädavalt kustutatud"
 msgid "Giphy search failed"
 msgstr "Giphy otsing ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:410
+#: lib/modules/storage/web/settings.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Genereeri DZI-plaadipüramiide laisklaadimisega suurendamisel. Väljalylitatuna vahetab MediaBrowser variantide vahel, kuid ei genereeri plaate. Vajalik ImageMagick."
@@ -9095,7 +9096,7 @@ msgstr "Kirjeldus"
 msgid "All types"
 msgstr "Kõik tüübid"
 
-#: lib/modules/storage/web/settings.html.heex:431
+#: lib/modules/storage/web/settings.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Märgistatud pisipildid"
@@ -9121,12 +9122,12 @@ msgstr "Tagasi"
 msgid "Background image"
 msgstr "Taustapilt (lauaarvuti)"
 
-#: lib/modules/storage/web/settings.html.heex:434
+#: lib/modules/storage/web/settings.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Küpseta Etcheri märgistuskujundid (ristkülikud, markerijooned jne) faili ruudustiku pisipildile, mis genereeritakse taustal uuesti, kui märgistused muutuvad. Väljalülitatuna kuvab ruudustik tavalist pisipilti ja märgistatud varianti ei genereerita. Sisselülitatuna on vajalik ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:553
+#: lib/modules/storage/web/settings.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Sirvi faile, mis pole enam ühegi kirjega seotud (orvuks jäänud meedia), et neid üle vaadata või kustutada."
@@ -9173,7 +9174,7 @@ msgstr "Loo konto"
 msgid "Create an OpenAI account"
 msgstr "Loo konto"
 
-#: lib/modules/storage/web/settings.html.heex:505
+#: lib/modules/storage/web/settings.html.heex:507
 #, elixir-autogen, elixir-format
 msgid "Create and edit the image/video size presets used to generate variants of uploaded media."
 msgstr "Loo ja muuda pildi/video suuruse eelseadeid, mida kasutatakse üleslaaditud meedia variantide genereerimiseks."
@@ -9282,7 +9283,7 @@ msgstr "Seade uuendamine ebaõnnestus"
 msgid "Filter"
 msgstr "Fail"
 
-#: lib/modules/storage/web/settings.html.heex:562
+#: lib/modules/storage/web/settings.html.heex:564
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Find Orphaned Files"
 msgstr "Sidumata failid"
@@ -9461,7 +9462,7 @@ msgstr "Teavitused genereeritakse tegevuslogist (üks sihtkasutaja kohta) ja era
 msgid "Oldest first"
 msgstr "Vanimad enne"
 
-#: lib/modules/storage/web/settings.html.heex:535
+#: lib/modules/storage/web/settings.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
 msgstr "Ava meedia seisundi töölaud, et kontrollida failide liiasust ja sünkroonida failid salvestuskohtade vahel uuesti."
@@ -9492,7 +9493,7 @@ msgstr "Kasutajapõhised rakendusesisesed teavitused tegevuslogi põhjal"
 msgid "Pick or upload a small icon image."
 msgstr "Vali või laadi üles väike ikoonipilt."
 
-#: lib/modules/storage/web/settings.html.heex:571
+#: lib/modules/storage/web/settings.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
 msgstr "Lähtesta mõõtmed ja seaded vaikeväärtustele ning loo kohalik ämber, kui ühtegi pole. Ei kustuta üleslaaditud faile."
@@ -9589,7 +9590,7 @@ msgstr "Lugemata"
 msgid "View Notifications"
 msgstr "Vaata teavitusi"
 
-#: lib/modules/storage/web/settings.html.heex:522
+#: lib/modules/storage/web/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Vaata salvestusruumi kasutust ja meedia statistikat. Tulekul varsti."
@@ -10042,3 +10043,103 @@ msgstr "salvestatud:"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "New User Defaults"
 msgstr "Uue kasutaja vaikeseaded"
+
+#: lib/modules/storage/web/settings.ex:311
+#, elixir-autogen, elixir-format
+msgid "Auto-variant generation disabled"
+msgstr "Variantide automaatne genereerimine keelatud"
+
+#: lib/modules/storage/web/settings.ex:310
+#, elixir-autogen, elixir-format
+msgid "Auto-variant generation enabled"
+msgstr "Variantide automaatne genereerimine lubatud"
+
+#: lib/modules/storage/web/settings.ex:380
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket deleted successfully"
+msgstr "Salvestuskoht kustutati edukalt"
+
+#: lib/modules/storage/web/settings.ex:354
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket disabled successfully"
+msgstr "Salvestuskoht keelati edukalt"
+
+#: lib/modules/storage/web/settings.ex:353
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bucket enabled successfully"
+msgstr "Salvestuskoht lubati edukalt"
+
+#: lib/modules/storage/web/settings.ex:344
+#, elixir-autogen, elixir-format
+msgid "Bucket not found"
+msgstr "Salvestuskohta ei leitud"
+
+#: lib/modules/storage/web/settings.ex:95
+#: lib/modules/storage/web/settings.ex:228
+#, elixir-autogen, elixir-format
+msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
+msgstr "Liiasust ei saa määrata %{count} koopiale. Saadaval on ainult %{max} aktiivset salvestuskohta."
+
+#: lib/modules/storage/web/settings.html.heex:344
+#, elixir-autogen, elixir-format
+msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
+msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{max})."
+
+#: lib/modules/storage/web/settings.ex:331
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Default bucket updated"
+msgstr "Vaikimisi salvestuskoht uuendatud"
+
+#: lib/modules/storage/web/settings.ex:385
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to delete bucket"
+msgstr "Salvestuskoha kustutamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:410
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to repair: %{reason}"
+msgstr "Parandamine ebaõnnestus: %{reason}"
+
+#: lib/modules/storage/web/settings.ex:360
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update bucket"
+msgstr "Salvestuskoha uuendamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:336
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update default bucket"
+msgstr "Vaikimisi salvestuskoha uuendamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:122
+#: lib/modules/storage/web/settings.ex:284
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update redundancy settings"
+msgstr "Liiasuse seadete uuendamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:292
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update storage settings"
+msgstr "Salvestusseadete uuendamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:288
+#: lib/modules/storage/web/settings.ex:318
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update variant settings"
+msgstr "Variandiseadete uuendamine ebaõnnestus"
+
+#: lib/modules/storage/web/settings.ex:112
+#, elixir-autogen, elixir-format
+msgid "Redundancy settings updated to %{count} copy"
+msgid_plural "Redundancy settings updated to %{count} copies"
+msgstr[0] "Liiasuse seaded uuendatud: %{count} koopia"
+msgstr[1] "Liiasuse seaded uuendatud: %{count} koopiat"
+
+#: lib/modules/storage/web/settings.ex:400
+#, elixir-autogen, elixir-format
+msgid "Storage module repaired: %{summary}"
+msgstr "Salvestusmoodul parandatud: %{summary}"
+
+#: lib/modules/storage/web/settings.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Storage settings updated successfully"
+msgstr "Salvestusseaded uuendati edukalt"
