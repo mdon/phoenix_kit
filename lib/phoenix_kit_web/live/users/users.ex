@@ -221,8 +221,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     current_roles = socket.assigns.user_roles
     selected_roles = Map.get(params, "roles", %{})
     role_names = Map.values(selected_roles)
+    actor = socket.assigns.phoenix_kit_current_user
 
-    case Roles.sync_user_roles(user, role_names) do
+    case Roles.sync_user_roles(user, role_names, actor: actor) do
       {:ok, _assignments} ->
         admin = socket.assigns.phoenix_kit_current_user
         added = role_names -- current_roles
