@@ -45,6 +45,8 @@
             value={@saved_settings["track_registration_geolocation"]}
           />
 
+          <.section_header icon="hero-identification" title={gettext("Site Identity")} />
+
           <%!-- Project Title Setting --%>
           <div class="form-control w-full">
             <label class="label">
@@ -61,20 +63,10 @@
               placeholder={gettext("Enter project title")}
               phx-debounce="500"
             />
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["project_title"] != @saved_settings["project_title"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {@settings["project_title"]}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {@saved_settings["project_title"]}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {@settings["project_title"]}
-                <% end %>
-              </span>
-            </div>
+            <.unsaved_hint
+              dirty={@settings["project_title"] != @saved_settings["project_title"]}
+              saved={@saved_settings["project_title"]}
+            />
           </div>
 
           <%!-- Project Logo --%>
@@ -287,6 +279,38 @@
             </div>
           </div>
 
+          <.section_header icon="hero-globe-alt" title={gettext("Site Address")} />
+
+          <%!-- Site Address URL Setting --%>
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text text-base font-medium">
+                {gettext("Site Address (URL)")}
+              </span>
+              <span class="label-text-alt text-sm text-base-content/60">
+                {gettext("Public base URL of this application")}
+              </span>
+            </label>
+            <input
+              name="settings[site_url]"
+              type="url"
+              value={@settings["site_url"]}
+              class="input input-bordered w-full focus:input-primary"
+              placeholder="https://site.com"
+              phx-debounce="500"
+            />
+            <.unsaved_hint
+              dirty={@settings["site_url"] != @saved_settings["site_url"]}
+              saved={
+                if @saved_settings["site_url"] != "",
+                  do: @saved_settings["site_url"],
+                  else: gettext("(empty)")
+              }
+            />
+          </div>
+
+          <.section_header icon="hero-adjustments-horizontal" title={gettext("Features")} />
+
           <%!-- Notifications --%>
           <div class="form-control w-full">
             <label class="label">
@@ -370,208 +394,124 @@
             </div>
           </div>
 
-          <%!-- Site Address URL Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">
-                {gettext("Site Address (URL)")}
-              </span>
-            </label>
-            <input
-              name="settings[site_url]"
-              type="url"
-              value={@settings["site_url"]}
-              class="input input-bordered w-full focus:input-primary"
-              placeholder="https://site.com"
-              phx-debounce="500"
-            />
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["site_url"] != @saved_settings["site_url"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {if @settings["site_url"] != "",
-                      do: @settings["site_url"],
-                      else: gettext("(empty)")}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {if @saved_settings["site_url"] != "",
-                      do: @saved_settings["site_url"],
-                      else: gettext("(empty)")}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {if @settings["site_url"] != "",
-                    do: @settings["site_url"],
-                    else: gettext("(empty)")}
-                <% end %>
-              </span>
-            </div>
-          </div>
+          <.section_header icon="hero-clock" title={gettext("Date & Time")} />
 
-          <%!-- Week Start Day Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Week Start On")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("First day of the week")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[week_start_day]">
-                <%= for {label, value} <- @setting_options["week_start_day"] do %>
-                  <option value={value} selected={value == @settings["week_start_day"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["week_start_day"] != @saved_settings["week_start_day"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["week_start_day"],
-                      @setting_options["week_start_day"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["week_start_day"],
-                      @setting_options["week_start_day"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["week_start_day"],
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            <%!-- Week Start Day Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Week Start On")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("First day of the week")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[week_start_day]">
+                  <%= for {label, value} <- @setting_options["week_start_day"] do %>
+                    <option value={value} selected={value == @settings["week_start_day"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <.unsaved_hint
+                dirty={@settings["week_start_day"] != @saved_settings["week_start_day"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["week_start_day"],
                     @setting_options["week_start_day"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
-          </div>
 
-          <%!-- Time Zone Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Time Zone")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("System default timezone")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[time_zone]">
-                <%= for {label, value} <- @setting_options["time_zone"] do %>
-                  <option value={value} selected={value == @settings["time_zone"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["time_zone"] != @saved_settings["time_zone"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_timezone_label(
-                      @settings["time_zone"],
-                      @setting_options
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_timezone_label(
-                      @saved_settings["time_zone"],
-                      @setting_options
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_timezone_label(
-                    @settings["time_zone"],
-                    @setting_options
-                  )}
-                <% end %>
-              </span>
+            <%!-- Time Zone Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Time Zone")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("System default timezone")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[time_zone]">
+                  <%= for {label, value} <- @setting_options["time_zone"] do %>
+                    <option value={value} selected={value == @settings["time_zone"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <.unsaved_hint
+                dirty={@settings["time_zone"] != @saved_settings["time_zone"]}
+                saved={get_timezone_label(@saved_settings["time_zone"], @setting_options)}
+              />
             </div>
-          </div>
 
-          <%!-- Date Format Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Date Format")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("How dates are displayed")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[date_format]">
-                <%= for {label, value} <- @setting_options["date_format"] do %>
-                  <option value={value} selected={value == @settings["date_format"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["date_format"] != @saved_settings["date_format"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["date_format"],
-                      @setting_options["date_format"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["date_format"],
-                      @setting_options["date_format"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["date_format"],
+            <%!-- Date Format Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Date Format")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("How dates are displayed")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[date_format]">
+                  <%= for {label, value} <- @setting_options["date_format"] do %>
+                    <option value={value} selected={value == @settings["date_format"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext("Example:")} {get_current_date_example(@settings["date_format"])}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["date_format"] != @saved_settings["date_format"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["date_format"],
                     @setting_options["date_format"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
-          </div>
 
-          <%!-- Time Format Setting --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">{gettext("Time Format")}</span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("How times are displayed")}
-              </span>
-            </label>
-            <label class="select w-full focus:select-primary">
-              <select name="settings[time_format]">
-                <%= for {label, value} <- @setting_options["time_format"] do %>
-                  <option value={value} selected={value == @settings["time_format"]}>
-                    {label}
-                  </option>
-                <% end %>
-              </select>
-            </label>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
-                <%= if @settings["time_format"] != @saved_settings["time_format"] do %>
-                  <span class="text-warning">
-                    {gettext("Selected:")} {get_option_label(
-                      @settings["time_format"],
-                      @setting_options["time_format"]
-                    )}
-                  </span>
-                  <span class="text-base-content/40">
-                    | {gettext("Saved:")} {get_option_label(
-                      @saved_settings["time_format"],
-                      @setting_options["time_format"]
-                    )}
-                  </span>
-                <% else %>
-                  {gettext("Saved:")} {get_option_label(
-                    @settings["time_format"],
+            <%!-- Time Format Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">{gettext("Time Format")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("How times are displayed")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[time_format]">
+                  <%= for {label, value} <- @setting_options["time_format"] do %>
+                    <option value={value} selected={value == @settings["time_format"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext("Example:")} {get_current_time_example(@settings["time_format"])}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["time_format"] != @saved_settings["time_format"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["time_format"],
                     @setting_options["time_format"]
-                  )}
-                <% end %>
-              </span>
+                  )
+                }
+              />
             </div>
           </div>
 
@@ -596,6 +536,11 @@
               type="button"
               class="btn btn-outline"
               phx-click="reset_to_defaults"
+              data-confirm={
+                gettext(
+                  "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
+                )
+              }
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="w-4 h-4 mr-2" /> {gettext(
                 "Reset"
@@ -604,55 +549,14 @@
           </div>
         </.form>
 
-        <%!-- Information Panel --%>
-        <div class="divider">{gettext("Information")}</div>
-
-        <div class="bg-base-200 rounded-lg p-4 mt-6">
-          <div class="flex items-start gap-3">
-            <div class="text-2xl">💡</div>
-            <div class="flex-1">
-              <h3 class="font-semibold text-base-content mb-2">
-                {gettext("About System Settings")}
-              </h3>
-              <ul class="text-sm text-base-content/70 space-y-1">
-                <li>
-                  {gettext("• Make changes to dropdowns and click \"Save All Settings\" to apply")}
-                </li>
-                <li>
-                  {gettext("• Changes show \"Selected\" vs \"Saved\" values until you click Save")}
-                </li>
-                <li>
-                  {gettext(
-                    "• User settings (registration, defaults, custom fields) are managed separately"
-                  )}
-                </li>
-                <li>
-                  {gettext(
-                    "• Week start day controls which day begins the week (useful for calendar features)"
-                  )}
-                </li>
-                <li>
-                  {gettext("• Time zone affects date/time display throughout the system")}
-                </li>
-                <li>
-                  {gettext(
-                    "• Date formats control how dates appear (e.g. Users dashboard \"Registered\" field)"
-                  )}
-                </li>
-                <li>{gettext("• Time formats control 12-hour vs 24-hour time display")}</li>
-                <li>
-                  {gettext(
-                    "• Settings are applied system-wide and use Timex for robust formatting"
-                  )}
-                </li>
-                <li>
-                  {gettext(
-                    "• Currently supports 6 date formats including \"September 2, 2025\" style"
-                  )}
-                </li>
-              </ul>
-            </div>
-          </div>
+        <%!-- Footnote --%>
+        <div class="flex items-start gap-2 mt-6 text-xs text-base-content/50">
+          <.icon name="hero-information-circle" class="w-4 h-4 shrink-0 mt-0.5" />
+          <p>
+            {gettext(
+              "Changes apply system-wide after \"Save All Settings\". Registration and user defaults are managed on the Users page."
+            )}
+          </p>
         </div>
       </div>
     </div>
