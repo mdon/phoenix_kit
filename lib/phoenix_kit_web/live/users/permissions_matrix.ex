@@ -83,11 +83,14 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
           do: MapSet.new(Permissions.all_module_keys()),
           else: Scope.accessible_modules(scope)
 
-      # Granting a sub-permission auto-grants its base key, so the editor
-      # must hold every key the toggle implies — not just the clicked one.
-      # Otherwise an editor holding only "calendar.view_others" could smuggle
-      # in a "calendar" base grant they don't hold themselves.
-      if MapSet.subset?(Permissions.expand_with_parents([key]), grantable) do
+      role_key_set = Map.get(socket.assigns.matrix, to_string(role.uuid), MapSet.new())
+
+      # The editor must hold every key the toggle actually TOUCHES, not just the
+      # clicked one. Granting a sub auto-grants its base; revoking a base
+      # cascade-revokes the target's subs — so the editor must hold those subs
+      # too, or an editor without "calendar.edit_others" could strip it from a
+      # role by revoking the "calendar" base.
+      if MapSet.subset?(affected_keys(key, role_key_set), grantable) do
         toggle_role_permission(socket, role, key, scope)
       else
         {:noreply, put_flash(socket, :error, gettext("You can only manage permissions you have"))}
@@ -106,6 +109,27 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
   end
 
   # --- Helpers ---
+
+  # Keys an editor's toggle of `key` actually affects, given the role's current
+  # keys. Grant (key absent) pulls in the base via `expand_with_parents`; revoke
+  # (key present) cascade-revokes the role's existing sub-keys of that base, so
+  # those must be authorized too. A sub-key has no children, so revoking it only
+  # affects itself.
+  defp affected_keys(key, role_key_set) do
+    if MapSet.member?(role_key_set, key) do
+      child_keys =
+        key
+        |> Permissions.sub_permissions_for()
+        |> Enum.map(& &1.key)
+        |> MapSet.new()
+
+      role_key_set
+      |> MapSet.intersection(child_keys)
+      |> MapSet.put(key)
+    else
+      Permissions.expand_with_parents([key])
+    end
+  end
 
   defp toggle_role_permission(socket, role, key, scope) do
     granted_by_uuid = Scope.user_uuid(scope)
