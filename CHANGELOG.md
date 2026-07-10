@@ -1,3 +1,42 @@
+## 1.7.181 - 2026-07-10
+
+### Changed
+- **Admin settings pages modernized.** Replaced ad-hoc `<div class="divider">`
+  headings across the General, Authorization, Users, Media, and Instance
+  Dimensions pages with a reusable `<.section_header>` (icon + uppercase title +
+  rule + optional actions slot). Per-field status echoes ("Selected: X | Saved:
+  Y", always visible) are replaced by `<.unsaved_hint>`, which renders only when a
+  field diverges from its saved value, so clean fields carry no noise. The four
+  hand-copied ~95-line OAuth provider guides (Google/Apple/GitHub/Facebook)
+  collapse into one `<.oauth_setup_instructions>` component with a `:steps` slot.
+  Both new components live in `Components.Core.FormSection`. (#626)
+- **Browser Tab identity group + live preview.** The site-icon and default-tab-
+  title fields are merged into one "Browser Tab" group on the General page, with a
+  live browser-chrome preview (icon + tab title + address bar) that updates as you
+  type. The site icon and project logo now default to each other via
+  `Settings.get_site_icon_uuid/0` and `get_logo_uuid/0` — setting either brands
+  both the browser tab and the app chrome; the favicon and layout wrappers read
+  through these resolvers. (#626)
+- **Destructive resets now confirm.** The General "Reset ALL settings" and Instance
+  Dimensions "Reset to Defaults" actions gained a `data-confirm` guard. (#626)
+- **Dependency bump.** `saxy` 1.6.0 → 1.6.1.
+
+### Fixed
+- **Registration dirty-indicator missed two toggles.** The Users-page unsaved-
+  changes hint for the registration group compared only `allow_registration` and
+  `track_registration_geolocation`, so flipping `registration_show_username` or
+  `enable_organization_accounts` left the group looking clean. It now checks all
+  four keys. (#626)
+
+### i18n
+- **Storage-module flashes and page titles localized.** Every `put_flash` in the
+  Media settings and Instance Dimensions LiveViews (bucket toggles, redundancy,
+  variants, repair, dimension CRUD/reset) is wrapped in `gettext`/`ngettext` with
+  proper `%{}` interpolation and correct pluralization for the redundancy-copies
+  message. Full `.pot` re-extract with ru/et translations for all new strings.
+  Also dropped a dead drag-drop `<script>`/`<style>` block from the Media settings
+  template (targeted element ids that no longer exist). (#626)
+
 ## 1.7.180 - 2026-07-09
 
 ### Added
