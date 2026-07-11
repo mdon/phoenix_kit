@@ -496,10 +496,11 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
       if table_exists?(table, escaped_prefix) do
         table_name = prefix_table_name(Atom.to_string(table), prefix)
         cols = Enum.join(columns, ", ")
-        idx = if prefix && prefix != "public", do: "#{prefix}.#{index_name}", else: index_name
 
+        # CREATE INDEX forbids a schema-qualified index name — the index
+        # always lands in the (qualified) table's schema.
         execute("""
-        CREATE UNIQUE INDEX IF NOT EXISTS #{idx}
+        CREATE UNIQUE INDEX IF NOT EXISTS #{index_name}
         ON #{table_name}(#{cols})
         """)
       end
