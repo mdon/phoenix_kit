@@ -57,7 +57,7 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
   the appropriate build commands available in your project.
   """
 
-  alias PhoenixKit.Install.AssetRebuild
+  alias PhoenixKit.Install.{AssetRebuild, JsIntegration}
 
   @shortdoc "Rebuilds PhoenixKit assets when CSS configuration changes"
 
@@ -128,6 +128,12 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
         IO.puts("Force rebuild enabled - will rebuild regardless of checks")
       end
     end
+
+    # Refresh the vendored core JS hooks file too — this task is billed as
+    # "the" asset rebuild task, so someone troubleshooting "PhoenixKit JS
+    # hooks aren't working" via this exact command should get it freshened
+    # here as well, not just on the next `mix compile`.
+    JsIntegration.update_js_file()
 
     # Always rebuild assets - no complex checks needed
     AssetRebuild.check_and_rebuild(verbose: verbose)

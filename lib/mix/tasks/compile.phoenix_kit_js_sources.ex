@@ -1,29 +1,35 @@
 defmodule Mix.Tasks.Compile.PhoenixKitJsSources do
   @moduledoc """
-  Mix compiler that bundles external-module JavaScript hooks for the host app.
+  Mix compiler that vendors PhoenixKit's JS hooks into the host app.
 
   A LiveView JS hook must be present in the host's single `LiveSocket` at
-  construction time — a nested LiveView cannot register one at runtime. Modules
-  declare their prebuilt hook bundles via `js_sources/0` (see `PhoenixKit.Module`);
-  this compiler discovers them and writes one aggregate file the host loads with a
-  single `<script>` tag (added once by `mix phoenix_kit.install`).
+  construction time — a nested LiveView cannot register one at runtime. This
+  compiler keeps two vendored files current on **every** `mix compile`:
 
-  ## What it does (every compile)
+  1. `priv/static/assets/vendor/phoenix_kit.js` — a straight copy of
+     PhoenixKit's own core hooks file. Previously this was only copied once,
+     by `mix phoenix_kit.install`/`mix phoenix_kit.update` (`File.cp/2` in
+     `PhoenixKit.Install.JsIntegration`) — a deploy that does `rm -rf
+     priv/static` + rebuild without re-running `phoenix_kit.update` (i.e. most
+     CI/CD pipelines) shipped a 404 on this file, silently breaking every
+     PhoenixKit JS hook. Vendoring it from a compiler makes it self-healing:
+     it comes back on the next `mix compile`, with zero dependency on
+     `phoenix_kit.update` ever having run again after install.
+  2. `priv/static/assets/vendor/phoenix_kit_modules.js` — external modules
+     declare prebuilt hook bundles via `js_sources/0` (see `PhoenixKit.Module`);
+     this compiler discovers them via `PhoenixKit.ModuleDiscovery`, resolves
+     each bundle's absolute path via `:code.priv_dir/1` (works for Hex installs
+     and path deps alike), and concatenates them (each wrapped in an IIFE so
+     their top-level scopes can't collide) into this file, followed by a merge
+     that folds each bundle's `window.<Global>` into `window.PhoenixKitHooks`
+     (which the host spreads into `LiveSocket`).
 
-  1. Discovers external modules via `PhoenixKit.ModuleDiscovery`, collects their
-     `js_sources/0` entries.
-  2. Resolves each bundle's absolute path via `:code.priv_dir/1` — so it works for
-     Hex installs and path deps alike, with no `deps/<app>` path arithmetic.
-  3. Concatenates the bundles (each wrapped in an IIFE so their top-level scopes
-     can't collide) into `priv/static/assets/vendor/phoenix_kit_modules.js`,
-     followed by a merge that folds each bundle's `window.<Global>` into
-     `window.PhoenixKitHooks` (which the host already spreads into `LiveSocket`).
-  4. Writes only when the content changed (diff-before-write) to avoid live-reload
-     thrash.
+  Both writes are diffed against the existing file first, so a `mix compile`
+  that changes nothing doesn't touch either file (avoids live-reload thrash).
 
-  The output tag is **stable**: adding or removing a JS-bearing module only changes
-  this file's content on the next compile — never the host's layout — so it stays
-  zero-config like `css_sources/0`.
+  The two `<script>` tags are **stable**: adding or removing a JS-bearing
+  module only changes `phoenix_kit_modules.js`'s content on the next compile —
+  never the host's layout — so it stays zero-config like `css_sources/0`.
 
   ## Setup (one-time, by `mix phoenix_kit.install`)
 
@@ -31,15 +37,20 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSources do
       compilers: [:phoenix_kit_js_sources, :phoenix_live_view] ++ Mix.compilers()
 
       # root.html.heex, before app.js
+      <script src={~p"/assets/vendor/phoenix_kit.js"}></script>
       <script src={~p"/assets/vendor/phoenix_kit_modules.js"}></script>
 
-  Failures are loud: a declared bundle that can't be resolved raises a compile
-  error rather than silently shipping a chart with "unknown hook" console errors.
+  Failures are loud: a missing core JS file (corrupted/incomplete dependency
+  fetch) or a declared module bundle that can't be resolved raises a compile
+  error rather than silently shipping "unknown hook" console errors.
   """
 
   use Mix.Task.Compiler
 
   require Logger
+
+  @core_js_filename "phoenix_kit.js"
+  @core_js_output "priv/static/assets/vendor/phoenix_kit.js"
 
   @output "priv/static/assets/vendor/phoenix_kit_modules.js"
 
@@ -50,6 +61,8 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSources do
       Application.ensure_loaded(dep.app)
     end
 
+    vendor_core_js_file()
+
     specs = collect_specs()
     content = build_content(specs)
 
@@ -57,6 +70,51 @@ defmodule Mix.Tasks.Compile.PhoenixKitJsSources do
     write_if_changed(path, content, length(specs))
 
     {:ok, []}
+  end
+
+  # ── Core hooks file vendoring ───────────────────────────────────────
+
+  # Copies PhoenixKit's own priv/static/assets/phoenix_kit.js into the host's
+  # vendor/ directory. Runs on every compile — unlike the old one-shot
+  # `File.cp/2` in `phoenix_kit.install`/`phoenix_kit.update`, this survives a
+  # `rm -rf priv/static` in a deploy pipeline that only runs `mix compile`.
+  defp vendor_core_js_file do
+    priv =
+      case :code.priv_dir(:phoenix_kit) do
+        {:error, :bad_name} ->
+          Mix.raise("""
+          Could not resolve the :phoenix_kit application's priv/ directory
+          while vendoring #{@core_js_filename}. Is :phoenix_kit listed as a
+          dependency of this app?
+          """)
+
+        dir ->
+          to_string(dir)
+      end
+
+    source = Path.join([priv, "static", "assets", @core_js_filename])
+
+    unless File.exists?(source) do
+      Mix.raise("""
+      Could not find #{@core_js_filename} at #{source} — the :phoenix_kit
+      dependency looks corrupted or incompletely fetched. Try `mix deps.get`.
+      """)
+    end
+
+    content = File.read!(source)
+    dest = Path.join(File.cwd!(), @core_js_output)
+
+    existing =
+      case File.read(dest) do
+        {:ok, data} -> data
+        _ -> nil
+      end
+
+    if existing != content do
+      File.mkdir_p!(Path.dirname(dest))
+      File.write!(dest, content)
+      Mix.shell().info("[PhoenixKit] Vendored #{@core_js_output}")
+    end
   end
 
   # ── Discovery ────────────────────────────────────────────────────

@@ -1,3 +1,30 @@
+## 1.7.185 - 2026-07-11
+
+### Fixed
+- **`phoenix_kit.js` (core JS hooks — `RowMenu`, drawer/modal toggles, etc.)
+  could silently 404 in production, breaking every PhoenixKit JS hook with no
+  error anywhere.** It was only ever copied into a host's
+  `priv/static/assets/vendor/` by the one-shot `File.cp/2` in `mix
+  phoenix_kit.install`/`mix phoenix_kit.update` — a deploy that does `rm -rf
+  priv/static` + asset rebuild without re-running `phoenix_kit.update` (true
+  of most CI/CD pipelines) shipped the stale or missing file, so a bug fix
+  landing in this same JS file could ship correctly in every other respect
+  (compiled `.ex`/`.heex` changes apply the moment the dependency bumps) while
+  the JS fix itself never reached the browser. The `:phoenix_kit_js_sources`
+  compiler — which already regenerated `phoenix_kit_modules.js` (the
+  external-module hook bundle) on every `mix compile` — now also vendors
+  `phoenix_kit.js` itself the same way: self-healing after any `priv/static`
+  wipe, with zero dependency on `phoenix_kit.update` ever running again after
+  the initial install.
+- **`JsIntegration.update_js_file/0` swallowed copy failures** (`rescue` →
+  `Logger.warning` → `{:error, reason}` that its one caller, `mix
+  phoenix_kit.update`, never checked) — `mix phoenix_kit.update` could report
+  success while the vendored file silently stayed stale or absent. Now raises
+  (`Mix.raise/1`) on a resolution/copy failure and verifies the destination
+  file exists and is non-empty as a post-condition. `mix
+  phoenix_kit.assets.rebuild` — billed as *the* asset-rebuild task — now also
+  refreshes `phoenix_kit.js` via the same path, not just the CSS pipeline.
+
 ## 1.7.184 - 2026-07-11
 
 ### Added
