@@ -26,7 +26,7 @@ mix test          # run all (migrations auto via test_helper)
 mix test.reset    # drop + recreate
 ```
 
-Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Migrations live in `test/support/postgres/migrations/`.
+Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Schema comes from the versioned migration chain — `test_helper.exs` runs `PhoenixKit.Migration.ensure_current/2` on every boot (there is no `test/support/postgres/migrations/` directory; that per-file approach was retired 2026-05-05).
 
 **Without PostgreSQL:** integration tests are auto-excluded; unit tests still run. `mix test` will print a banner and continue.
 
@@ -92,6 +92,32 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
 - Schemas use `@primary_key {:uuid, UUIDv7, autogenerate: true}`
 - New migrations use `uuid_generate_v7()` (NOT `gen_random_uuid()`)
 - Oban-style versioned migrations in `lib/phoenix_kit/migrations/postgres/`
+
+### Prefix-safe migrations (named-schema installs)
+
+The chain supports running into a named Postgres schema (`prefix:` opt /
+`--prefix`). Two bug families broke it in 2026-07 (both fixed, PR #628);
+any new `execute`-built SQL can regress them:
+
+- **Index names stay bare on CREATE.** Postgres rejects
+  `CREATE INDEX schema.name ...` — the index always lands in the
+  (schema-qualified) table's schema. Qualifying the *name* is only valid
+  on `DROP INDEX`.
+- **Every existence check needs a schema anchor.** `information_schema.*`
+  checks need `table_schema = '#{escaped_prefix}'`, `pg_indexes` needs
+  `schemaname`, and `pg_constraint` `conname` checks need
+  `AND conrelid = '#{p}table'::regclass` (V51's idiom). An unanchored
+  check sees `public`'s objects, so a prefixed install into a database
+  that also carries a public install silently skips creating the
+  prefixed object.
+- **Failures surface late.** Ecto queues `execute` calls; bad SQL queued
+  by one version often blows up at a *later* version's `flush()`.
+
+`test/integration/prefix_migration_test.exs` is the oracle: it runs the
+full chain into a scratch schema on the test DB (which also has a public
+install, so it catches both families). It flips the sandbox to `:auto`
+for the run — see its moduledoc for why neither a sandbox checkout nor a
+dynamic repo instance can host the migrator.
 
 ## Integrations System
 
@@ -168,6 +194,27 @@ The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, s
 ## Built-in Dashboard
 
 Tabs, subtabs, badges, context selectors: see `lib/phoenix_kit/dashboard/README.md`.
+
+## Permissions
+
+`PhoenixKit.Users.Permissions` — allowlist model (row present = granted,
+absent = denied); Owner always has full access, enforced in code. The
+moduledoc is the source of truth; highlights:
+
+- **Module keys** gate admin sections/feature modules (`"billing"`,
+  `"calendar"`, …). Custom keys via `register_custom_key/2`.
+- **Sub-permissions** (added 1.7.182): fine-grained dotted keys under a
+  base (`"calendar.view_others"`), declared in the optional
+  `sub_permissions` field of `permission_metadata/0`. The base key gates
+  the module's admin pages; sub-keys are additive grants the module
+  checks itself via `Scope.can?/2`. A sub implies its base — granting a
+  sub auto-grants the base, revoking the base cascades its subs, and
+  `set_permissions/3` normalizes the set so no path persists an orphan
+  sub row. A sub-key is enabled iff its parent module is enabled.
+- **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit
+  their own role; only Owner can edit Admin.
+- Grant/revoke run under a per-`{role, base-key}` advisory lock so a base
+  revoke's cascade can't interleave a concurrent sub grant.
 
 ## Activity Feed
 
@@ -468,10 +515,10 @@ Partial coverage exists in `test/phoenix_kit_web/components/core/` — written f
 
 - `<.draggable_list>` — three-axis coverage: (a) `:draggable=false` → no SortableJS hook, no `cursor-grab`; (b) `:draggable=true, :sortable_handle=nil` → SortableJS hook + full-item `cursor-grab`; (c) `:draggable=true, :sortable_handle=".pk-drag-handle"` → SortableJS hook + `data-sortable-handle` attribute set, **no** `cursor-grab` on the item wrapper (caller's responsibility). All three branches need rendered-HTML asserts.
 - `<.table_default>` card-view branch — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
-- `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch.
+- `<.input>`, `<.select>`, `<.textarea>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch. (`<.checkbox>` gained a test — `checkbox_test.exs`.)
 - `<.flash>` if complexity has grown.
 
-Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle). Fold the rest into a future component-coverage sweep.
+Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle); `checkbox` closed since. Fold the rest into a future component-coverage sweep.
 
 ### Signed file-URL hardening (`modules/storage`)
 
