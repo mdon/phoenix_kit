@@ -54,28 +54,19 @@
 
           <%!-- Aspect Ratio Toggle --%>
           <div class="form-control">
-            <label class="label cursor-pointer justify-start gap-3">
-              <input type="hidden" name="dimension[maintain_aspect_ratio]" value="false" />
-              <input
-                type="checkbox"
-                name="dimension[maintain_aspect_ratio]"
-                value="true"
-                checked={get_field_value(@changeset, :maintain_aspect_ratio) != false}
-                class="checkbox checkbox-primary"
-              />
-              <div>
-                <span class="label-text font-semibold">
-                  {gettext("Maintain Aspect Ratio")}
-                </span>
-                <p class="text-xs text-base-content/50">
-                  <%= if get_field_value(@changeset, :maintain_aspect_ratio) != false do %>
-                    {gettext("Only width is used, height is calculated automatically")}
-                  <% else %>
-                    {gettext("Both width and height are used for fixed dimensions")}
-                  <% end %>
-                </p>
-              </div>
-            </label>
+            <.checkbox
+              name="dimension[maintain_aspect_ratio]"
+              checked={get_field_value(@changeset, :maintain_aspect_ratio) != false}
+            >
+              <span class="font-semibold">{gettext("Maintain Aspect Ratio")}</span>
+              <:description>
+                <%= if get_field_value(@changeset, :maintain_aspect_ratio) != false do %>
+                  {gettext("Only width is used, height is calculated automatically")}
+                <% else %>
+                  {gettext("Both width and height are used for fixed dimensions")}
+                <% end %>
+              </:description>
+            </.checkbox>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

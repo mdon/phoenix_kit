@@ -248,48 +248,26 @@
               <div class="text-sm font-semibold text-base-content/70 mb-2">
                 {gettext("Magic Link")}
               </div>
-              <div class="flex items-center gap-3 mb-2 ml-4">
-                <input
-                  name="settings[magic_link_login_enabled]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[magic_link_login_enabled]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["magic_link_login_enabled"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">{gettext("Enable Magic Link for login")}</span>
-              </div>
-              <div class="flex items-center gap-3 ml-4">
-                <input
-                  name="settings[magic_link_registration_enabled]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[magic_link_registration_enabled]"
-                  type="checkbox"
-                  value="true"
-                  checked={
-                    @settings["magic_link_registration_enabled"] == "true" and
-                      @settings["allow_registration"] == "true"
-                  }
-                  disabled={@settings["allow_registration"] != "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class={[
-                  "label-text",
-                  @settings["allow_registration"] != "true" && "text-base-content/40"
-                ]}>
-                  {gettext("Enable Magic Link for registration")}
-                  <%= if @settings["allow_registration"] != "true" do %>
-                    <span class="text-xs italic">{gettext("(registration disabled)")}</span>
-                  <% end %>
-                </span>
-              </div>
+              <.checkbox
+                name="settings[magic_link_login_enabled]"
+                checked={@settings["magic_link_login_enabled"] == "true"}
+                label={gettext("Enable Magic Link for login")}
+                wrapper_class="mb-2 ml-4"
+              />
+              <.checkbox
+                name="settings[magic_link_registration_enabled]"
+                checked={
+                  @settings["magic_link_registration_enabled"] == "true" and
+                    @settings["allow_registration"] == "true"
+                }
+                disabled={@settings["allow_registration"] != "true"}
+                wrapper_class="ml-4"
+              >
+                {gettext("Enable Magic Link for registration")}
+                <%= if @settings["allow_registration"] != "true" do %>
+                  <span class="text-xs italic">{gettext("(registration disabled)")}</span>
+                <% end %>
+              </.checkbox>
             </div>
 
             <%!-- OAuth Methods --%>
@@ -297,105 +275,46 @@
               <div class="text-sm font-semibold text-base-content/70 mb-2">
                 {gettext("OAuth Providers")}
               </div>
-              <div class="flex items-center gap-3 mb-2 ml-4">
-                <input name="settings[oauth_enabled]" type="hidden" value="false" />
-                <input
-                  name="settings[oauth_enabled]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["oauth_enabled"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text font-semibold">
-                  {gettext("Enable OAuth (Master Switch)")}
-                </span>
-              </div>
+              <.checkbox
+                name="settings[oauth_enabled]"
+                checked={@settings["oauth_enabled"] == "true"}
+                wrapper_class="mb-2 ml-4"
+              >
+                <span class="font-semibold">{gettext("Enable OAuth (Master Switch)")}</span>
+              </.checkbox>
 
-              <%!-- Individual OAuth Providers (disabled if master is off) --%>
+              <%!-- Individual OAuth Providers (locked, not disabled, if master is off —
+                   their real stored value must keep submitting so it isn't lost while
+                   the master switch is toggled off and back on). --%>
               <div class={[
                 "ml-8 space-y-2",
                 if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
               ]}>
-                <div class="flex items-center gap-3">
-                  <input
-                    name="settings[oauth_google_enabled]"
-                    type="hidden"
-                    value="false"
-                  />
-                  <input
-                    name="settings[oauth_google_enabled]"
-                    type="checkbox"
-                    value="true"
-                    checked={@settings["oauth_google_enabled"] == "true"}
-                    class={[
-                      "checkbox checkbox-primary",
-                      if(@settings["oauth_enabled"] != "true",
-                        do: "pointer-events-none",
-                        else: ""
-                      )
-                    ]}
-                  />
-                  <span class="label-text">{gettext("Google Sign-In")}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <input name="settings[oauth_apple_enabled]" type="hidden" value="false" />
-                  <input
-                    name="settings[oauth_apple_enabled]"
-                    type="checkbox"
-                    value="true"
-                    checked={@settings["oauth_apple_enabled"] == "true"}
-                    class={[
-                      "checkbox checkbox-primary",
-                      if(@settings["oauth_enabled"] != "true",
-                        do: "pointer-events-none",
-                        else: ""
-                      )
-                    ]}
-                  />
-                  <span class="label-text">{gettext("Apple Sign-In")}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <input
-                    name="settings[oauth_github_enabled]"
-                    type="hidden"
-                    value="false"
-                  />
-                  <input
-                    name="settings[oauth_github_enabled]"
-                    type="checkbox"
-                    value="true"
-                    checked={@settings["oauth_github_enabled"] == "true"}
-                    class={[
-                      "checkbox checkbox-primary",
-                      if(@settings["oauth_enabled"] != "true",
-                        do: "pointer-events-none",
-                        else: ""
-                      )
-                    ]}
-                  />
-                  <span class="label-text">{gettext("GitHub Sign-In")}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <input
-                    name="settings[oauth_facebook_enabled]"
-                    type="hidden"
-                    value="false"
-                  />
-                  <input
-                    name="settings[oauth_facebook_enabled]"
-                    type="checkbox"
-                    value="true"
-                    checked={@settings["oauth_facebook_enabled"] == "true"}
-                    class={[
-                      "checkbox checkbox-primary",
-                      if(@settings["oauth_enabled"] != "true",
-                        do: "pointer-events-none",
-                        else: ""
-                      )
-                    ]}
-                  />
-                  <span class="label-text">{gettext("Facebook Sign-In")}</span>
-                </div>
+                <% oauth_locked? = @settings["oauth_enabled"] != "true" %>
+                <.checkbox
+                  name="settings[oauth_google_enabled]"
+                  checked={@settings["oauth_google_enabled"] == "true"}
+                  label={gettext("Google Sign-In")}
+                  wrapper_class={oauth_locked? && "pointer-events-none"}
+                />
+                <.checkbox
+                  name="settings[oauth_apple_enabled]"
+                  checked={@settings["oauth_apple_enabled"] == "true"}
+                  label={gettext("Apple Sign-In")}
+                  wrapper_class={oauth_locked? && "pointer-events-none"}
+                />
+                <.checkbox
+                  name="settings[oauth_github_enabled]"
+                  checked={@settings["oauth_github_enabled"] == "true"}
+                  label={gettext("GitHub Sign-In")}
+                  wrapper_class={oauth_locked? && "pointer-events-none"}
+                />
+                <.checkbox
+                  name="settings[oauth_facebook_enabled]"
+                  checked={@settings["oauth_facebook_enabled"] == "true"}
+                  label={gettext("Facebook Sign-In")}
+                  wrapper_class={oauth_locked? && "pointer-events-none"}
+                />
               </div>
             </div>
 

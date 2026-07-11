@@ -63,67 +63,30 @@
 
             <%!-- Registration Control Setting --%>
             <div class="form-control w-full">
-              <div class="flex items-center gap-3 mb-3">
-                <input
-                  name="settings[allow_registration]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[allow_registration]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["allow_registration"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">{gettext("Anyone can register")}</span>
-              </div>
-              <div class="flex items-center gap-3 mb-3">
-                <input
-                  name="settings[track_registration_geolocation]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[track_registration_geolocation]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["track_registration_geolocation"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">{gettext("Track user registration location")}</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <input
-                  name="settings[registration_show_username]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[registration_show_username]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["registration_show_username"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">{gettext("Show username field on registration")}</span>
-              </div>
+              <.checkbox
+                name="settings[allow_registration]"
+                checked={@settings["allow_registration"] == "true"}
+                label={gettext("Anyone can register")}
+                wrapper_class="mb-3"
+              />
+              <.checkbox
+                name="settings[track_registration_geolocation]"
+                checked={@settings["track_registration_geolocation"] == "true"}
+                label={gettext("Track user registration location")}
+                wrapper_class="mb-3"
+              />
+              <.checkbox
+                name="settings[registration_show_username]"
+                checked={@settings["registration_show_username"] == "true"}
+                label={gettext("Show username field on registration")}
+              />
               <%!-- Organization Accounts --%>
-              <div class="flex items-center gap-3 mt-3">
-                <input
-                  name="settings[enable_organization_accounts]"
-                  type="hidden"
-                  value="false"
-                />
-                <input
-                  name="settings[enable_organization_accounts]"
-                  type="checkbox"
-                  value="true"
-                  checked={@settings["enable_organization_accounts"] == "true"}
-                  class="checkbox checkbox-primary"
-                />
-                <span class="label-text">{gettext("Enable organization accounts")}</span>
-              </div>
+              <.checkbox
+                name="settings[enable_organization_accounts]"
+                checked={@settings["enable_organization_accounts"] == "true"}
+                label={gettext("Enable organization accounts")}
+                wrapper_class="mt-3"
+              />
               <.unsaved_hint dirty={
                 Enum.any?(
                   [
@@ -573,46 +536,30 @@
 
                   <%!-- Required Checkbox --%>
                   <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
-                      <input
-                        type="checkbox"
-                        name="field[required]"
-                        value="true"
-                        checked={@editing_field && @editing_field["required"]}
-                        class="checkbox checkbox-primary"
-                      />
-                      <span class="label-text">{gettext("Required field")}</span>
-                    </label>
+                    <.checkbox
+                      name="field[required]"
+                      checked={@editing_field && @editing_field["required"]}
+                      label={gettext("Required field")}
+                    />
                   </div>
 
                   <%!-- User Accessible Checkbox --%>
                   <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
-                      <input
-                        type="hidden"
-                        name="field[user_accessible]"
-                        value="false"
-                      />
-                      <input
-                        type="checkbox"
-                        name="field[user_accessible]"
-                        value="true"
-                        checked={
-                          if @editing_field,
-                            do: Map.get(@editing_field, "user_accessible", true),
-                            else: true
-                        }
-                        class="checkbox checkbox-primary"
-                      />
-                      <span class="label-text">{gettext("User can edit this field")}</span>
-                    </label>
-                    <div class="label">
-                      <span class="label-text-alt">
+                    <.checkbox
+                      name="field[user_accessible]"
+                      checked={
+                        if @editing_field,
+                          do: Map.get(@editing_field, "user_accessible", true),
+                          else: true
+                      }
+                      label={gettext("User can edit this field")}
+                    >
+                      <:description>
                         {gettext(
                           "When checked, users can view and edit this field on their settings page. When unchecked, only admins can edit it."
                         )}
-                      </span>
-                    </div>
+                      </:description>
+                    </.checkbox>
                   </div>
 
                   <%!-- Options for Select/Radio/Checkbox types --%>

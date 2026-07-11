@@ -553,21 +553,12 @@
                       required={field_def["required"]}
                     />
                   <% "boolean" -> %>
-                    <div class="flex items-center gap-3 mt-2">
-                      <input
-                        type="hidden"
-                        name={"user[custom_fields][#{field_key}]"}
-                        value="false"
-                      />
-                      <input
-                        type="checkbox"
-                        name={"user[custom_fields][#{field_key}]"}
-                        value="true"
-                        checked={field_value == true || field_value == "true"}
-                        class="checkbox checkbox-primary"
-                      />
-                      <span class="label-text">Enable this option</span>
-                    </div>
+                    <.checkbox
+                      name={"user[custom_fields][#{field_key}]"}
+                      checked={field_value == true || field_value == "true"}
+                      label="Enable this option"
+                      wrapper_class="mt-2"
+                    />
                   <% "date" -> %>
                     <input
                       type="date"

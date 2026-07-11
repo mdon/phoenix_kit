@@ -359,22 +359,15 @@
           </div>
 
           <div class="form-control">
-            <label class="label cursor-pointer justify-start gap-3">
-              <input type="hidden" name="bucket[enabled]" value="false" />
-              <input
-                type="checkbox"
-                name="bucket[enabled]"
-                value="true"
-                checked={Ecto.Changeset.get_field(@changeset, :enabled)}
-                class="checkbox checkbox-primary"
-              />
-              <div>
-                <span class="label-text font-semibold">{gettext("Enable bucket")}</span>
-                <p class="text-xs text-base-content/50">
-                  {gettext("Only enabled buckets receive new uploads")}
-                </p>
-              </div>
-            </label>
+            <.checkbox
+              name="bucket[enabled]"
+              checked={Ecto.Changeset.get_field(@changeset, :enabled)}
+            >
+              <span class="font-semibold">{gettext("Enable bucket")}</span>
+              <:description>
+                {gettext("Only enabled buckets receive new uploads")}
+              </:description>
+            </.checkbox>
           </div>
         </div>
       </div>

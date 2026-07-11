@@ -4,6 +4,7 @@ defmodule PhoenixKitWeb.Components.Core.OAuthCheckbox do
   """
 
   use Phoenix.Component
+  import PhoenixKitWeb.Components.Core.Checkbox, only: [checkbox: 1]
 
   @doc """
   Renders an OAuth provider checkbox with conditional disable styling.
@@ -22,20 +23,12 @@ defmodule PhoenixKitWeb.Components.Core.OAuthCheckbox do
 
   def oauth_provider_checkbox(assigns) do
     ~H"""
-    <div class="flex items-center gap-3">
-      <input name={"settings[oauth_#{@provider}_enabled]"} type="hidden" value="false" />
-      <input
-        name={"settings[oauth_#{@provider}_enabled]"}
-        type="checkbox"
-        value="true"
-        checked={@provider_enabled}
-        class={[
-          "checkbox checkbox-primary",
-          if(!@master_enabled, do: "pointer-events-none", else: "")
-        ]}
-      />
-      <span class="label-text">{@provider_label}</span>
-    </div>
+    <.checkbox
+      name={"settings[oauth_#{@provider}_enabled]"}
+      checked={@provider_enabled}
+      label={@provider_label}
+      wrapper_class={!@master_enabled && "pointer-events-none"}
+    />
     """
   end
 end

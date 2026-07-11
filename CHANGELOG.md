@@ -1,3 +1,62 @@
+## 1.7.184 - 2026-07-11
+
+### Added
+- **`Checkbox` core component extended** (`PhoenixKitWeb.Components.Core.Checkbox`):
+  `disabled` (previously silently dropped — not in the allowed globals),
+  `wrapper_class` (styles the wrapping `<label>` — spacing, or
+  `pointer-events-none` to lock a checkbox *without* excluding it from form
+  submission the way `disabled` would), `title` (tooltip on the whole label,
+  not just the box), and a `:description` slot for secondary helper text. The
+  default slot now doubles as rich label content (badges, icons, conditional
+  markup) overriding the plain `label` string when given.
+- **`LayoutWrapper.app_layout` gains `page_section`/`page_section_path`** —
+  an optional breadcrumb segment between "Admin Panel" and `page_title` (e.g.
+  "Admin Panel / Users / Jane Doe" on a user detail page instead of jumping
+  straight from "Admin Panel" to the user's name).
+
+### Changed
+- **Checkboxes across core migrated to `<.checkbox>`** (settings pages,
+  registration/OAuth toggles, storage bucket/dimension forms, org tax
+  toggle, `user_form`'s boolean custom field) so future daisyUI syntax or
+  style changes are a one-file edit instead of a repo-wide sweep. Left
+  hand-rolled where the shape doesn't fit a boolean toggle (role-assignment
+  checkboxes and the image-format multi-select use `value={item}` collected
+  via `Map.values/1`, not the hidden-false/checkbox-true pattern).
+- **Users list/detail naming unified.** The admin page title now reads
+  `@page_title` ("Users") instead of a hardcoded "User Management" that had
+  drifted out of sync with it; the sidebar subtab is "Users" instead of
+  "Manage Users".
+- **User detail page now offers the same actions as the Users list's `⋮`
+  menu** — Roles, Confirm/Unconfirm email, Activate/Deactivate, and (for your
+  own profile) Settings, via the same `table_row_menu` component and
+  `Auth`/`Roles` context calls. Delete is now hidden (not just rejected on
+  click) when `Auth.can_delete_user?/2` says no, matching the list.
+- **Users list's Location column explains itself when empty.** If
+  `track_registration_geolocation` is off, every row now says "Tracking
+  disabled" with a link to Settings → Users, instead of an unexplained
+  per-row "No data" that looked like missing data rather than a disabled
+  feature.
+
+### Fixed
+- **Row-action `⋮` menus could silently eat clicks on menu items (WebKit —
+  i.e. every browser on iOS/iPadOS, plus desktop Safari).** The `RowMenu` JS
+  hook portals its floating menu to `<body>` while open so it can escape a
+  clipped table container; its "click outside closes the menu" listener only
+  checked containment against the trigger's wrapper, not the (now
+  elsewhere-in-the-DOM) menu itself. Clicking a menu item was treated as an
+  outside click: the capture-phase listener closed and relocated the menu
+  mid-dispatch, and WebKit drops an in-flight click when its target moves
+  during capture — so the tapped action never ran. Fixed by also checking
+  containment against the portaled menu.
+- **Checkboxes with hidden-false-fallback markup weren't wrapped in a
+  `<label>`** across settings pages (registration, notifications,
+  multi-session, magic link, OAuth master/provider switches, storage bucket
+  enable, org tax enable), so clicking the adjacent text did nothing —
+  only the checkbox square itself was clickable. For the OAuth provider
+  switches specifically (locked via `pointer-events-none` while the master
+  switch is off), the lock moved from the checkbox to the wrapping label so
+  wrapping it in `<label>` couldn't let a text click bypass the lock.
+
 ## 1.7.183 - 2026-07-11
 
 ### Fixed

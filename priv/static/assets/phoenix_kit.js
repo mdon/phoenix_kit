@@ -3164,8 +3164,18 @@ if (typeof window.Chart === "undefined") {
         this.isOpen ? this._close() : this._open();
       };
 
+      // Checked against both `this.el` and `this.menu` — while open, the menu
+      // is portaled to <body> (see `_open()`), so it's no longer a descendant
+      // of `this.el`. Without the `this.menu.contains` check, tapping a menu
+      // item is treated as an "outside" click: this capture-phase listener
+      // fires before the item's own click handler, closes the menu, and
+      // moves it back out from under <body> mid-dispatch. WebKit (desktop and
+      // iPadOS Safari — the only engine on iOS/iPadOS) drops the in-flight
+      // click when its target is relocated during capture, so the item's
+      // action (navigate/phx-click) never runs even though other engines
+      // tolerate the move and still deliver it.
       this._onOutsideClick = (e) => {
-        if (!this.el.contains(e.target)) this._close();
+        if (!this.el.contains(e.target) && !this.menu.contains(e.target)) this._close();
       };
 
       this._onKeydown = (e) => {

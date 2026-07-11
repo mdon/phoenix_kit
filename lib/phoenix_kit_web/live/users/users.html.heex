@@ -2,7 +2,7 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={gettext("User Management")}
+  page_title={@page_title}
   page_subtitle={gettext("Manage user accounts and roles")}
   current_path={@url_path}
   project_title={@project_title}
@@ -92,7 +92,8 @@
               user,
               @selected_columns,
               @phoenix_kit_current_user,
-              @date_time_settings
+              @date_time_settings,
+              @geolocation_tracking_enabled
             )
           end
         }
@@ -485,32 +486,52 @@
                         <% column_id == "location" -> %>
                           <div class="text-sm">
                             <div class="flex flex-col gap-1">
-                              <%= if user.registration_country || user.registration_region || user.registration_city || user.registration_ip do %>
-                                <%= if user.registration_country do %>
-                                  <div class="flex items-center gap-1">
-                                    <span class="badge badge-outline badge-xs h-auto">
-                                      {user.registration_country}
-                                    </span>
+                              <%= cond do %>
+                                <% !@geolocation_tracking_enabled -> %>
+                                  <div
+                                    class="tooltip tooltip-right"
+                                    data-tip={
+                                      gettext(
+                                        "Location tracking is off, so no user shows a location. Turn it on in Settings > Users."
+                                      )
+                                    }
+                                  >
+                                    <.link
+                                      navigate={
+                                        PhoenixKit.Utils.Routes.path("/admin/settings/users")
+                                      }
+                                      class="inline-flex items-center gap-1 text-xs text-base-content/50 hover:text-primary hover:underline"
+                                    >
+                                      <.icon name="hero-information-circle" class="w-3.5 h-3.5" />
+                                      {gettext("Tracking disabled")}
+                                    </.link>
                                   </div>
-                                <% end %>
-                                <%= if user.registration_region || user.registration_city do %>
-                                  <div class="text-xs text-base-content/70">
-                                    <%= if user.registration_region && user.registration_city do %>
-                                      {user.registration_region}, {user.registration_city}
-                                    <% else %>
-                                      {user.registration_region || user.registration_city}
-                                    <% end %>
+                                <% user.registration_country || user.registration_region || user.registration_city || user.registration_ip -> %>
+                                  <%= if user.registration_country do %>
+                                    <div class="flex items-center gap-1">
+                                      <span class="badge badge-outline badge-xs h-auto">
+                                        {user.registration_country}
+                                      </span>
+                                    </div>
+                                  <% end %>
+                                  <%= if user.registration_region || user.registration_city do %>
+                                    <div class="text-xs text-base-content/70">
+                                      <%= if user.registration_region && user.registration_city do %>
+                                        {user.registration_region}, {user.registration_city}
+                                      <% else %>
+                                        {user.registration_region || user.registration_city}
+                                      <% end %>
+                                    </div>
+                                  <% end %>
+                                  <%= if user.registration_ip do %>
+                                    <div class="text-xs text-base-content/50 font-mono">
+                                      {user.registration_ip}
+                                    </div>
+                                  <% end %>
+                                <% true -> %>
+                                  <div class="text-xs text-base-content/50">
+                                    {gettext("No data")}
                                   </div>
-                                <% end %>
-                                <%= if user.registration_ip do %>
-                                  <div class="text-xs text-base-content/50 font-mono">
-                                    {user.registration_ip}
-                                  </div>
-                                <% end %>
-                              <% else %>
-                                <div class="text-xs text-base-content/50">
-                                  {gettext("No data")}
-                                </div>
                               <% end %>
                             </div>
                           </div>

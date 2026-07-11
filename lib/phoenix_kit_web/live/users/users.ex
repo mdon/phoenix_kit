@@ -63,6 +63,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         :org_accounts_enabled,
         Settings.get_boolean_setting("enable_organization_accounts", false)
       )
+      |> assign(
+        :geolocation_tracking_enabled,
+        Settings.get_boolean_setting("track_registration_geolocation", false)
+      )
       |> assign(:filter_account_type, "all")
       |> assign(:show_role_modal, false)
       |> assign(:managing_user, nil)
@@ -922,25 +926,46 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   # Card view helpers
 
-  def build_card_fields(user, selected_columns, current_user, date_time_settings) do
+  def build_card_fields(
+        user,
+        selected_columns,
+        current_user,
+        date_time_settings,
+        geolocation_tracking_enabled
+      ) do
     selected_columns
     |> Enum.reject(&(&1 in ["email", "actions"]))
     |> Enum.filter(&should_render_column?/1)
     |> Enum.map(fn column_id ->
       label = render_column_header(column_id) || column_id
-      value = build_card_field_value(user, column_id, current_user, date_time_settings)
+
+      value =
+        build_card_field_value(
+          user,
+          column_id,
+          current_user,
+          date_time_settings,
+          geolocation_tracking_enabled
+        )
+
       %{label: label, value: value}
     end)
   end
 
-  defp build_card_field_value(user, column_id, current_user, date_time_settings) do
+  defp build_card_field_value(
+         user,
+         column_id,
+         current_user,
+         date_time_settings,
+         geolocation_tracking_enabled
+       ) do
     case column_id do
       "full_name" -> card_full_name(user)
       "role" -> card_roles(user)
       "status" -> card_status(user)
       "registered" -> card_datetime(user.inserted_at, current_user, date_time_settings)
       "last_confirmed" -> card_confirmed_at(user.confirmed_at, current_user, date_time_settings)
-      "location" -> card_location(user)
+      "location" -> card_location(user, geolocation_tracking_enabled)
       _ -> render_column_cell(user, column_id, current_user, date_time_settings)
     end
   end
@@ -980,7 +1005,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     "#{date} #{time}"
   end
 
-  defp card_location(user) do
+  defp card_location(_user, false), do: gettext("Tracking disabled")
+
+  defp card_location(user, true) do
     parts =
       [user.registration_country, user.registration_region, user.registration_city]
       |> Enum.reject(&(is_nil(&1) or &1 == ""))
