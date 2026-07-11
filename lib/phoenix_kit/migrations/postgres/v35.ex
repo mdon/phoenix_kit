@@ -237,6 +237,7 @@ defmodule PhoenixKit.Migrations.Postgres.V35 do
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_ticket_attachments_parent_check'
+        AND conrelid = '#{prefix_table_name("phoenix_kit_ticket_attachments", prefix)}'::regclass
       ) THEN
         ALTER TABLE #{prefix_table_name("phoenix_kit_ticket_attachments", prefix)}
         ADD CONSTRAINT phoenix_kit_ticket_attachments_parent_check
