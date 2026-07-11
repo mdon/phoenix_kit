@@ -1,3 +1,23 @@
+## 1.7.183 - 2026-07-11
+
+### Fixed
+- **Prefixed (`--prefix`) installs could fail to migrate.** `CREATE INDEX` was
+  being called with a schema-qualified index name (`CREATE INDEX prefix.name ON
+  ...`), which Postgres rejects outright — an index always lands in its table's
+  schema, so only the table reference may be qualified. Affected
+  `add_uuid_unique_indexes`/`drop_uuid_unique_indexes` (`uuid_fk_columns.ex`),
+  `V56`, `V57`, and `V95`'s media-folder unique index. (#628)
+- **Cross-schema false-positive existence checks on prefixed installs.** Several
+  idempotency guards (`pg_constraint` lookups in `V35`, `V102`, `V113`, `V115`,
+  `V118`, `V119`; an `information_schema.columns` lookup in `V95`) matched on
+  constraint/column name alone, so an identically-named constraint or column
+  already present in a *different* schema's table made the guard think it existed
+  in the current schema too — silently skipping the `ADD CONSTRAINT`/`ADD COLUMN`.
+  Fixed by anchoring each check to the target relation (`conrelid = '<prefix>.
+  <table>'::regclass` / `table_schema = '<prefix>'`). Added an integration test
+  that runs the full versioned migration chain into a named schema and asserts
+  every index and column lands correctly. (#628)
+
 ## 1.7.182 - 2026-07-10
 
 ### Added
