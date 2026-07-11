@@ -84,6 +84,7 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_files_parent_file_uuid_fkey'
+        AND conrelid = '#{p}phoenix_kit_files'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_files
           ADD CONSTRAINT phoenix_kit_files_parent_file_uuid_fkey
@@ -143,6 +144,7 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_files_user_or_parent_check'
+        AND conrelid = '#{p}phoenix_kit_files'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_files
           ADD CONSTRAINT phoenix_kit_files_user_or_parent_check

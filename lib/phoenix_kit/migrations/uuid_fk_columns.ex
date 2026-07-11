@@ -473,13 +473,10 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
            column_exists?(ref_table, ref_col, escaped_prefix) and
            not unique_index_exists?(ref_table, ref_col, escaped_prefix) do
         table_name = prefix_table_name(ref_table, prefix)
-        index_name = "#{ref_table}_#{ref_col}_idx"
 
-        index_name =
-          case prefix do
-            "public" -> index_name
-            p -> "#{p}.#{index_name}"
-          end
+        # CREATE INDEX forbids a schema-qualified index name — the index
+        # always lands in the (qualified) table's schema.
+        index_name = "#{ref_table}_#{ref_col}_idx"
 
         execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS #{index_name}
@@ -645,16 +642,12 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
 
   defp create_uuid_fk_index(table_str, uuid_fk, prefix, escaped_prefix) do
     table_name = prefix_table_name(table_str, prefix)
+
+    # CREATE INDEX forbids a schema-qualified index name — the index
+    # always lands in the (qualified) table's schema.
     index_name = "#{table_str}_#{uuid_fk}_idx"
 
-    index_name =
-      case prefix do
-        nil -> index_name
-        "public" -> index_name
-        p -> "#{p}.#{index_name}"
-      end
-
-    unless index_exists?(table_str, "#{table_str}_#{uuid_fk}_idx", escaped_prefix) do
+    unless index_exists?(table_str, index_name, escaped_prefix) do
       execute("""
       CREATE INDEX IF NOT EXISTS #{index_name}
       ON #{table_name}(#{uuid_fk})

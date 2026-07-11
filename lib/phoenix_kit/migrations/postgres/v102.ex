@@ -166,6 +166,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
       IF NOT EXISTS (
         SELECT FROM pg_constraint
         WHERE conname = 'phoenix_kit_cat_catalogues_kind_check'
+        AND conrelid = '#{p}phoenix_kit_cat_catalogues'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_catalogues
           ADD CONSTRAINT phoenix_kit_cat_catalogues_kind_check
@@ -175,6 +176,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
       IF NOT EXISTS (
         SELECT FROM pg_constraint
         WHERE conname = 'phoenix_kit_cat_catalogues_discount_pct_check'
+        AND conrelid = '#{p}phoenix_kit_cat_catalogues'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_catalogues
           ADD CONSTRAINT phoenix_kit_cat_catalogues_discount_pct_check
@@ -184,6 +186,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
       IF NOT EXISTS (
         SELECT FROM pg_constraint
         WHERE conname = 'phoenix_kit_cat_items_discount_pct_check'
+        AND conrelid = '#{p}phoenix_kit_cat_items'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_items
           ADD CONSTRAINT phoenix_kit_cat_items_discount_pct_check
@@ -194,6 +197,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
       IF NOT EXISTS (
         SELECT FROM pg_constraint
         WHERE conname = 'phoenix_kit_cat_items_default_value_check'
+        AND conrelid = '#{p}phoenix_kit_cat_items'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_items
           ADD CONSTRAINT phoenix_kit_cat_items_default_value_check
@@ -203,6 +207,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
       IF NOT EXISTS (
         SELECT FROM pg_constraint
         WHERE conname = 'phoenix_kit_cat_item_catalogue_rules_value_check'
+        AND conrelid = '#{p}phoenix_kit_cat_item_catalogue_rules'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_item_catalogue_rules
           ADD CONSTRAINT phoenix_kit_cat_item_catalogue_rules_value_check
