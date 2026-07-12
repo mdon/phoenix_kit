@@ -26,7 +26,7 @@ defmodule PhoenixKit.Migrations.Postgres.V27 do
   ## Queue Configuration
   After running this migration, configure Oban queues in config/config.exs:
 
-      config :phoenix_kit, Oban,
+      config :my_app, Oban,  # your host app's name, not :phoenix_kit
         repo: MyApp.Repo,
         queues: [
           default: 10,

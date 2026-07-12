@@ -201,7 +201,7 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     # Flush pending commands so repo().query() table checks see all tables
     flush()
 
-    # Ensure #{prefix}.uuid_generate_v7() function exists (created in V40, but be safe)
+    # Ensure <prefix>.uuid_generate_v7() function exists (created in V40, but be safe)
     Helpers.ensure_uuid_v7_function(prefix)
 
     # Fix 0: Add missing uuid columns (V43 consent_logs)
@@ -334,7 +334,7 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     end
   end
 
-  # Fix 1: Set DEFAULT to #{prefix}.uuid_generate_v7()
+  # Fix 1: Set DEFAULT to <prefix>.uuid_generate_v7()
   defp fix_uuid_default(table, prefix, escaped_prefix) do
     table_name = prefix_table_name(Atom.to_string(table), prefix)
 

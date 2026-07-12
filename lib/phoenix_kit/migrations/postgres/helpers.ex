@@ -5,12 +5,15 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   Centralizes the prefix-sensitive patterns that individual version
   modules used to hand-roll (and get subtly wrong in independent ways):
 
-    * `qualify_table/2` — schema-qualified table reference for raw SQL.
-      Index **names** must stay bare on `CREATE INDEX` (Postgres rejects
-      `CREATE INDEX schema.name`); only `DROP INDEX schema.name` accepts
-      a qualified name.
+    * `qualify_table/2` — schema-qualified table reference for raw SQL
+      in NEW migration code (existing versions keep their local helpers;
+      migrating them is opportunistic). Index **names** must stay bare on
+      `CREATE INDEX` (Postgres rejects `CREATE INDEX schema.name`); only
+      `DROP INDEX schema.name` accepts a qualified name.
     * `validate_prefix!/1` — rejects prefixes that can't be interpolated
-      into SQL safely. Called at the `up/down` entry points.
+      into SQL safely. Called at the `up/down` entry points and by the
+      prefix-resolving tooling (`PrefixConfig.resolve_prefix/1`,
+      `Install.Common`, `UUIDRepair`).
     * `ensure_extension!/1` — privilege-aware replacement for a bare
       `CREATE EXTENSION IF NOT EXISTS`. Postgres checks the CREATE
       privilege *before* the IF-NOT-EXISTS short-circuit, so the bare
@@ -77,6 +80,12 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   def qualify_table(table, prefix), do: "#{prefix}.#{table}"
 
   @doc """
+  Whether the prefix denotes the default `public` schema (`nil` counts).
+  """
+  @spec public_prefix?(String.t() | nil) :: boolean()
+  def public_prefix?(prefix), do: prefix in [nil, "public"]
+
+  @doc """
   Schema-qualified `uuid_generate_v7()` call for SQL interpolation.
   """
   @spec uuid_v7_call(String.t() | nil) :: String.t()
@@ -122,7 +131,13 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   """
   @spec ensure_extension!(String.t()) :: :ok
   def ensure_extension!(name) do
-    do_ensure_extension!(Ecto.Migration.repo(), name, &Ecto.Migration.execute/1)
+    # Creation runs IMMEDIATELY (repo().query!) rather than queued via
+    # execute/1 — so a later ensure_uuid_v7_function/1 in the same version
+    # sees the extension in pg_extension and resolves pgcrypto's real
+    # schema instead of falling back to public. Also guarantees the
+    # citext type exists before any queued CREATE TABLE that uses it.
+    repo = Ecto.Migration.repo()
+    do_ensure_extension!(repo, name, fn sql -> repo.query!(sql, [], log: false) end)
   end
 
   @doc """
@@ -151,7 +166,7 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
 
   @doc """
   Runtime variant of `ensure_uuid_v7_function/1` (statements run
-  immediately on `repo`).
+  immediately on `repo`; raises on database errors via `repo.query!/3`).
   """
   @spec ensure_uuid_v7_function(Ecto.Repo.t(), String.t() | nil) :: :ok
   def ensure_uuid_v7_function(repo, prefix) do
@@ -255,6 +270,5 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     end
   end
 
-  defp schema(nil), do: "public"
-  defp schema(prefix), do: prefix
+  defp schema(prefix), do: if(public_prefix?(prefix), do: "public", else: prefix)
 end

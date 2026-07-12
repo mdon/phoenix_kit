@@ -1455,6 +1455,10 @@ defmodule PhoenixKit.Migrations.Postgres do
   """
   def heal_version_comment(reported_version, opts) do
     escaped_prefix = Map.get(opts, :escaped_prefix, opts[:prefix] || "public")
+    # Local guard (defense in depth) — current callers pre-validate, but
+    # this function interpolates the prefix into DDL and must not rely
+    # on every future caller doing so.
+    Helpers.validate_prefix!(escaped_prefix)
     prefix_str = if escaped_prefix != "public", do: "#{escaped_prefix}.", else: ""
 
     case get_repo_with_fallback() do

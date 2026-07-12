@@ -13,7 +13,8 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   ## Options
 
-    * `--prefix` - Database schema prefix (default: "public")
+    * `--prefix` - Database schema prefix. When omitted, resolves from
+      `config :phoenix_kit, :prefix`, then defaults to "public".
     * `--verbose` - Show detailed diagnostic information
 
   ## Examples

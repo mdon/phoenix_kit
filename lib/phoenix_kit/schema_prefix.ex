@@ -10,7 +10,8 @@ defmodule PhoenixKit.SchemaPrefix do
   schema targets the named Postgres schema the migrations installed into
   — without the host having to point the database role's `search_path`
   at it. When no prefix is configured (the default `public` install),
-  `@schema_prefix` stays unset and behavior is unchanged.
+  `@schema_prefix` compiles to `nil` — equivalent to unset — and
+  behavior is unchanged.
 
   This is **compile-time** configuration (read via
   `Application.compile_env/2` while the host compiles phoenix_kit):
@@ -18,6 +19,14 @@ defmodule PhoenixKit.SchemaPrefix do
   and recompiles the schemas when it changes. That matches the nature of
   the setting — an install's schema prefix is fixed at `mix
   phoenix_kit.install --prefix ...` time and never changes at runtime.
+
+  A stale build cannot silently target the wrong schema: Elixir records
+  `compile_env` values and validates them when the application boots
+  (`Config.Provider.validate_compile_env/1`), so phoenix_kit compiled
+  before the prefix was configured raises a clear "compiled with a
+  different value" error instead of quietly querying `public`. Any
+  `mix compile`/`phx.server`/`release` after the config change
+  recompiles the schemas automatically.
 
   Every table-backed schema in PhoenixKit must `use` this module right
   after `use Ecto.Schema` (a conformance test enforces it). Embedded

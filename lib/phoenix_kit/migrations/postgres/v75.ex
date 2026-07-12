@@ -54,7 +54,7 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
     phoenix_kit_user_follows_history
   )
 
-  # Tables where uuid DEFAULT is gen_random_uuid() (wrong — should be #{prefix}.uuid_generate_v7())
+  # Tables where uuid DEFAULT is gen_random_uuid() (wrong — should be <prefix>.uuid_generate_v7())
   @wrong_default_tables ~w(
     phoenix_kit_comments
     phoenix_kit_comments_dislikes

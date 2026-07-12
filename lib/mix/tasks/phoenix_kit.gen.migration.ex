@@ -13,7 +13,11 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
 
   ## Options
 
-    * `--prefix` - Database schema prefix (default: "public")
+    * `--prefix` - Database schema prefix. When omitted, resolves from
+      `config :phoenix_kit, :prefix`, then defaults to "public" (validated:
+      `[a-z_][a-z0-9_]*`). The generated migration passes
+      `create_schema: true` only for a fresh install (no prior PhoenixKit
+      migration in the project) with a non-public prefix.
 
   ## Examples
 

@@ -59,6 +59,7 @@ defmodule PhoenixKit.Install.ObanConfig do
   `System.get_env(...)`. Returns false when the content has no Oban
   block at all (nothing to judge).
   """
+  @spec oban_block_missing_prefix?(String.t()) :: boolean()
   def oban_block_missing_prefix?(content) when is_binary(content) do
     case Regex.scan(
            ~r/config\s+:\w+,\s+Oban\b(.*?)(?=\n(?:config\s|import_config\s)|\z)/s,

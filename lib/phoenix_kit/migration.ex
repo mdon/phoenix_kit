@@ -94,7 +94,11 @@ defmodule PhoenixKit.Migration do
       writes hit `auth.phoenix_kit_*` directly — no `search_path` setup on
       the database role is needed for core. This is compile-time
       configuration: set it in `config/config.exs` (not `runtime.exs`);
-      changing it recompiles the phoenix_kit dependency.
+      changing it recompiles the phoenix_kit dependency on the next
+      `mix compile`. A build compiled before the config change refuses
+      to boot with a clear compile-env mismatch error (it never silently
+      queries `public`) — any `mix phx.server`, `ecto.migrate`, or
+      release build after the install triggers the recompile.
 
       Caveat: PhoenixKit *feature modules* (`phoenix_kit_catalogue`,
       `phoenix_kit_projects`, …) define their own Ecto schemas, which

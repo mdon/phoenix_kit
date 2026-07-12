@@ -37,7 +37,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     ## Options
 
-      * `--prefix` - Database schema prefix (default: "public")
+      * `--prefix` - Database schema prefix. When omitted, resolves from
+        `config :phoenix_kit, :prefix`, then defaults to "public". Passing it
+        explicitly also persists the config entry. On prefixed installs the
+        task warns when your existing Oban config lacks the `prefix:` key.
       * `--status` - Show current installation status and available updates
       * `--force` - Force update even if already up to date
       * `--skip-assets` - Skip automatic asset rebuild check
@@ -65,10 +68,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     PhoenixKit uses a versioned migration system. Each version contains specific
     database schema changes that can be applied incrementally.
 
-    Current version: V17 (latest version with comprehensive features)
-    - V01: Basic authentication with role system
-    - V02: Remove is_active column from role assignments (direct deletion)
-    - V03-V17: Additional features and improvements (see migration files for details)
+    Run `mix phoenix_kit.status` to see the currently installed and latest
+    available migration versions.
 
     ## Safe Updates
 
@@ -762,8 +763,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       OPTIONS
         --prefix SCHEMA         Database schema prefix for PhoenixKit tables
-                                Default: "public" (standard PostgreSQL schema)
-                                Must match prefix used during installation
+                                Omitted: resolves from config :phoenix_kit,
+                                :prefix, then defaults to "public" — so a
+                                configured prefixed install needs no flag.
                                 Example: --prefix "auth"
 
         --status, -s            Show current installation status and available updates
@@ -805,12 +807,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         Each version contains specific database schema changes that can
         be applied incrementally.
 
-        Current latest version: V17
-        • V01: Basic authentication with role system
-        • V02: Remove is_active column from role assignments
-        • V03-V06: Additional features and improvements
-        • V07: Email system tables (logs, events, blocklist)
-        • V08-V17: Settings, OAuth, magic links, and more
+        Run mix phoenix_kit.status for the installed and latest versions.
 
       SAFE UPDATES
         All PhoenixKit updates are designed to be:

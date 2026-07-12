@@ -45,10 +45,10 @@ defmodule PhoenixKit.Migrations.Postgres.V63 do
     # Flush any pending migration commands from earlier versions
     flush()
 
-    # Ensure #{prefix}.uuid_generate_v7() exists (created in V40, be defensive)
+    # Ensure <prefix>.uuid_generate_v7() exists (created in V40, be defensive)
     Helpers.ensure_uuid_v7_function(prefix)
 
-    # Flush so #{prefix}.uuid_generate_v7() is available for subsequent queries
+    # Flush so <prefix>.uuid_generate_v7() is available for subsequent queries
     flush()
 
     # 1. Add uuid column to ai_accounts (must come before account_uuid backfill)

@@ -162,5 +162,47 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
       end)
 
     assert is_binary(uuid) and byte_size(uuid) == 36
+
+    # V40/V56-path pin: a LEGACY table's uuid default must also be bound to
+    # the prefixed function (the projects assert above covers the raw-SQL
+    # CREATE TABLE path; this covers the ALTER TABLE backfill path).
+    %{rows: [[users_default]]} =
+      Repo.query!(
+        """
+        SELECT column_default FROM information_schema.columns
+        WHERE table_schema = $1 AND table_name = 'phoenix_kit_users' AND column_name = 'uuid'
+        """,
+        [@schema]
+      )
+
+    assert users_default =~ "#{@schema}.uuid_generate_v7()"
+
+    # Upgrade-path pin: chains starting >= V40 skip the function-creation
+    # sites, so Postgres.up/1 must re-ensure the function at the prefix
+    # before running newer versions. Simulate: roll the marker back one
+    # version and move the function aside (rename, not drop — the column
+    # defaults are OID-bound to it), then re-run the migrator.
+    Repo.query!("ALTER FUNCTION #{@schema}.uuid_generate_v7() RENAME TO uuid_generate_v7_old")
+
+    previous_version = Postgres.current_version() - 1
+    Repo.query!("COMMENT ON TABLE #{@schema}.phoenix_kit IS '#{previous_version}'")
+
+    capture_io(fn ->
+      assert :ok = PhoenixKit.Migration.ensure_current(Repo, prefix: @schema, log: false)
+    end)
+
+    %{rows: [[fn_restored]]} =
+      Repo.query!(
+        """
+        SELECT EXISTS (
+          SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE p.proname = 'uuid_generate_v7' AND n.nspname = $1
+        )
+        """,
+        [@schema]
+      )
+
+    assert fn_restored,
+           "Postgres.up did not re-ensure uuid_generate_v7 at the prefix on an upgrade chain"
   end
 end

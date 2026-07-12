@@ -453,15 +453,19 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     _ -> []
   end
 
-  # Generate migration options (same as phoenix_kit.install.ex)
-  defp migration_opts("public", false), do: "[]"
+  # Generate migration options (same as phoenix_kit.install.ex).
+  # Public for testability; @doc false.
+  @doc false
+  def migration_opts("public", false), do: "[]"
   # public schema doesn't need create_schema
-  defp migration_opts("public", true), do: "[]"
+  @doc false
+  def migration_opts("public", true), do: "[]"
 
   # Always emit create_schema explicitly for non-public prefixes — omitting
   # it means the migration chain re-defaults the flag to true, silently
   # discarding --create-schema=false.
-  defp migration_opts(prefix, create_schema) when is_binary(prefix) do
+  @doc false
+  def migration_opts(prefix, create_schema) when is_binary(prefix) do
     inspect(prefix: prefix, create_schema: create_schema)
   end
 end

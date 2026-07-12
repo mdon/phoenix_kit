@@ -65,10 +65,10 @@ defmodule PhoenixKit.Migrations.Postgres.V61 do
     # Flush any pending commands from earlier versions
     flush()
 
-    # Ensure #{prefix}.uuid_generate_v7() exists (created in V40, but be safe)
+    # Ensure <prefix>.uuid_generate_v7() exists (created in V40, but be safe)
     Helpers.ensure_uuid_v7_function(prefix)
 
-    # Need to flush #{prefix}.uuid_generate_v7() creation before using it
+    # Need to flush <prefix>.uuid_generate_v7() creation before using it
     flush()
 
     # Add uuid column to each missing table

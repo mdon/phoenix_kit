@@ -26,6 +26,7 @@ defmodule PhoenixKit.Install.PrefixConfig do
   would reject anyway (empty string, uppercase, dashes, injection
   shapes) — failing at the task boundary beats failing mid-migration.
   """
+  @spec resolve_prefix(keyword() | map()) :: String.t()
   def resolve_prefix(opts) do
     prefix = opts[:prefix] || configured_prefix() || "public"
     Helpers.validate_prefix!(prefix)
@@ -44,6 +45,7 @@ defmodule PhoenixKit.Install.PrefixConfig do
   when installing with a non-public prefix. No-op for the default
   `"public"` prefix (or when no prefix option was given).
   """
+  @spec add_prefix_configuration(term(), String.t() | nil) :: term()
   def add_prefix_configuration(igniter, prefix) when prefix in [nil, "public"], do: igniter
 
   def add_prefix_configuration(igniter, prefix) when is_binary(prefix) do

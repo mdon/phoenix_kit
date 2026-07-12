@@ -52,6 +52,10 @@ defmodule PhoenixKit.Install.RepoDetection do
     with {igniter, nil} <- try_igniter_ecto_list(igniter),
          {igniter, nil} <- try_application_config(igniter) do
       try_naming_patterns(igniter)
+    else
+      # {igniter, repo} (found) or {:multiple, igniter, repos} — both
+      # short-circuit the detection chain and are handled by the caller.
+      result -> result
     end
   end
 
