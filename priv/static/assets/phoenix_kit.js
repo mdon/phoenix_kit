@@ -1839,7 +1839,20 @@ if (typeof window.Chart === "undefined") {
   //
   //   data-bulk-action="<lv-event>"         on a button: clicking pushes
   //                                         <lv-event> to the LV with
-  //                                         `{ uuids: [...] }` payload.
+  //                                         `{ uuids: [...] }` payload. Pair
+  //                                         with `data-confirm="..."` for a
+  //                                         native confirm() prompt before
+  //                                         the event fires (cancelling
+  //                                         stops the click here — the
+  //                                         event is never pushed). This
+  //                                         hook always calls preventDefault
+  //                                         on the click, which would
+  //                                         otherwise make phoenix_html's
+  //                                         own data-confirm handling never
+  //                                         run (it bails out early when
+  //                                         the event is already
+  //                                         defaultPrevented), so this hook
+  //                                         handles data-confirm itself.
   //
   //   data-bulk-clear                       on a button: pure client-side
   //                                         clear (uncheck all + reset).
@@ -1951,6 +1964,15 @@ if (typeof window.Chart === "undefined") {
       e.preventDefault();
       const event = btn.dataset.bulkAction;
       if (!event) return;
+
+      // Honor `data-confirm` ourselves: this handler already called
+      // `e.preventDefault()` above, and phoenix_html's own window-level
+      // click listener bails out early via `if (e.defaultPrevented) return;`
+      // — so a button carrying both `data-confirm` and `data-bulk-action`
+      // would otherwise never show the native confirm dialog and the
+      // action would fire immediately with no prompt.
+      const confirmMessage = btn.dataset.confirm;
+      if (confirmMessage && !window.confirm(confirmMessage)) return;
 
       // If the button is paired with a kept-in-DOM dialog, open it
       // locally BEFORE pushing the event. The server still gets the
