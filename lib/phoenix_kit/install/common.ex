@@ -7,10 +7,90 @@ defmodule PhoenixKit.Install.Common do
   - Version formatting
   - Status checking
   - Migration detection
+  - Registering PhoenixKit's Mix compilers in a host's `mix.exs`
   """
 
   alias PhoenixKit.Config
   alias PhoenixKit.Migrations.Postgres
+
+  @doc """
+  Ensures every atom in `compiler_names` is present in the host's `mix.exs`
+  `project/0` `:compilers` list — in ONE `Igniter.Project.MixProject.update/4`
+  call across every compiler PhoenixKit registers.
+
+  This must be a single call spanning all of them, not one call per compiler.
+  `Igniter.Code.List.prepend_new_to_list/2` only understands a literal list
+  AST. Registering against an absent `:compilers` key has to produce `atoms
+  ++ Mix.compilers()` (a `++` call, not a literal list — `Mix.compilers()` is
+  a live call that can't be flattened at install time). A SECOND, separate
+  `Igniter.Project.MixProject.update/4` call touching the same key then lands
+  on that `++` node instead of a list, and `prepend_new_to_list/2` silently
+  fails into a `{:warning, ...}` that's easy to miss in the wall of `mix
+  phoenix_kit.update`/`mix phoenix_kit.install` output — so the second
+  compiler never actually gets registered even though the run reports
+  success. This is not hypothetical: it's exactly how a production host ended
+  up with `:phoenix_kit_css_sources` registered (added first) but
+  `:phoenix_kit_js_sources` silently missing (added second, in a separate
+  call) across many `phoenix_kit.update` runs — so PhoenixKit's own JS hook
+  fixes never reached the browser.
+
+  Also repairs a `:compilers` value an affected host is already stuck with in
+  that broken `[some_atom] ++ Mix.compilers()` shape: descends into the
+  literal list on the left of `++` and prepends there instead of bailing.
+  """
+  def ensure_compilers_registered(igniter, compiler_names) when is_list(compiler_names) do
+    Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
+      nil ->
+        # No :compilers key yet — must keep the defaults, so prepend to
+        # Mix.compilers() rather than replacing the whole list.
+        {:ok, {:code, quote(do: unquote(compiler_names) ++ Mix.compilers())}}
+
+      zipper ->
+        zipper
+        |> resolve_literal_compilers_list()
+        |> case do
+          {:ok, list_zipper} -> prepend_missing(list_zipper, compiler_names)
+          :error -> :error
+        end
+        |> case do
+          {:ok, zipper} ->
+            {:ok, zipper}
+
+          :error ->
+            {:warning,
+             "Could not add #{inspect(compiler_names)} to compilers in mix.exs — " <>
+               "please add them manually: compilers: #{inspect(compiler_names)} ++ Mix.compilers()"}
+        end
+    end)
+  end
+
+  # The zipper is either already a literal list (`compilers: [:a, :b]`), or
+  # `[:a] ++ Mix.compilers()` (the shape THIS module itself produces on first
+  # registration, or that a foreign tool produced the same way) — descend
+  # into the literal list on the left of `++` so callers can prepend into it.
+  # Anything else (a bare variable, a function call returning a list, etc.)
+  # is refused rather than guessed at.
+  defp resolve_literal_compilers_list(zipper) do
+    cond do
+      Igniter.Code.List.list?(zipper) ->
+        {:ok, zipper}
+
+      Igniter.Code.Function.function_call?(zipper, :++, 2) ->
+        Igniter.Code.Function.move_to_nth_argument(zipper, 0)
+
+      true ->
+        :error
+    end
+  end
+
+  defp prepend_missing(zipper, names) do
+    Enum.reduce_while(names, {:ok, zipper}, fn name, {:ok, zipper} ->
+      case Igniter.Code.List.prepend_new_to_list(zipper, name) do
+        {:ok, zipper} -> {:cont, {:ok, zipper}}
+        :error -> {:halt, :error}
+      end
+    end)
+  end
 
   @doc """
   Generates timestamp in Ecto migration format.

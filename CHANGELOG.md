@@ -1,3 +1,33 @@
+## 1.7.186 - 2026-07-12
+
+### Fixed
+- **The 1.7.185 `phoenix_kit.js` self-heal never ran on hosts whose
+  `mix.exs` was missing the `:phoenix_kit_js_sources` compiler — exactly the
+  older installs that need it most.** Root cause (found by a downstream
+  agent bisecting a host stuck on stale JS after upgrading): registering
+  `:phoenix_kit_css_sources` and `:phoenix_kit_js_sources` was two SEPARATE
+  `Igniter.Project.MixProject.update/4` calls against the same `mix.exs`
+  `:compilers` key. The first call, hitting an absent key, has to insert
+  `[atom] ++ Mix.compilers()` — a `++` call, not a literal list, since
+  `Mix.compilers()` is a live call that can't be flattened at install time.
+  The second call then lands on that `++` node instead of a list, and
+  `Igniter.Code.List.prepend_new_to_list/2` (which only understands literal
+  lists) silently fails into a `{:warning, ...}` easy to miss in the wall of
+  `mix phoenix_kit.update`/`install` output — so the second compiler never
+  actually got registered even though the run reported success. This is
+  exactly what happened in production: a host had `:phoenix_kit_css_sources`
+  from the first call but never `:phoenix_kit_js_sources` from the second,
+  across many `phoenix_kit.update` runs, so the JS-hooks compiler (and
+  therefore 1.7.185's vendoring fix) never ran.
+  `PhoenixKit.Install.Common.ensure_compilers_registered/2` now registers
+  every PhoenixKit compiler in ONE call — used by both `mix
+  phoenix_kit.install` and `mix phoenix_kit.update` — and, for hosts already
+  stuck in the broken `[atom] ++ Mix.compilers()` shape, descends into the
+  literal list on the left of `++` and repairs it there instead of bailing.
+  Covered by a regression test that reproduces the exact broken shape and
+  asserts both compilers end up present, not just the notice claiming they
+  do.
+
 ## 1.7.185 - 2026-07-11
 
 ### Fixed

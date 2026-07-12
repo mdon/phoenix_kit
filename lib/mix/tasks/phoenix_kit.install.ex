@@ -66,6 +66,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BasicConfiguration,
       BootHook,
       BrowserPipelineIntegration,
+      Common,
       CssIntegration,
       DbConnectionCheck,
       DemoFiles,
@@ -120,6 +121,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> BootHook.add_boot_hook()
       |> ObanConfig.add_oban_supervisor()
       |> LayoutConfig.add_layout_integration_configuration()
+      |> Common.ensure_compilers_registered([
+        :phoenix_kit_css_sources,
+        :phoenix_kit_js_sources
+      ])
       |> CssIntegration.add_automatic_css_integration()
       |> JsIntegration.add_js_integration()
       |> DemoFiles.copy_test_demo_files()

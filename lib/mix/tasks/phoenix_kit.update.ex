@@ -375,11 +375,18 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # This must run AFTER add_oban_supervisor to fix installations with wrong order
       igniter = fix_supervisor_ordering(igniter)
 
-      # Ensure :phoenix_kit_css_sources compiler is registered in mix.exs
-      igniter = ensure_css_sources_compiler(igniter)
+      # Register both compilers in a SINGLE mix.exs edit — touching :compilers
+      # from two separate Igniter.Project.MixProject.update/4 calls corrupts
+      # the second registration (see Common.ensure_compilers_registered/2).
+      igniter =
+        Common.ensure_compilers_registered(igniter, [
+          :phoenix_kit_css_sources,
+          :phoenix_kit_js_sources
+        ])
 
-      # Ensure the external-module JS integration is wired (compiler + aggregate
-      # script tag). Picks up the feature on hosts installed before it existed.
+      # Ensure the rest of the external-module JS integration is wired
+      # (aggregate file, script tag). Picks up the feature on hosts installed
+      # before it existed.
       igniter = JsIntegration.ensure_module_js_integration(igniter)
 
       # Check if this is the first pass (config missing) or second pass (config exists)
@@ -938,28 +945,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
       Mix.Task.run("phoenix_kit.status", args)
-    end
-
-    # Add :phoenix_kit_css_sources compiler to the parent app's mix.exs if missing.
-    defp ensure_css_sources_compiler(igniter) do
-      Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
-        nil ->
-          # No :compilers key yet — keep the defaults by prepending.
-          {:ok, {:code, quote(do: [:phoenix_kit_css_sources] ++ Mix.compilers())}}
-
-        zipper ->
-          case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_css_sources) do
-            {:ok, zipper} -> {:ok, zipper}
-            :error -> {:warning, "Could not add :phoenix_kit_css_sources to compilers in mix.exs"}
-          end
-      end)
-    rescue
-      _ ->
-        Igniter.add_warning(
-          igniter,
-          "⚠️  Could not add :phoenix_kit_css_sources compiler to mix.exs. " <>
-            "Please add compilers: [:phoenix_kit_css_sources] ++ Mix.compilers() to your project/0."
-        )
     end
 
     # Update CSS integration during PhoenixKit updates
