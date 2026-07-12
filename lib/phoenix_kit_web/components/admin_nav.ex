@@ -189,8 +189,20 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   def admin_user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
 
+    # Highlight by BASE code, not full-dialect equality. `@current_locale`
+    # may be a base ("en") or a resolved dialect that differs from the
+    # enabled one (e.g. `resolve_dialect("en")` => "en-US" while English is
+    # enabled as plain "en"), so a raw `==` against the enabled code never
+    # matched on locales with a regional default. Same rule as
+    # UserDashboardNav.language_menu_section/1.
+    current_base = DialectMapper.extract_base(assigns.current_locale)
+
     # Get admin languages info for the dropdown
-    admin_languages = get_admin_languages()
+    admin_languages =
+      Enum.map(get_admin_languages(), fn language ->
+        Map.put(language, :active?, DialectMapper.extract_base(language.code) == current_base)
+      end)
+
     show_language_section = not Enum.empty?(admin_languages)
     show_language_divider = PhoenixKit.Config.user_dashboard_enabled?() and show_language_section
 
@@ -285,7 +297,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                       "w-full flex items-center gap-3 rounded-lg px-4 py-2 text-sm",
                       "focus:outline-none focus-visible:outline-none",
                       "phx-click-loading:opacity-60 phx-click-loading:pointer-events-none",
-                      if(language.code == @current_locale,
+                      if(language.active?,
                         do:
                           "bg-primary !text-primary-content hover:bg-primary hover:!text-primary-content active:!bg-primary/80",
                         else:
@@ -295,7 +307,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                   >
                     <span class="text-lg">{get_language_flag(language.code)}</span>
                     <span>{language.name}</span>
-                    <%= if language.code == @current_locale do %>
+                    <%= if language.active? do %>
                       <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 ml-auto" />
                     <% end %>
                   </button>
