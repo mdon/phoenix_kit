@@ -171,8 +171,12 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   def get_oauth_callback_url(settings, provider) do
     site_url = settings["site_url"] || "https://example.com"
     url_prefix = PhoenixKit.Config.get_url_prefix()
+    # "/" is the sentinel Config.get_url_prefix/0 returns for "no prefix"
+    # (see compute_url_prefix/0) — treat it the same as "" here, matching
+    # Routes.path/2 and UeberAuth.get_default_base_path/0.
+    base_prefix = if url_prefix == "/", do: "", else: url_prefix
 
-    "#{site_url}#{url_prefix}/users/auth/#{provider}/callback"
+    "#{site_url}#{base_prefix}/users/auth/#{provider}/callback"
   end
 
   @doc """
