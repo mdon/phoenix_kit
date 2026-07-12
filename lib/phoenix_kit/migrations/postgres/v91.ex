@@ -20,7 +20,7 @@ defmodule PhoenixKit.Migrations.Postgres.V91 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:name, :string, null: false, size: 255)
       add(:description, :text)
       add(:status, :string, default: "active", size: 20)
@@ -36,7 +36,7 @@ defmodule PhoenixKit.Migrations.Postgres.V91 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:name, :string, null: false, size: 255)
       add(:description, :text)
       add(:public_notes, :text)
@@ -74,7 +74,7 @@ defmodule PhoenixKit.Migrations.Postgres.V91 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
 
       add(
         :location_uuid,

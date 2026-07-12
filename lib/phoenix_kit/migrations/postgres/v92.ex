@@ -89,7 +89,7 @@ defmodule PhoenixKit.Migrations.Postgres.V92 do
           AND table_name = 'phoenix_kit_organization_invitations'
       ) THEN
         CREATE TABLE #{p}phoenix_kit_organization_invitations (
-          uuid UUID NOT NULL DEFAULT uuid_generate_v7() PRIMARY KEY,
+          uuid UUID NOT NULL DEFAULT #{prefix}.uuid_generate_v7() PRIMARY KEY,
           organization_uuid UUID NOT NULL
             REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,
           email VARCHAR(160) NOT NULL,

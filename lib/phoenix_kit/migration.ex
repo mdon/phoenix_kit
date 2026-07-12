@@ -86,6 +86,45 @@ defmodule PhoenixKit.Migration do
     ...
   ```
 
+  That config entry is written automatically by
+  `mix phoenix_kit.install --prefix "auth"` and does two things:
+
+    * **Runtime queries target the schema.** Every PhoenixKit Ecto schema
+      compiles the prefix in (via `PhoenixKit.SchemaPrefix`), so reads and
+      writes hit `auth.phoenix_kit_*` directly — no `search_path` setup on
+      the database role is needed for core. This is compile-time
+      configuration: set it in `config/config.exs` (not `runtime.exs`);
+      changing it recompiles the phoenix_kit dependency on the next
+      `mix compile`. A build compiled before the config change refuses
+      to boot with a clear compile-env mismatch error (it never silently
+      queries `public`) — any `mix phx.server`, `ecto.migrate`, or
+      release build after the install triggers the recompile.
+
+      Caveat: PhoenixKit *feature modules* (`phoenix_kit_catalogue`,
+      `phoenix_kit_projects`, …) define their own Ecto schemas, which
+      only honor the prefix once that module also adopts
+      `PhoenixKit.SchemaPrefix`. Until the modules you use have it, a
+      prefixed install running feature modules still needs the schema on
+      the role's `search_path`:
+
+      ```sql
+      ALTER ROLE my_app_role SET search_path = auth, public;
+      ```
+    * **Tooling finds the install.** `mix phoenix_kit.update` / `status` /
+      `gen.migration` resolve the prefix from config when `--prefix`
+      isn't passed.
+
+  Oban needs the prefix too — its tables are created inside the same
+  schema, so the host's Oban config must carry it (the installer adds
+  this for new prefixed installs):
+
+  ```elixir
+  config :my_app, Oban,
+    prefix: "auth",
+    repo: MyApp.Repo,
+    ...
+  ```
+
   In some cases, for example if your "auth" schema already exists and your database user in
   production doesn't have permissions to create a new schema, trying to create the schema from the
   migration will result in an error. In such situations, it may be useful to inhibit the creation
@@ -99,6 +138,32 @@ defmodule PhoenixKit.Migration do
 
     def down, do: PhoenixKit.Migrations.down(prefix: "auth")
   end
+  ```
+
+  The prefix must be a conventional lower-case identifier (`[a-z_][a-z0-9_]*`) —
+  it is interpolated into SQL, and anything else is rejected at the `up`/`down`
+  entry points.
+
+  One requirement for *upgrading* an existing prefixed install: the migrating
+  role needs `CREATE` on the install's schema, because newer versions ensure a
+  schema-local `uuid_generate_v7()` there (older releases created it wherever
+  `search_path` pointed, typically `public`). If the schema is DBA-owned and
+  the role only has `USAGE`, have the DBA grant `CREATE` for the migration or
+  pre-create the function in the schema.
+
+  ## Required Postgres extensions
+
+  The migration chain needs three extensions: `citext` (case-insensitive
+  emails), `pgcrypto` (UUIDv7 generation), and `pg_trgm` (trigram search).
+  When they are already installed the chain never issues `CREATE EXTENSION`
+  (so no database-level CREATE privilege is needed). When one is missing, the
+  migrating role must be allowed to create it — on locked-down databases have
+  a DBA pre-provision them instead:
+
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS citext;
+  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  CREATE EXTENSION IF NOT EXISTS pg_trgm;
   ```
 
   ## Migrating Without Ecto

@@ -37,7 +37,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     ## Options
 
-      * `--prefix` - Database schema prefix (default: "public")
+      * `--prefix` - Database schema prefix. When omitted, resolves from
+        `config :phoenix_kit, :prefix`, then defaults to "public". Passing it
+        explicitly also persists the config entry. On prefixed installs the
+        task warns when your existing Oban config lacks the `prefix:` key.
       * `--status` - Show current installation status and available updates
       * `--force` - Force update even if already up to date
       * `--skip-assets` - Skip automatic asset rebuild check
@@ -65,10 +68,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     PhoenixKit uses a versioned migration system. Each version contains specific
     database schema changes that can be applied incrementally.
 
-    Current version: V17 (latest version with comprehensive features)
-    - V01: Basic authentication with role system
-    - V02: Remove is_active column from role assignments (direct deletion)
-    - V03-V17: Additional features and improvements (see migration files for details)
+    Run `mix phoenix_kit.status` to see the currently installed and latest
+    available migration versions.
 
     ## Safe Updates
 
@@ -89,11 +90,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BootHook,
       Common,
       CssIntegration,
+      DaisyUI,
       DbConnectionCheck,
       EndpointIntegration,
       IgniterHelpers,
       JsIntegration,
       ObanConfig,
+      PrefixConfig,
       RateLimiterConfig
     }
 
@@ -359,8 +362,17 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Perform the igniter-based update logic
     defp perform_igniter_update(igniter, opts) do
-      prefix = opts[:prefix] || "public"
+      # --prefix option → config :phoenix_kit, :prefix → "public".
+      # Checking the wrong prefix here is dangerous: a prefixed install
+      # looks "not installed" at public.
+      prefix = PrefixConfig.resolve_prefix(opts)
       force = opts[:force] || false
+
+      # When --prefix is passed explicitly, persist it into config (covers
+      # installs made before the installer started writing it; no-op when
+      # already configured). Without the flag there is nothing to backfill
+      # from — config either already has it or the install is public.
+      igniter = PrefixConfig.add_prefix_configuration(igniter, opts[:prefix])
 
       # Validate and fix Ueberauth configuration before update
       igniter = validate_and_fix_ueberauth_config(igniter)
@@ -369,7 +381,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       igniter = validate_and_add_hammer_config(igniter)
 
       # Ensure Oban configuration exists
-      igniter = validate_and_add_oban_config(igniter)
+      igniter = validate_and_add_oban_config(igniter, prefix)
 
       # CRITICAL FIX: Ensure correct supervisor ordering in application.ex
       # This must run AFTER add_oban_supervisor to fix installations with wrong order
@@ -402,7 +414,16 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           # Second pass: Configuration exists, app is started, proceed with migration
           case Common.check_installation_status(prefix) do
             {:not_installed} ->
-              add_not_installed_notice(igniter)
+              add_not_installed_notice(igniter, prefix)
+
+            {:unreachable, reason} ->
+              Igniter.add_warning(igniter, """
+              ❌ Cannot reach the database to determine the installed PhoenixKit
+              version (#{inspect(reason)}).
+
+              Not generating an update migration — fix the database connection
+              and re-run mix phoenix_kit.update.
+              """)
 
             {:current_version, current_version} ->
               target_version = Common.current_version()
@@ -437,7 +458,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
            force,
            opts
          ) do
-      create_schema = prefix != "public"
+      # An update implies an existing installation, so the schema exists —
+      # never ask the chain to create it (CREATE SCHEMA fails for
+      # low-privilege roles even with IF NOT EXISTS).
+      create_schema = false
 
       # Generate timestamp and migration file name using Ecto format
       timestamp = Common.generate_timestamp()
@@ -516,12 +540,18 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     end
 
     # Add notices for different scenarios
-    defp add_not_installed_notice(igniter) do
+    defp add_not_installed_notice(igniter, prefix) do
       notice = """
 
-      ❌ PhoenixKit is not installed.
+      ❌ No PhoenixKit installation found at schema prefix #{inspect(prefix)}.
 
-      Please run: mix igniter.install phoenix_kit
+      If PhoenixKit IS installed but under a different schema prefix, pass it
+      explicitly (and persist it in config so future runs resolve it):
+
+        mix phoenix_kit.update --prefix your_schema
+        config :phoenix_kit, prefix: "your_schema"
+
+      If PhoenixKit is not installed yet, run: mix igniter.install phoenix_kit
       (or `mix phoenix_kit.install` if the dep is already in mix.exs)
       """
 
@@ -592,7 +622,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Handle tasks that need to run after igniter completes
     defp post_igniter_tasks(opts) do
-      prefix = Keyword.get(opts, :prefix, "public")
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       # CRITICAL: Run UUID repair BEFORE migrations
       # This fixes upgrade path from PhoenixKit < 1.7.0 where uuid columns
@@ -602,6 +632,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       # Update CSS integration (enables daisyUI themes if disabled)
       update_css_integration()
+
+      # Warn when the host's vendored daisyUI is older than what PhoenixKit's
+      # UI is designed against (the host owns the file; we never touch it)
+      warn_if_daisyui_outdated()
 
       # Update JS hooks file
       JsIntegration.update_js_file()
@@ -642,11 +676,11 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
              You may need to add uuid columns manually before running migrations.
 
              Manual fix (run in psql or your database client):
-               ALTER TABLE phoenix_kit_settings
-               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v7();
+               ALTER TABLE #{prefix}.phoenix_kit_settings
+               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7();
 
-               ALTER TABLE phoenix_kit_email_templates
-               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v7();
+               ALTER TABLE #{prefix}.phoenix_kit_email_templates
+               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7();
           """)
       end
     rescue
@@ -738,8 +772,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       OPTIONS
         --prefix SCHEMA         Database schema prefix for PhoenixKit tables
-                                Default: "public" (standard PostgreSQL schema)
-                                Must match prefix used during installation
+                                Omitted: resolves from config :phoenix_kit,
+                                :prefix, then defaults to "public" — so a
+                                configured prefixed install needs no flag.
                                 Example: --prefix "auth"
 
         --status, -s            Show current installation status and available updates
@@ -781,12 +816,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         Each version contains specific database schema changes that can
         be applied incrementally.
 
-        Current latest version: V17
-        • V01: Basic authentication with role system
-        • V02: Remove is_active column from role assignments
-        • V03-V06: Additional features and improvements
-        • V07: Email system tables (logs, events, blocklist)
-        • V08-V17: Settings, OAuth, magic links, and more
+        Run mix phoenix_kit.status for the installed and latest versions.
 
       SAFE UPDATES
         All PhoenixKit updates are designed to be:
@@ -835,7 +865,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # implement `migration_module/0`. Generates an incremental migration file
     # in the parent app for each module that needs updating, then runs migrations.
     defp run_module_migrations(opts) do
-      prefix = Keyword.get(opts, :prefix, "public")
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       modules =
         try do
@@ -940,11 +970,21 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Show current installation status and available updates
     defp show_status(opts) do
-      prefix = opts[:prefix] || "public"
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
       Mix.Task.run("phoenix_kit.status", args)
+    end
+
+    # Advisory only — the host owns assets/vendor/daisyui.js; PhoenixKit's
+    # modals rely on daisyUI >= DaisyUI.minimum_version() for correct modal
+    # scrollbar-gutter handling (see PhoenixKit.Install.DaisyUI).
+    defp warn_if_daisyui_outdated do
+      case DaisyUI.check() do
+        {:outdated, version} -> Mix.shell().info(DaisyUI.outdated_warning(version))
+        _ -> :ok
+      end
     end
 
     # Update CSS integration during PhoenixKit updates
@@ -1574,7 +1614,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_notice(igniter, String.trim(notice))
     end
 
-    defp validate_and_add_oban_config(igniter) do
+    defp validate_and_add_oban_config(igniter, prefix) do
       config_exists = ObanConfig.oban_config_exists?(igniter)
       supervisor_exists = ObanConfig.oban_supervisor_exists?(igniter)
 
@@ -1583,7 +1623,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # - Updating existing configuration with new queues (posts, sitemap, sqs_polling)
       igniter =
         igniter
-        |> ObanConfig.add_oban_configuration()
+        |> ObanConfig.add_oban_configuration(prefix)
         |> maybe_add_oban_config_notice(config_exists)
 
       # Check and add supervisor separately

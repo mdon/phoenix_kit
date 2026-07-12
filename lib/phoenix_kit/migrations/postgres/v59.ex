@@ -17,7 +17,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
   - JSONB `data` column on every table for extensibility without future migrations
   - Real columns for indexed/queried/FK fields (status, slug, language, dates)
-  - UUID v7 primary keys with `uuid_generate_v7()` default
+  - UUID v7 primary keys defaulting to the schema-qualified `<prefix>.uuid_generate_v7()`
   - Dual-write user FKs: `created_by_uuid` (UUID, FK) + `created_by_id` (bigint, no FK)
   - All timestamps use `timestamptz` (per V58 standardization)
   - One content row per language (mirrors filesystem one-file-per-language model)
@@ -39,7 +39,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{prefix_str}phoenix_kit_publishing_groups (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,
       mode VARCHAR(20) NOT NULL DEFAULT 'timestamp',
@@ -61,7 +61,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{prefix_str}phoenix_kit_publishing_posts (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       group_id UUID NOT NULL,
       slug VARCHAR(500) NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
@@ -148,7 +148,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{prefix_str}phoenix_kit_publishing_versions (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       post_id UUID NOT NULL,
       version_number INTEGER NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
@@ -198,7 +198,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{prefix_str}phoenix_kit_publishing_contents (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       version_id UUID NOT NULL,
       language VARCHAR(10) NOT NULL,
       title VARCHAR(500) NOT NULL,

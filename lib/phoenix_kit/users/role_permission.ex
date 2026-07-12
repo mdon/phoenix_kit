@@ -14,6 +14,7 @@ defmodule PhoenixKit.Users.RolePermission do
   """
 
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Users.Permissions

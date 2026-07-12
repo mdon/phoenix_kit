@@ -31,8 +31,9 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
   - Sortable by creation time
   - Compatible with standard UUID format
 
-  A PostgreSQL function `uuid_generate_v7()` is created to generate UUIDv7
-  values at the database level.
+  A PostgreSQL function `uuid_generate_v7()` is created inside the
+  install's schema (`<prefix>.uuid_generate_v7()`) to generate UUIDv7
+  values at the database level; all call sites are schema-qualified.
 
   ## Tables Affected
 
@@ -104,6 +105,8 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
       PhoenixKit.Migrations.Postgres.down(prefix: "public", version: 39)
   """
   use Ecto.Migration
+
+  alias PhoenixKit.Migrations.Postgres.Helpers
 
   @tables_to_migrate [
     # Core Auth (V01)
@@ -178,34 +181,14 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
     # executes immediately and won't see unbuffered tables.
     flush()
 
-    # Step 1: Ensure pgcrypto extension exists
-    execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+    # Step 1: Ensure pgcrypto extension exists (skips the statement — and
+    # its privilege check — when the extension is already installed)
+    Helpers.ensure_extension!("pgcrypto")
 
-    # Step 2: Create UUIDv7 generation function if it doesn't exist
-    # UUIDv7 format: timestamp (48 bits) + version (4 bits) + random (12 bits) + variant (2 bits) + random (62 bits)
-    execute("""
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS uuid AS $$
-    DECLARE
-      unix_ts_ms bytea;
-      uuid_bytes bytea;
-    BEGIN
-      -- Get current timestamp in milliseconds
-      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
-
-      -- Build UUIDv7: 6 bytes timestamp + 2 bytes random (with version) + 8 bytes random (with variant)
-      uuid_bytes := unix_ts_ms || gen_random_bytes(10);
-
-      -- Set version 7 (0111xxxx in byte 7)
-      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
-
-      -- Set variant (10xxxxxx in byte 9)
-      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
-
-      RETURN encode(uuid_bytes, 'hex')::uuid;
-    END
-    $$ LANGUAGE plpgsql VOLATILE;
-    """)
+    # Step 2: Create UUIDv7 generation function inside the install's schema
+    # (never wherever search_path points — that pollutes public and fails
+    # on PG15+ where public isn't world-writable)
+    Helpers.ensure_uuid_v7_function(prefix)
 
     # Step 3: Process each table
     for table <- @tables_to_migrate do
@@ -244,18 +227,18 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
         # Ecto changesets will generate UUIDv7 in Elixir, which takes precedence.
         execute("""
         ALTER TABLE #{table_name}
-        ADD COLUMN uuid UUID DEFAULT uuid_generate_v7()
+        ADD COLUMN uuid UUID DEFAULT #{prefix}.uuid_generate_v7()
         """)
 
         # Step 2: Backfill existing records with UUIDv7
         # Use batched updates for large tables to avoid long locks
         if table in @large_tables do
-          backfill_uuids_batched(table_name)
+          backfill_uuids_batched(table_name, prefix)
         else
           # Small tables can be updated in one go
           execute("""
           UPDATE #{table_name}
-          SET uuid = uuid_generate_v7()
+          SET uuid = #{prefix}.uuid_generate_v7()
           WHERE uuid IS NULL
           """)
         end
@@ -281,7 +264,7 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
   end
 
   # Backfill UUIDs in batches to avoid long locks on large tables
-  defp backfill_uuids_batched(table_name) do
+  defp backfill_uuids_batched(table_name, prefix) do
     # Use a loop to update in batches
     # This is done via a DO block to handle it in a single migration step
     execute("""
@@ -292,7 +275,7 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
     BEGIN
       LOOP
         UPDATE #{table_name}
-        SET uuid = uuid_generate_v7()
+        SET uuid = #{prefix}.uuid_generate_v7()
         WHERE id IN (
           SELECT id FROM #{table_name}
           WHERE uuid IS NULL

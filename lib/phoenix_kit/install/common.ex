@@ -12,6 +12,7 @@ defmodule PhoenixKit.Install.Common do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Migrations.Postgres.Helpers
 
   @doc """
   Ensures every atom in `compiler_names` is present in the host's `mix.exs`
@@ -137,8 +138,10 @@ defmodule PhoenixKit.Install.Common do
   Checks the current installation status for a given prefix.
 
   Returns one of:
-  - `{:not_installed}` - PhoenixKit is not installed
+  - `{:not_installed}` - the database is reachable and has no PhoenixKit install at the prefix
   - `{:current_version, version}` - PhoenixKit is installed with given version
+  - `{:unreachable, reason}` - the database cannot be queried, so the install
+    state is UNKNOWN — callers must not treat this as "not installed"
 
   ## Parameters
   - `prefix` - Database schema prefix (default: "public")
@@ -152,6 +155,10 @@ defmodule PhoenixKit.Install.Common do
       {:not_installed}
   """
   def check_installation_status(prefix \\ "public") do
+    # Fail fast on an invalid prefix — it is interpolated into SQL in the
+    # fallback paths below, and the migration chain would reject it anyway.
+    Helpers.validate_prefix!(prefix)
+
     # Use the same version detection logic as the migration system
     opts = %{
       prefix: prefix,
@@ -179,22 +186,43 @@ defmodule PhoenixKit.Install.Common do
   end
 
   # Alternative version detection when primary method fails
-  defp check_alternative_version_detection(prefix, opts) do
-    # Strategy 1: Try direct database query (like status command does)
+  #
+  # Migration FILES existing in the project say nothing about what is
+  # installed in the DATABASE at this prefix. This used to fall back to a
+  # fabricated {:current_version, 1} whenever migration files were present,
+  # which made `mix phoenix_kit.update` generate a from-scratch v01→vN
+  # migration into the wrong schema when the prefix was misresolved (e.g.
+  # installed under a custom prefix but checked at "public"). Report
+  # honestly instead.
+  defp check_alternative_version_detection(_prefix, opts) do
     case try_direct_database_version_check(opts) do
-      version when version > 0 ->
+      version when is_integer(version) and version > 0 ->
         {:current_version, version}
 
       _ ->
-        # Strategy 2: Check if tables exist and try to infer version
-        case check_installation_from_tables(prefix) do
-          {:current_version, version} ->
-            {:current_version, version}
-
-          {:not_installed} ->
-            {:not_installed}
+        # "No version found" is only "not installed" when we can actually
+        # reach the database — a down DB must not masquerade as an absent
+        # install (the update task drives migration generation off this).
+        case database_reachable?() do
+          :ok -> {:not_installed}
+          {:error, reason} -> {:unreachable, reason}
         end
     end
+  end
+
+  defp database_reachable? do
+    case Config.get(:repo, nil) do
+      nil ->
+        {:error, :no_repo_configured}
+
+      repo ->
+        case repo.query("SELECT 1", [], log: false) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  rescue
+    error -> {:error, error}
   end
 
   # Try direct database connection (similar to what status command does)
@@ -216,9 +244,9 @@ defmodule PhoenixKit.Install.Common do
   defp query_version_directly(repo, escaped_prefix) do
     # Check if phoenix_kit table exists first
     table_check =
-      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = '#{escaped_prefix}')"
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = $1)"
 
-    case repo.query(table_check, [], log: false) do
+    case repo.query(table_check, [escaped_prefix], log: false) do
       {:ok, %{rows: [[true]]}} ->
         # Table exists, get version comment
         version_query = """
@@ -226,10 +254,10 @@ defmodule PhoenixKit.Install.Common do
         FROM pg_class
         LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
         WHERE pg_class.relname = 'phoenix_kit'
-        AND pg_namespace.nspname = '#{escaped_prefix}'
+        AND pg_namespace.nspname = $1
         """
 
-        case repo.query(version_query, [], log: false) do
+        case repo.query(version_query, [escaped_prefix], log: false) do
           {:ok, %{rows: [[version]]}} when is_binary(version) ->
             String.to_integer(version)
 
@@ -243,19 +271,6 @@ defmodule PhoenixKit.Install.Common do
     end
   rescue
     _ -> 0
-  end
-
-  # Check installation based on table presence and schema analysis
-  defp check_installation_from_tables(_prefix) do
-    case find_existing_phoenix_kit_migrations() do
-      [] ->
-        {:not_installed}
-
-      _migrations ->
-        # Migration files exist - try to determine actual version from database
-        # This is a last resort, assume recent version if tables are expected to exist
-        {:current_version, 1}
-    end
   end
 
   @doc """
@@ -337,6 +352,7 @@ defmodule PhoenixKit.Install.Common do
     opts = %{prefix: prefix, escaped_prefix: String.replace(prefix, "'", "\\'")}
     Postgres.migrated_version_runtime(opts)
   rescue
+    e in ArgumentError -> reraise(e, __STACKTRACE__)
     _ -> 0
   end
 
@@ -351,11 +367,15 @@ defmodule PhoenixKit.Install.Common do
   - `{:up_to_date, current_version}` - Already up to date
   - `{:update_needed, current_version, target_version}` - Update available
   - `{:not_installed}` - PhoenixKit not installed
+  - `{:unreachable, reason}` - database cannot be queried (state unknown)
   """
   def check_update_needed(prefix \\ "public", force \\ false) do
     case check_installation_status(prefix) do
       {:not_installed} ->
         {:not_installed}
+
+      {:unreachable, reason} ->
+        {:unreachable, reason}
 
       {:current_version, current_version} ->
         target_version = current_version()

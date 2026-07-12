@@ -129,7 +129,7 @@ defmodule PhoenixKit.Migrations.Postgres.V102 do
     # ── Smart rules table ───────────────────────────────────────
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_cat_item_catalogue_rules (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       item_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_cat_items(uuid) ON DELETE CASCADE,
       referenced_catalogue_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_cat_catalogues(uuid) ON DELETE CASCADE,
       value DECIMAL(12, 4),

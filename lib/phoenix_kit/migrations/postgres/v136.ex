@@ -48,7 +48,7 @@ defmodule PhoenixKit.Migrations.Postgres.V136 do
     # 1. Employment spans — a person's employment history.
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_employments (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       staff_person_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_people(uuid) ON DELETE CASCADE,
       employment_type VARCHAR(50),
       job_title VARCHAR(255),

@@ -13,7 +13,11 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
 
   ## Options
 
-    * `--prefix` - Database schema prefix (default: "public")
+    * `--prefix` - Database schema prefix. When omitted, resolves from
+      `config :phoenix_kit, :prefix`, then defaults to "public" (validated:
+      `[a-z_][a-z0-9_]*`). The generated migration passes
+      `create_schema: true` only for a fresh install (no prior PhoenixKit
+      migration in the project) with a non-public prefix.
 
   ## Examples
 
@@ -24,6 +28,7 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
       mix phoenix_kit.gen.migration --prefix my_schema
 
   """
+  alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres, as: PkMigrations
 
   @shortdoc "Generate PhoenixKit versioned migration"
@@ -31,7 +36,7 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
   @impl Mix.Task
   def run(args) do
     opts = parse_args(args)
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
 
     from_version = detect_current_version()
     to_version = PkMigrations.current_version()
@@ -108,9 +113,17 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
     |> Macro.camelize()
   end
 
-  defp migration_content(app_module, slug, from_version, to_version, prefix) do
+  # Public for testability (mix task internals otherwise); @doc false.
+  @doc false
+  def migration_content(app_module, slug, from_version, to_version, prefix) do
     module_name = Macro.camelize(slug)
-    create_schema = prefix != "public"
+    # An upgrade (from_version > 0) implies the schema exists — never ask
+    # the chain to create it (CREATE SCHEMA fails for low-privilege roles
+    # even with IF NOT EXISTS; V01 skips it when the schema is present).
+    # But from_version == 0 means no prior PhoenixKit migration exists in
+    # the project: that's a fresh install and a non-public schema may
+    # genuinely need creating.
+    create_schema = from_version == 0 and prefix != "public"
 
     """
     defmodule #{app_module}.Repo.Migrations.#{module_name} do

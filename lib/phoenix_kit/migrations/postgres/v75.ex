@@ -6,7 +6,7 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
   DEFAULT was a `nextval()` sequence — that got dropped during the rename.
   This left 27 tables with no DEFAULT on `uuid`. Additionally, 4 tables
   (comments module + role_permissions) had `gen_random_uuid()` (UUIDv4) instead
-  of `uuid_generate_v7()` (UUIDv7).
+  of the schema-qualified `<prefix>.uuid_generate_v7()` (UUIDv7).
 
   While Ecto generates UUIDs in the app layer (`autogenerate: true`), a DB-level
   DEFAULT is important for:
@@ -15,8 +15,8 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
 
   ## Changes
 
-  1. **Set DEFAULT uuid_generate_v7()** on 27 tables missing it (Category A)
-  2. **Fix DEFAULT** on 4 tables using gen_random_uuid() → uuid_generate_v7()
+  1. **Set DEFAULT <prefix>.uuid_generate_v7()** on 27 tables missing it (Category A)
+  2. **Fix DEFAULT** on 4 tables using gen_random_uuid() → <prefix>.uuid_generate_v7()
   3. **Drop orphaned sequence** `phoenix_kit_id_seq` (CASCADE — also drops the DEFAULT
      on `phoenix_kit.id` meta table column that references it)
   """
@@ -54,7 +54,7 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
     phoenix_kit_user_follows_history
   )
 
-  # Tables where uuid DEFAULT is gen_random_uuid() (wrong — should be uuid_generate_v7())
+  # Tables where uuid DEFAULT is gen_random_uuid() (wrong — should be <prefix>.uuid_generate_v7())
   @wrong_default_tables ~w(
     phoenix_kit_comments
     phoenix_kit_comments_dislikes
@@ -71,7 +71,7 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
     for table <- @missing_default_tables do
       if table_exists?(table, escaped_prefix) do
         execute(
-          "ALTER TABLE #{prefix_table(table, prefix)} ALTER COLUMN uuid SET DEFAULT uuid_generate_v7()"
+          "ALTER TABLE #{prefix_table(table, prefix)} ALTER COLUMN uuid SET DEFAULT #{prefix}.uuid_generate_v7()"
         )
       end
     end
@@ -80,7 +80,7 @@ defmodule PhoenixKit.Migrations.Postgres.V75 do
     for table <- @wrong_default_tables do
       if table_exists?(table, escaped_prefix) do
         execute(
-          "ALTER TABLE #{prefix_table(table, prefix)} ALTER COLUMN uuid SET DEFAULT uuid_generate_v7()"
+          "ALTER TABLE #{prefix_table(table, prefix)} ALTER COLUMN uuid SET DEFAULT #{prefix}.uuid_generate_v7()"
         )
       end
     end

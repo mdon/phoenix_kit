@@ -22,7 +22,7 @@ defmodule PhoenixKit.Migrations.Postgres.V133 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_dashboards (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       title VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,
       owner_user_uuid UUID REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,

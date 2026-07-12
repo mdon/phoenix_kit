@@ -15,6 +15,7 @@ defmodule PhoenixKit.Notifications.Notification do
   - `inserted_at`     — creation timestamp (no `updated_at`)
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}

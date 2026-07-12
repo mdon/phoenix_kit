@@ -38,7 +38,7 @@ defmodule PhoenixKit.Migrations.Postgres.V123 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:name, :string, null: false)
 
       add(

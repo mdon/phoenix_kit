@@ -45,7 +45,7 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     # 1. Skills entity (translatable, flat — no parent).
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_skills (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       description TEXT,
       translations JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -64,7 +64,7 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     # 2. person ↔ skill join + nullable proficiency level.
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_person_skills (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       staff_person_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_people(uuid) ON DELETE CASCADE,
       skill_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_skills(uuid) ON DELETE CASCADE,
       proficiency_levels JSONB NOT NULL DEFAULT '[]'::jsonb,

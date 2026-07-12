@@ -36,7 +36,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:name, :string, null: false)
       add(:description, :text)
       add(:position, :integer, null: false, default: 0)
@@ -53,7 +53,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:name, :string, null: false)
       add(:description, :text)
       add(:position, :integer, null: false, default: 0)
@@ -147,7 +147,7 @@ defmodule PhoenixKit.Migrations.Postgres.V120 do
             WHEN 'technical' THEN 'Technical'
             ELSE upper(substr(rec.sample, 1, 1)) || substr(rec.sample, 2)
           END;
-          new_uuid := uuid_generate_v7();
+          new_uuid := #{prefix}.uuid_generate_v7();
           INSERT INTO #{p}phoenix_kit_doc_categories
             (uuid, name, position, status, data, inserted_at, updated_at)
           VALUES

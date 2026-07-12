@@ -18,6 +18,7 @@ defmodule PhoenixKit.Annotations.Annotation do
   side, and a thread is created lazily when the first comment is posted.
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}

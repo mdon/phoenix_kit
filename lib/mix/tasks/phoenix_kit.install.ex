@@ -38,13 +38,19 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     * `--repo` - Specify Ecto repo module (auto-detected if not provided)
     * `--router-path` - Specify custom path to router.ex file
-    * `--prefix` - Specify PostgreSQL schema prefix (defaults to "public")
+    * `--prefix` - Specify PostgreSQL schema prefix (defaults to "public").
+      Must match `[a-z_][a-z0-9_]*` (validated; the install aborts otherwise).
+      A non-public prefix is persisted as `config :phoenix_kit, prefix:` (in
+      config.exs and test.exs), baked into the generated migration, and
+      written into the generated Oban config as `prefix:`.
     * `--create-schema` - Create schema if using custom prefix (default: true for non-public prefixes)
 
     ## Auto-detection
 
     The installer will automatically:
-    - Detect Ecto repo from `:ecto_repos` config or common naming patterns (MyApp.Repo)
+    - Detect Ecto repo from `:ecto_repos` config or common naming patterns (MyApp.Repo).
+      With MULTIPLE repos detected, the install halts and requires `--repo`
+      (guessing between e.g. a runtime repo and a migration-only repo is unsafe)
     - Find main router using Phoenix conventions (MyAppWeb.Router)
     - Configure Swoosh.Adapters.Local for development in config/dev.exs
     - Provide production mailer setup instructions
@@ -68,6 +74,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BrowserPipelineIntegration,
       Common,
       CssIntegration,
+      DaisyUI,
       DbConnectionCheck,
       DemoFiles,
       EndpointIntegration,
@@ -77,6 +84,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       MigrationStrategy,
       OAuthConfig,
       ObanConfig,
+      PrefixConfig,
       RateLimiterConfig,
       RepoDetection,
       RouterIntegration
@@ -113,10 +121,11 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       igniter
       |> BasicConfiguration.add_basic_config()
       |> RepoDetection.add_phoenix_kit_configuration(opts[:repo])
+      |> PrefixConfig.add_prefix_configuration(opts[:prefix])
       |> MailerConfig.add_mailer_configuration()
       |> RateLimiterConfig.add_rate_limiter_configuration()
       |> OAuthConfig.add_oauth_configuration()
-      |> ObanConfig.add_oban_configuration()
+      |> ObanConfig.add_oban_configuration(PrefixConfig.resolve_prefix(opts))
       |> ApplicationSupervisor.add_supervisor()
       |> BootHook.add_boot_hook()
       |> ObanConfig.add_oban_supervisor()
@@ -127,12 +136,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       ])
       |> CssIntegration.add_automatic_css_integration()
       |> JsIntegration.add_js_integration()
+      |> warn_if_daisyui_outdated()
       |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
       |> EndpointIntegration.add_endpoint_integration()
       |> MigrationStrategy.create_phoenix_kit_migration_only(opts)
-      |> add_completion_notice()
+      |> add_completion_notice(opts)
     end
 
     # Override run/1 to handle post-igniter interactive migration
@@ -224,7 +234,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             Please check config/config.exs manually and ensure it contains:
             - config :ueberauth, Ueberauth (with providers: [])
             - config :hammer (with backend and expiry_ms)
-            - config :phoenix_kit, Oban (with queues configuration)
+            - config :your_app, Oban (with queues configuration)
 
             Then run: mix phoenix_kit.install #{Enum.join(argv, " ")}
             """)
@@ -270,12 +280,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
                                 Default: "public" (standard PostgreSQL schema)
                                 Use custom prefix for table isolation
                                 Example: --prefix "auth"
+                                Validated ([a-z_][a-z0-9_]*); persisted into
+                                config :phoenix_kit, prefix: and the generated
+                                Oban config. Runtime schemas compile it in —
+                                any later mix compile/phx.server picks it up.
 
         --create-schema         Create schema if using custom prefix
                                 Default: true for non-public prefixes
-
-                                        Adds 35+ themes support with theme controller
-                                Default: false
 
         --skip-assets           Skip automatic asset rebuild check
                                 Default: false
@@ -440,8 +451,36 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       has_oban_config and has_queues
     end
 
+    # PhoenixKit relies on the host's vendored daisyUI being reasonably modern
+    # (modal scrollbar-gutter handling; see PhoenixKit.Install.DaisyUI). The
+    # host owns that file — we only warn, never touch it.
+    defp warn_if_daisyui_outdated(igniter) do
+      case DaisyUI.check() do
+        {:outdated, version} ->
+          Igniter.add_warning(igniter, DaisyUI.outdated_warning(version))
+
+        _ ->
+          igniter
+      end
+    end
+
     # Add completion notice with essential next steps (reduced duplication)
-    defp add_completion_notice(igniter) do
+    defp add_completion_notice(igniter, opts) do
+      prefix_note =
+        case opts[:prefix] do
+          prefix when is_binary(prefix) and prefix != "public" ->
+            """
+              • Prefixed install: the schema prefix compiles into PhoenixKit's
+                Ecto schemas. The next mix compile / ecto.migrate / phx.server
+                picks it up automatically; a build compiled before this config
+                change fails loudly at boot (compile-env check) rather than
+                silently querying public.
+            """
+
+          _ ->
+            ""
+        end
+
       notice = """
 
       ✅ PhoenixKit ready! Next:
@@ -449,6 +488,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         • mix phx.server
         • Visit /users/register (or with your configured URL prefix)
         • Test: /test-current-user, /test-ensure-auth
+      #{prefix_note}
       """
 
       Igniter.add_notice(igniter, notice)
