@@ -107,6 +107,28 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert Encryption.decrypt_fields(nil) == nil
       assert Encryption.decrypt_fields("string") == "string"
     end
+
+    test "encrypts and round-trips the smtp password field" do
+      # `secret_key_base` isn't set as a flat `:phoenix_kit` app env key in
+      # core's own test config (only nested under `PhoenixKitWeb.Endpoint`),
+      # so this stamps one directly to make the round-trip meaningful.
+      original = Application.get_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :secret_key_base, "test-secret-for-password-encryption")
+
+      on_exit(fn ->
+        if original,
+          do: Application.put_env(:phoenix_kit, :secret_key_base, original),
+          else: Application.delete_env(:phoenix_kit, :secret_key_base)
+      end)
+
+      assert Encryption.enabled?()
+
+      encrypted = Encryption.encrypt_fields(%{"password" => "xsmtpsib-secret"})
+      assert String.starts_with?(encrypted["password"], "enc:v1:")
+
+      decrypted = Encryption.decrypt_fields(encrypted)
+      assert decrypted["password"] == "xsmtpsib-secret"
+    end
   end
 
   describe "sensitive_fields/0" do
@@ -118,6 +140,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert "api_key" in fields
       assert "bot_token" in fields
       assert "secret_key" in fields
+      assert "password" in fields
     end
   end
 end

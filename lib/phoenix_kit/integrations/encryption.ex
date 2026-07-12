@@ -3,11 +3,11 @@ defmodule PhoenixKit.Integrations.Encryption do
   AES-256-GCM encryption for sensitive integration credentials.
 
   Encrypts fields like `access_token`, `refresh_token`, `client_secret`,
-  `api_key`, `bot_token`, `secret_key` before storing in the database.
-  Decrypts them when reading.
+  `api_key`, `bot_token`, `secret_key`, `password` before storing in the
+  database. Decrypts them when reading.
 
   Uses the application's `secret_key_base` as the root key, deriving a
-  dedicated integration encryption key via PBKDF2.
+  dedicated integration encryption key via a SHA-256 hash.
 
   ## Configuration
 
@@ -19,7 +19,7 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   @sensitive_fields ~w(
     access_token refresh_token client_secret
-    api_key bot_token secret_key
+    api_key bot_token secret_key password
   )
 
   # Prefix to identify encrypted values
