@@ -1,6 +1,8 @@
 defmodule PhoenixKit.Integrations.ProvidersTest do
-  use ExUnit.Case, async: true
+  use PhoenixKit.DataCase, async: true
 
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Providers
 
   describe "all/0" do
@@ -54,6 +56,29 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
         assert is_list(provider.setup_fields), "#{provider.key} missing setup_fields"
         assert is_list(provider.capabilities), "#{provider.key} missing capabilities"
       end
+    end
+  end
+
+  describe "aws_ses provider" do
+    test "is registered and produces usable credentials" do
+      p = Providers.get("aws_ses")
+      assert p.auth_type == :key_secret
+      keys = Enum.map(p.setup_fields, & &1.key)
+      assert "access_key" in keys and "secret_key" in keys and "aws_region" in keys
+      assert "secret_key" in Encryption.sensitive_fields()
+      assert :email_send in p.capabilities
+
+      # end-to-end: headless save must yield retrievable credentials
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "test")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "aws_region" => "eu-central-1"
+        })
+
+      assert {:ok, %{"access_key" => "AKIA_T"}} = Integrations.get_credentials(uuid)
     end
   end
 

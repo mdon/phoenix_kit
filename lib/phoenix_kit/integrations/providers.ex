@@ -129,7 +129,8 @@ defmodule PhoenixKit.Integrations.Providers do
       openrouter(),
       mistral(),
       deepseek(),
-      elevenlabs()
+      elevenlabs(),
+      aws_ses()
     ]
   end
 
@@ -545,6 +546,52 @@ defmodule PhoenixKit.Integrations.Providers do
             )
         }
       ]
+    }
+  end
+
+  defp aws_ses do
+    %{
+      key: "aws_ses",
+      name: gettext("Amazon SES"),
+      description: gettext("AWS Simple Email Service (SMTP credentials via SES API)"),
+      icon: "hero-envelope",
+      auth_type: :key_secret,
+      oauth_config: nil,
+      setup_fields: [
+        # Field key is `access_key`, NOT `access_key_id` — the
+        # credential-detection gate (`has_credentials?/1` in
+        # integrations.ex) only recognizes `:key_secret` creds via
+        # `data["access_key"]`. The human-facing label still says
+        # "Access Key ID".
+        %{
+          key: "access_key",
+          label: gettext("Access Key ID"),
+          type: :text,
+          required: true,
+          placeholder: "AKIA…",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "secret_key",
+          label: gettext("Secret Access Key"),
+          type: :password,
+          required: true,
+          placeholder: "...",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "aws_region",
+          label: gettext("Region"),
+          type: :text,
+          required: true,
+          placeholder: "eu-central-1",
+          help: nil,
+          options: nil
+        }
+      ],
+      capabilities: [:email_send]
     }
   end
 
