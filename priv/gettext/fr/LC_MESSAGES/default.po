@@ -12,7 +12,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n>1);\n"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:130
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:135
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -70,6 +70,7 @@ msgstr "Gestion des rôles"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:119
 #: lib/phoenix_kit_web/live/dashboard.html.heex:56
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:640
 #: lib/phoenix_kit_web/live/users/sessions.ex:42
 #, elixir-autogen
 msgid "Sessions"
@@ -493,7 +494,7 @@ msgid "Actions"
 msgstr "Actions"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:83
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:707
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:578
 #: lib/phoenix_kit_web/live/settings/users.html.heex:610
 #: lib/phoenix_kit_web/users/user_form.html.heex:715
 #, elixir-autogen, elixir-format
@@ -629,6 +630,7 @@ msgstr "Liste à puces"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1266
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2235
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2278
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:287
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:60
 #: lib/phoenix_kit_web/live/settings/users.html.heex:637
 #: lib/phoenix_kit_web/live/users/media_selector.html.heex:38
@@ -696,6 +698,7 @@ msgstr "Cliquez sur une icône de coche ou de croix pour activer ou désactiver 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:350
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:23
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:294
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -739,7 +742,6 @@ msgstr "Le nom de l'entreprise est requis"
 #: lib/phoenix_kit_web/live/modules.html.heex:582
 #: lib/phoenix_kit_web/live/modules.html.heex:766
 #: lib/phoenix_kit_web/live/modules.html.heex:790
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:526
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:130
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:175
 #, elixir-autogen, elixir-format
@@ -1308,7 +1310,7 @@ msgstr "Module Légal activé"
 msgid "Line Break"
 msgstr "Saut de ligne"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:315
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:519
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:39
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1521,6 +1523,7 @@ msgstr "Page générée avec succès"
 msgid "Page published successfully"
 msgstr "Page publiée avec succès"
 
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:277
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
 #: lib/phoenix_kit_web/users/registration.html.heex:151
@@ -1819,8 +1822,8 @@ msgstr "Enregistré"
 
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:323
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:407
-#: lib/phoenix_kit_web/live/settings.html.heex:511
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:780
+#: lib/phoenix_kit_web/live/settings.html.heex:488
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:676
 #: lib/phoenix_kit_web/live/settings/users.html.heex:459
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -1839,7 +1842,7 @@ msgstr "Sélectionnez les sections et modules auxquels ce rôle peut accéder. V
 #: lib/modules/maintenance/web/maintenance_page_live.ex:116
 #: lib/modules/storage/web/bucket_form.html.heex:319
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:140
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:145
 #: lib/phoenix_kit_web/live/dashboard/settings.ex:36
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
@@ -2264,7 +2267,6 @@ msgstr "Modifier le bucket"
 #: lib/modules/storage/web/dimensions.html.heex:464
 #: lib/modules/storage/web/settings.html.heex:228
 #: lib/modules/storage/web/settings.html.heex:264
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:518
 #: lib/phoenix_kit_web/live/settings/users.html.heex:378
 #: lib/phoenix_kit_web/live/settings/users.html.heex:423
 #, elixir-autogen, elixir-format
@@ -2399,22 +2401,22 @@ msgstr "(vide)"
 msgid "(registration disabled)"
 msgstr "(inscription désactivée)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:744
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "1. Enable the provider above and save settings"
 msgstr "1. Activez le fournisseur ci-dessus et enregistrez les paramètres"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:745
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:616
 #, elixir-autogen, elixir-format
 msgid "2. Enter your OAuth credentials in the form that appears"
 msgstr "2. Saisissez vos identifiants OAuth dans le formulaire qui apparaît"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:746
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "3. Save settings again to store credentials"
 msgstr "3. Enregistrez à nouveau les paramètres pour stocker les identifiants"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:747
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:618
 #, elixir-autogen, elixir-format
 msgid "4. Click \"Test Credentials\" to verify configuration"
 msgstr "4. Cliquez sur \"Tester les identifiants\" pour vérifier la configuration"
@@ -2472,10 +2474,9 @@ msgstr "Ajouter une dimension d'image"
 msgid "Add Video Dimension"
 msgstr "Ajouter une dimension vidéo"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:416
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:530
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:623
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:714
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:410
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:494
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "Add callback URL above to"
 msgstr "Ajoutez l'URL de rappel ci-dessus à"
@@ -2507,25 +2508,15 @@ msgstr "Tous les nouveaux utilisateurs recevront des privilèges d'administrateu
 msgid "Anyone can register"
 msgstr "Tout le monde peut s'inscrire"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:654
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "App ID"
 msgstr "ID de l'application"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:667
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:538
 #, elixir-autogen, elixir-format
 msgid "App Secret"
 msgstr "Secret de l'application"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:436
-#, elixir-autogen, elixir-format
-msgid "Apple OAuth Credentials"
-msgstr "Identifiants OAuth Apple"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:323
-#, elixir-autogen, elixir-format
-msgid "Apple Sign-In"
-msgstr "Connexion avec Apple"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:55
 #, elixir-autogen, elixir-format
@@ -2641,7 +2632,7 @@ msgstr "Les buckets peuvent être des répertoires locaux ou des fournisseurs de
 msgid "CSS color or gradient for auth page background. Ignored if a background image is set."
 msgstr "Couleur ou dégradé CSS pour l'arrière-plan des pages d'authentification. Ignoré si une image d'arrière-plan est définie."
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:243
+#: lib/phoenix_kit_web/live/settings/authorization.ex:234
 #, elixir-autogen, elixir-format
 msgid "Callback URL"
 msgstr "URL de rappel"
@@ -2651,27 +2642,25 @@ msgstr "URL de rappel"
 msgid "Changes will be saved immediately"
 msgstr "Les modifications seront enregistrées immédiatement"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:421
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:544
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:627
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:634
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:731
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:415
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:498
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:505
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:602
 #, elixir-autogen, elixir-format
 msgid "Click"
 msgstr "Cliquez sur"
 
 #: lib/phoenix_kit/integrations/providers.ex:154
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:356
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:442
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:565
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:350
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr "ID client"
 
 #: lib/phoenix_kit/integrations/providers.ex:163
 #: lib/phoenix_kit/integrations/providers.ex:592
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:369
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:578
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:363
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Client Secret"
 msgstr "Secret client"
@@ -2707,39 +2696,33 @@ msgstr "Configurez les préférences et options du système"
 msgid "Consider \"User\" for most installations to maintain security."
 msgstr "Envisagez \"Utilisateur\" pour la plupart des installations afin de préserver la sécurité."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:537
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:630
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:721
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:501
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "Copier"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:419
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Copy Client ID and Secret to fields above"
 msgstr "Copiez l'ID client et le secret dans les champs ci-dessus"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:503
-#, elixir-autogen, elixir-format
-msgid "Copy this URL to Apple Developer Console"
-msgstr "Copiez cette URL dans Apple Developer Console"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:690
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:561
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to Facebook App Settings"
 msgstr "Copiez cette URL dans les paramètres de l'application Facebook"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:601
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to GitHub OAuth Apps"
 msgstr "Copiez cette URL dans GitHub OAuth Apps"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:392
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to Google Cloud Console"
 msgstr "Copiez cette URL dans Google Cloud Console"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:253
+#: lib/phoenix_kit_web/live/settings/authorization.ex:244
 #, elixir-autogen, elixir-format
 msgid "Copy to clipboard"
 msgstr "Copier dans le presse-papiers"
@@ -2764,23 +2747,12 @@ msgstr "Créer le chemin de stockage"
 msgid "Create Your First Bucket"
 msgstr "Créez votre premier bucket"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:522
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:533
-#, elixir-autogen, elixir-format
-msgid "Create a"
-msgstr "Créez un"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:704
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Create a new app or select existing one"
 msgstr "Créez une nouvelle application ou sélectionnez-en une existante"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:516
-#, elixir-autogen, elixir-format
-msgid "Create an App ID or select existing one"
-msgstr "Créez un App ID ou sélectionnez-en un existant"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:405
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Create project or select existing one"
 msgstr "Créez un projet ou sélectionnez-en un existant"
@@ -2800,7 +2772,7 @@ msgstr "Actuellement utilisé"
 msgid "Custom User Fields"
 msgstr "Champs utilisateur personnalisés"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:436
+#: lib/phoenix_kit_web/live/settings.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Date Format"
 msgstr "Format de date"
@@ -2855,7 +2827,7 @@ msgstr "Activer OAuth (interrupteur principal)"
 msgid "Endpoint"
 msgstr "Endpoint"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:619
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Enter"
 msgstr "Saisissez"
@@ -2890,12 +2862,12 @@ msgstr "FFmpeg non installé"
 msgid "FFmpeg is required for video processing, transcoding, and thumbnail generation."
 msgstr "FFmpeg est requis pour le traitement vidéo, le transcodage et la génération de miniatures."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:648
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "Facebook OAuth Credentials"
 msgstr "Identifiants OAuth Facebook"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:335
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Facebook Sign-In"
 msgstr "Connexion avec Facebook"
@@ -2910,7 +2882,7 @@ msgstr "Champ"
 msgid "Field Key"
 msgstr "Clé du champ"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:387
+#: lib/phoenix_kit_web/live/settings.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "First day of the week"
 msgstr "Premier jour de la semaine"
@@ -2933,25 +2905,25 @@ msgstr "Remplacement du format"
 msgid "Format Override:"
 msgstr "Remplacement du format :"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:559
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "GitHub OAuth Credentials"
 msgstr "Identifiants OAuth GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:329
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "GitHub Sign-In"
 msgstr "Connexion avec GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:407
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:615
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:710
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:718
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:401
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:486
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:581
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "Go to"
 msgstr "Accédez à"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:350
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Google OAuth Credentials"
 msgstr "Identifiants OAuth Google"
@@ -2966,17 +2938,17 @@ msgstr "Connexion avec Google"
 msgid "Height (px)"
 msgstr "Hauteur (px)"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:438
+#: lib/phoenix_kit_web/live/settings.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "How dates are displayed"
 msgstr "Comment les dates sont affichées"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:471
+#: lib/phoenix_kit_web/live/settings.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "How times are displayed"
 msgstr "Comment les heures sont affichées"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:278
+#: lib/phoenix_kit_web/live/settings/authorization.ex:269
 #, elixir-autogen, elixir-format
 msgid "If behind nginx/apache, ensure"
 msgstr "Si vous êtes derrière nginx/apache, assurez-vous que"
@@ -3013,11 +2985,6 @@ msgstr "Installation :"
 #, elixir-autogen, elixir-format
 msgid "Instance Dimensions"
 msgstr "Dimensions des instances"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:469
-#, elixir-autogen, elixir-format
-msgid "Key ID"
-msgstr "ID de clé"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:273
 #: lib/phoenix_kit_web/live/settings/users.html.heex:338
@@ -3164,7 +3131,7 @@ msgstr "Aucun"
 msgid "Note"
 msgstr "Remarque"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:749
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:620
 #, elixir-autogen, elixir-format
 msgid "Note: OAuth providers require ueberauth dependencies to be installed."
 msgstr "Remarque : les fournisseurs OAuth nécessitent l'installation des dépendances ueberauth."
@@ -3179,7 +3146,7 @@ msgstr "Nombre de copies à conserver"
 msgid "OAuth Providers"
 msgstr "Fournisseurs OAuth"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:742
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:613
 #, elixir-autogen, elixir-format
 msgid "OAuth Setup Instructions"
 msgstr "Instructions de configuration OAuth"
@@ -3211,11 +3178,6 @@ msgstr "Conserver l'original"
 #, elixir-autogen, elixir-format
 msgid "Privacy Notice: IP Geolocation Data"
 msgstr "Avis de confidentialité : données de géolocalisation IP"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:482
-#, elixir-autogen, elixir-format
-msgid "Private Key"
-msgstr "Clé privée"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:53
 #, elixir-autogen, elixir-format
@@ -3257,7 +3219,7 @@ msgstr "Réduisez la redondance ou activez d'autres buckets."
 msgid "Redundancy Copies"
 msgstr "Copies de redondance"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:764
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "Reload OAuth Configuration"
 msgstr "Recharger la configuration OAuth"
@@ -3267,7 +3229,7 @@ msgstr "Recharger la configuration OAuth"
 msgid "Required field"
 msgstr "Champ obligatoire"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:527
+#: lib/phoenix_kit_web/live/settings.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "Reset"
 msgstr "Réinitialiser"
@@ -3283,7 +3245,7 @@ msgstr "Réinitialiser aux valeurs par défaut"
 msgid "Resolution"
 msgstr "Résolution"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:276
+#: lib/phoenix_kit_web/live/settings/authorization.ex:267
 #, elixir-autogen, elixir-format
 msgid "Reverse Proxy Users:"
 msgstr "Utilisateurs de proxy inverse :"
@@ -3309,12 +3271,12 @@ msgstr "Rôle attribué aux nouvelles inscriptions d'utilisateurs"
 msgid "SEO Settings"
 msgstr "Paramètres SEO"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:513
+#: lib/phoenix_kit_web/live/settings.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Save All Settings"
 msgstr "Enregistrer tous les paramètres"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:782
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Save Authorization Settings"
 msgstr "Enregistrer les paramètres d'autorisation"
@@ -3346,7 +3308,7 @@ msgstr "Avis de sécurité : risque moyen"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1103
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1105
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:412
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Select"
 msgstr "Sélectionner"
@@ -3363,11 +3325,6 @@ msgstr "Sélectionner une image"
 msgid "Select provider..."
 msgstr "Sélectionner un fournisseur..."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:539
-#, elixir-autogen, elixir-format
-msgid "Services ID"
-msgstr "ID de services"
-
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:201
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:297
 #, elixir-autogen, elixir-format
@@ -3379,7 +3336,7 @@ msgstr "Actions sur la session"
 msgid "Set"
 msgstr "Définir"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:231
+#: lib/phoenix_kit_web/live/settings/authorization.ex:222
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Setup Instructions"
@@ -3416,7 +3373,7 @@ msgstr "Fournisseur de stockage"
 msgid "Success!"
 msgstr "Succès !"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:726
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Switch app from"
 msgstr "Faire passer l'application de"
@@ -3431,7 +3388,7 @@ msgstr "Synchroniser les fichiers"
 msgid "System Configuration"
 msgstr "Configuration du système"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:415
+#: lib/phoenix_kit_web/live/settings.html.heex:392
 #, elixir-autogen, elixir-format
 msgid "System default timezone"
 msgstr "Fuseau horaire par défaut du système"
@@ -3441,15 +3398,9 @@ msgstr "Fuseau horaire par défaut du système"
 msgid "Target Width (px)"
 msgstr "Largeur cible (px)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:455
-#, elixir-autogen, elixir-format
-msgid "Team ID"
-msgstr "ID d'équipe"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:387
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:498
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:596
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:685
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:381
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:467
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Test Credentials"
 msgstr "Tester les identifiants"
@@ -3474,12 +3425,12 @@ msgstr "Le chemin de stockage"
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "Cette action réinitialisera les dimensions et les paramètres à leurs valeurs par défaut, et créera un bucket local si aucun n'existe. Vos fichiers téléversés ne seront PAS supprimés. Continuer ?"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:469
+#: lib/phoenix_kit_web/live/settings.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Time Format"
 msgstr "Format de l'heure"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:413
+#: lib/phoenix_kit_web/live/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Time Zone"
 msgstr "Fuseau horaire"
@@ -3571,15 +3522,14 @@ msgstr "Paramètres vidéo :"
 msgid "Videos use CRF 0-51 scale (lower = higher quality)"
 msgstr "Les vidéos utilisent l'échelle CRF 0-51 (plus bas = meilleure qualité)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:396
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:507
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:605
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:694
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:390
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:476
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "Visit"
 msgstr "Visiter"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:385
+#: lib/phoenix_kit_web/live/settings.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Week Start On"
 msgstr "Début de semaine"
@@ -3619,63 +3569,47 @@ msgstr "Sans cela, le traitement des fichiers vidéo ne fonctionnera pas."
 msgid "Would you like to create it now?"
 msgstr "Souhaitez-vous le créer maintenant ?"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:475
-#, elixir-autogen, elixir-format
-msgid "Your Apple Key ID"
-msgstr "Votre ID de clé Apple"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:461
-#, elixir-autogen, elixir-format
-msgid "Your Apple Team ID"
-msgstr "Votre ID d'équipe Apple"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:660
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:531
 #, elixir-autogen, elixir-format
 msgid "Your Facebook App ID"
 msgstr "Votre ID d'application Facebook"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:673
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Your Facebook App Secret"
 msgstr "Votre secret d'application Facebook"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:571
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "Your GitHub OAuth Client ID"
 msgstr "Votre ID client OAuth GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:584
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "Your GitHub OAuth Client Secret"
 msgstr "Votre secret client OAuth GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:362
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Your Google OAuth Client ID"
 msgstr "Votre ID client OAuth Google"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:375
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Your Google OAuth Client Secret"
 msgstr "Votre secret client OAuth Google"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:539
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:620
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:722
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:491
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:593
 #: lib/phoenix_kit_web/live/settings/integrations.ex:151
 #, elixir-autogen, elixir-format
 msgid "and"
 msgstr "et"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:631
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:502
 #, elixir-autogen, elixir-format
 msgid "and generate/copy"
 msgstr "et générer/copier"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:519
-#, elixir-autogen, elixir-format
-msgid "capability"
-msgstr "fonctionnalité"
 
 #: lib/modules/storage/web/bucket_form.html.heex:404
 #, elixir-autogen, elixir-format
@@ -3693,22 +3627,12 @@ msgstr "par exemple, thumbnail, medium, 720p"
 msgid "files"
 msgstr "fichiers"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:527
-#, elixir-autogen, elixir-format
-msgid "for the Services ID"
-msgstr "pour l'ID de services"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:523
-#, elixir-autogen, elixir-format
-msgid "for web authentication"
-msgstr "pour l'authentification web"
-
-#: lib/phoenix_kit_web/live/settings/authorization.ex:282
+#: lib/phoenix_kit_web/live/settings/authorization.ex:273
 #, elixir-autogen, elixir-format
 msgid "header is set to"
 msgstr "l'en-tête est défini sur"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:728
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:599
 #, elixir-autogen, elixir-format
 msgid "mode"
 msgstr "mode"
@@ -3718,12 +3642,12 @@ msgstr "mode"
 msgid "option(s)"
 msgstr "option(s)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:707
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:578
 #, elixir-autogen, elixir-format
 msgid "product"
 msgstr "produit"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:727
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "to"
 msgstr "à"
@@ -3733,29 +3657,22 @@ msgstr "à"
 msgid "to every PhoenixKit layout, blocking crawlers from indexing or following links."
 msgstr "à chaque mise en page PhoenixKit, bloquant les robots d'indexation et le suivi des liens."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:541
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:723
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "to fields above"
 msgstr "aux champs ci-dessus"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:422
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:545
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:635
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:732
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:416
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:506
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "to verify setup"
 msgstr "pour vérifier la configuration"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:413
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "type"
 msgstr "type"
-
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:534
-#, elixir-autogen, elixir-format
-msgid "with Sign in with Apple enabled"
-msgstr "avec Se connecter avec Apple activé"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:96
 #, elixir-autogen, elixir-format
@@ -4906,7 +4823,7 @@ msgstr "Non testé"
 msgid "Notification preferences saved."
 msgstr "Préférences de notification enregistrées."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1114
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1113
 #: lib/phoenix_kit_web/live/modules.html.heex:667
 #: lib/phoenix_kit_web/live/modules/notifications/index.html.heex:5
 #: lib/phoenix_kit_web/live/settings.html.heex:318
@@ -4992,7 +4909,7 @@ msgstr "Boîte de réception par utilisateur alimentée par le flux d'activité"
 msgid "Person"
 msgstr "Personne"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1125
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1124
 #, elixir-autogen, elixir-format
 msgid "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
 msgstr "Choisissez les types de notification que vous souhaitez recevoir. Les types non cochés sont désactivés — les activités sont toujours enregistrées dans le journal d'audit, mais aucune notification cloche n'est créée pour vous."
@@ -5083,7 +5000,7 @@ msgstr "Enregistrer la planification"
 msgid "Save Tax Settings"
 msgstr "Enregistrer les paramètres de taxe"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1162
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1161
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Save preferences"
 msgstr "Enregistrer les préférences"
@@ -7614,8 +7531,8 @@ msgstr "Vidéos uniquement"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Vous devez configurer au moins un compartiment de stockage avant de pouvoir envoyer des fichiers."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:387
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:108
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:373
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr "Panneau d'administration"
@@ -8044,7 +7961,7 @@ msgid "Clear filters"
 msgstr "Effacer les filtres"
 
 #: lib/phoenix_kit_web/live/activity/show.html.heex:37
-#: lib/phoenix_kit_web/live/settings.html.heex:379
+#: lib/phoenix_kit_web/live/settings.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Date & Time"
 msgstr "Date et heure"
@@ -8905,7 +8822,7 @@ msgstr[1] "Voulez-vous vraiment révoquer les %{count} sessions de l'utilisateur
 msgid "Last updated:"
 msgstr "Dernière mise à jour :"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:363
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:649
 #, elixir-autogen, elixir-format
 msgid "Account switcher for signing in to several accounts at once"
 msgstr "Sélecteur de comptes pour se connecter à plusieurs comptes à la fois"
@@ -8915,7 +8832,7 @@ msgstr "Sélecteur de comptes pour se connecter à plusieurs comptes à la fois"
 msgid "Applying…"
 msgstr "Application en cours…"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:369
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "Enable the multi-account switcher in the header"
 msgstr "Activer le sélecteur multi-comptes dans l'en-tête"
@@ -8937,7 +8854,7 @@ msgstr "Chargement…"
 msgid "Logged out. Now signed in as %{email}."
 msgstr "Déconnecté. Vous êtes maintenant connecté en tant que %{email}."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:360
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Multiple Sessions"
 msgstr "Sessions multiples"
@@ -8978,7 +8895,7 @@ msgstr "Affichage de %{loaded} sur %{total} %{noun}"
 msgid "Switched to %{email}."
 msgstr "Basculé vers %{email}."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:372
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:658
 #, elixir-autogen, elixir-format
 msgid "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
 msgstr "Lorsque cette option est activée, tout utilisateur connecté peut ajouter d'autres comptes (avec leur mot de passe) et basculer entre eux depuis le menu utilisateur."
@@ -9070,7 +8987,7 @@ msgstr "Modèles d'IA via OpenAI (GPT, embeddings, images, audio)"
 msgid "About"
 msgstr "À propos"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:192
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:396
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Menu du compte"
@@ -9298,7 +9215,7 @@ msgstr "Nom du dossier"
 msgid "Folder name can't be blank"
 msgstr "Le nom du dossier ne peut pas être vide"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:521
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr "Mot de passe oublié"
@@ -9367,7 +9284,7 @@ msgstr "Icône"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Si votre compte appartient à plusieurs organisations, les clés sont limitées à l'organisation sélectionnée au moment de leur création."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:263
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:467
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Langue"
@@ -9391,7 +9308,7 @@ msgstr "Plus volumineux en premier"
 msgid "List"
 msgstr "Liste"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:522
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr "Lien magique"
@@ -9447,7 +9364,7 @@ msgstr "Aucune image"
 msgid "No media yet."
 msgstr "Aucun média pour le moment."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:210
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:414
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Non connecté"
@@ -9543,7 +9460,7 @@ msgstr "Afficher l'icône"
 msgid "Show title"
 msgstr "Afficher le titre"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:520
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "S'inscrire"
@@ -9794,7 +9711,7 @@ msgstr "Wireframe"
 msgid "Your browser does not support the audio tag."
 msgstr "Votre navigateur ne prend pas en charge la balise audio."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:237
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Log Out"
 msgstr "Déconnexion"
@@ -9861,7 +9778,7 @@ msgstr "Changer l’icône"
 msgid "Change image"
 msgstr "Changer l’image"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:538
+#: lib/phoenix_kit_web/live/settings.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Changes apply system-wide after \"Save All Settings\". Registration and user defaults are managed on the Users page."
 msgstr ""
@@ -9881,8 +9798,8 @@ msgstr ""
 msgid "Custom URLs"
 msgstr "Rôles personnalisés"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:452
-#: lib/phoenix_kit_web/live/settings.html.heex:485
+#: lib/phoenix_kit_web/live/settings.html.heex:429
+#: lib/phoenix_kit_web/live/settings.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Example:"
 msgstr ""
@@ -9952,7 +9869,7 @@ msgstr ""
 msgid "Recipient"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings.html.heex:522
+#: lib/phoenix_kit_web/live/settings.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
 msgstr ""
@@ -10194,27 +10111,27 @@ msgstr ""
 msgid "You are not allowed to change the %{role} role"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:75
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:100
 #, elixir-autogen, elixir-format
 msgid "A browser is asking to sign in as you."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:83
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:108
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Approve"
 msgstr "avr."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:34
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Approve sign-in"
 msgstr "Connexion avec Apple"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:74
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:99
 #, elixir-autogen, elixir-format
 msgid "Approve this sign-in?"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:103
+#: lib/phoenix_kit_web/users/qr_login.ex:125
 #, elixir-autogen, elixir-format
 msgid "Approved — signing you in…"
 msgstr ""
@@ -10224,7 +10141,7 @@ msgstr ""
 msgid "Back to sign in"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:76
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:101
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Browser"
 msgstr "Onglet du navigateur"
@@ -10236,12 +10153,12 @@ msgstr "Onglet du navigateur"
 msgid "Confirm Email"
 msgstr "E-mail confirmé"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:84
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:109
 #, elixir-autogen, elixir-format
 msgid "Deny"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:77
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:102
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Device"
 msgstr "Service"
@@ -10268,12 +10185,12 @@ msgstr "E-mail confirmé"
 msgid "Enable QR code sign-in (scan from a signed-in phone)"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:78
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:103
 #, elixir-autogen, elixir-format, fuzzy
 msgid "IP address"
 msgstr "Adresse IP"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:79
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Location"
 msgstr "Emplacements"
@@ -10283,7 +10200,7 @@ msgstr "Emplacements"
 msgid "Location tracking is off, so this user has no registration location."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:82
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:107
 #, elixir-autogen, elixir-format
 msgid "Only approve if this is you. Approving signs that browser in to your account."
 msgstr ""
@@ -10308,27 +10225,29 @@ msgstr ""
 msgid "QR Code"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:35
+#: lib/phoenix_kit_web/users/qr_login.ex:37
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:32
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:76
 #, elixir-autogen, elixir-format
 msgid "QR code sign-in is not available."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:87
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:112
 #, elixir-autogen, elixir-format
 msgid "Request denied."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:80
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Requested"
 msgstr "Obligatoire"
 
-#: lib/phoenix_kit_web/users/qr_login.ex:100
+#: lib/phoenix_kit_web/users/qr_login.ex:122
 #, elixir-autogen, elixir-format
 msgid "Scan this code with your phone's camera, then approve the sign-in on your phone."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:106
+#: lib/phoenix_kit_web/users/qr_login.ex:128
 #, elixir-autogen, elixir-format
 msgid "Show a new code"
 msgstr ""
@@ -10340,12 +10259,12 @@ msgstr ""
 msgid "Sign in with QR code"
 msgstr "Se connecter avec un mot de passe"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:85
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:110
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Signed in"
 msgstr "Se connecter"
 
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:25
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:26
 #, elixir-autogen, elixir-format
 msgid "Signed in with QR code."
 msgstr ""
@@ -10355,33 +10274,33 @@ msgstr ""
 msgid "Tap Approve on your phone to finish signing in here."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:104
+#: lib/phoenix_kit_web/users/qr_login.ex:126
 #, elixir-autogen, elixir-format
 msgid "The sign-in request was denied."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:30
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:37
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:31
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:38
 #, elixir-autogen, elixir-format
 msgid "This QR sign-in link is invalid or has expired."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:105
+#: lib/phoenix_kit_web/users/qr_login.ex:127
 #, elixir-autogen, elixir-format
 msgid "This code expired."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:88
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:113
 #, elixir-autogen, elixir-format
 msgid "This request expired or was already used."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:70
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:95
 #, elixir-autogen, elixir-format
 msgid "This sign-in request expired or is no longer valid."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:67
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:92
 #, elixir-autogen, elixir-format
 msgid "This sign-in was already handled."
 msgstr ""
@@ -10408,7 +10327,54 @@ msgstr ""
 msgid "User UUID"
 msgstr "ID utilisateur"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:86
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:111
 #, elixir-autogen, elixir-format
 msgid "You can close this page."
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Accounts"
+msgstr "Compte"
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:370
+#, elixir-autogen, elixir-format
+msgid "Add Facebook account"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:358
+#, elixir-autogen, elixir-format
+msgid "Add GitHub account"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:346
+#, elixir-autogen, elixir-format
+msgid "Add Google account"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:223
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:259
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:289
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add account"
+msgstr "Compte"
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:268
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email or username"
+msgstr "E-mail ou nom d'utilisateur"
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:249
+#, elixir-autogen, elixir-format
+msgid "Log out from all accounts"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:335
+#, elixir-autogen, elixir-format
+msgid "Or add via"
+msgstr ""
+
+#: lib/phoenix_kit_web/users/qr_login.ex:56
+#, elixir-autogen, elixir-format
+msgid "Too many attempts. Please try again shortly."
 msgstr ""
