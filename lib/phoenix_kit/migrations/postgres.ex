@@ -529,7 +529,18 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V142 - Wider role-permission keys ⚡ LATEST
+  ### V143 - Newsletters Send Settings (send profiles) ⚡ LATEST
+  - Adds `phoenix_kit_newsletters_send_profiles`: named send configurations
+    referencing a core Integrations connection (`integration_uuid`, no FK)
+    plus per-account send parameters (from-name/email, reply-to, signature,
+    rate limits, `advanced` per-provider extras jsonb).
+  - Multiple profiles may share one integration; at most one may be
+    `is_default`, enforced by a partial unique index on `is_default`.
+  - Adds `send_profile_uuid` (bare UUID, no FK) to
+    `phoenix_kit_newsletters_broadcasts` so a broadcast can pin which send
+    profile delivers it.
+
+  ### V142 - Wider role-permission keys
   - Widens `phoenix_kit_role_permissions.module_key` from `VARCHAR(50)` to
     `VARCHAR(120)` so fine-grained sub-permissions can be stored as composed
     dotted keys (`"calendar.view_others"` — base and sub parts are each
@@ -1233,7 +1244,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   @initial_version 1
-  @current_version 142
+  @current_version 143
   @default_prefix "public"
 
   @doc false
