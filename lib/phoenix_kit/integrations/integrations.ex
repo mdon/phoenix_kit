@@ -1231,12 +1231,20 @@ defmodule PhoenixKit.Integrations do
   # present. Data-driven off the provider's own field list, so it applies
   # to any `:credentials` provider without hardcoding field names here.
   defp has_flat_credential_fields?(%{auth_type: :credentials, setup_fields: fields}, data) do
-    fields
-    |> Enum.filter(& &1.required)
-    |> Enum.all?(fn %{key: key} -> present?(data[key]) end)
+    required = Enum.filter(fields, & &1.required)
+
+    # Guard the empty-required-list footgun: `Enum.all?([], _)` is `true`, which
+    # would treat a credentials provider with no required fields as "configured".
+    required != [] and
+      Enum.all?(required, fn %{key: key} -> field_present?(data[key]) end)
   end
 
   defp has_flat_credential_fields?(_provider, _data), do: false
+
+  # `:number` setup fields (e.g. SMTP `port`) may arrive as an integer rather
+  # than a string, which `present?/1` (binary-only) would wrongly reject.
+  defp field_present?(val) when is_number(val), do: true
+  defp field_present?(val), do: present?(val)
 
   defp present?(val), do: is_binary(val) and val != ""
 

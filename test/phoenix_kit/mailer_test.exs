@@ -22,8 +22,8 @@ defmodule PhoenixKit.MailerTest.TrackingProvider do
   @behaviour PhoenixKit.Email.Provider
 
   @impl true
-  def intercept_before_send(email, _opts) do
-    send(self(), :intercept_before_send_called)
+  def intercept_before_send(email, opts) do
+    send(self(), {:intercept_before_send_called, opts})
     email
   end
 
@@ -203,7 +203,10 @@ defmodule PhoenixKit.MailerTest do
       assert IO.iodata_to_binary(url) == "https://api.brevo.com/v3/smtp/email"
       assert Enum.any?(headers, fn {k, v} -> k == "Api-Key" and v == "xkeysib-test" end)
 
-      assert_received :intercept_before_send_called
+      assert_received {:intercept_before_send_called, intercept_opts}
+      # provider is injected so the tracking interceptor attributes the send to
+      # the integration's provider, not the host app's static mailer adapter.
+      assert intercept_opts[:provider] == "brevo_api"
       assert_received {:handle_after_send_called, {:ok, %{id: "test-message-id"}}}
     end
   end

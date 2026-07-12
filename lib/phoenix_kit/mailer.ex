@@ -256,7 +256,13 @@ defmodule PhoenixKit.Mailer do
       when is_binary(integration_uuid) do
     with {:ok, creds} <- Integrations.get_credentials(integration_uuid),
          {:ok, {adapter, config}} <- swoosh_config_for(creds) do
-      tracked_email = Provider.current().intercept_before_send(email, opts)
+      # Tell the tracking interceptor which provider actually sent this. Without
+      # it, `detect_provider/2` falls back to the host app's static mailer
+      # adapter (e.g. SES) and mis-attributes SMTP/Brevo integration sends
+      # (plus a "no provider data" warning per send). `put_new` lets an explicit
+      # caller override win.
+      tracked_opts = Keyword.put_new(opts, :provider, creds["provider"])
+      tracked_email = Provider.current().intercept_before_send(email, tracked_opts)
       result = Swoosh.Mailer.deliver(tracked_email, [adapter: adapter] ++ config)
       Provider.current().handle_after_send(tracked_email, result)
       result
