@@ -142,13 +142,40 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   defp encryption_key do
     if Application.get_env(:phoenix_kit, :integration_encryption_enabled, true) do
-      case PhoenixKit.Config.get(:secret_key_base) do
-        {:ok, secret} when is_binary(secret) and secret != "" -> derive_key(secret)
+      case secret_key_base() do
+        secret when is_binary(secret) and secret != "" -> derive_key(secret)
         _ -> nil
       end
     else
       nil
     end
+  end
+
+  # Flat `config :phoenix_kit, secret_key_base: ...` keeps precedence — it's
+  # what an operator who deliberately set it expects to keep working. The
+  # installer never stamps that key, though, so most host apps never set
+  # it and encryption silently stayed disabled (secrets stored in
+  # plaintext). Fall back to the host app's own Endpoint secret_key_base,
+  # which every Phoenix app has — same discovery `Config.get_parent_endpoint/0`
+  # already uses elsewhere (derived from `:parent_module`, which the
+  # installer does set).
+  defp secret_key_base do
+    case PhoenixKit.Config.get(:secret_key_base) do
+      {:ok, secret} when is_binary(secret) and secret != "" -> secret
+      _ -> endpoint_secret_key_base()
+    end
+  end
+
+  defp endpoint_secret_key_base do
+    case PhoenixKit.Config.get_parent_endpoint() do
+      {:ok, endpoint} -> endpoint.config(:secret_key_base)
+      :error -> nil
+    end
+  rescue
+    # The endpoint may be loaded but not started (early boot), or its
+    # config table may not exist yet — either way, no key means no
+    # encryption, not a crash.
+    _ -> nil
   end
 
   defp derive_key(secret) do
