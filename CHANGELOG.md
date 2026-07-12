@@ -52,6 +52,27 @@
   designed-for minimum (5.6.0) and warns hosts on an older vendored
   daisyUI via `phoenix_kit.install`/`.update`/`.doctor` — advisory only,
   nothing touches host files.
+- **The 1.7.188 hackney 4.x upgrade made this package un-publishable**,
+  discovered while cutting this release: `mix hex.publish` refuses to
+  build any package carrying an `override: true` dependency, which
+  `mix.exs` needed because `ex_aws_sqs` (last released Jan 2023, since
+  archived upstream) pins `hackney ~> 1.9` — incompatible with `~> 4.0`
+  with no override. Switched the SQS dependency to
+  [`beamlab_ex_aws_sqs`](https://hex.pm/packages/beamlab_ex_aws_sqs), a
+  maintained fork with the same public API (`ExAws.SQS`) that declares no
+  hackney dependency at all, clearing the conflict — `override: true` on
+  both hackney and httpoison is gone, and the now-fully-unused
+  `httpoison` dependency itself is dropped. The fork also switches SQS
+  from the legacy Query/XML protocol to AWS's JSON protocol, which
+  changes response shapes (raw `%{"QueueUrl" => ...}` instead of
+  `%{body: %{queue_url: ...}}`); `PhoenixKit.AWS.InfrastructureSetup`
+  (SQS/DLQ provisioning) is updated accordingly, including a latent bug
+  this surfaced — the "queue already exists" fallback path was checking
+  for AWS error code `QueueAlreadyExists`, but the real SQS API error is
+  `QueueNameExists` (confirmed against `botocore`'s service definition),
+  so idempotent re-runs of setup against a differently-configured
+  existing queue likely never hit the intended fallback under the old
+  protocol either.
 
 ## 1.7.188 - 2026-07-12
 

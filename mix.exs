@@ -111,17 +111,16 @@ defmodule PhoenixKit.MixProject do
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_facebook, "~> 0.10"},
 
-      # hackney 4.x needs httpoison >= 3.0 (httpoison 2.x calls hackney
-      # internals — :hackney_headers, :hackney_connection — that 4.x
-      # removed). ex_aws_sqs still declares `hackney ~> 1.9`, but it's dead
-      # weight: it never calls hackney directly (only lists it for its own
-      # :test env) — ex_aws itself already relaxed to `hackney ~> 4.0,
-      # optional: true` as of 2.7.0. override: true is safe here since
-      # hackney 4.0's public `hackney:request/5` API is unchanged from 1.x
-      # (verified against every real consumer in this tree: ex_aws, tesla,
-      # swoosh's hackney adapters all call only that stable surface).
-      {:hackney, "~> 4.0", override: true},
-      {:httpoison, "~> 3.0", override: true},
+      # hackney 4.x, clearing 4 unpatched CVEs on the 1.25.0 line (1 HIGH).
+      # No override needed anymore (Hex refuses to publish a package
+      # depending on one, which blocked every release since 1.7.188):
+      # ex_aws_sqs's `hackney ~> 1.9` pin — the only remaining conflicting
+      # requirement — is gone along with the package itself, replaced
+      # above by beamlab_ex_aws_sqs. No direct httpoison dependency
+      # either — the ueberauth_apple pin that justified it is gone, and
+      # nothing else in the tree or in phoenix_kit's own code calls
+      # HTTPoison.
+      {:hackney, "~> 4.0"},
 
       # Development and testing
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
@@ -196,7 +195,16 @@ defmodule PhoenixKit.MixProject do
       # AWS integration for emails
       {:sweet_xml, "~> 0.7"},
       {:ex_aws, "~> 2.4"},
-      {:ex_aws_sqs, "~> 3.4"},
+      # Fork of the archived ex_aws_sqs, published as beamlab_ex_aws_sqs —
+      # same public API (ExAws.SQS), switched to the SQS JSON protocol.
+      # Existed to unblock the hackney 4.x upgrade below: upstream
+      # ex_aws_sqs pins `hackney ~> 1.9`, which can't coexist with `~> 4.0`
+      # (and Hex refuses to publish a package depending on one that does,
+      # via override: true). This fork declares no hackney dependency at
+      # all — see its README for the full migration notes (response
+      # bodies are now raw JSON maps, e.g. `%{"QueueUrl" => ...}`, not
+      # `%{body: %{queue_url: ...}}`).
+      {:beamlab_ex_aws_sqs, "~> 4.0"},
       {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
