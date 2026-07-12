@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.Components.Core.OAuthProvider do
   Renders an OAuth provider credential form with fields, test button, and setup instructions.
 
   ## Attributes
-  - `provider` - The provider name (:google, :apple, :github, :facebook)
+  - `provider` - The provider name (:google, :github, :facebook)
   - `enabled` - Boolean indicating if this provider is enabled
   - `settings` - Map of current settings values
   - `callback_url` - The OAuth callback URL for this provider
@@ -25,11 +25,11 @@ defmodule PhoenixKitWeb.Components.Core.OAuthProvider do
 
     ~H"""
     <div class={[
-      if(@provider in [:google, :apple], do: "hidden", else: "card bg-base-200 p-4 mt-3"),
+      if(@provider == :google, do: "hidden", else: "card bg-base-200 p-4 mt-3"),
       if(!@enabled, do: "hidden", else: "")
     ]}>
-      <%!-- Special handling for Google and Apple providers --%>
-      <%= if @provider in [:google, :apple] do %>
+      <%!-- Special handling for the Google provider --%>
+      <%= if @provider == :google do %>
         <div class="card bg-base-200 p-4 mt-3">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
             {@provider_config.icon}
@@ -124,49 +124,6 @@ defmodule PhoenixKitWeb.Components.Core.OAuthProvider do
           setting_key: "oauth_google_client_secret",
           placeholder: "Your Google OAuth Client Secret",
           class: "input input-bordered"
-        }
-      ]
-    }
-  end
-
-  defp get_provider_config(:apple) do
-    %{
-      title: "Apple OAuth Credentials",
-      icon: "<icon_apple class=\"h-5 w-5\" />",
-      fields: [
-        %{
-          label: "Client ID",
-          type: "text",
-          name: "settings[oauth_apple_client_id]",
-          setting_key: "oauth_apple_client_id",
-          placeholder: "com.yourapp.service",
-          class: "input input-bordered"
-        },
-        %{
-          label: "Team ID",
-          type: "text",
-          name: "settings[oauth_apple_team_id]",
-          setting_key: "oauth_apple_team_id",
-          placeholder: "Your Apple Team ID",
-          class: "input input-bordered"
-        },
-        %{
-          label: "Key ID",
-          type: "text",
-          name: "settings[oauth_apple_key_id]",
-          setting_key: "oauth_apple_key_id",
-          placeholder: "Your Apple Key ID",
-          class: "input input-bordered"
-        },
-        %{
-          label: "Private Key",
-          type: :textarea,
-          name: "settings[oauth_apple_private_key]",
-          setting_key: "oauth_apple_private_key",
-          placeholder:
-            "-----BEGIN PRIVATE KEY-----\nYour Apple private key content\n-----END PRIVATE KEY-----",
-          rows: 5,
-          class: "textarea textarea-bordered font-mono text-xs"
         }
       ]
     }

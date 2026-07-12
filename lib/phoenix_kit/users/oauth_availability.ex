@@ -38,7 +38,7 @@ defmodule PhoenixKit.Users.OAuthAvailability do
   ## Examples
 
       iex> PhoenixKit.Users.OAuthAvailability.configured_providers()
-      [:google, :apple]
+      [:google, :github]
 
       iex> PhoenixKit.Users.OAuthAvailability.configured_providers()
       []
@@ -54,15 +54,6 @@ defmodule PhoenixKit.Users.OAuthAvailability do
           if provider_enabled?(:google) and
                PhoenixKit.Settings.has_oauth_credentials_direct?(:google) do
             [:google | providers]
-          else
-            providers
-          end
-
-        # Check Apple (direct DB read to avoid cache race conditions)
-        providers =
-          if provider_enabled?(:apple) and
-               PhoenixKit.Settings.has_oauth_credentials_direct?(:apple) do
-            [:apple | providers]
           else
             providers
           end
@@ -130,11 +121,11 @@ defmodule PhoenixKit.Users.OAuthAvailability do
       iex> PhoenixKit.Users.OAuthAvailability.provider_enabled?(:google)
       true
 
-      iex> PhoenixKit.Users.OAuthAvailability.provider_enabled?(:apple)
+      iex> PhoenixKit.Users.OAuthAvailability.provider_enabled?(:github)
       false
   """
   @spec provider_enabled?(atom()) :: boolean()
-  def provider_enabled?(provider) when provider in [:google, :apple, :github, :facebook] do
+  def provider_enabled?(provider) when provider in [:google, :github, :facebook] do
     if Code.ensure_loaded?(PhoenixKit.Settings) do
       try do
         master_enabled = PhoenixKit.Settings.get_boolean_setting("oauth_enabled", false)
@@ -206,7 +197,7 @@ defmodule PhoenixKit.Users.OAuthAvailability do
       %{
         enabled_in_settings: true,
         ueberauth_loaded: true,
-        providers: [:google, :apple],
+        providers: [:google, :github],
         available: true
       }
   """

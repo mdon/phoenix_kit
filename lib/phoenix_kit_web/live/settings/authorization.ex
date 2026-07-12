@@ -191,15 +191,6 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
     }
   end
 
-  defp oauth_credentials_from_settings(:apple, settings) do
-    %{
-      client_id: settings["oauth_apple_client_id"] || "",
-      team_id: settings["oauth_apple_team_id"] || "",
-      key_id: settings["oauth_apple_key_id"] || "",
-      private_key: settings["oauth_apple_private_key"] || ""
-    }
-  end
-
   defp oauth_credentials_from_settings(:github, settings) do
     %{
       client_id: settings["oauth_github_client_id"] || "",

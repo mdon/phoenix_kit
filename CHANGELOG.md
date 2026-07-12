@@ -1,3 +1,38 @@
+## 1.7.188 - 2026-07-12
+
+### Security
+- **hackney upgraded 1.25.0 → 4.5.2 and httpoison upgraded 2.3.0 → 3.0.0,
+  clearing all 4 hackney CVEs accepted in 1.7.178 (1 HIGH: `ssl:connect/2`
+  post-handshake TLS upgrade with no timeout; 2 moderate CR/LF-injection /
+  SSRF-bypass; 1 low CRLF injection).** Both are now pinned via `override:
+  true` in `mix.exs`, since two stale transitive constraints still declared
+  the old majors: `ex_aws_sqs` (last released 2023) pins `hackney ~> 1.9`,
+  and `ueberauth_apple` (last released 2023, now removed — see below) pinned
+  `httpoison ~> 1.0 or ~> 2.0`. Verified safe to override: `ex_aws_sqs`
+  never calls hackney directly (the pin is vestigial, only listed for its
+  own `:test` env); `ex_aws` itself already relaxed to `hackney ~> 4.0,
+  optional: true` as of 2.7.0 (our lock was just stale at 2.6.1); hackney
+  4.0's release notes confirm the public `hackney:request/5` API is
+  unchanged from 1.x (the major bump split HTTP/2 and HTTP/3 into separate
+  libraries, `h2` and `quic`, and replaced the built-in metrics subsystem
+  with a middleware chain); every real hackney consumer in the tree
+  (`ex_aws`, `tesla`, `swoosh`) only touches that stable surface. Full
+  investigation: `dev_docs/audits/2026-07-12-hackney-upgrade-resolution.md`
+  (supersedes `2026-07-07-hackney-cve-2026-advisories-audit.md`).
+
+### Removed
+- **BREAKING: Apple Sign-In removed** (`ueberauth_apple` dependency
+  dropped, along with its Settings UI, credential storage, and login/admin
+  buttons). `ueberauth_apple` has been unmaintained since its 0.6.1 release
+  in 2023 and was the sole reason httpoison — and therefore hackney — could
+  not move past the versions above. Hosts with Apple Sign-In configured
+  will see the "Apple Sign-In" toggle and credential fields disappear from
+  Settings → Authorization; any users who previously linked an Apple
+  account keep that link (existing `phoenix_kit_user_oauth_providers` rows
+  are untouched and still shown/manageable in account settings), but new
+  Apple sign-ins are no longer offered. Plan is to reintroduce this via a
+  maintained fork of `ueberauth_apple` in a future release.
+
 ## 1.7.187 - 2026-07-12
 
 ### Fixed

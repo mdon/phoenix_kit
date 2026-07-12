@@ -99,7 +99,6 @@ defmodule PhoenixKit.Settings do
       "allow_registration" => "true",
       "oauth_enabled" => "false",
       "oauth_google_enabled" => "false",
-      "oauth_apple_enabled" => "false",
       "oauth_github_enabled" => "false",
       "oauth_facebook_enabled" => "false",
       "magic_link_login_enabled" => "true",
@@ -154,10 +153,6 @@ defmodule PhoenixKit.Settings do
       # OAuth Provider Credentials
       "oauth_google_client_id" => "",
       "oauth_google_client_secret" => "",
-      "oauth_apple_client_id" => "",
-      "oauth_apple_team_id" => "",
-      "oauth_apple_key_id" => "",
-      "oauth_apple_private_key" => "",
       "oauth_github_client_id" => "",
       "oauth_github_client_secret" => "",
       "oauth_facebook_app_id" => "",
@@ -670,19 +665,10 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.get_oauth_credentials(:google)
       %{client_id: "google-client-id", client_secret: "google-client-secret"}
-
-      iex> PhoenixKit.Settings.get_oauth_credentials(:apple)
-      %{
-        client_id: "apple-client-id",
-        team_id: "apple-team-id",
-        key_id: "apple-key-id",
-        private_key: "-----BEGIN PRIVATE KEY-----..."
-      }
   """
-  def get_oauth_credentials(provider) when provider in [:google, :apple, :github, :facebook] do
+  def get_oauth_credentials(provider) when provider in [:google, :github, :facebook] do
     case provider do
       :google -> get_google_oauth_credentials()
-      :apple -> get_apple_oauth_credentials()
       :github -> get_github_oauth_credentials()
       :facebook -> get_facebook_oauth_credentials()
     end
@@ -703,10 +689,9 @@ defmodule PhoenixKit.Settings do
       %{client_id: "google-client-id", client_secret: "google-client-secret"}
   """
   def get_oauth_credentials_direct(provider)
-      when provider in [:google, :apple, :github, :facebook] do
+      when provider in [:google, :github, :facebook] do
     case provider do
       :google -> get_google_oauth_credentials_direct()
-      :apple -> get_apple_oauth_credentials_direct()
       :github -> get_github_oauth_credentials_direct()
       :facebook -> get_facebook_oauth_credentials_direct()
     end
@@ -720,31 +705,6 @@ defmodule PhoenixKit.Settings do
     %{
       client_id: settings["oauth_google_client_id"] || "",
       client_secret: settings["oauth_google_client_secret"] || ""
-    }
-  end
-
-  defp get_apple_oauth_credentials do
-    keys = [
-      "oauth_apple_client_id",
-      "oauth_apple_team_id",
-      "oauth_apple_key_id",
-      "oauth_apple_private_key"
-    ]
-
-    defaults = %{
-      "oauth_apple_client_id" => "",
-      "oauth_apple_team_id" => "",
-      "oauth_apple_key_id" => "",
-      "oauth_apple_private_key" => ""
-    }
-
-    settings = get_settings_cached(keys, defaults)
-
-    %{
-      client_id: settings["oauth_apple_client_id"] || "",
-      team_id: settings["oauth_apple_team_id"] || "",
-      key_id: settings["oauth_apple_key_id"] || "",
-      private_key: settings["oauth_apple_private_key"] || ""
     }
   end
 
@@ -780,24 +740,6 @@ defmodule PhoenixKit.Settings do
     %{
       client_id: Map.get(settings, "oauth_google_client_id", ""),
       client_secret: Map.get(settings, "oauth_google_client_secret", "")
-    }
-  end
-
-  defp get_apple_oauth_credentials_direct do
-    keys = [
-      "oauth_apple_client_id",
-      "oauth_apple_team_id",
-      "oauth_apple_key_id",
-      "oauth_apple_private_key"
-    ]
-
-    settings = get_settings_direct(keys)
-
-    %{
-      client_id: Map.get(settings, "oauth_apple_client_id", ""),
-      team_id: Map.get(settings, "oauth_apple_team_id", ""),
-      key_id: Map.get(settings, "oauth_apple_key_id", ""),
-      private_key: Map.get(settings, "oauth_apple_private_key", "")
     }
   end
 
@@ -864,12 +806,11 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.has_oauth_credentials?(:google)
       true
   """
-  def has_oauth_credentials?(provider) when provider in [:google, :apple, :github, :facebook] do
+  def has_oauth_credentials?(provider) when provider in [:google, :github, :facebook] do
     credentials = get_oauth_credentials(provider)
 
     case provider do
       :google -> validate_google_credentials(credentials)
-      :apple -> validate_apple_credentials(credentials)
       :github -> validate_github_credentials(credentials)
       :facebook -> validate_facebook_credentials(credentials)
     end
@@ -887,12 +828,11 @@ defmodule PhoenixKit.Settings do
       true
   """
   def has_oauth_credentials_direct?(provider)
-      when provider in [:google, :apple, :github, :facebook] do
+      when provider in [:google, :github, :facebook] do
     credentials = get_oauth_credentials_direct(provider)
 
     case provider do
       :google -> validate_google_credentials(credentials)
-      :apple -> validate_apple_credentials(credentials)
       :github -> validate_github_credentials(credentials)
       :facebook -> validate_facebook_credentials(credentials)
     end
@@ -900,13 +840,6 @@ defmodule PhoenixKit.Settings do
 
   defp validate_google_credentials(credentials) do
     credentials.client_id != "" and credentials.client_secret != ""
-  end
-
-  defp validate_apple_credentials(credentials) do
-    credentials.client_id != "" and
-      credentials.team_id != "" and
-      credentials.key_id != "" and
-      credentials.private_key != ""
   end
 
   defp validate_github_credentials(credentials) do
@@ -1520,8 +1453,6 @@ defmodule PhoenixKit.Settings do
     settings_map
     # Auto-enable Google if credentials are being saved
     |> auto_enable_if_has_credentials("google")
-    # Auto-enable Apple if credentials are being saved
-    |> auto_enable_if_has_credentials("apple")
     # Auto-enable GitHub if credentials are being saved
     |> auto_enable_if_has_credentials("github")
     # Auto-enable Facebook if credentials are being saved
@@ -1555,15 +1486,6 @@ defmodule PhoenixKit.Settings do
   # Get credential keys for a given OAuth provider
   defp oauth_credential_keys("google") do
     ["oauth_google_client_id", "oauth_google_client_secret"]
-  end
-
-  defp oauth_credential_keys("apple") do
-    [
-      "oauth_apple_client_id",
-      "oauth_apple_team_id",
-      "oauth_apple_key_id",
-      "oauth_apple_private_key"
-    ]
   end
 
   defp oauth_credential_keys("github") do

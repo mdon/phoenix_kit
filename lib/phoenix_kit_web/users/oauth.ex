@@ -10,7 +10,6 @@ if Code.ensure_loaded?(Ueberauth) do
     This controller requires the following optional dependencies to be installed:
     - ueberauth
     - ueberauth_google (for Google Sign-In)
-    - ueberauth_apple (for Apple Sign-In)
     - ueberauth_github (for GitHub Sign-In)
     - ueberauth_facebook (for Facebook Sign-In)
 
@@ -54,7 +53,6 @@ if Code.ensure_loaded?(Ueberauth) do
     # Map provider names (strings) to strategy modules
     @provider_strategies %{
       "google" => Ueberauth.Strategy.Google,
-      "apple" => Ueberauth.Strategy.Apple,
       "github" => Ueberauth.Strategy.Github,
       "facebook" => Ueberauth.Strategy.Facebook
     }
@@ -346,7 +344,6 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp format_provider_name("google"), do: "Google"
-    defp format_provider_name("apple"), do: "Apple"
     defp format_provider_name("github"), do: "GitHub"
     defp format_provider_name("facebook"), do: "Facebook"
     defp format_provider_name("twitter"), do: "Twitter"
@@ -389,8 +386,7 @@ else
     To enable OAuth authentication, add the following dependencies to your mix.exs:
 
         {:ueberauth, "~> 0.10"},
-        {:ueberauth_google, "~> 0.12"},  # For Google Sign-In
-        {:ueberauth_apple, "~> 0.1"}      # For Apple Sign-In
+        {:ueberauth_google, "~> 0.12"}   # For Google Sign-In
 
     Then configure the providers in your config.exs as described in the PhoenixKit documentation.
     """
