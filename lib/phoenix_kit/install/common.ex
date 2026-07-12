@@ -138,8 +138,10 @@ defmodule PhoenixKit.Install.Common do
   Checks the current installation status for a given prefix.
 
   Returns one of:
-  - `{:not_installed}` - PhoenixKit is not installed
+  - `{:not_installed}` - the database is reachable and has no PhoenixKit install at the prefix
   - `{:current_version, version}` - PhoenixKit is installed with given version
+  - `{:unreachable, reason}` - the database cannot be queried, so the install
+    state is UNKNOWN — callers must not treat this as "not installed"
 
   ## Parameters
   - `prefix` - Database schema prefix (default: "public")
@@ -198,8 +200,29 @@ defmodule PhoenixKit.Install.Common do
         {:current_version, version}
 
       _ ->
-        {:not_installed}
+        # "No version found" is only "not installed" when we can actually
+        # reach the database — a down DB must not masquerade as an absent
+        # install (the update task drives migration generation off this).
+        case database_reachable?() do
+          :ok -> {:not_installed}
+          {:error, reason} -> {:unreachable, reason}
+        end
     end
+  end
+
+  defp database_reachable? do
+    case Config.get(:repo, nil) do
+      nil ->
+        {:error, :no_repo_configured}
+
+      repo ->
+        case repo.query("SELECT 1", [], log: false) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  rescue
+    error -> {:error, error}
   end
 
   # Try direct database connection (similar to what status command does)
@@ -344,11 +367,15 @@ defmodule PhoenixKit.Install.Common do
   - `{:up_to_date, current_version}` - Already up to date
   - `{:update_needed, current_version, target_version}` - Update available
   - `{:not_installed}` - PhoenixKit not installed
+  - `{:unreachable, reason}` - database cannot be queried (state unknown)
   """
   def check_update_needed(prefix \\ "public", force \\ false) do
     case check_installation_status(prefix) do
       {:not_installed} ->
         {:not_installed}
+
+      {:unreachable, reason} ->
+        {:unreachable, reason}
 
       {:current_version, current_version} ->
         target_version = current_version()

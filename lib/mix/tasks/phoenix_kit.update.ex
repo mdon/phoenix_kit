@@ -416,6 +416,15 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             {:not_installed} ->
               add_not_installed_notice(igniter, prefix)
 
+            {:unreachable, reason} ->
+              Igniter.add_warning(igniter, """
+              ❌ Cannot reach the database to determine the installed PhoenixKit
+              version (#{inspect(reason)}).
+
+              Not generating an update migration — fix the database connection
+              and re-run mix phoenix_kit.update.
+              """)
+
             {:current_version, current_version} ->
               target_version = Common.current_version()
 

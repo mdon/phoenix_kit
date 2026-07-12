@@ -124,6 +124,9 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       {:not_installed} ->
         {:not_installed}
 
+      {:unreachable, reason} ->
+        {:unreachable, reason}
+
       {:current_version, version} ->
         target_version = Postgres.current_version()
 
@@ -212,6 +215,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     {:install, "mix igniter.install phoenix_kit"}
   end
 
+  defp determine_next_action({:unreachable, _reason}, _prefix) do
+    {:fix_connection, "Fix the database connection, then re-run mix phoenix_kit.status"}
+  end
+
   defp determine_next_action({:needs_update, _current, _target}, prefix) do
     cmd =
       if prefix != "public",
@@ -228,6 +235,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   # Format installation status for display
   defp format_installation_status({:not_installed}) do
     "#{IO.ANSI.red()}Not installed#{IO.ANSI.reset()}"
+  end
+
+  defp format_installation_status({:unreachable, _reason}) do
+    "#{IO.ANSI.yellow()}Unknown — database unreachable#{IO.ANSI.reset()}"
   end
 
   defp format_installation_status({:up_to_date, version}) do
@@ -272,6 +283,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.green()}#{message}#{IO.ANSI.reset()}"
   end
 
+  defp format_next_action({:fix_connection, message}) do
+    "#{IO.ANSI.yellow()}#{message}#{IO.ANSI.reset()}"
+  end
+
   # Display status information in tree format
   defp display_status_tree(items) do
     items
@@ -301,6 +316,9 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     case status do
       {:not_installed} ->
         IO.puts("  Migration files: #{inspect(Common.find_existing_phoenix_kit_migrations())}")
+
+      {:unreachable, reason} ->
+        IO.puts("  Database unreachable: #{inspect(reason)}")
 
       {:up_to_date, version} ->
         IO.puts("  Current version: V#{pad_version(version)}")
