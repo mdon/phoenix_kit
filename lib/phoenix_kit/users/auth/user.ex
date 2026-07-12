@@ -138,7 +138,8 @@ defmodule PhoenixKit.Users.Auth.User do
       :registration_city,
       :custom_fields,
       :account_type,
-      :organization_name
+      :organization_name,
+      :user_timezone
     ])
     |> validate_email(opts)
     |> validate_username(opts)
@@ -146,6 +147,7 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_names()
     |> validate_registration_fields()
     |> validate_custom_fields()
+    |> validate_user_timezone()
     |> maybe_skip_names_for_organization()
     |> maybe_generate_username_from_email()
     |> set_default_active_status()
@@ -822,17 +824,24 @@ defmodule PhoenixKit.Users.Auth.User do
     end
   end
 
-  # Helper function to validate timezone offset format and range
+  # Helper function to validate timezone offset format and range.
+  #
+  # Float.parse/1 (not Integer.parse/1) — half-hour/45-minute offsets like
+  # "5.5" (India) or "5.75" (Nepal) are valid picker values (see
+  # Settings.get_setting_options/0's "time_zone" list) but Integer.parse/1
+  # leaves a ".5" remainder and never matches `{offset, ""}`, so selecting
+  # one of those from the admin's own dropdown always failed validation.
+  # Range is -12..14 to match that same list (it goes up to "UTC+14").
   defp validate_timezone_offset(changeset, timezone) do
-    case Integer.parse(timezone) do
-      {offset, ""} when offset >= -12 and offset <= 12 ->
+    case Float.parse(timezone) do
+      {offset, ""} when offset >= -12 and offset <= 14 ->
         changeset
 
       _ ->
         add_error(
           changeset,
           :user_timezone,
-          "must be a valid timezone offset between -12 and +12"
+          "must be a valid timezone offset between -12 and +14"
         )
     end
   end

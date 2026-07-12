@@ -1367,6 +1367,32 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   // ---------------------------------------------------------------------------
+  // TimezoneOffset Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Fills a hidden input with the browser's UTC offset in hours (e.g. "2",
+  // "-5.5") on mount, so a new account starts with a timezone instead of
+  // "Not set" — the server has no way to know the visitor's timezone on its
+  // own. Rounded to the nearest quarter hour to match the offsets PhoenixKit
+  // actually offers (whole and half/45-minute zones like UTC+5:30, +5:45).
+  // Never overwrites a value the server already rendered (e.g. re-render
+  // after a validation error), and the field pairs with phx-update="ignore"
+  // so LiveView leaves it alone after this first mount.
+  //
+  // Usage in LiveView template:
+  //   <input type="hidden" name="user[user_timezone]" phx-hook="TimezoneOffset" phx-update="ignore" />
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.TimezoneOffset = {
+    mounted() {
+      if (this.el.value) return;
+      var offsetHours = -new Date().getTimezoneOffset() / 60;
+      var rounded = Math.round(offsetHours * 4) / 4;
+      this.el.value = String(rounded);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // ResetSelect Hook
   // ---------------------------------------------------------------------------
   //

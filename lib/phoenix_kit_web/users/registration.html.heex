@@ -32,6 +32,20 @@
     action={Routes.path("/users/log-in?_action=registered")}
     method="post"
   >
+    <%!-- Silently captures the browser's UTC offset so new accounts start
+         with a timezone instead of "Not set" — no UI, just a value the
+         TimezoneOffset hook fills in before submit. Never overwrites an
+         already-present value (e.g. a re-rendered form after a validation
+         error), and users can always change it later in their settings. --%>
+    <input
+      type="hidden"
+      name="user[user_timezone]"
+      id="user_timezone_offset"
+      phx-hook="TimezoneOffset"
+      phx-update="ignore"
+      value={Phoenix.HTML.Form.input_value(@form, :user_timezone)}
+    />
+
     <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">{gettext("Account Information")}</legend>
 

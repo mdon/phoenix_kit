@@ -95,7 +95,15 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         210,
         :admin_users,
         "users",
-        match: :exact
+        # :exact only matched the list itself (/admin/users) — viewing or
+        # editing a single user (/admin/users/view|edit/:id) fell through
+        # to no subtab match, so the parent :admin_users tab (which DOES
+        # prefix-match those routes) highlighted as a whole section
+        # instead of this specific "Users" subtab staying lit. Match the
+        # list + its own detail/edit/new routes, but not sibling subtabs
+        # (roles, permissions, live_sessions, sessions) which have their
+        # own path already covered by their own :prefix match.
+        match: {:regex, ~r{^/admin/users(/(new|edit|view)(/.*)?)?$}}
       ),
       admin_subtab(
         :admin_users_live_sessions,

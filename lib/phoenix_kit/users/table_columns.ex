@@ -46,7 +46,14 @@ defmodule PhoenixKit.Users.TableColumns do
   def get_default_columns do
     # Return all standard (non-custom) fields by default
     available = get_available_columns()
-    standard_fields = Map.keys(available.standard)
+
+    # "username" is redundant here — the "email" column already shows it
+    # inline (@username under the email). Still fully available via the
+    # column customizer for admins who want it as its own column.
+    standard_fields =
+      available.standard
+      |> Map.keys()
+      |> Enum.reject(&(&1 == "username"))
 
     # Ensure actions is included at the end
     fields_with_actions = Enum.uniq(standard_fields ++ ["actions"])

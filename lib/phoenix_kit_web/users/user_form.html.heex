@@ -3,6 +3,8 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
   current_path={@url_path}
   current_locale={@current_locale}
 >
@@ -962,6 +964,7 @@
         id="media-selector-modal"
         show={@show_media_selector}
         mode={:single}
+        file_type_filter={:image}
         selected_uuids={[current_avatar_uuid]}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
@@ -971,6 +974,7 @@
         id="media-selector-modal"
         show={@show_media_selector}
         mode={:single}
+        file_type_filter={:image}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
     <% end %>
