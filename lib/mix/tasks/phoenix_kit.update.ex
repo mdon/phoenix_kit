@@ -89,6 +89,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BootHook,
       Common,
       CssIntegration,
+      DaisyUI,
       DbConnectionCheck,
       EndpointIntegration,
       IgniterHelpers,
@@ -603,6 +604,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Update CSS integration (enables daisyUI themes if disabled)
       update_css_integration()
 
+      # Warn when the host's vendored daisyUI is older than what PhoenixKit's
+      # UI is designed against (the host owns the file; we never touch it)
+      warn_if_daisyui_outdated()
+
       # Update JS hooks file
       JsIntegration.update_js_file()
 
@@ -945,6 +950,16 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
       Mix.Task.run("phoenix_kit.status", args)
+    end
+
+    # Advisory only — the host owns assets/vendor/daisyui.js; PhoenixKit's
+    # modals rely on daisyUI >= DaisyUI.minimum_version() for correct modal
+    # scrollbar-gutter handling (see PhoenixKit.Install.DaisyUI).
+    defp warn_if_daisyui_outdated do
+      case DaisyUI.check() do
+        {:outdated, version} -> Mix.shell().info(DaisyUI.outdated_warning(version))
+        _ -> :ok
+      end
     end
 
     # Update CSS integration during PhoenixKit updates

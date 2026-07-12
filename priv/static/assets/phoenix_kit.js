@@ -1798,11 +1798,6 @@ if (typeof window.Chart === "undefined") {
   //                    closeable.
   // ---------------------------------------------------------------------------
 
-  // Refcount of open PkDialog modals. Used to know when to restore the
-  // html's scrollbar-gutter (only when the LAST modal closes, since
-  // multiple <dialog> can be open simultaneously).
-  window._PkDialogOpenCount = window._PkDialogOpenCount || 0;
-
   // ---------------------------------------------------------------------------
   // PkCheckboxIndeterminate — applies the `indeterminate` property to a
   // checkbox based on `data-indeterminate="true"`. HTML has no attribute
@@ -2074,34 +2069,16 @@ if (typeof window.Chart === "undefined") {
     }
   }
 
+  // NOTE: no scrollbar-gutter games here. Old daisyUI (5.0.x) reserved a
+  // scrollbar gutter unconditionally while a modal was open, and this hook
+  // used to counter it with an inline `scrollbar-gutter: auto` override —
+  // which traded the phantom right-edge strip on non-scrolling pages for a
+  // ~15px content reflow on pages that DO scroll (classic-scrollbar users saw
+  // the scrollbar pop in/out around every modal). daisyUI >= 5.1 reserves the
+  // gutter only when the page really has a scrollbar (rootscrollgutter.css),
+  // which handles both page types correctly — PhoenixKit pins such a version
+  // (see PhoenixKit.Install.DaisyUI), so the override is gone. Don't re-add it.
   window.PhoenixKitHooks.PkDialog = {
-    _onOpened() {
-      // daisyUI 5 ships a `:where(:root:has(.modal[open])) { scrollbar-gutter: stable }`
-      // rule that prevents body layout jump when a modal opens but ALSO
-      // reduces the layout viewport by ~15px, leaving a strip on the right
-      // where the dialog/backdrop don't reach. Override per modal open so
-      // the dialog can cover the full visual viewport. Refcounted so
-      // concurrent modals don't fight each other.
-      if (window._PkDialogOpenCount === 0) {
-        const html = document.documentElement;
-        html.dataset.pkPrevScrollbarGutter = html.style.scrollbarGutter || "";
-        html.style.setProperty("scrollbar-gutter", "auto", "important");
-      }
-      window._PkDialogOpenCount += 1;
-    },
-    _onClosed() {
-      window._PkDialogOpenCount = Math.max(0, window._PkDialogOpenCount - 1);
-      if (window._PkDialogOpenCount === 0) {
-        const html = document.documentElement;
-        const prev = html.dataset.pkPrevScrollbarGutter;
-        if (prev) {
-          html.style.scrollbarGutter = prev;
-        } else {
-          html.style.removeProperty("scrollbar-gutter");
-        }
-        delete html.dataset.pkPrevScrollbarGutter;
-      }
-    },
     _isCloseable() {
       return this.el.dataset.closeable !== "false";
     },
@@ -2137,10 +2114,6 @@ if (typeof window.Chart === "undefined") {
         typeof this.el.showModal === "function"
       ) {
         this.el.showModal();
-        if (!this._opened) {
-          this._opened = true;
-          this._onOpened();
-        }
       } else if (wantOpen && isOpenForBrowser) {
         // Dialog is in the top layer but the `open` attribute may have
         // been stripped by Phoenix LV's DOM patch (the server template
@@ -2151,12 +2124,6 @@ if (typeof window.Chart === "undefined") {
         // the top layer. Restore the attribute so the dialog renders.
         if (!this.el.open) {
           this.el.setAttribute("open", "");
-        }
-        // Also track that the dialog is open (it may have been opened
-        // externally — e.g. BulkSelectScope — before this hook saw it).
-        if (!this._opened) {
-          this._opened = true;
-          this._onOpened();
         }
       } else if (!wantOpen && isOpenForBrowser) {
         // LV-driven close. If morphdom stripped the `open` attr after
@@ -2174,13 +2141,6 @@ if (typeof window.Chart === "undefined") {
     },
     mounted() {
       const self = this;
-      // `_opened` tracks whether we've incremented the global refcount,
-      // so the close event handler can decrement exactly once regardless
-      // of whether the close originated from Esc, backdrop, programmatic
-      // close, or destroyed(). Without this, a user-driven close would
-      // leave the gutter override sticky until `destroyed()` ran — and
-      // if LV didn't process the on_close event, that could be forever.
-      this._opened = false;
       this._closeFromLV = false;
 
       self._onCancel = function(e) {
@@ -2188,13 +2148,8 @@ if (typeof window.Chart === "undefined") {
       };
       // 'close' fires for every close path: Esc, our own el.close() in
       // destroyed(), backdrop click (via _onClick → el.close()), and
-      // form `method="dialog"` submits. This is the ONE place that
-      // decrements the refcount.
+      // form `method="dialog"` submits.
       self._onClose = function() {
-        if (self._opened) {
-          self._onClosed();
-          self._opened = false;
-        }
         if (!self._closeFromLV) self._pushClose();
         // Reset the LV-initiated flag now that the close event has
         // been fully processed. The next user-initiated close (Esc,
@@ -2224,10 +2179,6 @@ if (typeof window.Chart === "undefined") {
           typeof self.el.showModal === "function"
         ) {
           self.el.showModal();
-          if (!self._opened) {
-            self._opened = true;
-            self._onOpened();
-          }
         }
       };
       this.el.addEventListener("pk:dialog-show", self._onShowEvent);
@@ -2255,24 +2206,14 @@ if (typeof window.Chart === "undefined") {
       // LV is removing the element. Tell _onClose not to echo a close
       // event back (LV already initiated this).
       this._closeFromLV = true;
-      // Try the friendly path first (fires 'close' which decrements via
-      // _onClose). But if the element is already detached from the DOM
-      // when destroyed runs, close() may not fire 'close' on every UA —
-      // so always decrement defensively. _opened gates so we never
-      // double-decrement (whoever runs first wins).
-      //
-      // Use the same "is the browser holding this dialog open?"
-      // predicate as `_sync()` — `el.open` alone is unreliable when
-      // morphdom stripped the attribute earlier. Restore `open`
-      // first if needed so `close()` can release the top layer
-      // cleanly.
+      // Close the dialog so the browser releases it from the top layer.
+      // Use the same "is the browser holding this dialog open?" predicate
+      // as `_sync()` — `el.open` alone is unreliable when morphdom stripped
+      // the attribute earlier. Restore `open` first if needed so `close()`
+      // can release the top layer cleanly.
       if (isDialogOpenInBrowser(this.el)) {
         if (!this.el.open) this.el.setAttribute("open", "");
         this.el.close();
-      }
-      if (this._opened) {
-        this._onClosed();
-        this._opened = false;
       }
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
       if (this._onClose) this.el.removeEventListener("close", this._onClose);

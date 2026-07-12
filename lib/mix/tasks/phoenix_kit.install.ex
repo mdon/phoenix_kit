@@ -68,6 +68,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BrowserPipelineIntegration,
       Common,
       CssIntegration,
+      DaisyUI,
       DbConnectionCheck,
       DemoFiles,
       EndpointIntegration,
@@ -127,6 +128,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       ])
       |> CssIntegration.add_automatic_css_integration()
       |> JsIntegration.add_js_integration()
+      |> warn_if_daisyui_outdated()
       |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
@@ -438,6 +440,19 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         end)
 
       has_oban_config and has_queues
+    end
+
+    # PhoenixKit relies on the host's vendored daisyUI being reasonably modern
+    # (modal scrollbar-gutter handling; see PhoenixKit.Install.DaisyUI). The
+    # host owns that file — we only warn, never touch it.
+    defp warn_if_daisyui_outdated(igniter) do
+      case DaisyUI.check() do
+        {:outdated, version} ->
+          Igniter.add_warning(igniter, DaisyUI.outdated_warning(version))
+
+        _ ->
+          igniter
+      end
     end
 
     # Add completion notice with essential next steps (reduced duplication)
