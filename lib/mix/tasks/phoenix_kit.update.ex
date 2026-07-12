@@ -378,7 +378,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       igniter = validate_and_add_hammer_config(igniter)
 
       # Ensure Oban configuration exists
-      igniter = validate_and_add_oban_config(igniter)
+      igniter = validate_and_add_oban_config(igniter, prefix)
 
       # CRITICAL FIX: Ensure correct supervisor ordering in application.ex
       # This must run AFTER add_oban_supervisor to fix installations with wrong order
@@ -1606,7 +1606,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_notice(igniter, String.trim(notice))
     end
 
-    defp validate_and_add_oban_config(igniter) do
+    defp validate_and_add_oban_config(igniter, prefix) do
       config_exists = ObanConfig.oban_config_exists?(igniter)
       supervisor_exists = ObanConfig.oban_supervisor_exists?(igniter)
 
@@ -1615,8 +1615,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # - Updating existing configuration with new queues (posts, sitemap, sqs_polling)
       igniter =
         igniter
-        |> ObanConfig.add_oban_configuration()
+        |> ObanConfig.add_oban_configuration(prefix)
         |> maybe_add_oban_config_notice(config_exists)
+        |> warn_if_oban_config_missing_prefix(config_exists, prefix)
 
       # Check and add supervisor separately
       if supervisor_exists do
@@ -1627,6 +1628,33 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         |> add_oban_supervisor_added_notice()
       end
     end
+
+    # An existing Oban config on a prefixed install must carry prefix: —
+    # V27 put oban_jobs into the named schema, and without the option Oban
+    # looks for public.oban_jobs. add_oban_configuration only writes fresh
+    # config blocks, so warn instead of rewriting the host's existing one.
+    defp warn_if_oban_config_missing_prefix(igniter, true = _config_existed, prefix)
+         when prefix not in [nil, "public"] do
+      content = File.read!("config/config.exs")
+
+      if String.contains?(content, ", Oban") and
+           not Regex.match?(~r/prefix:\s*"#{Regex.escape(prefix)}"/, content) do
+        Igniter.add_warning(igniter, """
+        Your Oban config appears to lack the schema prefix of this install.
+        PhoenixKit's Oban tables live in the "#{prefix}" schema — add:
+
+          config :your_app, Oban,
+            prefix: "#{prefix}",
+            ...
+        """)
+      else
+        igniter
+      end
+    rescue
+      _ -> igniter
+    end
+
+    defp warn_if_oban_config_missing_prefix(igniter, _config_existed, _prefix), do: igniter
 
     # Add appropriate notice based on whether config existed
     defp maybe_add_oban_config_notice(igniter, config_existed) do

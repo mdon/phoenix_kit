@@ -20,6 +20,7 @@ defmodule PhoenixKit.Users.RoleAssignment do
   - Direct deletion for role removal
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Utils.Date, as: UtilsDate

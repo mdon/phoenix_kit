@@ -21,6 +21,7 @@ defmodule PhoenixKit.Users.Auth.User do
   - Email confirmation workflow support
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Modules.Languages

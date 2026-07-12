@@ -162,10 +162,32 @@ paths — pre-created schema + low-privilege role — can't run under the
 suite's superuser connection; re-verify those manually against the
 recipe in the 2026-07-12 field report if you touch them.)
 
-Note: runtime code does NOT read `config :phoenix_kit, :prefix` — Ecto
-queries run unprefixed, so a prefixed install additionally needs the DB
-role's `search_path` to include the schema. Known gap, out of scope of
-the 2026-07 fixes.
+**Runtime prefix support (2026-07-12):** every table-backed core schema
+`use`s `PhoenixKit.SchemaPrefix`, which sets `@schema_prefix` from
+`Application.compile_env(:phoenix_kit, :prefix)` — so on a prefixed
+install ALL runtime queries (delegated, direct `repo()` calls,
+`update_all`/`insert_all`, Multi steps, preloads, joins) target the
+named schema with no `search_path` requirement on the DB role. Rules:
+
+- **New table-backed schemas must add `use PhoenixKit.SchemaPrefix`**
+  right after `use Ecto.Schema` — `test/phoenix_kit/schema_prefix_test.exs`
+  enforces it by scanning for `schema "phoenix_kit` files. Embedded
+  schemas don't need it.
+- The prefix is **compile-time** config (`config.exs`, never
+  `runtime.exs`); Mix recompiles the dep when it changes. It can't be
+  flipped per-test — the e2e check is manual: temporarily append
+  `config :phoenix_kit, prefix: "..."` to `config/test.exs`, recompile,
+  run a script exercising `register_user` against a scratch schema
+  (needs `PhoenixKit.Users.RateLimiter.Backend.start_link` +
+  `PhoenixKit.PubSub.Manager.start_link` + `:phoenix_pubsub`/`:hammer`
+  apps started), then revert + recompile.
+- **Oban rides the same prefix** — V27 creates `oban_jobs` inside the
+  named schema, so the host's `config :app, Oban` must carry
+  `prefix: "..."`. The installer writes it for new prefixed installs;
+  `mix phoenix_kit.update` warns when an existing Oban config lacks it.
+- Feature modules' own schemas (`phoenix_kit_catalogue` etc.) do NOT get
+  the prefix from core — prefixed installs using feature modules need
+  the same treatment there (open item, per-module).
 
 ## Integrations System
 

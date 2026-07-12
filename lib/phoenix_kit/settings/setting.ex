@@ -47,6 +47,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> Repo.update()
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Users.Role

@@ -86,6 +86,41 @@ defmodule PhoenixKit.Migration do
     ...
   ```
 
+  That config entry is written automatically by
+  `mix phoenix_kit.install --prefix "auth"` and does two things:
+
+    * **Runtime queries target the schema.** Every PhoenixKit Ecto schema
+      compiles the prefix in (via `PhoenixKit.SchemaPrefix`), so reads and
+      writes hit `auth.phoenix_kit_*` directly — no `search_path` setup on
+      the database role is needed for core. This is compile-time
+      configuration: set it in `config/config.exs` (not `runtime.exs`);
+      changing it recompiles the phoenix_kit dependency.
+
+      Caveat: PhoenixKit *feature modules* (`phoenix_kit_catalogue`,
+      `phoenix_kit_projects`, …) define their own Ecto schemas, which
+      only honor the prefix once that module also adopts
+      `PhoenixKit.SchemaPrefix`. Until the modules you use have it, a
+      prefixed install running feature modules still needs the schema on
+      the role's `search_path`:
+
+      ```sql
+      ALTER ROLE my_app_role SET search_path = auth, public;
+      ```
+    * **Tooling finds the install.** `mix phoenix_kit.update` / `status` /
+      `gen.migration` resolve the prefix from config when `--prefix`
+      isn't passed.
+
+  Oban needs the prefix too — its tables are created inside the same
+  schema, so the host's Oban config must carry it (the installer adds
+  this for new prefixed installs):
+
+  ```elixir
+  config :my_app, Oban,
+    prefix: "auth",
+    repo: MyApp.Repo,
+    ...
+  ```
+
   In some cases, for example if your "auth" schema already exists and your database user in
   production doesn't have permissions to create a new schema, trying to create the schema from the
   migration will result in an error. In such situations, it may be useful to inhibit the creation
