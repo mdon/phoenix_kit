@@ -32,7 +32,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
     # The oauth_enabled flag controls UI visibility, not the underlying OAuth infrastructure
     configure_ueberauth_base()
     configure_google()
-    configure_apple()
     configure_github()
     configure_facebook()
 
@@ -47,10 +46,9 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.configure_provider(:google)
       :ok
   """
-  def configure_provider(provider) when provider in [:google, :apple, :github, :facebook] do
+  def configure_provider(provider) when provider in [:google, :github, :facebook] do
     case provider do
       :google -> configure_google()
-      :apple -> configure_apple()
       :github -> configure_github()
       :facebook -> configure_facebook()
     end
@@ -89,15 +87,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
       if Settings.has_oauth_credentials_direct?(:google) and
            Settings.get_boolean_setting("oauth_google_enabled", false) do
         Map.put(providers, :google, {Ueberauth.Strategy.Google, []})
-      else
-        providers
-      end
-
-    # Add Apple if credentials exist (direct DB read)
-    providers =
-      if Settings.has_oauth_credentials_direct?(:apple) and
-           Settings.get_boolean_setting("oauth_apple_enabled", false) do
-        Map.put(providers, :apple, {Ueberauth.Strategy.Apple, []})
       else
         providers
       end
@@ -144,36 +133,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
         Logger.info("OAuth: Configured Google OAuth provider")
       else
         Logger.warning("OAuth: Google enabled but credentials not configured")
-      end
-    end
-  end
-
-  # Configure Apple OAuth
-  # Uses direct DB read to avoid cache race conditions after settings update
-  defp configure_apple do
-    if Settings.get_boolean_setting("oauth_apple_enabled", false) do
-      credentials = Settings.get_oauth_credentials_direct(:apple)
-
-      if credentials.client_id != "" and
-           credentials.team_id != "" and
-           credentials.key_id != "" and
-           credentials.private_key != "" do
-        config = [
-          client_id: credentials.client_id,
-          team_id: credentials.team_id,
-          key_id: credentials.key_id,
-          private_key: credentials.private_key
-        ]
-
-        Config.UeberAuth.set_provider_strategy_config(
-          :apple,
-          Ueberauth.Strategy.Apple.OAuth,
-          config
-        )
-
-        Logger.info("OAuth: Configured Apple OAuth provider")
-      else
-        Logger.warning("OAuth: Apple enabled but credentials not fully configured")
       end
     end
   end
@@ -238,11 +197,8 @@ defmodule PhoenixKit.Users.OAuthConfig do
 
       iex> PhoenixKit.Users.OAuthConfig.validate_credentials(:google)
       {:ok, :google}
-
-      iex> PhoenixKit.Users.OAuthConfig.validate_credentials(:apple)
-      {:error, "Missing Apple private key"}
   """
-  def validate_credentials(provider) when provider in [:google, :apple, :github, :facebook] do
+  def validate_credentials(provider) when provider in [:google, :github, :facebook] do
     credentials = Settings.get_oauth_credentials_direct(provider)
     validate_credentials_map(provider, credentials)
   end
@@ -252,8 +208,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
   # the exact same missing-field rules.
   defp validate_credentials_map(:google, credentials),
     do: validate_google_credentials(credentials)
-
-  defp validate_credentials_map(:apple, credentials), do: validate_apple_credentials(credentials)
 
   defp validate_credentials_map(:github, credentials),
     do: validate_github_credentials(credentials)
@@ -271,16 +225,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
     end
   end
 
-  defp validate_apple_credentials(credentials) do
-    missing = find_missing_apple_credentials(credentials)
-
-    if missing == [] do
-      {:ok, :apple}
-    else
-      {:error, "Missing Apple OAuth credentials: #{Enum.join(missing, ", ")}"}
-    end
-  end
-
   defp validate_github_credentials(credentials) do
     missing = find_missing_github_credentials(credentials)
 
@@ -295,14 +239,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
     []
     |> add_if_missing("Client ID", credentials.client_id)
     |> add_if_missing("Client Secret", credentials.client_secret)
-  end
-
-  defp find_missing_apple_credentials(credentials) do
-    []
-    |> add_if_missing("Client ID", credentials.client_id)
-    |> add_if_missing("Team ID", credentials.team_id)
-    |> add_if_missing("Key ID", credentials.key_id)
-    |> add_if_missing("Private Key", credentials.private_key)
   end
 
   defp find_missing_github_credentials(credentials) do
@@ -346,7 +282,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.test_connection(:google)
       {:ok, "Google OAuth credentials are properly formatted"}
   """
-  def test_connection(provider) when provider in [:google, :apple, :github, :facebook] do
+  def test_connection(provider) when provider in [:google, :github, :facebook] do
     test_connection_result(provider, validate_credentials(provider))
   end
 
@@ -364,7 +300,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
       {:ok, "Google OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
   """
   def test_connection(provider, %{} = credentials)
-      when provider in [:google, :apple, :github, :facebook] do
+      when provider in [:google, :github, :facebook] do
     test_connection_result(provider, validate_credentials_map(provider, credentials))
   end
 
@@ -383,7 +319,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
   end
 
   defp provider_name(:google), do: "Google"
-  defp provider_name(:apple), do: "Apple"
   defp provider_name(:github), do: "GitHub"
   defp provider_name(:facebook), do: "Facebook"
 end

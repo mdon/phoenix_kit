@@ -731,16 +731,14 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   defp add_account_oauth_buttons(assigns) do
     google_enabled = OAuthAvailability.provider_enabled?(:google)
-    apple_enabled = OAuthAvailability.provider_enabled?(:apple)
     github_enabled = OAuthAvailability.provider_enabled?(:github)
     facebook_enabled = OAuthAvailability.provider_enabled?(:facebook)
 
-    any_enabled = google_enabled or apple_enabled or github_enabled or facebook_enabled
+    any_enabled = google_enabled or github_enabled or facebook_enabled
 
     assigns =
       assigns
       |> assign(:google_enabled, google_enabled)
-      |> assign(:apple_enabled, apple_enabled)
       |> assign(:github_enabled, github_enabled)
       |> assign(:facebook_enabled, facebook_enabled)
       |> assign(:any_enabled, any_enabled)
@@ -760,18 +758,6 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             >
               <PhoenixKitWeb.Components.Core.Icons.icon_google class="w-5 h-5" />
               <span>Add Google account</span>
-            </.link>
-          <% end %>
-          <%= if @apple_enabled do %>
-            <.link
-              href={
-                Routes.path("/users/auth/apple", locale: :none) <>
-                  "?add_account=1&return_to=#{URI.encode_www_form(@current_path)}"
-              }
-              class="btn btn-outline w-full flex items-center justify-center gap-2"
-            >
-              <PhoenixKitWeb.Components.Core.Icons.icon_apple class="w-5 h-5" />
-              <span>Add Apple account</span>
             </.link>
           <% end %>
           <%= if @github_enabled do %>

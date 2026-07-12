@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.187"
+  @version "1.7.188"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -99,12 +99,29 @@ defmodule PhoenixKit.MixProject do
       {:gen_smtp, "~> 1.2"},
 
       # OAuth authentication
+      #
+      # No ueberauth_apple: last released 2023 (unmaintained), and its
+      # httpoison "~> 1.0 or ~> 2.0" pin was the thing blocking hackney from
+      # moving past 1.25.0 (4 unpatched CVEs, 1 HIGH — fixed only in 4.0.1+).
+      # Apple Sign-In can come back via a maintained fork later; see
+      # CHANGELOG for the removal note.
       {:oauth2, "~> 2.0"},
       {:ueberauth, "~> 0.10"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_facebook, "~> 0.10"},
+
+      # hackney 4.x needs httpoison >= 3.0 (httpoison 2.x calls hackney
+      # internals — :hackney_headers, :hackney_connection — that 4.x
+      # removed). ex_aws_sqs still declares `hackney ~> 1.9`, but it's dead
+      # weight: it never calls hackney directly (only lists it for its own
+      # :test env) — ex_aws itself already relaxed to `hackney ~> 4.0,
+      # optional: true` as of 2.7.0. override: true is safe here since
+      # hackney 4.0's public `hackney:request/5` API is unchanged from 1.x
+      # (verified against every real consumer in this tree: ex_aws, tesla,
+      # swoosh's hackney adapters all call only that stable surface).
+      {:hackney, "~> 4.0", override: true},
+      {:httpoison, "~> 3.0", override: true},
 
       # Development and testing
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
@@ -115,7 +132,6 @@ defmodule PhoenixKit.MixProject do
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:hackney, "~> 1.16"},
 
       # Content editor
       {:leaf, "~> 0.3"},

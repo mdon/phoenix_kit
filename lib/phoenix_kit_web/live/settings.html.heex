@@ -353,29 +353,6 @@
             </div>
           </div>
 
-          <%!-- Multiple Sessions (account switcher) --%>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text text-base font-medium">
-                {gettext("Multiple Sessions")}
-              </span>
-              <span class="label-text-alt text-sm text-base-content/60">
-                {gettext("Account switcher for signing in to several accounts at once")}
-              </span>
-            </label>
-            <.checkbox
-              name="settings[multi_session_enabled]"
-              checked={@settings["multi_session_enabled"] == "true"}
-              label={gettext("Enable the multi-account switcher in the header")}
-            >
-              <:description>
-                {gettext(
-                  "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
-                )}
-              </:description>
-            </.checkbox>
-          </div>
-
           <.section_header icon="hero-clock" title={gettext("Date & Time")} />
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">

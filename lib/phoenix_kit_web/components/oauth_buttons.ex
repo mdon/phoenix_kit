@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Components.OAuthButtons do
   @moduledoc """
-  OAuth authentication buttons component for Google and Apple Sign-In.
+  OAuth authentication buttons component for Google, GitHub, and Facebook Sign-In.
 
   This component automatically checks if OAuth is available and configured.
   If OAuth is not available (dependencies not installed or not enabled in settings),
@@ -34,14 +34,12 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
     assigns =
       assigns
       |> assign(:google_enabled, OAuthAvailability.provider_enabled?(:google))
-      |> assign(:apple_enabled, OAuthAvailability.provider_enabled?(:apple))
       |> assign(:github_enabled, OAuthAvailability.provider_enabled?(:github))
       |> assign(:facebook_enabled, OAuthAvailability.provider_enabled?(:facebook))
 
     # Check if at least one provider is enabled
     any_provider_enabled =
-      assigns.google_enabled or assigns.apple_enabled or assigns.github_enabled or
-        assigns.facebook_enabled
+      assigns.google_enabled or assigns.github_enabled or assigns.facebook_enabled
 
     assigns = assign(assigns, :any_provider_enabled, any_provider_enabled)
 
@@ -62,16 +60,6 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
             >
               <Icons.icon_google class="w-5 h-5" />
               <span>Continue with Google</span>
-            </.link>
-          <% end %>
-          <%!-- Apple Sign-In Button --%>
-          <%= if @apple_enabled do %>
-            <.link
-              href={Routes.path("/users/auth/apple", locale: :none)}
-              class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Icons.icon_apple class="w-5 h-5" />
-              <span>Continue with Apple</span>
             </.link>
           <% end %>
           <%!-- GitHub Sign-In Button --%>
