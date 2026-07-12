@@ -24,6 +24,7 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
       mix phoenix_kit.gen.migration --prefix my_schema
 
   """
+  alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres, as: PkMigrations
 
   @shortdoc "Generate PhoenixKit versioned migration"
@@ -31,7 +32,7 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
   @impl Mix.Task
   def run(args) do
     opts = parse_args(args)
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
 
     from_version = detect_current_version()
     to_version = PkMigrations.current_version()
@@ -110,7 +111,10 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
 
   defp migration_content(app_module, slug, from_version, to_version, prefix) do
     module_name = Macro.camelize(slug)
-    create_schema = prefix != "public"
+    # This task only generates UPGRADE migrations (from_version > 0), so the
+    # schema already exists — never ask the chain to create it (CREATE SCHEMA
+    # fails for low-privilege roles even with IF NOT EXISTS).
+    create_schema = false
 
     """
     defmodule #{app_module}.Repo.Migrations.#{module_name} do

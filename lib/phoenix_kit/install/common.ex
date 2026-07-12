@@ -179,21 +179,21 @@ defmodule PhoenixKit.Install.Common do
   end
 
   # Alternative version detection when primary method fails
-  defp check_alternative_version_detection(prefix, opts) do
-    # Strategy 1: Try direct database query (like status command does)
+  #
+  # Migration FILES existing in the project say nothing about what is
+  # installed in the DATABASE at this prefix. This used to fall back to a
+  # fabricated {:current_version, 1} whenever migration files were present,
+  # which made `mix phoenix_kit.update` generate a from-scratch v01→vN
+  # migration into the wrong schema when the prefix was misresolved (e.g.
+  # installed under a custom prefix but checked at "public"). Report
+  # honestly instead.
+  defp check_alternative_version_detection(_prefix, opts) do
     case try_direct_database_version_check(opts) do
-      version when version > 0 ->
+      version when is_integer(version) and version > 0 ->
         {:current_version, version}
 
       _ ->
-        # Strategy 2: Check if tables exist and try to infer version
-        case check_installation_from_tables(prefix) do
-          {:current_version, version} ->
-            {:current_version, version}
-
-          {:not_installed} ->
-            {:not_installed}
-        end
+        {:not_installed}
     end
   end
 
@@ -243,19 +243,6 @@ defmodule PhoenixKit.Install.Common do
     end
   rescue
     _ -> 0
-  end
-
-  # Check installation based on table presence and schema analysis
-  defp check_installation_from_tables(_prefix) do
-    case find_existing_phoenix_kit_migrations() do
-      [] ->
-        {:not_installed}
-
-      _migrations ->
-        # Migration files exist - try to determine actual version from database
-        # This is a last resort, assume recent version if tables are expected to exist
-        {:current_version, 1}
-    end
   end
 
   @doc """

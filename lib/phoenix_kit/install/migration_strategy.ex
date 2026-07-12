@@ -12,6 +12,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   alias Igniter.Project.Application
   alias PhoenixKit.Install.Common
+  alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Utils.Routes
 
@@ -26,7 +27,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
   Updated igniter with migration files created or appropriate notices.
   """
   def create_phoenix_kit_migration_only(igniter, opts) do
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
     create_schema = opts[:create_schema] != false && prefix != "public"
 
     # Check if this is a new installation or existing installation
@@ -78,7 +79,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
   end
 
   # Determine whether this is a new install, upgrade, or already up to date
-  defp determine_migration_strategy(igniter, _prefix) do
+  defp determine_migration_strategy(igniter, prefix) do
     case Application.app_name(igniter) do
       nil ->
         {:error, igniter, "Could not determine app name"}
@@ -92,10 +93,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
             {:new_install, igniter}
 
           _existing_migrations ->
-            # Check current and target versions using proper DB method
-            # Default prefix for install
-            prefix = "public"
-
+            # Check current and target versions at the install's prefix
             try do
               current_version = Common.migrated_version(prefix)
               target_version = Postgres.current_version()
@@ -122,7 +120,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   # Determine migration strategy outside of igniter context
   defp determine_migration_strategy_simple(opts) do
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
     migrations_dir = Path.join(["priv", "repo", "migrations"])
 
     case find_phoenix_kit_migrations(migrations_dir) do
@@ -402,7 +400,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   # Show upgrade needed notice (simple version)
   defp show_upgrade_needed_notice(opts, current_version, target_version) do
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
     prefix_option = if prefix != "public", do: " --prefix=#{prefix}", else: ""
 
     IO.puts("""
@@ -419,7 +417,7 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
   # Show up to date notice (simple version)
   defp show_up_to_date_notice(opts) do
-    prefix = opts[:prefix] || "public"
+    prefix = PrefixConfig.resolve_prefix(opts)
     prefix_option = if prefix != "public", do: " --prefix=#{prefix}", else: ""
 
     IO.puts("""
@@ -460,9 +458,10 @@ defmodule PhoenixKit.Install.MigrationStrategy do
   # public schema doesn't need create_schema
   defp migration_opts("public", true), do: "[]"
 
+  # Always emit create_schema explicitly for non-public prefixes — omitting
+  # it means the migration chain re-defaults the flag to true, silently
+  # discarding --create-schema=false.
   defp migration_opts(prefix, create_schema) when is_binary(prefix) do
-    opts = [prefix: prefix]
-    opts = if create_schema, do: Keyword.put(opts, :create_schema, true), else: opts
-    inspect(opts)
+    inspect(prefix: prefix, create_schema: create_schema)
   end
 end

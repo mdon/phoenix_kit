@@ -95,6 +95,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       IgniterHelpers,
       JsIntegration,
       ObanConfig,
+      PrefixConfig,
       RateLimiterConfig
     }
 
@@ -360,8 +361,15 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Perform the igniter-based update logic
     defp perform_igniter_update(igniter, opts) do
-      prefix = opts[:prefix] || "public"
+      # --prefix option → config :phoenix_kit, :prefix → "public".
+      # Checking the wrong prefix here is dangerous: a prefixed install
+      # looks "not installed" at public.
+      prefix = PrefixConfig.resolve_prefix(opts)
       force = opts[:force] || false
+
+      # Backfill the config entry for installs made before the installer
+      # started persisting --prefix (no-op when already configured).
+      igniter = PrefixConfig.add_prefix_configuration(igniter, opts[:prefix])
 
       # Validate and fix Ueberauth configuration before update
       igniter = validate_and_fix_ueberauth_config(igniter)
@@ -403,7 +411,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           # Second pass: Configuration exists, app is started, proceed with migration
           case Common.check_installation_status(prefix) do
             {:not_installed} ->
-              add_not_installed_notice(igniter)
+              add_not_installed_notice(igniter, prefix)
 
             {:current_version, current_version} ->
               target_version = Common.current_version()
@@ -438,7 +446,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
            force,
            opts
          ) do
-      create_schema = prefix != "public"
+      # An update implies an existing installation, so the schema exists —
+      # never ask the chain to create it (CREATE SCHEMA fails for
+      # low-privilege roles even with IF NOT EXISTS).
+      create_schema = false
 
       # Generate timestamp and migration file name using Ecto format
       timestamp = Common.generate_timestamp()
@@ -517,12 +528,18 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     end
 
     # Add notices for different scenarios
-    defp add_not_installed_notice(igniter) do
+    defp add_not_installed_notice(igniter, prefix) do
       notice = """
 
-      ❌ PhoenixKit is not installed.
+      ❌ No PhoenixKit installation found at schema prefix #{inspect(prefix)}.
 
-      Please run: mix igniter.install phoenix_kit
+      If PhoenixKit IS installed but under a different schema prefix, pass it
+      explicitly (and persist it in config so future runs resolve it):
+
+        mix phoenix_kit.update --prefix your_schema
+        config :phoenix_kit, prefix: "your_schema"
+
+      If PhoenixKit is not installed yet, run: mix igniter.install phoenix_kit
       (or `mix phoenix_kit.install` if the dep is already in mix.exs)
       """
 
@@ -593,7 +610,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Handle tasks that need to run after igniter completes
     defp post_igniter_tasks(opts) do
-      prefix = Keyword.get(opts, :prefix, "public")
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       # CRITICAL: Run UUID repair BEFORE migrations
       # This fixes upgrade path from PhoenixKit < 1.7.0 where uuid columns
@@ -840,7 +857,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # implement `migration_module/0`. Generates an incremental migration file
     # in the parent app for each module that needs updating, then runs migrations.
     defp run_module_migrations(opts) do
-      prefix = Keyword.get(opts, :prefix, "public")
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       modules =
         try do
@@ -945,7 +962,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Show current installation status and available updates
     defp show_status(opts) do
-      prefix = opts[:prefix] || "public"
+      prefix = PrefixConfig.resolve_prefix(opts)
 
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]

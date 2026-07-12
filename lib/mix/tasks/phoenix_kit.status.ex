@@ -42,6 +42,7 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Install.Common
+  alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres
 
   @impl Mix.Task
@@ -72,7 +73,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
     {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
 
-    prefix = opts[:prefix] || "public"
+    # --prefix option → config :phoenix_kit, :prefix → "public", so a
+    # prefixed install doesn't report "Not installed" when the flag is
+    # omitted.
+    prefix = PrefixConfig.resolve_prefix(opts)
     verbose = opts[:verbose] || false
 
     show_comprehensive_status(prefix, verbose)
