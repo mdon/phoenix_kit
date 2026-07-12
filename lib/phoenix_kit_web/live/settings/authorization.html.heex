@@ -270,6 +270,26 @@
               </.checkbox>
             </div>
 
+            <%!-- QR Code Sign-in --%>
+            <div class="mb-3">
+              <div class="text-sm font-semibold text-base-content/70 mb-2">
+                {gettext("QR Code")}
+              </div>
+              <div class="flex items-center gap-3 ml-4">
+                <input name="settings[qr_login_enabled]" type="hidden" value="false" />
+                <input
+                  name="settings[qr_login_enabled]"
+                  type="checkbox"
+                  value="true"
+                  checked={@settings["qr_login_enabled"] == "true"}
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">
+                  {gettext("Enable QR code sign-in (scan from a signed-in phone)")}
+                </span>
+              </div>
+            </div>
+
             <%!-- OAuth Methods --%>
             <div>
               <div class="text-sm font-semibold text-base-content/70 mb-2">

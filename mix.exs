@@ -172,6 +172,9 @@ defmodule PhoenixKit.MixProject do
       {:tessera, "~> 0.3"},
       {:etcher, "~> 0.7"},
 
+      # QR device-handoff login ("scan to sign in" on the login page).
+      {:keyfob, "~> 0.1"},
+
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
       {:backblaze_regions, "~> 0.1.0"},

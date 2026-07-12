@@ -1,0 +1,40 @@
+<PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={"#{@project_title} - #{gettext("Sign in with QR code")}"}
+  current_path={assigns[:url_path] || "/users/qr-login"}
+>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Sign in with QR code")}</h1>
+  <p class="text-center text-base-content/60 text-sm mb-6">
+    {gettext("Use a phone that's already signed in to %{project_title}.",
+      project_title: @project_title
+    )}
+  </p>
+
+  <div class="my-4 min-h-[16rem] flex items-center justify-center">
+    <Keyfob.Components.panel
+      :if={@keyfob}
+      qr_svg={@keyfob.qr_svg}
+      state={@keyfob.state}
+      labels={panel_labels()}
+    />
+    <div :if={is_nil(@keyfob)} class="text-sm text-base-content/50">
+      {gettext("Preparing your code…")}
+    </div>
+  </div>
+
+  <ol class="mt-6 space-y-2 text-sm text-base-content/70">
+    <li>1. {gettext("Open the camera on your signed-in phone.")}</li>
+    <li>2. {gettext("Point it at the code above.")}</li>
+    <li>3. {gettext("Tap Approve on your phone to finish signing in here.")}</li>
+  </ol>
+
+  <div class="text-center mt-6 text-sm">
+    <.link
+      navigate={Routes.path("/users/log-in")}
+      class="font-semibold text-primary hover:underline"
+    >
+      {gettext("Back to sign in")}
+    </.link>
+  </div>
+</PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper>

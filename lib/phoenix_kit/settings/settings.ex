@@ -103,6 +103,7 @@ defmodule PhoenixKit.Settings do
       "oauth_facebook_enabled" => "false",
       "magic_link_login_enabled" => "true",
       "magic_link_registration_enabled" => "true",
+      "qr_login_enabled" => "false",
       "new_user_default_role" => "User",
       "new_user_default_status" => "true",
       "week_start_day" => "1",
