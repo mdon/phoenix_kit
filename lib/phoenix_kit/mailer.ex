@@ -25,6 +25,7 @@ defmodule PhoenixKit.Mailer do
   import Swoosh.Email
 
   alias PhoenixKit.Email.Provider
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Users.Auth.User
 
   require Logger
@@ -228,6 +229,92 @@ defmodule PhoenixKit.Mailer do
     # Use Swoosh.Mailer.deliver with runtime config
     Swoosh.Mailer.deliver(email, runtime_config)
   end
+
+  @doc """
+  Delivers an email via a specific Integrations connection (AWS SES,
+  universal SMTP, or Brevo API), selected by the connection's `uuid`.
+
+  Unlike `deliver_email/2`, this does **not** go through
+  `deliver_with_runtime_config/2` — that path is hardcoded to AWS SES
+  (`config[:adapter] == Swoosh.Adapters.AmazonSES`, credentials only from
+  `Provider.current().get_aws_*`), so a Brevo or SMTP send routed through
+  it would be misrouted or ignored. This function resolves the Swoosh
+  adapter and config directly from the chosen integration's stored
+  credentials instead, while preserving the same interception seam
+  `deliver_email/2` uses so tracking keeps working.
+
+  ## Returns
+
+  - `{:ok, term()}` — delivered
+  - `{:error, :not_configured | :deleted}` — the integration uuid didn't resolve
+  - `{:error, {:unsupported_provider, String.t()}}` — the integration's
+    provider has no known Swoosh adapter mapping
+  """
+  @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
+          {:ok, term()} | {:error, term()}
+  def deliver_via_integration(email, integration_uuid, opts \\ [])
+      when is_binary(integration_uuid) do
+    with {:ok, creds} <- Integrations.get_credentials(integration_uuid),
+         {:ok, {adapter, config}} <- swoosh_config_for(creds) do
+      tracked_email = Provider.current().intercept_before_send(email, opts)
+      result = Swoosh.Mailer.deliver(tracked_email, [adapter: adapter] ++ config)
+      Provider.current().handle_after_send(tracked_email, result)
+      result
+    end
+  end
+
+  @doc false
+  # Maps an Integrations connection's decrypted credentials to a Swoosh
+  # `{adapter, config}` pair. Not `defp` so `deliver_via_integration/3`'s
+  # provider selection can be unit-tested without triggering real
+  # delivery — `@doc false` because it's an internal seam, not part of
+  # the public API.
+  @spec swoosh_config_for(map()) :: {:ok, {module(), keyword()}} | {:error, term()}
+  def swoosh_config_for(%{"provider" => "aws_ses"} = creds) do
+    {:ok,
+     {Swoosh.Adapters.AmazonSES,
+      [
+        region: creds["aws_region"],
+        access_key: creds["access_key"],
+        secret: creds["secret_key"]
+      ]}}
+  end
+
+  def swoosh_config_for(%{"provider" => "smtp"} = creds) do
+    port = parse_smtp_port(creds["port"])
+
+    {:ok,
+     {Swoosh.Adapters.SMTP,
+      [
+        relay: creds["host"],
+        port: port,
+        username: creds["username"],
+        password: creds["password"],
+        tls: if(port == 465, do: :always, else: :if_available)
+      ]}}
+  end
+
+  def swoosh_config_for(%{"provider" => "brevo_api"} = creds) do
+    {:ok, {Swoosh.Adapters.Brevo, [api_key: creds["api_key"]]}}
+  end
+
+  def swoosh_config_for(%{"provider" => provider}),
+    do: {:error, {:unsupported_provider, provider}}
+
+  def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
+
+  # Setup fields are typed `:number` but travel through LiveView form
+  # params and JSONB storage as strings — normalize either shape.
+  defp parse_smtp_port(port) when is_integer(port), do: port
+
+  defp parse_smtp_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {int, _} -> int
+      :error -> nil
+    end
+  end
+
+  defp parse_smtp_port(_), do: nil
 
   @doc """
   Sends a magic link email to the user.
