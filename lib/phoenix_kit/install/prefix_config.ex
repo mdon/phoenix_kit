@@ -16,15 +16,20 @@ defmodule PhoenixKit.Install.PrefixConfig do
   use PhoenixKit.Install.IgniterCompat
 
   alias Igniter.Project.Config
+  alias PhoenixKit.Migrations.Postgres.Helpers
 
   @doc """
   Resolves the effective schema prefix for phoenix_kit mix tasks.
 
   Order: explicit `--prefix` option → `config :phoenix_kit, :prefix` →
-  `"public"`.
+  `"public"`. Raises `ArgumentError` for a prefix the migration chain
+  would reject anyway (empty string, uppercase, dashes, injection
+  shapes) — failing at the task boundary beats failing mid-migration.
   """
   def resolve_prefix(opts) do
-    opts[:prefix] || configured_prefix() || "public"
+    prefix = opts[:prefix] || configured_prefix() || "public"
+    Helpers.validate_prefix!(prefix)
+    prefix
   end
 
   defp configured_prefix do
@@ -32,8 +37,6 @@ defmodule PhoenixKit.Install.PrefixConfig do
       prefix when is_binary(prefix) and prefix != "" -> prefix
       _ -> nil
     end
-  rescue
-    _ -> nil
   end
 
   @doc """
@@ -44,6 +47,16 @@ defmodule PhoenixKit.Install.PrefixConfig do
   def add_prefix_configuration(igniter, prefix) when prefix in [nil, "public"], do: igniter
 
   def add_prefix_configuration(igniter, prefix) when is_binary(prefix) do
+    # Fail at install time, not at mix ecto.migrate time — the chain
+    # rejects anything outside [a-z_][a-z0-9_]* and we'd otherwise
+    # persist the bad value into config + the generated migration.
+    # Deliberately OUTSIDE persist_prefix_config/2's rescue: a validation
+    # failure must abort, not degrade into the "add it manually" notice.
+    Helpers.validate_prefix!(prefix)
+    persist_prefix_config(igniter, prefix)
+  end
+
+  defp persist_prefix_config(igniter, prefix) do
     igniter
     |> Config.configure_new("config.exs", :phoenix_kit, [:prefix], prefix)
     |> Config.configure_new("test.exs", :phoenix_kit, [:prefix], prefix)

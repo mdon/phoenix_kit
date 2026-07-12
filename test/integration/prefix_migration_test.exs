@@ -148,5 +148,19 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
       )
 
     assert default_expr =~ "#{@schema}.uuid_generate_v7()"
+
+    # The function must work with NO search_path at all — its body calls
+    # pgcrypto's gen_random_bytes/1, which a plpgsql body resolves via the
+    # CALLER's search_path unless qualified with pgcrypto's actual schema
+    # (2026-07 quorum finding: an unqualified body defeats the point of a
+    # schema-qualified function).
+    {:ok, uuid} =
+      Repo.transaction(fn ->
+        Repo.query!("SET LOCAL search_path TO ''")
+        %{rows: [[uuid]]} = Repo.query!("SELECT #{@schema}.uuid_generate_v7()::text")
+        uuid
+      end)
+
+    assert is_binary(uuid) and byte_size(uuid) == 36
   end
 end

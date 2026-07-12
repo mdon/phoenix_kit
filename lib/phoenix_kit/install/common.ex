@@ -12,6 +12,7 @@ defmodule PhoenixKit.Install.Common do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Migrations.Postgres.Helpers
 
   @doc """
   Ensures every atom in `compiler_names` is present in the host's `mix.exs`
@@ -152,6 +153,10 @@ defmodule PhoenixKit.Install.Common do
       {:not_installed}
   """
   def check_installation_status(prefix \\ "public") do
+    # Fail fast on an invalid prefix — it is interpolated into SQL in the
+    # fallback paths below, and the migration chain would reject it anyway.
+    Helpers.validate_prefix!(prefix)
+
     # Use the same version detection logic as the migration system
     opts = %{
       prefix: prefix,
@@ -216,9 +221,9 @@ defmodule PhoenixKit.Install.Common do
   defp query_version_directly(repo, escaped_prefix) do
     # Check if phoenix_kit table exists first
     table_check =
-      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = '#{escaped_prefix}')"
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'phoenix_kit' AND table_schema = $1)"
 
-    case repo.query(table_check, [], log: false) do
+    case repo.query(table_check, [escaped_prefix], log: false) do
       {:ok, %{rows: [[true]]}} ->
         # Table exists, get version comment
         version_query = """
@@ -226,10 +231,10 @@ defmodule PhoenixKit.Install.Common do
         FROM pg_class
         LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
         WHERE pg_class.relname = 'phoenix_kit'
-        AND pg_namespace.nspname = '#{escaped_prefix}'
+        AND pg_namespace.nspname = $1
         """
 
-        case repo.query(version_query, [], log: false) do
+        case repo.query(version_query, [escaped_prefix], log: false) do
           {:ok, %{rows: [[version]]}} when is_binary(version) ->
             String.to_integer(version)
 
@@ -324,6 +329,7 @@ defmodule PhoenixKit.Install.Common do
     opts = %{prefix: prefix, escaped_prefix: String.replace(prefix, "'", "\\'")}
     Postgres.migrated_version_runtime(opts)
   rescue
+    e in ArgumentError -> reraise(e, __STACKTRACE__)
     _ -> 0
   end
 

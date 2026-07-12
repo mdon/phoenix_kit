@@ -109,12 +109,17 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
     |> Macro.camelize()
   end
 
-  defp migration_content(app_module, slug, from_version, to_version, prefix) do
+  # Public for testability (mix task internals otherwise); @doc false.
+  @doc false
+  def migration_content(app_module, slug, from_version, to_version, prefix) do
     module_name = Macro.camelize(slug)
-    # This task only generates UPGRADE migrations (from_version > 0), so the
-    # schema already exists — never ask the chain to create it (CREATE SCHEMA
-    # fails for low-privilege roles even with IF NOT EXISTS).
-    create_schema = false
+    # An upgrade (from_version > 0) implies the schema exists — never ask
+    # the chain to create it (CREATE SCHEMA fails for low-privilege roles
+    # even with IF NOT EXISTS; V01 skips it when the schema is present).
+    # But from_version == 0 means no prior PhoenixKit migration exists in
+    # the project: that's a fresh install and a non-public schema may
+    # genuinely need creating.
+    create_schema = from_version == 0 and prefix != "public"
 
     """
     defmodule #{app_module}.Repo.Migrations.#{module_name} do

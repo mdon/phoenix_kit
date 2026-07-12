@@ -44,7 +44,68 @@ defmodule PhoenixKit.Install.ObanConfig do
   def add_oban_configuration(igniter, prefix \\ nil) do
     igniter
     |> add_oban_config(prefix)
+    |> maybe_warn_missing_oban_prefix(prefix)
     |> add_oban_configuration_notice()
+  end
+
+  @doc """
+  Whether the given config content has a `config :app, Oban` block that
+  lacks a `prefix:` key.
+
+  Scoped to the Oban block on purpose: a whole-file scan is defeated by
+  the `config :phoenix_kit, prefix: "..."` entry (which matches a naive
+  `prefix:` grep) and false-positives on unrelated config. Any `prefix:`
+  inside the block counts — including computed values like
+  `System.get_env(...)`. Returns false when the content has no Oban
+  block at all (nothing to judge).
+  """
+  def oban_block_missing_prefix?(content) when is_binary(content) do
+    case Regex.scan(
+           ~r/config\s+:\w+,\s+Oban\b(.*?)(?=\n(?:config\s|import_config\s)|\z)/s,
+           content
+         ) do
+      [] -> false
+      blocks -> Enum.all?(blocks, fn [_, body] -> not String.contains?(body, "prefix:") end)
+    end
+  end
+
+  # Existing Oban configs on a prefixed install must carry prefix: — the
+  # migrations put oban_jobs into the named schema, and without the option
+  # Oban looks for public.oban_jobs. add_oban_config only injects prefix:
+  # into freshly generated blocks, so warn about pre-existing ones. Reads
+  # from disk (the igniter buffer isn't flushed yet), which is exactly
+  # right: a freshly generated block isn't on disk and produces no
+  # false warning.
+  defp maybe_warn_missing_oban_prefix(igniter, prefix) when prefix in [nil, "public"], do: igniter
+
+  defp maybe_warn_missing_oban_prefix(igniter, prefix) do
+    contents =
+      ["config/config.exs", "config/runtime.exs"]
+      |> Enum.filter(&File.exists?/1)
+      |> Enum.map(&File.read!/1)
+
+    has_block? = fn content -> Regex.match?(~r/config\s+:\w+,\s+Oban\b/, content) end
+    any_block = Enum.any?(contents, has_block?)
+
+    any_block_with_prefix =
+      Enum.any?(contents, fn content ->
+        has_block?.(content) and not oban_block_missing_prefix?(content)
+      end)
+
+    if any_block and not any_block_with_prefix do
+      Igniter.add_warning(igniter, """
+      Your existing Oban config appears to lack this install's schema prefix.
+      PhoenixKit's Oban tables live in the "#{prefix}" schema — add:
+
+        config :your_app, Oban,
+          prefix: "#{prefix}",
+          ...
+      """)
+    else
+      igniter
+    end
+  rescue
+    _ -> igniter
   end
 
   @doc """

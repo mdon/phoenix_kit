@@ -65,6 +65,7 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
   """
   def maybe_repair(opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "public")
+    Helpers.validate_prefix!(prefix)
 
     with {:ok, repo} <- get_repo(),
          {:ok, version} <- get_current_version(repo, prefix),
@@ -84,6 +85,7 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
   """
   def needs_repair?(opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "public")
+    Helpers.validate_prefix!(prefix)
 
     with {:ok, repo} <- get_repo(),
          {:ok, version} <- get_current_version(repo, prefix) do

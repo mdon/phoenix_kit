@@ -1347,6 +1347,13 @@ defmodule PhoenixKit.Migrations.Postgres do
     # Add retry logic for better reliability
     retry_version_detection(opts, escaped_prefix, 3)
   rescue
+    # An invalid prefix must surface as the validation error, not be
+    # swallowed into 0 ("not installed") — that misleads the operator AND
+    # lets the unvalidated string reach interpolated SQL in callers'
+    # fallback paths.
+    e in ArgumentError ->
+      reraise e, __STACKTRACE__
+
     _ ->
       0
   end

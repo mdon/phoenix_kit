@@ -17,7 +17,7 @@ defmodule PhoenixKit.Migrations.Postgres.V59 do
 
   - JSONB `data` column on every table for extensibility without future migrations
   - Real columns for indexed/queried/FK fields (status, slug, language, dates)
-  - UUID v7 primary keys with `uuid_generate_v7()` default
+  - UUID v7 primary keys defaulting to the schema-qualified `<prefix>.uuid_generate_v7()`
   - Dual-write user FKs: `created_by_uuid` (UUID, FK) + `created_by_id` (bigint, no FK)
   - All timestamps use `timestamptz` (per V58 standardization)
   - One content row per language (mirrors filesystem one-file-per-language model)

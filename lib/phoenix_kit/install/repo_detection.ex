@@ -31,8 +31,10 @@ defmodule PhoenixKit.Install.RepoDetection do
         Igniter.add_warning(igniter, warning)
 
       {:multiple, igniter, repos} ->
-        warning = create_multiple_repos_warning(repos)
-        Igniter.add_warning(igniter, warning)
+        # A hard issue, not a warning: without a repo choice the rest of
+        # the install pipeline (Oban config, migration strategy) would
+        # proceed on guesses and fail incoherently downstream.
+        Igniter.add_issue(igniter, create_multiple_repos_warning(repos))
 
       {igniter, repo_module} ->
         {updated_igniter, _} = validate_postgresql_adapter(igniter, repo_module)

@@ -40,5 +40,24 @@ defmodule PhoenixKit.Install.PrefixConfigTest do
       Application.put_env(:phoenix_kit, :prefix, :auth)
       assert PrefixConfig.resolve_prefix([]) == "public"
     end
+
+    test "raises on an invalid explicit --prefix instead of passing it through" do
+      # Regression: --prefix "" / quoting-requiring values used to flow
+      # into tooling SQL and the generated migration, failing only at
+      # mix ecto.migrate time.
+      for bad <- ["", "My-App", "sp ace", "1abc"] do
+        assert_raise ArgumentError, ~r/invalid PhoenixKit schema prefix/, fn ->
+          PrefixConfig.resolve_prefix(prefix: bad)
+        end
+      end
+    end
+
+    test "raises on an invalid configured prefix" do
+      Application.put_env(:phoenix_kit, :prefix, "Bad-Prefix")
+
+      assert_raise ArgumentError, ~r/invalid PhoenixKit schema prefix/, fn ->
+        PrefixConfig.resolve_prefix([])
+      end
+    end
   end
 end

@@ -36,28 +36,35 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     "pg_trgm" => "trigram search on PDF page content (V111)"
   }
 
-  @uuid_v7_function_body """
-  RETURNS uuid AS $$
-  DECLARE
-    unix_ts_ms bytea;
-    uuid_bytes bytea;
-  BEGIN
-    -- Get current timestamp in milliseconds
-    unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
+  # gen_random_bytes/1 comes from pgcrypto and is qualified with pgcrypto's
+  # actual installation schema at creation time — a plpgsql body resolves
+  # identifiers via the CALLER's search_path at execution, so an unqualified
+  # call would fail for roles whose search_path excludes pgcrypto's schema
+  # (defeating the point of a schema-qualified uuid_generate_v7()).
+  defp uuid_v7_function_body(pgcrypto_schema) do
+    """
+    RETURNS uuid AS $$
+    DECLARE
+      unix_ts_ms bytea;
+      uuid_bytes bytea;
+    BEGIN
+      -- Get current timestamp in milliseconds
+      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
 
-    -- Build UUIDv7: 6 bytes timestamp + 2 bytes random (with version) + 8 bytes random (with variant)
-    uuid_bytes := unix_ts_ms || gen_random_bytes(10);
+      -- Build UUIDv7: 6 bytes timestamp + 2 bytes random (with version) + 8 bytes random (with variant)
+      uuid_bytes := unix_ts_ms || #{pgcrypto_schema}.gen_random_bytes(10);
 
-    -- Set version 7 (0111xxxx in byte 7)
-    uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
+      -- Set version 7 (0111xxxx in byte 7)
+      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
 
-    -- Set variant (10xxxxxx in byte 9)
-    uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
+      -- Set variant (10xxxxxx in byte 9)
+      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
 
-    RETURN encode(uuid_bytes, 'hex')::uuid;
-  END
-  $$ LANGUAGE plpgsql VOLATILE;
-  """
+      RETURN encode(uuid_bytes, 'hex')::uuid;
+    END
+    $$ LANGUAGE plpgsql VOLATILE;
+    """
+  end
 
   @doc """
   Schema-qualified table reference for raw SQL interpolation.
@@ -155,7 +162,7 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     unless uuid_v7_function_exists?(repo, prefix) do
       executor.("""
       CREATE OR REPLACE FUNCTION #{schema(prefix)}.uuid_generate_v7()
-      #{@uuid_v7_function_body}
+      #{uuid_v7_function_body(pgcrypto_schema(repo))}
       """)
     end
 
@@ -168,6 +175,7 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
       SELECT FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE p.proname = 'uuid_generate_v7'
+      AND p.pronargs = 0
       AND n.nspname = $1
     )
     """
@@ -178,7 +186,30 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     end
   end
 
+  # Where pgcrypto actually lives. When the extension isn't visible yet
+  # (its CREATE EXTENSION may be queued but not flushed on a fresh
+  # chain), fall back to public — the default installation target. The
+  # plpgsql body is only resolved at first call, by which point the
+  # extension exists.
+  defp pgcrypto_schema(repo) do
+    query = """
+    SELECT n.nspname FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'pgcrypto'
+    """
+
+    case repo.query(query, [], log: false) do
+      {:ok, %{rows: [[schema]]}} when is_binary(schema) -> schema
+      _ -> "public"
+    end
+  end
+
   defp do_ensure_extension!(repo, name, executor) do
+    # The name is interpolated into DDL — keep it to known extensions.
+    unless Map.has_key?(@required_extensions, name) do
+      raise ArgumentError, "unknown Postgres extension for PhoenixKit: #{inspect(name)}"
+    end
+
     cond do
       extension_exists?(repo, name) ->
         :ok

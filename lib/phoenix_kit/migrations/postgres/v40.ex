@@ -31,8 +31,9 @@ defmodule PhoenixKit.Migrations.Postgres.V40 do
   - Sortable by creation time
   - Compatible with standard UUID format
 
-  A PostgreSQL function `uuid_generate_v7()` is created to generate UUIDv7
-  values at the database level.
+  A PostgreSQL function `uuid_generate_v7()` is created inside the
+  install's schema (`<prefix>.uuid_generate_v7()`) to generate UUIDv7
+  values at the database level; all call sites are schema-qualified.
 
   ## Tables Affected
 

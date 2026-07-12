@@ -140,6 +140,13 @@ defmodule PhoenixKit.Migration do
   it is interpolated into SQL, and anything else is rejected at the `up`/`down`
   entry points.
 
+  One requirement for *upgrading* an existing prefixed install: the migrating
+  role needs `CREATE` on the install's schema, because newer versions ensure a
+  schema-local `uuid_generate_v7()` there (older releases created it wherever
+  `search_path` pointed, typically `public`). If the schema is DBA-owned and
+  the role only has `USAGE`, have the DBA grant `CREATE` for the migration or
+  pre-create the function in the schema.
+
   ## Required Postgres extensions
 
   The migration chain needs three extensions: `citext` (case-insensitive
