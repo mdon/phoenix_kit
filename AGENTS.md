@@ -554,30 +554,23 @@ Publishing's `/:language/:group/*path` catch-all matches every 2+ segment URL an
 
 The mechanism generalizes; for now hardcoded to publishing — lift to a registry shape when a second module needs it.
 
-## daisyUI version expectations (host-owned)
+## daisyUI version (host-owned; advisory warnings only)
 
 The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` +
 `daisyui-theme.js`, scaffolded by `mix phx.new`, upgraded manually by the
-host) — PhoenixKit does not vendor, pin, or overwrite it (a custody/auto-sync
-design was built and rejected 2026-07-12; the host owns its assets). Instead
-core declares a **designed-for minimum** in `PhoenixKit.Install.DaisyUI`
-(`minimum_version/0`, currently 5.6.0; verified against 5.6.17) and warns when
-the host is behind: `mix phoenix_kit.install` (Igniter warning),
-`mix phoenix_kit.update` (shell warning), `mix phoenix_kit.doctor` ("daisyUI
-Version" check). Advisory only — nothing touches the host's files.
+host). Core only declares a designed-for minimum
+(`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns
+below it from `phoenix_kit.install` / `phoenix_kit.update` /
+`phoenix_kit.doctor` — advisory, never touching host files. All modal
+scrollbar-gutter compensations were removed 2026-07-12 (daisyUI ≥ 5.1 handles
+the gutter conditionally); **do NOT re-add `scrollbar-gutter` overrides in
+layouts, PkDialog, or modules**.
 
-History: daisyUI 5.0.x reserved the modal scrollbar gutter unconditionally,
-and core carried compensations (an unlayered `:root:has(.modal-open, …) {
-scrollbar-gutter: auto }` counter-rule in `layout_wrapper.ex` +
-`layouts/root.html.heex`, plus an inline PkDialog override). Those killed the
-phantom right-edge strip on non-scrolling pages but made content reflow ~15px
-around every modal open/close on pages that DO scroll (user-reported via the
-dashboards create modal's Cancel). daisyUI ≥ 5.1 reserves the gutter only when
-the page really has a scrollbar (`rootscrollgutter.css`), so **all
-compensations were removed 2026-07-12** — do NOT re-add scrollbar-gutter
-overrides in layouts, PkDialog, or modules. Hosts still on daisyUI < 5.1 get
-daisyUI's stock old behavior (the strip) plus the warnings above; the cure is
-updating their vendored files, not core CSS.
+**daisyUI version-control problem: researched in full — a vendor-in-core
+custody/auto-sync design was built, verified, and deliberately NOT
+implemented** (hosts own their assets). Full investigation, options analysis,
+and measurement gotchas:
+`dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
 
 ## TODOs
 
