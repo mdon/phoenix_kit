@@ -1185,7 +1185,7 @@ defmodule PhoenixKit.Integrations do
           :api_key -> present?(data["api_key"])
           :bot_token -> present?(data["bot_token"])
           :key_secret -> present?(data["access_key"])
-          :credentials -> has_custom_creds?(data)
+          :credentials -> has_custom_creds?(data) or has_flat_credential_fields?(provider, data)
         end
 
       # Saved-but-not-validated. Setting "connected" here was optimistic —
@@ -1215,12 +1215,28 @@ defmodule PhoenixKit.Integrations do
   defp has_credentials?(data),
     do:
       present?(data["access_token"]) or present?(data["api_key"]) or present?(data["bot_token"]) or
-        present?(data["access_key"]) or has_custom_creds?(data)
+        present?(data["access_key"]) or has_custom_creds?(data) or
+        has_flat_credential_fields?(Providers.get(data["provider"]), data)
 
   defp has_custom_creds?(%{"credentials" => creds}) when is_map(creds) and map_size(creds) > 0,
     do: true
 
   defp has_custom_creds?(_), do: false
+
+  # `:credentials` providers (e.g. universal SMTP) store their fields flat
+  # on the data map — there's no privileged nested "credentials" shape to
+  # check for them (that's `has_custom_creds?/1`, used by consumers that
+  # actually nest their creds). Instead, treat the connection as having
+  # credentials once every *required* setup field the provider declares is
+  # present. Data-driven off the provider's own field list, so it applies
+  # to any `:credentials` provider without hardcoding field names here.
+  defp has_flat_credential_fields?(%{auth_type: :credentials, setup_fields: fields}, data) do
+    fields
+    |> Enum.filter(& &1.required)
+    |> Enum.all?(fn %{key: key} -> present?(data[key]) end)
+  end
+
+  defp has_flat_credential_fields?(_provider, _data), do: false
 
   defp present?(val), do: is_binary(val) and val != ""
 
