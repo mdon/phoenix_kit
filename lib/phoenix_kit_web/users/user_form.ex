@@ -23,6 +23,12 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user_uuid = params["id"]
     mode = if user_uuid, do: :edit, else: :new
 
+    # Where "Update User"/"Cancel" should navigate back to: the page the
+    # admin actually came from (the list, or a specific user's detail page),
+    # not always the list. `return_to` is a whitelisted token (not a raw
+    # path) so there's no open-redirect surface to worry about.
+    return_to = resolve_return_to(params["return_to"], user_uuid)
+
     # Extract IP and user agent during mount (connect_info is only available here)
     registration_ip = IpAddress.extract_from_socket(socket)
 
@@ -55,6 +61,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       socket
       |> assign(:mode, mode)
       |> assign(:user_uuid, user_uuid)
+      |> assign(:return_to, return_to)
       |> assign(:page_title, page_title(mode))
       |> assign(:show_reset_password_modal, false)
       |> assign(:show_password_field, false)
@@ -72,11 +79,40 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:organizations, organizations)
       |> assign(:current_account_type, "person")
       |> assign(:user_agent, user_agent)
+      |> assign(:page_section, gettext("Users"))
+      |> assign(:page_section_path, Routes.path("/admin/users"))
       |> load_user_data(mode, user_uuid)
       |> load_form_data()
+      |> maybe_set_edit_page_title()
 
     {:ok, socket}
   end
+
+  # :new keeps the generic "Create User" title (no record to name yet); :edit
+  # names the record being edited so the layout breadcrumb reads
+  # "Users / Edit <name>" instead of the context-free "Users / Edit User".
+  defp maybe_set_edit_page_title(%{assigns: %{mode: :edit, user: user}} = socket) do
+    assign(socket, :page_title, gettext("Edit %{name}", name: user_display_name(user)))
+  end
+
+  defp maybe_set_edit_page_title(socket), do: socket
+
+  defp user_display_name(user) do
+    cond do
+      user.first_name && user.last_name -> "#{user.first_name} #{user.last_name}"
+      user.first_name -> user.first_name
+      user.username -> user.username
+      true -> user.email
+    end
+  end
+
+  # `return_to` is a whitelisted token from the query string, not a raw path
+  # — never interpolate an arbitrary caller-supplied path here.
+  defp resolve_return_to("view", user_uuid) when is_binary(user_uuid) do
+    Routes.path("/admin/users/view/#{user_uuid}")
+  end
+
+  defp resolve_return_to(_return_to, _user_uuid), do: Routes.path("/admin/users")
 
   def handle_event("open_media_selector", _params, socket) do
     {:noreply, assign(socket, :show_media_selector, true)}
@@ -139,7 +175,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
   end
 
   def handle_event("cancel", _params, socket) do
-    {:noreply, push_navigate(socket, to: Routes.path("/admin/users"))}
+    {:noreply, push_navigate(socket, to: socket.assigns.return_to)}
   end
 
   def handle_event("show_reset_password_modal", _params, socket) do
@@ -223,7 +259,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     else
       role_names = socket.assigns.pending_roles
 
-      case Roles.sync_user_roles(user, role_names) do
+      case Roles.sync_user_roles(user, role_names, actor: current_user) do
         {:ok, _assignments} ->
           socket =
             socket
@@ -265,7 +301,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
         |> Enum.filter(fn {_key, value} -> value != "false" end)
         |> Enum.map(fn {key, _value} -> key end)
 
-      case Roles.sync_user_roles(user, role_names) do
+      case Roles.sync_user_roles(user, role_names, actor: current_user) do
         {:ok, _assignments} ->
           socket =
             socket
@@ -444,7 +480,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
         socket =
           socket
           |> put_flash(:info, "User created successfully. Confirmation email sent.")
-          |> push_navigate(to: Routes.path("/admin/users"))
+          |> push_navigate(to: socket.assigns.return_to)
 
         {:noreply, socket}
 
@@ -651,7 +687,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:user, fresh_user)
       |> reload_changeset_with_updated_user(fresh_user)
       |> put_flash(:info, "User updated successfully.")
-      |> push_navigate(to: Routes.path("/admin/users"))
+      |> push_navigate(to: socket.assigns.return_to)
 
     {:noreply, socket}
   end
@@ -662,7 +698,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     socket =
       socket
       |> put_flash(:warning, error_message)
-      |> push_navigate(to: Routes.path("/admin/users"))
+      |> push_navigate(to: socket.assigns.return_to)
 
     {:noreply, socket}
   end
@@ -712,7 +748,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     socket =
       socket
       |> put_flash(:error, "User profile updated but custom fields failed to save.")
-      |> push_navigate(to: Routes.path("/admin/users"))
+      |> push_navigate(to: socket.assigns.return_to)
 
     {:noreply, socket}
   end
@@ -929,11 +965,20 @@ defmodule PhoenixKitWeb.Users.UserForm do
 
       # Roles have changed and it's allowed, update them
       true ->
-        case Roles.sync_user_roles(user, pending_roles) do
-          {:ok, _} = result ->
-            added = pending_roles -- current_roles
-            removed = current_roles -- pending_roles
-            log_roles_updated(current_user, user, current_roles, pending_roles, added, removed)
+        case Roles.sync_user_roles(user, pending_roles, actor: current_user) do
+          {:ok, %{roles_before: roles_before, roles_after: roles_after}} = result ->
+            # Audit the exact delta the transaction applied (before/after captured
+            # inside it), not the submitted set — the context silently drops
+            # changes the actor isn't authorized to make. Skip the log when
+            # nothing actually changed (e.g. a fully-rejected submission),
+            # mirroring the LiveView role modal.
+            added = roles_after -- roles_before
+            removed = roles_before -- roles_after
+
+            if added != [] or removed != [] do
+              log_roles_updated(current_user, user, roles_before, roles_after, added, removed)
+            end
+
             result
 
           error ->

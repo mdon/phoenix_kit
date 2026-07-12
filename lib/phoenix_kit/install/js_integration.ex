@@ -48,16 +48,20 @@ defmodule PhoenixKit.Install.JsIntegration do
   end
 
   @doc """
-  Ensures the external-module JS integration is wired: the
-  `:phoenix_kit_js_sources` compiler is in `mix.exs`, an aggregate file is seeded,
-  and the root layout has the (stable) module-hooks `<script>` tag.
+  Ensures the external-module JS integration is wired: an aggregate file is
+  seeded, and the root layout has the (stable) module-hooks `<script>` tag.
+
+  Registering the `:phoenix_kit_js_sources` compiler itself is NOT done here
+  — see `PhoenixKit.Install.Common.ensure_compilers_registered/2`, called
+  once by the install/update tasks alongside `:phoenix_kit_css_sources`
+  (touching `mix.exs`'s `:compilers` list from two separate calls corrupts
+  the second one; see that function's doc).
 
   Idempotent. Called at install and at `mix phoenix_kit.update`, so hosts that
   installed before this feature pick it up on their next update.
   """
   def ensure_module_js_integration(igniter) do
     igniter
-    |> add_js_sources_compiler()
     |> seed_modules_js_file()
     |> add_modules_script_tag_to_layout()
     |> add_viewport_param_to_app_js()
@@ -66,31 +70,50 @@ defmodule PhoenixKit.Install.JsIntegration do
   @doc """
   Updates the JS file in the parent app's static vendor directory.
   Called during `mix phoenix_kit.update` to keep hooks in sync.
+
+  Belt-and-suspenders only — the `:phoenix_kit_js_sources` compiler now
+  re-vendors this same file on every `mix compile`, so it self-heals even if
+  this never runs again. This copy exists for the immediate feedback of
+  running `update` itself, and raises loudly (`Mix.raise/1`) instead of
+  logging a warning that the caller's return value goes unchecked, since a
+  silently-stale hooks file breaks every PhoenixKit JS interaction with no
+  error anywhere in sight.
   """
   def update_js_file do
     case resolve_source_path() do
       {:ok, source} ->
         dest = dest_path()
-        File.mkdir_p(Path.dirname(dest))
-
-        case File.cp(source, dest) do
-          :ok ->
-            Logger.info("Updated #{@source_filename} in priv/static/assets/vendor/")
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("Failed to update #{@source_filename}: #{inspect(reason)}")
-            {:error, reason}
-        end
+        File.mkdir_p!(Path.dirname(dest))
+        File.cp!(source, dest)
+        verify_vendored!(dest)
+        Logger.info("Updated #{@source_filename} in priv/static/assets/vendor/")
+        :ok
 
       {:error, :not_found} ->
-        Logger.warning("Could not find #{@source_filename} in PhoenixKit priv/static/assets/")
-        {:error, :not_found}
+        Mix.raise("""
+        Could not find #{@source_filename} in the :phoenix_kit dependency's
+        priv/static/assets/ — the dependency looks corrupted or incompletely
+        fetched. Try `mix deps.get`.
+        """)
     end
-  rescue
-    error ->
-      Logger.warning("Unexpected error updating #{@source_filename}: #{inspect(error)}")
-      {:error, :unexpected}
+  end
+
+  # A post-condition, not just a check on File.cp!/2's return value: verifies
+  # the copy actually landed and isn't empty, so a filesystem quirk that lets
+  # File.cp!/2 "succeed" without real content doesn't go unnoticed.
+  defp verify_vendored!(dest) do
+    case File.stat(dest) do
+      {:ok, %File.Stat{size: size}} when size > 0 ->
+        :ok
+
+      {:ok, %File.Stat{size: 0}} ->
+        Mix.raise("Vendored #{dest}, but the file is empty.")
+
+      {:error, reason} ->
+        Mix.raise(
+          "Vendored #{@source_filename} to #{dest}, but it's not readable back: #{inspect(reason)}"
+        )
+    end
   end
 
   # ── Private ──────────────────────────────────────────────────────
@@ -437,40 +460,6 @@ defmodule PhoenixKit.Install.JsIntegration do
           })
       """
     )
-  end
-
-  # Register the :phoenix_kit_js_sources compiler in the parent app's mix.exs.
-  # It regenerates priv/static/assets/vendor/phoenix_kit_modules.js on each
-  # compile from external modules' js_sources/0.
-  defp add_js_sources_compiler(igniter) do
-    Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
-      nil ->
-        # No :compilers key yet — must keep the defaults, so prepend to
-        # Mix.compilers() rather than replacing the whole list.
-        {:ok, {:code, quote(do: [:phoenix_kit_js_sources] ++ Mix.compilers())}}
-
-      zipper ->
-        case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_js_sources) do
-          {:ok, zipper} -> {:ok, zipper}
-          :error -> {:warning, "Could not add :phoenix_kit_js_sources to compilers in mix.exs"}
-        end
-    end)
-  rescue
-    _ ->
-      Igniter.add_warning(
-        igniter,
-        """
-        ⚠️  Could not add :phoenix_kit_js_sources compiler to mix.exs.
-        Please add it manually:
-
-            def project do
-              [
-                ...,
-                compilers: [:phoenix_kit_js_sources] ++ Mix.compilers()
-              ]
-            end
-        """
-      )
   end
 
   # Seed an empty aggregate file so the <script> tag doesn't 404 before the

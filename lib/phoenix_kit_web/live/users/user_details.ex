@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   alias PhoenixKit.Users.AdminNote
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -56,6 +57,23 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
         # Load admin notes
         admin_notes = Auth.list_admin_notes(user)
 
+        # Load date/time format settings once, mirroring the Users list, so
+        # Registered/Last Updated/Email Confirmed can show full date+time in
+        # the admin's own timezone instead of the date-only, timezone-naive
+        # UtilsDate.format_datetime_with_user_format/1.
+        date_time_settings =
+          Settings.get_settings_cached(
+            ["date_format", "time_format", "time_zone"],
+            %{
+              "date_format" => "Y-m-d",
+              "time_format" => "H:i",
+              "time_zone" => "0"
+            }
+          )
+
+        geolocation_tracking_enabled =
+          Settings.get_boolean_setting("track_registration_geolocation", false)
+
         # Organization accounts
         org_accounts_enabled =
           Settings.get_boolean_setting("enable_organization_accounts", false)
@@ -71,7 +89,11 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           socket
           |> assign(:user, user)
           |> assign(:page_title, user_display_name(user))
+          |> assign(:page_section, gettext("Users"))
+          |> assign(:page_section_path, Routes.path("/admin/users"))
           |> assign(:project_title, project_title)
+          |> assign(:date_time_settings, date_time_settings)
+          |> assign(:geolocation_tracking_enabled, geolocation_tracking_enabled)
           |> assign(:active_tab, "profile")
           |> assign(:custom_field_definitions, custom_field_definitions)
           |> assign(:show_delete_modal, false)
@@ -82,6 +104,9 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> assign(:editing_note_uuid, nil)
           |> assign(:org_accounts_enabled, org_accounts_enabled)
           |> assign(:organization_members, organization_members)
+          |> assign(:show_role_modal, false)
+          |> assign(:all_roles, Roles.list_roles())
+          |> assign(:confirmation_modal, %{show: false})
 
         {:ok, socket}
     end
@@ -100,6 +125,117 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   @impl true
   def handle_event("hide_delete_modal", _params, socket) do
     {:noreply, assign(socket, :show_delete_modal, false)}
+  end
+
+  # Roles, confirmation, and active-status actions mirror the row menu on the
+  # Users list (PhoenixKitWeb.Live.Users.Users) so every action offered there
+  # is also available from this page — same context calls, same guard rails
+  # (self-modification block, last-Owner protection via Roles.sync_user_roles/3).
+
+  @impl true
+  def handle_event("show_role_management", _params, socket) do
+    current_user = socket.assigns.phoenix_kit_current_user
+    user = socket.assigns.user
+
+    if current_user.uuid == user.uuid do
+      {:noreply, put_flash(socket, :error, gettext("Cannot modify your own roles"))}
+    else
+      {:noreply, assign(socket, :show_role_modal, true)}
+    end
+  end
+
+  @impl true
+  def handle_event("hide_role_management", _params, socket) do
+    {:noreply, assign(socket, :show_role_modal, false)}
+  end
+
+  @impl true
+  def handle_event("sync_user_roles", params, socket) do
+    user = socket.assigns.user
+    selected_roles = Map.get(params, "roles", %{})
+    role_names = Map.values(selected_roles)
+    actor = socket.assigns.phoenix_kit_current_user
+
+    case Roles.sync_user_roles(user, role_names, actor: actor) do
+      {:ok, %{roles_before: roles_before, roles_after: roles_after}} ->
+        added = roles_after -- roles_before
+        removed = roles_before -- roles_after
+
+        if added != [] or removed != [] do
+          log_roles_updated(actor, user, roles_before, roles_after, added, removed)
+        end
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("User roles updated successfully"))
+         |> assign(:show_role_modal, false)
+         |> assign(:user, Auth.get_user_with_roles(user.uuid))}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, format_role_error_message(reason))}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "request_status_toggle",
+        %{"is_active" => is_active},
+        socket
+      ) do
+    is_active_bool = is_active == "true"
+
+    confirmation_modal = %{
+      show: true,
+      title: gettext("Confirm Status Change"),
+      message:
+        if(is_active_bool,
+          do: gettext("Are you sure you want to deactivate this user?"),
+          else: gettext("Are you sure you want to activate this user?")
+        ),
+      button_text: if(is_active_bool, do: gettext("Deactivate"), else: gettext("Activate")),
+      action: "toggle_user_status"
+    }
+
+    {:noreply, assign(socket, :confirmation_modal, confirmation_modal)}
+  end
+
+  @impl true
+  def handle_event(
+        "request_confirmation_toggle",
+        %{"is_confirmed" => is_confirmed},
+        socket
+      ) do
+    is_confirmed_bool = is_confirmed == "true"
+
+    confirmation_modal = %{
+      show: true,
+      title: gettext("Confirm Email Status Change"),
+      message:
+        if(is_confirmed_bool,
+          do: gettext("Are you sure you want to unconfirm this user's email?"),
+          else: gettext("Are you sure you want to confirm this user's email?")
+        ),
+      button_text: if(is_confirmed_bool, do: gettext("Unconfirm"), else: gettext("Confirm")),
+      action: "toggle_user_confirmation"
+    }
+
+    {:noreply, assign(socket, :confirmation_modal, confirmation_modal)}
+  end
+
+  @impl true
+  def handle_event("cancel_confirmation", _params, socket) do
+    {:noreply, assign(socket, :confirmation_modal, %{show: false})}
+  end
+
+  @impl true
+  def handle_event("confirm_action", %{"action" => action}, socket) do
+    socket = assign(socket, :confirmation_modal, %{show: false})
+
+    case action do
+      "toggle_user_status" -> toggle_user_status_safely(socket)
+      "toggle_user_confirmation" -> toggle_user_confirmation_safely(socket)
+      _ -> {:noreply, socket}
+    end
   end
 
   @impl true
@@ -326,6 +462,116 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
+  defp toggle_user_status_safely(socket) do
+    user = socket.assigns.user
+    new_status = !user.is_active
+
+    case Auth.update_user_status(user, %{"is_active" => new_status}) do
+      {:ok, updated_user} ->
+        status_text = if new_status, do: "activated", else: "deactivated"
+        admin = socket.assigns.phoenix_kit_current_user
+
+        PhoenixKit.Activity.log(%{
+          action: "user.status_changed",
+          module: "users",
+          mode: "manual",
+          actor_uuid: admin.uuid,
+          resource_type: "user",
+          resource_uuid: updated_user.uuid,
+          target_uuid: updated_user.uuid,
+          metadata: %{"status" => status_text, "actor_role" => "admin"}
+        })
+
+        flash_msg =
+          if new_status,
+            do: gettext("User activated successfully"),
+            else: gettext("User deactivated successfully")
+
+        {:noreply,
+         socket
+         |> put_flash(:info, flash_msg)
+         |> assign(:user, Auth.get_user_with_roles(updated_user.uuid))}
+
+      {:error, :cannot_deactivate_last_owner} ->
+        {:noreply, put_flash(socket, :error, gettext("Cannot deactivate the last system owner"))}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update user status"))}
+    end
+  end
+
+  defp toggle_user_confirmation_safely(socket) do
+    user = socket.assigns.user
+    admin = socket.assigns.phoenix_kit_current_user
+
+    case Auth.toggle_user_confirmation(user) do
+      {:ok, updated_user} ->
+        action =
+          if updated_user.confirmed_at,
+            do: "user.email_confirmed",
+            else: "user.email_unconfirmed"
+
+        PhoenixKit.Activity.log(%{
+          action: action,
+          module: "users",
+          mode: "manual",
+          actor_uuid: admin.uuid,
+          resource_type: "user",
+          resource_uuid: updated_user.uuid,
+          target_uuid: updated_user.uuid,
+          metadata: %{"method" => "manual", "actor_role" => "admin"}
+        })
+
+        email_flash_msg =
+          if updated_user.confirmed_at,
+            do: gettext("User email confirmed successfully"),
+            else: gettext("User email unconfirmed successfully")
+
+        {:noreply,
+         socket
+         |> put_flash(:info, email_flash_msg)
+         |> assign(:user, Auth.get_user_with_roles(updated_user.uuid))}
+
+      {:error, _changeset} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Failed to update user confirmation status"))}
+    end
+  end
+
+  defp log_roles_updated(admin, user, current_roles, new_roles, added, removed) do
+    metadata =
+      %{"actor_role" => "admin"}
+      |> maybe_put_role_diff("added", added)
+      |> maybe_put_role_diff("removed", removed)
+      |> Map.put("roles_from", Enum.join(Enum.sort(current_roles), ", "))
+      |> Map.put("roles_to", Enum.join(Enum.sort(new_roles), ", "))
+
+    PhoenixKit.Activity.log(%{
+      action: "user.roles_updated",
+      module: "users",
+      mode: "manual",
+      actor_uuid: admin.uuid,
+      resource_type: "user",
+      resource_uuid: user.uuid,
+      target_uuid: user.uuid,
+      metadata: metadata
+    })
+  end
+
+  defp maybe_put_role_diff(map, _key, []), do: map
+  defp maybe_put_role_diff(map, key, roles), do: Map.put(map, key, Enum.join(roles, ", "))
+
+  defp format_role_error_message(reason) do
+    case reason do
+      :cannot_remove_last_owner -> gettext("Cannot remove the last system owner")
+      :owner_role_protected -> gettext("Owner role cannot be assigned manually")
+      :role_not_found -> gettext("Role not found")
+      _ -> gettext("Failed to update user role")
+    end
+  end
+
+  defp target_is_owner?(user), do: Enum.any?(user.roles || [], &(&1.name == "Owner"))
+
   defp user_display_name(user) do
     cond do
       user.first_name && user.last_name ->
@@ -342,6 +588,18 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
+  # Full date+time (in the admin's own timezone), for the Account Information
+  # card where there's room — unlike the Users list's compact date-only
+  # columns, and unlike UtilsDate.format_datetime_with_user_format/1 (despite
+  # the name, it silently drops the time and ignores timezone entirely).
+  defp format_datetime(nil, _current_user, _date_time_settings), do: "-"
+
+  defp format_datetime(dt, current_user, date_time_settings) do
+    date = UtilsDate.format_date_with_user_timezone_cached(dt, current_user, date_time_settings)
+    time = UtilsDate.format_time_with_user_timezone_cached(dt, current_user, date_time_settings)
+    "#{date} #{time}"
+  end
+
   defp format_location(user) do
     [user.registration_city, user.registration_region, user.registration_country]
     |> Enum.filter(&(&1 && &1 != ""))
@@ -355,17 +613,28 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   defp format_timezone(nil), do: gettext("Not set")
 
   defp format_timezone(offset) when is_binary(offset) do
-    case Integer.parse(offset) do
+    # Float.parse/1, not Integer.parse/1 — half/45-minute offsets like "5.5"
+    # (India) or "5.75" (Nepal) are valid stored values (auto-detected from
+    # the browser, or picked from Settings' "UTC+5:30" style dropdown
+    # options); Integer.parse/1 silently truncated them to "UTC+5".
+    case Float.parse(offset) do
       {num, _} -> format_timezone_offset(num)
       :error -> offset
     end
   end
 
-  defp format_timezone(offset) when is_integer(offset), do: format_timezone_offset(offset)
+  defp format_timezone(offset) when is_number(offset), do: format_timezone_offset(offset)
 
   defp format_timezone_offset(offset) do
     sign = if offset >= 0, do: "+", else: ""
-    "UTC#{sign}#{offset}"
+
+    trimmed =
+      (offset * 1.0)
+      |> :erlang.float_to_binary(decimals: 2)
+      |> String.trim_trailing("0")
+      |> String.trim_trailing(".")
+
+    "UTC#{sign}#{trimmed}"
   end
 
   defp get_custom_field_value(user, field_key) do

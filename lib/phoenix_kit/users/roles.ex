@@ -888,6 +888,12 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   defp count_remaining_owners(repo, excluding_user_uuid) do
+    # Serialize EVERY Owner-removal decision at this shared chokepoint (sync,
+    # safely_remove_role/demote all count here before removing an Owner), so two
+    # concurrent removals can't both observe one remaining Owner and leave zero.
+    # Transaction-scoped advisory lock, released on the outer commit/rollback.
+    repo.query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_last_owner_guard'))")
+
     roles = Role.system_roles()
 
     repo.one(
@@ -981,26 +987,70 @@ defmodule PhoenixKit.Users.Roles do
 
   This function ensures the user has exactly the specified roles.
 
+  ## Authorization (`:actor` option)
+
+  This is the authorization boundary for role changes — **never** trust the
+  caller UI to have gated it. Pass `actor: %User{}` (the acting admin) and:
+
+  - Changes to the **system roles** (Owner, Admin) are applied only when the
+    actor is an Owner. A non-Owner's attempt to grant Owner/Admin to another
+    account (privilege escalation) or to strip them (the disabled-checkbox
+    form drops Owner from the submitted set, which would otherwise read as a
+    removal) is DROPPED — that role is left exactly as it was.
+  - The **last Owner** can never be removed, regardless of actor, via the
+    same guard as `safely_remove_role/2`.
+
+  Omitting `:actor` (or `actor: :system`) skips the actor gate — for
+  seeding/system callers only — but the last-Owner guard still applies.
+
   ## Parameters
 
   - `user`: The user to synchronize roles for
   - `role_names`: List of role names the user should have
+  - `opts`: `:actor` — the acting `%User{}` (see above)
+
+  Returns `{:ok, %{assignments: [...], roles_before: [...], roles_after: [...]}}`
+  on success — `roles_before`/`roles_after` are the role-name lists captured
+  inside the transaction, so callers can audit the exact delta this transaction
+  applied (which can differ from what was submitted when unauthorized changes
+  are dropped or a concurrent edit intervened).
 
   ## Examples
 
-      iex> sync_user_roles(user, ["Admin", "Manager"])
-      {:ok, [%RoleAssignment{}, %RoleAssignment{}]}
+      iex> sync_user_roles(user, ["Admin", "Manager"], actor: current_user)
+      {:ok, %{assignments: [%RoleAssignment{}], roles_before: ["Manager"], roles_after: ["Admin", "Manager"]}}
   """
-  def sync_user_roles(%User{} = user, role_names) when is_list(role_names) do
+  def sync_user_roles(user, role_names, opts \\ [])
+
+  def sync_user_roles(%User{} = user, role_names, opts) when is_list(role_names) do
     repo = RepoHelper.repo()
+    actor = Keyword.get(opts, :actor, :system)
 
     case repo.transaction(fn ->
-           # Get current user roles
-           current_roles = get_user_roles(user)
+           # Serialize concurrent role edits for THIS user (per-user key, so
+           # different users never contend), so before/after reflect only this
+           # transaction's changes — an exact audit, and no interleaving.
+           repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+             "pk_user_roles:#{user.uuid}"
+           ])
+
+           # The role set BEFORE this transaction's changes (read inside the
+           # transaction, so it's the true baseline for an exact audit diff).
+           roles_before = get_user_roles(user)
 
            # Determine roles to add and remove
-           roles_to_add = role_names -- current_roles
-           roles_to_remove = current_roles -- role_names
+           roles_to_add = role_names -- roles_before
+           roles_to_remove = roles_before -- role_names
+
+           # Drop changes the actor isn't authorized to make (system-role
+           # grants/revocations require Owner). Silently leaving them
+           # unchanged matches the disabled-checkbox UI intent and blocks
+           # both escalation and the Owner-wipe.
+           roles_to_add = authorize_role_changes(roles_to_add, actor)
+           roles_to_remove = authorize_role_changes(roles_to_remove, actor)
+
+           # Guard the last Owner before any removal runs
+           guard_last_owner_removal(repo, user, roles_to_remove)
 
            # Remove roles that should not be present
            Enum.each(roles_to_remove, &remove_role_or_rollback(user, &1, repo))
@@ -1008,18 +1058,46 @@ defmodule PhoenixKit.Users.Roles do
            # Add roles that should be present
            assignments = Enum.map(roles_to_add, &assign_role_or_rollback(user, &1, repo))
 
-           new_user_roles = get_user_roles(user)
+           # The role set AFTER, still inside the transaction.
+           roles_after = get_user_roles(user)
 
-           %{assignments: assignments, new_user_roles: new_user_roles}
+           %{assignments: assignments, roles_before: roles_before, roles_after: roles_after}
          end) do
-      {:ok, %{assignments: assignments, new_user_roles: new_user_roles}} ->
-        Events.broadcast_user_roles_synced(user, new_user_roles)
+      {:ok, %{roles_after: roles_after} = result} ->
+        Events.broadcast_user_roles_synced(user, roles_after)
         ScopeNotifier.broadcast_roles_updated(user)
 
-        {:ok, assignments}
+        {:ok, result}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # A system caller (:system) may change any role. A real actor may only
+  # change the system roles (Owner/Admin) if they are themselves an Owner.
+  defp authorize_role_changes(role_names, :system), do: role_names
+
+  defp authorize_role_changes(role_names, %User{} = actor) do
+    if owner?(actor) do
+      role_names
+    else
+      system = Role.system_roles()
+      privileged = [system.owner, system.admin]
+      Enum.reject(role_names, &(&1 in privileged))
+    end
+  end
+
+  defp owner?(%User{} = user), do: Role.system_roles().owner in get_user_roles(user)
+
+  # Blocks removing the final active Owner, mirroring safely_remove_role/2.
+  defp guard_last_owner_removal(repo, %User{} = user, roles_to_remove) do
+    owner = Role.system_roles().owner
+
+    # count_remaining_owners/2 takes the shared advisory lock, so the
+    # count-then-delete here is atomic against every other Owner-removal path.
+    if owner in roles_to_remove and count_remaining_owners(repo, user.uuid) < 1 do
+      repo.rollback(:cannot_remove_last_owner)
     end
   end
 

@@ -1,3 +1,255 @@
+## 1.7.187 - 2026-07-12
+
+### Fixed
+- **`data-confirm` was silently swallowed on `BulkSelectScope` action buttons.**
+  The hook's `_onActionClick` calls `e.preventDefault()` synchronously on
+  every `data-bulk-action` click; `phoenix_html`'s own window-level click
+  listener (which implements `data-confirm`) bails out early via `if
+  (e.defaultPrevented) return;`, so its confirm dialog never fired. Any
+  button carrying both `data-confirm` and `data-bulk-action` — most notably
+  bulk/permanent delete — executed with no prompt. The hook now checks
+  `data-confirm` itself and calls `window.confirm()` before proceeding,
+  mirroring `phoenix_html`'s native behavior; cancelling stops the click
+  and the LiveView event is never pushed. Found while migrating
+  `phoenix_kit_comments`, `phoenix_kit_posts`, and `phoenix_kit_entities` to
+  BulkSelect — all three already pair `data-confirm` with a destructive
+  bulk action and are fixed retroactively once they pick up this release.
+
+## 1.7.186 - 2026-07-12
+
+### Fixed
+- **The 1.7.185 `phoenix_kit.js` self-heal never ran on hosts whose
+  `mix.exs` was missing the `:phoenix_kit_js_sources` compiler — exactly the
+  older installs that need it most.** Root cause (found by a downstream
+  agent bisecting a host stuck on stale JS after upgrading): registering
+  `:phoenix_kit_css_sources` and `:phoenix_kit_js_sources` was two SEPARATE
+  `Igniter.Project.MixProject.update/4` calls against the same `mix.exs`
+  `:compilers` key. The first call, hitting an absent key, has to insert
+  `[atom] ++ Mix.compilers()` — a `++` call, not a literal list, since
+  `Mix.compilers()` is a live call that can't be flattened at install time.
+  The second call then lands on that `++` node instead of a list, and
+  `Igniter.Code.List.prepend_new_to_list/2` (which only understands literal
+  lists) silently fails into a `{:warning, ...}` easy to miss in the wall of
+  `mix phoenix_kit.update`/`install` output — so the second compiler never
+  actually got registered even though the run reported success. This is
+  exactly what happened in production: a host had `:phoenix_kit_css_sources`
+  from the first call but never `:phoenix_kit_js_sources` from the second,
+  across many `phoenix_kit.update` runs, so the JS-hooks compiler (and
+  therefore 1.7.185's vendoring fix) never ran.
+  `PhoenixKit.Install.Common.ensure_compilers_registered/2` now registers
+  every PhoenixKit compiler in ONE call — used by both `mix
+  phoenix_kit.install` and `mix phoenix_kit.update` — and, for hosts already
+  stuck in the broken `[atom] ++ Mix.compilers()` shape, descends into the
+  literal list on the left of `++` and repairs it there instead of bailing.
+  Covered by a regression test that reproduces the exact broken shape and
+  asserts both compilers end up present, not just the notice claiming they
+  do.
+
+## 1.7.185 - 2026-07-11
+
+### Fixed
+- **`phoenix_kit.js` (core JS hooks — `RowMenu`, drawer/modal toggles, etc.)
+  could silently 404 in production, breaking every PhoenixKit JS hook with no
+  error anywhere.** It was only ever copied into a host's
+  `priv/static/assets/vendor/` by the one-shot `File.cp/2` in `mix
+  phoenix_kit.install`/`mix phoenix_kit.update` — a deploy that does `rm -rf
+  priv/static` + asset rebuild without re-running `phoenix_kit.update` (true
+  of most CI/CD pipelines) shipped the stale or missing file, so a bug fix
+  landing in this same JS file could ship correctly in every other respect
+  (compiled `.ex`/`.heex` changes apply the moment the dependency bumps) while
+  the JS fix itself never reached the browser. The `:phoenix_kit_js_sources`
+  compiler — which already regenerated `phoenix_kit_modules.js` (the
+  external-module hook bundle) on every `mix compile` — now also vendors
+  `phoenix_kit.js` itself the same way: self-healing after any `priv/static`
+  wipe, with zero dependency on `phoenix_kit.update` ever running again after
+  the initial install.
+- **`JsIntegration.update_js_file/0` swallowed copy failures** (`rescue` →
+  `Logger.warning` → `{:error, reason}` that its one caller, `mix
+  phoenix_kit.update`, never checked) — `mix phoenix_kit.update` could report
+  success while the vendored file silently stayed stale or absent. Now raises
+  (`Mix.raise/1`) on a resolution/copy failure and verifies the destination
+  file exists and is non-empty as a post-condition. `mix
+  phoenix_kit.assets.rebuild` — billed as *the* asset-rebuild task — now also
+  refreshes `phoenix_kit.js` via the same path, not just the CSS pipeline.
+
+## 1.7.184 - 2026-07-11
+
+### Added
+- **`Checkbox` core component extended** (`PhoenixKitWeb.Components.Core.Checkbox`):
+  `disabled` (previously silently dropped — not in the allowed globals),
+  `wrapper_class` (styles the wrapping `<label>` — spacing, or
+  `pointer-events-none` to lock a checkbox *without* excluding it from form
+  submission the way `disabled` would), `title` (tooltip on the whole label,
+  not just the box), and a `:description` slot for secondary helper text. The
+  default slot now doubles as rich label content (badges, icons, conditional
+  markup) overriding the plain `label` string when given.
+- **`LayoutWrapper.app_layout` gains `page_section`/`page_section_path`** —
+  an optional breadcrumb segment between "Admin Panel" and `page_title` (e.g.
+  "Admin Panel / Users / Jane Doe" on a user detail page instead of jumping
+  straight from "Admin Panel" to the user's name).
+
+### Changed
+- **Checkboxes across core migrated to `<.checkbox>`** (settings pages,
+  registration/OAuth toggles, storage bucket/dimension forms, org tax
+  toggle, `user_form`'s boolean custom field) so future daisyUI syntax or
+  style changes are a one-file edit instead of a repo-wide sweep. Left
+  hand-rolled where the shape doesn't fit a boolean toggle (role-assignment
+  checkboxes and the image-format multi-select use `value={item}` collected
+  via `Map.values/1`, not the hidden-false/checkbox-true pattern).
+- **Users list/detail naming unified.** The admin page title now reads
+  `@page_title` ("Users") instead of a hardcoded "User Management" that had
+  drifted out of sync with it; the sidebar subtab is "Users" instead of
+  "Manage Users".
+- **User detail page now offers the same actions as the Users list's `⋮`
+  menu** — Roles, Confirm/Unconfirm email, Activate/Deactivate, and (for your
+  own profile) Settings, via the same `table_row_menu` component and
+  `Auth`/`Roles` context calls. Delete is now hidden (not just rejected on
+  click) when `Auth.can_delete_user?/2` says no, matching the list.
+- **Users list's Location column explains itself when empty.** If
+  `track_registration_geolocation` is off, every row now says "Tracking
+  disabled" with a link to Settings → Users, instead of an unexplained
+  per-row "No data" that looked like missing data rather than a disabled
+  feature.
+
+### Fixed
+- **Row-action `⋮` menus could silently eat clicks on menu items (WebKit —
+  i.e. every browser on iOS/iPadOS, plus desktop Safari).** The `RowMenu` JS
+  hook portals its floating menu to `<body>` while open so it can escape a
+  clipped table container; its "click outside closes the menu" listener only
+  checked containment against the trigger's wrapper, not the (now
+  elsewhere-in-the-DOM) menu itself. Clicking a menu item was treated as an
+  outside click: the capture-phase listener closed and relocated the menu
+  mid-dispatch, and WebKit drops an in-flight click when its target moves
+  during capture — so the tapped action never ran. Fixed by also checking
+  containment against the portaled menu.
+- **Checkboxes with hidden-false-fallback markup weren't wrapped in a
+  `<label>`** across settings pages (registration, notifications,
+  multi-session, magic link, OAuth master/provider switches, storage bucket
+  enable, org tax enable), so clicking the adjacent text did nothing —
+  only the checkbox square itself was clickable. For the OAuth provider
+  switches specifically (locked via `pointer-events-none` while the master
+  switch is off), the lock moved from the checkbox to the wrapping label so
+  wrapping it in `<label>` couldn't let a text click bypass the lock.
+
+## 1.7.183 - 2026-07-11
+
+### Fixed
+- **Prefixed (`--prefix`) installs could fail to migrate.** `CREATE INDEX` was
+  being called with a schema-qualified index name (`CREATE INDEX prefix.name ON
+  ...`), which Postgres rejects outright — an index always lands in its table's
+  schema, so only the table reference may be qualified. Affected
+  `add_uuid_unique_indexes`/`drop_uuid_unique_indexes` (`uuid_fk_columns.ex`),
+  `V56`, `V57`, and `V95`'s media-folder unique index. (#628)
+- **Cross-schema false-positive existence checks on prefixed installs.** Several
+  idempotency guards (`pg_constraint` lookups in `V35`, `V102`, `V113`, `V115`,
+  `V118`, `V119`; an `information_schema.columns` lookup in `V95`) matched on
+  constraint/column name alone, so an identically-named constraint or column
+  already present in a *different* schema's table made the guard think it existed
+  in the current schema too — silently skipping the `ADD CONSTRAINT`/`ADD COLUMN`.
+  Fixed by anchoring each check to the target relation (`conrelid = '<prefix>.
+  <table>'::regclass` / `table_schema = '<prefix>'`). Added an integration test
+  that runs the full versioned migration chain into a named schema and asserts
+  every index and column lands correctly. (#628)
+
+## 1.7.182 - 2026-07-10
+
+### Added
+- **Fine-grained sub-permissions.** Modules can declare additive permissions under
+  their base key via the optional `sub_permissions` field of `permission_metadata/0`
+  (e.g. `"calendar.view_others"`), stored in `phoenix_kit_role_permissions.module_key`
+  as composed dotted keys. A sub-permission implies its base: granting a sub
+  auto-grants the base, revoking the base cascades its subs off, and every write
+  path (`grant_permission/3`, `revoke_permission/3`, `set_permissions/3`) normalizes
+  the set so no orphan sub-key row can persist. Modules check sub-grants with
+  `Scope.can?/2` (key held **and** module enabled). The permission matrix renders
+  subs as indented rows under their module. (#627)
+- **`V141` — personal calendar events + participants** for the standalone
+  `phoenix_kit_calendar` module: `phoenix_kit_calendar_events` (one implicit
+  personal calendar per user, timed/all-day exclusive-end pairs with a CHECK,
+  cascade on user delete, loose `location_uuid` link) and
+  `phoenix_kit_calendar_event_participants` (loose `kind`/`target_uuid` refs with a
+  snapshotted `display_name`, visibility resolved live against staff/CRM tables). (#627)
+- **Reusable core UI components.** `SearchPicker` (client-instant typeahead with
+  browse-on-focus, per-instance event scoping, `direction=up`, cross-source dedup,
+  load-more paging), `PopoverPanel` (anchored rich-content popover, client-side
+  open/close with click-away), and the `PkDialogDraft` JS hook (preserves an open
+  form's draft across a LiveView reconnect). Both function components are imported
+  into `PhoenixKitWeb`. (#627)
+
+### Changed
+- **Admin is now genuinely permission-gated.** Only `Owner` is hard-coded as
+  all-access; `Admin` (and every other role) is governed by the permission matrix.
+  Admin defaults to all keys via seeding/auto-grant, and a boot-time Task
+  (`auto_grant_new_keys_to_admin/0`) fills newly-installed module keys — but an
+  Owner's revocation now sticks everywhere, including fresh mounts (previously the
+  system-role bypass ignored revocations on fresh mounts). The full-access fallback
+  keys on **table presence** (`permissions_table_ready?/0`), not row count, so
+  stripping a role bare can no longer restore access, and a DB blip fails closed. (#627)
+- **`V142`** widens `phoenix_kit_role_permissions.module_key` `VARCHAR(50) → VARCHAR(120)`
+  so composed sub-permission keys fit. (#627)
+- **Role changes are authorized in the context.** `sync_user_roles/3` takes an
+  `:actor` and drops changes the actor isn't allowed to make (a non-Owner can't
+  grant or strip Owner/Admin); the last Owner can never be removed. The quick
+  role-toggle and the permission-matrix revoke route through the same guards. The
+  function now returns `{:ok, %{assignments, roles_before, roles_after}}` so audit
+  logs record the delta **actually applied**, not the submitted set. (#627)
+- **`Checkbox` `checked` default is now `nil`** ("derive from the field's value") —
+  a non-nil attr default defeated the field clause's `assign_new`, so a field-bound
+  checkbox always rendered unchecked. (#627)
+- **`AdminPageHeader` accepts a `class`** to override its default bottom margin
+  (e.g. `"mb-0"` when the page owns spacing). (#627)
+
+### Fixed
+- **Role/permission mutations are race-free under concurrent admins.**
+  Transaction-scoped Postgres advisory locks + in-transaction re-reads: the last
+  Owner can never reach zero (shared lock at `count_remaining_owners`), the matrix
+  revoke re-reads the role's held keys under a `(role, base)` lock and rejects
+  (`:unauthorized`) if a cascaded sub falls outside the actor's grantable set, and
+  `set_permissions/3` locks the `Role` row so two concurrent calls can't leave the
+  union of disjoint desired sets. (#627)
+- **Post-merge review:** refactored `grant_permission/3` to satisfy
+  `credo --strict` (removed a redundant `with` clause and one nesting level) — the
+  base-then-sub cascade and rollback behavior are unchanged. (#627)
+
+## 1.7.181 - 2026-07-10
+
+### Changed
+- **Admin settings pages modernized.** Replaced ad-hoc `<div class="divider">`
+  headings across the General, Authorization, Users, Media, and Instance
+  Dimensions pages with a reusable `<.section_header>` (icon + uppercase title +
+  rule + optional actions slot). Per-field status echoes ("Selected: X | Saved:
+  Y", always visible) are replaced by `<.unsaved_hint>`, which renders only when a
+  field diverges from its saved value, so clean fields carry no noise. The four
+  hand-copied ~95-line OAuth provider guides (Google/Apple/GitHub/Facebook)
+  collapse into one `<.oauth_setup_instructions>` component with a `:steps` slot.
+  Both new components live in `Components.Core.FormSection`. (#626)
+- **Browser Tab identity group + live preview.** The site-icon and default-tab-
+  title fields are merged into one "Browser Tab" group on the General page, with a
+  live browser-chrome preview (icon + tab title + address bar) that updates as you
+  type. The site icon and project logo now default to each other via
+  `Settings.get_site_icon_uuid/0` and `get_logo_uuid/0` — setting either brands
+  both the browser tab and the app chrome; the favicon and layout wrappers read
+  through these resolvers. (#626)
+- **Destructive resets now confirm.** The General "Reset ALL settings" and Instance
+  Dimensions "Reset to Defaults" actions gained a `data-confirm` guard. (#626)
+- **Dependency bump.** `saxy` 1.6.0 → 1.6.1.
+
+### Fixed
+- **Registration dirty-indicator missed two toggles.** The Users-page unsaved-
+  changes hint for the registration group compared only `allow_registration` and
+  `track_registration_geolocation`, so flipping `registration_show_username` or
+  `enable_organization_accounts` left the group looking clean. It now checks all
+  four keys. (#626)
+
+### i18n
+- **Storage-module flashes and page titles localized.** Every `put_flash` in the
+  Media settings and Instance Dimensions LiveViews (bucket toggles, redundancy,
+  variants, repair, dimension CRUD/reset) is wrapped in `gettext`/`ngettext` with
+  proper `%{}` interpolation and correct pluralization for the redundancy-copies
+  message. Full `.pot` re-extract with ru/et translations for all new strings.
+  Also dropped a dead drag-drop `<script>`/`<style>` block from the Media settings
+  template (targeted element ids that no longer exist). (#626)
+
 ## 1.7.180 - 2026-07-09
 
 ### Added

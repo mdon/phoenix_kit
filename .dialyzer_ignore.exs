@@ -11,6 +11,7 @@
   {"lib/mix/tasks/phoenix_kit.update.ex", :pattern_match, 1},
   {"lib/mix/tasks/phoenix_kit.modernize_layouts.ex", :unknown_function},
   {"lib/phoenix_kit/install/migration_strategy.ex", :unknown_function},
+  {"lib/phoenix_kit/install/js_integration.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.status.ex", :unknown_function},
   {"lib/phoenix_kit/migrations/postgres.ex", :unknown_function},
   {"lib/mix/tasks/phoenix_kit.cleanup_orphaned_files.ex", :unknown_function},

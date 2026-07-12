@@ -1367,6 +1367,32 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   // ---------------------------------------------------------------------------
+  // TimezoneOffset Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Fills a hidden input with the browser's UTC offset in hours (e.g. "2",
+  // "-5.5") on mount, so a new account starts with a timezone instead of
+  // "Not set" — the server has no way to know the visitor's timezone on its
+  // own. Rounded to the nearest quarter hour to match the offsets PhoenixKit
+  // actually offers (whole and half/45-minute zones like UTC+5:30, +5:45).
+  // Never overwrites a value the server already rendered (e.g. re-render
+  // after a validation error), and the field pairs with phx-update="ignore"
+  // so LiveView leaves it alone after this first mount.
+  //
+  // Usage in LiveView template:
+  //   <input type="hidden" name="user[user_timezone]" phx-hook="TimezoneOffset" phx-update="ignore" />
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.TimezoneOffset = {
+    mounted() {
+      if (this.el.value) return;
+      var offsetHours = -new Date().getTimezoneOffset() / 60;
+      var rounded = Math.round(offsetHours * 4) / 4;
+      this.el.value = String(rounded);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // ResetSelect Hook
   // ---------------------------------------------------------------------------
   //
@@ -1839,7 +1865,20 @@ if (typeof window.Chart === "undefined") {
   //
   //   data-bulk-action="<lv-event>"         on a button: clicking pushes
   //                                         <lv-event> to the LV with
-  //                                         `{ uuids: [...] }` payload.
+  //                                         `{ uuids: [...] }` payload. Pair
+  //                                         with `data-confirm="..."` for a
+  //                                         native confirm() prompt before
+  //                                         the event fires (cancelling
+  //                                         stops the click here — the
+  //                                         event is never pushed). This
+  //                                         hook always calls preventDefault
+  //                                         on the click, which would
+  //                                         otherwise make phoenix_html's
+  //                                         own data-confirm handling never
+  //                                         run (it bails out early when
+  //                                         the event is already
+  //                                         defaultPrevented), so this hook
+  //                                         handles data-confirm itself.
   //
   //   data-bulk-clear                       on a button: pure client-side
   //                                         clear (uncheck all + reset).
@@ -1951,6 +1990,15 @@ if (typeof window.Chart === "undefined") {
       e.preventDefault();
       const event = btn.dataset.bulkAction;
       if (!event) return;
+
+      // Honor `data-confirm` ourselves: this handler already called
+      // `e.preventDefault()` above, and phoenix_html's own window-level
+      // click listener bails out early via `if (e.defaultPrevented) return;`
+      // — so a button carrying both `data-confirm` and `data-bulk-action`
+      // would otherwise never show the native confirm dialog and the
+      // action would fire immediately with no prompt.
+      const confirmMessage = btn.dataset.confirm;
+      if (confirmMessage && !window.confirm(confirmMessage)) return;
 
       // If the button is paired with a kept-in-DOM dialog, open it
       // locally BEFORE pushing the event. The server still gets the
@@ -2190,6 +2238,40 @@ if (typeof window.Chart === "undefined") {
       this.el.addEventListener("close", self._onClose);
       this.el.addEventListener("click", self._onClick);
 
+      // Instant client-side open: a trigger can dispatch this custom
+      // event (Phoenix.LiveView.JS.dispatch("pk:dialog-show", to: "#id"))
+      // ALONGSIDE its server push, so the dialog appears the same frame
+      // as the click while the server round-trip fills the content in.
+      // The subsequent LV patch (data-show=true) finds the dialog already
+      // open and no-ops; server-driven close keeps working unchanged.
+      self._onShowEvent = function() {
+        if (
+          !isDialogOpenInBrowser(self.el) &&
+          typeof self.el.showModal === "function"
+        ) {
+          self.el.showModal();
+          if (!self._opened) {
+            self._opened = true;
+            self._onOpened();
+          }
+        }
+      };
+      this.el.addEventListener("pk:dialog-show", self._onShowEvent);
+
+      // Server-initiated close for a dialog that was opened CLIENT-side
+      // (pk:dialog-show) but whose content the server declined to load —
+      // without this, an error path that never flips data-show would
+      // leave the skeleton dialog open forever. LV removes hook
+      // handleEvent listeners automatically on destroy.
+      this.handleEvent("pk:dialog-close", function(payload) {
+        if (payload && payload.id && payload.id !== self.el.id) return;
+        if (isDialogOpenInBrowser(self.el)) {
+          if (!self.el.open) self.el.setAttribute("open", "");
+          self._closeFromLV = true;
+          self.el.close();
+        }
+      });
+
       this._sync();
     },
     updated() {
@@ -2221,7 +2303,140 @@ if (typeof window.Chart === "undefined") {
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
+      if (this._onShowEvent) this.el.removeEventListener("pk:dialog-show", this._onShowEvent);
     }
+  };
+
+  // PkDialogTrigger — makes a REGION instant-open a kept-in-DOM PkDialog.
+  // Attach to a container whose descendants push server events that end in
+  // a modal (e.g. a calendar grid where event/date clicks open an editor):
+  //
+  //   <div phx-hook="PkDialogTrigger" id="grid"
+  //        data-dialog="my-modal"
+  //        data-trigger=".cal-event, .cal-day-cell">
+  //
+  // On click it finds the closest [phx-click] ancestor — the SAME element
+  // LiveView will hand the event to — and, if that element matches
+  // data-trigger, dispatches pk:dialog-show to the dialog so it opens in
+  // the same frame while the server round-trip fills the content in.
+  // Elements with their own phx-click that don't match (a "+N more" link)
+  // correctly don't open the dialog.
+  window.PhoenixKitHooks.PkDialogTrigger = {
+    mounted() {
+      this._onTriggerClick = (e) => {
+        var sel = this.el.dataset.trigger;
+        var dlg = document.getElementById(this.el.dataset.dialog);
+        if (!sel || !dlg) return;
+        var clickEl = e.target.closest("[phx-click]");
+        if (clickEl && this.el.contains(clickEl) && clickEl.matches(sel)) {
+          dlg.dispatchEvent(new CustomEvent("pk:dialog-show"));
+        }
+      };
+      this.el.addEventListener("click", this._onTriggerClick);
+    },
+    destroyed() {
+      this.el.removeEventListener("click", this._onTriggerClick);
+    }
+  };
+
+  // PkDialogDraft — preserves an in-progress form across a LiveView RECONNECT
+  // (a websocket drop, e.g. on flaky/slow internet). A reconnect re-mounts the
+  // LiveView with fresh assigns, so a modal driven by a server flag collapses
+  // and the typed data is lost — LiveView's native form recovery can't help
+  // because the form isn't rendered after remount (a skeleton is). This hook
+  // keeps a live snapshot of the form in a JS variable (memory only — cleared
+  // on close and on unload, so a tab close / refresh is NOT preserved, by
+  // design) and, once reconnected, pushes it back so the server rebuilds the
+  // modal exactly where the user left off.
+  //
+  // Attach to a STABLE element that is always rendered (NOT the <dialog>,
+  // which already carries PkDialog and whose body is conditionally rendered):
+  //   <div phx-hook="PkDialogDraft" id="…"
+  //        data-draft-form="calendar-event-form"   (the <form> id to snapshot)
+  //        data-draft-restore-event="restore_event_draft"
+  //        data-draft-scope="#calendar-event-modal" (where owner/tz inputs live,
+  //                                                   outside the <form>)
+  //        data-draft-active="true|false"           (server: modal open + editable)
+  //        data-draft-key="new|<uuid>">             (which event)
+  var pkDialogDrafts = {};
+  var pkWasDisconnected = false;
+  if (typeof window !== "undefined") {
+    window.addEventListener("phx:disconnected", function () {
+      pkWasDisconnected = true;
+    });
+  }
+
+  window.PhoenixKitHooks.PkDialogDraft = {
+    mounted() {
+      var self = this;
+      this.formId = this.el.dataset.draftForm;
+      this.restoreEvent = this.el.dataset.draftRestoreEvent || "restore_draft";
+      this.scopeSel = this.el.dataset.draftScope;
+
+      this._snapshot = function () {
+        if (self.el.dataset.draftActive !== "true") {
+          delete pkDialogDrafts[self.el.id];
+          return;
+        }
+        var form = document.getElementById(self.formId);
+        if (!form) return;
+        var ev = {};
+        new FormData(form).forEach(function (v, k) {
+          var m = k.match(/^event\[(.+)\]$/);
+          if (m) ev[m[1]] = v;
+        });
+        // owner / owner_tz_entry live OUTSIDE the <form> (in the modal box)
+        var scope = self.scopeSel ? document.querySelector(self.scopeSel) : document;
+        var owner = scope && scope.querySelector('[name="owner"]');
+        var ownerTz = scope && scope.querySelector('[name="owner_tz_entry"]');
+        pkDialogDrafts[self.el.id] = {
+          key: self.el.dataset.draftKey || "new",
+          event: ev,
+          owner: owner ? owner.value : null,
+          owner_tz_entry: ownerTz && ownerTz.checked ? "true" : null,
+        };
+      };
+
+      this._onInput = function () {
+        self._snapshot();
+      };
+      // capture on every edit (bubbles up from the form's inputs)
+      document.addEventListener("input", this._onInput, true);
+      document.addEventListener("change", this._onInput, true);
+
+      this._onUnload = function () {
+        delete pkDialogDrafts[self.el.id];
+      };
+      window.addEventListener("beforeunload", this._onUnload);
+
+      // Reconnect restore: mounted() runs again after a reconnect re-mount.
+      // If we were disconnected and still hold a draft, hand it back so the
+      // server can reopen the modal with the user's data.
+      this._maybeRestore();
+    },
+
+    updated() {
+      this._maybeRestore();
+    },
+
+    _maybeRestore() {
+      if (!pkWasDisconnected) return;
+      var draft = pkDialogDrafts[this.el.id];
+      if (!draft) {
+        pkWasDisconnected = false;
+        return;
+      }
+      // only restore into a modal the server hasn't already reopened
+      if (this.el.dataset.draftActive === "true") return;
+      pkWasDisconnected = false;
+      this.pushEvent(this.restoreEvent, draft);
+    },
+
+    destroyed() {
+      document.removeEventListener("input", this._onInput, true);
+      document.removeEventListener("change", this._onInput, true);
+      window.removeEventListener("beforeunload", this._onUnload);
+    },
   };
 
   window.PhoenixKitHooks.AnnotationComposerPosition = {
@@ -2997,8 +3212,18 @@ if (typeof window.Chart === "undefined") {
         this.isOpen ? this._close() : this._open();
       };
 
+      // Checked against both `this.el` and `this.menu` — while open, the menu
+      // is portaled to <body> (see `_open()`), so it's no longer a descendant
+      // of `this.el`. Without the `this.menu.contains` check, tapping a menu
+      // item is treated as an "outside" click: this capture-phase listener
+      // fires before the item's own click handler, closes the menu, and
+      // moves it back out from under <body> mid-dispatch. WebKit (desktop and
+      // iPadOS Safari — the only engine on iOS/iPadOS) drops the in-flight
+      // click when its target is relocated during capture, so the item's
+      // action (navigate/phx-click) never runs even though other engines
+      // tolerate the move and still deliver it.
       this._onOutsideClick = (e) => {
-        if (!this.el.contains(e.target)) this._close();
+        if (!this.el.contains(e.target) && !this.menu.contains(e.target)) this._close();
       };
 
       this._onKeydown = (e) => {
@@ -4755,6 +4980,355 @@ if (typeof window.Chart === "undefined") {
 // the wrappers above don't explicitly cover (e.g. a future hook added by
 // one of the libs). No-ops when the global is missing.
 // ===========================================================================
+
+// SearchPicker — generic instant typeahead for "search a source, pick an
+// entry" fields (extracted from phoenix_kit_crm's involved-parties picker).
+// The dropdown is rendered and shown ENTIRELY client-side (opening, the
+// optional "Add … as free text" row, spinners), so nothing visual waits on
+// the server; the server only runs the actual search and returns rows via
+// push_event. Rows: {kind, uuid, label, sublabel?, icon?}.
+//
+// Configured via data attributes on the input:
+//   data-dropdown        id of the dropdown container (phx-update="ignore")
+//   data-search-event    pushed as {q, limit}            (default "picker_search")
+//   data-results-event   handleEvent name for rows       (default "picker_results";
+//                        payload {q, results, has_more})
+//   data-pick-event      pushed as {kind, uuid, label}   (default "picker_pick")
+//   data-text-event      pushed as {name}; free-text row only renders when set
+//   data-staged-event    handleEvent confirming a pick   (default "picker_staged")
+//   data-search-on-focus when present, focusing/clicking the input runs a
+//                        search immediately (empty query included) so the
+//                        full list opens on click — suits short curated
+//                        sources like locations
+//   data-mode            "multi" (default) or "single" — single sets the
+//                        input's value to the picked label client-side,
+//                        dispatches an input event (so a surrounding form's
+//                        phx-change sees it) and closes; no staging round-trip
+//   data-t-*             translated strings (searching/add-prefix/add-suffix/
+//                        adding/more/loading-more/no-matches)
+(function () {
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+  function escAttr(s) {
+    return esc(s).replace(/"/g, "&quot;");
+  }
+
+  // Stable identity for de-duplicating rows across "Load more" pages. The
+  // server may send `dedup_id` (a PERSON identity that survives a row
+  // changing source/kind between pages); otherwise fall back to kind:uuid.
+  function dedupKey(r) {
+    return r.dedup_id != null ? "d:" + r.dedup_id : r.kind + ":" + r.uuid;
+  }
+
+  window.PhoenixKitHooks.SearchPicker = {
+    mounted() {
+      this.dd = document.getElementById(this.el.dataset.dropdown);
+      this.target = this.el.dataset.target || this.el;
+      this.mode = this.el.dataset.mode === "single" ? "single" : "multi";
+      this.searchOnFocus = this.el.dataset.searchOnFocus != null;
+      this.evSearch = this.el.dataset.searchEvent || "picker_search";
+      this.evResults = this.el.dataset.resultsEvent || "picker_results";
+      this.evPick = this.el.dataset.pickEvent || "picker_pick";
+      this.evText = this.el.dataset.textEvent || null;
+      this.evStaged = this.el.dataset.stagedEvent || "picker_staged";
+      this.results = [];
+      this.searching = false;
+      this.limit = 8;
+      this.hasMore = false;
+      this.loadingMore = false;
+
+      this.el.addEventListener("input", (e) => {
+        if (e._pkPickerSynthetic) return;
+        this.onInput();
+      });
+      this.el.addEventListener("keydown", (e) => this.onKeydown(e));
+      this.el.addEventListener("focus", () => {
+        if (this.searchOnFocus) this.kickSearch();
+        else if (this.el.value.trim()) this.render();
+      });
+      if (this.searchOnFocus) {
+        this.el.addEventListener("click", () => {
+          if (this.dd.classList.contains("hidden")) this.kickSearch();
+        });
+      }
+
+      this._docClick = (e) => {
+        if (!this.el.contains(e.target) && !this.dd.contains(e.target)) this.close();
+      };
+      document.addEventListener("click", this._docClick);
+
+      // mousedown (not click) so a pick registers before the input's blur.
+      this.dd.addEventListener("mousedown", (e) => this.onPick(e));
+
+      this.handleEvent(this.evResults, (payload) => {
+        // push_event broadcasts to every hook listening on this name — a
+        // second picker sharing the event name would render our rows.
+        // Servers echoing back the `id` we send get exact routing; the
+        // check is skipped when absent for backwards compatibility.
+        if (payload.id && payload.id !== this.el.id) return;
+        if (this.stagingNow) return;
+        if (this.el.value.trim() !== (payload.q || "")) return; // stale
+        var incoming = payload.results || [];
+
+        if (this.loadingMore) {
+          // "Load more" grows a per-source page, so a naive replace would
+          // re-order the flattened list (new rows land BETWEEN sources) and
+          // the user loses their place. APPEND only rows not already shown,
+          // so everything on screen stays put and the new ones arrive at the
+          // end. Dedup by `dedup_id` (a stable PERSON identity the server
+          // sends) rather than kind+uuid, so a person whose row flips source
+          // between pages (staff -> user once their user row enters the
+          // window) isn't shown twice. Falls back to kind:uuid when the
+          // server doesn't send dedup_id.
+          var seen = {};
+          this.results.forEach((r) => {
+            seen[dedupKey(r)] = true;
+          });
+          incoming.forEach((r) => {
+            if (!seen[dedupKey(r)]) {
+              this.results.push(r);
+              seen[dedupKey(r)] = true;
+            }
+          });
+        } else {
+          this.results = incoming;
+        }
+
+        this.hasMore = !!payload.has_more;
+        this.searching = false;
+        this.loadingMore = false;
+        this.render();
+      });
+
+      this.handleEvent(this.evStaged, (payload) => {
+        if (payload && payload.id && payload.id !== this.el.id) return;
+        this.stagingNow = false;
+        clearTimeout(this.stageT);
+        this.clear();
+      });
+    },
+
+    destroyed() {
+      document.removeEventListener("click", this._docClick);
+      clearTimeout(this.t);
+      clearTimeout(this.stageT);
+    },
+
+    onInput() {
+      var q = this.el.value.trim();
+      if (!q && !this.searchOnFocus) {
+        this.close();
+        return;
+      }
+      this.searching = true;
+      this.results = [];
+      this.limit = 8;
+      this.hasMore = false;
+      this.loadingMore = false;
+      this._restoreScroll = null;
+      this.render();
+      clearTimeout(this.t);
+      this.t = setTimeout(() => this.search(q), 180);
+    },
+
+    search(q) {
+      this.pushEventTo(this.target, this.evSearch, {
+        q: q,
+        limit: this.limit,
+        id: this.el.id,
+      });
+    },
+
+    kickSearch() {
+      this.searching = true;
+      this.results = [];
+      this.limit = 8;
+      this.hasMore = false;
+      this.loadingMore = false;
+      this._restoreScroll = null;
+      this.render();
+      clearTimeout(this.t);
+      this.t = setTimeout(() => this.search(this.el.value.trim()), 100);
+    },
+
+    loadMore() {
+      this.limit += 8;
+      this.loadingMore = true;
+      this._restoreScroll = this.scrollEl ? this.scrollEl.scrollTop : null;
+      this.render();
+      clearTimeout(this.t);
+      this.search(this.el.value.trim());
+    },
+
+    onKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var q = this.el.value.trim();
+        if (q && this.evText && this.mode !== "single") {
+          this.pushEventTo(this.target, this.evText, { name: q, id: this.el.id });
+          this.staging();
+        }
+      } else if (e.key === "Escape") {
+        this.close();
+      }
+    },
+
+    onPick(e) {
+      var btn = e.target.closest("[data-pick]");
+      if (!btn) return;
+      e.preventDefault();
+      if (btn.dataset.pick === "more") {
+        this.loadMore();
+        return;
+      }
+      if (this.mode === "single") {
+        // client-side value set; a synthetic input event lets a surrounding
+        // form's phx-change (and its server-side value mapping) see it
+        this.el.value = btn.dataset.label || "";
+        var ev = new Event("input", { bubbles: true });
+        ev._pkPickerSynthetic = true;
+        this.el.dispatchEvent(ev);
+        this.close();
+        return;
+      }
+      if (btn.dataset.pick === "text") {
+        var q = this.el.value.trim();
+        if (!q || !this.evText) return;
+        this.pushEventTo(this.target, this.evText, { name: q, id: this.el.id });
+      } else {
+        this.pushEventTo(this.target, this.evPick, {
+          kind: btn.dataset.kind,
+          uuid: btn.dataset.uuid,
+          label: btn.dataset.label,
+          id: this.el.id,
+        });
+      }
+      this.staging();
+    },
+
+    staging() {
+      this.stagingNow = true;
+      clearTimeout(this.t);
+      var tAdding = esc(this.el.dataset.tAdding || "Adding…");
+      this.dd.innerHTML =
+        '<div class="flex items-center gap-2 px-3 py-2 text-sm text-base-content/60">' +
+        '<span class="loading loading-spinner loading-xs"></span>' +
+        tAdding +
+        "</div>";
+      this.open();
+      clearTimeout(this.stageT);
+      this.stageT = setTimeout(() => {
+        this.stagingNow = false;
+        this.clear();
+      }, 3000);
+    },
+
+    render() {
+      var q = this.el.value.trim();
+      if (!q && !this.searchOnFocus) {
+        this.close();
+        return;
+      }
+      var tSearching = esc(this.el.dataset.tSearching || "Searching…");
+      var tAddPrefix = esc(this.el.dataset.tAddPrefix || "Add");
+      var tAddSuffix = esc(this.el.dataset.tAddSuffix || "as text");
+      var tMore = esc(this.el.dataset.tMore || "Load more");
+      var tLoadingMore = esc(this.el.dataset.tLoadingMore || "Loading…");
+      var tNoMatches = esc(this.el.dataset.tNoMatches || "No matches");
+
+      var top = "";
+      if (this.searching) {
+        top +=
+          '<div class="flex items-center gap-2 px-3 py-2 text-sm text-base-content/60 border-b border-base-200">' +
+          '<span class="loading loading-spinner loading-xs"></span>' +
+          tSearching +
+          "</div>";
+      }
+
+      var list = "";
+      this.results.forEach((r) => {
+        list +=
+          '<button type="button" data-pick="result" data-kind="' +
+          escAttr(r.kind) +
+          '" data-uuid="' +
+          escAttr(r.uuid) +
+          '" data-label="' +
+          escAttr(r.label) +
+          '" class="flex items-center justify-between w-full px-3 py-2 hover:bg-base-200 text-left">' +
+          '<span class="flex items-center gap-2 min-w-0">' +
+          '<span class="' +
+          escAttr(r.icon || "hero-user") +
+          ' w-4 h-4 shrink-0 text-base-content/50"></span>' +
+          '<span class="truncate">' +
+          esc(r.label) +
+          "</span></span>" +
+          '<span class="text-xs text-base-content/50 shrink-0 ml-2 truncate">' +
+          esc(r.sublabel || "") +
+          "</span></button>";
+      });
+      if (!this.searching && !this.loadingMore && this.results.length === 0) {
+        list +=
+          '<div class="px-3 py-2 text-sm text-base-content/50">' + tNoMatches + "</div>";
+      }
+      if (this.loadingMore) {
+        list +=
+          '<div class="flex items-center justify-center gap-2 px-3 py-2 text-xs text-base-content/50">' +
+          '<span class="loading loading-spinner loading-xs"></span>' +
+          tLoadingMore +
+          "</div>";
+      } else if (this.hasMore) {
+        list +=
+          '<button type="button" data-pick="more" class="w-full px-3 py-2 text-xs text-center text-primary hover:bg-base-200">' +
+          tMore +
+          "</button>";
+      }
+
+      var bottom = "";
+      if (q && this.evText && this.mode !== "single") {
+        bottom =
+          '<button type="button" data-pick="text" class="flex items-center gap-2 w-full px-3 py-2 hover:bg-base-200 text-left border-t border-base-200">' +
+          '<span class="hero-plus-mini w-4 h-4 shrink-0 text-base-content/50"></span>' +
+          "<span>" +
+          tAddPrefix +
+          ' "' +
+          esc(q) +
+          '" ' +
+          tAddSuffix +
+          "</span></button>";
+      }
+
+      this.dd.innerHTML =
+        top + '<div data-scroll class="max-h-56 overflow-y-auto">' + list + "</div>" + bottom;
+
+      this.scrollEl = this.dd.querySelector("[data-scroll]");
+      if (this._restoreScroll != null && this.scrollEl) {
+        this.scrollEl.scrollTop = this._restoreScroll;
+        if (!this.loadingMore) this._restoreScroll = null;
+      }
+      this.open();
+    },
+
+    open() {
+      this.dd.classList.remove("hidden");
+    },
+    close() {
+      this.dd.classList.add("hidden");
+      this.dd.innerHTML = "";
+    },
+    clear() {
+      this.el.value = "";
+      this.results = [];
+      this.searching = false;
+      this.stagingNow = false;
+      clearTimeout(this.stageT);
+      this.close();
+      this.el.focus();
+    },
+  };
+})();
 
 (function() {
   if (typeof window === "undefined") return;

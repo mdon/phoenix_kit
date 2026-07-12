@@ -72,7 +72,6 @@ defmodule PhoenixKit.Install.CssIntegration do
   defp integrate_css_automatically(igniter, css_path) do
     igniter
     |> Igniter.update_file(css_path, &add_smart_integration/1)
-    |> add_css_sources_compiler()
     |> ensure_css_sources_file(css_path)
     |> add_integration_success_notice(css_path)
   rescue
@@ -116,40 +115,6 @@ defmodule PhoenixKit.Install.CssIntegration do
     else
       source
     end
-  end
-
-  # Add :phoenix_kit_css_sources compiler to the parent app's mix.exs.
-  # This compiler auto-generates _phoenix_kit_sources.css on each compilation
-  # with @source directives for external PhoenixKit modules.
-  defp add_css_sources_compiler(igniter) do
-    Igniter.Project.MixProject.update(igniter, :project, [:compilers], fn
-      nil ->
-        # No :compilers key yet — must keep the defaults, so prepend to
-        # Mix.compilers() rather than replacing the whole list.
-        {:ok, {:code, quote(do: [:phoenix_kit_css_sources] ++ Mix.compilers())}}
-
-      zipper ->
-        case Igniter.Code.List.prepend_new_to_list(zipper, :phoenix_kit_css_sources) do
-          {:ok, zipper} -> {:ok, zipper}
-          :error -> {:warning, "Could not add :phoenix_kit_css_sources to compilers in mix.exs"}
-        end
-    end)
-  rescue
-    _ ->
-      Igniter.add_warning(
-        igniter,
-        """
-        ⚠️  Could not add :phoenix_kit_css_sources compiler to mix.exs.
-        Please add it manually:
-
-            def project do
-              [
-                ...,
-                compilers: [:phoenix_kit_css_sources] ++ Mix.compilers()
-              ]
-            end
-        """
-      )
   end
 
   # Create an initial _phoenix_kit_sources.css so the @import doesn't fail

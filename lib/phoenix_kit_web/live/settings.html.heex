@@ -321,26 +321,17 @@
                 {gettext("Per-user inbox driven by the activity feed")}
               </span>
             </label>
-            <div class="flex items-center gap-3">
-              <input type="hidden" name="settings[notifications_enabled]" value="false" />
-              <input
-                name="settings[notifications_enabled]"
-                type="checkbox"
-                value="true"
-                checked={@settings["notifications_enabled"] == "true"}
-                class="checkbox checkbox-primary"
-              />
-              <span class="label-text">
-                {gettext("Enable user notifications")}
-              </span>
-            </div>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
+            <.checkbox
+              name="settings[notifications_enabled]"
+              checked={@settings["notifications_enabled"] == "true"}
+              label={gettext("Enable user notifications")}
+            >
+              <:description>
                 {gettext(
                   "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
                 )}
-              </span>
-            </div>
+              </:description>
+            </.checkbox>
 
             <%!-- Default notification destination (catch-all click target) --%>
             <label class="label pt-3">
@@ -372,26 +363,17 @@
                 {gettext("Account switcher for signing in to several accounts at once")}
               </span>
             </label>
-            <div class="flex items-center gap-3">
-              <input type="hidden" name="settings[multi_session_enabled]" value="false" />
-              <input
-                name="settings[multi_session_enabled]"
-                type="checkbox"
-                value="true"
-                checked={@settings["multi_session_enabled"] == "true"}
-                class="checkbox checkbox-primary"
-              />
-              <span class="label-text">
-                {gettext("Enable the multi-account switcher in the header")}
-              </span>
-            </div>
-            <div class="label">
-              <span class="label-text-alt text-xs text-base-content/50">
+            <.checkbox
+              name="settings[multi_session_enabled]"
+              checked={@settings["multi_session_enabled"] == "true"}
+              label={gettext("Enable the multi-account switcher in the header")}
+            >
+              <:description>
                 {gettext(
                   "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
                 )}
-              </span>
-            </div>
+              </:description>
+            </.checkbox>
           </div>
 
           <.section_header icon="hero-clock" title={gettext("Date & Time")} />

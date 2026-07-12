@@ -11,6 +11,7 @@ defmodule PhoenixKit.Migrations.Postgres.V95 do
 
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
+    escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
     p = prefix_str(prefix)
 
     # Folders table
@@ -54,9 +55,10 @@ defmodule PhoenixKit.Migrations.Postgres.V95 do
     create_if_not_exists(index(:phoenix_kit_media_folders, [:parent_uuid], prefix: prefix))
     create_if_not_exists(index(:phoenix_kit_media_folders, [:user_uuid], prefix: prefix))
 
-    # Unique folder name per parent (COALESCE handles NULL parent for root-level uniqueness)
+    # Unique folder name per parent (COALESCE handles NULL parent for root-level uniqueness).
+    # The index name must stay bare — CREATE INDEX forbids schema-qualifying it.
     execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS #{p}phoenix_kit_media_folders_name_parent_idx
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_media_folders_name_parent_idx
     ON #{p}phoenix_kit_media_folders (name, COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'))
     """)
 
@@ -105,7 +107,8 @@ defmodule PhoenixKit.Migrations.Postgres.V95 do
     BEGIN
       IF NOT EXISTS (
         SELECT FROM information_schema.columns
-        WHERE table_name = 'phoenix_kit_files' AND column_name = 'folder_uuid'
+        WHERE table_schema = '#{escaped_prefix}'
+          AND table_name = 'phoenix_kit_files' AND column_name = 'folder_uuid'
       ) THEN
         ALTER TABLE #{p}phoenix_kit_files
           ADD COLUMN folder_uuid UUID

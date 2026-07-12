@@ -244,14 +244,22 @@ defmodule PhoenixKit.Users.OAuthConfig do
   """
   def validate_credentials(provider) when provider in [:google, :apple, :github, :facebook] do
     credentials = Settings.get_oauth_credentials_direct(provider)
-
-    case provider do
-      :google -> validate_google_credentials(credentials)
-      :apple -> validate_apple_credentials(credentials)
-      :github -> validate_github_credentials(credentials)
-      :facebook -> validate_facebook_credentials(credentials)
-    end
+    validate_credentials_map(provider, credentials)
   end
+
+  # Shared by validate_credentials/1 (DB-backed) and test_connection/2
+  # (caller-supplied map, e.g. unsaved form values) so both paths apply
+  # the exact same missing-field rules.
+  defp validate_credentials_map(:google, credentials),
+    do: validate_google_credentials(credentials)
+
+  defp validate_credentials_map(:apple, credentials), do: validate_apple_credentials(credentials)
+
+  defp validate_credentials_map(:github, credentials),
+    do: validate_github_credentials(credentials)
+
+  defp validate_credentials_map(:facebook, credentials),
+    do: validate_facebook_credentials(credentials)
 
   defp validate_google_credentials(credentials) do
     missing = find_missing_google_credentials(credentials)
@@ -339,19 +347,39 @@ defmodule PhoenixKit.Users.OAuthConfig do
       {:ok, "Google OAuth credentials are properly formatted"}
   """
   def test_connection(provider) when provider in [:google, :apple, :github, :facebook] do
-    case validate_credentials(provider) do
-      {:ok, _provider} ->
-        Logger.info(
-          "OAuth: #{provider_name(provider)} connection test successful - credentials validated"
-        )
+    test_connection_result(provider, validate_credentials(provider))
+  end
 
-        {:ok,
-         "#{provider_name(provider)} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
+  @doc """
+  Tests OAuth credentials for a specific provider against an explicit
+  credentials map, instead of reading from the database.
 
-      {:error, reason} ->
-        Logger.warning("OAuth: #{provider_name(provider)} connection test failed: #{reason}")
-        {:error, reason}
-    end
+  Use this to validate unsaved form values (e.g. an admin "Test
+  Credentials" button) before the settings are saved — `test_connection/1`
+  would otherwise validate the stale, already-persisted credentials.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.OAuthConfig.test_connection(:google, %{client_id: "x", client_secret: "y"})
+      {:ok, "Google OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
+  """
+  def test_connection(provider, %{} = credentials)
+      when provider in [:google, :apple, :github, :facebook] do
+    test_connection_result(provider, validate_credentials_map(provider, credentials))
+  end
+
+  defp test_connection_result(provider, {:ok, _provider}) do
+    Logger.info(
+      "OAuth: #{provider_name(provider)} connection test successful - credentials validated"
+    )
+
+    {:ok,
+     "#{provider_name(provider)} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
+  end
+
+  defp test_connection_result(provider, {:error, reason}) do
+    Logger.warning("OAuth: #{provider_name(provider)} connection test failed: #{reason}")
+    {:error, reason}
   end
 
   defp provider_name(:google), do: "Google"

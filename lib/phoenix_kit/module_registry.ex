@@ -342,7 +342,114 @@ defmodule PhoenixKit.ModuleRegistry do
   def all_feature_keys do
     all_permission_metadata()
     |> Enum.map(& &1.key)
+    |> Enum.filter(&valid_base_key?/1)
     |> Enum.sort()
+  end
+
+  @valid_sub_key_pattern ~r/^[a-z][a-z0-9_]*$/
+  @max_sub_key_length 50
+
+  # A base permission key must NOT contain a dot: the dot composes base+sub
+  # into a sub-key ("calendar" + "view_others" = "calendar.view_others"). A
+  # base literally named "calendar.view_others" would be indistinguishable
+  # from that composed sub-key — granting one would cascade the other's base,
+  # and revoking a base would delete the other module's row. Same pattern as
+  # sub-keys, dot excluded.
+  @valid_base_key_pattern ~r/^[a-z][a-z0-9_]*$/
+
+  @doc """
+  Whether a module base permission key is well-formed (lowercase, no dots,
+  within length). A dotted base key would collide with composed sub-keys, so
+  the permission plumbing ignores base keys that fail this check.
+  """
+  @spec valid_base_key?(String.t()) :: boolean()
+  def valid_base_key?(key) when is_binary(key) do
+    Regex.match?(@valid_base_key_pattern, key) and String.length(key) <= @max_sub_key_length
+  end
+
+  def valid_base_key?(_), do: false
+
+  @doc """
+  Returns the sub-permissions declared by registered modules, keyed by the
+  parent module key. Each entry carries the COMPOSED dotted key
+  (`"calendar.view_others"`) plus its label and description.
+
+  Malformed declarations (bad key format, missing fields, key over
+  #{@max_sub_key_length} chars, duplicate keys within one module) are dropped
+  with a logged warning rather than raising — a broken module must not take
+  down permission resolution for everyone else.
+  """
+  @spec sub_permission_map() :: %{String.t() => [map()]}
+  def sub_permission_map do
+    all_permission_metadata()
+    |> Enum.reduce(%{}, fn meta, acc ->
+      case valid_sub_permissions(meta) do
+        [] -> acc
+        subs -> Map.put(acc, meta.key, subs)
+      end
+    end)
+  end
+
+  defp valid_sub_permissions(%{key: base, sub_permissions: subs})
+       when is_list(subs) and is_binary(base) do
+    if valid_base_key?(base) do
+      valid_sub_permissions_for(base, subs)
+    else
+      Logger.warning(
+        "[ModuleRegistry] Dropping sub-permissions of #{inspect(base)}: " <>
+          "base key must not contain a dot (collides with composed sub-keys)"
+      )
+
+      []
+    end
+  end
+
+  defp valid_sub_permissions(_meta), do: []
+
+  defp valid_sub_permissions_for(base, subs) do
+    subs
+    |> Enum.filter(&valid_sub_permission?(base, &1))
+    |> Enum.uniq_by(& &1.key)
+    |> Enum.map(fn sub ->
+      %{
+        key: "#{base}.#{sub.key}",
+        label: sub.label,
+        description: Map.get(sub, :description, "")
+      }
+    end)
+  end
+
+  defp valid_sub_permission?(base, %{key: key, label: label})
+       when is_binary(key) and is_binary(label) do
+    cond do
+      not Regex.match?(@valid_sub_key_pattern, key) ->
+        Logger.warning(
+          "[ModuleRegistry] Dropping sub-permission #{inspect(key)} of #{inspect(base)}: " <>
+            "key must match ~r/^[a-z][a-z0-9_]*$/"
+        )
+
+        false
+
+      String.length(key) > @max_sub_key_length ->
+        Logger.warning(
+          "[ModuleRegistry] Dropping sub-permission #{inspect(key)} of #{inspect(base)}: " <>
+            "key exceeds max length of #{@max_sub_key_length}"
+        )
+
+        false
+
+      true ->
+        true
+    end
+  end
+
+  defp valid_sub_permission?(base, sub) do
+    Logger.warning(
+      "[ModuleRegistry] Dropping malformed sub-permission #{inspect(sub)} of #{inspect(base)}: " <>
+        "expected %{key: binary, label: binary, description: binary}"
+    )
+
+    false
   end
 
   @doc "Returns permission labels map from registered modules."

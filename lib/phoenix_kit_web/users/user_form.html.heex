@@ -3,6 +3,8 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
   current_path={@url_path}
   current_locale={@current_locale}
 >
@@ -553,21 +555,12 @@
                       required={field_def["required"]}
                     />
                   <% "boolean" -> %>
-                    <div class="flex items-center gap-3 mt-2">
-                      <input
-                        type="hidden"
-                        name={"user[custom_fields][#{field_key}]"}
-                        value="false"
-                      />
-                      <input
-                        type="checkbox"
-                        name={"user[custom_fields][#{field_key}]"}
-                        value="true"
-                        checked={field_value == true || field_value == "true"}
-                        class="checkbox checkbox-primary"
-                      />
-                      <span class="label-text">Enable this option</span>
-                    </div>
+                    <.checkbox
+                      name={"user[custom_fields][#{field_key}]"}
+                      checked={field_value == true || field_value == "true"}
+                      label="Enable this option"
+                      wrapper_class="mt-2"
+                    />
                   <% "date" -> %>
                     <input
                       type="date"
@@ -971,6 +964,7 @@
         id="media-selector-modal"
         show={@show_media_selector}
         mode={:single}
+        file_type_filter={:image}
         selected_uuids={[current_avatar_uuid]}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
@@ -980,6 +974,7 @@
         id="media-selector-modal"
         show={@show_media_selector}
         mode={:single}
+        file_type_filter={:image}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
     <% end %>

@@ -63,6 +63,7 @@ defmodule PhoenixKit.Migrations.Postgres.V119 do
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_annotations_kind_check'
+        AND conrelid = '#{p}phoenix_kit_annotations'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_annotations
           ADD CONSTRAINT phoenix_kit_annotations_kind_check
@@ -88,6 +89,7 @@ defmodule PhoenixKit.Migrations.Postgres.V119 do
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'phoenix_kit_annotations_kind_check'
+        AND conrelid = '#{p}phoenix_kit_annotations'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_annotations
           ADD CONSTRAINT phoenix_kit_annotations_kind_check

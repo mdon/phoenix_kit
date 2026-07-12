@@ -82,6 +82,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :phoenix_kit_current_user, :any, default: nil
   attr :page_title, :string, default: nil
   attr :page_subtitle, :string, default: nil
+
+  attr :page_section, :string,
+    default: nil,
+    doc:
+      "Optional breadcrumb segment rendered between \"Admin Panel\" and `page_title` (e.g. \"Users\" on a user detail page). Desktop only — collapses along with the rest of the breadcrumb prefix on mobile."
+
+  attr :page_section_path, :string,
+    default: nil,
+    doc:
+      "Prefixed path (via `PhoenixKit.Utils.Routes.path/1`) the `page_section` crumb links to. Renders as plain text when omitted."
+
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
@@ -272,6 +283,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               current_path: assigns[:current_path],
               page_title: assigns[:page_title],
               page_subtitle: assigns[:page_subtitle],
+              page_section: assigns[:page_section],
+              page_section_path: assigns[:page_section_path],
               phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
               project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
               current_locale: assigns[:current_locale],
@@ -378,6 +391,22 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                          drop their own in-content header and reclaim the space. --%>
                     <span :if={@page_title} class="flex items-center gap-1.5 min-w-0">
                       <span class="text-base-content/30 shrink-0 hidden sm:inline">/</span>
+                      <span
+                        :if={@page_section}
+                        class="hidden sm:flex items-center gap-1.5 shrink-0"
+                      >
+                        <.link
+                          :if={@page_section_path}
+                          navigate={@page_section_path}
+                          class="font-semibold text-base-content/60 hover:text-base-content transition-opacity"
+                        >
+                          {@page_section}
+                        </.link>
+                        <span :if={!@page_section_path} class="font-semibold text-base-content/60">
+                          {@page_section}
+                        </span>
+                        <span class="text-base-content/30">/</span>
+                      </span>
                       <span class="font-semibold text-base-content truncate min-w-0">{@page_title}</span>
                       <span
                         :if={@page_subtitle}

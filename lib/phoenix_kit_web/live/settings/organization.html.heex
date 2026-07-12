@@ -275,16 +275,9 @@
               <%!-- Row: Enable Tax + Tax Rate --%>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                 <div class="form-control">
-                  <label class="label cursor-pointer justify-start gap-3">
-                    <input
-                      type="checkbox"
-                      name="tax_enabled"
-                      value="true"
-                      checked={@tax_enabled}
-                      class="checkbox checkbox-primary"
-                    />
-                    <span class="label-text font-medium">{gettext("Enable Tax")}</span>
-                  </label>
+                  <.checkbox name="tax_enabled" checked={@tax_enabled}>
+                    <span class="font-medium">{gettext("Enable Tax")}</span>
+                  </.checkbox>
                 </div>
 
                 <div class="form-control">
