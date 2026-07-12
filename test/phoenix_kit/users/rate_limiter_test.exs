@@ -206,6 +206,39 @@ defmodule PhoenixKit.Users.RateLimiterTest do
     end
   end
 
+  describe "check_qr_login_rate_limit/1" do
+    test "allows requests within rate limit", %{unique_id: id} do
+      ip = "172.16.0.#{rem(id, 255)}"
+
+      # First 10 attempts should succeed (default QR login limit)
+      for _ <- 1..10 do
+        assert :ok = RateLimiter.check_qr_login_rate_limit(ip)
+      end
+    end
+
+    test "blocks requests after exceeding rate limit", %{unique_id: id} do
+      ip = "172.16.1.#{rem(id, 255)}"
+
+      for _ <- 1..10 do
+        assert :ok = RateLimiter.check_qr_login_rate_limit(ip)
+      end
+
+      assert {:error, :rate_limit_exceeded} = RateLimiter.check_qr_login_rate_limit(ip)
+    end
+
+    test "rate limits are per-IP", %{unique_id: id} do
+      ip1 = "172.16.2.#{rem(id, 255)}"
+      ip2 = "172.16.3.#{rem(id, 255)}"
+
+      for _ <- 1..10 do
+        assert :ok = RateLimiter.check_qr_login_rate_limit(ip1)
+      end
+
+      assert {:error, :rate_limit_exceeded} = RateLimiter.check_qr_login_rate_limit(ip1)
+      assert :ok = RateLimiter.check_qr_login_rate_limit(ip2)
+    end
+  end
+
   describe "get_remaining_attempts/2" do
     test "returns correct remaining attempts for login", %{unique_id: id} do
       email = "remaining_login_#{id}@example.com"

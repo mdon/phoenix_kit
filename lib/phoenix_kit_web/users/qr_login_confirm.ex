@@ -14,41 +14,66 @@ defmodule PhoenixKitWeb.Users.QrLoginConfirm do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.QrLogin, as: QrLoginContext
+  alias PhoenixKit.Utils.Routes
 
   def mount(%{"token" => token}, _session, socket) do
-    {state, meta} =
-      case QrLoginContext.peek(token) do
-        {:ok, %{state: :pending, meta: meta}} -> {:pending, meta}
-        {:ok, %{state: :approved, meta: meta}} -> {:approved, meta}
-        # not_found / expired both present as "expired" to the user — the
-        # code is no longer actionable either way.
-        _ -> {:expired, %{}}
-      end
-
     socket =
       socket
       |> assign(:token, token)
-      |> assign(:kf_state, state)
-      |> assign(:meta, meta)
       |> assign(:project_title, PhoenixKit.Settings.get_project_title())
       |> assign(:page_title, gettext("Approve sign-in"))
 
-    {:ok, socket}
+    cond do
+      # Disabling the setting must act as an immediate kill switch — even
+      # for a request minted while it was on.
+      not QrLoginContext.enabled?() ->
+        {:ok,
+         socket
+         |> put_flash(:error, gettext("QR code sign-in is not available."))
+         |> redirect(to: Routes.path("/"))}
+
+      # peek/2 is a read-only, idempotent ETS lookup, but gate it behind
+      # connected? anyway so a future non-ETS (e.g. DB/Redis) keyfob store
+      # doesn't get queried on both the dead and the connected mount.
+      connected?(socket) ->
+        {state, meta} =
+          case QrLoginContext.peek(token) do
+            {:ok, %{state: :pending, meta: meta}} -> {:pending, meta}
+            {:ok, %{state: :approved, meta: meta}} -> {:approved, meta}
+            # not_found / expired both present as "expired" to the user —
+            # the code is no longer actionable either way.
+            _ -> {:expired, %{}}
+          end
+
+        {:ok, socket |> assign(:kf_state, state) |> assign(:meta, meta)}
+
+      true ->
+        {:ok, socket |> assign(:kf_state, :pending) |> assign(:meta, %{})}
+    end
   end
 
   def handle_event("keyfob_approve", _params, socket) do
-    user = socket.assigns.phoenix_kit_current_user
+    if QrLoginContext.enabled?() do
+      user = socket.assigns.phoenix_kit_current_user
 
-    case QrLoginContext.approve(socket.assigns.token, user.uuid) do
-      :ok ->
-        QrLoginContext.log_approval(user, socket.assigns.meta)
-        {:noreply, assign(socket, :kf_state, :approved)}
+      case QrLoginContext.approve(socket.assigns.token, user.uuid) do
+        :ok ->
+          QrLoginContext.log_approval(user, socket.assigns.meta)
+          {:noreply, assign(socket, :kf_state, :approved)}
 
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(:kf_state, error_state(reason))
-         |> put_flash(:error, error_message(reason))}
+        {:error, reason} ->
+          {:noreply,
+           socket
+           |> assign(:kf_state, error_state(reason))
+           |> put_flash(:error, error_message(reason))}
+      end
+    else
+      # The setting was disabled after this page loaded — refuse the
+      # approval instead of letting an in-flight flow complete.
+      {:noreply,
+       socket
+       |> assign(:kf_state, :expired)
+       |> put_flash(:error, gettext("QR code sign-in is not available."))}
     end
   end
 

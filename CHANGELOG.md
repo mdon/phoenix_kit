@@ -1,3 +1,58 @@
+## 1.7.189 - 2026-07-12
+
+### Added
+- **QR device-handoff login ("scan to sign in").** A signed-out browser at
+  `/users/qr-login` shows a QR code; an already-signed-in phone scans it
+  (native camera, no app needed), reviews the requesting device
+  (browser/OS/IP), and taps Approve — the desktop signs in with no
+  password. Approval always happens on the trusted phone; the desktop
+  receives nothing until the phone approves. Built on the new
+  [`keyfob`](https://hex.pm/packages/keyfob) library. Off by default —
+  enable at Admin → Settings → Authorization → "Enable QR code sign-in".
+  Post-merge hardening: the `qr_login_enabled` setting is now enforced as
+  an immediate kill switch on the phone-approval and completion paths (not
+  just the desktop entry point), and request creation is rate-limited per
+  IP (`PhoenixKit.Users.RateLimiter.check_qr_login_rate_limit/1`) to guard
+  the public, pre-auth mint endpoint against ETS-table exhaustion.
+
+### Fixed
+- **Prefix hardening for low-privilege multi-schema installs**, driven by
+  a field report from a hardened install (DBA-pre-created schema, no
+  database-level CREATE, PG15+ non-writable `public`, PgBouncer):
+  `CREATE EXTENSION`/`CREATE SCHEMA` now check `pg_extension`/
+  `information_schema.schemata` before attempting creation (Postgres
+  checks the CREATE privilege *before* the IF-NOT-EXISTS short-circuit,
+  failing low-privilege roles even when the object already exists); V27
+  now threads `create_schema: false` through to Oban's migration so it
+  can't re-default to `true` and execute a failing `CREATE SCHEMA`
+  mid-chain; `uuid_generate_v7()` is now created inside the install's
+  schema (not wherever `search_path` happens to point) with all ~89 call
+  sites schema-qualified, including the pgcrypto `gen_random_bytes` call
+  inside the function body; the prefix is validated at every entry point.
+  New runtime `PhoenixKit.SchemaPrefix` (all 21 table-backed schemas
+  adopt it) means prefixed installs no longer depend on the DB role's
+  `search_path` for ordinary queries. Install/update/status/gen.migration
+  tooling now persists and resolves `--prefix` correctly, distinguishes an
+  unreachable database from a genuinely absent install, and warns when an
+  existing host Oban config lacks the install's prefix.
+  Post-merge: fixed a matching unqualified-call bug the same PR's own
+  sweep missed — V26's pgcrypto `digest()` backfill call was still bare
+  (same failure mode as the pre-fix `uuid_generate_v7()`, now qualified
+  via the new `Helpers.pgcrypto_call/1`) — and fixed the new Oban
+  prefix-detection regex to skip commented-out config blocks (it could
+  both false-positive on a commented example block and false-negative
+  when a commented block happened to mention `prefix:`, masking a
+  genuinely unprefixed active block).
+- **daisyUI modal scrollbar-gutter compensations removed.** Fixes a
+  reported "clicked cancel and a scroll bar showed up" bug on scrolling
+  pages: daisyUI ≥ 5.1's own conditional gutter reservation handles both
+  scrolling and non-scrolling pages correctly on its own, so core's
+  1.7.179 counter-rules and PkDialog's inline override were fighting it
+  and causing the reflow. `PhoenixKit.Install.DaisyUI` now declares a
+  designed-for minimum (5.6.0) and warns hosts on an older vendored
+  daisyUI via `phoenix_kit.install`/`.update`/`.doctor` — advisory only,
+  nothing touches host files.
+
 ## 1.7.188 - 2026-07-12
 
 ### Security

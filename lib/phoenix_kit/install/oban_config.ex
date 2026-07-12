@@ -63,11 +63,23 @@ defmodule PhoenixKit.Install.ObanConfig do
   def oban_block_missing_prefix?(content) when is_binary(content) do
     case Regex.scan(
            ~r/config\s+:\w+,\s+Oban\b(.*?)(?=\n(?:config\s|import_config\s)|\z)/s,
-           content
+           strip_comment_lines(content)
          ) do
       [] -> false
       blocks -> Enum.all?(blocks, fn [_, body] -> not String.contains?(body, "prefix:") end)
     end
+  end
+
+  # Drops comment-only lines before block scanning — otherwise a
+  # commented-out example Oban block can false-positive a "missing
+  # prefix" warning for a file with no active block, or a commented block
+  # that happens to mention `prefix:` can mask a genuinely unprefixed
+  # active block (false negative, defeating the check).
+  defp strip_comment_lines(content) do
+    content
+    |> String.split("\n")
+    |> Enum.reject(&String.starts_with?(String.trim(&1), "#"))
+    |> Enum.join("\n")
   end
 
   # Existing Oban configs on a prefixed install must carry prefix: — the
@@ -85,7 +97,10 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> Enum.filter(&File.exists?/1)
       |> Enum.map(&File.read!/1)
 
-    has_block? = fn content -> Regex.match?(~r/config\s+:\w+,\s+Oban\b/, content) end
+    has_block? = fn content ->
+      Regex.match?(~r/config\s+:\w+,\s+Oban\b/, strip_comment_lines(content))
+    end
+
     any_block = Enum.any?(contents, has_block?)
 
     any_block_with_prefix =

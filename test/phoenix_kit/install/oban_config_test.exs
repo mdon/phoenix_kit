@@ -69,5 +69,35 @@ defmodule PhoenixKit.Install.ObanConfigTest do
 
       assert ObanConfig.oban_block_missing_prefix?(content)
     end
+
+    test "a commented-out example Oban block is not a real block (no false positive)" do
+      content = """
+      # Example:
+      # config :my_app, Oban,
+      #   repo: MyApp.Repo,
+      #   queues: [default: 10]
+
+      config :my_app, MyAppWeb.Endpoint, url: [host: "localhost"]
+      """
+
+      refute ObanConfig.oban_block_missing_prefix?(content)
+    end
+
+    test "a commented block mentioning prefix: does not mask a real block lacking it" do
+      # Regression: a commented-out block that happens to contain
+      # `prefix:` must not satisfy the check for the genuinely active
+      # Oban block below it, which lacks one.
+      content = """
+      # config :my_app, Oban,
+      #   prefix: "example",
+      #   queues: [default: 10]
+
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10]
+      """
+
+      assert ObanConfig.oban_block_missing_prefix?(content)
+    end
   end
 end

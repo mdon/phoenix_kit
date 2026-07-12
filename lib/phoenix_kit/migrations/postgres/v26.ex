@@ -43,10 +43,13 @@ defmodule PhoenixKit.Migrations.Postgres.V26 do
       add :user_file_checksum, :string
     end
 
-    # Backfill existing records with user_file_checksum
+    # Backfill existing records with user_file_checksum. digest/2 is
+    # schema-qualified — a plpgsql-free direct call still resolves via the
+    # CALLING role's search_path, so an unqualified call fails when
+    # pgcrypto lives outside it (same reasoning as uuid_generate_v7()).
     execute """
     UPDATE #{prefix}.phoenix_kit_files
-    SET user_file_checksum = encode(digest(CAST(user_id AS text) || file_checksum, 'sha256'), 'hex')
+    SET user_file_checksum = encode(#{Helpers.pgcrypto_call("digest")}(CAST(user_id AS text) || file_checksum, 'sha256'), 'hex')
     WHERE user_file_checksum IS NULL
     """
 

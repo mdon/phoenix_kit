@@ -14,6 +14,8 @@ defmodule PhoenixKitWeb.Users.QrLogin do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Users.QrLogin, as: QrLoginContext
+  alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth
 
@@ -36,15 +38,24 @@ defmodule PhoenixKitWeb.Users.QrLogin do
              |> redirect(to: Routes.path("/users/log-in"))}
 
           connected?(socket) ->
-            socket =
-              Keyfob.Live.init_panel(socket,
-                confirm_url: &confirm_url/1,
-                meta: QrLoginContext.device_meta(socket),
-                pubsub: QrLoginContext.pubsub(),
-                ttl_ms: @request_ttl_ms
-              )
+            case rate_limit_mint(socket) do
+              :ok ->
+                socket =
+                  Keyfob.Live.init_panel(socket,
+                    confirm_url: &confirm_url/1,
+                    meta: QrLoginContext.device_meta(socket),
+                    pubsub: QrLoginContext.pubsub(),
+                    ttl_ms: @request_ttl_ms
+                  )
 
-            {:ok, socket |> assign_common() |> schedule_expiry()}
+                {:ok, socket |> assign_common() |> schedule_expiry()}
+
+              {:error, :rate_limit_exceeded} ->
+                {:ok,
+                 socket
+                 |> put_flash(:error, gettext("Too many attempts. Please try again shortly."))
+                 |> redirect(to: Routes.path("/users/log-in"))}
+            end
 
           true ->
             # Dead render: the request is minted on connect (so it isn't
@@ -73,6 +84,17 @@ defmodule PhoenixKitWeb.Users.QrLogin do
 
   defp complete(socket, login_token) do
     {:noreply, redirect(socket, to: Routes.path("/users/qr-login/finish/#{login_token}"))}
+  end
+
+  # Every connect to this public, pre-auth page mints a live keyfob request
+  # (an ETS entry) — guard the mint itself, not just the page render.
+  # extract_from_socket/1 always returns a string ("unknown" when peer_data
+  # is unavailable), so unknown-IP connects simply share one rate-limit
+  # bucket rather than bypassing the check.
+  defp rate_limit_mint(socket) do
+    socket
+    |> IpAddress.extract_from_socket()
+    |> RateLimiter.check_qr_login_rate_limit()
   end
 
   defp schedule_expiry(socket) do

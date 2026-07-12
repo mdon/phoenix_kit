@@ -92,6 +92,21 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   def uuid_v7_call(prefix), do: "#{schema(prefix)}.uuid_generate_v7()"
 
   @doc """
+  Schema-qualified pgcrypto function reference for SQL interpolation in
+  migration context, e.g. `"\#{Helpers.pgcrypto_call("digest")}(...)"`.
+
+  Resolves pgcrypto's actual installation schema (same lookup used by
+  `ensure_uuid_v7_function/1`) so the call works regardless of the
+  connecting role's `search_path` — required whenever pgcrypto was
+  installed outside the default search path (e.g. alongside a custom
+  prefix schema in a hardened multi-schema install). Call after
+  `ensure_extension!("pgcrypto")` so the extension is already visible.
+  """
+  @spec pgcrypto_call(String.t()) :: String.t()
+  def pgcrypto_call(function_name),
+    do: "#{pgcrypto_schema(Ecto.Migration.repo())}.#{function_name}"
+
+  @doc """
   Validates a schema prefix before it is interpolated into SQL.
 
   The migration chain interpolates the prefix into hundreds of

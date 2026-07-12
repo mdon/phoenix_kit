@@ -19,7 +19,8 @@ defmodule PhoenixKitWeb.Users.QrLoginComplete do
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
   def complete(conn, %{"token" => token}) do
-    with {:ok, user_uuid} <- QrLoginContext.consume(token),
+    with true <- QrLoginContext.enabled?(),
+         {:ok, user_uuid} <- QrLoginContext.consume(token),
          %{} = user <- Users.get_user(user_uuid) do
       conn
       |> put_flash(:info, gettext("Signed in with QR code."))
