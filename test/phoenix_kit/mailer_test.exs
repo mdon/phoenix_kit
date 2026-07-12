@@ -13,6 +13,21 @@ defmodule PhoenixKit.MailerTest.FakeBrevoApiClient do
   end
 end
 
+defmodule PhoenixKit.Modules.Emails.RateLimiter do
+  @moduledoc false
+  # Stands in for the optional `emails` package's real RateLimiter (core has
+  # no dependency on `phoenix_kit_emails` — confirmed absent from
+  # `mix.exs`), so `Mailer.check_recipient_allowed/1`'s soft-call
+  # (`Code.ensure_loaded?/1` + `function_exported?/3` + `apply/3`) can be
+  # exercised for real instead of only the "module absent" branch — the
+  # same reason `FakeBrevoApiClient`/`TrackingProvider` below stand in for
+  # other optional/external behaviour. Mirrors the real
+  # `check_limits/1` contract: `:ok | {:blocked, reason}`, deterministic on
+  # the recipient address so no shared mutable state is needed.
+  def check_limits(%{to: "blocked@example.com"}), do: {:blocked, :blocklist}
+  def check_limits(%{to: _}), do: :ok
+end
+
 defmodule PhoenixKit.MailerTest.TrackingProvider do
   @moduledoc false
   # A `PhoenixKit.Email.Provider` implementation that notifies the test
@@ -150,12 +165,47 @@ defmodule PhoenixKit.MailerTest do
     end
   end
 
+  describe "deliver_email/2 — recipient blocklist enforcement (E2)" do
+    test "a blocklisted recipient is rejected without attempting delivery" do
+      email =
+        new()
+        |> to("blocked@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Hi")
+
+      assert {:error, {:blocked, :blocklist}} = Mailer.deliver_email(email)
+      refute_received {:email, _}
+    end
+
+    test "a normal recipient still delivers" do
+      email =
+        new() |> to("ok@example.com") |> Swoosh.Email.from("from@example.com") |> subject("Hi")
+
+      assert {:ok, _} = Mailer.deliver_email(email)
+      assert_received {:email, _}
+    end
+  end
+
   describe "deliver_via_integration/3" do
     test "returns an error when the integration uuid doesn't resolve" do
       email =
         new() |> to("to@example.com") |> Swoosh.Email.from("from@example.com") |> subject("Hi")
 
       assert {:error, :deleted} =
+               Mailer.deliver_via_integration(email, Ecto.UUID.generate())
+    end
+
+    test "a blocklisted recipient is rejected before the integration is even resolved (E2)" do
+      email =
+        new()
+        |> to("blocked@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Hi")
+
+      # A bogus uuid would normally surface as {:error, :deleted} (see test
+      # above) -- getting {:blocked, ...} instead proves the recipient check
+      # runs first, ahead of Integrations.get_credentials/1.
+      assert {:error, {:blocked, :blocklist}} =
                Mailer.deliver_via_integration(email, Ecto.UUID.generate())
     end
 

@@ -30,6 +30,15 @@ defmodule PhoenixKit.Mailer do
 
   require Logger
 
+  # Soft dependency: the optional `emails` package (not a dependency of
+  # core) owns the recipient blocklist and send-rate limits (hard bounces,
+  # spam complaints, per-recipient/global caps). Referencing it as a bare
+  # module name costs nothing at compile time; `check_recipient_allowed/1`
+  # below guards every call with `Code.ensure_loaded?/1`, so this file has
+  # no hard dependency on the optional package and every recipient is
+  # implicitly allowed when it isn't installed.
+  @emails_rate_limiter PhoenixKit.Modules.Emails.RateLimiter
+
   @doc """
   Gets the mailer module to use for sending emails.
 
@@ -168,36 +177,40 @@ defmodule PhoenixKit.Mailer do
   Otherwise uses the built-in PhoenixKit mailer.
 
   This function also integrates with the email tracking system to log
-  outgoing emails when tracking is enabled.
+  outgoing emails when tracking is enabled. Recipients blocklisted (or over
+  the send-rate limits) by the emails module are rejected before any
+  tracking or delivery is attempted — see `check_recipient_allowed/1`.
   """
   def deliver_email(email, opts \\ []) do
-    # Intercept email for tracking before sending
-    tracked_email = Provider.current().intercept_before_send(email, opts)
+    with :ok <- check_recipient_allowed(email) do
+      # Intercept email for tracking before sending
+      tracked_email = Provider.current().intercept_before_send(email, opts)
 
-    mailer = get_mailer()
+      mailer = get_mailer()
 
-    result =
-      if mailer == __MODULE__ do
-        # Use built-in mailer with runtime config for AWS
-        deliver_with_runtime_config(tracked_email, mailer)
-      else
-        # Check if parent mailer also uses AWS SES
-        app = PhoenixKit.Config.get_parent_app()
-        config = Application.get_env(app, mailer, [])
-
-        if config[:adapter] == Swoosh.Adapters.AmazonSES do
-          # Parent mailer uses AWS SES, provide runtime config
-          deliver_with_runtime_config(tracked_email, mailer, app)
+      result =
+        if mailer == __MODULE__ do
+          # Use built-in mailer with runtime config for AWS
+          deliver_with_runtime_config(tracked_email, mailer)
         else
-          # Non-AWS mailer, use standard delivery
-          mailer.deliver(tracked_email)
+          # Check if parent mailer also uses AWS SES
+          app = PhoenixKit.Config.get_parent_app()
+          config = Application.get_env(app, mailer, [])
+
+          if config[:adapter] == Swoosh.Adapters.AmazonSES do
+            # Parent mailer uses AWS SES, provide runtime config
+            deliver_with_runtime_config(tracked_email, mailer, app)
+          else
+            # Non-AWS mailer, use standard delivery
+            mailer.deliver(tracked_email)
+          end
         end
-      end
 
-    # Handle post-send tracking updates
-    Provider.current().handle_after_send(tracked_email, result)
+      # Handle post-send tracking updates
+      Provider.current().handle_after_send(tracked_email, result)
 
-    result
+      result
+    end
   end
 
   # Deliver email with runtime configuration for AWS SES
@@ -246,6 +259,9 @@ defmodule PhoenixKit.Mailer do
   ## Returns
 
   - `{:ok, term()}` — delivered
+  - `{:error, {:blocked, atom()}}` — recipient is blocklisted or over the
+    emails module's send-rate limits (checked before the integration is
+    even resolved)
   - `{:error, :not_configured | :deleted}` — the integration uuid didn't resolve
   - `{:error, {:unsupported_provider, String.t()}}` — the integration's
     provider has no known Swoosh adapter mapping
@@ -254,7 +270,8 @@ defmodule PhoenixKit.Mailer do
           {:ok, term()} | {:error, term()}
   def deliver_via_integration(email, integration_uuid, opts \\ [])
       when is_binary(integration_uuid) do
-    with {:ok, creds} <- Integrations.get_credentials(integration_uuid),
+    with :ok <- check_recipient_allowed(email),
+         {:ok, creds} <- Integrations.get_credentials(integration_uuid),
          {:ok, {adapter, config}} <- swoosh_config_for(creds) do
       # Tell the tracking interceptor which provider actually sent this. Without
       # it, `detect_provider/2` falls back to the host app's static mailer
@@ -335,6 +352,41 @@ defmodule PhoenixKit.Mailer do
   end
 
   defp parse_smtp_port(_), do: nil
+
+  # Checks every `to` recipient against the emails module's blocklist/rate
+  # limiter before a message reaches a Swoosh adapter. Must run before
+  # `intercept_before_send/2` — that callback returns a `Swoosh.Email.t()`
+  # with no abort channel, so it has no way to refuse a blocked send. This
+  # is the one chokepoint `deliver_email/2` and `deliver_via_integration/3`
+  # both pass through, so enforcement lives here rather than in the
+  # interceptor.
+  @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
+  defp check_recipient_allowed(%Swoosh.Email{to: recipients}) do
+    Enum.reduce_while(recipients, :ok, fn {_name, address}, :ok ->
+      case check_rate_limits(address) do
+        :ok -> {:cont, :ok}
+        {:blocked, reason} -> {:halt, {:error, {:blocked, reason}}}
+      end
+    end)
+  end
+
+  defp check_rate_limits(address) do
+    if Code.ensure_loaded?(@emails_rate_limiter) and
+         function_exported?(@emails_rate_limiter, :check_limits, 1) do
+      # apply/3 intentionally, to avoid compile-time module resolution --
+      # a direct `@emails_rate_limiter.check_limits/1` call would fail
+      # `--warnings-as-errors` when the optional emails package isn't a
+      # dependency (the compiler can prove the module is undefined).
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      apply(@emails_rate_limiter, :check_limits, [%{to: address}])
+    else
+      :ok
+    end
+  rescue
+    error ->
+      Logger.error("Recipient blocklist check failed, allowing send: #{inspect(error)}")
+      :ok
+  end
 
   @doc """
   Sends a magic link email to the user.
