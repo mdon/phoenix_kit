@@ -1,3 +1,20 @@
+## 1.7.187 - 2026-07-12
+
+### Fixed
+- **`data-confirm` was silently swallowed on `BulkSelectScope` action buttons.**
+  The hook's `_onActionClick` calls `e.preventDefault()` synchronously on
+  every `data-bulk-action` click; `phoenix_html`'s own window-level click
+  listener (which implements `data-confirm`) bails out early via `if
+  (e.defaultPrevented) return;`, so its confirm dialog never fired. Any
+  button carrying both `data-confirm` and `data-bulk-action` — most notably
+  bulk/permanent delete — executed with no prompt. The hook now checks
+  `data-confirm` itself and calls `window.confirm()` before proceeding,
+  mirroring `phoenix_html`'s native behavior; cancelling stops the click
+  and the LiveView event is never pushed. Found while migrating
+  `phoenix_kit_comments`, `phoenix_kit_posts`, and `phoenix_kit_entities` to
+  BulkSelect — all three already pair `data-confirm` with a destructive
+  bulk action and are fixed retroactively once they pick up this release.
+
 ## 1.7.186 - 2026-07-12
 
 ### Fixed
