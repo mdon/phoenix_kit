@@ -100,10 +100,12 @@ defmodule PhoenixKit.MailerTest do
       assert config[:port] == 587
       assert config[:username] == "sub1@smtp-brevo.com"
       assert config[:password] == "xsmtpsib-1"
-      assert config[:tls] == :if_available
+      # 587 = mandatory STARTTLS, fail-closed (no plaintext downgrade)
+      assert config[:tls] == :always
+      refute Keyword.has_key?(config, :ssl)
     end
 
-    test "smtp credentials on port 465 use tls: :always" do
+    test "smtp credentials on port 465 use implicit TLS (ssl: true), not STARTTLS" do
       creds = %{
         "provider" => "smtp",
         "host" => "smtp.example.com",
@@ -114,7 +116,21 @@ defmodule PhoenixKit.MailerTest do
 
       assert {:ok, {Swoosh.Adapters.SMTP, config}} = Mailer.swoosh_config_for(creds)
       assert config[:port] == 465
-      assert config[:tls] == :always
+      # gen_smtp opens an SSL socket only when `ssl: true`; `tls:` is STARTTLS-only
+      assert config[:ssl] == true
+      refute Keyword.has_key?(config, :tls)
+    end
+
+    test "smtp credentials with an unparseable port are rejected" do
+      creds = %{
+        "provider" => "smtp",
+        "host" => "smtp.example.com",
+        "port" => "not-a-port",
+        "username" => "user",
+        "password" => "pw"
+      }
+
+      assert {:error, {:invalid_smtp_port, "not-a-port"}} = Mailer.swoosh_config_for(creds)
     end
 
     test "brevo_api credentials build a Brevo adapter config" do

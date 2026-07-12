@@ -268,7 +268,8 @@ defmodule PhoenixKit.Mailer do
   # `{adapter, config}` pair. Not `defp` so `deliver_via_integration/3`'s
   # provider selection can be unit-tested without triggering real
   # delivery — `@doc false` because it's an internal seam, not part of
-  # the public API.
+  # the public API. The returned config carries DECRYPTED secrets — callers
+  # must never log or `inspect` it.
   @spec swoosh_config_for(map()) :: {:ok, {module(), keyword()}} | {:error, term()}
   def swoosh_config_for(%{"provider" => "aws_ses"} = creds) do
     {:ok,
@@ -281,17 +282,30 @@ defmodule PhoenixKit.Mailer do
   end
 
   def swoosh_config_for(%{"provider" => "smtp"} = creds) do
-    port = parse_smtp_port(creds["port"])
+    case parse_smtp_port(creds["port"]) do
+      nil ->
+        # A non-integer port silently becomes gen_smtp's default (25), which
+        # would relay plaintext to an unintended server — surface it instead.
+        {:error, {:invalid_smtp_port, creds["port"]}}
 
-    {:ok,
-     {Swoosh.Adapters.SMTP,
-      [
-        relay: creds["host"],
-        port: port,
-        username: creds["username"],
-        password: creds["password"],
-        tls: if(port == 465, do: :always, else: :if_available)
-      ]}}
+      port ->
+        base = [
+          relay: creds["host"],
+          port: port,
+          username: creds["username"],
+          password: creds["password"]
+        ]
+
+        # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol
+        # solely from the `ssl` option (gen_smtp_client.erl:854 — `ssl:true`
+        # → ssl socket, else plaintext tcp). The `tls` option only controls a
+        # STARTTLS *upgrade after* a plaintext connect, so `tls: :always` on
+        # 465 would open plaintext to an SMTPS port and hang. Everything else
+        # (587 submission, etc.) uses mandatory STARTTLS — `:always` fails
+        # closed rather than downgrade to plaintext while sending relay creds.
+        transport = if port == 465, do: [ssl: true], else: [tls: :always]
+        {:ok, {Swoosh.Adapters.SMTP, base ++ transport}}
+    end
   end
 
   def swoosh_config_for(%{"provider" => "brevo_api"} = creds) do

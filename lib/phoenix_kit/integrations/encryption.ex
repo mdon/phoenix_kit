@@ -9,6 +9,13 @@ defmodule PhoenixKit.Integrations.Encryption do
   Uses the application's `secret_key_base` as the root key, deriving a
   dedicated integration encryption key via a SHA-256 hash.
 
+  > #### Key rotation {: .warning}
+  > The key is derived deterministically from `secret_key_base`. Rotating
+  > `secret_key_base` makes every existing `enc:v1:` value undecryptable
+  > (reads fall back to the stored ciphertext, effectively data loss). There
+  > is no re-wrap/migration path today; the `enc:v1:` prefix reserves room
+  > for a future versioned KDF that could re-encrypt on read.
+
   ## Configuration
 
   Encryption is enabled by default when `secret_key_base` is configured.
