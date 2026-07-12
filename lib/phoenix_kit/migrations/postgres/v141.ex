@@ -53,7 +53,7 @@ defmodule PhoenixKit.Migrations.Postgres.V141 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_calendar_events (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       owner_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,
       title VARCHAR(255) NOT NULL,
       description TEXT,
@@ -127,7 +127,7 @@ defmodule PhoenixKit.Migrations.Postgres.V141 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_calendar_event_participants (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       event_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_calendar_events(uuid) ON DELETE CASCADE,
       kind VARCHAR(20) NOT NULL,
       target_uuid UUID,

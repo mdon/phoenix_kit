@@ -3,14 +3,36 @@ defmodule PhoenixKit.Migrations.Postgres.V01 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   def up(%{create_schema: create?, prefix: prefix} = opts) do
     %{quoted_prefix: quoted} = opts
 
-    # Only create schema if it's not 'public' and create_schema is true
-    if create? && prefix != "public", do: execute("CREATE SCHEMA IF NOT EXISTS #{quoted}")
+    # Only attempt schema creation when the schema is actually missing.
+    # Postgres checks the CREATE-on-database privilege BEFORE the
+    # IF-NOT-EXISTS short-circuit, so executing the statement against a
+    # pre-created schema fails for low-privilege roles that own the
+    # schema but not the database.
+    if prefix != "public" && !schema_exists?(prefix) do
+      if create? do
+        execute("CREATE SCHEMA IF NOT EXISTS #{quoted}")
+      else
+        raise """
+        PhoenixKit: schema #{inspect(prefix)} does not exist and the migration
+        was called with create_schema: false.
 
-    # Create citext extension if not exists
-    execute "CREATE EXTENSION IF NOT EXISTS citext"
+        Create it as a privileged role first:
+
+            CREATE SCHEMA #{prefix} AUTHORIZATION your_app_role;
+
+        or drop the create_schema: false option to let the migration create it.
+        """
+      end
+    end
+
+    # Create citext extension if not exists (skips the statement — and its
+    # privilege check — when the extension is already installed)
+    Helpers.ensure_extension!("citext")
 
     # Create version tracking table (phoenix_kit)
     create_if_not_exists table(:phoenix_kit, primary_key: false, prefix: prefix) do
@@ -133,6 +155,18 @@ defmodule PhoenixKit.Migrations.Postgres.V01 do
   # Helper function to build table name with prefix
   defp prefix_table_name(table_name, nil), do: table_name
   defp prefix_table_name(table_name, prefix), do: "#{prefix}.#{table_name}"
+
+  # Immediate check (repo().query/3 executes outside the migration
+  # command queue) — safe here because nothing queued before V01 could
+  # create the schema.
+  defp schema_exists?(prefix) do
+    query = "SELECT EXISTS (SELECT FROM information_schema.schemata WHERE schema_name = $1)"
+
+    case repo().query(query, [prefix], log: false) do
+      {:ok, %{rows: [[true]]}} -> true
+      _ -> false
+    end
+  end
 
   def down(%{prefix: prefix}) do
     # Drop tables in correct order (foreign key dependencies)

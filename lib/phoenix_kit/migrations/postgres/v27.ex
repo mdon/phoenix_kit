@@ -46,7 +46,14 @@ defmodule PhoenixKit.Migrations.Postgres.V27 do
   def up(%{prefix: prefix} = _opts) do
     # Run Oban migrations to create required tables
     # Uses latest Oban schema version automatically (forward-compatible)
-    Oban.Migration.up(prefix: prefix)
+    #
+    # create_schema: false is load-bearing: without it Oban's migrator
+    # defaults the flag to true for any non-public prefix and executes
+    # CREATE SCHEMA IF NOT EXISTS — which fails for low-privilege roles
+    # even when the schema exists (Postgres checks the CREATE privilege
+    # before the IF-NOT-EXISTS short-circuit). By V27 the schema always
+    # exists (V01 owns schema creation), so never ask Oban to create it.
+    Oban.Migration.up(prefix: prefix, create_schema: false)
 
     # Set version comment on phoenix_kit table for version tracking
     execute "COMMENT ON TABLE #{prefix_table_name("phoenix_kit", prefix)} IS '27'"

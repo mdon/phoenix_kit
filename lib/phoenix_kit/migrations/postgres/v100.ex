@@ -26,7 +26,7 @@ defmodule PhoenixKit.Migrations.Postgres.V100 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_departments (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       description TEXT,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -41,7 +41,7 @@ defmodule PhoenixKit.Migrations.Postgres.V100 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_teams (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       department_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_departments(uuid) ON DELETE CASCADE,
       name VARCHAR(255) NOT NULL,
       description TEXT,
@@ -62,7 +62,7 @@ defmodule PhoenixKit.Migrations.Postgres.V100 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_people (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       user_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,
       primary_department_uuid UUID REFERENCES #{p}phoenix_kit_staff_departments(uuid) ON DELETE SET NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -103,7 +103,7 @@ defmodule PhoenixKit.Migrations.Postgres.V100 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_staff_team_memberships (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       team_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_teams(uuid) ON DELETE CASCADE,
       staff_person_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_staff_people(uuid) ON DELETE CASCADE,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -16,7 +16,7 @@ defmodule PhoenixKit.Migrations.Postgres.V90 do
                            primary_key: false,
                            prefix: prefix
                          ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
       add(:action, :string, null: false, size: 100)
       add(:module, :string, size: 50)
       add(:mode, :string, size: 20)

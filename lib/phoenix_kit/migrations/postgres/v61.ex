@@ -48,6 +48,8 @@ defmodule PhoenixKit.Migrations.Postgres.V61 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   @tables_missing_uuid [
     :phoenix_kit_admin_notes,
     :phoenix_kit_ai_requests,
@@ -63,24 +65,10 @@ defmodule PhoenixKit.Migrations.Postgres.V61 do
     # Flush any pending commands from earlier versions
     flush()
 
-    # Ensure uuid_generate_v7() exists (created in V40, but be safe)
-    execute("""
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS uuid AS $$
-    DECLARE
-      unix_ts_ms bytea;
-      uuid_bytes bytea;
-    BEGIN
-      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
-      uuid_bytes := unix_ts_ms || gen_random_bytes(10);
-      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
-      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
-      RETURN encode(uuid_bytes, 'hex')::uuid;
-    END
-    $$ LANGUAGE plpgsql VOLATILE;
-    """)
+    # Ensure #{prefix}.uuid_generate_v7() exists (created in V40, but be safe)
+    Helpers.ensure_uuid_v7_function(prefix)
 
-    # Need to flush uuid_generate_v7() creation before using it
+    # Need to flush #{prefix}.uuid_generate_v7() creation before using it
     flush()
 
     # Add uuid column to each missing table
@@ -115,12 +103,12 @@ defmodule PhoenixKit.Migrations.Postgres.V61 do
       unless column_exists?(table, :uuid, escaped_prefix) do
         execute("""
         ALTER TABLE #{table_name}
-        ADD COLUMN uuid UUID DEFAULT uuid_generate_v7()
+        ADD COLUMN uuid UUID DEFAULT #{prefix}.uuid_generate_v7()
         """)
 
         execute("""
         UPDATE #{table_name}
-        SET uuid = uuid_generate_v7()
+        SET uuid = #{prefix}.uuid_generate_v7()
         WHERE uuid IS NULL
         """)
 

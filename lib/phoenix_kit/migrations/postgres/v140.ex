@@ -47,7 +47,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
     # 1. Stock — per (item, location) balance.
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_stock (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       item_uuid UUID NOT NULL,
       location_uuid UUID NOT NULL,
       quantity NUMERIC NOT NULL DEFAULT 0,
@@ -91,7 +91,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_inventory_documents (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_inventory_documents_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       track_value BOOLEAN NOT NULL DEFAULT false,
@@ -139,7 +139,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_internal_orders (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_internal_orders_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       location_uuid UUID NOT NULL,
@@ -229,7 +229,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_supplier_orders (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_supplier_orders_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       supplier_uuid UUID,
@@ -295,7 +295,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_goods_receipts (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_goods_receipts_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       supplier_order_uuid UUID REFERENCES #{p}phoenix_kit_warehouse_supplier_orders(uuid) ON DELETE SET NULL,
@@ -356,7 +356,7 @@ defmodule PhoenixKit.Migrations.Postgres.V140 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_goods_issues (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_goods_issues_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       internal_order_uuid UUID REFERENCES #{p}phoenix_kit_warehouse_internal_orders(uuid) ON DELETE SET NULL,

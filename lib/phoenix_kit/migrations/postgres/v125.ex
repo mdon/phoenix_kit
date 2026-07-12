@@ -119,7 +119,7 @@ defmodule PhoenixKit.Migrations.Postgres.V125 do
   defp create_project_statuses_table(p) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_project_statuses (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       project_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_projects(uuid) ON DELETE CASCADE,
       label VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,

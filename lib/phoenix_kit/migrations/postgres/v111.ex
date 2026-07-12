@@ -43,6 +43,8 @@ defmodule PhoenixKit.Migrations.Postgres.V111 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
@@ -55,12 +57,12 @@ defmodule PhoenixKit.Migrations.Postgres.V111 do
     execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_pdf_extractions CASCADE")
     execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_pdf_page_contents CASCADE")
 
-    execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    Helpers.ensure_extension!("pg_trgm")
 
     # ── per-upload row ─────────────────────────────────────────────────
 
     create table(:phoenix_kit_cat_pdfs, primary_key: false, prefix: prefix) do
-      add(:uuid, :uuid, primary_key: true, default: fragment("uuid_generate_v7()"))
+      add(:uuid, :uuid, primary_key: true, default: fragment("#{prefix}.uuid_generate_v7()"))
 
       add(
         :file_uuid,

@@ -117,5 +117,36 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
       )
 
     assert index_count > 500
+
+    # uuid_generate_v7() must live in the prefixed schema, not wherever
+    # search_path pointed (2026-07-12 field report: unqualified CREATE
+    # FUNCTION polluted public / failed on PG15+ low-privilege roles).
+    %{rows: [[fn_in_prefix]]} =
+      Repo.query!(
+        """
+        SELECT EXISTS (
+          SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE p.proname = 'uuid_generate_v7' AND n.nspname = $1
+        )
+        """,
+        [@schema]
+      )
+
+    assert fn_in_prefix,
+           "uuid_generate_v7() was not created in the prefixed schema"
+
+    # And uuid DEFAULTs must be pinned to that schema-qualified function —
+    # an unqualified default would have resolved via search_path to
+    # public's copy, breaking installs where public has no function.
+    %{rows: [[default_expr]]} =
+      Repo.query!(
+        """
+        SELECT column_default FROM information_schema.columns
+        WHERE table_schema = $1 AND table_name = 'phoenix_kit_projects' AND column_name = 'uuid'
+        """,
+        [@schema]
+      )
+
+    assert default_expr =~ "#{@schema}.uuid_generate_v7()"
   end
 end

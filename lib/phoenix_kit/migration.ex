@@ -101,6 +101,25 @@ defmodule PhoenixKit.Migration do
   end
   ```
 
+  The prefix must be a conventional lower-case identifier (`[a-z_][a-z0-9_]*`) —
+  it is interpolated into SQL, and anything else is rejected at the `up`/`down`
+  entry points.
+
+  ## Required Postgres extensions
+
+  The migration chain needs three extensions: `citext` (case-insensitive
+  emails), `pgcrypto` (UUIDv7 generation), and `pg_trgm` (trigram search).
+  When they are already installed the chain never issues `CREATE EXTENSION`
+  (so no database-level CREATE privilege is needed). When one is missing, the
+  migrating role must be allowed to create it — on locked-down databases have
+  a DBA pre-provision them instead:
+
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS citext;
+  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  ```
+
   ## Migrating Without Ecto
 
   If your application uses something other than Ecto for migrations, be it an external system or

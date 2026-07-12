@@ -25,9 +25,12 @@ defmodule PhoenixKit.Migrations.Postgres.V26 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   def up(%{prefix: prefix} = _opts) do
-    # Enable pgcrypto extension for digest function
-    execute "CREATE EXTENSION IF NOT EXISTS pgcrypto"
+    # Enable pgcrypto extension for digest function (skips the statement —
+    # and its privilege check — when the extension is already installed)
+    Helpers.ensure_extension!("pgcrypto")
 
     # Drop the unique index on checksum (from V24)
     drop_if_exists unique_index(:phoenix_kit_files, [:checksum], prefix: prefix)

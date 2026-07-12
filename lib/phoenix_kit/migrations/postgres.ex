@@ -1232,9 +1232,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   @initial_version 1
   @current_version 142
   @default_prefix "public"
+
+  # First version whose SQL references uuid_generate_v7(). Chains that
+  # start at or above it never hit the V40/V56/V61/V63 creation sites,
+  # so the entry point has to guarantee the function exists in the
+  # install's schema before any newer version's DDL calls it.
+  @uuid_fn_version 40
 
   @doc false
   def initial_version, do: @initial_version
@@ -1252,6 +1260,7 @@ defmodule PhoenixKit.Migrations.Postgres do
         change(@initial_version..opts.version, :up, opts)
 
       initial < opts.version ->
+        if initial >= @uuid_fn_version, do: Helpers.ensure_uuid_v7_function(opts.prefix)
         change((initial + 1)..opts.version, :up, opts)
 
       true ->
@@ -1263,6 +1272,8 @@ defmodule PhoenixKit.Migrations.Postgres do
   def down(opts) do
     # For down operations, don't set a default version - let target_version logic handle it
     opts = Enum.into(opts, %{prefix: @default_prefix})
+
+    Helpers.validate_prefix!(opts.prefix)
 
     opts =
       opts
@@ -1596,6 +1607,8 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   defp with_defaults(opts, version) do
     opts = Enum.into(opts, %{prefix: @default_prefix, version: version})
+
+    Helpers.validate_prefix!(opts.prefix)
 
     opts
     |> Map.put(:quoted_prefix, inspect(opts.prefix))

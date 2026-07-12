@@ -668,7 +668,7 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
       # (e.g. created_by references a deleted user with no CASCADE constraint)
       execute("""
       UPDATE #{table_name}
-      SET #{uuid_fk} = uuid_generate_v7()
+      SET #{uuid_fk} = #{prefix}.uuid_generate_v7()
       WHERE #{uuid_fk} IS NULL
       """)
 

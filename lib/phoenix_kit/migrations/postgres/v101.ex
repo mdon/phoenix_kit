@@ -30,7 +30,7 @@ defmodule PhoenixKit.Migrations.Postgres.V101 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_project_tasks (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       title VARCHAR(255) NOT NULL,
       description TEXT,
       estimated_duration INTEGER,
@@ -52,7 +52,7 @@ defmodule PhoenixKit.Migrations.Postgres.V101 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_projects (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       description TEXT,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -79,7 +79,7 @@ defmodule PhoenixKit.Migrations.Postgres.V101 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_project_assignments (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       project_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_projects(uuid) ON DELETE CASCADE,
       task_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_project_tasks(uuid) ON DELETE CASCADE,
       status VARCHAR(20) NOT NULL DEFAULT 'todo',
@@ -143,7 +143,7 @@ defmodule PhoenixKit.Migrations.Postgres.V101 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_project_dependencies (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       assignment_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_project_assignments(uuid) ON DELETE CASCADE,
       depends_on_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_project_assignments(uuid) ON DELETE CASCADE,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -164,7 +164,7 @@ defmodule PhoenixKit.Migrations.Postgres.V101 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_project_task_dependencies (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       task_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_project_tasks(uuid) ON DELETE CASCADE,
       depends_on_task_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_project_tasks(uuid) ON DELETE CASCADE,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
