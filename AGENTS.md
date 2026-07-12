@@ -113,11 +113,59 @@ any new `execute`-built SQL can regress them:
 - **Failures surface late.** Ecto queues `execute` calls; bad SQL queued
   by one version often blows up at a *later* version's `flush()`.
 
+A 2026-07-12 field report from a hardened multi-schema install (schema
+pre-created by a DBA, app role without CREATE on the database, PG 15+
+non-writable `public`) surfaced four more families — all fixed; the
+rules for new migration code:
+
+- **Functions are created schema-qualified.** `uuid_generate_v7()` is
+  created as `<prefix>.uuid_generate_v7()` and every call site
+  (`DEFAULT`, backfill `UPDATE`s, `fragment/1`) qualifies it too — an
+  unqualified `CREATE OR REPLACE FUNCTION` lands wherever `search_path`
+  points (pollutes `public`; fails outright on PG15+). Use
+  `PhoenixKit.Migrations.Postgres.Helpers.ensure_uuid_v7_function/1` +
+  `uuid_v7_call/1`. `Postgres.up/1` re-ensures the function at the
+  prefix for upgrade chains starting ≥ V40 (which skip the creation
+  sites).
+- **Never bare `CREATE EXTENSION IF NOT EXISTS`** — Postgres checks the
+  CREATE privilege *before* the IF-NOT-EXISTS short-circuit, so it fails
+  for low-privilege roles even when the extension is installed. Use
+  `Helpers.ensure_extension!/1` (checks `pg_extension` first; raises an
+  operator-facing message listing citext/pgcrypto/pg_trgm when genuinely
+  missing and uncreatable).
+- **Same story for `CREATE SCHEMA`.** V01 checks
+  `information_schema.schemata` first and only creates when missing
+  (raising a clear error if missing + `create_schema: false`). External
+  migrators must have the flag threaded: V27 passes
+  `create_schema: false` to `Oban.Migration.up/1` — without it Oban
+  re-defaults to true for non-public prefixes and executes the failing
+  statement mid-chain.
+- **The prefix is validated at the `up/down` entry points**
+  (`Helpers.validate_prefix!/1`, `[a-z_][a-z0-9_]*`) because it is
+  interpolated into SQL mostly unquoted.
+- **Tooling resolves the prefix from config.** The installer persists
+  `config :phoenix_kit, prefix:` for non-public installs
+  (`PhoenixKit.Install.PrefixConfig`); update/status/gen.migration
+  resolve `--prefix` → config → `"public"` (`resolve_prefix/1`). And
+  `Install.Common` no longer fabricates `{:current_version, 1}` from
+  the mere existence of migration *files* — that once made
+  `phoenix_kit.update` emit a from-scratch v01→vN migration into the
+  wrong schema. Update-migration generators always emit
+  `create_schema: false` (updating implies the schema exists).
+
 `test/integration/prefix_migration_test.exs` is the oracle: it runs the
 full chain into a scratch schema on the test DB (which also has a public
 install, so it catches both families). It flips the sandbox to `:auto`
 for the run — see its moduledoc for why neither a sandbox checkout nor a
-dynamic repo instance can host the migrator.
+dynamic repo instance can host the migrator. (The privilege-sensitive
+paths — pre-created schema + low-privilege role — can't run under the
+suite's superuser connection; re-verify those manually against the
+recipe in the 2026-07-12 field report if you touch them.)
+
+Note: runtime code does NOT read `config :phoenix_kit, :prefix` — Ecto
+queries run unprefixed, so a prefixed install additionally needs the DB
+role's `search_path` to include the schema. Known gap, out of scope of
+the 2026-07 fixes.
 
 ## Integrations System
 
