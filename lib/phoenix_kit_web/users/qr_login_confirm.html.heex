@@ -1,0 +1,23 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  current_path={assigns[:url_path]}
+  project_title={@project_title}
+  current_locale={assigns[:current_locale]}
+>
+  <div class="container mx-auto px-4 py-10 flex justify-center">
+    <div class="card bg-base-100 shadow-xl w-full max-w-md">
+      <div class="card-body">
+        <Keyfob.Components.confirm_screen
+          meta={@meta}
+          state={@kf_state}
+          approve_event="keyfob_approve"
+          deny_event="keyfob_deny"
+          labels={confirm_labels()}
+        />
+      </div>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

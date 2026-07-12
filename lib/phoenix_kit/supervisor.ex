@@ -40,6 +40,9 @@ defmodule PhoenixKit.Supervisor do
     [
       PhoenixKit.PubSub.Manager,
       PhoenixKit.Admin.SimplePresence,
+      # Keyfob QR device-handoff login store (ETS) — holds pending sign-in
+      # requests and one-time login tokens for PhoenixKit.Users.QrLogin.
+      Keyfob.Store.ETS,
       {PhoenixKit.Cache.Registry, []},
       # Module registry — must start before Dashboard.Registry so module tabs are available
       PhoenixKit.ModuleRegistry,
