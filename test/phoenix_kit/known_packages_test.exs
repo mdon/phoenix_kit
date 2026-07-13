@@ -51,7 +51,7 @@ defmodule PhoenixKit.KnownPackagesTest do
     Req.Test.stub(@stub_name, fn conn ->
       conn
       |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.send_resp(200, Jason.encode!(packages))
+      |> Plug.Conn.send_resp(200, JSON.encode!(packages))
     end)
   end
 
@@ -185,7 +185,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(200, Jason.encode!([@hex_newsletters]))
+        |> Plug.Conn.send_resp(200, JSON.encode!([@hex_newsletters]))
       end)
 
       KnownPackages.list(test_opts())
@@ -202,7 +202,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(200, Jason.encode!([@hex_newsletters]))
+        |> Plug.Conn.send_resp(200, JSON.encode!([@hex_newsletters]))
       end)
 
       KnownPackages.list(test_opts())
@@ -246,7 +246,7 @@ defmodule PhoenixKit.KnownPackagesTest do
       Req.Test.stub(@stub_name, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(200, Jason.encode!(%{"unexpected" => "shape"}))
+        |> Plug.Conn.send_resp(200, JSON.encode!(%{"unexpected" => "shape"}))
       end)
 
       log =
@@ -332,7 +332,7 @@ defmodule PhoenixKit.KnownPackagesTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(200, Jason.encode!(packages))
+        |> Plug.Conn.send_resp(200, JSON.encode!(packages))
       end)
 
       packages = KnownPackages.list(test_opts())

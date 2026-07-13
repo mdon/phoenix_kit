@@ -240,7 +240,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
       ]
     }
 
-    policy_json = Jason.encode!(policy)
+    policy_json = JSON.encode!(policy)
 
     case SQS.set_queue_attributes(dlq_url, policy: policy_json)
          |> ExAws.request(aws_config(config)) do
@@ -289,7 +289,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
            visibility_timeout: Integer.to_string(config.queue_visibility_timeout),
            message_retention_period: Integer.to_string(config.queue_retention),
            receive_message_wait_time_seconds: "20",
-           redrive_policy: Jason.encode!(redrive_policy),
+           redrive_policy: JSON.encode!(redrive_policy),
            sqs_managed_sse_enabled: "true"
          )
          |> ExAws.request(aws_config(config)) do
@@ -348,7 +348,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
       ]
     }
 
-    policy_json = Jason.encode!(policy)
+    policy_json = JSON.encode!(policy)
 
     case SQS.set_queue_attributes(queue_url, policy: policy_json)
          |> ExAws.request(aws_config(config)) do

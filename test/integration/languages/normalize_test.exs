@@ -33,7 +33,7 @@ defmodule PhoenixKit.Integration.Languages.NormalizeTest do
       refute Languages.enabled?()
 
       # Set up legacy admin_languages with codes
-      Settings.update_setting("admin_languages", Jason.encode!(["en-US", "es-ES"]))
+      Settings.update_setting("admin_languages", JSON.encode!(["en-US", "es-ES"]))
 
       # Normalize
       assert :ok = Languages.normalize_language_settings()
@@ -55,7 +55,7 @@ defmodule PhoenixKit.Integration.Languages.NormalizeTest do
       {:ok, _} = Languages.enable_system()
 
       # Set admin_languages to include en-US (already exists) and es-ES (new)
-      Settings.update_setting("admin_languages", Jason.encode!(["en-US", "es-ES"]))
+      Settings.update_setting("admin_languages", JSON.encode!(["en-US", "es-ES"]))
 
       # Normalize
       assert :ok = Languages.normalize_language_settings()
@@ -68,7 +68,7 @@ defmodule PhoenixKit.Integration.Languages.NormalizeTest do
 
     test "is idempotent — running twice produces same result" do
       {:ok, _} = Languages.enable_system()
-      Settings.update_setting("admin_languages", Jason.encode!(["en-US", "fr-FR"]))
+      Settings.update_setting("admin_languages", JSON.encode!(["en-US", "fr-FR"]))
 
       assert :ok = Languages.normalize_language_settings()
       codes_after_first = Languages.get_language_codes()
@@ -86,7 +86,7 @@ defmodule PhoenixKit.Integration.Languages.NormalizeTest do
       # Include a valid code and an invalid one
       Settings.update_setting(
         "admin_languages",
-        Jason.encode!(["en-US", "xx-INVALID-CODE"])
+        JSON.encode!(["en-US", "xx-INVALID-CODE"])
       )
 
       # Should not crash

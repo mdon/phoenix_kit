@@ -44,7 +44,7 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsAdvancedTest do
       |> render_submit()
 
       assert Settings.get_setting("sitemap_router_discovery_exclude_patterns") ==
-               Jason.encode!(["^/admin", "^/api"])
+               JSON.encode!(["^/admin", "^/api"])
     end
   end
 
@@ -73,7 +73,7 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsAdvancedTest do
       |> render_submit()
 
       assert Settings.get_setting("sitemap_protected_pipelines") ==
-               Jason.encode!(["member_only", "api_key"])
+               JSON.encode!(["member_only", "api_key"])
     end
   end
 
@@ -106,14 +106,14 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsAdvancedTest do
 
     test "saves a valid array of URL objects", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
-      json = Jason.encode!([%{"path" => "/about-us", "title" => "About Us"}])
+      json = JSON.encode!([%{"path" => "/about-us", "title" => "About Us"}])
 
       view
       |> form("form[phx-submit='save_custom_urls']", %{"json" => json})
       |> render_submit()
 
       assert {:ok, [%{"path" => "/about-us"}]} =
-               "sitemap_custom_urls" |> Settings.get_setting() |> Jason.decode()
+               "sitemap_custom_urls" |> Settings.get_setting() |> JSON.decode()
     end
   end
 
@@ -134,14 +134,14 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsAdvancedTest do
 
     test "saves a valid array of route objects", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
-      json = Jason.encode!([%{"path" => "/", "title" => "Home"}])
+      json = JSON.encode!([%{"path" => "/", "title" => "Home"}])
 
       view
       |> form("form[phx-submit='save_static_routes']", %{"json" => json})
       |> render_submit()
 
       assert {:ok, [%{"path" => "/"}]} =
-               "sitemap_static_routes" |> Settings.get_setting() |> Jason.decode()
+               "sitemap_static_routes" |> Settings.get_setting() |> JSON.decode()
     end
   end
 end

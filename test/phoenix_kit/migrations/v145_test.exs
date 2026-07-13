@@ -1,12 +1,12 @@
-defmodule PhoenixKit.Migrations.Postgres.V143Test do
+defmodule PhoenixKit.Migrations.Postgres.V145Test do
   @moduledoc """
-  Tests V143's schema state — newsletters Send Settings (send profiles).
+  Tests V145's schema state — newsletters Send Settings (send profiles).
 
-  V143.up/down can't be invoked outside an `Ecto.Migrator` runner (they
+  V145.up/down can't be invoked outside an `Ecto.Migrator` runner (they
   rely on `Ecto.Migration.execute/1` which checks for a runner process —
   same constraint as V106Test/V107Test/V112Test/V125Test). The schema is
   verified at boot: `test_helper.exs` runs `ensure_current/2` (now through
-  V143) before any test, so these assertions pin the post-V143 shape and a
+  V145) before any test, so these assertions pin the post-V145 shape and a
   regression that drops/re-adds the wrong thing surfaces here.
   """
 
@@ -145,11 +145,11 @@ defmodule PhoenixKit.Migrations.Postgres.V143Test do
   end
 
   describe "version marker" do
-    test "phoenix_kit table comment reflects V143" do
+    test "phoenix_kit table comment reflects V145" do
       %{rows: [[comment]]} =
         Repo.query!("SELECT obj_description('phoenix_kit'::regclass, 'pg_class')")
 
-      assert comment == "143"
+      assert comment == "145"
     end
   end
 end

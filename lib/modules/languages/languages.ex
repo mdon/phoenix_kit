@@ -168,7 +168,7 @@ defmodule PhoenixKit.Modules.Languages do
         :ok
 
       admin_json when is_binary(admin_json) ->
-        case Jason.decode(admin_json) do
+        case JSON.decode(admin_json) do
           {:ok, codes} when is_list(codes) and codes != [] ->
             merge_admin_languages(codes)
 

@@ -529,7 +529,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V143 - Newsletters Send Settings (send profiles) ⚡ LATEST
+  ### V145 - Newsletters Send Settings (send profiles) ⚡ LATEST
   - Adds `phoenix_kit_newsletters_send_profiles`: named send configurations
     referencing a core Integrations connection (`integration_uuid`, no FK)
     plus per-account send parameters (from-name/email, reply-to, signature,
@@ -539,6 +539,35 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Adds `send_profile_uuid` (bare UUID, no FK) to
     `phoenix_kit_newsletters_broadcasts` so a broadcast can pin which send
     profile delivers it.
+
+  ### V144 - Manufacturing/Warehouse module tables consolidation
+  - Consolidates 5 objects previously created by `phoenix_kit_manufacturing`'s
+    and `phoenix_kit_warehouse`'s own `migration_module/0` into core's
+    migration chain: `phoenix_kit_machines`, `phoenix_kit_machine_type_assignments`,
+    `phoenix_kit_machine_operations`, `phoenix_kit_warehouse_transfers`
+    (+ its `number` sequence), and `phoenix_kit_warehouse_min_stock`.
+  - `machine_type_uuid`/`operation_uuid` on the two join tables are soft
+    references (no FK) to the entities package. Upgrade path for hosts on
+    the published `phoenix_kit_manufacturing` 0.2.0 (module V1): the join
+    table already exists there with a *live* FK on `machine_type_uuid` —
+    this migration drops it unconditionally. Warehouse tables are
+    fresh-install-only DDL (`phoenix_kit_warehouse` 0.1.0 never published
+    migrations for them, so no upgrade case exists).
+  - The pre-V5 manufacturing directory tables (`phoenix_kit_machine_types`,
+    `phoenix_kit_operations`, `phoenix_kit_defect_reasons`) are not
+    re-created; each is dropped only if present and empty, left in place
+    with a database `NOTICE` when non-empty — see the PR body for the
+    manual data-migration note on such hosts.
+  - Rollback mirrors the five creates; see `V144.down/1`'s moduledoc for
+    the upgrade-host caveat (can't distinguish a pre-existing
+    `machine_type_assignments` table from one V144 created).
+
+  ### V143 - Known-device history for new-login alerts
+  - Adds `phoenix_kit_user_known_devices` (IP + hashed user-agent per user,
+    unique per `(user_uuid, ip_address, user_agent_hash)`) so a login from
+    an unrecognized device can be told apart from a familiar one.
+  - Backs the `new_login_alert_enabled` setting and
+    `user.new_login_detected` activity action.
 
   ### V142 - Wider role-permission keys
   - Widens `phoenix_kit_role_permissions.module_key` from `VARCHAR(50)` to
@@ -1246,7 +1275,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 143
+  @current_version 145
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

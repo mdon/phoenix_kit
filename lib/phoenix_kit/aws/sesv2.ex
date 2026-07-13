@@ -89,7 +89,7 @@ defmodule PhoenixKit.AWS.SESv2 do
         {:ok, name}
 
       {:error, {:http_error, _code, %{body: body}}} when is_binary(body) ->
-        case Jason.decode(body) do
+        case JSON.decode(body) do
           {:ok, %{"__type" => "AlreadyExistsException"}} ->
             {:ok, name}
 
@@ -200,7 +200,7 @@ defmodule PhoenixKit.AWS.SESv2 do
         :ok
 
       {:error, {:http_error, _code, %{body: body}}} when is_binary(body) ->
-        case Jason.decode(body) do
+        case JSON.decode(body) do
           {:ok, %{"__type" => "AlreadyExistsException"}} ->
             :ok
 

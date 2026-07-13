@@ -26,6 +26,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Json
   alias PhoenixKit.Utils.Routes
 
   @impl true
@@ -405,7 +406,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
       [] ->
         case Settings.update_setting(
                "sitemap_router_discovery_exclude_patterns",
-               Jason.encode!(patterns)
+               JSON.encode!(patterns)
              ) do
           {:ok, _} ->
             {:noreply,
@@ -436,7 +437,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
 
     case invalid_pipeline_names(names) do
       [] ->
-        case Settings.update_setting("sitemap_protected_pipelines", Jason.encode!(names)) do
+        case Settings.update_setting("sitemap_protected_pipelines", JSON.encode!(names)) do
           {:ok, _} ->
             {:noreply,
              socket
@@ -465,11 +466,11 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   def handle_event("save_custom_urls", %{"json" => text}, socket) do
     case decode_object_list(text) do
       {:ok, list} ->
-        case Settings.update_setting("sitemap_custom_urls", Jason.encode!(list)) do
+        case Settings.update_setting("sitemap_custom_urls", JSON.encode!(list)) do
           {:ok, _} ->
             {:noreply,
              socket
-             |> assign(:custom_urls_text, Jason.encode!(list, pretty: true))
+             |> assign(:custom_urls_text, Json.encode_pretty!(list))
              |> assign(:custom_urls_error, nil)
              |> bump_and_broadcast("custom_urls")
              |> put_flash(:info, "Custom URLs updated")}
@@ -490,11 +491,11 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   def handle_event("save_static_routes", %{"json" => text}, socket) do
     case decode_object_list(text) do
       {:ok, list} ->
-        case Settings.update_setting("sitemap_static_routes", Jason.encode!(list)) do
+        case Settings.update_setting("sitemap_static_routes", JSON.encode!(list)) do
           {:ok, _} ->
             {:noreply,
              socket
-             |> assign(:static_routes_text, Jason.encode!(list, pretty: true))
+             |> assign(:static_routes_text, Json.encode_pretty!(list))
              |> assign(:static_routes_error, nil)
              |> bump_and_broadcast("static_routes")
              |> put_flash(:info, "Static routes updated")}
@@ -671,7 +672,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
         default_term
 
       json when is_binary(json) ->
-        case Jason.decode(json) do
+        case JSON.decode(json) do
           {:ok, term} -> term
           _ -> default_term
         end
@@ -698,12 +699,12 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
 
   def custom_urls_text do
     decoded_setting("sitemap_custom_urls", [])
-    |> Jason.encode!(pretty: true)
+    |> Json.encode_pretty!()
   end
 
   def static_routes_text do
     decoded_setting("sitemap_static_routes", Static.default_static_routes())
-    |> Jason.encode!(pretty: true)
+    |> Json.encode_pretty!()
   end
 
   # Helper: textarea -> trimmed, non-blank lines (one setting value per line)
@@ -726,20 +727,19 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   # Helper: decode a JSON textarea value expected to hold an array of
   # objects (sitemap_custom_urls / sitemap_static_routes shape).
   defp decode_object_list(text) do
-    case Jason.decode(text) do
-      {:ok, list} when is_list(list) ->
+    case JSON.decode!(text) do
+      list when is_list(list) ->
         if Enum.all?(list, &is_map/1) do
           {:ok, list}
         else
           {:error, "Must be a JSON array of objects"}
         end
 
-      {:ok, _other} ->
+      _other ->
         {:error, "Must be a JSON array of objects"}
-
-      {:error, %Jason.DecodeError{} = error} ->
-        {:error, "Invalid JSON: #{Jason.DecodeError.message(error)}"}
     end
+  rescue
+    e in JSON.DecodeError -> {:error, "Invalid JSON: #{e.message}"}
   end
 
   # Shared tail for every advanced/extension setting save: bust the generated

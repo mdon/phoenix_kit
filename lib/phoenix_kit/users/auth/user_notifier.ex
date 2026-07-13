@@ -278,4 +278,59 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
 
     deliver(email, subject, text_body, html_body)
   end
+
+  @doc """
+  Deliver a "new login detected" security alert.
+
+  Sent by `PhoenixKit.Users.LoginAlerts` when a login is seen from a
+  device (IP + user-agent pair) not previously associated with the
+  account. `attrs` carries `:ip_address`, `:browser`, `:os` (either may be
+  `nil`), `:location` (a "City, Country" string, or `nil` if geolocation
+  didn't resolve), and `:first_seen_at` (a `DateTime`).
+
+  Uses the 'new_login_alert' template from the database if available,
+  falls back to hardcoded template if not found.
+  """
+  def deliver_new_login_alert(user, attrs) do
+    time_str = Calendar.strftime(attrs.first_seen_at, "%Y-%m-%d %H:%M UTC")
+    browser_os = Enum.filter([attrs[:browser], attrs[:os]], & &1) |> Enum.join(" on ")
+
+    template_variables = %{
+      "user_email" => user.email,
+      "login_time" => time_str,
+      "ip_address" => attrs.ip_address,
+      "location" => attrs[:location] || "Unknown",
+      "browser_os" => (browser_os == "" && "Unknown") || browser_os
+    }
+
+    {subject, html_body, text_body, db_template} =
+      case Provider.current().get_active_template_by_name("new_login_alert") do
+        nil ->
+          fallback_text = """
+          Hi #{user.email},
+
+          We noticed a new login to your account:
+
+          Time: #{template_variables["login_time"]}
+          IP address: #{template_variables["ip_address"]}
+          Location: #{template_variables["location"]}
+          Device: #{template_variables["browser_os"]}
+
+          If this was you, no action is needed.
+
+          If you don't recognize this activity, please change your password
+          immediately.
+          """
+
+          {"New login to your account", nil, fallback_text, nil}
+
+        template ->
+          rendered = Provider.current().render_template(template, template_variables)
+          {rendered.subject, rendered.html_body, rendered.text_body, template}
+      end
+
+    if db_template, do: Provider.current().track_usage(db_template)
+
+    deliver(user.email, subject, text_body, html_body)
+  end
 end

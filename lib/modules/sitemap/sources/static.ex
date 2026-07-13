@@ -145,7 +145,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
           @default_static_routes
 
         json_string when is_binary(json_string) ->
-          case Jason.decode(json_string) do
+          case JSON.decode(json_string) do
             {:ok, routes} when is_list(routes) -> routes
             _ -> @default_static_routes
           end
@@ -177,7 +177,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
         []
 
       json_string when is_binary(json_string) ->
-        case Jason.decode(json_string) do
+        case JSON.decode(json_string) do
           {:ok, urls} when is_list(urls) -> urls
           _ -> []
         end

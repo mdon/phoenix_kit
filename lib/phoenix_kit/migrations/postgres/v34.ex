@@ -218,7 +218,7 @@ defmodule PhoenixKit.Migrations.Postgres.V34 do
 
     # Restore default slot settings
     default_text_slots =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "slots" => [
           %{
             "name" => "Slot 1",

@@ -188,7 +188,7 @@ defmodule PhoenixKit.Migrations.Postgres.V32 do
 
     # Default text processing slots configuration (JSON)
     default_slots =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "slots" => [
           %{
             "name" => "Slot 1",

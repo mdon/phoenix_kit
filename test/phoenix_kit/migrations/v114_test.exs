@@ -41,7 +41,7 @@ defmodule PhoenixKit.Migrations.Postgres.V114Test do
   # so PostgreSQL parses it as a JSONB object directly (passing through
   # `$N::jsonb` double-encodes via Postgrex's string handling).
   defp insert_setting!(key, value_json, module) do
-    json_literal = value_json |> Jason.encode!() |> String.replace("'", "''")
+    json_literal = value_json |> JSON.encode!() |> String.replace("'", "''")
 
     %{rows: [[uuid_bin]]} =
       Repo.query!(
