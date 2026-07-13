@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V142 - Wider role-permission keys ⚡ LATEST
+  ### V143 - Known-device history for new-login alerts ⚡ LATEST
+  - Adds `phoenix_kit_user_known_devices` (IP + hashed user-agent per user,
+    unique per `(user_uuid, ip_address, user_agent_hash)`) so a login from
+    an unrecognized device can be told apart from a familiar one.
+  - Backs the `new_login_alert_enabled` setting and
+    `user.new_login_detected` activity action.
+
+  ### V142 - Wider role-permission keys
   - Widens `phoenix_kit_role_permissions.module_key` from `VARCHAR(50)` to
     `VARCHAR(120)` so fine-grained sub-permissions can be stored as composed
     dotted keys (`"calendar.view_others"` — base and sub parts are each
@@ -1235,7 +1242,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 142
+  @current_version 143
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
