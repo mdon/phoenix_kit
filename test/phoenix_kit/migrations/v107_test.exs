@@ -25,7 +25,7 @@ defmodule PhoenixKit.Migrations.Postgres.V107Test do
     # parameter double-encodes through Postgrex's string handling and
     # lands a JSON STRING (containing escaped JSON) instead of an
     # object — ` ->> 'key'` then returns NULL.
-    json_literal = value_json |> Jason.encode!() |> String.replace("'", "''")
+    json_literal = value_json |> JSON.encode!() |> String.replace("'", "''")
 
     %{rows: [[uuid_bin]]} =
       Repo.query!(

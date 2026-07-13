@@ -86,7 +86,7 @@ defmodule PhoenixKit.Users.TableColumns do
           default_columns
 
         json_value ->
-          case Jason.decode(json_value) do
+          case JSON.decode(json_value) do
             {:ok, columns} when is_list(columns) -> columns
             _ -> default_columns
           end
@@ -114,7 +114,7 @@ defmodule PhoenixKit.Users.TableColumns do
     # Always ensure actions is at the end
     ordered_columns = ensure_actions_at_end(final_columns)
 
-    Settings.update_setting("user_table_columns", Jason.encode!(ordered_columns))
+    Settings.update_setting("user_table_columns", JSON.encode!(ordered_columns))
   end
 
   @doc """

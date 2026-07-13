@@ -54,15 +54,15 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
       # Custom exclude patterns
       Settings.update_setting("sitemap_router_discovery_exclude_patterns",
-        Jason.encode!(["^/admin", "^/api", "^/private"]))
+        JSON.encode!(["^/admin", "^/api", "^/private"]))
 
       # Whitelist mode - only include specific paths
       Settings.update_setting("sitemap_router_discovery_include_only",
-        Jason.encode!(["^/products", "^/categories"]))
+        JSON.encode!(["^/products", "^/categories"]))
 
       # Custom protected pipelines (add to defaults)
       Settings.update_setting("sitemap_protected_pipelines",
-        Jason.encode!(["my_auth_pipeline", "member_only"]))
+        JSON.encode!(["my_auth_pipeline", "member_only"]))
 
   ## Sitemap Properties
 
@@ -278,7 +278,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
         []
 
       json_string when is_binary(json_string) ->
-        case Jason.decode(json_string) do
+        case JSON.decode(json_string) do
           {:ok, pipelines} when is_list(pipelines) ->
             Enum.map(pipelines, &safe_to_atom/1)
 
@@ -358,7 +358,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
         @default_exclude_patterns
 
       json_string when is_binary(json_string) ->
-        case Jason.decode(json_string) do
+        case JSON.decode(json_string) do
           {:ok, patterns} when is_list(patterns) -> patterns
           _ -> @default_exclude_patterns
         end
@@ -377,7 +377,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
         []
 
       json_string when is_binary(json_string) ->
-        case Jason.decode(json_string) do
+        case JSON.decode(json_string) do
           {:ok, patterns} when is_list(patterns) -> patterns
           _ -> []
         end

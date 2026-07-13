@@ -414,7 +414,7 @@ defmodule PhoenixKit.Users.CustomFields do
   defp parse_position(_), do: 0
 
   defp parse_definitions(json_string) do
-    case Jason.decode(json_string) do
+    case JSON.decode(json_string) do
       {:ok, definitions} when is_list(definitions) -> definitions
       _ -> []
     end

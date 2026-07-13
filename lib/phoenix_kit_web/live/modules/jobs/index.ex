@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   alias PhoenixKit.Jobs, as: JobsModule
   alias PhoenixKit.ScheduledJobs.ScheduledJob
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Json
   alias PhoenixKit.Utils.Routes
 
   @per_page 25
@@ -370,7 +371,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   defp format_json(nil), do: "-"
 
   defp format_json(data) when is_map(data) or is_list(data) do
-    Jason.encode!(data, pretty: true)
+    Json.encode_pretty!(data)
   end
 
   defp format_json(data), do: inspect(data)
