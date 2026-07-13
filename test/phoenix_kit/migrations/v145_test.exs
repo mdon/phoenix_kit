@@ -145,11 +145,14 @@ defmodule PhoenixKit.Migrations.Postgres.V145Test do
   end
 
   describe "version marker" do
-    test "phoenix_kit table comment reflects V145" do
+    test "phoenix_kit table comment is at or past V145" do
       %{rows: [[comment]]} =
         Repo.query!("SELECT obj_description('phoenix_kit'::regclass, 'pg_class')")
 
-      assert comment == "145"
+      # >= rather than ==: pinning the exact latest version breaks this
+      # test every time a NEWER migration ships (V146 did exactly that).
+      # What V145 owns is "the chain reached at least me".
+      assert String.to_integer(comment) >= 145
     end
   end
 end

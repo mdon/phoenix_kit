@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V145 - Newsletters Send Settings (send profiles) ⚡ LATEST
+  ### V146 - Catalogue item primary supplier ⚡ LATEST
+  - Adds nullable `primary_supplier_uuid` FK (`ON DELETE SET NULL`) +
+    partial index to `phoenix_kit_cat_items` — an item's default
+    supplier, independent of manufacturer (generic/unbranded materials;
+    tie-break when a manufacturer has several suppliers). Backs the
+    `phoenix_kit_catalogue` feature from its commit 2e47cdf.
+
+  ### V145 - Newsletters Send Settings (send profiles)
   - Adds `phoenix_kit_newsletters_send_profiles`: named send configurations
     referencing a core Integrations connection (`integration_uuid`, no FK)
     plus per-account send parameters (from-name/email, reply-to, signature,
@@ -1275,7 +1282,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 145
+  @current_version 146
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
