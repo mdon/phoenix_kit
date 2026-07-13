@@ -339,6 +339,11 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
     CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_transfers_received_at_index
     ON #{p}phoenix_kit_warehouse_transfers (received_at)
     """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_warehouse_transfers_source_refs_index
+    ON #{p}phoenix_kit_warehouse_transfers USING GIN (source_refs)
+    """)
   end
 
   defp create_warehouse_min_stock(p) do
@@ -356,6 +361,21 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_warehouse_min_stock_item_uuid_index
     ON #{p}phoenix_kit_warehouse_min_stock (item_uuid)
     """)
+
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'phoenix_kit_warehouse_min_stock_min_quantity_non_negative'
+        AND conrelid = '#{p}phoenix_kit_warehouse_min_stock'::regclass
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_warehouse_min_stock
+        ADD CONSTRAINT phoenix_kit_warehouse_min_stock_min_quantity_non_negative
+        CHECK (min_quantity >= 0);
+      END IF;
+    END $$;
+    """)
   end
 
   # ── FK-drop helpers, ported from PhoenixKitManufacturing.Migrations.Machines ──
@@ -364,6 +384,11 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
   # catalog rather than assuming a `..._fkey` naming convention. Returns
   # `nil` when no such constraint exists (fresh install, or already dropped
   # on a retry).
+  #
+  # Safe to call mid-migration: reads pre-V143 state via an immediate query;
+  # the V40/V61 flush trap does not apply because no preceding queued DDL in
+  # this migration creates the FK sought here — it pre-exists from module
+  # 0.2.0 installs.
   @spec fk_constraint_name(String.t(), String.t(), String.t()) :: String.t() | nil
   defp fk_constraint_name(prefix, table, column) do
     query = """
@@ -380,7 +405,8 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
 
     case PhoenixKit.RepoHelper.repo().query(query, [prefix || "public", table, column]) do
       {:ok, %{rows: [[name] | _]}} -> name
-      _ -> nil
+      {:ok, %{rows: []}} -> nil
+      {:error, reason} -> raise "FK lookup failed for #{table}.#{column}: #{inspect(reason)}"
     end
   end
 
