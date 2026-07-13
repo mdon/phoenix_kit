@@ -105,11 +105,21 @@ any new `execute`-built SQL can regress them:
   on `DROP INDEX`.
 - **Every existence check needs a schema anchor.** `information_schema.*`
   checks need `table_schema = '#{escaped_prefix}'`, `pg_indexes` needs
-  `schemaname`, and `pg_constraint` `conname` checks need
-  `AND conrelid = '#{p}table'::regclass` (V51's idiom). An unanchored
-  check sees `public`'s objects, so a prefixed install into a database
-  that also carries a public install silently skips creating the
-  prefixed object.
+  `schemaname`, and `pg_constraint` `conname` checks need a table anchor.
+  An unanchored check sees `public`'s objects, so a prefixed install into
+  a database that also carries a public install silently skips creating
+  the prefixed object.
+  ⚠️ For the `pg_constraint` anchor, prefer a name-based JOIN
+  (`JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n …
+  WHERE t.relname = '…' AND n.nspname = $1`) over V51's
+  `conrelid = '#{p}table'::regclass` idiom in IMMEDIATE checks
+  (`repo().query/3`): a regclass cast RAISES when the relation doesn't
+  exist yet — on a fresh chain the table's CREATE may still be queued —
+  and that aborts the whole migration transaction in a way a `rescue`
+  can't undo (every later statement dies with 25P02, surfacing at some
+  unrelated version). V146 hit exactly this; it now JOINs by name and
+  `flush()`es first. The regclass idiom is only safe after a `flush()`
+  guarantees the relation exists.
 - **Failures surface late.** Ecto queues `execute` calls; bad SQL queued
   by one version often blows up at a *later* version's `flush()`.
 
