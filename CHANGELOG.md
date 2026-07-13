@@ -1,3 +1,14 @@
+## 1.7.191 - 2026-07-13
+
+### Added
+- **xAI as a built-in integration provider** — `:api_key` auth, Grok models
+  via the OpenAI-compatible `https://api.x.ai/v1` API. Declares
+  `:ai_completions`, so it surfaces automatically in `phoenix_kit_ai`'s
+  endpoint picker with no changes needed there (provider discovery has been
+  fully registry-driven since 0.9.0). *Test Connection* validates against
+  `GET /v1/models` — confirmed live (401 without a key) even though the
+  endpoint isn't listed on xAI's published API reference.
+
 ## 1.7.190 - 2026-07-13
 
 ### Security

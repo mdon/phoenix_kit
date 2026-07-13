@@ -129,6 +129,7 @@ defmodule PhoenixKit.Integrations.Providers do
       openrouter(),
       mistral(),
       deepseek(),
+      xai(),
       elevenlabs(),
       aws_ses(),
       smtp(),
@@ -488,6 +489,63 @@ defmodule PhoenixKit.Integrations.Providers do
           title: gettext("Create an API key"),
           steps: [
             {gettext("Go to [API Keys](https://platform.deepseek.com/api_keys)"), nil},
+            {gettext("Click **Create API key**, give it a name"), nil},
+            {gettext("Copy the key (shown once) and paste it into the form above"), nil}
+          ]
+        }
+      ]
+    }
+  end
+
+  defp xai do
+    %{
+      key: "xai",
+      name: gettext("xAI"),
+      description: gettext("AI model access via xAI (Grok models)"),
+      icon: "hero-sparkles",
+      auth_type: :api_key,
+      oauth_config: nil,
+      base_url: "https://api.x.ai/v1",
+      # xAI's API is OpenAI-compatible. `GET /v1/models` isn't listed on the
+      # published API reference but does exist — confirmed 401 (not 404)
+      # without a key. Same Bearer-auth pattern as OpenAI/Mistral/DeepSeek.
+      validation: %{
+        url: "https://api.x.ai/v1/models",
+        method: :get,
+        auth_header: "Authorization",
+        auth_prefix: "Bearer "
+      },
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("API Key"),
+          type: :password,
+          required: true,
+          placeholder: "xai-...",
+          help: gettext("From console.x.ai/team/default/api-keys"),
+          options: nil
+        }
+      ],
+      capabilities: [:ai_completions],
+      instructions: [
+        %{
+          title: gettext("Create an xAI account"),
+          steps: [
+            {gettext("Go to [accounts.x.ai](https://accounts.x.ai) and sign up or log in"), nil}
+          ]
+        },
+        %{
+          title: gettext("Add credits"),
+          steps: [
+            {gettext("Go to [console.x.ai](https://console.x.ai) → Billing and add credits"),
+             nil},
+            {gettext("xAI requires a funded account before the API will return completions"), nil}
+          ]
+        },
+        %{
+          title: gettext("Create an API key"),
+          steps: [
+            {gettext("Go to [API Keys](https://console.x.ai/team/default/api-keys)"), nil},
             {gettext("Click **Create API key**, give it a name"), nil},
             {gettext("Copy the key (shown once) and paste it into the form above"), nil}
           ]
