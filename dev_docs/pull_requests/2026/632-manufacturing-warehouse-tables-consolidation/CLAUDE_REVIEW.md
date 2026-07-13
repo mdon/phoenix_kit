@@ -2,9 +2,60 @@
 
 **Author**: @timujinne
 **Reviewer**: @claude (Sonnet 5)
-**Status**: 🔄 In Review (draft)
+**Status**: ✅ Merged
 **Commit**: `dcd497dd` (V144 migration), `ad7080a4` (dispatcher wiring)
 **Date**: 2026-07-13
+
+## Renumbered V143 → V144 (independent session note)
+
+This PR originally claimed V143. A separate same-day core change (new-login
+security alerts, `phoenix_kit_user_known_devices`) landed on `main` as V143
+first, so this PR's migration, dispatcher wiring, and this review doc were
+rebased onto current `main` and renumbered V143 → V144 throughout (module
+name, moduledoc prose, `COMMENT ON TABLE` version markers on both `up/1`
+and `down/1`, the `postgres.ex` moduledoc entry and `@current_version`).
+Pure renumbering — no DDL, ordering, or logic changed.
+
+## Independent verification (second pass, post-renumber)
+
+Re-derived the two claims in "Known bug classes checked" myself against
+the actual current file (not just re-reading their checkmarks), since a
+review co-produced by the same workflow that generated the PR has an
+inherent blind-spot risk:
+
+- **`maybe_drop_if_empty/3`'s raw `prefix`/`table` interpolation inside the
+  `DO $$ ... END $$` block is not parameterized — traced whether that's
+  actually safe.** `table` is always one of three hardcoded string
+  literals (never user input). `prefix` is validated before *any* version
+  module's `up/1` runs: `PhoenixKit.Migrations.Postgres.with_defaults/2`
+  (`postgres.ex:1629`) calls `Helpers.validate_prefix!(opts.prefix)`
+  (`[a-z_][a-z0-9_]*` only) ahead of `change/3` dispatch — confirmed by
+  reading `with_defaults/2` directly, not assumed. Safe.
+- **`fk_constraint_name/3`'s immediate `repo().query/3` vs. the documented
+  "queued `execute/1`, flushes late" gotcha** (CLAUDE.md's V40/V61 flush
+  trap) — reasoned through both possible flush-timing outcomes rather than
+  taking the moduledoc's claim at face value: on a fresh install, the
+  `machine_type_uuid`/`operation_uuid` columns are declared with **no**
+  `REFERENCES` clause in this same migration's `CREATE TABLE`, so the FK
+  lookup correctly returns no rows regardless of whether that `CREATE
+  TABLE IF NOT EXISTS` has flushed yet at the moment the immediate query
+  runs — there is no FK to find either way. On an upgrade host, the table
+  and its FK both pre-date this migration entirely, so no flush-ordering
+  question even arises. The claim holds under an independent derivation,
+  not just a restated assertion.
+- **Migration-chain shape**, re-run fresh on the current (post-renumber,
+  merged-with-`main`) branch: `mix test test/phoenix_kit/migration_test.exs`
+  — 6 tests, 0 failures (V1..V144 dispatch resolves with no gaps,
+  `@current_version` matches the highest file).
+- **Full gate**, re-run fresh on the same merged branch: `mix precommit`
+  (format, `compile --warnings-as-errors`, `credo --strict`, dialyzer) —
+  clean.
+
+No new findings beyond the original pass. Concur with its "Clean, no bugs"
+verdict. (This addendum was posted as a PR comment at merge time —
+`maintainerCanModify` was toggled off after the renumbering push landed,
+before this file update could be pushed — and is folded into the file
+here post-merge for the permanent record.)
 
 ## Goal
 
