@@ -186,9 +186,11 @@ defmodule PhoenixKit.Mailer do
   Otherwise uses the built-in PhoenixKit mailer.
 
   This function also integrates with the email tracking system to log
-  outgoing emails when tracking is enabled. Recipients blocklisted (or over
-  the send-rate limits) by the emails module are rejected before any
-  tracking or delivery is attempted — see `check_recipient_allowed/1`.
+  outgoing emails when tracking is enabled. Recipients blocklisted by the
+  emails module (hard bounces, complaints, manual blocks — in `to`, `cc` or
+  `bcc`) are rejected before any tracking or delivery is attempted; see
+  `check_recipient_allowed/1`. Send-rate limits are deliberately NOT enforced
+  here — see the soft-dependency note at the top of this module.
   """
   def deliver_email(email, opts \\ []) do
     with :ok <- check_recipient_allowed(email) do
@@ -268,12 +270,16 @@ defmodule PhoenixKit.Mailer do
   ## Returns
 
   - `{:ok, term()}` — delivered
-  - `{:error, {:blocked, atom()}}` — recipient is blocklisted or over the
-    emails module's send-rate limits (checked before the integration is
-    even resolved)
+  - `{:error, {:blocked, atom()}}` — a recipient (`to`/`cc`/`bcc`) is
+    blocklisted by the emails module (checked before the integration is even
+    resolved). Send-rate limits are NOT enforced here — see the module's
+    soft-dependency note.
   - `{:error, :not_configured | :deleted}` — the integration uuid didn't resolve
-  - `{:error, {:unsupported_provider, String.t()}}` — the integration's
-    provider has no known Swoosh adapter mapping
+  - `{:error, {:unsupported_provider, String.t()} | :unsupported_provider}` —
+    the integration's provider has no known Swoosh adapter mapping (the bare
+    atom when the credentials carry no provider key at all)
+  - `{:error, {:invalid_smtp_port, term()}}` — the SMTP connection's port is
+    not a number
   """
   @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
@@ -328,15 +334,7 @@ defmodule PhoenixKit.Mailer do
           password: creds["password"]
         ]
 
-        # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol
-        # solely from the `ssl` option (gen_smtp_client.erl:854 — `ssl:true`
-        # → ssl socket, else plaintext tcp). The `tls` option only controls a
-        # STARTTLS *upgrade after* a plaintext connect, so `tls: :always` on
-        # 465 would open plaintext to an SMTPS port and hang. Everything else
-        # (587 submission, etc.) uses mandatory STARTTLS — `:always` fails
-        # closed rather than downgrade to plaintext while sending relay creds.
-        transport = if port == 465, do: [ssl: true], else: [tls: :always]
-        {:ok, {Swoosh.Adapters.SMTP, base ++ transport}}
+        {:ok, {Swoosh.Adapters.SMTP, base ++ smtp_transport(port, creds)}}
     end
   end
 
@@ -348,6 +346,31 @@ defmodule PhoenixKit.Mailer do
     do: {:error, {:unsupported_provider, provider}}
 
   def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
+
+  # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol solely from
+  # the `ssl` option (gen_smtp_client.erl:854 — `ssl: true` → ssl socket, else
+  # plaintext tcp). The `tls` option only controls a STARTTLS *upgrade after* a
+  # plaintext connect, so `tls: :always` on 465 would open plaintext to an
+  # SMTPS port and hang.
+  defp smtp_transport(465, _creds), do: [ssl: true]
+
+  defp smtp_transport(_port, creds) do
+    if blank?(creds["username"]) and blank?(creds["password"]) do
+      # No credentials on the wire (local dev relay like MailHog:1025, or an
+      # internal plaintext smarthost) — nothing to protect, so allow the
+      # connection when the relay offers no STARTTLS.
+      [tls: :if_available]
+    else
+      # Credentials ARE on the wire: mandatory STARTTLS. Fail closed rather
+      # than let a stripped STARTTLS capability downgrade us to plaintext.
+      [tls: :always]
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
 
   # Setup fields are typed `:number` but travel through LiveView form
   # params and JSONB storage as strings — normalize either shape.
@@ -370,8 +393,12 @@ defmodule PhoenixKit.Mailer do
   # both pass through, so enforcement lives here rather than in the
   # interceptor.
   @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
-  defp check_recipient_allowed(%Swoosh.Email{to: recipients}) do
-    Enum.reduce_while(recipients, :ok, fn {_name, address}, :ok ->
+  defp check_recipient_allowed(%Swoosh.Email{} = email) do
+    # cc/bcc too, not just to: a suppression list with a hole in it is a
+    # compliance problem, and this Mailer carries all app mail, not only
+    # newsletters (which only ever populate `to`).
+    (email.to ++ (email.cc || []) ++ (email.bcc || []))
+    |> Enum.reduce_while(:ok, fn {_name, address}, :ok ->
       case check_blocklisted(address) do
         :ok -> {:cont, :ok}
         {:blocked, reason} -> {:halt, {:error, {:blocked, reason}}}

@@ -140,6 +140,17 @@ defmodule PhoenixKit.MailerTest do
       refute Keyword.has_key?(config, :tls)
     end
 
+    test "an smtp relay with no credentials allows opportunistic STARTTLS" do
+      # e.g. a local dev relay (MailHog:1025) or an internal plaintext
+      # smarthost — nothing on the wire to protect, so mandatory STARTTLS
+      # would only break it.
+      creds = %{"provider" => "smtp", "host" => "localhost", "port" => 1025}
+
+      assert {:ok, {Swoosh.Adapters.SMTP, config}} = Mailer.swoosh_config_for(creds)
+      assert config[:port] == 1025
+      assert config[:tls] == :if_available
+    end
+
     test "smtp credentials with an unparseable port are rejected" do
       creds = %{
         "provider" => "smtp",
@@ -187,6 +198,30 @@ defmodule PhoenixKit.MailerTest do
 
       assert {:ok, _} = Mailer.deliver_email(email)
       assert_received {:email, _}
+    end
+
+    test "a blocklisted address in cc is rejected (suppression cannot be bypassed)" do
+      email =
+        new()
+        |> to("ok@example.com")
+        |> Swoosh.Email.cc("blocked@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Hi")
+
+      assert {:error, {:blocked, :blocklist}} = Mailer.deliver_email(email)
+      refute_received {:email, _}
+    end
+
+    test "a blocklisted address in bcc is rejected (suppression cannot be bypassed)" do
+      email =
+        new()
+        |> to("ok@example.com")
+        |> Swoosh.Email.bcc("blocked@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Hi")
+
+      assert {:error, {:blocked, :blocklist}} = Mailer.deliver_email(email)
+      refute_received {:email, _}
     end
   end
 
