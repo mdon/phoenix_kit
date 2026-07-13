@@ -26,7 +26,7 @@ mix test          # run all (migrations auto via test_helper)
 mix test.reset    # drop + recreate
 ```
 
-Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Migrations live in `test/support/postgres/migrations/`.
+Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Schema comes from the versioned migration chain — `test_helper.exs` runs `PhoenixKit.Migration.ensure_current/2` on every boot (there is no `test/support/postgres/migrations/` directory; that per-file approach was retired 2026-05-05).
 
 **Without PostgreSQL:** integration tests are auto-excluded; unit tests still run. `mix test` will print a banner and continue.
 
@@ -92,6 +92,102 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
 - Schemas use `@primary_key {:uuid, UUIDv7, autogenerate: true}`
 - New migrations use `uuid_generate_v7()` (NOT `gen_random_uuid()`)
 - Oban-style versioned migrations in `lib/phoenix_kit/migrations/postgres/`
+
+### Prefix-safe migrations (named-schema installs)
+
+The chain supports running into a named Postgres schema (`prefix:` opt /
+`--prefix`). Two bug families broke it in 2026-07 (both fixed, PR #628);
+any new `execute`-built SQL can regress them:
+
+- **Index names stay bare on CREATE.** Postgres rejects
+  `CREATE INDEX schema.name ...` — the index always lands in the
+  (schema-qualified) table's schema. Qualifying the *name* is only valid
+  on `DROP INDEX`.
+- **Every existence check needs a schema anchor.** `information_schema.*`
+  checks need `table_schema = '#{escaped_prefix}'`, `pg_indexes` needs
+  `schemaname`, and `pg_constraint` `conname` checks need
+  `AND conrelid = '#{p}table'::regclass` (V51's idiom). An unanchored
+  check sees `public`'s objects, so a prefixed install into a database
+  that also carries a public install silently skips creating the
+  prefixed object.
+- **Failures surface late.** Ecto queues `execute` calls; bad SQL queued
+  by one version often blows up at a *later* version's `flush()`.
+
+A 2026-07-12 field report from a hardened multi-schema install (schema
+pre-created by a DBA, app role without CREATE on the database, PG 15+
+non-writable `public`) surfaced four more families — all fixed; the
+rules for new migration code:
+
+- **Functions are created schema-qualified.** `uuid_generate_v7()` is
+  created as `<prefix>.uuid_generate_v7()` and every call site
+  (`DEFAULT`, backfill `UPDATE`s, `fragment/1`) qualifies it too — an
+  unqualified `CREATE OR REPLACE FUNCTION` lands wherever `search_path`
+  points (pollutes `public`; fails outright on PG15+). Use
+  `PhoenixKit.Migrations.Postgres.Helpers.ensure_uuid_v7_function/1` +
+  `uuid_v7_call/1`. `Postgres.up/1` re-ensures the function at the
+  prefix for upgrade chains starting ≥ V40 (which skip the creation
+  sites).
+- **Never bare `CREATE EXTENSION IF NOT EXISTS`** — Postgres checks the
+  CREATE privilege *before* the IF-NOT-EXISTS short-circuit, so it fails
+  for low-privilege roles even when the extension is installed. Use
+  `Helpers.ensure_extension!/1` (checks `pg_extension` first; raises an
+  operator-facing message listing citext/pgcrypto/pg_trgm when genuinely
+  missing and uncreatable).
+- **Same story for `CREATE SCHEMA`.** V01 checks
+  `information_schema.schemata` first and only creates when missing
+  (raising a clear error if missing + `create_schema: false`). External
+  migrators must have the flag threaded: V27 passes
+  `create_schema: false` to `Oban.Migration.up/1` — without it Oban
+  re-defaults to true for non-public prefixes and executes the failing
+  statement mid-chain.
+- **The prefix is validated at the `up/down` entry points**
+  (`Helpers.validate_prefix!/1`, `[a-z_][a-z0-9_]*`) because it is
+  interpolated into SQL mostly unquoted.
+- **Tooling resolves the prefix from config.** The installer persists
+  `config :phoenix_kit, prefix:` for non-public installs
+  (`PhoenixKit.Install.PrefixConfig`); update/status/gen.migration
+  resolve `--prefix` → config → `"public"` (`resolve_prefix/1`). And
+  `Install.Common` no longer fabricates `{:current_version, 1}` from
+  the mere existence of migration *files* — that once made
+  `phoenix_kit.update` emit a from-scratch v01→vN migration into the
+  wrong schema. Update-migration generators always emit
+  `create_schema: false` (updating implies the schema exists).
+
+`test/integration/prefix_migration_test.exs` is the oracle: it runs the
+full chain into a scratch schema on the test DB (which also has a public
+install, so it catches both families). It flips the sandbox to `:auto`
+for the run — see its moduledoc for why neither a sandbox checkout nor a
+dynamic repo instance can host the migrator. (The privilege-sensitive
+paths — pre-created schema + low-privilege role — can't run under the
+suite's superuser connection; re-verify those manually against the
+recipe in the 2026-07-12 field report if you touch them.)
+
+**Runtime prefix support (2026-07-12):** every table-backed core schema
+`use`s `PhoenixKit.SchemaPrefix`, which sets `@schema_prefix` from
+`Application.compile_env(:phoenix_kit, :prefix)` — so on a prefixed
+install ALL runtime queries (delegated, direct `repo()` calls,
+`update_all`/`insert_all`, Multi steps, preloads, joins) target the
+named schema with no `search_path` requirement on the DB role. Rules:
+
+- **New table-backed schemas must add `use PhoenixKit.SchemaPrefix`**
+  right after `use Ecto.Schema` — `test/phoenix_kit/schema_prefix_test.exs`
+  enforces it by scanning for `schema "phoenix_kit` files. Embedded
+  schemas don't need it.
+- The prefix is **compile-time** config (`config.exs`, never
+  `runtime.exs`); Mix recompiles the dep when it changes. It can't be
+  flipped per-test — the e2e check is manual: temporarily append
+  `config :phoenix_kit, prefix: "..."` to `config/test.exs`, recompile,
+  run a script exercising `register_user` against a scratch schema
+  (needs `PhoenixKit.Users.RateLimiter.Backend.start_link` +
+  `PhoenixKit.PubSub.Manager.start_link` + `:phoenix_pubsub`/`:hammer`
+  apps started), then revert + recompile.
+- **Oban rides the same prefix** — V27 creates `oban_jobs` inside the
+  named schema, so the host's `config :app, Oban` must carry
+  `prefix: "..."`. The installer writes it for new prefixed installs;
+  `mix phoenix_kit.update` warns when an existing Oban config lacks it.
+- Feature modules' own schemas (`phoenix_kit_catalogue` etc.) do NOT get
+  the prefix from core — prefixed installs using feature modules need
+  the same treatment there (open item, per-module).
 
 ## Integrations System
 
@@ -168,6 +264,27 @@ The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, s
 ## Built-in Dashboard
 
 Tabs, subtabs, badges, context selectors: see `lib/phoenix_kit/dashboard/README.md`.
+
+## Permissions
+
+`PhoenixKit.Users.Permissions` — allowlist model (row present = granted,
+absent = denied); Owner always has full access, enforced in code. The
+moduledoc is the source of truth; highlights:
+
+- **Module keys** gate admin sections/feature modules (`"billing"`,
+  `"calendar"`, …). Custom keys via `register_custom_key/2`.
+- **Sub-permissions** (added 1.7.182): fine-grained dotted keys under a
+  base (`"calendar.view_others"`), declared in the optional
+  `sub_permissions` field of `permission_metadata/0`. The base key gates
+  the module's admin pages; sub-keys are additive grants the module
+  checks itself via `Scope.can?/2`. A sub implies its base — granting a
+  sub auto-grants the base, revoking the base cascades its subs, and
+  `set_permissions/3` normalizes the set so no path persists an orphan
+  sub row. A sub-key is enabled iff its parent module is enabled.
+- **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit
+  their own role; only Owner can edit Admin.
+- Grant/revoke run under a per-`{role, base-key}` advisory lock so a base
+  revoke's cascade can't interleave a concurrent sub grant.
 
 ## Activity Feed
 
@@ -437,30 +554,27 @@ Publishing's `/:language/:group/*path` catch-all matches every 2+ segment URL an
 
 The mechanism generalizes; for now hardcoded to publishing — lift to a registry shape when a second module needs it.
 
+## daisyUI version (host-owned; advisory warnings only)
+
+The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` +
+`daisyui-theme.js`, scaffolded by `mix phx.new`, upgraded manually by the
+host). Core only declares a designed-for minimum
+(`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns
+below it from `phoenix_kit.install` / `phoenix_kit.update` /
+`phoenix_kit.doctor` — advisory, never touching host files. All modal
+scrollbar-gutter compensations were removed 2026-07-12 (daisyUI ≥ 5.1 handles
+the gutter conditionally); **do NOT re-add `scrollbar-gutter` overrides in
+layouts, PkDialog, or modules**.
+
+**daisyUI version-control problem: researched in full — a vendor-in-core
+custody/auto-sync design was built, verified, and deliberately NOT
+implemented** (hosts own their assets). Full investigation, options analysis,
+and measurement gotchas:
+`dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
+
 ## TODOs
 
 Workspace-tracked items not ready for inline `# TODO` in `lib/`.
-
-### Remove the daisyUI modal-gutter counter-rule after vendored daisyUI upgrades
-
-`layout_wrapper.ex` (admin `<style>` block) and `layouts/root.html.heex` carry an
-unlayered `:root:has(.modal-open, …) { scrollbar-gutter: auto }` rule. It counters
-a **daisyUI 5.0.x** defect: on modal/drawer open, old daisyUI unconditionally
-reserves a scrollbar gutter and paints it with a base-100 trick that mismatches on
-non-base-100 pages — classic-scrollbar users see an uncovered strip at the
-window's right edge. Upstream fixed this properly across 5.1.0→5.6.x
-(`rootscrollgutter.css`: `animation-timeline: scroll()` detects a real scrollbar;
-gutter reserved only then).
-
-Hosts vendor their own `daisyui.js` (parent was on 5.0.35 when this was added), so
-the rule protects any host still on old daisyUI. Once hosts are on daisyUI ≥ 5.6,
-remove the rule from both files — it's redundant there, and in browsers that honor
-`scrollbar-gutter` under `overflow: hidden` it would defeat upstream's smarter
-conditional reservation. The `phoenix_kit_dashboards` module carries a per-page
-copy (`gutter_fix_style/0` in both LiveViews) that's deletable as soon as its core
-pin includes this rule, independent of the daisyUI version. Verified 2026-07-08:
-6-page pixel-diff of 5.0.35 vs 5.6.14 showed only 1-2px badge-padding drift, so
-the vendored upgrade itself is low-risk.
 
 ### Component test coverage for `phoenix_kit_web/components/core/`
 
@@ -468,10 +582,10 @@ Partial coverage exists in `test/phoenix_kit_web/components/core/` — written f
 
 - `<.draggable_list>` — three-axis coverage: (a) `:draggable=false` → no SortableJS hook, no `cursor-grab`; (b) `:draggable=true, :sortable_handle=nil` → SortableJS hook + full-item `cursor-grab`; (c) `:draggable=true, :sortable_handle=".pk-drag-handle"` → SortableJS hook + `data-sortable-handle` attribute set, **no** `cursor-grab` on the item wrapper (caller's responsibility). All three branches need rendered-HTML asserts.
 - `<.table_default>` card-view branch — `:on_reorder` / `:reorder_scope` / `:reorder_group` / `:item_id` wire card-view as sortable target. Need to pin `phx-hook="SortableGrid"`, `data-sortable-*`, `data-id`, `class="sortable-item"`, drag-handle footer.
-- `<.input>`, `<.select>`, `<.textarea>`, `<.checkbox>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch.
+- `<.input>`, `<.select>`, `<.textarea>` — inline error rendering, daisyUI variant classes, FormField vs raw `name=`/`value=` dispatch. (`<.checkbox>` gained a test — `checkbox_test.exs`.)
 - `<.flash>` if complexity has grown.
 
-Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle). Fold the rest into a future component-coverage sweep.
+Surfaced 2026-05-02 by C12 triage during V108 / DnD core work. Partially closed 2026-05-23 (`bulk_select`, `sortable`, `reorder_modal`, `load_more`, `sort_selector`, `modal` keep_in_dom, `table_default` row + drag_handle); `checkbox` closed since. Fold the rest into a future component-coverage sweep.
 
 ### Signed file-URL hardening (`modules/storage`)
 

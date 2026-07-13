@@ -20,7 +20,7 @@ defmodule PhoenixKit.Migrations.Postgres.V105 do
   ordering, active filters). One row per (user, scope) pair; scope values
   are strings like `"role:<uuid>"` or `"companies"`.
 
-  - `uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7()`
+  - `uuid UUID PRIMARY KEY DEFAULT <prefix>.uuid_generate_v7()`
   - `user_uuid UUID NOT NULL` — FK → `phoenix_kit_users(uuid)` ON DELETE CASCADE
   - `scope VARCHAR(100) NOT NULL` — e.g. `"role:<uuid>"`, `"companies"`
   - `view_config JSONB NOT NULL DEFAULT '{}'` — arbitrary UI preferences blob
@@ -48,7 +48,7 @@ defmodule PhoenixKit.Migrations.Postgres.V105 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_user_role_view (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       user_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE CASCADE,
       scope VARCHAR(100) NOT NULL,
       view_config JSONB NOT NULL DEFAULT '{}',

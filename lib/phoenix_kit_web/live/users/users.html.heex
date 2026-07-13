@@ -447,11 +447,11 @@
                           <div class="flex flex-col gap-1">
                             <%= if user.confirmed_at do %>
                               <span class="badge badge-success badge-sm h-auto">
-                                {gettext("Confirmed")}
+                                {gettext("Email Confirmed")}
                               </span>
                             <% else %>
                               <span class="badge badge-warning badge-sm h-auto">
-                                {gettext("Pending")}
+                                {gettext("Email Pending")}
                               </span>
                             <% end %>
                             <%= if user.is_active do %>
@@ -466,22 +466,11 @@
                           </div>
                         <% column_id == "registered" -> %>
                           <div class="text-sm">
-                            <div class="flex flex-col gap-1">
-                              <div>
-                                {UtilsDate.format_date_with_user_timezone_cached(
-                                  user.inserted_at,
-                                  @phoenix_kit_current_user,
-                                  @date_time_settings
-                                )}
-                              </div>
-                              <div class="text-xs text-base-content/70">
-                                {UtilsDate.format_time_with_user_timezone_cached(
-                                  user.inserted_at,
-                                  @phoenix_kit_current_user,
-                                  @date_time_settings
-                                )}
-                              </div>
-                            </div>
+                            {UtilsDate.format_date_with_user_timezone_cached(
+                              user.inserted_at,
+                              @phoenix_kit_current_user,
+                              @date_time_settings
+                            )}
                           </div>
                         <% column_id == "location" -> %>
                           <div class="text-sm">
@@ -537,26 +526,15 @@
                           </div>
                         <% column_id == "last_confirmed" -> %>
                           <div class="text-sm">
-                            <div class="flex flex-col gap-1">
-                              <%= if user.confirmed_at do %>
-                                <div>
-                                  {UtilsDate.format_date_with_user_timezone_cached(
-                                    user.confirmed_at,
-                                    @phoenix_kit_current_user,
-                                    @date_time_settings
-                                  )}
-                                </div>
-                                <div class="text-xs text-base-content/70">
-                                  {UtilsDate.format_time_with_user_timezone_cached(
-                                    user.confirmed_at,
-                                    @phoenix_kit_current_user,
-                                    @date_time_settings
-                                  )}
-                                </div>
-                              <% else %>
-                                <div>{gettext("Never")}</div>
-                              <% end %>
-                            </div>
+                            <%= if user.confirmed_at do %>
+                              {UtilsDate.format_date_with_user_timezone_cached(
+                                user.confirmed_at,
+                                @phoenix_kit_current_user,
+                                @date_time_settings
+                              )}
+                            <% else %>
+                              {gettext("Never")}
+                            <% end %>
                           </div>
                         <% column_id == "actions" -> %>
                           <.table_row_menu
@@ -574,7 +552,9 @@
                             <%!-- Edit --%>
                             <.table_row_menu_link
                               navigate={
-                                PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.uuid}")
+                                PhoenixKit.Utils.Routes.path(
+                                  "/admin/users/edit/#{user.uuid}?return_to=list"
+                                )
                               }
                               icon="hero-pencil"
                               label={gettext("Edit")}
@@ -613,8 +593,8 @@
                                 }
                                 label={
                                   if user.confirmed_at,
-                                    do: gettext("Unconfirm"),
-                                    else: gettext("Confirm")
+                                    do: gettext("Unconfirm Email"),
+                                    else: gettext("Confirm Email")
                                 }
                                 variant={if user.confirmed_at, do: "success", else: "warning"}
                               />
@@ -675,7 +655,9 @@
               label={gettext("View")}
             />
             <.table_row_menu_link
-              navigate={PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.uuid}")}
+              navigate={
+                PhoenixKit.Utils.Routes.path("/admin/users/edit/#{user.uuid}?return_to=list")
+              }
               icon="hero-pencil"
               label={gettext("Edit")}
               variant="secondary"
@@ -704,7 +686,11 @@
                 phx-value-user_uuid={user.uuid}
                 phx-value-is_confirmed={to_string(!!user.confirmed_at)}
                 icon={if user.confirmed_at, do: "hero-envelope-open", else: "hero-envelope"}
-                label={if user.confirmed_at, do: gettext("Unconfirm"), else: gettext("Confirm")}
+                label={
+                  if user.confirmed_at,
+                    do: gettext("Unconfirm Email"),
+                    else: gettext("Confirm Email")
+                }
                 variant={if user.confirmed_at, do: "success", else: "warning"}
               />
               <.table_row_menu_button

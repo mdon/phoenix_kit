@@ -1,3 +1,131 @@
+## 1.7.189 - 2026-07-12
+
+### Added
+- **QR device-handoff login ("scan to sign in").** A signed-out browser at
+  `/users/qr-login` shows a QR code; an already-signed-in phone scans it
+  (native camera, no app needed), reviews the requesting device
+  (browser/OS/IP), and taps Approve — the desktop signs in with no
+  password. Approval always happens on the trusted phone; the desktop
+  receives nothing until the phone approves. Built on the new
+  [`keyfob`](https://hex.pm/packages/keyfob) library. Off by default —
+  enable at Admin → Settings → Authorization → "Enable QR code sign-in".
+  Post-merge hardening: the `qr_login_enabled` setting is now enforced as
+  an immediate kill switch on the phone-approval and completion paths (not
+  just the desktop entry point), and request creation is rate-limited per
+  IP (`PhoenixKit.Users.RateLimiter.check_qr_login_rate_limit/1`) to guard
+  the public, pre-auth mint endpoint against ETS-table exhaustion.
+
+### Fixed
+- **Prefix hardening for low-privilege multi-schema installs**, driven by
+  a field report from a hardened install (DBA-pre-created schema, no
+  database-level CREATE, PG15+ non-writable `public`, PgBouncer):
+  `CREATE EXTENSION`/`CREATE SCHEMA` now check `pg_extension`/
+  `information_schema.schemata` before attempting creation (Postgres
+  checks the CREATE privilege *before* the IF-NOT-EXISTS short-circuit,
+  failing low-privilege roles even when the object already exists); V27
+  now threads `create_schema: false` through to Oban's migration so it
+  can't re-default to `true` and execute a failing `CREATE SCHEMA`
+  mid-chain; `uuid_generate_v7()` is now created inside the install's
+  schema (not wherever `search_path` happens to point) with all ~89 call
+  sites schema-qualified, including the pgcrypto `gen_random_bytes` call
+  inside the function body; the prefix is validated at every entry point.
+  New runtime `PhoenixKit.SchemaPrefix` (all 21 table-backed schemas
+  adopt it) means prefixed installs no longer depend on the DB role's
+  `search_path` for ordinary queries. Install/update/status/gen.migration
+  tooling now persists and resolves `--prefix` correctly, distinguishes an
+  unreachable database from a genuinely absent install, and warns when an
+  existing host Oban config lacks the install's prefix.
+  Post-merge: fixed a matching unqualified-call bug the same PR's own
+  sweep missed — V26's pgcrypto `digest()` backfill call was still bare
+  (same failure mode as the pre-fix `uuid_generate_v7()`, now qualified
+  via the new `Helpers.pgcrypto_call/1`) — and fixed the new Oban
+  prefix-detection regex to skip commented-out config blocks (it could
+  both false-positive on a commented example block and false-negative
+  when a commented block happened to mention `prefix:`, masking a
+  genuinely unprefixed active block).
+- **daisyUI modal scrollbar-gutter compensations removed.** Fixes a
+  reported "clicked cancel and a scroll bar showed up" bug on scrolling
+  pages: daisyUI ≥ 5.1's own conditional gutter reservation handles both
+  scrolling and non-scrolling pages correctly on its own, so core's
+  1.7.179 counter-rules and PkDialog's inline override were fighting it
+  and causing the reflow. `PhoenixKit.Install.DaisyUI` now declares a
+  designed-for minimum (5.6.0) and warns hosts on an older vendored
+  daisyUI via `phoenix_kit.install`/`.update`/`.doctor` — advisory only,
+  nothing touches host files.
+- **The 1.7.188 hackney 4.x upgrade made this package un-publishable**,
+  discovered while cutting this release: `mix hex.publish` refuses to
+  build any package carrying an `override: true` dependency, which
+  `mix.exs` needed because `ex_aws_sqs` (last released Jan 2023, since
+  archived upstream) pins `hackney ~> 1.9` — incompatible with `~> 4.0`
+  with no override. Switched the SQS dependency to
+  [`beamlab_ex_aws_sqs`](https://hex.pm/packages/beamlab_ex_aws_sqs), a
+  maintained fork with the same public API (`ExAws.SQS`) that declares no
+  hackney dependency at all, clearing the conflict — `override: true` on
+  both hackney and httpoison is gone, and the now-fully-unused
+  `httpoison` dependency itself is dropped. The fork also switches SQS
+  from the legacy Query/XML protocol to AWS's JSON protocol, which
+  changes response shapes (raw `%{"QueueUrl" => ...}` instead of
+  `%{body: %{queue_url: ...}}`); `PhoenixKit.AWS.InfrastructureSetup`
+  (SQS/DLQ provisioning) is updated accordingly, including a latent bug
+  this surfaced — the "queue already exists" fallback path was checking
+  for AWS error code `QueueAlreadyExists`, but the real SQS API error is
+  `QueueNameExists` (confirmed against `botocore`'s service definition),
+  so idempotent re-runs of setup against a differently-configured
+  existing queue likely never hit the intended fallback under the old
+  protocol either.
+
+## 1.7.188 - 2026-07-12
+
+### Security
+- **hackney upgraded 1.25.0 → 4.5.2 and httpoison upgraded 2.3.0 → 3.0.0,
+  clearing all 4 hackney CVEs accepted in 1.7.178 (1 HIGH: `ssl:connect/2`
+  post-handshake TLS upgrade with no timeout; 2 moderate CR/LF-injection /
+  SSRF-bypass; 1 low CRLF injection).** Both are now pinned via `override:
+  true` in `mix.exs`, since two stale transitive constraints still declared
+  the old majors: `ex_aws_sqs` (last released 2023) pins `hackney ~> 1.9`,
+  and `ueberauth_apple` (last released 2023, now removed — see below) pinned
+  `httpoison ~> 1.0 or ~> 2.0`. Verified safe to override: `ex_aws_sqs`
+  never calls hackney directly (the pin is vestigial, only listed for its
+  own `:test` env); `ex_aws` itself already relaxed to `hackney ~> 4.0,
+  optional: true` as of 2.7.0 (our lock was just stale at 2.6.1); hackney
+  4.0's release notes confirm the public `hackney:request/5` API is
+  unchanged from 1.x (the major bump split HTTP/2 and HTTP/3 into separate
+  libraries, `h2` and `quic`, and replaced the built-in metrics subsystem
+  with a middleware chain); every real hackney consumer in the tree
+  (`ex_aws`, `tesla`, `swoosh`) only touches that stable surface. Full
+  investigation: `dev_docs/audits/2026-07-12-hackney-upgrade-resolution.md`
+  (supersedes `2026-07-07-hackney-cve-2026-advisories-audit.md`).
+
+### Removed
+- **BREAKING: Apple Sign-In removed** (`ueberauth_apple` dependency
+  dropped, along with its Settings UI, credential storage, and login/admin
+  buttons). `ueberauth_apple` has been unmaintained since its 0.6.1 release
+  in 2023 and was the sole reason httpoison — and therefore hackney — could
+  not move past the versions above. Hosts with Apple Sign-In configured
+  will see the "Apple Sign-In" toggle and credential fields disappear from
+  Settings → Authorization; any users who previously linked an Apple
+  account keep that link (existing `phoenix_kit_user_oauth_providers` rows
+  are untouched and still shown/manageable in account settings), but new
+  Apple sign-ins are no longer offered. Plan is to reintroduce this via a
+  maintained fork of `ueberauth_apple` in a future release.
+
+## 1.7.187 - 2026-07-12
+
+### Fixed
+- **`data-confirm` was silently swallowed on `BulkSelectScope` action buttons.**
+  The hook's `_onActionClick` calls `e.preventDefault()` synchronously on
+  every `data-bulk-action` click; `phoenix_html`'s own window-level click
+  listener (which implements `data-confirm`) bails out early via `if
+  (e.defaultPrevented) return;`, so its confirm dialog never fired. Any
+  button carrying both `data-confirm` and `data-bulk-action` — most notably
+  bulk/permanent delete — executed with no prompt. The hook now checks
+  `data-confirm` itself and calls `window.confirm()` before proceeding,
+  mirroring `phoenix_html`'s native behavior; cancelling stops the click
+  and the LiveView event is never pushed. Found while migrating
+  `phoenix_kit_comments`, `phoenix_kit_posts`, and `phoenix_kit_entities` to
+  BulkSelect — all three already pair `data-confirm` with a destructive
+  bulk action and are fixed retroactively once they pick up this release.
+
 ## 1.7.186 - 2026-07-12
 
 ### Fixed

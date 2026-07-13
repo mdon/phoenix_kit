@@ -81,7 +81,7 @@
 
   <%!-- Alternative authentication methods --%>
   <%!-- Only show this section if at least one alternative method is available --%>
-  <%= if @magic_link_enabled or PhoenixKit.Users.OAuthAvailability.oauth_available?() do %>
+  <%= if @magic_link_enabled or @qr_login_enabled or PhoenixKit.Users.OAuthAvailability.oauth_available?() do %>
     <div class="mt-6">
       <div class="relative">
         <div class="absolute inset-0 flex items-center">
@@ -103,6 +103,16 @@
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
             {gettext("Sign in with Magic Link")}
+          </.link>
+        <% end %>
+        <%!-- QR code sign-in --%>
+        <%= if @qr_login_enabled do %>
+          <.link
+            navigate={Routes.path("/users/qr-login")}
+            class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
+          >
+            <PhoenixKitWeb.Components.Core.Icons.icon_qr_code class="w-5 h-5 mr-2" />
+            {gettext("Sign in with QR code")}
           </.link>
         <% end %>
         <%!-- OAuth authentication --%>

@@ -534,24 +534,6 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
   end
 
   @doc """
-  Apple icon component.
-  """
-  attr :class, :string, default: "h-5 w-5"
-
-  def icon_apple(assigns) do
-    ~H"""
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      class={@class}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-    >
-      <path d="M17.503 0c.132 1.243-.365 2.47-1.063 3.37-.698.901-1.865 1.607-2.996 1.514-.158-1.154.444-2.378 1.101-3.132C15.298.905 16.48.107 17.503 0zm3.478 7.018c-.196.118-3.003 1.753-2.976 5.227.032 4.149 3.638 5.531 3.678 5.547-.025.097-.574 1.968-1.894 3.899-1.142 1.673-2.326 3.343-4.194 3.376-1.835.033-2.425-1.089-4.521-1.089-2.097 0-2.752 1.056-4.489 1.122-1.803.066-3.178-1.809-4.327-3.479-2.357-3.426-4.157-9.682-1.739-13.901 1.198-2.092 3.342-3.418 5.665-3.453 1.77-.033 3.44 1.19 4.521 1.19 1.081 0 3.106-1.471 5.236-1.255.891.047 3.396.36 5.004 2.714-.13.081-2.987 1.746-2.964 5.202z" />
-    </svg>
-    """
-  end
-
-  @doc """
   GitHub icon component.
   """
   attr :class, :string, default: "h-5 w-5"
@@ -1070,6 +1052,35 @@ defmodule PhoenixKitWeb.Components.Core.Icons do
         stroke-linecap="round"
         stroke-linejoin="round"
         d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  QR code icon component (for scan-to-sign-in).
+  """
+  attr :class, :string, default: "w-5 h-5 mr-2"
+
+  def icon_qr_code(assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke-width="1.5"
+      stroke="currentColor"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+      />
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z"
       />
     </svg>
     """

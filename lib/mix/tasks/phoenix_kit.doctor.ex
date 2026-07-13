@@ -32,6 +32,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
    12. **Oban Configuration** — Queues and plugins that consume pool connections
    13. **Supervisor Children** — What's running (update_mode vs full)?
    14. **Update Mode** — Is update_mode active?
+   15. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
   """
 
   use Mix.Task
@@ -71,7 +72,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
       run_check("Oban Configuration", fn -> check_oban_config() end),
       run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
-      run_check("Update Mode", fn -> check_update_mode() end)
+      run_check("Update Mode", fn -> check_update_mode() end),
+      run_check("daisyUI Version", fn -> check_daisyui() end)
     ]
 
     IO.puts("")
@@ -699,6 +701,37 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   defp extract_host_from_url(_), do: nil
+
+  # The host owns assets/vendor/daisyui.js (scaffolded by phx.new, upgraded
+  # manually). PhoenixKit's modals rely on daisyUI >= the minimum for correct
+  # modal scrollbar-gutter handling — this check is where a host finds out
+  # it's behind (install/update print the same warning).
+  defp check_daisyui do
+    alias PhoenixKit.Install.DaisyUI
+
+    minimum = DaisyUI.minimum_version()
+
+    case DaisyUI.check() do
+      :ok ->
+        {:pass, "daisyUI #{DaisyUI.installed_version(DaisyUI.host_path())} (>= #{minimum})"}
+
+      {:outdated, version} ->
+        {:warn,
+         "Vendored daisyUI is #{version}; PhoenixKit is designed against #{minimum}+ " <>
+           "(modal scrollbar-gutter handling). Update assets/vendor/daisyui.js + " <>
+           "daisyui-theme.js from https://github.com/saadeghi/daisyui/releases and rebuild assets."}
+
+      :unversioned ->
+        {:warn,
+         "assets/vendor/daisyui.js carries no version marker — cannot verify it against " <>
+           "PhoenixKit's designed-for minimum (#{minimum})."}
+
+      :missing ->
+        {:warn,
+         "No assets/vendor/daisyui.js — custom daisyUI setup? PhoenixKit is designed " <>
+           "against daisyUI #{minimum}+; make sure your setup matches."}
+    end
+  end
 
   # ── Display ─────────────────────────────────────────────────────────
 

@@ -117,5 +117,92 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
       )
 
     assert index_count > 500
+
+    # uuid_generate_v7() must live in the prefixed schema, not wherever
+    # search_path pointed (2026-07-12 field report: unqualified CREATE
+    # FUNCTION polluted public / failed on PG15+ low-privilege roles).
+    %{rows: [[fn_in_prefix]]} =
+      Repo.query!(
+        """
+        SELECT EXISTS (
+          SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE p.proname = 'uuid_generate_v7' AND n.nspname = $1
+        )
+        """,
+        [@schema]
+      )
+
+    assert fn_in_prefix,
+           "uuid_generate_v7() was not created in the prefixed schema"
+
+    # And uuid DEFAULTs must be pinned to that schema-qualified function —
+    # an unqualified default would have resolved via search_path to
+    # public's copy, breaking installs where public has no function.
+    %{rows: [[default_expr]]} =
+      Repo.query!(
+        """
+        SELECT column_default FROM information_schema.columns
+        WHERE table_schema = $1 AND table_name = 'phoenix_kit_projects' AND column_name = 'uuid'
+        """,
+        [@schema]
+      )
+
+    assert default_expr =~ "#{@schema}.uuid_generate_v7()"
+
+    # The function must work with NO search_path at all — its body calls
+    # pgcrypto's gen_random_bytes/1, which a plpgsql body resolves via the
+    # CALLER's search_path unless qualified with pgcrypto's actual schema
+    # (2026-07 quorum finding: an unqualified body defeats the point of a
+    # schema-qualified function).
+    {:ok, uuid} =
+      Repo.transaction(fn ->
+        Repo.query!("SET LOCAL search_path TO ''")
+        %{rows: [[uuid]]} = Repo.query!("SELECT #{@schema}.uuid_generate_v7()::text")
+        uuid
+      end)
+
+    assert is_binary(uuid) and byte_size(uuid) == 36
+
+    # V40/V56-path pin: a LEGACY table's uuid default must also be bound to
+    # the prefixed function (the projects assert above covers the raw-SQL
+    # CREATE TABLE path; this covers the ALTER TABLE backfill path).
+    %{rows: [[users_default]]} =
+      Repo.query!(
+        """
+        SELECT column_default FROM information_schema.columns
+        WHERE table_schema = $1 AND table_name = 'phoenix_kit_users' AND column_name = 'uuid'
+        """,
+        [@schema]
+      )
+
+    assert users_default =~ "#{@schema}.uuid_generate_v7()"
+
+    # Upgrade-path pin: chains starting >= V40 skip the function-creation
+    # sites, so Postgres.up/1 must re-ensure the function at the prefix
+    # before running newer versions. Simulate: roll the marker back one
+    # version and move the function aside (rename, not drop — the column
+    # defaults are OID-bound to it), then re-run the migrator.
+    Repo.query!("ALTER FUNCTION #{@schema}.uuid_generate_v7() RENAME TO uuid_generate_v7_old")
+
+    previous_version = Postgres.current_version() - 1
+    Repo.query!("COMMENT ON TABLE #{@schema}.phoenix_kit IS '#{previous_version}'")
+
+    capture_io(fn ->
+      assert :ok = PhoenixKit.Migration.ensure_current(Repo, prefix: @schema, log: false)
+    end)
+
+    %{rows: [[fn_restored]]} =
+      Repo.query!(
+        """
+        SELECT EXISTS (
+          SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE p.proname = 'uuid_generate_v7' AND n.nspname = $1
+        )
+        """,
+        [@schema]
+      )
+
+    assert fn_restored,
+           "Postgres.up did not re-ensure uuid_generate_v7 at the prefix on an upgrade chain"
   end
 end

@@ -15,6 +15,7 @@ defmodule PhoenixKit.Activity.Entry do
   - `metadata` — Flexible JSONB context (title, old_value, new_value, etc.)
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}

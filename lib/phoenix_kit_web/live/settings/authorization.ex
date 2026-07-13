@@ -88,8 +88,9 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
   def handle_event("test_oauth", %{"provider" => provider}, socket) do
     provider_atom = String.to_existing_atom(provider)
+    credentials = oauth_credentials_from_settings(provider_atom, socket.assigns.settings)
 
-    case OAuthConfig.test_connection(provider_atom) do
+    case OAuthConfig.test_connection(provider_atom, credentials) do
       {:ok, message} ->
         {:noreply, put_flash(socket, :info, message)}
 
@@ -171,8 +172,37 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   def get_oauth_callback_url(settings, provider) do
     site_url = settings["site_url"] || "https://example.com"
     url_prefix = PhoenixKit.Config.get_url_prefix()
+    # "/" is the sentinel Config.get_url_prefix/0 returns for "no prefix"
+    # (see compute_url_prefix/0) — treat it the same as "" here, matching
+    # Routes.path/2 and UeberAuth.get_default_base_path/0.
+    base_prefix = if url_prefix == "/", do: "", else: url_prefix
 
-    "#{site_url}#{url_prefix}/users/auth/#{provider}/callback"
+    "#{site_url}#{base_prefix}/users/auth/#{provider}/callback"
+  end
+
+  # Builds the credentials map OAuthConfig.test_connection/2 expects, from
+  # the unsaved in-memory form state (`socket.assigns.settings`) rather than
+  # the database — the "Test Credentials" button must validate what the
+  # admin just typed, not the last-persisted values.
+  defp oauth_credentials_from_settings(:google, settings) do
+    %{
+      client_id: settings["oauth_google_client_id"] || "",
+      client_secret: settings["oauth_google_client_secret"] || ""
+    }
+  end
+
+  defp oauth_credentials_from_settings(:github, settings) do
+    %{
+      client_id: settings["oauth_github_client_id"] || "",
+      client_secret: settings["oauth_github_client_secret"] || ""
+    }
+  end
+
+  defp oauth_credentials_from_settings(:facebook, settings) do
+    %{
+      app_id: settings["oauth_facebook_app_id"] || "",
+      app_secret: settings["oauth_facebook_app_secret"] || ""
+    }
   end
 
   @doc """

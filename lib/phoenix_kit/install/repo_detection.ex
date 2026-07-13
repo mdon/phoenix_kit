@@ -30,18 +30,32 @@ defmodule PhoenixKit.Install.RepoDetection do
         warning = create_repo_not_found_warning()
         Igniter.add_warning(igniter, warning)
 
+      {:multiple, igniter, repos} ->
+        # A hard issue, not a warning: without a repo choice the rest of
+        # the install pipeline (Oban config, migration strategy) would
+        # proceed on guesses and fail incoherently downstream.
+        Igniter.add_issue(igniter, create_multiple_repos_warning(repos))
+
       {igniter, repo_module} ->
         {updated_igniter, _} = validate_postgresql_adapter(igniter, repo_module)
         add_repo_config_to_files(updated_igniter, repo_module)
     end
   end
 
-  # Find specified repo or auto-detect from project
+  # Find specified repo or auto-detect from project.
+  #
+  # When more than one Ecto.Repo is detected, we deliberately do NOT
+  # pick one — a project may define migration-only or replica repos,
+  # and silently wiring the wrong one into `config :phoenix_kit, repo:`
+  # is far worse than asking for an explicit --repo.
   defp find_or_detect_repo(igniter, nil) do
-    # Try multiple methods to find repos
     with {igniter, nil} <- try_igniter_ecto_list(igniter),
          {igniter, nil} <- try_application_config(igniter) do
       try_naming_patterns(igniter)
+    else
+      # {igniter, repo} (found) or {:multiple, igniter, repos} — both
+      # short-circuit the detection chain and are handled by the caller.
+      result -> result
     end
   end
 
@@ -61,7 +75,8 @@ defmodule PhoenixKit.Install.RepoDetection do
   # Method 1: Use Igniter's Ecto lib
   defp try_igniter_ecto_list(igniter) do
     case Ecto.list_repos(igniter) do
-      {igniter, [repo | _]} -> validate_postgres_adapter(igniter, repo)
+      {igniter, [repo]} -> validate_postgres_adapter(igniter, repo)
+      {igniter, [_ | _] = repos} -> {:multiple, igniter, repos}
       {igniter, []} -> {igniter, nil}
     end
   end
@@ -71,7 +86,8 @@ defmodule PhoenixKit.Install.RepoDetection do
     parent_app_name = IgniterHelpers.get_parent_app_name(igniter)
 
     case Elixir.Application.get_env(parent_app_name, :ecto_repos, []) do
-      [repo | _] -> validate_postgres_adapter(igniter, repo)
+      [repo] -> validate_postgres_adapter(igniter, repo)
+      [_ | _] = repos -> {:multiple, igniter, repos}
       [] -> {igniter, nil}
     end
   rescue
@@ -272,6 +288,23 @@ defmodule PhoenixKit.Install.RepoDetection do
     """
 
     Igniter.add_notice(igniter, notice)
+  end
+
+  # Create warning message when more than one repository is detected
+  defp create_multiple_repos_warning(repos) do
+    """
+    Multiple Ecto repos detected — PhoenixKit will not pick one automatically:
+
+    #{Enum.map_join(repos, "\n", fn repo -> "  - #{inspect(repo)}" end)}
+
+    Re-run with the repo your application uses at runtime:
+
+      mix phoenix_kit.install --repo #{inspect(List.first(repos))}
+
+    Or manually add to config/config.exs (and config/test.exs):
+
+      config :phoenix_kit, repo: YourApp.Repo
+    """
   end
 
   # Create warning message when repository cannot be found

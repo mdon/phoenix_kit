@@ -548,7 +548,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   defp get_available_oauth_providers(oauth_providers) do
     connected = Enum.map(oauth_providers, & &1.provider)
-    all_providers = ["google", "apple", "github"]
+    all_providers = ["google", "github"]
 
     all_providers
     |> Enum.reject(&(&1 in connected))
@@ -556,7 +556,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   defp provider_enabled?("google"), do: OAuthAvailability.provider_enabled?(:google)
-  defp provider_enabled?("apple"), do: OAuthAvailability.provider_enabled?(:apple)
   defp provider_enabled?("github"), do: OAuthAvailability.provider_enabled?(:github)
   defp provider_enabled?(_), do: false
 

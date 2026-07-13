@@ -81,7 +81,10 @@ defmodule PhoenixKit.Users.RateLimiter do
     registration_window_ms: 3_600_000,
     # Registration IP: 10 attempts per hour per IP
     registration_ip_limit: 10,
-    registration_ip_window_ms: 3_600_000
+    registration_ip_window_ms: 3_600_000,
+    # QR login request creation: 10 per minute per IP (pre-auth, no email to key on)
+    qr_login_limit: 10,
+    qr_login_window_ms: 60_000
   ]
 
   @doc """
@@ -255,6 +258,36 @@ defmodule PhoenixKit.Users.RateLimiter do
 
       {:error, :rate_limit_exceeded} = error ->
         log_rate_limit_violation("registration", "email:#{email}", email_limit, email_window)
+        error
+    end
+  end
+
+  @doc """
+  Checks if QR device-handoff login request creation is within rate limit.
+
+  Returns `:ok` if the request is allowed, or `{:error, :rate_limit_exceeded}` if the limit is
+  exceeded. IP-only (the desktop page is pre-auth, so there's no email to key on) — this guards
+  against an anonymous visitor repeatedly minting `keyfob` requests (each one a live ETS entry)
+  by hammering the public `/users/qr-login` page.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.RateLimiter.check_qr_login_rate_limit("192.168.1.1")
+      :ok
+  """
+  def check_qr_login_rate_limit(ip_address) when is_binary(ip_address) do
+    config = get_config()
+
+    key = "auth:qr_login:ip:#{ip_address}"
+    limit = Keyword.get(config, :qr_login_limit)
+    window = Keyword.get(config, :qr_login_window_ms)
+
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation("qr_login", "ip:#{ip_address}", limit, window)
         error
     end
   end

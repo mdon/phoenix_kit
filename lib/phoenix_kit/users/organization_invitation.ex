@@ -6,6 +6,7 @@ defmodule PhoenixKit.Users.OrganizationInvitation do
   The raw token is never stored — only the SHA-256 hash, following the UserToken pattern.
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Users.Auth.User

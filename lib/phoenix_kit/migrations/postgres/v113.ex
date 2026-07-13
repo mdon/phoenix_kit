@@ -166,7 +166,7 @@ defmodule PhoenixKit.Migrations.Postgres.V113 do
                          ) do
       add(:uuid, :uuid,
         primary_key: true,
-        default: fragment("uuid_generate_v7()"),
+        default: fragment("#{prefix}.uuid_generate_v7()"),
         null: false
       )
 

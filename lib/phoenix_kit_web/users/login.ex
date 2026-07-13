@@ -37,6 +37,7 @@ defmodule PhoenixKitWeb.Users.Login do
         project_title = PhoenixKit.Settings.get_project_title()
         allow_registration = Settings.get_boolean_setting("allow_registration", true)
         magic_link_enabled = Settings.get_boolean_setting("magic_link_login_enabled", true)
+        qr_login_enabled = Settings.get_boolean_setting("qr_login_enabled", false)
 
         # Support both old :email flash and new :email_or_username flash for backwards compatibility
         email_or_username =
@@ -54,6 +55,7 @@ defmodule PhoenixKitWeb.Users.Login do
             project_title: project_title,
             allow_registration: allow_registration,
             magic_link_enabled: magic_link_enabled,
+            qr_login_enabled: qr_login_enabled,
             return_to: return_to
           )
 

@@ -236,6 +236,8 @@ defmodule PhoenixKitWeb.Integration do
         put "/users/session/active", Users.Session, :set_active_account
         delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
+        # QR device-handoff login — completion endpoint (single-use login token)
+        get "/users/qr-login/finish/:token", Users.QrLoginComplete, :complete
 
         # Dashboard context switching (multi-selector with key, must come before legacy route)
         post "/context/:key/:id", ContextController, :set
@@ -371,6 +373,8 @@ defmodule PhoenixKitWeb.Integration do
 
       live "/users/log-in", Users.Login, :new, as: :user_login
       live "/users/magic-link", Users.MagicLink, :new, as: :user_magic_link
+      # QR device-handoff login — desktop page showing the code to scan
+      live "/users/qr-login", Users.QrLogin, :new, as: :user_qr_login
       live "/users/reset-password", Users.ForgotPassword, :new, as: :user_reset_password
 
       live "/users/reset-password/:token", Users.ResetPassword, :edit,
@@ -521,6 +525,11 @@ defmodule PhoenixKitWeb.Integration do
              Live.Dashboard.Settings,
              :confirm_email
       end
+
+      # QR device-handoff login — the phone-side approval screen. Must be
+      # authenticated: the phone approves on behalf of its signed-in user.
+      live "/users/qr-login/scan/:token", Users.QrLoginConfirm, :confirm,
+        as: :user_qr_login_confirm
 
       # Module user pages (full module names — no PhoenixKitWeb alias)
       scope "/", alias: false do
@@ -1080,6 +1089,8 @@ defmodule PhoenixKitWeb.Integration do
         put "/users/session/active", Users.Session, :set_active_account
         delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
+        # QR device-handoff login — completion endpoint (single-use login token)
+        get "/users/qr-login/finish/:token", Users.QrLoginComplete, :complete
 
         # OAuth routes
         get "/users/auth/:provider", Users.OAuth, :request

@@ -204,7 +204,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
            sqs_managed_sse_enabled: "true"
          )
          |> ExAws.request(aws_config(config)) do
-      {:ok, %{body: body}} ->
+      {:ok, body} ->
         dlq_url = get_queue_url_from_response(body)
         dlq_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{dlq_name}"
         Logger.info("[AWS Setup]   ✓ DLQ Created")
@@ -212,13 +212,8 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
         Logger.info("[AWS Setup]     ARN: #{dlq_arn}")
         {:ok, dlq_url, dlq_arn}
 
-      {:error, {:http_error, 400, %{body: body}}} when is_binary(body) ->
-        # Queue might already exist
-        if String.contains?(body, "QueueAlreadyExists") do
-          handle_existing_queue(dlq_name, account_id, config, "DLQ")
-        else
-          return_error("create_dlq", body)
-        end
+      {:error, {"QueueNameExists", _message}} ->
+        handle_existing_queue(dlq_name, account_id, config, "DLQ")
 
       {:error, reason} ->
         return_error("create_dlq", inspect(reason))
@@ -298,7 +293,7 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
            sqs_managed_sse_enabled: "true"
          )
          |> ExAws.request(aws_config(config)) do
-      {:ok, %{body: body}} ->
+      {:ok, body} ->
         queue_url = get_queue_url_from_response(body)
         queue_arn = "arn:aws:sqs:#{config.region}:#{account_id}:#{queue_name}"
         Logger.info("[AWS Setup]   ✓ Main Queue Created")
@@ -306,12 +301,8 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
         Logger.info("[AWS Setup]     ARN: #{queue_arn}")
         {:ok, queue_url, queue_arn}
 
-      {:error, {:http_error, 400, %{body: body}}} when is_binary(body) ->
-        if String.contains?(body, "QueueAlreadyExists") do
-          handle_existing_queue(queue_name, account_id, config, "Main Queue")
-        else
-          return_error("create_main_queue", body)
-        end
+      {:error, {"QueueNameExists", _message}} ->
+        handle_existing_queue(queue_name, account_id, config, "Main Queue")
 
       {:error, reason} ->
         return_error("create_main_queue", inspect(reason))
@@ -455,15 +446,19 @@ defmodule PhoenixKit.AWS.InfrastructureSetup do
     |> String.trim("-")
   end
 
-  # Helper: Extract queue URL from various response formats
+  # Helper: Extract queue URL from a CreateQueue/GetQueueUrl response.
+  # SQS's JSON protocol (beamlab_ex_aws_sqs) returns the raw AWS response
+  # map keyed exactly as documented ("QueueUrl") — no atom/snake_case
+  # normalization layer, unlike SNS/STS below which still go through
+  # sweet_xml's Query/XML parsing.
   defp get_queue_url_from_response(body) when is_map(body) do
-    body[:queue_url] || body["QueueUrl"] || body["queue_url"]
+    body["QueueUrl"]
   end
 
   # Helper: Handle existing queue scenario (idempotent setup)
   defp handle_existing_queue(queue_name, account_id, config, queue_type) do
     case SQS.get_queue_url(queue_name) |> ExAws.request(aws_config(config)) do
-      {:ok, %{body: body}} ->
+      {:ok, body} ->
         queue_url = get_queue_url_from_response(body)
         region = config.region
         queue_arn = "arn:aws:sqs:#{region}:#{account_id}:#{queue_name}"

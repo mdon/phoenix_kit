@@ -88,6 +88,8 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   alias PhoenixKit.Migrations.UUIDFKColumns
 
   # Tables missing the uuid column entirely (schema expects it, migration never created it)
@@ -199,22 +201,8 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     # Flush pending commands so repo().query() table checks see all tables
     flush()
 
-    # Ensure uuid_generate_v7() function exists (created in V40, but be safe)
-    execute("""
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS uuid AS $$
-    DECLARE
-      unix_ts_ms bytea;
-      uuid_bytes bytea;
-    BEGIN
-      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
-      uuid_bytes := unix_ts_ms || gen_random_bytes(10);
-      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
-      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
-      RETURN encode(uuid_bytes, 'hex')::uuid;
-    END
-    $$ LANGUAGE plpgsql VOLATILE;
-    """)
+    # Ensure <prefix>.uuid_generate_v7() function exists (created in V40, but be safe)
+    Helpers.ensure_uuid_v7_function(prefix)
 
     # Fix 0: Add missing uuid columns (V43 consent_logs)
     for table <- @tables_missing_column do
@@ -334,26 +322,26 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     if table_exists?(table, escaped_prefix) do
       execute("""
       ALTER TABLE #{table_name}
-      ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v7()
+      ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7()
       """)
 
       # Backfill existing rows
       execute("""
       UPDATE #{table_name}
-      SET uuid = uuid_generate_v7()
+      SET uuid = #{prefix}.uuid_generate_v7()
       WHERE uuid IS NULL
       """)
     end
   end
 
-  # Fix 1: Set DEFAULT to uuid_generate_v7()
+  # Fix 1: Set DEFAULT to <prefix>.uuid_generate_v7()
   defp fix_uuid_default(table, prefix, escaped_prefix) do
     table_name = prefix_table_name(Atom.to_string(table), prefix)
 
     if table_exists?(table, escaped_prefix) and column_exists?(table, :uuid, escaped_prefix) do
       execute("""
       ALTER TABLE #{table_name}
-      ALTER COLUMN uuid SET DEFAULT uuid_generate_v7()
+      ALTER COLUMN uuid SET DEFAULT #{prefix}.uuid_generate_v7()
       """)
     end
   end
@@ -366,7 +354,7 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
       # Backfill any NULL uuid values with UUIDv7
       execute("""
       UPDATE #{table_name}
-      SET uuid = uuid_generate_v7()
+      SET uuid = #{prefix}.uuid_generate_v7()
       WHERE uuid IS NULL
       """)
 
@@ -398,7 +386,7 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     if table_exists?(table, escaped_prefix) and column_exists?(table, :id, escaped_prefix) do
       execute("""
       ALTER TABLE #{table_name}
-      ALTER COLUMN id SET DEFAULT uuid_generate_v7()
+      ALTER COLUMN id SET DEFAULT #{prefix}.uuid_generate_v7()
       """)
     end
   end

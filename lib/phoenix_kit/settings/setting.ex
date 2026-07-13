@@ -47,6 +47,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> Repo.update()
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   alias PhoenixKit.Users.Role
@@ -73,10 +74,6 @@ defmodule PhoenixKit.Settings.Setting do
     # OAuth Provider Credentials
     "oauth_google_client_id",
     "oauth_google_client_secret",
-    "oauth_apple_client_id",
-    "oauth_apple_team_id",
-    "oauth_apple_key_id",
-    "oauth_apple_private_key",
     "oauth_github_client_id",
     "oauth_github_client_secret",
     "oauth_facebook_app_id",
@@ -263,7 +260,6 @@ defmodule PhoenixKit.Settings.Setting do
       field :allow_registration, :string
       field :oauth_enabled, :string
       field :oauth_google_enabled, :string
-      field :oauth_apple_enabled, :string
       field :oauth_github_enabled, :string
       field :oauth_facebook_enabled, :string
       field :magic_link_login_enabled, :string
@@ -283,10 +279,6 @@ defmodule PhoenixKit.Settings.Setting do
       # OAuth Provider Credentials
       field :oauth_google_client_id, :string
       field :oauth_google_client_secret, :string
-      field :oauth_apple_client_id, :string
-      field :oauth_apple_team_id, :string
-      field :oauth_apple_key_id, :string
-      field :oauth_apple_private_key, :string
       field :oauth_github_client_id, :string
       field :oauth_github_client_secret, :string
       field :oauth_facebook_app_id, :string
@@ -328,7 +320,6 @@ defmodule PhoenixKit.Settings.Setting do
         :allow_registration,
         :oauth_enabled,
         :oauth_google_enabled,
-        :oauth_apple_enabled,
         :oauth_github_enabled,
         :oauth_facebook_enabled,
         :magic_link_login_enabled,
@@ -345,10 +336,6 @@ defmodule PhoenixKit.Settings.Setting do
         :admin_languages,
         :oauth_google_client_id,
         :oauth_google_client_secret,
-        :oauth_apple_client_id,
-        :oauth_apple_team_id,
-        :oauth_apple_key_id,
-        :oauth_apple_private_key,
         :oauth_github_client_id,
         :oauth_github_client_secret,
         :oauth_facebook_app_id,
@@ -369,7 +356,6 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_allow_registration()
       |> validate_oauth_enabled()
       |> validate_oauth_provider_enabled(:oauth_google_enabled)
-      |> validate_oauth_provider_enabled(:oauth_apple_enabled)
       |> validate_oauth_provider_enabled(:oauth_github_enabled)
       |> validate_oauth_provider_enabled(:oauth_facebook_enabled)
       |> validate_magic_link_enabled(:magic_link_login_enabled)

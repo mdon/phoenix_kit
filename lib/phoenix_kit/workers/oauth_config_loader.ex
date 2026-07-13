@@ -182,7 +182,6 @@ defmodule PhoenixKit.Workers.OAuthConfigLoader do
       # Check that at least one provider's credentials are accessible (direct DB read)
       has_any_oauth_data =
         PhoenixKit.Settings.has_oauth_credentials_direct?(:google) or
-          PhoenixKit.Settings.has_oauth_credentials_direct?(:apple) or
           PhoenixKit.Settings.has_oauth_credentials_direct?(:github) or
           PhoenixKit.Settings.has_oauth_credentials_direct?(:facebook)
 

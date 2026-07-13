@@ -984,7 +984,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   end
 
   defp card_status(user) do
-    confirmation = if user.confirmed_at, do: gettext("Confirmed"), else: gettext("Pending")
+    confirmation =
+      if user.confirmed_at, do: gettext("Email Confirmed"), else: gettext("Email Pending")
+
     active = if user.is_active, do: gettext("Active"), else: gettext("Inactive")
     "#{confirmation} / #{active}"
   end

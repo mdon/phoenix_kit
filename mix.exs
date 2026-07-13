@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.186"
+  @version "1.7.189"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -99,12 +99,28 @@ defmodule PhoenixKit.MixProject do
       {:gen_smtp, "~> 1.2"},
 
       # OAuth authentication
+      #
+      # No ueberauth_apple: last released 2023 (unmaintained), and its
+      # httpoison "~> 1.0 or ~> 2.0" pin was the thing blocking hackney from
+      # moving past 1.25.0 (4 unpatched CVEs, 1 HIGH — fixed only in 4.0.1+).
+      # Apple Sign-In can come back via a maintained fork later; see
+      # CHANGELOG for the removal note.
       {:oauth2, "~> 2.0"},
       {:ueberauth, "~> 0.10"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_facebook, "~> 0.10"},
+
+      # hackney 4.x, clearing 4 unpatched CVEs on the 1.25.0 line (1 HIGH).
+      # No override needed anymore (Hex refuses to publish a package
+      # depending on one, which blocked every release since 1.7.188):
+      # ex_aws_sqs's `hackney ~> 1.9` pin — the only remaining conflicting
+      # requirement — is gone along with the package itself, replaced
+      # above by beamlab_ex_aws_sqs. No direct httpoison dependency
+      # either — the ueberauth_apple pin that justified it is gone, and
+      # nothing else in the tree or in phoenix_kit's own code calls
+      # HTTPoison.
+      {:hackney, "~> 4.0"},
 
       # Development and testing
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
@@ -115,7 +131,6 @@ defmodule PhoenixKit.MixProject do
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:floki, ">= 0.30.0", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:hackney, "~> 1.16"},
 
       # Content editor
       {:leaf, "~> 0.3"},
@@ -156,6 +171,9 @@ defmodule PhoenixKit.MixProject do
       {:tessera, "~> 0.3"},
       {:etcher, "~> 0.7"},
 
+      # QR device-handoff login ("scan to sign in" on the login page).
+      {:keyfob, "~> 0.1"},
+
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
       {:backblaze_regions, "~> 0.1.0"},
@@ -177,7 +195,16 @@ defmodule PhoenixKit.MixProject do
       # AWS integration for emails
       {:sweet_xml, "~> 0.7"},
       {:ex_aws, "~> 2.4"},
-      {:ex_aws_sqs, "~> 3.4"},
+      # Fork of the archived ex_aws_sqs, published as beamlab_ex_aws_sqs —
+      # same public API (ExAws.SQS), switched to the SQS JSON protocol.
+      # Existed to unblock the hackney 4.x upgrade below: upstream
+      # ex_aws_sqs pins `hackney ~> 1.9`, which can't coexist with `~> 4.0`
+      # (and Hex refuses to publish a package depending on one that does,
+      # via override: true). This fork declares no hackney dependency at
+      # all — see its README for the full migration notes (response
+      # bodies are now raw JSON maps, e.g. `%{"QueueUrl" => ...}`, not
+      # `%{body: %{queue_url: ...}}`).
+      {:beamlab_ex_aws_sqs, "~> 4.0"},
       {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},

@@ -51,7 +51,7 @@ defmodule PhoenixKit.Migrations.Postgres.V117 do
                          ) do
       add(:uuid, :uuid,
         primary_key: true,
-        default: fragment("uuid_generate_v7()"),
+        default: fragment("#{prefix}.uuid_generate_v7()"),
         null: false
       )
 
@@ -100,7 +100,7 @@ defmodule PhoenixKit.Migrations.Postgres.V117 do
     # `:map` DSL can't express — use raw SQL for that column's default.
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_doc_template_presets (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7() NOT NULL,
       name VARCHAR NOT NULL,
       description TEXT,
       category VARCHAR,

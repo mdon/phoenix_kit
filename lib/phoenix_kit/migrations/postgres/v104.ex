@@ -35,7 +35,7 @@ defmodule PhoenixKit.Migrations.Postgres.V104 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_notifications (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       activity_uuid UUID NOT NULL
         REFERENCES #{p}phoenix_kit_activities(uuid) ON DELETE CASCADE,
       recipient_uuid UUID NOT NULL

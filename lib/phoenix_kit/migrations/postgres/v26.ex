@@ -25,9 +25,12 @@ defmodule PhoenixKit.Migrations.Postgres.V26 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   def up(%{prefix: prefix} = _opts) do
-    # Enable pgcrypto extension for digest function
-    execute "CREATE EXTENSION IF NOT EXISTS pgcrypto"
+    # Enable pgcrypto extension for digest function (skips the statement —
+    # and its privilege check — when the extension is already installed)
+    Helpers.ensure_extension!("pgcrypto")
 
     # Drop the unique index on checksum (from V24)
     drop_if_exists unique_index(:phoenix_kit_files, [:checksum], prefix: prefix)
@@ -40,10 +43,13 @@ defmodule PhoenixKit.Migrations.Postgres.V26 do
       add :user_file_checksum, :string
     end
 
-    # Backfill existing records with user_file_checksum
+    # Backfill existing records with user_file_checksum. digest/2 is
+    # schema-qualified — a plpgsql-free direct call still resolves via the
+    # CALLING role's search_path, so an unqualified call fails when
+    # pgcrypto lives outside it (same reasoning as uuid_generate_v7()).
     execute """
     UPDATE #{prefix}.phoenix_kit_files
-    SET user_file_checksum = encode(digest(CAST(user_id AS text) || file_checksum, 'sha256'), 'hex')
+    SET user_file_checksum = encode(#{Helpers.pgcrypto_call("digest")}(CAST(user_id AS text) || file_checksum, 'sha256'), 'hex')
     WHERE user_file_checksum IS NULL
     """
 

@@ -21,6 +21,7 @@ defmodule PhoenixKit.Users.Auth.UserToken do
   - Short-lived magic links (15 minutes) minimize security exposure
   """
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Query
   alias PhoenixKit.Users.Auth.UserToken
   alias PhoenixKit.Utils.SessionFingerprint

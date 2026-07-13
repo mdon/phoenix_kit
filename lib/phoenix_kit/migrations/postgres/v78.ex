@@ -125,10 +125,10 @@ defmodule PhoenixKit.Migrations.Postgres.V78 do
 
     execute("""
     ALTER TABLE #{full_table}
-    ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v7()
+    ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7()
     """)
 
-    execute("UPDATE #{full_table} SET uuid = uuid_generate_v7() WHERE uuid IS NULL")
+    execute("UPDATE #{full_table} SET uuid = #{prefix}.uuid_generate_v7() WHERE uuid IS NULL")
 
     execute("ALTER TABLE #{full_table} ALTER COLUMN uuid SET NOT NULL")
 

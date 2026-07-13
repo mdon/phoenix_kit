@@ -22,7 +22,7 @@ defmodule PhoenixKit.Migrations.Postgres.V79 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_newsletters_lists (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,
       description TEXT,
@@ -45,7 +45,7 @@ defmodule PhoenixKit.Migrations.Postgres.V79 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_newsletters_list_members (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       user_uuid UUID NOT NULL,
       list_uuid UUID NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -78,7 +78,7 @@ defmodule PhoenixKit.Migrations.Postgres.V79 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_newsletters_broadcasts (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       subject VARCHAR(998) NOT NULL,
       markdown_body TEXT,
       html_body TEXT,
@@ -133,7 +133,7 @@ defmodule PhoenixKit.Migrations.Postgres.V79 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_newsletters_deliveries (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       broadcast_uuid UUID NOT NULL,
       user_uuid UUID NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'pending',

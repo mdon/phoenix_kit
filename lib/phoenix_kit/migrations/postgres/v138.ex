@@ -44,7 +44,7 @@ defmodule PhoenixKit.Migrations.Postgres.V138 do
     # ── Contacts ──────────────────────────────────────────────────────
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_contacts (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255),
       status VARCHAR(50) NOT NULL DEFAULT 'active',
       email VARCHAR(255),
@@ -72,7 +72,7 @@ defmodule PhoenixKit.Migrations.Postgres.V138 do
     # ── Companies ─────────────────────────────────────────────────────
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_companies (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       name VARCHAR(255),
       status VARCHAR(50) NOT NULL DEFAULT 'active',
       website VARCHAR(255),
@@ -95,7 +95,7 @@ defmodule PhoenixKit.Migrations.Postgres.V138 do
     # ── Contact ↔ Company memberships ─────────────────────────────────
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_company_memberships (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       contact_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_crm_contacts(uuid) ON DELETE CASCADE,
       company_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_crm_companies(uuid) ON DELETE CASCADE,
       role_in_company VARCHAR(255),
@@ -121,7 +121,7 @@ defmodule PhoenixKit.Migrations.Postgres.V138 do
     # ── Interactions ──────────────────────────────────────────────────
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_interactions (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       contact_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_crm_contacts(uuid) ON DELETE CASCADE,
       interaction_type VARCHAR(50) NOT NULL DEFAULT 'note',
       occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -145,7 +145,7 @@ defmodule PhoenixKit.Migrations.Postgres.V138 do
     # optional staff module stays optional.
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_interaction_parties (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{prefix}.uuid_generate_v7(),
       interaction_uuid UUID NOT NULL REFERENCES #{p}phoenix_kit_crm_interactions(uuid) ON DELETE CASCADE,
       raw_name VARCHAR(255) NOT NULL,
       contact_uuid UUID REFERENCES #{p}phoenix_kit_crm_contacts(uuid) ON DELETE SET NULL,

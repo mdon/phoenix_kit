@@ -42,6 +42,8 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
 
   require Logger
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   @tables_needing_repair [
     # Auth tables (V01) - CRITICAL for login/registration
     :phoenix_kit_users,
@@ -63,6 +65,7 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
   """
   def maybe_repair(opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "public")
+    Helpers.validate_prefix!(prefix)
 
     with {:ok, repo} <- get_repo(),
          {:ok, version} <- get_current_version(repo, prefix),
@@ -82,6 +85,7 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
   """
   def needs_repair?(opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "public")
+    Helpers.validate_prefix!(prefix)
 
     with {:ok, repo} <- get_repo(),
          {:ok, version} <- get_current_version(repo, prefix) do
@@ -147,7 +151,7 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
     ensure_pgcrypto(repo)
 
     # Ensure uuid_generate_v7() function exists (V40 creates it, but we run before V40)
-    ensure_uuid_generate_v7(repo)
+    ensure_uuid_generate_v7(repo, prefix)
 
     # Repair each table that needs it
     results =
@@ -167,27 +171,11 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
   end
 
   defp ensure_pgcrypto(repo) do
-    repo.query("CREATE EXTENSION IF NOT EXISTS pgcrypto", [], log: false)
+    Helpers.ensure_extension!(repo, "pgcrypto")
   end
 
-  defp ensure_uuid_generate_v7(repo) do
-    query = """
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS uuid AS $$
-    DECLARE
-      unix_ts_ms bytea;
-      uuid_bytes bytea;
-    BEGIN
-      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
-      uuid_bytes := unix_ts_ms || gen_random_bytes(10);
-      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
-      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
-      RETURN encode(uuid_bytes, 'hex')::uuid;
-    END
-    $$ LANGUAGE plpgsql VOLATILE;
-    """
-
-    repo.query(query, [], log: false)
+  defp ensure_uuid_generate_v7(repo, prefix) do
+    Helpers.ensure_uuid_v7_function(repo, prefix)
   end
 
   defp repair_table(repo, table, prefix) do
@@ -206,14 +194,16 @@ defmodule PhoenixKit.Migrations.UUIDRepair do
         # Need to add uuid column
         Logger.info("[PhoenixKit] Adding uuid column to #{table_name}...")
 
+        uuid_v7 = Helpers.uuid_v7_call(prefix)
+
         add_uuid_query = """
         ALTER TABLE #{table_name}
-        ADD COLUMN uuid UUID DEFAULT uuid_generate_v7()
+        ADD COLUMN uuid UUID DEFAULT #{uuid_v7}
         """
 
         backfill_query = """
         UPDATE #{table_name}
-        SET uuid = uuid_generate_v7()
+        SET uuid = #{uuid_v7}
         WHERE uuid IS NULL
         """
 

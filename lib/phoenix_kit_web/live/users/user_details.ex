@@ -57,6 +57,23 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
         # Load admin notes
         admin_notes = Auth.list_admin_notes(user)
 
+        # Load date/time format settings once, mirroring the Users list, so
+        # Registered/Last Updated/Email Confirmed can show full date+time in
+        # the admin's own timezone instead of the date-only, timezone-naive
+        # UtilsDate.format_datetime_with_user_format/1.
+        date_time_settings =
+          Settings.get_settings_cached(
+            ["date_format", "time_format", "time_zone"],
+            %{
+              "date_format" => "Y-m-d",
+              "time_format" => "H:i",
+              "time_zone" => "0"
+            }
+          )
+
+        geolocation_tracking_enabled =
+          Settings.get_boolean_setting("track_registration_geolocation", false)
+
         # Organization accounts
         org_accounts_enabled =
           Settings.get_boolean_setting("enable_organization_accounts", false)
@@ -75,6 +92,8 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> assign(:page_section, gettext("Users"))
           |> assign(:page_section_path, Routes.path("/admin/users"))
           |> assign(:project_title, project_title)
+          |> assign(:date_time_settings, date_time_settings)
+          |> assign(:geolocation_tracking_enabled, geolocation_tracking_enabled)
           |> assign(:active_tab, "profile")
           |> assign(:custom_field_definitions, custom_field_definitions)
           |> assign(:show_delete_modal, false)
@@ -569,6 +588,18 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     end
   end
 
+  # Full date+time (in the admin's own timezone), for the Account Information
+  # card where there's room — unlike the Users list's compact date-only
+  # columns, and unlike UtilsDate.format_datetime_with_user_format/1 (despite
+  # the name, it silently drops the time and ignores timezone entirely).
+  defp format_datetime(nil, _current_user, _date_time_settings), do: "-"
+
+  defp format_datetime(dt, current_user, date_time_settings) do
+    date = UtilsDate.format_date_with_user_timezone_cached(dt, current_user, date_time_settings)
+    time = UtilsDate.format_time_with_user_timezone_cached(dt, current_user, date_time_settings)
+    "#{date} #{time}"
+  end
+
   defp format_location(user) do
     [user.registration_city, user.registration_region, user.registration_country]
     |> Enum.filter(&(&1 && &1 != ""))
@@ -582,17 +613,28 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   defp format_timezone(nil), do: gettext("Not set")
 
   defp format_timezone(offset) when is_binary(offset) do
-    case Integer.parse(offset) do
+    # Float.parse/1, not Integer.parse/1 — half/45-minute offsets like "5.5"
+    # (India) or "5.75" (Nepal) are valid stored values (auto-detected from
+    # the browser, or picked from Settings' "UTC+5:30" style dropdown
+    # options); Integer.parse/1 silently truncated them to "UTC+5".
+    case Float.parse(offset) do
       {num, _} -> format_timezone_offset(num)
       :error -> offset
     end
   end
 
-  defp format_timezone(offset) when is_integer(offset), do: format_timezone_offset(offset)
+  defp format_timezone(offset) when is_number(offset), do: format_timezone_offset(offset)
 
   defp format_timezone_offset(offset) do
     sign = if offset >= 0, do: "+", else: ""
-    "UTC#{sign}#{offset}"
+
+    trimmed =
+      (offset * 1.0)
+      |> :erlang.float_to_binary(decimals: 2)
+      |> String.trim_trailing("0")
+      |> String.trim_trailing(".")
+
+    "UTC#{sign}#{trimmed}"
   end
 
   defp get_custom_field_value(user, field_key) do

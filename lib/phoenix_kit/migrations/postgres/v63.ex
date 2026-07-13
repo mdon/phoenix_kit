@@ -37,30 +37,18 @@ defmodule PhoenixKit.Migrations.Postgres.V63 do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
   def up(%{prefix: prefix} = opts) do
     escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
 
     # Flush any pending migration commands from earlier versions
     flush()
 
-    # Ensure uuid_generate_v7() exists (created in V40, be defensive)
-    execute("""
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS uuid AS $$
-    DECLARE
-      unix_ts_ms bytea;
-      uuid_bytes bytea;
-    BEGIN
-      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
-      uuid_bytes := unix_ts_ms || gen_random_bytes(10);
-      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
-      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
-      RETURN encode(uuid_bytes, 'hex')::uuid;
-    END
-    $$ LANGUAGE plpgsql VOLATILE;
-    """)
+    # Ensure <prefix>.uuid_generate_v7() exists (created in V40, be defensive)
+    Helpers.ensure_uuid_v7_function(prefix)
 
-    # Flush so uuid_generate_v7() is available for subsequent queries
+    # Flush so <prefix>.uuid_generate_v7() is available for subsequent queries
     flush()
 
     # 1. Add uuid column to ai_accounts (must come before account_uuid backfill)
@@ -114,8 +102,11 @@ defmodule PhoenixKit.Migrations.Postgres.V63 do
          not column_exists?(table, :uuid, escaped_prefix) do
       table_name = prefix_table("phoenix_kit_ai_accounts", prefix)
 
-      execute("ALTER TABLE #{table_name} ADD COLUMN uuid UUID DEFAULT uuid_generate_v7()")
-      execute("UPDATE #{table_name} SET uuid = uuid_generate_v7() WHERE uuid IS NULL")
+      execute(
+        "ALTER TABLE #{table_name} ADD COLUMN uuid UUID DEFAULT #{prefix}.uuid_generate_v7()"
+      )
+
+      execute("UPDATE #{table_name} SET uuid = #{prefix}.uuid_generate_v7() WHERE uuid IS NULL")
 
       execute("""
       CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_ai_accounts_uuid_idx
