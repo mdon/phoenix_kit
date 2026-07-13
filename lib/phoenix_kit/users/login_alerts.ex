@@ -23,11 +23,15 @@ defmodule PhoenixKit.Users.LoginAlerts do
 
   require Logger
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  alias PhoenixKit.Notifications
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.KnownDevice
   alias PhoenixKit.Users.Auth.UserNotifier
   alias PhoenixKit.Utils.Geolocation
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
 
@@ -83,6 +87,9 @@ defmodule PhoenixKit.Users.LoginAlerts do
       user_agent_hash: fingerprint.user_agent_hash,
       browser: UserAgent.browser(ua),
       os: UserAgent.os(ua),
+      # Resolved once here and persisted (V147) so the Active Sessions list
+      # can show it later without re-hitting the geo API per page render.
+      location: location_for(fingerprint.ip_address),
       first_seen_at: now,
       last_seen_at: now
     }
@@ -95,10 +102,43 @@ defmodule PhoenixKit.Users.LoginAlerts do
     )
 
     log_new_login(user, attrs)
+    notify_in_app(user, attrs)
 
-    email_attrs = Map.put(attrs, :location, location_for(fingerprint.ip_address))
-    UserNotifier.deliver_new_login_alert(user, email_attrs)
+    UserNotifier.deliver_new_login_alert(user, attrs)
     :ok
+  end
+
+  # In-app notification for the new sign-in. The `user.new_login_detected`
+  # activity is self-actor (actor == target), so the activity→notification
+  # hook correctly skips it — this is the sanctioned standalone path for an
+  # app-driven self-notice, filtered through the recipient's "security"
+  # type preference (fail-open). Links to the Active Sessions section.
+  defp notify_in_app(user, attrs) do
+    if Code.ensure_loaded?(Notifications) do
+      Notifications.create(%{
+        recipient_uuid: user.uuid,
+        type: "security",
+        icon: "hero-shield-exclamation",
+        link: Routes.path("/dashboard/settings"),
+        text: new_login_text(attrs)
+      })
+    end
+  rescue
+    error ->
+      Logger.warning("[PhoenixKit.LoginAlerts] in-app notify failed: #{inspect(error)}")
+      :ok
+  end
+
+  defp new_login_text(attrs) do
+    details =
+      [attrs.browser, attrs.os, attrs.location]
+      |> Enum.reject(&(is_nil(&1) or &1 == ""))
+      |> Enum.join(", ")
+
+    case details do
+      "" -> gettext("New sign-in to your account.")
+      _ -> gettext("New sign-in to your account from %{details}.", details: details)
+    end
   end
 
   defp log_new_login(user, attrs) do

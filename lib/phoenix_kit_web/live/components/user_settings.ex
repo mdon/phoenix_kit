@@ -20,11 +20,15 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   ## Optional assigns
 
-    * `sections` — list of sections to display: `:identity`, `:custom_fields`, `:email`, `:password`, `:oauth`, `:notifications`
-      (default: all six). `:profile` is accepted as a legacy alias that expands to `[:identity, :custom_fields]`
+    * `sections` — list of sections to display: `:identity`, `:custom_fields`, `:email`, `:password`, `:oauth`, `:notifications`, `:sessions`
+      (default: all). `:profile` is accepted as a legacy alias that expands to `[:identity, :custom_fields]`
     * `email_confirm_url_fn` — `(token -> url)` for email confirmation links
       (default: `&Routes.url("/dashboard/settings/confirm-email/\#{&1}")`)
     * `return_to` — where OAuth redirect returns to (default: `"/dashboard/settings"`)
+    * `current_session_token` — raw session token of the acting browser, used
+      by the `:sessions` section to mark the current device and to keep it
+      signed in on "sign out other sessions". Without it, no session is
+      flagged current and "sign out others" revokes every session.
 
   ## Parent notifications
 
@@ -42,9 +46,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthAvailability
+  alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.Routes
 
-  @default_sections [:identity, :custom_fields, :email, :password, :oauth, :notifications]
+  @default_sections [
+    :identity,
+    :custom_fields,
+    :email,
+    :password,
+    :oauth,
+    :notifications,
+    :sessions
+  ]
 
   @impl true
   def update(%{action: :set_avatar, file_uuid: file_uuid}, socket) do
@@ -152,6 +165,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:notification_types, fn -> NotificationTypes.list() end)
       |> assign_new(:notification_prefs, fn -> NotificationPrefs.get(user) end)
       |> assign_new(:notification_success_message, fn -> nil end)
+      |> assign_new(:current_session_token, fn -> assigns[:current_session_token] end)
+      |> assign_new(:session_success_message, fn -> nil end)
+
+    socket =
+      assign_new(socket, :sessions, fn ->
+        load_sessions(socket.assigns.user, socket.assigns.current_session_token)
+      end)
 
     {:ok, socket}
   end
@@ -475,7 +495,58 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
+  def handle_event("revoke_session", %{"uuid" => token_uuid}, socket) do
+    user = socket.assigns.user
+
+    message =
+      case Sessions.revoke_user_session(user, token_uuid) do
+        :ok -> gettext("Signed out of that session.")
+        {:error, :not_found} -> gettext("That session is no longer active.")
+      end
+
+    {:noreply,
+     socket
+     |> assign(:sessions, load_sessions(user, socket.assigns.current_session_token))
+     |> assign(:session_success_message, message)}
+  end
+
+  def handle_event("revoke_other_sessions", _params, socket) do
+    user = socket.assigns.user
+    Sessions.revoke_other_user_sessions(user, socket.assigns.current_session_token)
+
+    {:noreply,
+     socket
+     |> assign(:sessions, load_sessions(user, socket.assigns.current_session_token))
+     |> assign(:session_success_message, gettext("Signed out of all other sessions."))}
+  end
+
   # Private helpers
+
+  defp load_sessions(user, current_token) do
+    Sessions.list_user_device_sessions(user, current_token)
+  end
+
+  defp device_label(%{browser: b, os: o}) when is_binary(b) and is_binary(o), do: "#{b} · #{o}"
+  defp device_label(%{browser: b}) when is_binary(b), do: b
+  defp device_label(%{os: o}) when is_binary(o), do: o
+  defp device_label(_), do: gettext("Unknown device")
+
+  defp session_meta_line(session) do
+    [session.location, session.ip_address, last_active_label(session)]
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
+    |> Enum.join(" · ")
+  end
+
+  defp last_active_label(%{is_current: true}), do: gettext("Active now")
+  defp last_active_label(%{last_active: nil}), do: nil
+
+  defp last_active_label(%{last_active: last_active}) do
+    case DateTime.diff(DateTime.utc_now(), last_active, :day) do
+      days when days <= 0 -> gettext("Active today")
+      1 -> gettext("Active yesterday")
+      days -> gettext("Active %{count} days ago", count: days)
+    end
+  end
 
   defp check_timezone_mismatch(socket, selected_timezone) do
     browser_offset = socket.assigns[:browser_timezone_offset]
@@ -1162,6 +1233,78 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </button>
               </div>
             </form>
+          </div>
+        <% end %>
+
+        <%!-- Active Sessions Section --%>
+        <%= if :sessions in @sections do %>
+          <%= if Enum.any?([:identity, :custom_fields, :email, :password, :oauth, :notifications], & &1 in @sections) do %>
+            <div class="divider"></div>
+          <% end %>
+          <div>
+            <h2 class="text-lg font-semibold flex items-center gap-2 mb-4">
+              <.icon name="hero-computer-desktop" class="w-5 h-5 text-primary" />
+              {gettext("Active Sessions")}
+            </h2>
+
+            <%= if @session_success_message do %>
+              <div class="alert alert-success text-sm mb-4">
+                <.icon name="hero-check" class="stroke-current shrink-0 h-4 w-4" />
+                <span>{@session_success_message}</span>
+              </div>
+            <% end %>
+
+            <p class="text-sm text-base-content/60 mb-4">
+              {gettext(
+                "Devices currently signed in to your account. If you don't recognize one, sign it out."
+              )}
+            </p>
+
+            <div class="space-y-2">
+              <%= for session <- @sessions do %>
+                <div class="flex items-center justify-between gap-3 p-3 rounded-lg border border-base-300">
+                  <div class="flex items-start gap-3 min-w-0">
+                    <.icon
+                      name="hero-computer-desktop"
+                      class="w-5 h-5 mt-0.5 shrink-0 text-base-content/50"
+                    />
+                    <div class="min-w-0">
+                      <div class="font-medium text-sm">
+                        {device_label(session)}
+                        <span :if={session.is_current} class="badge badge-primary badge-sm ml-1">
+                          {gettext("This device")}
+                        </span>
+                      </div>
+                      <div class="text-xs text-base-content/60 truncate">
+                        {session_meta_line(session)}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    :if={not session.is_current}
+                    type="button"
+                    phx-click="revoke_session"
+                    phx-value-uuid={session.token_uuid}
+                    phx-target={@myself}
+                    class="btn btn-ghost btn-xs text-error shrink-0"
+                  >
+                    {gettext("Sign out")}
+                  </button>
+                </div>
+              <% end %>
+            </div>
+
+            <div :if={Enum.count(@sessions, &(not &1.is_current)) > 0} class="flex justify-end pt-3">
+              <button
+                type="button"
+                phx-click="revoke_other_sessions"
+                phx-target={@myself}
+                data-confirm={gettext("Sign out of all other sessions?")}
+                class="btn btn-outline btn-error btn-sm"
+              >
+                {gettext("Sign out other sessions")}
+              </button>
+            </div>
           </div>
         <% end %>
       </div>

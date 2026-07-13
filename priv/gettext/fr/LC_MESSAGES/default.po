@@ -168,6 +168,7 @@ msgstr "Total des utilisateurs"
 msgid "Registered accounts"
 msgstr "Comptes enregistrés"
 
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1247
 #: lib/phoenix_kit_web/live/dashboard.html.heex:170
 #: lib/phoenix_kit_web/live/dashboard.html.heex:175
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:18
@@ -427,7 +428,7 @@ msgstr "%{language} (Brouillon)"
 msgid "%{language} (Published)"
 msgstr "%{language} (Publié)"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:383
+#: lib/phoenix_kit_web/live/components/user_settings.ex:403
 #, elixir-autogen, elixir-format
 msgid "%{provider} account disconnected successfully"
 msgstr "Compte %{provider} déconnecté avec succès"
@@ -447,7 +448,7 @@ msgstr "(facultatif)"
 msgid "123 Business Street"
 msgstr "123 rue du Commerce"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:196
+#: lib/phoenix_kit_web/live/components/user_settings.ex:216
 #, elixir-autogen, elixir-format
 msgid "A link to confirm your email change has been sent to the new address."
 msgstr "Un lien pour confirmer le changement de votre e-mail a été envoyé à la nouvelle adresse."
@@ -668,12 +669,12 @@ msgstr "Impossible de supprimer le dernier propriétaire du système"
 msgid "Cannot delete your own account"
 msgstr "Impossible de supprimer votre propre compte"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:417
+#: lib/phoenix_kit_web/live/components/user_settings.ex:437
 #, elixir-autogen, elixir-format
 msgid "Cannot disconnect %{provider}. Please ensure you have at least one sign-in method available."
 msgstr "Impossible de déconnecter %{provider}. Veuillez vous assurer de disposer d'au moins une méthode de connexion disponible."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:412
+#: lib/phoenix_kit_web/live/components/user_settings.ex:432
 #, elixir-autogen, elixir-format
 msgid "Cannot disconnect %{provider}. This is your only sign-in method. Please set a password or connect another provider first."
 msgstr "Impossible de déconnecter %{provider}. Il s'agit de votre seule méthode de connexion. Veuillez d'abord définir un mot de passe ou connecter un autre fournisseur."
@@ -1079,7 +1080,7 @@ msgstr "Échec de la suppression du rôle"
 msgid "Failed to delete user"
 msgstr "Échec de la suppression de l'utilisateur"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:403
+#: lib/phoenix_kit_web/live/components/user_settings.ex:423
 #, elixir-autogen, elixir-format
 msgid "Failed to disconnect provider. Please try again."
 msgstr "Échec de la déconnexion du fournisseur. Veuillez réessayer."
@@ -1275,6 +1276,7 @@ msgid "Italic"
 msgstr "Italique"
 
 #: lib/phoenix_kit_web/users/login.html.heex:58
+#: lib/phoenix_kit_web/users/qr_login.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr "Rester connecté"
@@ -1532,7 +1534,7 @@ msgstr "Page publiée avec succès"
 msgid "Password"
 msgstr "Mot de passe"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:247
+#: lib/phoenix_kit_web/live/components/user_settings.ex:267
 #, elixir-autogen, elixir-format
 msgid "Password changed successfully."
 msgstr "Mot de passe modifié avec succès."
@@ -1614,7 +1616,7 @@ msgstr "Préférences de confidentialité"
 msgid "Profile"
 msgstr "Profil"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:319
+#: lib/phoenix_kit_web/live/components/user_settings.ex:339
 #, elixir-autogen, elixir-format
 msgid "Profile updated successfully"
 msgstr "Profil mis à jour avec succès"
@@ -1630,7 +1632,7 @@ msgstr "Protégé"
 msgid "Protected core roles"
 msgstr "Rôles principaux protégés"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:393
+#: lib/phoenix_kit_web/live/components/user_settings.ex:413
 #, elixir-autogen, elixir-format
 msgid "Provider not found"
 msgstr "Fournisseur introuvable"
@@ -3945,7 +3947,7 @@ msgstr "Échec de l'autorisation : %{reason}"
 msgid "Authorize access to your %{provider} account. This will open a sign-in page where you choose which account to connect."
 msgstr "Autorisez l'accès à votre compte %{provider}. Cela ouvrira une page de connexion où vous pourrez choisir le compte à connecter."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:76
+#: lib/phoenix_kit_web/live/components/user_settings.ex:89
 #, elixir-autogen, elixir-format
 msgid "Avatar updated successfully!"
 msgstr "Avatar mis à jour avec succès !"
@@ -4380,7 +4382,7 @@ msgstr "Échec de la suppression du membre"
 msgid "Failed to save"
 msgstr "Échec de l'enregistrement"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:473
+#: lib/phoenix_kit_web/live/components/user_settings.ex:493
 #, elixir-autogen, elixir-format
 msgid "Failed to save notification preferences."
 msgstr "Échec de l'enregistrement des préférences de notification."
@@ -4400,7 +4402,7 @@ msgstr "Impossible d'enregistrer les paramètres"
 msgid "Failed to toggle maintenance mode"
 msgstr "Échec du basculement du mode maintenance"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:83
+#: lib/phoenix_kit_web/live/components/user_settings.ex:96
 #, elixir-autogen, elixir-format
 msgid "Failed to update avatar"
 msgstr "Échec de la mise à jour de l'avatar"
@@ -4661,7 +4663,7 @@ msgstr "Planification de maintenance effacée"
 msgid "Maintenance schedule saved"
 msgstr "Planification de maintenance enregistrée"
 
-#: lib/phoenix_kit_web/live/dashboard/settings.ex:55
+#: lib/phoenix_kit_web/live/dashboard/settings.ex:58
 #, elixir-autogen, elixir-format
 msgid "Manage your account settings and preferences"
 msgstr "Gérez les paramètres et préférences de votre compte"
@@ -4825,12 +4827,12 @@ msgstr "Non connecté"
 msgid "Not tested"
 msgstr "Non testé"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:466
+#: lib/phoenix_kit_web/live/components/user_settings.ex:486
 #, elixir-autogen, elixir-format
 msgid "Notification preferences saved."
 msgstr "Préférences de notification enregistrées."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1113
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1184
 #: lib/phoenix_kit_web/live/modules.html.heex:667
 #: lib/phoenix_kit_web/live/modules/notifications/index.html.heex:5
 #: lib/phoenix_kit_web/live/settings.html.heex:318
@@ -4916,7 +4918,7 @@ msgstr "Boîte de réception par utilisateur alimentée par le flux d'activité"
 msgid "Person"
 msgstr "Personne"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1124
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1195
 #, elixir-autogen, elixir-format
 msgid "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
 msgstr "Choisissez les types de notification que vous souhaitez recevoir. Les types non cochés sont désactivés — les activités sont toujours enregistrées dans le journal d'audit, mais aucune notification cloche n'est créée pour vous."
@@ -5007,7 +5009,7 @@ msgstr "Enregistrer la planification"
 msgid "Save Tax Settings"
 msgstr "Enregistrer les paramètres de taxe"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1161
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1232
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Save preferences"
 msgstr "Enregistrer les préférences"
@@ -10141,12 +10143,12 @@ msgstr "Connexion avec Apple"
 msgid "Approve this sign-in?"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:125
+#: lib/phoenix_kit_web/users/qr_login.ex:153
 #, elixir-autogen, elixir-format
 msgid "Approved — signing you in…"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.html.heex:37
+#: lib/phoenix_kit_web/users/qr_login.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Back to sign in"
 msgstr ""
@@ -10215,12 +10217,12 @@ msgstr ""
 msgid "Only approve if this is you. Approving signs that browser in to your account."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.html.heex:27
+#: lib/phoenix_kit_web/users/qr_login.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Open the camera on your signed-in phone."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.html.heex:28
+#: lib/phoenix_kit_web/users/qr_login.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Point it at the code above."
 msgstr ""
@@ -10235,7 +10237,7 @@ msgstr ""
 msgid "QR Code"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:37
+#: lib/phoenix_kit_web/users/qr_login.ex:42
 #: lib/phoenix_kit_web/users/qr_login_confirm.ex:32
 #: lib/phoenix_kit_web/users/qr_login_confirm.ex:76
 #, elixir-autogen, elixir-format
@@ -10252,12 +10254,12 @@ msgstr ""
 msgid "Requested"
 msgstr "Obligatoire"
 
-#: lib/phoenix_kit_web/users/qr_login.ex:122
+#: lib/phoenix_kit_web/users/qr_login.ex:150
 #, elixir-autogen, elixir-format
 msgid "Scan this code with your phone's camera, then approve the sign-in on your phone."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:128
+#: lib/phoenix_kit_web/users/qr_login.ex:156
 #, elixir-autogen, elixir-format
 msgid "Show a new code"
 msgstr ""
@@ -10274,28 +10276,28 @@ msgstr "Se connecter avec un mot de passe"
 msgid "Signed in"
 msgstr "Se connecter"
 
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:26
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:29
 #, elixir-autogen, elixir-format
 msgid "Signed in with QR code."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.html.heex:29
+#: lib/phoenix_kit_web/users/qr_login.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Tap Approve on your phone to finish signing in here."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:126
+#: lib/phoenix_kit_web/users/qr_login.ex:154
 #, elixir-autogen, elixir-format
 msgid "The sign-in request was denied."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:31
-#: lib/phoenix_kit_web/users/qr_login_complete.ex:38
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:34
+#: lib/phoenix_kit_web/users/qr_login_complete.ex:41
 #, elixir-autogen, elixir-format
 msgid "This QR sign-in link is invalid or has expired."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:127
+#: lib/phoenix_kit_web/users/qr_login.ex:155
 #, elixir-autogen, elixir-format
 msgid "This code expired."
 msgstr ""
@@ -10384,7 +10386,7 @@ msgstr ""
 msgid "Or add via"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/qr_login.ex:56
+#: lib/phoenix_kit_web/users/qr_login.ex:61
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please try again shortly."
 msgstr ""
@@ -10498,3 +10500,78 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "xAI requires a funded account before the API will return completions"
 msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:547
+#, elixir-autogen, elixir-format
+msgid "Active %{count} days ago"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:540
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Active now"
+msgstr "Actif"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:545
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Active today"
+msgstr "Activer"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:546
+#, elixir-autogen, elixir-format
+msgid "Active yesterday"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1258
+#, elixir-autogen, elixir-format
+msgid "Devices currently signed in to your account. If you don't recognize one, sign it out."
+msgstr ""
+
+#: lib/phoenix_kit/users/login_alerts.ex:140
+#, elixir-autogen, elixir-format
+msgid "New sign-in to your account from %{details}."
+msgstr ""
+
+#: lib/phoenix_kit/users/login_alerts.ex:139
+#, elixir-autogen, elixir-format
+msgid "New sign-in to your account."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1291
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sign out"
+msgstr "S'inscrire"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1302
+#, elixir-autogen, elixir-format
+msgid "Sign out of all other sessions?"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1305
+#, elixir-autogen, elixir-format
+msgid "Sign out other sessions"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:520
+#, elixir-autogen, elixir-format
+msgid "Signed out of all other sessions."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:503
+#, elixir-autogen, elixir-format
+msgid "Signed out of that session."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:504
+#, elixir-autogen, elixir-format
+msgid "That session is no longer active."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1275
+#, elixir-autogen, elixir-format
+msgid "This device"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:532
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown device"
+msgstr "Inconnu"

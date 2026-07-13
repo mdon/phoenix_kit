@@ -84,6 +84,13 @@ defmodule PhoenixKit.Notifications.Types do
   defp core_types do
     [
       %{
+        key: "security",
+        label: "Security",
+        description: "New sign-ins to your account from an unrecognized device",
+        actions: ["user.new_login_detected"],
+        default: true
+      },
+      %{
         key: "account",
         label: "Account",
         description: "Password, email, role and profile changes made to your account",

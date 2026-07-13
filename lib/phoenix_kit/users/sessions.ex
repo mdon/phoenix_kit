@@ -24,9 +24,10 @@ defmodule PhoenixKit.Users.Sessions do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.RepoHelper, as: Repo
-  alias PhoenixKit.Users.Auth.{User, UserToken}
+  alias PhoenixKit.Users.Auth.{KnownDevice, User, UserToken}
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @session_validity_in_days 60
@@ -103,6 +104,95 @@ defmodule PhoenixKit.Users.Sessions do
     )
     |> Repo.all()
     |> Enum.map(&format_session_info/1)
+  end
+
+  @doc """
+  Lists a user's active sessions enriched with device info, for the
+  self-service "Active Sessions" UI.
+
+  Each session's `(ip_address, user_agent_hash)` is matched against the
+  user's `KnownDevice` history to recover browser/OS/location/last-active
+  (session tokens store only the hashed UA, never the raw string). Sessions
+  predating fingerprinting — or from a device never recorded as "known" —
+  degrade gracefully to an "Unknown device" with nil fields.
+
+  `current_token` is the raw session token of the browser making the
+  request (from the session's `"user_token"`); the matching row is flagged
+  `is_current: true` so the UI can mark it and omit its "Sign out" button.
+  """
+  def list_user_device_sessions(%User{uuid: user_uuid}, current_token) do
+    known = known_devices_by_fingerprint(user_uuid)
+    current_uuid = current_session_uuid(user_uuid, current_token)
+
+    from(token in UserToken,
+      where: token.context == "session",
+      where: token.user_uuid == ^user_uuid,
+      where: token.inserted_at > ago(@session_validity_in_days, "day"),
+      select: %{
+        token_uuid: token.uuid,
+        ip_address: token.ip_address,
+        user_agent_hash: token.user_agent_hash,
+        created_at: token.inserted_at
+      },
+      order_by: [desc: token.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.map(fn s ->
+      device = Map.get(known, {s.ip_address, s.user_agent_hash})
+
+      %{
+        token_uuid: s.token_uuid,
+        ip_address: s.ip_address,
+        browser: device && device.browser,
+        os: device && device.os,
+        location: device && device.location,
+        last_active: (device && device.last_seen_at) || s.created_at,
+        created_at: s.created_at,
+        is_current: s.token_uuid == current_uuid
+      }
+    end)
+  end
+
+  @doc """
+  Revokes one of a user's *own* sessions by token uuid.
+
+  Scoped to `user` so a user can never revoke another user's session by
+  guessing a token uuid. Returns `:ok` or `{:error, :not_found}`.
+  """
+  def revoke_user_session(%User{uuid: user_uuid}, token_uuid) when is_binary(token_uuid) do
+    case Repo.delete_all(
+           from(t in UserToken,
+             where: t.uuid == ^token_uuid and t.user_uuid == ^user_uuid and t.context == "session"
+           )
+         ) do
+      {1, _} ->
+        Events.broadcast_session_revoked(token_uuid)
+        :ok
+
+      {0, _} ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Revokes all of a user's sessions except the one identified by
+  `current_token` (kept so the acting browser stays signed in). Returns the
+  number revoked. With a nil token, revokes every session for the user.
+  """
+  def revoke_other_user_sessions(%User{} = user, nil), do: revoke_user_sessions(user)
+
+  def revoke_other_user_sessions(%User{uuid: user_uuid}, current_token)
+      when is_binary(current_token) do
+    {count, _} =
+      Repo.delete_all(
+        from(t in UserToken,
+          where:
+            t.user_uuid == ^user_uuid and t.context == "session" and t.token != ^current_token
+        )
+      )
+
+    if count > 0, do: Events.broadcast_user_sessions_revoked(user_uuid, count)
+    count
   end
 
   @doc """
@@ -269,6 +359,39 @@ defmodule PhoenixKit.Users.Sessions do
       expired_sessions: expired_sessions,
       sessions_today: sessions_today
     }
+  end
+
+  # Loads the user's known devices keyed by {ip_address, user_agent_hash}
+  # for O(1) enrichment of each session row.
+  #
+  # Degrades to no enrichment (empty map) if the known-devices table isn't
+  # present yet — a parent app can deploy code carrying this feature before
+  # running the V143/V147 migrations, and the sessions list (built from the
+  # tokens table) must still render rather than crash the settings page.
+  defp known_devices_by_fingerprint(user_uuid) do
+    from(d in KnownDevice, where: d.user_uuid == ^user_uuid)
+    |> Repo.all()
+    |> Map.new(fn d -> {{d.ip_address, d.user_agent_hash}, d} end)
+  rescue
+    error in [Postgrex.Error, DBConnection.ConnectionError] ->
+      Logger.warning(
+        "[PhoenixKit.Sessions] known-device enrichment skipped " <>
+          "(run PhoenixKit migrations to V147?): #{inspect(error)}"
+      )
+
+      %{}
+  end
+
+  # Resolves the token uuid of the acting session (session tokens are stored
+  # raw, so a direct byte match is correct). Nil token / no match → nil.
+  defp current_session_uuid(_user_uuid, nil), do: nil
+
+  defp current_session_uuid(user_uuid, token) when is_binary(token) do
+    from(t in UserToken,
+      where: t.context == "session" and t.user_uuid == ^user_uuid and t.token == ^token,
+      select: t.uuid
+    )
+    |> Repo.one()
   end
 
   # Private helper to format session information

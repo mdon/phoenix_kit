@@ -23,6 +23,18 @@
     </div>
   </div>
 
+  <form :if={@keyfob} phx-change="set_remember" class="mt-2">
+    <label class="label cursor-pointer justify-center gap-2">
+      <input
+        type="checkbox"
+        name="remember_me"
+        checked={@remember_me}
+        class="checkbox checkbox-sm checkbox-primary"
+      />
+      <span class="label-text">{gettext("Keep me logged in")}</span>
+    </label>
+  </form>
+
   <ol class="mt-6 space-y-2 text-sm text-base-content/70">
     <li>1. {gettext("Open the camera on your signed-in phone.")}</li>
     <li>2. {gettext("Point it at the code above.")}</li>

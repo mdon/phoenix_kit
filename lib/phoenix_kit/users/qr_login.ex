@@ -37,6 +37,7 @@ defmodule PhoenixKit.Users.QrLogin do
 
   alias Phoenix.LiveView
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Geolocation
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.UserAgent
 
@@ -88,19 +89,49 @@ defmodule PhoenixKit.Users.QrLogin do
   socket, shown verbatim on the phone confirm screen so the human can
   recognise (or reject) the sign-in.
 
-  Keys: `:browser`, `:os`, `:ip` — any of which may be absent when the
-  underlying connect-info is unavailable.
+  Keys: `:browser`, `:os`, `:ip`, `:location` — any of which may be absent
+  when the underlying connect-info (or geo lookup) is unavailable — plus
+  `:requested_at`, an absolute UTC timestamp of when the code was minted so
+  the approver can sanity-check "did I just do this?".
+
+  The geo lookup is a best-effort, timeout-bounded call on the requesting
+  browser's IP (same machinery registration/login-alerts already use); it
+  runs at QR-mint time so the location is baked into the request the phone
+  later reads.
   """
   @spec device_meta(LiveView.Socket.t()) :: map()
   def device_meta(socket) do
     ua = LiveView.get_connect_info(socket, :user_agent)
     ip = IpAddress.extract_from_socket(socket)
 
-    %{}
+    %{requested_at: requested_at()}
     |> put_present(:browser, UserAgent.browser(ua))
     |> put_present(:os, UserAgent.os(ua))
     |> put_present(:ip, ip)
+    |> put_present(:location, location_for(ip))
   end
+
+  @doc """
+  Formats a best-effort `"City, Country"` (or just `"Country"`) string for
+  an IP, or `nil` when the lookup fails or is unavailable. Safe to call with
+  `"unknown"` — `Geolocation` rejects non-routable/placeholder IPs.
+  """
+  @spec location_for(String.t() | nil) :: String.t() | nil
+  def location_for(ip) when is_binary(ip) do
+    case Geolocation.lookup_location(ip) do
+      {:ok, %{"city" => city, "country" => country}}
+      when is_binary(city) and city != "" and is_binary(country) ->
+        "#{city}, #{country}"
+
+      {:ok, %{"country" => country}} when is_binary(country) and country != "" ->
+        country
+
+      _ ->
+        nil
+    end
+  end
+
+  def location_for(_), do: nil
 
   ## ── Activity logging ───────────────────────────────────────────────────
 
@@ -139,4 +170,8 @@ defmodule PhoenixKit.Users.QrLogin do
   defp put_present(map, _key, nil), do: map
   defp put_present(map, _key, ""), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
+
+  defp requested_at do
+    Calendar.strftime(DateTime.utc_now(), "%Y-%m-%d %H:%M UTC")
+  end
 end
