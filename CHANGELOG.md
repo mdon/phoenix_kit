@@ -1,3 +1,77 @@
+## 1.7.190 - 2026-07-13
+
+### Security
+- **Integration credentials (AWS SES, SMTP, Brevo API keys, etc.) were
+  silently stored in plaintext on real host apps.** `encryption_key/0`
+  only read the flat `config :phoenix_kit, secret_key_base:` — a key the
+  installer never sets — so encryption was effectively always disabled
+  outside of manual, undocumented setup. Now falls back to the host app's
+  own Phoenix Endpoint `secret_key_base` (which every Phoenix app has),
+  keeping the flat key's precedence so any install that *did* set it
+  derives an identical key. Pre-existing plaintext values still read back
+  correctly and are transparently re-encrypted on next save. `password`
+  fields (SMTP) now encrypt too. The KDF is also correctly documented now
+  (a single SHA-256, not PBKDF2 as previously claimed).
+
+### Added
+- **Integrations-backed email sending foundation** ("Phase 1" of a
+  multi-repo newsletters effort — `phoenix_kit_emails` and
+  `phoenix_kit_newsletters` both depend on this release). Adds
+  `PhoenixKit.Mailer.deliver_via_integration/3`, which sends through any
+  configured `PhoenixKit.Integrations` connection instead of only the
+  host's static mailer adapter: `aws_ses` (key/secret), a new universal
+  `smtp` provider (one named connection per vendor — Brevo, Mailgun,
+  SendGrid, a self-hosted relay, etc.), and `brevo_api` (with a real
+  *Test Connection* check against Brevo's account endpoint). SMTP
+  transport correctly selects implicit TLS (`ssl: true`) on port 465 vs.
+  mandatory STARTTLS elsewhere when credentials are present, failing
+  closed rather than risking a plaintext credential leak. Recipients
+  blocklisted by the optional `phoenix_kit_emails` package (hard bounces,
+  complaints, manual blocks) are now refused before delivery on **every**
+  outbound path, not just newsletters — auth mail included. New migration
+  V145 adds `phoenix_kit_newsletters_send_profiles` (named send
+  configurations, at most one default, partial-unique-indexed) and
+  `phoenix_kit_newsletters_broadcasts.send_profile_uuid`.
+- **New-login security alerts** ("We noticed a new login to your
+  account", the same pattern GitHub/xAI/etc. use). Every login path
+  (password, magic link, OAuth, QR) now checks the login's device
+  (IP + hashed user-agent) against history for that user; an unrecognized
+  device is emailed and logged as `user.new_login_detected`, a recognized
+  one is silent. Off by default — enable at Admin → Settings →
+  Authorization → "Login Notifications". New migration V143 adds
+  `phoenix_kit_user_known_devices`.
+- **Manufacturing/warehouse module tables consolidated into core.** Moves
+  `phoenix_kit_machines`, `phoenix_kit_machine_type_assignments`,
+  `phoenix_kit_machine_operations`, `phoenix_kit_warehouse_transfers`, and
+  `phoenix_kit_warehouse_min_stock` out of the `phoenix_kit_manufacturing`/
+  `phoenix_kit_warehouse` packages' own migrations and into core's single
+  numbered chain (V144), matching the precedent already set for locations
+  and other warehouse tables. Upgrade-safe for hosts on published
+  `phoenix_kit_manufacturing` 0.2.0.
+
+### Changed
+- **Dropped `Jason` in favor of Elixir's built-in `JSON` module (1.18+)**
+  everywhere in phoenix_kit's own code — no behavior change; `jason`
+  itself stays in the dependency tree (`ecto`, `phoenix`, `ex_aws`, and
+  others still require it transitively).
+- **`ex_aws_sqs` replaced with the maintained
+  [`beamlab_ex_aws_sqs`](https://hex.pm/packages/beamlab_ex_aws_sqs)
+  fork.** Unblocks Hex publishing itself: upstream `ex_aws_sqs` (archived,
+  last released January 2023) pins `hackney ~> 1.9`, which cannot coexist
+  with the `hackney ~> 4.0` upgrade below without an `override: true` —
+  and Hex refuses to publish any package depending on one. The fork
+  declares no hackney dependency at all. SQS now speaks AWS's JSON
+  protocol instead of the legacy XML protocol (response shapes changed
+  accordingly in `PhoenixKit.AWS.InfrastructureSetup`); fixed a related
+  latent bug surfaced by the switch — the "queue already exists" fallback
+  checked for AWS error code `QueueAlreadyExists`, but the real SQS API
+  error is `QueueNameExists`.
+- Ported the multi-session "Accounts" switcher (add/switch/remove
+  account, "log out from all accounts") into
+  `UserDashboardNav.user_dropdown/1` — previously only the admin top-bar
+  dropdown had it, so host apps rendering their own layout via
+  `user_dropdown/1` had no multi-session UI at all.
+
 ## 1.7.189 - 2026-07-12
 
 ### Added
