@@ -208,7 +208,7 @@ defmodule PhoenixKit.Migrations.Postgres.V107Test do
           "api_key" => "sk-first"
         })
 
-      _second =
+      second =
         insert_integration!("openrouter:second", %{
           "provider" => "openrouter",
           "name" => "second",
@@ -219,9 +219,13 @@ defmodule PhoenixKit.Migrations.Postgres.V107Test do
 
       run_backfill!()
 
-      # UUIDv7 is time-ordered, so `first` (inserted first → smaller uuid)
-      # wins under `uuid ASC`.
-      assert endpoint_integration_uuid(endpoint_uuid) == first
+      # The winner is whichever row got the SMALLER uuid — usually the
+      # first inserted (UUIDv7 is time-ordered), but two inserts within
+      # the same millisecond fall back to random bits and insertion
+      # order no longer implies uuid order. Asserting min/2 instead of
+      # "first" removes the same-millisecond flake seen in full-suite
+      # runs.
+      assert endpoint_integration_uuid(endpoint_uuid) == min(first, second)
     end
   end
 
