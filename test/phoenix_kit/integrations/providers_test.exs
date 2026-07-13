@@ -1,6 +1,8 @@
 defmodule PhoenixKit.Integrations.ProvidersTest do
-  use ExUnit.Case, async: true
+  use PhoenixKit.DataCase, async: true
 
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Providers
 
   describe "all/0" do
@@ -54,6 +56,96 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
         assert is_list(provider.setup_fields), "#{provider.key} missing setup_fields"
         assert is_list(provider.capabilities), "#{provider.key} missing capabilities"
       end
+    end
+  end
+
+  describe "aws_ses provider" do
+    test "is registered and produces usable credentials" do
+      p = Providers.get("aws_ses")
+      assert p.auth_type == :key_secret
+      keys = Enum.map(p.setup_fields, & &1.key)
+      assert "access_key" in keys and "secret_key" in keys and "aws_region" in keys
+      assert "secret_key" in Encryption.sensitive_fields()
+      assert :email_send in p.capabilities
+
+      # end-to-end: headless save must yield retrievable credentials
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "test")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "aws_region" => "eu-central-1"
+        })
+
+      assert {:ok, %{"access_key" => "AKIA_T"}} = Integrations.get_credentials(uuid)
+    end
+  end
+
+  describe "smtp provider (universal)" do
+    test "is registered and produces usable credentials, with multiple named connections" do
+      p = Providers.get("smtp")
+      assert p.auth_type == :credentials
+      assert p.oauth_config == nil
+      keys = Enum.map(p.setup_fields, & &1.key)
+      assert "host" in keys and "port" in keys and "username" in keys and "password" in keys
+      assert "password" in Encryption.sensitive_fields()
+      assert :email_send in p.capabilities
+
+      # end-to-end: headless save + validate must yield retrievable credentials
+      {:ok, %{uuid: uuid1}} = Integrations.add_connection("smtp", "SMTP 1")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid1, %{
+          "host" => "smtp-relay.brevo.com",
+          "port" => "587",
+          "username" => "sub1@smtp-brevo.com",
+          "password" => "xsmtpsib-1"
+        })
+
+      :ok = Integrations.validate_connection(uuid1)
+      Integrations.record_validation(uuid1, :ok)
+
+      assert {:ok, %{"host" => "smtp-relay.brevo.com", "password" => "xsmtpsib-1"}} =
+               Integrations.get_credentials(uuid1)
+
+      # a second named connection of the same provider coexists independently
+      {:ok, %{uuid: uuid2}} = Integrations.add_connection("smtp", "SMTP 2")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid2, %{
+          "host" => "smtp.example.com",
+          "port" => "2525",
+          "username" => "user2",
+          "password" => "pw2"
+        })
+
+      :ok = Integrations.validate_connection(uuid2)
+      Integrations.record_validation(uuid2, :ok)
+
+      assert {:ok, %{"host" => "smtp.example.com"}} = Integrations.get_credentials(uuid2)
+
+      connections = Integrations.list_connections("smtp")
+      uuids = Enum.map(connections, & &1.uuid)
+      assert uuid1 in uuids and uuid2 in uuids
+    end
+  end
+
+  describe "brevo_api provider" do
+    test "is registered and produces usable credentials" do
+      p = Providers.get("brevo_api")
+      assert p.auth_type == :api_key
+      assert p.oauth_config == nil
+      assert p.base_url == "https://api.brevo.com/v3"
+      keys = Enum.map(p.setup_fields, & &1.key)
+      assert "api_key" in keys
+      assert "api_key" in Encryption.sensitive_fields()
+      assert :email_send in p.capabilities
+
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("brevo_api", "test")
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "xkeysib-test"})
+
+      assert {:ok, %{"api_key" => "xkeysib-test"}} = Integrations.get_credentials(uuid)
     end
   end
 

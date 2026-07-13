@@ -25,9 +25,28 @@ defmodule PhoenixKit.Mailer do
   import Swoosh.Email
 
   alias PhoenixKit.Email.Provider
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Users.Auth.User
 
   require Logger
+
+  # Soft dependency: the optional `emails` package (not a dependency of
+  # core) owns the recipient blocklist (hard bounces, spam complaints,
+  # manual blocks). Referencing it as a bare module name costs nothing at
+  # compile time; `check_recipient_allowed/1` below guards every call with
+  # `Code.ensure_loaded?/1`, so this file has no hard dependency on the
+  # optional package and every recipient is implicitly allowed when it
+  # isn't installed.
+  #
+  # We deliberately call `check_blocklist/1`, NOT `check_limits/1`:
+  # `check_limits/1` additionally enforces the emails module's per-recipient
+  # (100/h) and GLOBAL (10_000/h) send caps, which are not gated by any
+  # enable flag. Wiring those in here would silently throttle every outbound
+  # email app-wide (auth mail included) and would cap bulk newsletter
+  # broadcasts at 10k/hour. Send pacing/quotas belong to the newsletters
+  # send-profile limits (roadmap Phase 5, per-profile atomic caps) — one
+  # limiter, not two competing ones.
+  @emails_rate_limiter PhoenixKit.Modules.Emails.RateLimiter
 
   @doc """
   Gets the mailer module to use for sending emails.
@@ -167,36 +186,42 @@ defmodule PhoenixKit.Mailer do
   Otherwise uses the built-in PhoenixKit mailer.
 
   This function also integrates with the email tracking system to log
-  outgoing emails when tracking is enabled.
+  outgoing emails when tracking is enabled. Recipients blocklisted by the
+  emails module (hard bounces, complaints, manual blocks — in `to`, `cc` or
+  `bcc`) are rejected before any tracking or delivery is attempted; see
+  `check_recipient_allowed/1`. Send-rate limits are deliberately NOT enforced
+  here — see the soft-dependency note at the top of this module.
   """
   def deliver_email(email, opts \\ []) do
-    # Intercept email for tracking before sending
-    tracked_email = Provider.current().intercept_before_send(email, opts)
+    with :ok <- check_recipient_allowed(email) do
+      # Intercept email for tracking before sending
+      tracked_email = Provider.current().intercept_before_send(email, opts)
 
-    mailer = get_mailer()
+      mailer = get_mailer()
 
-    result =
-      if mailer == __MODULE__ do
-        # Use built-in mailer with runtime config for AWS
-        deliver_with_runtime_config(tracked_email, mailer)
-      else
-        # Check if parent mailer also uses AWS SES
-        app = PhoenixKit.Config.get_parent_app()
-        config = Application.get_env(app, mailer, [])
-
-        if config[:adapter] == Swoosh.Adapters.AmazonSES do
-          # Parent mailer uses AWS SES, provide runtime config
-          deliver_with_runtime_config(tracked_email, mailer, app)
+      result =
+        if mailer == __MODULE__ do
+          # Use built-in mailer with runtime config for AWS
+          deliver_with_runtime_config(tracked_email, mailer)
         else
-          # Non-AWS mailer, use standard delivery
-          mailer.deliver(tracked_email)
+          # Check if parent mailer also uses AWS SES
+          app = PhoenixKit.Config.get_parent_app()
+          config = Application.get_env(app, mailer, [])
+
+          if config[:adapter] == Swoosh.Adapters.AmazonSES do
+            # Parent mailer uses AWS SES, provide runtime config
+            deliver_with_runtime_config(tracked_email, mailer, app)
+          else
+            # Non-AWS mailer, use standard delivery
+            mailer.deliver(tracked_email)
+          end
         end
-      end
 
-    # Handle post-send tracking updates
-    Provider.current().handle_after_send(tracked_email, result)
+      # Handle post-send tracking updates
+      Provider.current().handle_after_send(tracked_email, result)
 
-    result
+      result
+    end
   end
 
   # Deliver email with runtime configuration for AWS SES
@@ -227,6 +252,178 @@ defmodule PhoenixKit.Mailer do
 
     # Use Swoosh.Mailer.deliver with runtime config
     Swoosh.Mailer.deliver(email, runtime_config)
+  end
+
+  @doc """
+  Delivers an email via a specific Integrations connection (AWS SES,
+  universal SMTP, or Brevo API), selected by the connection's `uuid`.
+
+  Unlike `deliver_email/2`, this does **not** go through
+  `deliver_with_runtime_config/2` — that path is hardcoded to AWS SES
+  (`config[:adapter] == Swoosh.Adapters.AmazonSES`, credentials only from
+  `Provider.current().get_aws_*`), so a Brevo or SMTP send routed through
+  it would be misrouted or ignored. This function resolves the Swoosh
+  adapter and config directly from the chosen integration's stored
+  credentials instead, while preserving the same interception seam
+  `deliver_email/2` uses so tracking keeps working.
+
+  ## Returns
+
+  - `{:ok, term()}` — delivered
+  - `{:error, {:blocked, atom()}}` — a recipient (`to`/`cc`/`bcc`) is
+    blocklisted by the emails module (checked before the integration is even
+    resolved). Send-rate limits are NOT enforced here — see the module's
+    soft-dependency note.
+  - `{:error, :not_configured | :deleted}` — the integration uuid didn't resolve
+  - `{:error, {:unsupported_provider, String.t()} | :unsupported_provider}` —
+    the integration's provider has no known Swoosh adapter mapping (the bare
+    atom when the credentials carry no provider key at all)
+  - `{:error, {:invalid_smtp_port, term()}}` — the SMTP connection's port is
+    not a number
+  """
+  @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
+          {:ok, term()} | {:error, term()}
+  def deliver_via_integration(email, integration_uuid, opts \\ [])
+      when is_binary(integration_uuid) do
+    with :ok <- check_recipient_allowed(email),
+         {:ok, creds} <- Integrations.get_credentials(integration_uuid),
+         {:ok, {adapter, config}} <- swoosh_config_for(creds) do
+      # Tell the tracking interceptor which provider actually sent this. Without
+      # it, `detect_provider/2` falls back to the host app's static mailer
+      # adapter (e.g. SES) and mis-attributes SMTP/Brevo integration sends
+      # (plus a "no provider data" warning per send). `put_new` lets an explicit
+      # caller override win.
+      tracked_opts = Keyword.put_new(opts, :provider, creds["provider"])
+      tracked_email = Provider.current().intercept_before_send(email, tracked_opts)
+      result = Swoosh.Mailer.deliver(tracked_email, [adapter: adapter] ++ config)
+      Provider.current().handle_after_send(tracked_email, result)
+      result
+    end
+  end
+
+  @doc false
+  # Maps an Integrations connection's decrypted credentials to a Swoosh
+  # `{adapter, config}` pair. Not `defp` so `deliver_via_integration/3`'s
+  # provider selection can be unit-tested without triggering real
+  # delivery — `@doc false` because it's an internal seam, not part of
+  # the public API. The returned config carries DECRYPTED secrets — callers
+  # must never log or `inspect` it.
+  @spec swoosh_config_for(map()) :: {:ok, {module(), keyword()}} | {:error, term()}
+  def swoosh_config_for(%{"provider" => "aws_ses"} = creds) do
+    {:ok,
+     {Swoosh.Adapters.AmazonSES,
+      [
+        region: creds["aws_region"],
+        access_key: creds["access_key"],
+        secret: creds["secret_key"]
+      ]}}
+  end
+
+  def swoosh_config_for(%{"provider" => "smtp"} = creds) do
+    case parse_smtp_port(creds["port"]) do
+      nil ->
+        # A non-integer port silently becomes gen_smtp's default (25), which
+        # would relay plaintext to an unintended server — surface it instead.
+        {:error, {:invalid_smtp_port, creds["port"]}}
+
+      port ->
+        base = [
+          relay: creds["host"],
+          port: port,
+          username: creds["username"],
+          password: creds["password"]
+        ]
+
+        {:ok, {Swoosh.Adapters.SMTP, base ++ smtp_transport(port, creds)}}
+    end
+  end
+
+  def swoosh_config_for(%{"provider" => "brevo_api"} = creds) do
+    {:ok, {Swoosh.Adapters.Brevo, [api_key: creds["api_key"]]}}
+  end
+
+  def swoosh_config_for(%{"provider" => provider}),
+    do: {:error, {:unsupported_provider, provider}}
+
+  def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
+
+  # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol solely from
+  # the `ssl` option (gen_smtp_client.erl:854 — `ssl: true` → ssl socket, else
+  # plaintext tcp). The `tls` option only controls a STARTTLS *upgrade after* a
+  # plaintext connect, so `tls: :always` on 465 would open plaintext to an
+  # SMTPS port and hang.
+  defp smtp_transport(465, _creds), do: [ssl: true]
+
+  defp smtp_transport(_port, creds) do
+    if blank?(creds["username"]) and blank?(creds["password"]) do
+      # No credentials on the wire (local dev relay like MailHog:1025, or an
+      # internal plaintext smarthost) — nothing to protect, so allow the
+      # connection when the relay offers no STARTTLS.
+      [tls: :if_available]
+    else
+      # Credentials ARE on the wire: mandatory STARTTLS. Fail closed rather
+      # than let a stripped STARTTLS capability downgrade us to plaintext.
+      [tls: :always]
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
+
+  # Setup fields are typed `:number` but travel through LiveView form
+  # params and JSONB storage as strings — normalize either shape.
+  defp parse_smtp_port(port) when is_integer(port), do: port
+
+  defp parse_smtp_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {int, _} -> int
+      :error -> nil
+    end
+  end
+
+  defp parse_smtp_port(_), do: nil
+
+  # Checks every `to` recipient against the emails module's blocklist/rate
+  # limiter before a message reaches a Swoosh adapter. Must run before
+  # `intercept_before_send/2` — that callback returns a `Swoosh.Email.t()`
+  # with no abort channel, so it has no way to refuse a blocked send. This
+  # is the one chokepoint `deliver_email/2` and `deliver_via_integration/3`
+  # both pass through, so enforcement lives here rather than in the
+  # interceptor.
+  @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
+  defp check_recipient_allowed(%Swoosh.Email{} = email) do
+    # cc/bcc too, not just to: a suppression list with a hole in it is a
+    # compliance problem, and this Mailer carries all app mail, not only
+    # newsletters (which only ever populate `to`).
+    (email.to ++ (email.cc || []) ++ (email.bcc || []))
+    |> Enum.reduce_while(:ok, fn {_name, address}, :ok ->
+      case check_blocklisted(address) do
+        :ok -> {:cont, :ok}
+        {:blocked, reason} -> {:halt, {:error, {:blocked, reason}}}
+      end
+    end)
+  end
+
+  defp check_blocklisted(address) do
+    if Code.ensure_loaded?(@emails_rate_limiter) and
+         function_exported?(@emails_rate_limiter, :check_blocklist, 1) do
+      # apply/3 intentionally, to avoid compile-time module resolution --
+      # a direct `@emails_rate_limiter.check_blocklist/1` call would fail
+      # `--warnings-as-errors` when the optional emails package isn't a
+      # dependency (the compiler can prove the module is undefined).
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      apply(@emails_rate_limiter, :check_blocklist, [address])
+    else
+      :ok
+    end
+  rescue
+    error ->
+      # Fail open: this gate sits in front of ALL outbound mail (auth
+      # included), so a transient DB hiccup must not take delivery down.
+      Logger.error("Recipient blocklist check failed, allowing send: #{inspect(error)}")
+      :ok
   end
 
   @doc """

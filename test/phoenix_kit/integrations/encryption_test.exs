@@ -1,5 +1,8 @@
 defmodule PhoenixKit.Integrations.EncryptionTest do
-  use ExUnit.Case, async: true
+  # async: false — the encryption_key/0 fallback tests mutate the global
+  # `:phoenix_kit` app env (`:secret_key_base`, `:parent_module`), which
+  # other concurrently-running async test files could observe mid-test.
+  use ExUnit.Case, async: false
 
   alias PhoenixKit.Integrations.Encryption
 
@@ -107,6 +110,80 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert Encryption.decrypt_fields(nil) == nil
       assert Encryption.decrypt_fields("string") == "string"
     end
+
+    test "encrypts and round-trips the smtp password field" do
+      # `secret_key_base` isn't set as a flat `:phoenix_kit` app env key in
+      # core's own test config (only nested under `PhoenixKitWeb.Endpoint`),
+      # so this stamps one directly to make the round-trip meaningful.
+      original = Application.get_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :secret_key_base, "test-secret-for-password-encryption")
+
+      on_exit(fn ->
+        if original,
+          do: Application.put_env(:phoenix_kit, :secret_key_base, original),
+          else: Application.delete_env(:phoenix_kit, :secret_key_base)
+      end)
+
+      assert Encryption.enabled?()
+
+      encrypted = Encryption.encrypt_fields(%{"password" => "xsmtpsib-secret"})
+      assert String.starts_with?(encrypted["password"], "enc:v1:")
+
+      decrypted = Encryption.decrypt_fields(encrypted)
+      assert decrypted["password"] == "xsmtpsib-secret"
+    end
+  end
+
+  describe "encryption_key/0 fallback to host endpoint secret_key_base" do
+    setup do
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+
+      on_exit(fn ->
+        restore_env(:secret_key_base, original_flat)
+        restore_env(:parent_module, original_parent)
+      end)
+
+      :ok
+    end
+
+    test "flat key set takes precedence and is used" do
+      Application.put_env(:phoenix_kit, :secret_key_base, "flat-secret-for-test")
+      # Point parent_module somewhere that would resolve to a different,
+      # real endpoint too — proves the flat key wins, not just that it's
+      # present when no fallback is available.
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit)
+
+      assert Encryption.enabled?()
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "plain"})
+      assert Encryption.decrypt_fields(encrypted)["api_key"] == "plain"
+    end
+
+    test "falls back to the host endpoint's secret_key_base when the flat key is unset" do
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      # `PhoenixKitWeb.Endpoint` is core's own endpoint, started for the
+      # test suite with a real `secret_key_base` — `parent_module: PhoenixKit`
+      # resolves to it exactly like a host app's `parent_module` would
+      # resolve to its own `MyAppWeb.Endpoint`.
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit)
+
+      assert Encryption.enabled?()
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "plain"})
+      assert String.starts_with?(encrypted["api_key"], "enc:v1:")
+      assert Encryption.decrypt_fields(encrypted)["api_key"] == "plain"
+    end
+
+    test "returns nil (plaintext passthrough) when neither flat key nor endpoint is available" do
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      refute Encryption.enabled?()
+
+      data = %{"api_key" => "plain"}
+      assert Encryption.encrypt_fields(data) == data
+    end
   end
 
   describe "sensitive_fields/0" do
@@ -118,6 +195,10 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert "api_key" in fields
       assert "bot_token" in fields
       assert "secret_key" in fields
+      assert "password" in fields
     end
   end
+
+  defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)
+  defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
 end

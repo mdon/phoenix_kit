@@ -129,7 +129,10 @@ defmodule PhoenixKit.Integrations.Providers do
       openrouter(),
       mistral(),
       deepseek(),
-      elevenlabs()
+      elevenlabs(),
+      aws_ses(),
+      smtp(),
+      brevo_api()
     ]
   end
 
@@ -545,6 +548,148 @@ defmodule PhoenixKit.Integrations.Providers do
             )
         }
       ]
+    }
+  end
+
+  defp aws_ses do
+    %{
+      key: "aws_ses",
+      name: gettext("Amazon SES"),
+      description: gettext("AWS Simple Email Service (SMTP credentials via SES API)"),
+      icon: "hero-envelope",
+      auth_type: :key_secret,
+      oauth_config: nil,
+      setup_fields: [
+        # Field key is `access_key`, NOT `access_key_id` — the
+        # credential-detection gate (`has_credentials?/1` in
+        # integrations.ex) only recognizes `:key_secret` creds via
+        # `data["access_key"]`. The human-facing label still says
+        # "Access Key ID".
+        %{
+          key: "access_key",
+          label: gettext("Access Key ID"),
+          type: :text,
+          required: true,
+          placeholder: "AKIA…",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "secret_key",
+          label: gettext("Secret Access Key"),
+          type: :password,
+          required: true,
+          placeholder: "...",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "aws_region",
+          label: gettext("Region"),
+          type: :text,
+          required: true,
+          placeholder: "eu-central-1",
+          help: nil,
+          options: nil
+        }
+      ],
+      capabilities: [:email_send]
+    }
+  end
+
+  defp smtp do
+    %{
+      key: "smtp",
+      name: gettext("SMTP"),
+      description:
+        gettext(
+          "Universal SMTP relay — works with any vendor (Brevo, Mailgun, SendGrid, a self-hosted mail server, etc). Add one named connection per relay/account."
+        ),
+      icon: "hero-envelope",
+      auth_type: :credentials,
+      oauth_config: nil,
+      setup_fields: [
+        %{
+          key: "host",
+          label: gettext("SMTP Host"),
+          type: :text,
+          required: true,
+          placeholder: "smtp-relay.brevo.com",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "port",
+          label: gettext("Port"),
+          type: :number,
+          required: true,
+          placeholder: "587",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "username",
+          label: gettext("Username"),
+          type: :text,
+          required: true,
+          placeholder: "your-login@smtp-brevo.com",
+          help:
+            gettext(
+              "For Brevo: your account's SMTP login, shown as <subaccount>@smtp-brevo.com under SMTP & API → SMTP."
+            ),
+          options: nil
+        },
+        %{
+          key: "password",
+          label: gettext("Password"),
+          type: :password,
+          required: true,
+          placeholder: "xsmtpsib-...",
+          help:
+            gettext(
+              "For Brevo: the SMTP key starting with xsmtpsib- (SMTP & API → SMTP tab) — not the API key (xkeysib-)."
+            ),
+          options: nil
+        }
+      ],
+      capabilities: [:email_send]
+    }
+  end
+
+  defp brevo_api do
+    %{
+      key: "brevo_api",
+      name: gettext("Brevo API"),
+      description: gettext("Send email via the Brevo transactional email API"),
+      icon: "hero-envelope",
+      auth_type: :api_key,
+      oauth_config: nil,
+      base_url: "https://api.brevo.com/v3",
+      # Makes "Test Connection" tell the truth for this provider: without a
+      # validation map `do_validate/2` falls through to `:ok` and stamps the
+      # connection "connected" without ever checking the key. Brevo
+      # authenticates with a bare `api-key` header (no Bearer prefix).
+      validation: %{
+        url: "https://api.brevo.com/v3/account",
+        method: :get,
+        auth_header: "api-key",
+        auth_prefix: ""
+      },
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("API Key"),
+          type: :password,
+          required: true,
+          placeholder: "xkeysib-...",
+          help:
+            gettext(
+              "From Brevo → SMTP & API → API Keys. Starts with xkeysib- — not the SMTP key (xsmtpsib-)."
+            ),
+          options: nil
+        }
+      ],
+      capabilities: [:email_send]
     }
   end
 

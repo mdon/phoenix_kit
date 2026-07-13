@@ -529,7 +529,18 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V144 - Manufacturing/Warehouse module tables consolidation ⚡ LATEST
+  ### V145 - Newsletters Send Settings (send profiles) ⚡ LATEST
+  - Adds `phoenix_kit_newsletters_send_profiles`: named send configurations
+    referencing a core Integrations connection (`integration_uuid`, no FK)
+    plus per-account send parameters (from-name/email, reply-to, signature,
+    rate limits, `advanced` per-provider extras jsonb).
+  - Multiple profiles may share one integration; at most one may be
+    `is_default`, enforced by a partial unique index on `is_default`.
+  - Adds `send_profile_uuid` (bare UUID, no FK) to
+    `phoenix_kit_newsletters_broadcasts` so a broadcast can pin which send
+    profile delivers it.
+
+  ### V144 - Manufacturing/Warehouse module tables consolidation
   - Consolidates 5 objects previously created by `phoenix_kit_manufacturing`'s
     and `phoenix_kit_warehouse`'s own `migration_module/0` into core's
     migration chain: `phoenix_kit_machines`, `phoenix_kit_machine_type_assignments`,
@@ -1264,7 +1275,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 144
+  @current_version 145
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
