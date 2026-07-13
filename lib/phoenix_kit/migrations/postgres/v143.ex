@@ -110,7 +110,7 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
   defp create_machines(p) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_machines (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       name VARCHAR(255) NOT NULL,
       code VARCHAR(100),
       manufacturer VARCHAR(255),
@@ -192,7 +192,7 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
   defp create_machine_type_assignments(p, prefix) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_machine_type_assignments (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       machine_uuid UUID NOT NULL
         REFERENCES #{p}phoenix_kit_machines (uuid) ON DELETE CASCADE,
       machine_type_uuid UUID NOT NULL,
@@ -220,7 +220,7 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
   defp create_machine_operations(p, prefix) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_machine_operations (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       machine_uuid UUID NOT NULL
         REFERENCES #{p}phoenix_kit_machines (uuid) ON DELETE CASCADE,
       operation_uuid UUID NOT NULL,
@@ -279,7 +279,7 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_transfers (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       number BIGINT NOT NULL DEFAULT nextval('#{p}phoenix_kit_warehouse_transfers_number_seq'),
       status VARCHAR(20) NOT NULL DEFAULT 'draft',
       source_location_uuid UUID,
@@ -344,7 +344,7 @@ defmodule PhoenixKit.Migrations.Postgres.V143 do
   defp create_warehouse_min_stock(p) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_warehouse_min_stock (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       item_uuid UUID NOT NULL,
       min_quantity NUMERIC NOT NULL DEFAULT 0,
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
