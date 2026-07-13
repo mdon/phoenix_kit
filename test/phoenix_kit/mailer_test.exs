@@ -22,10 +22,14 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
   # exercised for real instead of only the "module absent" branch — the
   # same reason `FakeBrevoApiClient`/`TrackingProvider` below stand in for
   # other optional/external behaviour. Mirrors the real
-  # `check_limits/1` contract: `:ok | {:blocked, reason}`, deterministic on
+  # `check_blocklist/1` contract: `:ok | {:blocked, reason}`, deterministic on
   # the recipient address so no shared mutable state is needed.
-  def check_limits(%{to: "blocked@example.com"}), do: {:blocked, :blocklist}
-  def check_limits(%{to: _}), do: :ok
+  #
+  # The Mailer deliberately calls `check_blocklist/1`, NOT `check_limits/1` —
+  # the latter also enforces per-recipient/global send caps, which must not
+  # gate app-wide mail or cap bulk broadcasts (see the Mailer's note).
+  def check_blocklist("blocked@example.com"), do: {:blocked, :blocklist}
+  def check_blocklist(_address), do: :ok
 end
 
 defmodule PhoenixKit.MailerTest.TrackingProvider do

@@ -31,12 +31,21 @@ defmodule PhoenixKit.Mailer do
   require Logger
 
   # Soft dependency: the optional `emails` package (not a dependency of
-  # core) owns the recipient blocklist and send-rate limits (hard bounces,
-  # spam complaints, per-recipient/global caps). Referencing it as a bare
-  # module name costs nothing at compile time; `check_recipient_allowed/1`
-  # below guards every call with `Code.ensure_loaded?/1`, so this file has
-  # no hard dependency on the optional package and every recipient is
-  # implicitly allowed when it isn't installed.
+  # core) owns the recipient blocklist (hard bounces, spam complaints,
+  # manual blocks). Referencing it as a bare module name costs nothing at
+  # compile time; `check_recipient_allowed/1` below guards every call with
+  # `Code.ensure_loaded?/1`, so this file has no hard dependency on the
+  # optional package and every recipient is implicitly allowed when it
+  # isn't installed.
+  #
+  # We deliberately call `check_blocklist/1`, NOT `check_limits/1`:
+  # `check_limits/1` additionally enforces the emails module's per-recipient
+  # (100/h) and GLOBAL (10_000/h) send caps, which are not gated by any
+  # enable flag. Wiring those in here would silently throttle every outbound
+  # email app-wide (auth mail included) and would cap bulk newsletter
+  # broadcasts at 10k/hour. Send pacing/quotas belong to the newsletters
+  # send-profile limits (roadmap Phase 5, per-profile atomic caps) — one
+  # limiter, not two competing ones.
   @emails_rate_limiter PhoenixKit.Modules.Emails.RateLimiter
 
   @doc """
@@ -363,27 +372,29 @@ defmodule PhoenixKit.Mailer do
   @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
   defp check_recipient_allowed(%Swoosh.Email{to: recipients}) do
     Enum.reduce_while(recipients, :ok, fn {_name, address}, :ok ->
-      case check_rate_limits(address) do
+      case check_blocklisted(address) do
         :ok -> {:cont, :ok}
         {:blocked, reason} -> {:halt, {:error, {:blocked, reason}}}
       end
     end)
   end
 
-  defp check_rate_limits(address) do
+  defp check_blocklisted(address) do
     if Code.ensure_loaded?(@emails_rate_limiter) and
-         function_exported?(@emails_rate_limiter, :check_limits, 1) do
+         function_exported?(@emails_rate_limiter, :check_blocklist, 1) do
       # apply/3 intentionally, to avoid compile-time module resolution --
-      # a direct `@emails_rate_limiter.check_limits/1` call would fail
+      # a direct `@emails_rate_limiter.check_blocklist/1` call would fail
       # `--warnings-as-errors` when the optional emails package isn't a
       # dependency (the compiler can prove the module is undefined).
       # credo:disable-for-next-line Credo.Check.Refactor.Apply
-      apply(@emails_rate_limiter, :check_limits, [%{to: address}])
+      apply(@emails_rate_limiter, :check_blocklist, [address])
     else
       :ok
     end
   rescue
     error ->
+      # Fail open: this gate sits in front of ALL outbound mail (auth
+      # included), so a transient DB hiccup must not take delivery down.
       Logger.error("Recipient blocklist check failed, allowing send: #{inspect(error)}")
       :ok
   end
