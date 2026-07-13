@@ -102,19 +102,23 @@ defmodule PhoenixKit.Users.QrLogin do
   @spec device_meta(LiveView.Socket.t()) :: map()
   def device_meta(socket) do
     ua = LiveView.get_connect_info(socket, :user_agent)
-    ip = IpAddress.extract_from_socket(socket)
+    # extract_from_socket/1 returns the literal "unknown" when peer_data is
+    # unavailable (proxies, some transports) — treat that (and blanks) as
+    # absent so the confirm screen omits the IP row instead of showing a
+    # bare "unknown", and so we don't feed a placeholder into the geo lookup.
+    ip = present_ip(IpAddress.extract_from_socket(socket))
 
     %{requested_at: requested_at()}
     |> put_present(:browser, UserAgent.browser(ua))
     |> put_present(:os, UserAgent.os(ua))
     |> put_present(:ip, ip)
-    |> put_present(:location, location_for(ip))
+    |> put_present(:location, ip && location_for(ip))
   end
 
   @doc """
   Formats a best-effort `"City, Country"` (or just `"Country"`) string for
-  an IP, or `nil` when the lookup fails or is unavailable. Safe to call with
-  `"unknown"` — `Geolocation` rejects non-routable/placeholder IPs.
+  an IP, or `nil` when the lookup fails or is unavailable. Never raises — a
+  geo backend hiccup must not crash the QR mint that shows the code.
   """
   @spec location_for(String.t() | nil) :: String.t() | nil
   def location_for(ip) when is_binary(ip) do
@@ -129,6 +133,8 @@ defmodule PhoenixKit.Users.QrLogin do
       _ ->
         nil
     end
+  rescue
+    _ -> nil
   end
 
   def location_for(_), do: nil
@@ -170,6 +176,11 @@ defmodule PhoenixKit.Users.QrLogin do
   defp put_present(map, _key, nil), do: map
   defp put_present(map, _key, ""), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
+
+  # Placeholder IPs from `IpAddress.extract_from_socket/1` (unreadable peer
+  # data) count as "no IP" so they neither render nor drive a geo lookup.
+  defp present_ip(ip) when ip in [nil, "", "unknown"], do: nil
+  defp present_ip(ip), do: ip
 
   defp requested_at do
     Calendar.strftime(DateTime.utc_now(), "%Y-%m-%d %H:%M UTC")
