@@ -49,6 +49,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
+  alias PhoenixKit.Users.LoginAlerts
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
@@ -102,6 +103,11 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Merge guest cart into user cart before session renewal clears session data.
     # The shop_session_id cookie survives renew_session (only session data is cleared).
     maybe_merge_guest_cart(conn, user)
+
+    # New-device login alert. Every login path (password, magic link,
+    # OAuth, QR) funnels through here, so this is the single integration
+    # point. No-ops when new_login_alert_enabled is off; never raises.
+    LoginAlerts.check(user, conn)
 
     conn
     |> renew_session()

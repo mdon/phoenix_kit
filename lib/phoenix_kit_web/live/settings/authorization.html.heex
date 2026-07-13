@@ -290,6 +290,20 @@
               </div>
             </div>
 
+            <%!-- New Login Alerts --%>
+            <div class="mb-3">
+              <div class="text-sm font-semibold text-base-content/70 mb-2">
+                {gettext("Login Notifications")}
+              </div>
+              <.checkbox
+                name="settings[new_login_alert_enabled]"
+                checked={@settings["new_login_alert_enabled"] == "true"}
+                wrapper_class="ml-4"
+              >
+                {gettext("Email users when their account is signed in from a new device")}
+              </.checkbox>
+            </div>
+
             <%!-- OAuth Methods --%>
             <div>
               <div class="text-sm font-semibold text-base-content/70 mb-2">

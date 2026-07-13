@@ -1,0 +1,56 @@
+defmodule PhoenixKit.Users.Auth.KnownDevice do
+  @moduledoc """
+  A device (IP + hashed user-agent) a user has previously logged in from.
+
+  Backs the new-login security alert: a login whose `(ip_address,
+  user_agent_hash)` pair has no matching row for the user is a "new
+  device" and — when `new_login_alert_enabled` is on — triggers
+  `user.new_login_detected` in the activity log plus an email via
+  `PhoenixKit.Users.Auth.UserNotifier.deliver_new_login_alert/2`.
+
+  The user agent is stored pre-hashed (SHA-256 hex, via
+  `PhoenixKit.Utils.SessionFingerprint.hash_user_agent/1`) — the raw UA
+  string is never persisted.
+  """
+  use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
+
+  alias PhoenixKit.Users.Auth.User
+
+  @primary_key {:uuid, UUIDv7, autogenerate: true}
+
+  schema "phoenix_kit_user_known_devices" do
+    field :ip_address, :string
+    field :user_agent_hash, :string
+    field :browser, :string
+    field :os, :string
+    field :first_seen_at, :utc_datetime
+    field :last_seen_at, :utc_datetime
+
+    belongs_to :user, User, foreign_key: :user_uuid, references: :uuid, type: UUIDv7
+  end
+
+  @doc false
+  def changeset(known_device, attrs) do
+    known_device
+    |> Ecto.Changeset.cast(attrs, [
+      :user_uuid,
+      :ip_address,
+      :user_agent_hash,
+      :browser,
+      :os,
+      :first_seen_at,
+      :last_seen_at
+    ])
+    |> Ecto.Changeset.validate_required([
+      :user_uuid,
+      :ip_address,
+      :user_agent_hash,
+      :first_seen_at,
+      :last_seen_at
+    ])
+    |> Ecto.Changeset.unique_constraint([:user_uuid, :ip_address, :user_agent_hash],
+      name: :phoenix_kit_known_devices_user_ip_ua_index
+    )
+  end
+end

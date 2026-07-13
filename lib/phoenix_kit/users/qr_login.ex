@@ -38,6 +38,7 @@ defmodule PhoenixKit.Users.QrLogin do
   alias Phoenix.LiveView
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.IpAddress
+  alias PhoenixKit.Utils.UserAgent
 
   # PhoenixKit's internal PubSub, started by `PhoenixKit.PubSub.Manager`.
   @pubsub :phoenix_kit_internal_pubsub
@@ -96,8 +97,8 @@ defmodule PhoenixKit.Users.QrLogin do
     ip = IpAddress.extract_from_socket(socket)
 
     %{}
-    |> put_present(:browser, browser_from_ua(ua))
-    |> put_present(:os, os_from_ua(ua))
+    |> put_present(:browser, UserAgent.browser(ua))
+    |> put_present(:os, UserAgent.os(ua))
     |> put_present(:ip, ip)
   end
 
@@ -138,32 +139,4 @@ defmodule PhoenixKit.Users.QrLogin do
   defp put_present(map, _key, nil), do: map
   defp put_present(map, _key, ""), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
-
-  # Deliberately small, allocation-light UA sniffing — enough to make the
-  # confirm screen recognisable ("Chrome on macOS"), not a UA-parsing lib.
-  defp browser_from_ua(nil), do: nil
-
-  defp browser_from_ua(ua) when is_binary(ua) do
-    cond do
-      String.contains?(ua, "Edg/") -> "Edge"
-      String.contains?(ua, "OPR/") or String.contains?(ua, "Opera") -> "Opera"
-      String.contains?(ua, "Firefox") -> "Firefox"
-      String.contains?(ua, "Chrome") -> "Chrome"
-      String.contains?(ua, "Safari") -> "Safari"
-      true -> nil
-    end
-  end
-
-  defp os_from_ua(nil), do: nil
-
-  defp os_from_ua(ua) when is_binary(ua) do
-    cond do
-      String.contains?(ua, "Windows") -> "Windows"
-      String.contains?(ua, "iPhone") or String.contains?(ua, "iPad") -> "iOS"
-      String.contains?(ua, "Mac OS X") or String.contains?(ua, "Macintosh") -> "macOS"
-      String.contains?(ua, "Android") -> "Android"
-      String.contains?(ua, "Linux") -> "Linux"
-      true -> nil
-    end
-  end
 end
