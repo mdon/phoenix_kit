@@ -10520,75 +10520,75 @@ msgstr ""
 #: lib/phoenix_kit_web/live/components/user_settings.ex:547
 #, elixir-autogen, elixir-format
 msgid "Active %{count} days ago"
-msgstr ""
+msgstr "Aktiivne %{count} päeva tagasi"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:540
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Active now"
-msgstr "Aktiivne"
+msgstr "Praegu aktiivne"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:545
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Active today"
-msgstr "Aktiveeri"
+msgstr "Aktiivne täna"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:546
 #, elixir-autogen, elixir-format
 msgid "Active yesterday"
-msgstr ""
+msgstr "Aktiivne eile"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1258
 #, elixir-autogen, elixir-format
 msgid "Devices currently signed in to your account. If you don't recognize one, sign it out."
-msgstr ""
+msgstr "Seadmed, millest on praegu teie kontosse sisse logitud. Kui te ei tunne mõnda neist ära, logige see välja."
 
 #: lib/phoenix_kit/users/login_alerts.ex:140
 #, elixir-autogen, elixir-format
 msgid "New sign-in to your account from %{details}."
-msgstr ""
+msgstr "Uus sisselogimine teie kontosse seadmest %{details}."
 
 #: lib/phoenix_kit/users/login_alerts.ex:139
 #, elixir-autogen, elixir-format
 msgid "New sign-in to your account."
-msgstr ""
+msgstr "Uus sisselogimine teie kontosse."
 
 ## Login page translations
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1291
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sign out"
-msgstr "Logi sisse"
+msgstr "Logi välja"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1302
 #, elixir-autogen, elixir-format
 msgid "Sign out of all other sessions?"
-msgstr ""
+msgstr "Kas logida välja kõigist teistest seanssidest?"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1305
 #, elixir-autogen, elixir-format
 msgid "Sign out other sessions"
-msgstr ""
+msgstr "Logi välja teistest seanssidest"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:520
 #, elixir-autogen, elixir-format
 msgid "Signed out of all other sessions."
-msgstr ""
+msgstr "Olete välja logitud kõigist teistest seanssidest."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:503
 #, elixir-autogen, elixir-format
 msgid "Signed out of that session."
-msgstr ""
+msgstr "Seanss lõpetatud."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:504
 #, elixir-autogen, elixir-format
 msgid "That session is no longer active."
-msgstr ""
+msgstr "See seanss ei ole enam aktiivne."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1275
 #, elixir-autogen, elixir-format
 msgid "This device"
-msgstr ""
+msgstr "See seade"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:532
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Unknown device"
-msgstr "Tundmatu"
+msgstr "Tundmatu seade"
