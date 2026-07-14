@@ -40,6 +40,23 @@
   the check can prove the credentials are valid but not that they can send, and it
   now says so on screen instead of only in the log.
 
+||||||| 867bc5b2
+## 1.7.193 - 2026-07-14
+
+### Added
+- V148: `phoenix_kit_crm_party_roles` table for the `phoenix_kit_crm`
+  module — a polymorphic role edge marking an existing CRM company or
+  contact as `supplier`, `client`, or another commercial counterparty role
+  (a party can hold several roles at once). No FK on the polymorphic
+  `(roleable_type, roleable_uuid)` pair; `valid_from`/`valid_to` lifecycle,
+  `is_active` filter, role-scoped `metadata`.
+
+### Fixed
+- V148's `uuid` column `DEFAULT` now schema-qualifies `uuid_generate_v7()`
+  with the install prefix (matching V138/V144) — the unqualified call
+  would have resolved via `search_path` and failed on named-schema
+  installs.
+
 ## 1.7.192 - 2026-07-14
 
 ### Added
