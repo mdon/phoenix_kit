@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V147 - Known-device geo-location ⚡ LATEST
+  ### V148 - Readable device name on session tokens ⚡ LATEST
+  - Adds nullable `browser` + `os` to `phoenix_kit_users_tokens`, parsed
+    from the User-Agent at login, so the Active Sessions list and admin
+    all-sessions view show a device name for every session without the
+    known-devices/geo machinery (which stays gated behind new-login alerts).
+
+  ### V147 - Known-device geo-location
   - Adds nullable `location` (`City, Country`) to
     `phoenix_kit_user_known_devices`. Resolved once at new-device time by
     `PhoenixKit.Users.LoginAlerts` and stored so the user's Active Sessions
@@ -1288,7 +1294,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 147
+  @current_version 148
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

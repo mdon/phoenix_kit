@@ -69,6 +69,23 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
       assert other.location == nil
     end
 
+    test "device name comes from the token itself, no known-device row needed" do
+      user = user_fixture("qr-sessions-tokendev@example.com")
+
+      fp = %SessionFingerprint{
+        ip_address: "203.0.113.20",
+        user_agent_hash: String.duplicate("1", 64)
+      }
+
+      token =
+        Auth.generate_user_session_token(user, fingerprint: fp, browser: "Safari", os: "iOS")
+
+      [s] = Sessions.list_user_device_sessions(user, token)
+      assert s.browser == "Safari"
+      assert s.os == "iOS"
+      assert s.is_current
+    end
+
     test "no session is current when the token is unknown" do
       user = user_fixture("qr-sessions-nocurrent@example.com")
       _t = session_token(user, "203.0.113.3", String.duplicate("c", 64))

@@ -65,6 +65,8 @@ defmodule PhoenixKit.Users.Sessions do
         user_email: user.email,
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
+        browser: token.browser,
+        os: token.os,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       },
@@ -97,6 +99,8 @@ defmodule PhoenixKit.Users.Sessions do
         user_email: user.email,
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
+        browser: token.browser,
+        os: token.os,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       },
@@ -132,6 +136,8 @@ defmodule PhoenixKit.Users.Sessions do
         token_uuid: token.uuid,
         ip_address: token.ip_address,
         user_agent_hash: token.user_agent_hash,
+        browser: token.browser,
+        os: token.os,
         created_at: token.inserted_at
       },
       order_by: [desc: token.inserted_at]
@@ -143,8 +149,11 @@ defmodule PhoenixKit.Users.Sessions do
       %{
         token_uuid: s.token_uuid,
         ip_address: s.ip_address,
-        browser: device && device.browser,
-        os: device && device.os,
+        # Device name comes from the token (V148), populated at login for every
+        # session; fall back to a known-device row for pre-V148 sessions.
+        browser: s.browser || (device && device.browser),
+        os: s.os || (device && device.os),
+        # Location stays known-device-only (recorded when new-login alerts run).
         location: device && device.location,
         last_active: (device && device.last_seen_at) || s.created_at,
         created_at: s.created_at,
@@ -403,6 +412,8 @@ defmodule PhoenixKit.Users.Sessions do
       user_email: session_data.user_email,
       user_is_active: session_data.user_is_active,
       user_confirmed_at: session_data.user_confirmed_at,
+      browser: Map.get(session_data, :browser),
+      os: Map.get(session_data, :os),
       created_at: session_data.created_at,
       expires_at: session_data.expires_at,
       age_in_days: calculate_age_in_days(session_data.created_at),
