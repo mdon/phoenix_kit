@@ -18,22 +18,18 @@ defmodule PhoenixKit.Integrations.Validators do
     * SES credentials scoped to `ses:SendEmail` only — the least-privilege policy
       AWS itself recommends — pass, even though they cannot read the send quota.
 
-  Every check is bounded by a hard deadline. `:gen_smtp_client.open/1` runs in
-  the **calling** process and, past the TCP connect, waits on a hard-coded 20
-  minute timeout of its own (`?TIMEOUT` in `gen_smtp_client.erl`) — the `timeout`
-  option bounds only `connect`. Both call sites are LiveView callbacks, so an
-  unresponsive relay would otherwise park a LiveView process for twenty minutes.
+  Every check runs through `PhoenixKit.Integrations.Probe`, which bounds it with
+  a hard deadline and isolates it from the caller — the libraries underneath
+  bound neither themselves nor their crashes, and both call sites are LiveView
+  callbacks.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   require Logger
 
+  alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Mailer.SmtpTransport
-
-  # Wall-clock bound for a whole check. gen_smtp will not honour any timeout we
-  # hand it past `connect`, so the deadline has to live outside it.
-  @default_deadline 15_000
 
   @doc """
   Validates AWS SES credentials against the SES API itself.
@@ -63,7 +59,7 @@ defmodule PhoenixKit.Integrations.Validators do
         {:error, gettext("Region is required")}
 
       true ->
-        with_deadline(fn -> request_send_quota(region, data) end)
+        Probe.run(fn -> request_send_quota(region, data) end)
     end
   end
 
@@ -83,7 +79,7 @@ defmodule PhoenixKit.Integrations.Validators do
   def smtp(data) do
     case SmtpTransport.config(data) do
       {:ok, options} ->
-        with_deadline(fn -> open_smtp(options) end)
+        Probe.run(fn -> open_smtp(options) end)
 
       {:error, {:invalid_smtp_port, port}} ->
         {:error, gettext("Invalid port: %{port}", port: inspect(port))}
@@ -258,25 +254,6 @@ defmodule PhoenixKit.Integrations.Validators do
   defp aws_error_code(_), do: nil
 
   # --- shared ---------------------------------------------------------------
-
-  # gen_smtp ignores any timeout past `connect` and ExAws can retry for minutes,
-  # so the only bound that actually holds is one we impose from outside.
-  defp with_deadline(fun) do
-    task = Task.async(fun)
-    deadline = Application.get_env(:phoenix_kit, :integration_check_deadline, @default_deadline)
-
-    case Task.yield(task, deadline) || Task.shutdown(task, :brutal_kill) do
-      {:ok, result} ->
-        result
-
-      {:exit, reason} ->
-        Logger.warning("Connection check crashed: #{inspect(reason)}")
-        {:error, gettext("Could not reach the service")}
-
-      nil ->
-        {:error, gettext("The service did not respond in time")}
-    end
-  end
 
   defp blank?(nil), do: true
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
