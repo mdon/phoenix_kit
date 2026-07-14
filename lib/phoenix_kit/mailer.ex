@@ -352,19 +352,59 @@ defmodule PhoenixKit.Mailer do
   # plaintext tcp). The `tls` option only controls a STARTTLS *upgrade after* a
   # plaintext connect, so `tls: :always` on 465 would open plaintext to an
   # SMTPS port and hang.
-  defp smtp_transport(465, _creds), do: [ssl: true]
+  #
+  # In BOTH modes the TLS options are load-bearing. gen_smtp passes none of its
+  # own, and OTP's `:ssl` now defaults to `verify: :verify_peer` with no CA
+  # store — so an implicit-TLS connect dies on `{:options, :incompatible,
+  # [verify: :verify_peer, cacerts: :undefined]}`, and a STARTTLS upgrade fails
+  # the handshake (`:tls_failed`). Verified against a real relay.
+  defp smtp_transport(465, creds), do: [ssl: true, sockopts: tls_options(creds["host"])]
 
   defp smtp_transport(_port, creds) do
+    tls_opts = tls_options(creds["host"])
+
     if blank?(creds["username"]) and blank?(creds["password"]) do
       # No credentials on the wire (local dev relay like MailHog:1025, or an
       # internal plaintext smarthost) — nothing to protect, so allow the
-      # connection when the relay offers no STARTTLS.
-      [tls: :if_available]
+      # connection when the relay offers no STARTTLS, or offers one we cannot
+      # verify.
+      [tls: :if_available, tls_options: tls_opts]
     else
-      # Credentials ARE on the wire: mandatory STARTTLS. Fail closed rather
-      # than let a stripped STARTTLS capability downgrade us to plaintext.
-      [tls: :always]
+      # Credentials ARE on the wire: mandatory, verified STARTTLS. Fail closed
+      # rather than let a stripped STARTTLS capability — or an unverifiable
+      # certificate — downgrade us to plaintext.
+      [tls: :always, tls_options: tls_opts]
     end
+  end
+
+  # Certificate verification for the SMTP relay: the system CA store, plus the
+  # hostname check `:ssl` does not perform on its own.
+  defp tls_options(host) do
+    case cacerts() do
+      [] ->
+        Logger.warning(
+          "No system CA certificates found — SMTP TLS certificate verification is disabled"
+        )
+
+        [verify: :verify_none]
+
+      cacerts ->
+        [
+          verify: :verify_peer,
+          cacerts: cacerts,
+          depth: 99,
+          server_name_indication: to_charlist(host || ""),
+          customize_hostname_check: [
+            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+          ]
+        ]
+    end
+  end
+
+  defp cacerts do
+    :public_key.cacerts_get()
+  rescue
+    _ -> []
   end
 
   defp blank?(nil), do: true

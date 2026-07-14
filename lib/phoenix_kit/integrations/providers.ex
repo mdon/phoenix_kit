@@ -617,6 +617,9 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-envelope",
       auth_type: :key_secret,
       oauth_config: nil,
+      # Checked against the SES API itself (GetSendQuota) — see
+      # PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :aws_ses},
       setup_fields: [
         # Field key is `access_key`, NOT `access_key_id` — the
         # credential-detection gate (`has_credentials?/1` in
@@ -666,6 +669,9 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-envelope",
       auth_type: :credentials,
       oauth_config: nil,
+      # Checked by opening a real session and authenticating — see
+      # PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :smtp},
       setup_fields: [
         %{
           key: "host",

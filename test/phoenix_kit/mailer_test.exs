@@ -122,6 +122,14 @@ defmodule PhoenixKit.MailerTest do
       # 587 = mandatory STARTTLS, fail-closed (no plaintext downgrade)
       assert config[:tls] == :always
       refute Keyword.has_key?(config, :ssl)
+
+      # TLS options are load-bearing: gen_smtp supplies none, and OTP's :ssl
+      # defaults to verify_peer with no CA store, so the handshake dies without
+      # them. Verified against a real relay.
+      assert config[:tls_options][:verify] == :verify_peer
+      assert config[:tls_options][:cacerts] != nil
+      assert config[:tls_options][:server_name_indication] == ~c"smtp-relay.brevo.com"
+      assert config[:tls_options][:customize_hostname_check] != nil
     end
 
     test "smtp credentials on port 465 use implicit TLS (ssl: true), not STARTTLS" do
@@ -138,6 +146,14 @@ defmodule PhoenixKit.MailerTest do
       # gen_smtp opens an SSL socket only when `ssl: true`; `tls:` is STARTTLS-only
       assert config[:ssl] == true
       refute Keyword.has_key?(config, :tls)
+
+      # For the ssl protocol gen_smtp hands `sockopts` straight to :ssl.connect,
+      # so the verification options must ride there — without them the connect
+      # fails outright with {:options, :incompatible, [verify: :verify_peer,
+      # cacerts: :undefined]}.
+      assert config[:sockopts][:verify] == :verify_peer
+      assert config[:sockopts][:cacerts] != nil
+      assert config[:sockopts][:server_name_indication] == ~c"smtp.example.com"
     end
 
     test "an smtp relay with no credentials allows opportunistic STARTTLS" do
@@ -149,6 +165,8 @@ defmodule PhoenixKit.MailerTest do
       assert {:ok, {Swoosh.Adapters.SMTP, config}} = Mailer.swoosh_config_for(creds)
       assert config[:port] == 1025
       assert config[:tls] == :if_available
+      # still offered verified TLS if the relay happens to support it
+      assert config[:tls_options][:verify] == :verify_peer
     end
 
     test "smtp credentials with an unparseable port are rejected" do

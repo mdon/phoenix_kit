@@ -74,6 +74,7 @@ defmodule PhoenixKit.Integrations do
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.OAuth
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Integrations.Validators
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
@@ -954,6 +955,16 @@ defmodule PhoenixKit.Integrations do
         :ok
     end
   end
+
+  # Providers that cannot be checked with an authenticated GET declare a
+  # strategy instead. Without these clauses both fell through to the `:ok`
+  # catch-all below, so "Test Connection" stamped the connection "connected"
+  # without verifying anything.
+  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
+    do: Validators.aws_ses(data)
+
+  defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
+    do: Validators.smtp(data)
 
   defp do_validate(_, _data), do: :ok
 
