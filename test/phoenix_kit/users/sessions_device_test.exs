@@ -137,4 +137,41 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
       assert Sessions.list_user_device_sessions(user, nil) == []
     end
   end
+
+  describe "get_session_stats/0" do
+    test "breaks active sessions down by OS and browser" do
+      user = user_fixture("qr-sessions-stats@example.com")
+
+      fp1 = %SessionFingerprint{
+        ip_address: "203.0.113.30",
+        user_agent_hash: String.duplicate("2", 64)
+      }
+
+      fp2 = %SessionFingerprint{
+        ip_address: "203.0.113.31",
+        user_agent_hash: String.duplicate("3", 64)
+      }
+
+      Auth.generate_user_session_token(user, fingerprint: fp1, browser: "Safari", os: "iOS")
+      Auth.generate_user_session_token(user, fingerprint: fp2, browser: "Safari", os: "iOS")
+
+      stats = Sessions.get_session_stats()
+      assert {"iOS", 2} in stats.by_os
+      assert {"Safari", 2} in stats.by_browser
+    end
+
+    test "counts sessions without a device name under \"Unknown\"" do
+      user = user_fixture("qr-sessions-stats-unknown@example.com")
+
+      fp = %SessionFingerprint{
+        ip_address: "203.0.113.32",
+        user_agent_hash: String.duplicate("4", 64)
+      }
+
+      Auth.generate_user_session_token(user, fingerprint: fp)
+
+      stats = Sessions.get_session_stats()
+      assert {"Unknown", 1} in stats.by_os
+    end
+  end
 end

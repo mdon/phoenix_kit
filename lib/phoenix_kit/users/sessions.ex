@@ -366,8 +366,23 @@ defmodule PhoenixKit.Users.Sessions do
       total_active: total_active,
       unique_users: unique_users,
       expired_sessions: expired_sessions,
-      sessions_today: sessions_today
+      sessions_today: sessions_today,
+      by_os: active_breakdown(active_query, :os),
+      by_browser: active_breakdown(active_query, :browser)
     }
+  end
+
+  # `[{name, count}, ...]` for active sessions grouped by a token field
+  # (`:os` / `:browser`), most common first. Nil names (pre-V148 sessions
+  # or missing UA) collapse into "Unknown".
+  defp active_breakdown(active_query, field) do
+    from(t in active_query,
+      group_by: field(t, ^field),
+      select: {field(t, ^field), count(t.uuid)},
+      order_by: [desc: count(t.uuid)]
+    )
+    |> Repo.all()
+    |> Enum.map(fn {name, count} -> {name || "Unknown", count} end)
   end
 
   # Loads the user's known devices keyed by {ip_address, user_agent_hash}

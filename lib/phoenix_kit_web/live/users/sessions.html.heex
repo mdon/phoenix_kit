@@ -60,6 +60,37 @@
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
+    <%!-- Device breakdown (active sessions by OS / browser) --%>
+    <div
+      :if={@stats.by_os != [] or @stats.by_browser != []}
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"
+    >
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <h3 class="text-sm font-semibold text-base-content/70 mb-3 flex items-center gap-2">
+            <.icon name="hero-computer-desktop" class="w-4 h-4" /> {gettext("By operating system")}
+          </h3>
+          <div class="flex flex-wrap gap-2">
+            <span :for={{name, count} <- @stats.by_os} class="badge badge-ghost gap-1">
+              {name} <span class="font-semibold">{count}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <h3 class="text-sm font-semibold text-base-content/70 mb-3 flex items-center gap-2">
+            <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("By browser")}
+          </h3>
+          <div class="flex flex-wrap gap-2">
+            <span :for={{name, count} <- @stats.by_browser} class="badge badge-ghost gap-1">
+              {name} <span class="font-semibold">{count}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <%!-- Revoke Session Modal --%>
     <%= if @show_revoke_modal do %>
       <div class="modal modal-open">
