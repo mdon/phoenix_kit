@@ -3,11 +3,11 @@ defmodule PhoenixKit.Integrations.Validators do
   Real connection checks for providers that cannot be validated with a simple
   authenticated HTTP GET.
 
-  `PhoenixKit.Integrations.do_validate/2` falls through to `:ok` for any provider
-  that declares no validation. For the e-mail providers that meant "Test
-  Connection" verified *nothing*: the connection was stamped `"connected"`
-  without a single byte leaving the box, so an operator who pasted a wrong key or
-  a bad SMTP password saw a green check and then a failing send.
+  `PhoenixKit.Integrations` falls through to `:ok` for any provider that declares
+  no validation. For the e-mail providers that meant "Test Connection" verified
+  *nothing*: the connection was stamped `"connected"` without a single byte
+  leaving the box, so an operator who pasted a wrong key or a bad SMTP password
+  saw a green check and then a failing send.
 
   A check that always says yes is worse than no check — but so is one that says
   no when the configuration is fine. These validators are therefore careful in
