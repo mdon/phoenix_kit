@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V149 - Catalogue item-supplier sourcing info + CRM xref ⚡ LATEST
+  ### V150 - Readable device name on session tokens ⚡ LATEST
+  - Adds nullable `browser` + `os` to `phoenix_kit_users_tokens`, parsed
+    from the User-Agent at login, so the Active Sessions list and admin
+    all-sessions view show a device name for every session without the
+    known-devices/geo machinery (which stays gated behind new-login alerts).
+
+  ### V149 - Catalogue item-supplier sourcing info + CRM xref
   - Adds `phoenix_kit_cat_item_supplier_info` (per-item, per-supplier SKU /
     unit cost / currency / lead time / MOQ; `supplier_uuid` soft ref to a
     CRM party or local `cat_supplier`) and a soft `crm_company_uuid` xref on
@@ -1303,7 +1309,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 149
+  @current_version 150
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

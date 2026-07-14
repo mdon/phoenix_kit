@@ -47,6 +47,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Users.Sessions
+  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
   @default_sections [
@@ -541,10 +542,20 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   defp last_active_label(%{last_active: nil}), do: nil
 
   defp last_active_label(%{last_active: last_active}) do
+    time = UtilsDate.format_time_with_user_format(last_active)
+
     case DateTime.diff(DateTime.utc_now(), last_active, :day) do
-      days when days <= 0 -> gettext("Active today")
-      1 -> gettext("Active yesterday")
-      days -> gettext("Active %{count} days ago", count: days)
+      days when days <= 0 ->
+        gettext("Active today at %{time}", time: time)
+
+      1 ->
+        gettext("Active yesterday at %{time}", time: time)
+
+      _ ->
+        gettext("Active %{date} at %{time}",
+          date: UtilsDate.format_date_with_user_format(last_active),
+          time: time
+        )
     end
   end
 

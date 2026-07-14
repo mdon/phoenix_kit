@@ -298,4 +298,18 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
 
     {:noreply, socket}
   end
+
+  @doc """
+  Readable "Browser · OS" for a session row, or an "Unknown device" fallback
+  for sessions created before the device name was captured (pre-V148).
+  """
+  def device_name(session) do
+    [session.browser, session.os]
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
+    |> Enum.join(" · ")
+    |> case do
+      "" -> gettext("Unknown device")
+      label -> label
+    end
+  end
 end
