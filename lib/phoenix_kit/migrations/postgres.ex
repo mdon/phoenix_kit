@@ -535,6 +535,13 @@ defmodule PhoenixKit.Migrations.Postgres do
     all-sessions view show a device name for every session without the
     known-devices/geo machinery (which stays gated behind new-login alerts).
 
+  ### V149 - Catalogue item-supplier sourcing info + CRM xref
+  - Adds `phoenix_kit_cat_item_supplier_info` (per-item, per-supplier SKU /
+    unit cost / currency / lead time / MOQ; `supplier_uuid` soft ref to a
+    CRM party or local `cat_supplier`) and a soft `crm_company_uuid` xref on
+    `phoenix_kit_cat_suppliers`. No primary among these rows — the item's
+    default supplier is the V146 `primary_supplier_uuid` scalar.
+
   ### V148 - CRM party roles (suppliers, clients)
   - Adds `phoenix_kit_crm_party_roles` for the `phoenix_kit_crm` module:
     polymorphic role edge marking a CRM company or contact as `supplier`,
