@@ -1,6 +1,6 @@
-defmodule PhoenixKit.Migrations.Postgres.V148 do
+defmodule PhoenixKit.Migrations.Postgres.V149 do
   @moduledoc """
-  V148: Readable device name on session tokens.
+  V149: Readable device name on session tokens.
 
   Adds nullable `browser` and `os` columns to `phoenix_kit_users_tokens`,
   parsed from the User-Agent at login (V43 already stores the hashed UA for
@@ -26,7 +26,7 @@ defmodule PhoenixKit.Migrations.Postgres.V148 do
       add_if_not_exists(:os, :string, size: 100)
     end
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '148'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '149'")
   end
 
   def down(opts) do
@@ -38,7 +38,7 @@ defmodule PhoenixKit.Migrations.Postgres.V148 do
       remove_if_exists(:os, :string)
     end
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '147'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '148'")
   end
 
   defp prefix_str("public"), do: "public."
