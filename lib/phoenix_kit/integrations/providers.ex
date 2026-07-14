@@ -621,11 +621,11 @@ defmodule PhoenixKit.Integrations.Providers do
       # PhoenixKit.Integrations.Validators.
       validation: %{strategy: :aws_ses},
       setup_fields: [
-        # Field key is `access_key`, NOT `access_key_id` — the
-        # credential-detection gate (`has_credentials?/1` in
-        # integrations.ex) only recognizes `:key_secret` creds via
-        # `data["access_key"]`. The human-facing label still says
-        # "Access Key ID".
+        # Field key is `access_key`, NOT `access_key_id` — the human-facing
+        # label still says "Access Key ID". The credential-detection gate
+        # (`has_credentials?/1` in integrations.ex) now requires EVERY field a
+        # `:key_secret` provider declares `required: true`, so renaming this key
+        # without renaming it there leaves SES permanently "not configured".
         %{
           key: "access_key",
           label: gettext("Access Key ID"),

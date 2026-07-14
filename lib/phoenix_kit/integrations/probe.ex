@@ -2,8 +2,8 @@ defmodule PhoenixKit.Integrations.Probe do
   @moduledoc """
   Runs a connection check in an isolated process under a hard deadline.
 
-  Connection checks talk to the network, and the libraries behind them do not
-  bound themselves:
+  Connection checks talk to the network, and the libraries behind them bound
+  neither their runtime nor their crashes:
 
     * `:gen_smtp_client.open/1` runs in the **calling** process and, past the TCP
       connect, waits on a hard-coded `?TIMEOUT` of 1_200_000 ms — the `timeout`
@@ -11,23 +11,33 @@ defmodule PhoenixKit.Integrations.Probe do
       minutes.
     * ExAws retries transport errors with backoff, which adds up to minutes.
 
-  Every call site is a LiveView callback, so the only bound that actually holds
-  is one imposed from outside.
+  Every call site is a LiveView callback, so the check must be watched in **both**
+  directions, and getting only one of them right is worse than getting neither:
 
-  This is deliberately **not** `Task.async/1`, which *links*. A raise or an
-  abnormal exit inside the check kills a non-trapping caller outright — before
-  `Task.yield/2` can hand back `{:exit, reason}`, so that clause never runs — and
-  a LiveView process does not trap exits. A linked check therefore turns any
-  library crash into a dead page for the operator. LiveView's own `start_async`
-  monitors rather than links for exactly this reason, and so do we:
-  `spawn_monitor/1` turns a crash into an error message.
+    * **The check must not kill the caller.** `Task.async/1` links, and a LiveView
+      does not trap exits, so a raise or an abnormal exit inside the check killed
+      the operator's page outright — before `Task.yield/2` could hand back
+      `{:exit, reason}`, which is why that clause never ran.
+    * **The caller must not lose the check.** With a bare `spawn_monitor/1` the
+      deadline lives in the caller's `receive/after`, so when the LiveView goes
+      away mid-check — the operator hit refresh — nothing is left to fire it. The
+      check stays parked in gen_smtp for twenty minutes holding its socket, and,
+      being unlinked, it is now unreachable rather than merely slow. That is the
+      first hazard relocated, not removed.
 
-  `Task.Supervisor.async_nolink/2` (as `Users.QRLogin.location_for/1` uses, for
-  the same hazard) would be the other way to unlink. `spawn_monitor/1` is used
-  here because a connection check touches neither the repo nor a mock, so it
-  needs nothing the supervisor offers — no `$callers`, no supervision — and
-  `async_nolink` costs a dialyzer suppression: its `%Task{}` trips the opacity
-  check at `Task.yield/2`.
+  So: **link, monitor, and unlink before dying** — which is exactly what
+  LiveView's own `start_async` does (phoenix_live_view/async.ex: `Task.start_link/1`,
+  then a monitor on top, then the work wrapped in `try/after Process.unlink/1`).
+  The link reaps the check when the
+  caller dies; the monitor delivers the result and the crash reason; unlinking
+  before dying keeps the check's own failure from travelling back up the link. At
+  the deadline the caller unlinks *before* killing, because `:kill` is untrappable
+  — the check cannot unlink itself, and the link would carry `:killed` straight
+  back.
+
+  The one signal a link necessarily carries is an untrappable `:kill` of the check
+  process by a third party. Nothing holds its pid, so nothing can; `Task` and
+  LiveView accept the same exposure.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
@@ -43,24 +53,41 @@ defmodule PhoenixKit.Integrations.Probe do
   Runs `check` in an isolated process, bounded by `deadline` milliseconds.
 
   Returns what `check` returned. If it crashes, exits, or overruns the deadline,
-  returns `{:error, message}` — either way the caller is left standing.
+  returns `{:error, message}` — either way the caller is left standing, and the
+  check does not outlive it.
   """
   @spec run(check(), timeout()) :: :ok | {:error, String.t()}
   def run(check, deadline \\ deadline()) when is_function(check, 0) do
     parent = self()
     ref = make_ref()
 
-    # The check renders its own error messages, and Gettext keeps the locale in
-    # the process dictionary — which a spawned process does not inherit. Without
-    # this the operator would read half the failures in their own language and
-    # half in English.
+    # Gettext keeps the locale in the process dictionary, which a spawned process
+    # does not inherit. Without this the operator reads half the failures in their
+    # own language and half in English.
     locale = Gettext.get_locale(PhoenixKitWeb.Gettext)
 
-    {pid, monitor} =
-      spawn_monitor(fn ->
-        Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
-        send(parent, {ref, check.()})
+    # The check waits for `:go` so it cannot finish — or die — before the monitor
+    # is in place. `spawn_link/1` establishes the link atomically; `Process.link/1`
+    # from inside the child would leave a window in which the caller could die
+    # unwatched, which is the whole hazard.
+    pid =
+      spawn_link(fn ->
+        receive do
+          {:go, ^ref} ->
+            try do
+              Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+              send(parent, {ref, check.()})
+            after
+              # Runs on success and on any exception or exit, so our own failure
+              # never reaches the caller through the link. Only an untrappable
+              # :kill skips it.
+              Process.unlink(parent)
+            end
+        end
       end)
+
+    monitor = Process.monitor(pid)
+    send(pid, {:go, ref})
 
     receive do
       {^ref, result} ->
@@ -72,6 +99,9 @@ defmodule PhoenixKit.Integrations.Probe do
         {:error, gettext("Could not reach the service")}
     after
       deadline ->
+        # Unlink first: :kill is untrappable, so the check cannot run its `after`
+        # and unlink itself, and the link would deliver :killed to us.
+        Process.unlink(pid)
         Process.exit(pid, :kill)
         Process.demonitor(monitor, [:flush])
         flush(ref)

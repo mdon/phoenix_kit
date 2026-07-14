@@ -93,7 +93,16 @@ defmodule PhoenixKit.Integrations.Validators do
   # --- SMTP -----------------------------------------------------------------
 
   defp open_smtp(options) do
-    case :gen_smtp_client.open(Keyword.put(options, :auth, :always)) do
+    probe_options =
+      options
+      |> Keyword.put(:auth, :always)
+      # gen_smtp retries a temporarily-failing relay once by default, which doubles
+      # the time to a verdict and can push a slow failure past our deadline — the
+      # operator would be told "did not respond in time" instead of what went wrong.
+      # A real send still wants the retry; a check does not.
+      |> Keyword.put(:retries, 0)
+
+    case :gen_smtp_client.open(probe_options) do
       {:ok, socket} ->
         :gen_smtp_client.close(socket)
         :ok
@@ -115,8 +124,10 @@ defmodule PhoenixKit.Integrations.Validators do
   rescue
     # gen_smtp calls to_binary/1 on the username, which has no clause for nil —
     # reachable through the pre-save "test what you typed" probe, which does not
-    # go through the credential gate.
-    FunctionClauseError ->
+    # go through the credential gate. It is a wide net, so it leaves a trace: a
+    # FunctionClauseError from anywhere else must not vanish as "incomplete".
+    error in FunctionClauseError ->
+      Logger.warning("SMTP connection check raised FunctionClauseError: #{inspect(error)}")
       {:error, gettext("Incomplete SMTP settings")}
 
     error ->
@@ -155,8 +166,11 @@ defmodule PhoenixKit.Integrations.Validators do
 
   # --- SES ------------------------------------------------------------------
 
-  defp request_send_quota(region, data) do
-    case send_quota_request(region, data) do
+  @doc false
+  # `requester` is injectable so the confirm-retry — the behaviour that keeps a valid
+  # key from being reported invalid — can be tested without talking to AWS.
+  def request_send_quota(region, data, requester \\ &send_quota_request/2) do
+    case requester.(region, data) do
       # Never call credentials invalid on a single 403. AWS briefly answers a
       # *correct* request with SignatureDoesNotMatch right after it has rejected
       # a bad signature from the same key — which is exactly the flow an operator
@@ -164,9 +178,13 @@ defmodule PhoenixKit.Integrations.Validators do
       # Telling them their good keys are invalid sends them off to reissue
       # credentials that were never the problem. Confirm before accusing.
       {:invalid, _} ->
-        Process.sleep(700)
+        # A full second, not less: SES throttles GetSendQuota at about one request
+        # per second, and the confirm-retry doubles our rate against it. Come back
+        # too soon and the second call answers Throttling, which reports a genuinely
+        # invalid key as "AWS SES is busy".
+        Process.sleep(1_000)
 
-        case send_quota_request(region, data) do
+        case requester.(region, data) do
           {:invalid, _} -> {:error, gettext("Invalid credentials")}
           confirmed -> confirmed
         end
@@ -195,7 +213,13 @@ defmodule PhoenixKit.Integrations.Validators do
       # unreachable endpoint would block for minutes. Two attempts survives a
       # single blip (SES throttles GetSendQuota aggressively) and still stays
       # well inside the outer deadline.
-      retries: [max_attempts: 2],
+      #
+      # All three keys are mandatory. ExAws merges this override with `Map.merge`,
+      # so the list REPLACES the default wholesale — pass `max_attempts` alone and
+      # the backoff keys vanish, leaving `ExAws.Request.backoff/2` to evaluate
+      # `nil * :math.pow(2, attempt)`. It raises, the rescue below swallows it, and
+      # the check silently performs no retries at all.
+      retries: [max_attempts: 2, base_backoff_in_ms: 10, max_backoff_in_ms: 1_000],
       http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
     )
     |> case do
@@ -206,12 +230,22 @@ defmodule PhoenixKit.Integrations.Validators do
     error ->
       Logger.warning("SES connection check failed: #{inspect(error)}")
       {:error, gettext("Could not reach AWS SES")}
+  catch
+    # hackney reaches its connection pool through GenServer.call, which exits
+    # rather than raising — `rescue` alone does not see it.
+    :exit, reason ->
+      Logger.warning("SES connection check exited: #{inspect(reason)}")
+      {:error, gettext("Could not reach AWS SES")}
   end
 
-  defp interpret_ses_error({:http_error, _status, response}) do
+  @doc false
+  # Pure: an AWS error payload in, an operator-facing verdict out. Public so the
+  # mapping can be tested against real SES bodies without a network round trip.
+  def interpret_ses_error({:http_error, _status, response}) do
     case aws_error_code(response) do
       code
-      when code in ~w(SignatureDoesNotMatch InvalidClientTokenId UnrecognizedClientException) ->
+      when code in ~w(SignatureDoesNotMatch InvalidClientTokenId UnrecognizedClientException
+                      InvalidAccessKeyId ExpiredToken TokenRefreshRequired) ->
         {:invalid, code}
 
       # SES throttles GetSendQuota hard (~1 request/second). Reporting a
@@ -239,7 +273,7 @@ defmodule PhoenixKit.Integrations.Validators do
     end
   end
 
-  defp interpret_ses_error(_reason), do: {:error, gettext("Could not reach AWS SES")}
+  def interpret_ses_error(_reason), do: {:error, gettext("Could not reach AWS SES")}
 
   # The Query API answers with an XML body carrying an <Code> element.
   defp aws_error_code(%{body: body}) when is_binary(body), do: aws_error_code(body)

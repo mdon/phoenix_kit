@@ -91,4 +91,30 @@ defmodule PhoenixKit.Mailer.SmtpTransportTest do
                SmtpTransport.config(creds(%{"port" => "not-a-port"}))
     end
   end
+
+  describe "no CA store (a minimal production image)" do
+    test "a relay we send a password to fails closed" do
+      # Not a theoretical branch: it fires exactly where nobody can watch it. Without
+      # a CA store there is nothing to verify the relay against, and the alternative —
+      # verify: :verify_none — means the sender trusts any certificate at all while
+      # the check still shows green. Refusing is the only honest answer.
+      assert {:error, :no_ca_store} = SmtpTransport.config(creds(), [])
+    end
+
+    test "a relay with no credentials degrades instead, because it has nothing to leak" do
+      creds = creds(%{"username" => "", "password" => ""})
+
+      assert {:ok, options} = SmtpTransport.config(creds, [])
+      assert Keyword.fetch!(options, :tls) == :if_available
+      assert Keyword.fetch!(options, :tls_options)[:verify] == :verify_none
+    end
+
+    test "with a CA store, the same relay verifies the peer" do
+      assert {:ok, options} = SmtpTransport.config(creds(), [<<1, 2, 3>>])
+      tls = Keyword.fetch!(options, :tls_options)
+
+      assert tls[:verify] == :verify_peer
+      assert tls[:cacerts] == [<<1, 2, 3>>]
+    end
+  end
 end

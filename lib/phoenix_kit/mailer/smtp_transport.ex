@@ -44,9 +44,19 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
   Reasons: `{:invalid_smtp_port, term}`, `:no_ca_store`.
   """
   @spec config(map()) :: {:ok, keyword()} | {:error, term()}
-  def config(creds) when is_map(creds) do
+  def config(creds) when is_map(creds), do: config(creds, cacerts())
+
+  @doc """
+  Same as `config/1`, with the trusted CA store supplied explicitly.
+
+  The options are a pure function of the credentials and the CA store; `config/1`
+  simply reads the store from the system. Passing it in makes the fail-closed
+  branch — no CA store, credentials on the wire — reachable from a test.
+  """
+  @spec config(map(), [binary()] | [tuple()]) :: {:ok, keyword()} | {:error, term()}
+  def config(creds, cacerts) when is_map(creds) and is_list(cacerts) do
     with {:ok, port} <- parse_port(creds["port"]),
-         {:ok, transport} <- transport(port, creds) do
+         {:ok, transport} <- transport(port, creds, cacerts) do
       base = [
         relay: creds["host"],
         port: port,
@@ -82,15 +92,15 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
   # the `ssl` option (`gen_smtp_client.erl` — `ssl: true` → ssl socket, else
   # plaintext tcp); `tls` only drives a STARTTLS upgrade *after* a plaintext
   # connect, so `tls: :always` on 465 would open plaintext to an SMTPS port.
-  defp transport(465, creds) do
-    case tls_options(creds) do
+  defp transport(465, creds, cacerts) do
+    case tls_options(creds, cacerts) do
       {:ok, tls_opts} -> {:ok, [ssl: true, sockopts: tls_opts]}
       {:error, _} = error -> error
     end
   end
 
-  defp transport(_port, creds) do
-    case tls_options(creds) do
+  defp transport(_port, creds, cacerts) do
+    case tls_options(creds, cacerts) do
       {:ok, tls_opts} ->
         if credentials?(creds) do
           # Credentials on the wire: mandatory, verified STARTTLS. Fail closed
@@ -108,8 +118,8 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
     end
   end
 
-  defp tls_options(creds) do
-    case cacerts() do
+  defp tls_options(creds, cacerts) do
+    case cacerts do
       [] ->
         if credentials?(creds) do
           {:error, :no_ca_store}
