@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V146 - Catalogue item primary supplier ⚡ LATEST
+  ### V147 - Known-device geo-location ⚡ LATEST
+  - Adds nullable `location` (`City, Country`) to
+    `phoenix_kit_user_known_devices`. Resolved once at new-device time by
+    `PhoenixKit.Users.LoginAlerts` and stored so the user's Active Sessions
+    list can show sign-in location without a per-render geo lookup.
+
+  ### V146 - Catalogue item primary supplier
   - Adds nullable `primary_supplier_uuid` FK (`ON DELETE SET NULL`) +
     partial index to `phoenix_kit_cat_items` — an item's default
     supplier, independent of manufacturer (generic/unbranded materials;
@@ -1282,7 +1288,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 146
+  @current_version 147
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

@@ -24,6 +24,7 @@ defmodule PhoenixKit.Users.Auth.KnownDevice do
     field :user_agent_hash, :string
     field :browser, :string
     field :os, :string
+    field :location, :string
     field :first_seen_at, :utc_datetime
     field :last_seen_at, :utc_datetime
 
@@ -39,6 +40,7 @@ defmodule PhoenixKit.Users.Auth.KnownDevice do
       :user_agent_hash,
       :browser,
       :os,
+      :location,
       :first_seen_at,
       :last_seen_at
     ])

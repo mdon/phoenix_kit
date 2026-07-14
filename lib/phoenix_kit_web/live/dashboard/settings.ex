@@ -30,10 +30,13 @@ defmodule PhoenixKitWeb.Live.Dashboard.Settings do
   end
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     socket =
       socket
       |> assign(:page_title, gettext("Settings"))
+      # Raw session token of this browser — lets the Active Sessions section
+      # mark the current device and keep it signed in on "sign out others".
+      |> assign(:current_session_token, session["user_token"])
       |> assign_new(:email_success_message, fn -> nil end)
       |> assign_new(:email_error_message, fn -> nil end)
 
@@ -59,6 +62,7 @@ defmodule PhoenixKitWeb.Live.Dashboard.Settings do
           module={PhoenixKitWeb.Live.Components.UserSettings}
           id="dashboard-user-settings"
           user={@phoenix_kit_current_user}
+          current_session_token={@current_session_token}
           email_success_message={@email_success_message}
           email_error_message={@email_error_message}
         />

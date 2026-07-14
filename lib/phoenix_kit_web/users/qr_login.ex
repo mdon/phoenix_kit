@@ -24,12 +24,17 @@ defmodule PhoenixKitWeb.Users.QrLogin do
   # the server-side one.
   @request_ttl_ms :timer.minutes(2)
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     case Auth.maybe_redirect_authenticated(socket) do
       {:redirect, socket} ->
         {:ok, socket}
 
       :cont ->
+        # `return_to` is a post-login destination the browser carries through
+        # the whole handoff (mint → approve → finish); sanitized against open
+        # redirects up front. remember_me defaults off, toggled on this page.
+        socket = assign(socket, :return_to, sanitize_return_to(params["return_to"]))
+
         cond do
           not QrLoginContext.enabled?() ->
             {:ok,
@@ -82,8 +87,29 @@ defmodule PhoenixKitWeb.Users.QrLogin do
   def handle_event("keyfob_refresh", _params, socket),
     do: {:noreply, socket |> Keyfob.Live.refresh() |> schedule_expiry()}
 
+  # "Keep me logged in" checkbox. A daisyUI checkbox in a phx-change form
+  # sends "on" when ticked and omits the key when unticked.
+  def handle_event("set_remember", params, socket),
+    do: {:noreply, assign(socket, :remember_me, params["remember_me"] == "on")}
+
+  # On approval, hand off to the completion controller carrying the browser's
+  # remember_me / return_to choice (the login token is minted on the phone,
+  # but these belong to the browser being signed in).
   defp complete(socket, login_token) do
-    {:noreply, redirect(socket, to: Routes.path("/users/qr-login/finish/#{login_token}"))}
+    query =
+      [
+        {"remember_me", if(socket.assigns[:remember_me], do: "true")},
+        {"return_to", socket.assigns[:return_to]}
+      ]
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+
+    base = Routes.path("/users/qr-login/finish/#{login_token}")
+    to = if query == [], do: base, else: base <> "?" <> URI.encode_query(query)
+    {:noreply, redirect(socket, to: to)}
+  end
+
+  defp sanitize_return_to(path) do
+    if Routes.local_path?(path), do: path, else: nil
   end
 
   # Every connect to this public, pre-auth page mints a live keyfob request
@@ -113,7 +139,9 @@ defmodule PhoenixKitWeb.Users.QrLogin do
   defp confirm_url(token), do: Routes.url("/users/qr-login/scan/#{token}")
 
   defp assign_common(socket) do
-    assign(socket, :project_title, PhoenixKit.Settings.get_project_title())
+    socket
+    |> assign(:project_title, PhoenixKit.Settings.get_project_title())
+    |> assign_new(:remember_me, fn -> false end)
   end
 
   defp panel_labels do
