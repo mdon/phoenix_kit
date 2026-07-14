@@ -281,6 +281,13 @@ defmodule PhoenixKit.Mailer do
     atom when the credentials carry no provider key at all)
   - `{:error, {:invalid_smtp_port, term()}}` — the SMTP connection's port is
     not a number
+  - `{:error, :no_ca_store}` — SMTP only, and a **behaviour change**: there is no
+    system CA bundle, so the relay's certificate cannot be verified and the
+    password would go out to an unauthenticated server. Sending stops. It used to
+    proceed with `verify: :verify_none`, which is why slim images (distroless,
+    scratch, some Alpine builds) never noticed they had no CA store. Install one
+    (e.g. `ca-certificates`) to restore sending. A relay with no credentials to
+    protect still degrades rather than failing.
   """
   @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
           {:ok, term()} | {:error, term()}

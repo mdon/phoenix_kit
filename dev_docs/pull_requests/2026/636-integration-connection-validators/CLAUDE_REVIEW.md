@@ -1,17 +1,21 @@
 # PR #636: SMTP provider could not send at all (missing TLS options); Test Connection validated nothing
 
 **Author**: @timujinne
-**Reviewer**: Opus agents, two independent lenses (code + architecture/security), three rounds
+**Reviewer**: Opus agents, two independent lenses (code + architecture/security), four rounds
 **Status**: ✅ Reviewed, fixes applied
 **Date**: 2026-07-14
 
-> **On the reviewer**: GLM-5.2 — our usual reviewer — returned 529 for the whole
-> of this work, so rounds 1–2 were reviewed by two independent Opus agents. The
-> architecture reviewer then hit a hard billing limit mid-run, so **round 3's
-> findings are the author's own**, verified the same way the others were: by
-> experiment against the running dev app, and by reading `gen_smtp`, `ex_aws`,
-> `swoosh` and `phoenix_live_view` rather than trusting recollection. Stating
-> that plainly beats implying a review that did not happen.
+> **On the reviewer**: GLM-5.2 — our usual reviewer — returned 529 for the whole of
+> this work, so it was reviewed by two independent Opus agents instead. The final
+> round is the one that mattered: it arrived late, after the branch had already been
+> declared ready, and it found a **shipped crash** and a **leak introduced by the fix
+> for the previous round** (both below). Every claim in it was re-verified against the
+> dependency source and reproduced against the running dev app before being acted on —
+> which is also how an earlier round's `depth` finding was refuted.
+>
+> The lesson worth keeping is the reviewer's own closing line: *"Green PRs did not
+> catch these because neither had a test."* Both fixes therefore ship with the seams
+> that make them testable, not just the patch.
 
 ## Goal
 
@@ -99,6 +103,58 @@ which is what LiveView's own `start_async` uses, for the same reason
 its seven tests drive the probe from a spawned, non-trapping caller and fail with
 `{:caller_died, _}` if anyone swaps `Task.async` back in.
 
+## BUG - CRITICAL (found and fixed): the retry cap did not cap retries — it crashed them
+
+`retries: [max_attempts: 2]` looks like a cap. `ExAws.Config.build_base/2` merges
+overrides with `Map.merge` (`config.ex:121`) — **shallow** — so the list *replaces*
+the default `[max_attempts: 10, base_backoff_in_ms: 10, max_backoff_in_ms: 10_000]`
+and takes both backoff keys with it. `ExAws.Request.backoff/2`
+(`request.ex:223-229`) then evaluates `nil * :math.pow(2, attempt)` and raises. The
+`rescue` below it swallowed the `ArithmeticError`, so the check performed **zero**
+retries and reported an arithmetic error while the real cause scrolled past above it:
+
+```
+before:  HTTP ERROR: :nxdomain ... ATTEMPT: 1
+         SES connection check failed: %ArithmeticError{}
+
+after:   HTTP ERROR: :nxdomain ... ATTEMPT: 1
+         HTTP ERROR: :nxdomain ... ATTEMPT: 2
+         {:error, "Could not reach AWS SES"}   (278 ms)
+```
+
+Fires on transport errors and 5xx — exactly the blip the comment claimed to survive.
+All three keys are mandatory.
+
+## BUG - HIGH (found and fixed): the probe relocated the hang instead of removing it
+
+The fix for "a crashing check kills the LiveView" replaced `Task.async/1` with
+`spawn_monitor/1`. That removed the link — and the link was doing something.
+
+`spawn_monitor` watches in **one direction only**. The deadline lives in the caller's
+`receive/after`, so when the LiveView goes away mid-check — the operator hit refresh —
+nothing is left alive to fire it. The check stays parked in gen_smtp's 20-minute
+`?TIMEOUT` holding its socket, and, being unlinked, it is now unreachable rather than
+merely slow. Every refresh leaks another process and file descriptor for up to twenty
+minutes. Measured:
+
+| caller dies mid-check | check |
+|---|---|
+| `spawn_monitor` (as shipped) | **still alive** — socket held 20 min |
+| `spawn_link` + monitor + unlink | reaped with its caller |
+
+The moduledoc justified the choice by asserting that LiveView "monitors rather than
+links". **That was wrong**, and it was asserted from reading the `:DOWN` handler in
+`channel.ex` without opening `async.ex`. LiveView does *both*: `Task.start_link/1`, a
+monitor on top for result delivery, and the work wrapped in
+`try/after Process.unlink/1` so the child unlinks before it dies. The link reaps the
+child when the parent goes; the unlink stops the child taking the parent with it.
+Handling one direction and not the other is worse than handling neither.
+
+`Probe` now does the same, and unlinks *before* killing at the deadline (`:kill` is
+untrappable, so the check cannot unlink itself and the link would carry `:killed`
+straight back). The check also waits for a go-ahead, so it cannot finish — or die —
+before the monitor is in place.
+
 ## BUG - HIGH (found and fixed): the check said yes when it should have said no
 
 - **Blank region silently probed us-east-1.** `has_credentials?/1` for
@@ -129,8 +185,20 @@ its seven tests drive the probe from a spawned, non-trapping caller and fail wit
   policy AWS itself recommends (grant only `ses:SendEmail`) cannot read the send
   quota, so a correctly configured integration got a permanent red cross — which
   teaches operators to ignore the check. The XML `<Code>` is now decoded:
-  signature/token errors → invalid credentials; `AccessDenied` → pass with a note;
-  throttling → "busy, try again"; anything else surfaced verbatim.
+  signature/token errors → invalid credentials; throttling → "busy, try again";
+  anything else surfaced verbatim.
+
+  The first cut then passed `AccessDenied` with a "note" that went only to
+  `Logger.info` — so the operator saw a bare **"Connection verified"**, and
+  `AccessDenied` proves only that the signature is valid for *some* AWS principal: a
+  key from the wrong account lands there too. That is this branch's own thesis
+  reopened at the one door it had closed, and the final round was right to call it.
+  A check can now pass **with something to say** (`{:ok, note}` alongside `:ok`): the
+  connection is connected and sends exactly as before, but the caveat is stored in
+  `validation_status` and rendered next to the badge — "Connection verified —
+  credentials are valid, but not authorised for GetSendQuota; sending was not
+  verified". Which is the whole truth, and what an operator needs to decide whether
+  to care.
 - **A valid key could be reported invalid.** Found live: after AWS rejects a bad
   signature, a *correct* request from the same key comes back
   `SignatureDoesNotMatch` for a moment — precisely what an operator produces by
@@ -147,6 +215,44 @@ back translated, so the operator saw a mix. `Probe` now carries the locale acros
 explicitly. A reply landing in the instant the deadline fires is also flushed —
 the caller is a LiveView and would log the stray as an unexpected message.
 
+## The root cause of both late findings: the new logic was the untested logic
+
+Neither the shipped crash nor the leak was caught by a green gate, and the reason is
+the same in both cases — the code they lived in could not be tested as written. Fixed
+at the root, not patched around:
+
+- The **CA store is a parameter** of `SmtpTransport.config/2`. It was always a pure
+  function of (credentials, CA store); the store was merely ambient. The fail-closed
+  branch — the security-critical one, which fires only on images nobody is watching —
+  is finally reachable from a test.
+- **`request_send_quota/3` takes its requester**, so the confirm-retry (the behaviour
+  that keeps a *valid* key from being called invalid) is tested without AWS.
+- **`interpret_ses_error/1` is pure and public**, so the mapping from an AWS error
+  body to an operator-facing verdict is tested against real SES codes.
+- A **fake relay that greets and advertises no `AUTH` verb** proves the
+  `{:missing_requirement, _, :auth}` carve-out, which had been asserted and never run.
+- `Probe`'s tests now run in **both directions** — the asymmetry (five tests for
+  "check dies, caller survives", none for "caller dies, check is reaped") is precisely
+  why the leak survived the fix.
+
+## Also fixed in the final round
+
+- `send_quota_request/2` rescued but did not `catch :exit`; hackney reaches its pool
+  through `GenServer.call`, which exits.
+- The check no longer inherits gen_smtp's default `{retries, 1}`
+  (`gen_smtp_client.erl:38`), which probed a temporarily-failing relay twice and could
+  push a slow failure past our own deadline — the operator would be told "did not
+  respond in time" instead of what actually went wrong. A real send still wants the
+  retry; a check does not.
+- `InvalidAccessKeyId`, `ExpiredToken` and `TokenRefreshRequired` are invalid
+  credentials, not "AWS SES error: `<code>`", and now go through the confirm-retry.
+- The confirm-retry waits a full second: SES throttles GetSendQuota at roughly one
+  request per second and the retry doubles our rate against it, so a genuinely invalid
+  key could come back as "AWS SES is busy".
+- The tarpit test leaked its acceptor — `spawn_link` plus a `:normal` test exit does
+  not propagate, so the acceptor, its listener and the accepted socket outlived every
+  run for the life of the VM.
+
 ## Structure
 
 The transport lives in `PhoenixKit.Mailer.SmtpTransport` — a pure function of the
@@ -154,13 +260,32 @@ credentials map, depending on nothing. `Mailer` and `Validators` both use it, so
 *tested* and *sent* are literally the same options, and the
 `Integrations → Validators → Mailer → Integrations` cycle is gone. The deadline
 harness lives in `PhoenixKit.Integrations.Probe` for the same reason: as a module
-rather than a private helper, its concurrency semantics can actually be tested.
+rather than a private helper, its concurrency semantics can actually be tested — and
+the round that caught the leak proves how much that mattered.
+
+## Upgrade note (CHANGELOG)
+
+Two of these fixes change the **send** path, not just the check:
+
+- **SMTP sending now stops on images with no CA bundle** (`{:error, :no_ca_store}`)
+  instead of proceeding with certificate verification disabled. Slim base images
+  (distroless, scratch, some Alpine builds) are affected: install `ca-certificates`.
+  A relay configured with no credentials still degrades rather than failing.
+- **Configured relays are no longer MX-resolved** (`no_mx_lookups: true`). If you set
+  `host` to a bare domain and relied on MX resolution, point it at the relay itself.
 
 ## Gate
 
-`93 tests / 0 failures` in the affected suites. `--warnings-as-errors`,
-`credo --strict`, `dialyzer` and `mix docs` clean. Dialyzer twice caught dead
-clauses whose types had narrowed during the rework.
+`86 → 107 tests, 0 failures` in the affected suites. `--warnings-as-errors`,
+`credo --strict`, `dialyzer` and `mix docs` clean. Dialyzer earned its keep three
+times: twice on dead clauses whose types had narrowed during the rework, and once on
+the one place the pass-with-note widening had not reached — `record_validation/2`'s
+contract silently narrowed the result at the call site, which made the new clause
+unreachable.
+
+The full suite gains no failures: every failure in it also fails without this branch,
+and the handful that differ run-to-run pass in isolation (pre-existing sandbox
+contention — `Activity.log/1` raises `DBConnection.OwnershipError` on `main` too).
 
 Live, against a real relay and a real SES account:
 

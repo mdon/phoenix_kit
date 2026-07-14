@@ -1,3 +1,45 @@
+## Unreleased
+
+### Fixed
+- **The universal `smtp` integration provider could not send at all.** gen_smtp
+  supplies no TLS options of its own and OTP's `:ssl` now defaults to
+  `verify: :verify_peer` with no CA store, so port 465 died with
+  `{:options, :incompatible}` and STARTTLS died with `:tls_failed`. The transport
+  now builds the options properly (`PhoenixKit.Mailer.SmtpTransport`), including
+  the `depth` gen_smtp otherwise defaults to `0` — which rejects every real
+  certificate chain.
+- **"Test Connection" verified nothing** for `aws_ses`, `smtp` and `brevo_api`:
+  the connection was stamped `"connected"` without a byte leaving the box, so a
+  wrong key showed green and then failed at send time. All three now perform a
+  real check, bounded by a deadline.
+- **A failed connection check could take the operator's page down, or leak a
+  socket for twenty minutes.** `:gen_smtp_client.open/1` runs in the calling
+  process and waits on a hard-coded 20-minute timeout past `connect`; the checks
+  now run in an isolated, linked-and-monitored process
+  (`PhoenixKit.Integrations.Probe`) that neither kills its caller nor outlives it.
+
+### Security
+- **SMTP no longer sends in plaintext when TLS cannot be established.**
+  `tls: :if_available` had been masking the broken TLS configuration above by
+  silently falling back to an unencrypted session — with the relay password on the
+  wire. A relay that expects credentials now fails closed.
+
+### Changed — may require action on upgrade
+- **SMTP sending now stops on images with no CA bundle** (`{:error, :no_ca_store}`)
+  instead of proceeding with certificate verification disabled. Slim base images
+  (distroless, scratch, some Alpine builds) are affected: install `ca-certificates`.
+  A relay configured with no username or password still degrades rather than
+  failing — it has no credentials to protect.
+- **Configured SMTP relays are no longer MX-resolved** (`no_mx_lookups: true`).
+  gen_smtp would otherwise look up the relay's MX records and connect to whatever
+  they point at, while SNI and the hostname check stay pinned to the configured
+  name — a guaranteed certificate mismatch. If you configured `host` as a bare
+  domain and relied on MX resolution, point it at the relay itself.
+- **AWS SES credentials scoped to `ses:SendEmail` alone now pass Test Connection
+  with a note** rather than a bare green tick. They cannot read the send quota, so
+  the check can prove the credentials are valid but not that they can send, and it
+  now says so on screen instead of only in the log.
+
 ## 1.7.192 - 2026-07-14
 
 ### Added
