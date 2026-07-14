@@ -36,7 +36,7 @@ defmodule PhoenixKit.Migrations.Postgres.V148 do
 
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_crm_party_roles (
-      uuid UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+      uuid UUID PRIMARY KEY DEFAULT #{p}uuid_generate_v7(),
       roleable_type VARCHAR(20) NOT NULL,
       roleable_uuid UUID NOT NULL,
       role VARCHAR(30) NOT NULL,
