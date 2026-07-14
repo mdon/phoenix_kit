@@ -116,5 +116,12 @@
   # runtime bug — the module body is just `use Gettext.Backend`, no user code
   # touches PluralForms. Already on the latest gettext 1.0.2 / expo 1.1.1, so
   # there's no upgrade that resolves it.
-  {"lib/phoenix_kit_web/gettext.ex", :call_without_opaque}
+  {"lib/phoenix_kit_web/gettext.ex", :call_without_opaque},
+  # Same class, different library: `Task.Supervisor.async_nolink/2` hands back a
+  # `%Task{}` whose fields dialyzer knows structurally, and `Task.yield/2`
+  # declares `Task.t()` opaque — so the call is flagged for peeking into the
+  # opacity it never actually inspects. Not a runtime bug: the struct is passed
+  # straight back to the module that owns it. Surfaced here by the dep upgrades
+  # in 867bc5b2, which rebuilt the PLT.
+  {"lib/phoenix_kit/users/qr_login.ex", :call_without_opaque}
 ]

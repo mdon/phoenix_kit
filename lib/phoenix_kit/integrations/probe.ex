@@ -21,6 +21,13 @@ defmodule PhoenixKit.Integrations.Probe do
   library crash into a dead page for the operator. LiveView's own `start_async`
   monitors rather than links for exactly this reason, and so do we:
   `spawn_monitor/1` turns a crash into an error message.
+
+  `Task.Supervisor.async_nolink/2` (as `Users.QRLogin.location_for/1` uses, for
+  the same hazard) would be the other way to unlink. `spawn_monitor/1` is used
+  here because a connection check touches neither the repo nor a mock, so it
+  needs nothing the supervisor offers — no `$callers`, no supervision — and
+  `async_nolink` costs a dialyzer suppression: its `%Task{}` trips the opacity
+  check at `Task.yield/2`.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
