@@ -60,13 +60,18 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       end
     end
 
-    test "AccessDenied passes: the key is valid, it just cannot read the send quota" do
-      # AWS's own least-privilege guidance grants only ses:SendEmail, which cannot
-      # call GetSendQuota. A red cross on a correctly configured integration teaches
-      # operators to ignore the check. (It does not prove the key can *send* — see
-      # the module doc.)
-      assert :ok == Validators.interpret_ses_error(aws_error("AccessDenied"))
-      assert :ok == Validators.interpret_ses_error(aws_error("AccessDeniedException"))
+    test "AccessDenied passes, but says what it could not verify" do
+      # AWS's own least-privilege guidance grants only ses:SendEmail, which cannot call
+      # GetSendQuota — so a red cross here would sit permanently on a correctly
+      # configured integration and teach operators to ignore the check. But it is not
+      # proof that the key can send: a signature valid for the WRONG AWS account lands
+      # here too. So it passes with the caveat attached, and the caveat reaches the
+      # operator rather than the log.
+      assert {:ok, note} = Validators.interpret_ses_error(aws_error("AccessDenied"))
+      assert note =~ "not authorised"
+      assert note =~ "sending was not verified"
+
+      assert {:ok, _} = Validators.interpret_ses_error(aws_error("AccessDeniedException"))
     end
 
     test "throttling says so instead of blaming the credentials" do
@@ -209,6 +214,9 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
 
   defp aws_error(code) do
     {:http_error, 403,
-     %{body: "<ErrorResponse><Error><Code>#{code}</Code><Message>x</Message></Error></ErrorResponse>"}}
+     %{
+       body:
+         "<ErrorResponse><Error><Code>#{code}</Code><Message>x</Message></Error></ErrorResponse>"
+     }}
   end
 end

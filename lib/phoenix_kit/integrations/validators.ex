@@ -44,7 +44,7 @@ defmodule PhoenixKit.Integrations.Validators do
   — while the send path (`Swoosh.Adapters.AmazonSES`) simply interpolates the
   region and works. Validate and send must resolve the same endpoint.
   """
-  @spec aws_ses(map()) :: :ok | {:error, String.t()}
+  @spec aws_ses(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def aws_ses(data) do
     region = data["aws_region"]
 
@@ -75,7 +75,7 @@ defmodule PhoenixKit.Integrations.Validators do
   session and the check would pass. A relay that advertises no `AUTH` verb at all
   is a different case, and is treated as a pass — see the module doc.
   """
-  @spec smtp(map()) :: :ok | {:error, String.t()}
+  @spec smtp(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def smtp(data) do
     case SmtpTransport.config(data) do
       {:ok, options} ->
@@ -258,12 +258,19 @@ defmodule PhoenixKit.Integrations.Validators do
 
       # The credentials are valid and merely lack `ses:GetSendQuota` — which is
       # exactly what AWS's own least-privilege guidance produces (grant only
-      # ses:SendEmail / ses:SendRawEmail). Sending works. Reporting "invalid
-      # credentials" here would put a permanent red cross on a correctly
-      # configured integration and teach operators to ignore the check.
+      # ses:SendEmail / ses:SendRawEmail). Reporting "invalid credentials" here
+      # would put a permanent red cross on a correctly configured integration and
+      # teach operators to ignore the check.
+      #
+      # But this is NOT proof that the key can send: a signature valid for the
+      # wrong AWS account also lands here. So it passes with the truth attached
+      # rather than a bare green tick — the note reaches the operator, not just
+      # the log.
       "AccessDenied" <> _ ->
-        Logger.info("SES credentials valid but not authorised for GetSendQuota; sending may work")
-        :ok
+        {:ok,
+         gettext(
+           "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
+         )}
 
       nil ->
         {:error, gettext("Could not reach AWS SES")}

@@ -117,9 +117,14 @@
                 }
                 class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs items-center"
               >
+                <%!-- Shown whenever the last check had something to say. "ok" means it
+                      had nothing, and a connected-with-note is a caveat, not a failure. --%>
                 <span
-                  :if={@data["status"] == "error" && @data["validation_status"]}
-                  class="text-error inline-flex items-center gap-1"
+                  :if={@data["validation_status"] not in [nil, "", "ok"]}
+                  class={[
+                    "inline-flex items-center gap-1",
+                    if(@data["status"] == "error", do: "text-error", else: "text-warning")
+                  ]}
                 >
                   <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
                   {@data["validation_status"]}

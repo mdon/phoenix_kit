@@ -824,7 +824,8 @@ defmodule PhoenixKit.Integrations do
   For API key / bot token: calls the provider's validation endpoint if defined.
   Returns `:ok` or `{:error, reason}`.
   """
-  @spec validate_connection(String.t(), String.t() | nil) :: :ok | {:error, String.t()}
+  @spec validate_connection(String.t(), String.t() | nil) ::
+          :ok | {:ok, String.t()} | {:error, String.t()}
   def validate_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
     {result, log_provider, log_name} =
       case resolve_uuid(uuid) do
@@ -851,6 +852,19 @@ defmodule PhoenixKit.Integrations do
           log_provider,
           log_name,
           %{"result" => "ok"},
+          "manual",
+          actor_uuid
+        )
+
+      # Passed, but with something the operator needs to know — e.g. SES accepted the
+      # signature while refusing GetSendQuota, which proves the credentials are real
+      # without proving they can send.
+      {:ok, note} ->
+        log_activity(
+          "integration.validated",
+          log_provider,
+          log_name,
+          %{"result" => "ok", "note" => note},
           "manual",
           actor_uuid
         )
@@ -906,7 +920,7 @@ defmodule PhoenixKit.Integrations do
   useful for api_key / bot_token providers where the secret the
   user just typed IS the credential.
   """
-  @spec validate_credentials(String.t(), map()) :: :ok | {:error, String.t()}
+  @spec validate_credentials(String.t(), map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def validate_credentials(provider_key, attrs)
       when is_binary(provider_key) and is_map(attrs) do
     case Providers.get(provider_key) do
@@ -992,7 +1006,7 @@ defmodule PhoenixKit.Integrations do
   actual state change so high-frequency automatic paths (e.g. token
   refresh failing on every API call) don't spam listing-LV reloads.
   """
-  @spec record_validation(String.t(), :ok | {:error, term()}) :: :ok
+  @spec record_validation(String.t(), :ok | {:ok, String.t()} | {:error, term()}) :: :ok
   def record_validation(uuid, result) when is_binary(uuid) do
     {new_status, validation_text} = validation_fields(result)
 
@@ -1043,6 +1057,11 @@ defmodule PhoenixKit.Integrations do
   end
 
   defp validation_fields(:ok), do: {"connected", "ok"}
+
+  # A check that succeeded but could not verify everything it would have liked to.
+  # The connection is usable; the note is what the operator must know about it, and
+  # it belongs on screen rather than in a log line nobody reads.
+  defp validation_fields({:ok, note}) when is_binary(note), do: {"connected", note}
 
   defp validation_fields({:error, reason}),
     do: {"error", "error: #{format_validation_reason(reason)}"}

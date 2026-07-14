@@ -44,8 +44,11 @@ defmodule PhoenixKit.Integrations.Probe do
 
   require Logger
 
-  @typedoc "Talks to the network; answers `:ok` or a human-readable error."
-  @type check :: (-> :ok | {:error, String.t()})
+  @typedoc """
+  Talks to the network; answers `:ok`, `{:ok, note}` when it succeeded but has
+  something the operator needs to know, or `{:error, message}`.
+  """
+  @type check :: (-> :ok | {:ok, String.t()} | {:error, String.t()})
 
   @default_deadline 15_000
 
@@ -56,7 +59,7 @@ defmodule PhoenixKit.Integrations.Probe do
   returns `{:error, message}` — either way the caller is left standing, and the
   check does not outlive it.
   """
-  @spec run(check(), timeout()) :: :ok | {:error, String.t()}
+  @spec run(check(), timeout()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def run(check, deadline \\ deadline()) when is_function(check, 0) do
     parent = self()
     ref = make_ref()
