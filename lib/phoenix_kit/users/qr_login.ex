@@ -115,14 +115,36 @@ defmodule PhoenixKit.Users.QrLogin do
     |> put_present(:location, ip && location_for(ip))
   end
 
+  # Geolocation.lookup_location/1 tries two providers sequentially, each with
+  # its own 5s HTTP timeout — up to ~10s in the worst case. That's fine for
+  # the registration/login-alert paths (fire-and-forget), but here it runs
+  # inline in the QR page's connected mount, blocking the code the page
+  # exists to show. Bound it well below that so a slow/unreachable geo API
+  # degrades to "no location" instead of stalling the mint.
+  @lookup_timeout_ms 1_500
+
   @doc """
   Formats a best-effort `"City, Country"` (or just `"Country"`) string for
-  an IP, or `nil` when the lookup fails or is unavailable. Never raises — a
-  geo backend hiccup must not crash the QR mint that shows the code.
+  an IP, or `nil` when the lookup fails, is unavailable, or is still running
+  after #{@lookup_timeout_ms}ms. Never raises — a geo backend hiccup must
+  not crash (or stall) the QR mint that shows the code.
   """
   @spec location_for(String.t() | nil) :: String.t() | nil
   def location_for(ip) when is_binary(ip) do
-    case Geolocation.lookup_location(ip) do
+    # async_nolink (not Task.async): the lookup must never be able to crash
+    # the calling LiveView via a link, only ever resolve to nil on failure.
+    task =
+      Task.Supervisor.async_nolink(PhoenixKit.TaskSupervisor, fn ->
+        Geolocation.lookup_location(ip)
+      end)
+
+    result =
+      case Task.yield(task, @lookup_timeout_ms) || Task.shutdown(task, :brutal_kill) do
+        {:ok, lookup_result} -> lookup_result
+        _ -> :timeout
+      end
+
+    case result do
       {:ok, %{"city" => city, "country" => country}}
       when is_binary(city) and city != "" and is_binary(country) ->
         "#{city}, #{country}"

@@ -10541,66 +10541,66 @@ msgid "xAI requires a funded account before the API will return completions"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:541
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Active now"
-msgstr "Активно"
+msgstr "Активен сейчас"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1269
 #, elixir-autogen, elixir-format
 msgid "Devices currently signed in to your account. If you don't recognize one, sign it out."
-msgstr ""
+msgstr "Устройства, на которых выполнен вход в ваш аккаунт. Если вы не узнаёте одно из них, завершите его сеанс."
 
 #: lib/phoenix_kit/users/login_alerts.ex:140
 #, elixir-autogen, elixir-format
 msgid "New sign-in to your account from %{details}."
-msgstr ""
+msgstr "Новый вход в ваш аккаунт с %{details}."
 
 #: lib/phoenix_kit/users/login_alerts.ex:139
 #, elixir-autogen, elixir-format
 msgid "New sign-in to your account."
-msgstr ""
+msgstr "Новый вход в ваш аккаунт."
 
 ## Login page translations
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1302
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sign out"
-msgstr "Войти"
+msgstr "Выйти"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1313
 #, elixir-autogen, elixir-format
 msgid "Sign out of all other sessions?"
-msgstr ""
+msgstr "Завершить все остальные сеансы?"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1316
 #, elixir-autogen, elixir-format
 msgid "Sign out other sessions"
-msgstr ""
+msgstr "Завершить остальные сеансы"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:521
 #, elixir-autogen, elixir-format
 msgid "Signed out of all other sessions."
-msgstr ""
+msgstr "Вы вышли из всех остальных сеансов."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:504
 #, elixir-autogen, elixir-format
 msgid "Signed out of that session."
-msgstr ""
+msgstr "Сеанс завершён."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:505
 #, elixir-autogen, elixir-format
 msgid "That session is no longer active."
-msgstr ""
+msgstr "Этот сеанс уже неактивен."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1286
 #, elixir-autogen, elixir-format
 msgid "This device"
-msgstr ""
+msgstr "Это устройство"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:533
 #: lib/phoenix_kit_web/live/users/sessions.ex:311
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Unknown device"
-msgstr "Неизвестно"
+msgstr "Неизвестное устройство"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:555
 #, elixir-autogen, elixir-format
@@ -10610,12 +10610,12 @@ msgstr ""
 #: lib/phoenix_kit_web/live/components/user_settings.ex:549
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Active today at %{time}"
-msgstr "Активировать"
+msgstr "Активен сегодня"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:552
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Active yesterday at %{time}"
-msgstr ""
+msgstr "Активен вчера"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:83
 #, elixir-autogen, elixir-format, fuzzy

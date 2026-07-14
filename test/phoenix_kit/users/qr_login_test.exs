@@ -13,6 +13,9 @@ defmodule PhoenixKit.Users.QrLoginTest do
 
   setup do
     start_supervised!(Keyfob.Store.ETS)
+    # location_for/1 runs the geo lookup under this Task.Supervisor (started
+    # by PhoenixKit.Supervisor in a real app, but not in the bare test env).
+    start_supervised!({Task.Supervisor, name: PhoenixKit.TaskSupervisor})
     :ok
   end
 

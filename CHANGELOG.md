@@ -1,3 +1,56 @@
+## 1.7.193 - 2026-07-14
+
+### Added
+- V148: `phoenix_kit_crm_party_roles` table for the `phoenix_kit_crm`
+  module — a polymorphic role edge marking an existing CRM company or
+  contact as `supplier`, `client`, or another commercial counterparty role
+  (a party can hold several roles at once). No FK on the polymorphic
+  `(roleable_type, roleable_uuid)` pair; `valid_from`/`valid_to` lifecycle,
+  `is_active` filter, role-scoped `metadata`.
+
+### Fixed
+- V148's `uuid` column `DEFAULT` now schema-qualifies `uuid_generate_v7()`
+  with the install prefix (matching V138/V144) — the unqualified call
+  would have resolved via `search_path` and failed on named-schema
+  installs.
+
+## 1.7.192 - 2026-07-14
+
+### Added
+- **Self-service Active Sessions** — a `:sessions` section in
+  `UserSettings` lists a user's live sessions (device, location, last
+  active), flags the current one, and lets them revoke a single session or
+  all other sessions. Sessions are enriched from `KnownDevice` history;
+  degrades gracefully (no browser/OS/location) for sessions predating
+  device fingerprinting.
+- **QR sign-in remember-me and return-to** — the desktop QR sign-in page
+  gained a "Keep me logged in" checkbox and now carries a sanitized
+  `return_to` through the mint → approve → finish handoff, both wired into
+  the existing `UserAuth.log_in_user/3` `remember_me`/`user_return_to`
+  machinery.
+- **In-app notification for new-device sign-ins** — `LoginAlerts` now
+  raises a standalone `"security"`-type notification (new core
+  notification type) alongside the existing email when a login is seen
+  from an unrecognized device.
+- V147: persists the resolved `"City, Country"` geo-location on
+  `phoenix_kit_user_known_devices` (nullable `location`) so Active
+  Sessions doesn't need a live geo lookup per render.
+
+### Fixed
+- QR confirm screen no longer shows a bare "unknown" IP when
+  `IpAddress.extract_from_socket/1` can't read peer data — treated as
+  absent, same as a blank IP.
+- The desktop QR page's connected mount no longer blocks showing the QR
+  code behind a synchronous, up-to-~10s (two sequential providers × 5s
+  each) geolocation lookup. `QrLogin.location_for/1` now bounds the lookup
+  to 1.5s via an unlinked, supervised `Task` — a slow/unreachable geo API
+  degrades to "no location" instead of stalling the page whose only job is
+  showing the code quickly.
+- Corrected Russian/Estonian translations for the new session-management
+  strings introduced above, including an inverted `"Sign out"` →
+  `"Войти"`/`"Logi sisse"` ("Log in") that `mix gettext.merge` fuzzy-matched
+  against unrelated existing entries and left uncorrected.
+
 ## 1.7.191 - 2026-07-13
 
 ### Added
