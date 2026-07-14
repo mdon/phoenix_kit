@@ -26,6 +26,7 @@ defmodule PhoenixKit.Mailer do
 
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Users.Auth.User
 
   require Logger
@@ -320,21 +321,9 @@ defmodule PhoenixKit.Mailer do
   end
 
   def swoosh_config_for(%{"provider" => "smtp"} = creds) do
-    case parse_smtp_port(creds["port"]) do
-      nil ->
-        # A non-integer port silently becomes gen_smtp's default (25), which
-        # would relay plaintext to an unintended server — surface it instead.
-        {:error, {:invalid_smtp_port, creds["port"]}}
-
-      port ->
-        base = [
-          relay: creds["host"],
-          port: port,
-          username: creds["username"],
-          password: creds["password"]
-        ]
-
-        {:ok, {Swoosh.Adapters.SMTP, base ++ smtp_transport(port, creds)}}
+    case SmtpTransport.config(creds) do
+      {:ok, options} -> {:ok, {Swoosh.Adapters.SMTP, options}}
+      {:error, _reason} = error -> error
     end
   end
 
@@ -347,92 +336,6 @@ defmodule PhoenixKit.Mailer do
 
   def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
 
-  # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol solely from
-  # the `ssl` option (gen_smtp_client.erl:854 — `ssl: true` → ssl socket, else
-  # plaintext tcp). The `tls` option only controls a STARTTLS *upgrade after* a
-  # plaintext connect, so `tls: :always` on 465 would open plaintext to an
-  # SMTPS port and hang.
-  #
-  # In BOTH modes the TLS options are load-bearing. gen_smtp passes none of its
-  # own, and OTP's `:ssl` now defaults to `verify: :verify_peer` with no CA
-  # store — so an implicit-TLS connect dies on `{:options, :incompatible,
-  # [verify: :verify_peer, cacerts: :undefined]}`, and a STARTTLS upgrade fails
-  # the handshake (`:tls_failed`). Verified against a real relay.
-  defp smtp_transport(465, creds), do: [ssl: true, sockopts: tls_options(creds["host"])]
-
-  defp smtp_transport(_port, creds) do
-    tls_opts = tls_options(creds["host"])
-
-    if blank?(creds["username"]) and blank?(creds["password"]) do
-      # No credentials on the wire (local dev relay like MailHog:1025, or an
-      # internal plaintext smarthost) — nothing to protect, so allow the
-      # connection when the relay offers no STARTTLS, or offers one we cannot
-      # verify.
-      [tls: :if_available, tls_options: tls_opts]
-    else
-      # Credentials ARE on the wire: mandatory, verified STARTTLS. Fail closed
-      # rather than let a stripped STARTTLS capability — or an unverifiable
-      # certificate — downgrade us to plaintext.
-      [tls: :always, tls_options: tls_opts]
-    end
-  end
-
-  # Certificate verification for the SMTP relay: the system CA store, plus the
-  # hostname check `:ssl` does not perform on its own.
-  defp tls_options(host) do
-    case cacerts() do
-      [] ->
-        Logger.warning(
-          "No system CA certificates found — SMTP TLS certificate verification is disabled"
-        )
-
-        [verify: :verify_none]
-
-      cacerts ->
-        [
-          verify: :verify_peer,
-          cacerts: cacerts,
-          depth: 99,
-          server_name_indication: to_charlist(host || ""),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
-    end
-  end
-
-  defp cacerts do
-    :public_key.cacerts_get()
-  rescue
-    _ -> []
-  end
-
-  defp blank?(nil), do: true
-  defp blank?(""), do: true
-  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
-  defp blank?(_), do: false
-
-  # Setup fields are typed `:number` but travel through LiveView form
-  # params and JSONB storage as strings — normalize either shape.
-  defp parse_smtp_port(port) when is_integer(port), do: port
-
-  defp parse_smtp_port(port) when is_binary(port) do
-    case Integer.parse(port) do
-      {int, _} -> int
-      :error -> nil
-    end
-  end
-
-  defp parse_smtp_port(_), do: nil
-
-  # Checks every `to` recipient against the emails module's blocklist/rate
-  # limiter before a message reaches a Swoosh adapter. Must run before
-  # `intercept_before_send/2` — that callback returns a `Swoosh.Email.t()`
-  # with no abort channel, so it has no way to refuse a blocked send. This
-  # is the one chokepoint `deliver_email/2` and `deliver_via_integration/3`
-  # both pass through, so enforcement lives here rather than in the
-  # interceptor.
-  @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
   defp check_recipient_allowed(%Swoosh.Email{} = email) do
     # cc/bcc too, not just to: a suppression list with a hole in it is a
     # compliance problem, and this Mailer carries all app mail, not only
@@ -450,9 +353,9 @@ defmodule PhoenixKit.Mailer do
     if Code.ensure_loaded?(@emails_rate_limiter) and
          function_exported?(@emails_rate_limiter, :check_blocklist, 1) do
       # apply/3 intentionally, to avoid compile-time module resolution --
-      # a direct `@emails_rate_limiter.check_blocklist/1` call would fail
-      # `--warnings-as-errors` when the optional emails package isn't a
-      # dependency (the compiler can prove the module is undefined).
+      # a direct call would fail `--warnings-as-errors` when the optional
+      # emails package isn't a dependency (the compiler can prove the module
+      # is undefined).
       # credo:disable-for-next-line Credo.Check.Refactor.Apply
       apply(@emails_rate_limiter, :check_blocklist, [address])
     else

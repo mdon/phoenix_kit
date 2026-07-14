@@ -6,85 +6,108 @@ defmodule PhoenixKit.Integrations.Validators do
   `PhoenixKit.Integrations.do_validate/2` falls through to `:ok` for any provider
   that declares no validation. For the e-mail providers that meant "Test
   Connection" verified *nothing*: the connection was stamped `"connected"`
-  without a single byte leaving the box, so an operator who pasted a wrong key
-  or a bad SMTP password saw a green check and then a failing send. These
-  validators close that gap.
+  without a single byte leaving the box, so an operator who pasted a wrong key or
+  a bad SMTP password saw a green check and then a failing send.
+
+  A check that always says yes is worse than no check — but so is one that says
+  no when the configuration is fine. These validators are therefore careful in
+  both directions:
+
+    * a relay that authenticates by IP and offers no `AUTH` verb passes (the
+      credentials are simply unused — sending works, so the check is green);
+    * SES credentials scoped to `ses:SendEmail` only — the least-privilege policy
+      AWS itself recommends — pass, even though they cannot read the send quota.
+
+  Every check is bounded by a hard deadline. `:gen_smtp_client.open/1` runs in
+  the **calling** process and, past the TCP connect, waits on a hard-coded 20
+  minute timeout of its own (`?TIMEOUT` in `gen_smtp_client.erl`) — the `timeout`
+  option bounds only `connect`. Both call sites are LiveView callbacks, so an
+  unresponsive relay would otherwise park a LiveView process for twenty minutes.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   require Logger
 
-  alias PhoenixKit.Mailer
+  alias PhoenixKit.Mailer.SmtpTransport
 
-  @smtp_timeout 10_000
+  # Wall-clock bound for a whole check. gen_smtp will not honour any timeout we
+  # hand it past `connect`, so the deadline has to live outside it.
+  @default_deadline 15_000
 
   @doc """
   Validates AWS SES credentials against the SES API itself.
 
   Asks SES for the account's send quota — the cheapest call that proves the
-  credentials are real *and* authorised for SES *in this region*. Built as a raw
-  `ExAws.Operation.Query`, so it needs no `ex_aws_ses` dependency.
+  credentials are real. Built as a raw `ExAws.Operation.Query`, so it needs no
+  `ex_aws_ses` dependency.
+
+  The endpoint host is passed explicitly rather than left to ExAws, whose region
+  resolution is a hard-coded prefix allowlist (`~r/^(us|eu|af|ap|sa|ca|me)-.../`)
+  that silently yields *no host at all* for newer regions such as `il-central-1`
+  — while the send path (`Swoosh.Adapters.AmazonSES`) simply interpolates the
+  region and works. Validate and send must resolve the same endpoint.
   """
   @spec aws_ses(map()) :: :ok | {:error, String.t()}
   def aws_ses(data) do
-    operation = %ExAws.Operation.Query{
-      action: :get_send_quota,
-      path: "/",
-      params: %{"Action" => "GetSendQuota", "Version" => "2010-12-01"},
-      service: :ses,
-      parser: fn response, _action -> response end
-    }
+    region = data["aws_region"]
 
-    operation
-    |> ExAws.request(
-      access_key_id: data["access_key"],
-      secret_access_key: data["secret_key"],
-      region: data["aws_region"]
-    )
-    |> case do
-      {:ok, _quota} -> :ok
-      {:error, reason} -> {:error, describe_aws_error(reason)}
+    cond do
+      blank?(data["access_key"]) or blank?(data["secret_key"]) ->
+        {:error, gettext("Incomplete credentials")}
+
+      # ExAws would otherwise default a blank region to us-east-1 and happily
+      # report success, while the send path builds "email..amazonaws.com" from
+      # the same blank region and raises.
+      blank?(region) ->
+        {:error, gettext("Region is required")}
+
+      true ->
+        with_deadline(fn -> request_send_quota(region, data) end)
     end
-  rescue
-    error ->
-      Logger.warning("SES connection check failed: #{inspect(error)}")
-      {:error, gettext("Could not reach AWS SES")}
   end
 
   @doc """
   Validates an SMTP relay by opening a real session and authenticating.
 
-  The connection options come from `PhoenixKit.Mailer.swoosh_config_for/1`, so
-  the check exercises exactly the transport (implicit TLS on 465, mandatory
-  STARTTLS elsewhere when credentials are present) that a real send would use —
-  one source of truth, no drift between "tested" and "sent".
+  The connection options come from `PhoenixKit.Mailer.SmtpTransport.config/1`, so
+  the check exercises exactly the transport a real send uses — one source of
+  truth, no drift between "tested" and "sent".
 
-  `auth: :always` is deliberate: with gen_smtp's default a relay that does not
-  demand authentication would accept a wrong password and report success.
+  `auth: :always` is deliberate: with gen_smtp's default the AUTH exchange is
+  attempted but its failure is tolerated, so a wrong password would still open a
+  session and the check would pass. A relay that advertises no `AUTH` verb at all
+  is a different case, and is treated as a pass — see the module doc.
   """
   @spec smtp(map()) :: :ok | {:error, String.t()}
   def smtp(data) do
-    case Mailer.swoosh_config_for(Map.put(data, "provider", "smtp")) do
-      {:ok, {Swoosh.Adapters.SMTP, config}} ->
-        config
-        |> Keyword.merge(auth: :always, retries: 0, timeout: @smtp_timeout)
-        |> open_smtp()
+    case SmtpTransport.config(data) do
+      {:ok, options} ->
+        with_deadline(fn -> open_smtp(options) end)
 
       {:error, {:invalid_smtp_port, port}} ->
         {:error, gettext("Invalid port: %{port}", port: inspect(port))}
 
-      {:error, _other} ->
-        {:error, gettext("Incomplete SMTP settings")}
+      {:error, :no_ca_store} ->
+        {:error,
+         gettext("No system CA certificates found, so the relay's certificate cannot be verified")}
     end
   end
 
-  # `open/1` answers with `{:ok, socket}` or a THREE-element error tuple —
-  # never `{:error, reason}`.
+  # --- SMTP -----------------------------------------------------------------
+
   defp open_smtp(options) do
-    case :gen_smtp_client.open(options) do
+    case :gen_smtp_client.open(Keyword.put(options, :auth, :always)) do
       {:ok, socket} ->
         :gen_smtp_client.close(socket)
+        :ok
+
+      # The relay offers no AUTH verb — it authenticates by IP, or not at all.
+      # The credentials are unused, a real send works, and `username`/`password`
+      # are required fields the operator had to fill in with something. A red
+      # cross here would be a lie about a working relay.
+      {:error, _type, {:missing_requirement, _host, :auth}} ->
+        Logger.info("SMTP relay advertises no AUTH; credentials are unused by this relay")
         :ok
 
       {:error, :bad_option, reason} ->
@@ -94,25 +117,20 @@ defmodule PhoenixKit.Integrations.Validators do
         {:error, describe_smtp_failure(reason)}
     end
   rescue
+    # gen_smtp calls to_binary/1 on the username, which has no clause for nil —
+    # reachable through the pre-save "test what you typed" probe, which does not
+    # go through the credential gate.
+    FunctionClauseError ->
+      {:error, gettext("Incomplete SMTP settings")}
+
     error ->
       Logger.warning("SMTP connection check failed: #{inspect(error)}")
       {:error, gettext("Could not reach the SMTP server")}
   catch
-    # gen_smtp signals auth/handshake problems by exiting the calling process.
     :exit, reason ->
       Logger.warning("SMTP connection check exited: #{inspect(reason)}")
       {:error, describe_smtp_failure(reason)}
   end
-
-  # SES answers a bad key with 403 and an unknown key with 400; anything else is
-  # a transport problem the operator can't act on beyond "unreachable".
-  defp describe_aws_error({:http_error, status, _body}) when status in [400, 403],
-    do: gettext("Invalid credentials")
-
-  defp describe_aws_error({:http_error, status, _body}),
-    do: gettext("Service error %{status}", status: status)
-
-  defp describe_aws_error(_reason), do: gettext("Could not reach AWS SES")
 
   defp describe_bad_option(reason)
        when reason in [:no_relay, :no_credentials, :invalid_port],
@@ -128,6 +146,9 @@ defmodule PhoenixKit.Integrations.Validators do
       String.contains?(text, ["auth_failed", "535", "authentication", "not authenticated"]) ->
         gettext("Invalid credentials")
 
+      String.contains?(text, ["tls_failed", "ssl_not_started"]) ->
+        gettext("TLS handshake failed")
+
       String.contains?(text, ["nxdomain", "econnrefused", "timeout", "ehostunreach"]) ->
         gettext("Could not reach the SMTP server")
 
@@ -135,4 +156,129 @@ defmodule PhoenixKit.Integrations.Validators do
         gettext("SMTP server rejected the connection")
     end
   end
+
+  # --- SES ------------------------------------------------------------------
+
+  defp request_send_quota(region, data) do
+    case send_quota_request(region, data) do
+      # Never call credentials invalid on a single 403. AWS briefly answers a
+      # *correct* request with SignatureDoesNotMatch right after it has rejected
+      # a bad signature from the same key — which is exactly the flow an operator
+      # produces by pasting a wrong key, fixing it, and pressing Test again.
+      # Telling them their good keys are invalid sends them off to reissue
+      # credentials that were never the problem. Confirm before accusing.
+      {:invalid, _} ->
+        Process.sleep(700)
+
+        case send_quota_request(region, data) do
+          {:invalid, _} -> {:error, gettext("Invalid credentials")}
+          confirmed -> confirmed
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp send_quota_request(region, data) do
+    operation = %ExAws.Operation.Query{
+      action: :get_send_quota,
+      path: "/",
+      params: %{"Action" => "GetSendQuota", "Version" => "2010-12-01"},
+      service: :ses,
+      parser: fn response, _action -> response end
+    }
+
+    operation
+    |> ExAws.request(
+      access_key_id: data["access_key"],
+      secret_access_key: data["secret_key"],
+      region: region,
+      host: "email.#{region}.amazonaws.com",
+      # ExAws retries transport errors ten times with backoff by default; an
+      # unreachable endpoint would block for minutes. Two attempts survives a
+      # single blip (SES throttles GetSendQuota aggressively) and still stays
+      # well inside the outer deadline.
+      retries: [max_attempts: 2],
+      http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
+    )
+    |> case do
+      {:ok, _quota} -> :ok
+      {:error, reason} -> interpret_ses_error(reason)
+    end
+  rescue
+    error ->
+      Logger.warning("SES connection check failed: #{inspect(error)}")
+      {:error, gettext("Could not reach AWS SES")}
+  end
+
+  defp interpret_ses_error({:http_error, _status, response}) do
+    case aws_error_code(response) do
+      code
+      when code in ~w(SignatureDoesNotMatch InvalidClientTokenId UnrecognizedClientException) ->
+        {:invalid, code}
+
+      # SES throttles GetSendQuota hard (~1 request/second). Reporting a
+      # throttle as "invalid credentials" would send an operator off to reissue
+      # perfectly good keys — observed live while testing this very validator.
+      code
+      when code in ~w(Throttling ThrottlingException RequestExpired
+                      ServiceUnavailable InternalFailure) ->
+        {:error, gettext("AWS SES is busy — try again in a moment")}
+
+      # The credentials are valid and merely lack `ses:GetSendQuota` — which is
+      # exactly what AWS's own least-privilege guidance produces (grant only
+      # ses:SendEmail / ses:SendRawEmail). Sending works. Reporting "invalid
+      # credentials" here would put a permanent red cross on a correctly
+      # configured integration and teach operators to ignore the check.
+      "AccessDenied" <> _ ->
+        Logger.info("SES credentials valid but not authorised for GetSendQuota; sending may work")
+        :ok
+
+      nil ->
+        {:error, gettext("Could not reach AWS SES")}
+
+      code ->
+        {:error, gettext("AWS SES error: %{code}", code: code)}
+    end
+  end
+
+  defp interpret_ses_error(_reason), do: {:error, gettext("Could not reach AWS SES")}
+
+  # The Query API answers with an XML body carrying an <Code> element.
+  defp aws_error_code(%{body: body}) when is_binary(body), do: aws_error_code(body)
+
+  defp aws_error_code(body) when is_binary(body) do
+    case Regex.run(~r{<Code>([^<]+)</Code>}, body) do
+      [_, code] -> code
+      _ -> nil
+    end
+  end
+
+  defp aws_error_code(_), do: nil
+
+  # --- shared ---------------------------------------------------------------
+
+  # gen_smtp ignores any timeout past `connect` and ExAws can retry for minutes,
+  # so the only bound that actually holds is one we impose from outside.
+  defp with_deadline(fun) do
+    task = Task.async(fun)
+    deadline = Application.get_env(:phoenix_kit, :integration_check_deadline, @default_deadline)
+
+    case Task.yield(task, deadline) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} ->
+        result
+
+      {:exit, reason} ->
+        Logger.warning("Connection check crashed: #{inspect(reason)}")
+        {:error, gettext("Could not reach the service")}
+
+      nil ->
+        {:error, gettext("The service did not respond in time")}
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
 end

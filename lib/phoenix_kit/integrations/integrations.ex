@@ -1195,7 +1195,7 @@ defmodule PhoenixKit.Integrations do
           :oauth2 -> has_token?(data)
           :api_key -> present?(data["api_key"])
           :bot_token -> present?(data["bot_token"])
-          :key_secret -> present?(data["access_key"])
+          :key_secret -> has_flat_credential_fields?(provider, data)
           :credentials -> has_custom_creds?(data) or has_flat_credential_fields?(provider, data)
         end
 
@@ -1226,7 +1226,7 @@ defmodule PhoenixKit.Integrations do
   defp has_credentials?(data),
     do:
       present?(data["access_token"]) or present?(data["api_key"]) or present?(data["bot_token"]) or
-        present?(data["access_key"]) or has_custom_creds?(data) or
+        has_custom_creds?(data) or
         has_flat_credential_fields?(Providers.get(data["provider"]), data)
 
   defp has_custom_creds?(%{"credentials" => creds}) when is_map(creds) and map_size(creds) > 0,
@@ -1241,7 +1241,8 @@ defmodule PhoenixKit.Integrations do
   # credentials once every *required* setup field the provider declares is
   # present. Data-driven off the provider's own field list, so it applies
   # to any `:credentials` provider without hardcoding field names here.
-  defp has_flat_credential_fields?(%{auth_type: :credentials, setup_fields: fields}, data) do
+  defp has_flat_credential_fields?(%{auth_type: auth_type, setup_fields: fields}, data)
+       when auth_type in [:credentials, :key_secret] do
     required = Enum.filter(fields, & &1.required)
 
     # Guard the empty-required-list footgun: `Enum.all?([], _)` is `true`, which
