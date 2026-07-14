@@ -529,7 +529,14 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V148 - CRM party roles (suppliers, clients) ⚡ LATEST
+  ### V149 - Catalogue item-supplier sourcing info + CRM xref ⚡ LATEST
+  - Adds `phoenix_kit_cat_item_supplier_info` (per-item, per-supplier SKU /
+    unit cost / currency / lead time / MOQ; `supplier_uuid` soft ref to a
+    CRM party or local `cat_supplier`) and a soft `crm_company_uuid` xref on
+    `phoenix_kit_cat_suppliers`. No primary among these rows — the item's
+    default supplier is the V146 `primary_supplier_uuid` scalar.
+
+  ### V148 - CRM party roles (suppliers, clients)
   - Adds `phoenix_kit_crm_party_roles` for the `phoenix_kit_crm` module:
     polymorphic role edge marking a CRM company or contact as `supplier`,
     `client`, or other commercial role. One party can hold several roles;
@@ -1296,7 +1303,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 148
+  @current_version 149
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
