@@ -6,13 +6,6 @@ defmodule PhoenixKit.Integration.Email.SendProfileTest do
 
   use PhoenixKit.DataCase, async: false
 
-  # Ported from phoenix_kit_newsletters ahead of the core migration that
-  # creates `phoenix_kit_email_send_profiles` (task A2 in the sending-
-  # foundation plan). Until that migration lands, every test here fails
-  # with an undefined-table error rather than a real assertion failure —
-  # skip until A2 merges, then remove this tag.
-  @moduletag :skip
-
   alias PhoenixKit.Email.SendProfile
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Integrations
