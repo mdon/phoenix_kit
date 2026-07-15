@@ -1,3 +1,13 @@
+## 1.7.196 - 2026-07-15
+
+### Added
+- OpenRouter and xAI now declare the `:image_generation` capability (OpenAI
+  already did). Both genuinely have real image-gen models (OpenRouter's
+  catalog includes Gemini image/GPT-image-1 style entries; xAI has
+  `grok-imagine-image[-quality]`) reachable at the standard
+  `/images/generations` path — gates `phoenix_kit_ai`'s new "Image
+  Generation" Endpoint model type to providers that can actually serve it.
+
 ## 1.7.195 - 2026-07-14
 
 ### Added
