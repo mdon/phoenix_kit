@@ -190,12 +190,30 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
 
     test "an endDate is surfaced as a reset date" do
-      # 2026-08-01T00:00:00Z
+      # Brevo's REAL wire shape: endDate is an ISO-8601 string, not a unix
+      # integer (verified against the official reference and Postman
+      # collection). The integer variant below is the belt-and-braces path.
       body = %{
         "plan" => [
           %{
             "type" => "subscription",
             "creditsType" => "sendLimit",
+            "credits" => 8500,
+            "endDate" => "2026-08-01T00:00:00.000Z"
+          }
+        ]
+      }
+
+      assert note = Validators.format_credits_note(body)
+      assert note =~ "2026-08-01"
+    end
+
+    test "a unix-integer endDate is also accepted (defensive)" do
+      # 2026-08-01T00:00:00Z
+      body = %{
+        "plan" => [
+          %{
+            "type" => "subscription",
             "credits" => 8500,
             "endDate" => 1_785_542_400
           }
@@ -204,6 +222,17 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
 
       assert note = Validators.format_credits_note(body)
       assert note =~ "2026-08-01"
+    end
+
+    test "an unparseable endDate is dropped, not crashed on" do
+      body = %{
+        "plan" => [
+          %{"type" => "subscription", "credits" => 8500, "endDate" => "soon"}
+        ]
+      }
+
+      assert note = Validators.format_credits_note(body)
+      refute note =~ "resets"
     end
 
     test "no endDate means no reset date is claimed" do

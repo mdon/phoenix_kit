@@ -423,6 +423,17 @@ defmodule PhoenixKit.Integrations.Validators do
     end
   end
 
+  # Brevo's real /v3/account sends `endDate` as an ISO-8601 STRING
+  # ("2017-04-11T00:00:00.000Z" — confirmed against the official reference,
+  # Postman collection and SDKs). The integer clause is belt-and-braces for
+  # a unix timestamp, should the API ever change shape.
+  defp reset_date(end_date) when is_binary(end_date) do
+    case DateTime.from_iso8601(end_date) do
+      {:ok, datetime, _offset} -> Date.to_iso8601(DateTime.to_date(datetime))
+      {:error, _reason} -> nil
+    end
+  end
+
   defp reset_date(end_date) when is_integer(end_date) do
     case DateTime.from_unix(end_date) do
       {:ok, datetime} -> Date.to_iso8601(DateTime.to_date(datetime))

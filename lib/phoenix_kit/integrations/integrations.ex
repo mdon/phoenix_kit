@@ -1035,9 +1035,12 @@ defmodule PhoenixKit.Integrations do
         # reads as "didn't update even though it connected"). This
         # also matches the OAuth `exchange_code/4` path, which
         # always overwrites `connected_at` on a successful token
-        # exchange — keeping the two paths consistent.
+        # exchange — keeping the two paths consistent. `{:ok, note}`
+        # successes (SES quota / Brevo credits / scoped-credential
+        # notes) are successful connections too — the credentials
+        # provably worked — so they bump the timestamp the same way.
         update =
-          if result == :ok do
+          if result == :ok or match?({:ok, _}, result) do
             Map.put(base_update, "connected_at", now_iso)
           else
             base_update
