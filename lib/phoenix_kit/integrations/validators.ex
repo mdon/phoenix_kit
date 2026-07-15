@@ -30,6 +30,9 @@ defmodule PhoenixKit.Integrations.Validators do
 
   alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Mailer.SmtpTransport
+  alias PhoenixKit.Utils.Number
+
+  @http_timeout 15_000
 
   @doc """
   Validates AWS SES credentials against the SES API itself.
@@ -223,8 +226,14 @@ defmodule PhoenixKit.Integrations.Validators do
       http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
     )
     |> case do
-      {:ok, _quota} -> :ok
-      {:error, reason} -> interpret_ses_error(reason)
+      {:ok, %{body: body}} ->
+        case format_quota_note(body) do
+          nil -> :ok
+          note -> {:ok, note}
+        end
+
+      {:error, reason} ->
+        interpret_ses_error(reason)
     end
   rescue
     error ->
@@ -293,6 +302,135 @@ defmodule PhoenixKit.Integrations.Validators do
   end
 
   defp aws_error_code(_), do: nil
+
+  @doc false
+  # Pure: an XML GetSendQuota body in, a compact operator-facing note out (or
+  # `nil` if the body doesn't have the shape we expect — the credentials are
+  # still good, we just have nothing to add). Public so the parsing can be
+  # tested against real SES bodies without a network round trip.
+  def format_quota_note(body) when is_binary(body) do
+    with max when not is_nil(max) <- quota_tag(body, "Max24HourSend"),
+         sent when not is_nil(sent) <- quota_tag(body, "SentLast24Hours"),
+         rate when not is_nil(rate) <- quota_tag(body, "MaxSendRate") do
+      # -1 signifies an unlimited quota — AWS's own convention for accounts
+      # with no daily cap.
+      max_text = if max == -1.0, do: gettext("unlimited"), else: Number.format(round(max))
+
+      gettext("Quota: %{sent} / %{max} sent last 24h · max %{rate}/s",
+        sent: Number.format(round(sent)),
+        max: max_text,
+        rate: Number.format(round(rate))
+      )
+    else
+      _ -> nil
+    end
+  end
+
+  def format_quota_note(_body), do: nil
+
+  defp quota_tag(body, tag) do
+    with [_, value] <- Regex.run(~r{<#{tag}>([^<]+)</#{tag}>}, body),
+         {float, _rest} <- Float.parse(value) do
+      float
+    else
+      _ -> nil
+    end
+  end
+
+  # --- Brevo ------------------------------------------------------------
+
+  @doc """
+  Validates a Brevo API key against the account endpoint, and reports the
+  remaining credits.
+
+  Brevo authenticates with a bare `api-key` header (no `Bearer` prefix), and
+  `GET /v3/account` doubles as the cheapest authenticated call and the only
+  one that tells the operator anything beyond "the key works" — the plan's
+  remaining send credits, which is exactly what silently runs out mid-campaign.
+  """
+  @spec brevo_api(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  def brevo_api(data) do
+    api_key = data["api_key"]
+
+    if blank?(api_key) do
+      {:error, gettext("No credentials configured")}
+    else
+      request_account(api_key)
+    end
+  end
+
+  defp request_account(api_key) do
+    case Req.get("https://api.brevo.com/v3/account",
+           headers: [{"api-key", api_key}],
+           receive_timeout: @http_timeout
+         ) do
+      {:ok, %{status: 200, body: body}} ->
+        case format_credits_note(body) do
+          nil -> :ok
+          note -> {:ok, note}
+        end
+
+      {:ok, %{status: 401}} ->
+        {:error, gettext("Invalid credentials")}
+
+      {:ok, %{status: 403}} ->
+        {:error, gettext("Access denied")}
+
+      {:ok, %{status: status}} ->
+        {:error, gettext("Brevo error %{status}", status: status)}
+
+      {:error, reason} ->
+        Logger.warning("Brevo connection check failed: #{inspect(reason)}")
+        {:error, gettext("Could not reach Brevo")}
+    end
+  end
+
+  @doc false
+  # Pure: a decoded /v3/account JSON body in, a compact operator-facing note
+  # out (or `nil` if there is no usable plan info). Public so the parsing can
+  # be tested against real Brevo bodies without a network round trip.
+  def format_credits_note(%{"plan" => plan}) when is_list(plan) and plan != [] do
+    case plan |> Enum.map(&format_plan_entry/1) |> Enum.reject(&is_nil/1) do
+      [] -> nil
+      entries -> gettext("Plan: %{entries}", entries: Enum.join(entries, "; "))
+    end
+  end
+
+  def format_credits_note(_body), do: nil
+
+  defp format_plan_entry(%{"type" => type} = entry) when is_binary(type) do
+    entry
+    |> Map.get("credits")
+    |> credits_text(type)
+    |> with_reset_date(entry["endDate"])
+  end
+
+  defp format_plan_entry(_entry), do: nil
+
+  defp credits_text(credits, type) when is_number(credits) do
+    gettext("%{type} · %{credits} credits left",
+      type: type,
+      credits: Number.format(round(credits))
+    )
+  end
+
+  defp credits_text(_credits, type), do: type
+
+  defp with_reset_date(text, end_date) do
+    case reset_date(end_date) do
+      nil -> text
+      date -> gettext("%{text} · resets %{date}", text: text, date: date)
+    end
+  end
+
+  defp reset_date(end_date) when is_integer(end_date) do
+    case DateTime.from_unix(end_date) do
+      {:ok, datetime} -> Date.to_iso8601(DateTime.to_date(datetime))
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp reset_date(_end_date), do: nil
 
   # --- shared ---------------------------------------------------------------
 

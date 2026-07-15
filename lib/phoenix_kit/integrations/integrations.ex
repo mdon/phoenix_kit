@@ -952,6 +952,21 @@ defmodule PhoenixKit.Integrations do
     end
   end
 
+  # Providers that cannot be checked with a plain authenticated GET declare a
+  # strategy instead. Without these clauses these fell through to the `:ok`
+  # catch-all below (Brevo), or to the generic status-code-only check below
+  # (Brevo before this validator existed), so "Test Connection" stamped the
+  # connection "connected" without verifying anything, or without reporting
+  # anything useful beyond a bare pass.
+  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
+    do: Validators.aws_ses(data)
+
+  defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
+    do: Validators.smtp(data)
+
+  defp do_validate(%{auth_type: :api_key, validation: %{strategy: :brevo_api}}, data),
+    do: Validators.brevo_api(data)
+
   defp do_validate(%{auth_type: auth_type} = provider, data)
        when auth_type in [:api_key, :bot_token] do
     token = data["api_key"] || data["bot_token"] || ""
@@ -969,16 +984,6 @@ defmodule PhoenixKit.Integrations do
         :ok
     end
   end
-
-  # Providers that cannot be checked with an authenticated GET declare a
-  # strategy instead. Without these clauses both fell through to the `:ok`
-  # catch-all below, so "Test Connection" stamped the connection "connected"
-  # without verifying anything.
-  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
-    do: Validators.aws_ses(data)
-
-  defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
-    do: Validators.smtp(data)
 
   defp do_validate(_, _data), do: :ok
 

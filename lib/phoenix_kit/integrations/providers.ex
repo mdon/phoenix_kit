@@ -742,14 +742,10 @@ defmodule PhoenixKit.Integrations.Providers do
       base_url: "https://api.brevo.com/v3",
       # Makes "Test Connection" tell the truth for this provider: without a
       # validation map `do_validate/2` falls through to `:ok` and stamps the
-      # connection "connected" without ever checking the key. Brevo
-      # authenticates with a bare `api-key` header (no Bearer prefix).
-      validation: %{
-        url: "https://api.brevo.com/v3/account",
-        method: :get,
-        auth_header: "api-key",
-        auth_prefix: ""
-      },
+      # connection "connected" without ever checking the key. Checked against
+      # the account endpoint itself, which also reports remaining credits —
+      # see PhoenixKit.Integrations.Validators.brevo_api/1.
+      validation: %{strategy: :brevo_api},
       setup_fields: [
         %{
           key: "api_key",

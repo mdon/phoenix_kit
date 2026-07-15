@@ -93,6 +93,135 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
   end
 
+  describe "format_quota_note/1" do
+    test "reports sent/max/rate from a real GetSendQuota body" do
+      body = quota_body(max: "50000.0", sent: "127.0", rate: "14.0")
+
+      assert note = Validators.format_quota_note(body)
+      assert note =~ "127"
+      assert note =~ "50,000"
+      assert note =~ "14"
+    end
+
+    test "large numbers get thousand separators" do
+      body = quota_body(max: "1000000.0", sent: "1234.0", rate: "50.0")
+
+      note = Validators.format_quota_note(body)
+      assert note =~ "1,234"
+      assert note =~ "1,000,000"
+    end
+
+    # AWS's own convention: -1 means the account has no daily cap, rather than
+    # a cap of negative-one messages.
+    test "a Max24HourSend of -1 reads as unlimited, not -1" do
+      body = quota_body(max: "-1.0", sent: "42.0", rate: "14.0")
+
+      note = Validators.format_quota_note(body)
+      assert note =~ "unlimited"
+      refute note =~ "-1"
+    end
+
+    test "a body missing one of the three fields yields no note" do
+      body = """
+      <GetSendQuotaResponse><GetSendQuotaResult>
+        <Max24HourSend>50000.0</Max24HourSend>
+        <MaxSendRate>14.0</MaxSendRate>
+      </GetSendQuotaResult></GetSendQuotaResponse>
+      """
+
+      assert Validators.format_quota_note(body) == nil
+    end
+
+    test "not a string at all yields no note rather than a crash" do
+      assert Validators.format_quota_note(%{}) == nil
+      assert Validators.format_quota_note(nil) == nil
+    end
+
+    defp quota_body(opts) do
+      max = Keyword.fetch!(opts, :max)
+      sent = Keyword.fetch!(opts, :sent)
+      rate = Keyword.fetch!(opts, :rate)
+
+      """
+      <GetSendQuotaResponse xmlns="http://ses.amazonaws.com/doc/2010-12-01/">
+        <GetSendQuotaResult>
+          <Max24HourSend>#{max}</Max24HourSend>
+          <MaxSendRate>#{rate}</MaxSendRate>
+          <SentLast24Hours>#{sent}</SentLast24Hours>
+        </GetSendQuotaResult>
+        <ResponseMetadata><RequestId>abc</RequestId></ResponseMetadata>
+      </GetSendQuotaResponse>
+      """
+    end
+  end
+
+  describe "format_credits_note/1" do
+    test "a single subscription plan reports its type and credits" do
+      body = %{
+        "plan" => [%{"type" => "subscription", "creditsType" => "sendLimit", "credits" => 8500}]
+      }
+
+      assert note = Validators.format_credits_note(body)
+      assert note =~ "subscription"
+      assert note =~ "8,500 credits left"
+    end
+
+    test "multiple plan entries are all reported" do
+      body = %{
+        "plan" => [
+          %{"type" => "subscription", "creditsType" => "sendLimit", "credits" => 8500},
+          %{"type" => "payAsYouGo", "creditsType" => "sendLimit", "credits" => 120}
+        ]
+      }
+
+      note = Validators.format_credits_note(body)
+      assert note =~ "subscription"
+      assert note =~ "8,500"
+      assert note =~ "payAsYouGo"
+      assert note =~ "120"
+    end
+
+    test "a plan entry with no credits key still names the plan type" do
+      body = %{"plan" => [%{"type" => "free", "creditsType" => "sendLimit"}]}
+
+      assert note = Validators.format_credits_note(body)
+      assert note =~ "free"
+      refute note =~ "credits left"
+    end
+
+    test "an endDate is surfaced as a reset date" do
+      # 2026-08-01T00:00:00Z
+      body = %{
+        "plan" => [
+          %{
+            "type" => "subscription",
+            "creditsType" => "sendLimit",
+            "credits" => 8500,
+            "endDate" => 1_785_542_400
+          }
+        ]
+      }
+
+      assert note = Validators.format_credits_note(body)
+      assert note =~ "2026-08-01"
+    end
+
+    test "no endDate means no reset date is claimed" do
+      body = %{
+        "plan" => [%{"type" => "subscription", "creditsType" => "sendLimit", "credits" => 8500}]
+      }
+
+      note = Validators.format_credits_note(body)
+      refute note =~ "resets"
+    end
+
+    test "an empty or missing plan yields no note" do
+      assert Validators.format_credits_note(%{"plan" => []}) == nil
+      assert Validators.format_credits_note(%{}) == nil
+      assert Validators.format_credits_note(%{"plan" => "not a list"}) == nil
+    end
+  end
+
   describe "smtp/1" do
     test "an unreachable relay is rejected" do
       # Nothing listens on port 1 — fails immediately, no outside network needed.
