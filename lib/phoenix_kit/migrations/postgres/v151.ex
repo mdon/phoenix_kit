@@ -1,14 +1,22 @@
 defmodule PhoenixKit.Migrations.Postgres.V151 do
   @moduledoc """
-  V151: Newsletter send profiles move to core Email — `phoenix_kit_email_send_profiles`.
+  V151: Newsletters/CRM/Core restructuring — accumulator migration.
+
+  Per the "one open migration" rule: while V151 is unreleased, every DDL
+  step of the restructuring plan lands here as its own section rather than
+  opening a new vNNN. Add new work as another `up_*`/`down_*` pair, called
+  from `up/1`/`down/1` in application order (`down/1` unwinds in reverse).
+  Keep each section's DDL self-contained and idempotent, same as any other
+  migration in this chain.
+
+  ## Section: send profiles move to core Email
 
   Creates `phoenix_kit_email_send_profiles` — the same shape V145 gave
   `phoenix_kit_newsletters_send_profiles`, now owned by core's
-  `PhoenixKit.Email` namespace instead of the newsletters module (Phase 1 of
-  folding newsletter send configuration into core Email, so any module —
-  not just newsletters — can resolve a send profile). Every row is copied
-  across by its existing `uuid` (the PK on both tables, so nothing is
-  renumbered) and the V145 table is then dropped.
+  `PhoenixKit.Email` namespace instead of the newsletters module (send
+  profiles stop being newsletters-only, so any module can resolve one).
+  Every row is copied across by its existing `uuid` (the PK on both
+  tables, so nothing is renumbered) and the V145 table is then dropped.
   `idx_nl_send_profiles_integration`/`idx_nl_send_profiles_default` become
   `idx_email_send_profiles_integration`/`idx_email_send_profiles_default`.
 
@@ -36,6 +44,23 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
+    up_send_profiles_to_core_email(opts, prefix, p)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '151'")
+  end
+
+  def down(opts) do
+    prefix = Map.get(opts, :prefix, "public")
+    p = prefix_str(prefix)
+
+    down_send_profiles_to_core_email(opts, prefix, p)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '150'")
+  end
+
+  # ── Section: send profiles move to core Email ──
+
+  defp up_send_profiles_to_core_email(opts, prefix, p) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_email_send_profiles (
       uuid UUID PRIMARY KEY DEFAULT #{Helpers.uuid_v7_call(prefix)},
@@ -72,14 +97,9 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
 
       execute("DROP TABLE IF EXISTS #{p}phoenix_kit_newsletters_send_profiles CASCADE")
     end
-
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '151'")
   end
 
-  def down(opts) do
-    prefix = Map.get(opts, :prefix, "public")
-    p = prefix_str(prefix)
-
+  defp down_send_profiles_to_core_email(opts, prefix, p) do
     execute("""
     CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_newsletters_send_profiles (
       uuid UUID PRIMARY KEY DEFAULT #{Helpers.uuid_v7_call(prefix)},
@@ -116,9 +136,9 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
 
       execute("DROP TABLE IF EXISTS #{p}phoenix_kit_email_send_profiles CASCADE")
     end
-
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '150'")
   end
+
+  # ── Shared helpers ──
 
   defp table_exists?(opts, prefix, table_name) do
     escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
