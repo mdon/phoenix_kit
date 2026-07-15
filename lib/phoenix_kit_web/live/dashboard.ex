@@ -100,6 +100,20 @@ defmodule PhoenixKitWeb.Live.Dashboard do
     {:noreply, socket}
   end
 
+  # Individual session mutations (a new login, a single revoke, or a
+  # "revoke all/others") change the counts the dashboard shows. The
+  # dashboard subscribes to the sessions topic, so it must match these
+  # messages — an unmatched handle_info crashes and reconnects the
+  # LiveView. Refresh the session stats so the tiles stay accurate.
+  def handle_info({:session_created, _user, _token_info}, socket),
+    do: {:noreply, assign(socket, :session_stats, Sessions.get_session_stats())}
+
+  def handle_info({:session_revoked, _token_uuid}, socket),
+    do: {:noreply, assign(socket, :session_stats, Sessions.get_session_stats())}
+
+  def handle_info({:user_sessions_revoked, _user_uuid, _count}, socket),
+    do: {:noreply, assign(socket, :session_stats, Sessions.get_session_stats())}
+
   # Handle live presence statistics updates from PubSub
   def handle_info({:presence_stats_updated, presence_stats}, socket) do
     socket =

@@ -47,6 +47,8 @@ defmodule PhoenixKit.Users.Auth.UserToken do
     field :sent_to, :string
     field :ip_address, :string
     field :user_agent_hash, :string
+    field :browser, :string
+    field :os, :string
 
     belongs_to :user, PhoenixKit.Users.Auth.User,
       foreign_key: :user_uuid,
@@ -84,6 +86,7 @@ defmodule PhoenixKit.Users.Auth.UserToken do
   ## Options
 
     * `:fingerprint` - A `%SessionFingerprint{}` struct with `:ip_address` and `:user_agent_hash` fields
+    * `:browser` / `:os` - readable device name (e.g. `"Safari"` / `"iOS"`) for the sessions UI
 
   ## Examples
 
@@ -105,7 +108,11 @@ defmodule PhoenixKit.Users.Auth.UserToken do
       context: "session",
       user_uuid: user.uuid,
       ip_address: ip_address,
-      user_agent_hash: user_agent_hash
+      user_agent_hash: user_agent_hash,
+      # Readable device name for the sessions UI (V148). Captured separately
+      # from the fingerprint, which only keeps the *hashed* UA.
+      browser: Keyword.get(opts, :browser),
+      os: Keyword.get(opts, :os)
     }
 
     {token, user_token}

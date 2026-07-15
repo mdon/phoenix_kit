@@ -54,6 +54,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
+  alias PhoenixKit.Utils.UserAgent
   alias PhoenixKitWeb.Users.MultiSession
 
   # Make the remember me cookie valid for 60 days.
@@ -96,6 +97,12 @@ defmodule PhoenixKitWeb.Users.Auth do
       else
         []
       end
+
+    # Readable device name for the sessions UI, captured at login independent
+    # of fingerprinting (which keeps only the hashed UA) and of the alerts
+    # setting. The raw UA isn't stored — only the parsed browser/OS.
+    ua = List.first(get_req_header(conn, "user-agent"))
+    opts = Keyword.merge(opts, browser: UserAgent.browser(ua), os: UserAgent.os(ua))
 
     token = Auth.generate_user_session_token(user, opts)
     user_return_to = get_session(conn, :user_return_to)

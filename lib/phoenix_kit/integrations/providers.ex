@@ -526,7 +526,10 @@ defmodule PhoenixKit.Integrations.Providers do
           options: nil
         }
       ],
-      capabilities: [:ai_completions],
+      # `:realtime_voice` gates the xAI-only streaming TTS panel in
+      # phoenix_kit_ai's Playground (Xai.Realtime, WebSocket-based — not
+      # reachable through the shared REST completions path).
+      capabilities: [:ai_completions, :realtime_voice],
       instructions: [
         %{
           title: gettext("Create an xAI account"),

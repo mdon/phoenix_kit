@@ -41,6 +41,15 @@
   now says so on screen instead of only in the log.
 
 ||||||| 867bc5b2
+||||||| d3efff7e
+## 1.7.194 - 2026-07-14
+
+### Added
+- xAI provider now declares the `:realtime_voice` capability (in addition
+  to `:ai_completions`), gating `phoenix_kit_ai`'s new streaming-voice
+  Playground panel (built on the `xai` Hex package's `Xai.Realtime`
+  WebSocket client) to xAI endpoints only.
+
 ## 1.7.193 - 2026-07-14
 
 ### Added
