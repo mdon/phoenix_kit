@@ -1,17 +1,17 @@
-defmodule PhoenixKit.Migrations.Postgres.V151Test do
+defmodule PhoenixKit.Migrations.Postgres.V152Test do
   @moduledoc """
-  Tests V151's schema state — send profiles move to core Email.
+  Tests V152's schema state — send profiles move to core Email.
 
-  V151.up/down can't be invoked outside an `Ecto.Migrator` runner — same
+  V152.up/down can't be invoked outside an `Ecto.Migrator` runner — same
   constraint as V106Test/V107Test/V112Test/V125Test/V145Test. The schema
   is verified at boot: `test_helper.exs` runs `ensure_current/2` (now
-  through V151) before any test, so these assertions pin the post-V151
+  through V152) before any test, so these assertions pin the post-V152
   shape and a regression that drops/re-adds the wrong thing surfaces here.
 
   The `phoenix_kit_newsletters_send_profiles` table these assertions
   replace — and the `idx_nl_send_profiles_*` indexes — used to be pinned
   by `V145Test`; that file now only keeps the `send_profile_uuid` broadcast
-  column check, since V151 drops the table V145 created.
+  column check, since V152 drops the table V145 created.
   """
 
   use PhoenixKit.DataCase, async: false
@@ -154,8 +154,8 @@ defmodule PhoenixKit.Migrations.Postgres.V151Test do
     end
   end
 
-  describe "copy semantics (mirrors V151.up's INSERT...SELECT)" do
-    # V151.up can't be re-run against a populated V145 table in this test
+  describe "copy semantics (mirrors V152.up's INSERT...SELECT)" do
+    # V152.up can't be re-run against a populated V145 table in this test
     # suite — the full chain always starts from a fresh V1 install with
     # nothing in `phoenix_kit_newsletters_send_profiles` for it to copy
     # (see PrefixMigrationTest moduledoc). This test stands in a scratch
@@ -263,13 +263,13 @@ defmodule PhoenixKit.Migrations.Postgres.V151Test do
   end
 
   describe "version marker" do
-    test "phoenix_kit table comment is at or past V151" do
+    test "phoenix_kit table comment is at or past V152" do
       %{rows: [[comment]]} =
         Repo.query!("SELECT obj_description('phoenix_kit'::regclass, 'pg_class')")
 
       # >= rather than ==: pinning the exact latest version breaks this
       # test every time a NEWER migration ships.
-      assert String.to_integer(comment) >= 151
+      assert String.to_integer(comment) >= 152
     end
   end
 end

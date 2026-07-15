@@ -9,10 +9,10 @@ defmodule PhoenixKit.Migrations.Postgres.V145Test do
   V145) before any test, so these assertions pin the post-V145 shape and a
   regression that drops/re-adds the wrong thing surfaces here.
 
-  V151 later moves the send-profile table itself to core Email and drops
+  V152 later moves the send-profile table itself to core Email and drops
   `phoenix_kit_newsletters_send_profiles` — those table/index assertions
-  now live in `V151Test`. What's left here is `send_profile_uuid`, the
-  one V145 change V151 doesn't touch.
+  now live in `V152Test`. What's left here is `send_profile_uuid`, the
+  one V145 change V152 doesn't touch.
   """
 
   use PhoenixKit.DataCase, async: false

@@ -1,8 +1,8 @@
-defmodule PhoenixKit.Migrations.Postgres.V151 do
+defmodule PhoenixKit.Migrations.Postgres.V152 do
   @moduledoc """
-  V151: Newsletters/CRM/Core restructuring — accumulator migration.
+  V152: Newsletters/CRM/Core restructuring — accumulator migration.
 
-  Per the "one open migration" rule: while V151 is unreleased, every DDL
+  Per the "one open migration" rule: while V152 is unreleased, every DDL
   step of the restructuring plan lands here as its own section rather than
   opening a new vNNN. Add new work as another `up_*`/`down_*` pair, called
   from `up/1`/`down/1` in application order (`down/1` unwinds in reverse).
@@ -27,7 +27,7 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
   The copy+drop only runs when the V145 table is still present, so `up/1`
   is safe to re-run after it has already completed once (nothing left to
   copy, no "relation does not exist" on the second pass). Same for `down/1`
-  against the V151 table.
+  against the V152 table.
   """
 
   use Ecto.Migration
@@ -46,7 +46,7 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
 
     up_send_profiles_to_core_email(opts, prefix, p)
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '151'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '152'")
   end
 
   def down(opts) do
@@ -55,7 +55,7 @@ defmodule PhoenixKit.Migrations.Postgres.V151 do
 
     down_send_profiles_to_core_email(opts, prefix, p)
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '150'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '151'")
   end
 
   # ── Section: send profiles move to core Email ──

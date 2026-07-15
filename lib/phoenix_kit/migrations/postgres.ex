@@ -529,10 +529,10 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V151 - Newsletters/CRM/Core restructuring (accumulator) ⚡ LATEST
+  ### V152 - Newsletters/CRM/Core restructuring (accumulator) ⚡ LATEST
   - Unreleased — per the "one open migration" rule, every DDL step of the
-    restructuring plan lands in V151 as its own section until it ships;
-    later stages append here rather than opening V152.
+    restructuring plan lands in V152 as its own section until it ships;
+    later stages append here rather than opening V153.
   - Section: send profiles move to core Email. Creates
     `phoenix_kit_email_send_profiles` — same shape V145 gave
     `phoenix_kit_newsletters_send_profiles`, now owned by core's
@@ -1323,7 +1323,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 151
+  @current_version 152
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
