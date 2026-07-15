@@ -27,6 +27,7 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.enabled_modules()       # Only currently enabled
       ModuleRegistry.all_admin_tabs()        # Collect admin tabs from all modules
       ModuleRegistry.all_settings_tabs()     # Collect settings tabs
+      ModuleRegistry.all_email_settings_sections() # Collect Email Sending page sections
       ModuleRegistry.all_user_dashboard_tabs() # Collect user dashboard tabs
       ModuleRegistry.all_children()          # Collect supervisor child specs
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
@@ -131,6 +132,22 @@ defmodule PhoenixKit.ModuleRegistry do
     all_modules()
     |> Enum.flat_map(&safe_call(&1, :settings_tabs, []))
     |> Enum.map(&Tab.resolve_path(&1, :settings))
+  end
+
+  @doc """
+  Collect email settings sections contributed by all **enabled** modules,
+  for the core Email Sending settings page
+  (`/admin/settings/email-sending`).
+
+  Mirrors `all_settings_tabs/0`'s `safe_call` pattern, but — like
+  `all_sitemap_sources/0` — iterates `enabled_modules/0` rather than
+  `all_modules/0`: a disabled module must not inject a `live_component`
+  that assumes its own supervised state is running.
+  """
+  @spec all_email_settings_sections() :: [PhoenixKit.Module.email_settings_section()]
+  def all_email_settings_sections do
+    enabled_modules()
+    |> Enum.flat_map(&safe_call(&1, :email_settings_sections, []))
   end
 
   @doc "Collect all user dashboard tabs from all registered modules."

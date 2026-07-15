@@ -183,8 +183,14 @@ defmodule PhoenixKit.Mailer do
   @doc """
   Delivers an email using the appropriate mailer.
 
-  If a parent application mailer is configured, delegates to it.
-  Otherwise uses the built-in PhoenixKit mailer.
+  If Settings key `"default_email_integration_uuid"` is set and resolves to
+  an Integrations connection with valid credentials, delivery is routed
+  through that connection via `deliver_via_integration/3` (set on the core
+  Email Sending settings page). Otherwise, if a parent application mailer is
+  configured, delegates to it; failing that, uses the built-in PhoenixKit
+  mailer. The setting being absent, blank, or pointing at a
+  deleted/unconfigured connection is a no-op — behavior is unchanged from
+  before this routing existed.
 
   This function also integrates with the email tracking system to log
   outgoing emails when tracking is enabled. Recipients blocklisted by the
@@ -194,6 +200,13 @@ defmodule PhoenixKit.Mailer do
   here — see the soft-dependency note at the top of this module.
   """
   def deliver_email(email, opts \\ []) do
+    case default_send_integration_uuid() do
+      {:ok, uuid} -> deliver_via_integration(email, uuid, opts)
+      :error -> deliver_via_configured_mailer(email, opts)
+    end
+  end
+
+  defp deliver_via_configured_mailer(email, opts) do
     with :ok <- check_recipient_allowed(email) do
       # Intercept email for tracking before sending
       tracked_email = Provider.current().intercept_before_send(email, opts)
@@ -222,6 +235,24 @@ defmodule PhoenixKit.Mailer do
       Provider.current().handle_after_send(tracked_email, result)
 
       result
+    end
+  end
+
+  # Resolves the operator-chosen default send integration, if any. Only
+  # returns `{:ok, uuid}` when the setting is a non-blank uuid that actually
+  # resolves to a connection with valid credentials — a stale or deleted
+  # uuid falls back to the built-in/parent-mailer path (`:error`) rather
+  # than failing the send outright. NOT used by `deliver_via_integration/3`
+  # itself (which takes an explicit uuid), so there is no recursion risk
+  # here: this function never calls `deliver_email/2`.
+  @spec default_send_integration_uuid() :: {:ok, String.t()} | :error
+  defp default_send_integration_uuid do
+    with uuid when is_binary(uuid) and uuid != "" <-
+           PhoenixKit.Settings.get_setting("default_email_integration_uuid"),
+         true <- Integrations.connected?(uuid) do
+      {:ok, uuid}
+    else
+      _ -> :error
     end
   end
 
@@ -466,9 +497,16 @@ defmodule PhoenixKit.Mailer do
 
   defp detect_parent_app_provider(_mailer), do: "unknown"
 
-  # Get the from email address from configuration or use a default
-  # Priority: Settings Database > Config file > Default
-  defp get_from_email do
+  @doc """
+  Gets the effective "from" email address.
+
+  Priority: Settings Database (runtime) > Config file (compile-time) >
+  built-in default (`"noreply@localhost"`). Public so the Email Sending
+  settings page can display the value that's actually in effect, even
+  when no Settings override is set.
+  """
+  @spec get_from_email() :: String.t()
+  def get_from_email do
     # Priority 1: Settings Database (runtime)
     case PhoenixKit.Settings.get_setting("from_email") do
       nil ->
@@ -484,9 +522,16 @@ defmodule PhoenixKit.Mailer do
     end
   end
 
-  # Get the from name from configuration or use a default
-  # Priority: Settings Database > Config file > Default
-  defp get_from_name do
+  @doc """
+  Gets the effective "from" name.
+
+  Priority: Settings Database (runtime) > Config file (compile-time) >
+  built-in default (`"PhoenixKit"`). Public so the Email Sending settings
+  page can display the value that's actually in effect, even when no
+  Settings override is set.
+  """
+  @spec get_from_name() :: String.t()
+  def get_from_name do
     # Priority 1: Settings Database (runtime)
     case PhoenixKit.Settings.get_setting("from_name") do
       nil ->

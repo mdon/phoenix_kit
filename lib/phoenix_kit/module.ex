@@ -93,6 +93,8 @@ defmodule PhoenixKit.Module do
   - `required_integrations/0` - Integration provider keys this module needs (default: `[]`).
     Used by the Integrations settings page to show relevant providers.
   - `integration_providers/0` - Additional provider definitions this module contributes (default: `[]`).
+  - `email_settings_sections/0` - Sections this module contributes to the core Email Sending
+    settings page (default: `[]`).
   """
 
   @typedoc """
@@ -385,6 +387,57 @@ defmodule PhoenixKit.Module do
   """
   @callback migrate_legacy() :: :ok | {:ok, map()} | {:error, term()}
 
+  @typedoc """
+  A module-contributed section on the core Email Sending settings page
+  (`/admin/settings/email-sending`).
+
+    * `:id` — unique atom, used as the `live_component` DOM id.
+    * `:title` — section heading rendered above the component.
+    * `:permission` — module permission key gating visibility, checked the
+      same way admin tab permissions are (via
+      `PhoenixKit.Users.Auth.Scope.has_module_access?/2`); `nil` renders the
+      section unconditionally to any admin who can reach the page.
+    * `:component` — a `Phoenix.LiveComponent` module. The core page mounts
+      it as `<.live_component module={component} id={id} />` — the section
+      owns its own `mount/update/handle_event`, so the core page needs no
+      knowledge of what's inside.
+  """
+  @type email_settings_section :: %{
+          required(:id) => atom(),
+          required(:title) => String.t(),
+          required(:permission) => String.t() | nil,
+          required(:component) => module()
+        }
+
+  @doc """
+  Returns module-contributed sections to render on the core Email Sending
+  settings page (`/admin/settings/email-sending`), below the core sections
+  (sender identity, transport, default integration, test send).
+
+  Lets a module (e.g. an emails or newsletters package) add its own
+  settings UI to the shared page without the core page needing to know it
+  exists — the same zero-config pattern as `settings_tabs/0`, but for
+  composing INTO one page instead of adding a new tab. Collected via
+  `PhoenixKit.ModuleRegistry.all_email_settings_sections/0`, which only
+  consults **enabled** modules — a disabled module must not inject a
+  live_component that assumes its own supervised state is running.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def email_settings_sections do
+        [%{
+          id: :emails_queue_pacing,
+          title: "Queue & Pacing",
+          permission: "emails",
+          component: PhoenixKit.Modules.Emails.Web.SettingsSection
+        }]
+      end
+
+  Modules with nothing to add here skip this callback — the default is `[]`.
+  """
+  @callback email_settings_sections() :: [email_settings_section()]
+
   @optional_callbacks [
     get_config: 0,
     permission_metadata: 0,
@@ -404,7 +457,8 @@ defmodule PhoenixKit.Module do
     js_sources: 0,
     sitemap_sources: 0,
     reserved_route_prefixes: 0,
-    migrate_legacy: 0
+    migrate_legacy: 0,
+    email_settings_sections: 0
   ]
 
   defmacro __using__(_opts) do
@@ -474,6 +528,9 @@ defmodule PhoenixKit.Module do
       @impl PhoenixKit.Module
       def migrate_legacy, do: :ok
 
+      @impl PhoenixKit.Module
+      def email_settings_sections, do: []
+
       defoverridable get_config: 0,
                      permission_metadata: 0,
                      admin_tabs: 0,
@@ -492,7 +549,8 @@ defmodule PhoenixKit.Module do
                      js_sources: 0,
                      sitemap_sources: 0,
                      reserved_route_prefixes: 0,
-                     migrate_legacy: 0
+                     migrate_legacy: 0,
+                     email_settings_sections: 0
     end
   end
 end

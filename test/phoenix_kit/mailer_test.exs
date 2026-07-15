@@ -89,6 +89,7 @@ defmodule PhoenixKit.MailerTest do
   alias PhoenixKit.Mailer
   alias PhoenixKit.MailerTest.FakeBrevoApiClient
   alias PhoenixKit.MailerTest.TrackingProvider
+  alias PhoenixKit.Settings
 
   describe "swoosh_config_for/1" do
     test "aws_ses credentials build an AmazonSES adapter config" do
@@ -315,6 +316,90 @@ defmodule PhoenixKit.MailerTest do
       # the integration's provider, not the host app's static mailer adapter.
       assert intercept_opts[:provider] == "brevo_api"
       assert_received {:handle_after_send_called, {:ok, %{id: "test-message-id"}}}
+    end
+  end
+
+  describe "deliver_email/2 — default send integration routing" do
+    test "no \"default_email_integration_uuid\" setting delivers via the built-in path unchanged" do
+      email =
+        new() |> to("ok@example.com") |> Swoosh.Email.from("from@example.com") |> subject("Hi")
+
+      assert {:ok, _} = Mailer.deliver_email(email)
+      assert_received {:email, _}
+    end
+
+    test "a blank \"default_email_integration_uuid\" setting is treated as absent" do
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", "")
+
+      email =
+        new() |> to("ok@example.com") |> Swoosh.Email.from("from@example.com") |> subject("Hi")
+
+      assert {:ok, _} = Mailer.deliver_email(email)
+      assert_received {:email, _}
+    end
+
+    test "a setting pointing at a deleted/unknown integration falls back to the built-in path" do
+      {:ok, _} =
+        Settings.update_setting("default_email_integration_uuid", Ecto.UUID.generate())
+
+      email =
+        new() |> to("ok@example.com") |> Swoosh.Email.from("from@example.com") |> subject("Hi")
+
+      assert {:ok, _} = Mailer.deliver_email(email)
+      assert_received {:email, _}
+    end
+
+    test "a setting resolving to a configured connection routes through that integration, bypassing the built-in mailer" do
+      original_api_client = Application.get_env(:swoosh, :api_client)
+      original_provider = Application.get_env(:phoenix_kit, :email_provider)
+
+      Application.put_env(:swoosh, :api_client, FakeBrevoApiClient)
+      Application.put_env(:phoenix_kit, :email_provider, TrackingProvider)
+
+      on_exit(fn ->
+        if original_api_client,
+          do: Application.put_env(:swoosh, :api_client, original_api_client),
+          else: Application.delete_env(:swoosh, :api_client)
+
+        if original_provider,
+          do: Application.put_env(:phoenix_kit, :email_provider, original_provider),
+          else: Application.delete_env(:phoenix_kit, :email_provider)
+      end)
+
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("brevo_api", "default sender")
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "xkeysib-test"})
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", uuid)
+
+      email =
+        new()
+        |> to("to@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Routed via default integration")
+
+      assert {:ok, %{id: "test-message-id"}} = Mailer.deliver_email(email)
+
+      # Delivered via the Brevo integration's own HTTP path, not the
+      # built-in Swoosh.Adapters.Test mailer configured for `PhoenixKit.Mailer`.
+      assert_received {:fake_brevo_post, _url, _headers, _body}
+      refute_received {:email, _}
+
+      assert_received {:intercept_before_send_called, intercept_opts}
+      assert intercept_opts[:provider] == "brevo_api"
+    end
+
+    test "recipient blocklist is still enforced when routed through a default integration" do
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("brevo_api", "default sender")
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "xkeysib-test"})
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", uuid)
+
+      email =
+        new()
+        |> to("blocked@example.com")
+        |> Swoosh.Email.from("from@example.com")
+        |> subject("Hi")
+
+      assert {:error, {:blocked, :blocklist}} = Mailer.deliver_email(email)
+      refute_received {:email, _}
     end
   end
 end

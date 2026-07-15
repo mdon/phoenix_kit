@@ -1,0 +1,182 @@
+defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
+  @moduledoc """
+  Smoke tests for the core Email Sending settings page
+  (`/admin/settings/email-sending`) — sender identity, the transport
+  panel, the default send integration picker, and the test-send action.
+
+  Auth + sandbox plumbing comes from `PhoenixKitWeb.ConnCase`.
+  """
+
+  use PhoenixKitWeb.ConnCase, async: true
+
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
+
+  @path Routes.path("/admin/settings/email-sending")
+
+  defp setup_admin(%{conn: conn}) do
+    {user, _token} = create_admin_user()
+    conn = log_in_user(conn, user)
+    %{conn: conn, user: user}
+  end
+
+  defp seed_smtp(name) do
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("smtp", name)
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{
+        "host" => "smtp.example.com",
+        "port" => "587",
+        "username" => "user",
+        "password" => "pw"
+      })
+
+    uuid
+  end
+
+  describe "rendering" do
+    setup :setup_admin
+
+    test "renders the page title", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "Email Sending"
+    end
+
+    test "shows the built-in mailer when no parent app mailer is configured",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "built-in PhoenixKit mailer"
+    end
+
+    test "shows the empty state when no email-capable integrations are connected",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "No email-capable integrations connected yet."
+    end
+
+    test "lists a connected email-capable integration in the transport panel",
+         %{conn: conn} do
+      seed_smtp("primary relay")
+
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "primary relay"
+    end
+
+    test "the default integration picker offers connected email-capable integrations",
+         %{conn: conn} do
+      uuid = seed_smtp("primary relay")
+
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ ~s(value="#{uuid}")
+    end
+
+    test "links to the send profiles subpage", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "/admin/settings/email-sending/profiles"
+    end
+  end
+
+  describe "sender identity" do
+    setup :setup_admin
+
+    test "shows the built-in default as a placeholder when unset", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @path)
+      assert html =~ "PhoenixKit"
+      assert html =~ "noreply@localhost"
+    end
+
+    test "saving sender identity persists to Settings and updates the effective value",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("form[phx-submit=\"save_sender_identity\"]")
+        |> render_submit(%{"from_name" => "Acme Support", "from_email" => "support@acme.com"})
+
+      assert html =~ "Sender identity updated"
+      assert html =~ "Acme Support"
+      assert html =~ "support@acme.com"
+
+      assert Settings.get_setting("from_name") == "Acme Support"
+      assert Settings.get_setting("from_email") == "support@acme.com"
+    end
+
+    test "clearing sender identity fields falls back to the built-in default again",
+         %{conn: conn} do
+      {:ok, _} = Settings.update_setting("from_name", "Acme Support")
+      {:ok, _} = Settings.update_setting("from_email", "support@acme.com")
+
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("form[phx-submit=\"save_sender_identity\"]")
+        |> render_submit(%{"from_name" => "", "from_email" => ""})
+
+      assert html =~ "Sender identity updated"
+      assert Settings.get_setting("from_name") == ""
+      assert Settings.get_setting("from_email") == ""
+    end
+  end
+
+  describe "default send integration" do
+    setup :setup_admin
+
+    test "selecting a connected integration persists the setting", %{conn: conn} do
+      uuid = seed_smtp("primary relay")
+
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("form[phx-change=\"select_default_integration\"]")
+        |> render_change(%{"integration_uuid" => uuid})
+
+      assert html =~ "Default send integration updated"
+      assert Settings.get_setting("default_email_integration_uuid") == uuid
+    end
+
+    test "clearing the selection back to \"None\" persists an empty setting",
+         %{conn: conn} do
+      uuid = seed_smtp("primary relay")
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", uuid)
+
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> element("form[phx-change=\"select_default_integration\"]")
+      |> render_change(%{"integration_uuid" => ""})
+
+      assert Settings.get_setting("default_email_integration_uuid") == ""
+    end
+  end
+
+  describe "test send" do
+    setup :setup_admin
+
+    test "sending to a valid recipient shows a success flash", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("form[phx-submit=\"send_test_email\"]")
+        |> render_submit(%{"recipient" => "ops@example.com"})
+
+      assert html =~ "Test email sent to ops@example.com"
+    end
+
+    test "a blank recipient surfaces a validation error instead of attempting to send",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("form[phx-submit=\"send_test_email\"]")
+        |> render_submit(%{"recipient" => "  "})
+
+      assert html =~ "Enter a recipient email address"
+    end
+  end
+end
