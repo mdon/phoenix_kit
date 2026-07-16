@@ -69,12 +69,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   - `phoenix_kit_current_user` — logged-in user struct (for upload attribution)
   - `scope_folder_id` — constrain the browser to a virtual root folder
   - `on_navigate` — when truthy, enables controlled mode (URL-sync via parent)
-  - `admin` — when `true`, clicking a file opens the admin detail page at
-    `/admin/media/:uuid`. When `false` (default), clicks open a read-only
-    in-place modal viewer (image / video / PDF / icon + metadata + Download
-    + prev/next navigation). Bulk-select is still reachable via the
-    toolbar's Select button — once `select_mode` is on, clicks toggle
-    selection instead of opening the modal.
+  - `admin` — clicking a file always opens the in-place modal viewer
+    (image / video / PDF / icon + metadata + Download + prev/next
+    navigation). When `true`, the viewer sidebar additionally shows an
+    "Open details page" button linking to `/admin/media/:uuid`, and
+    rotations made in the viewer persist to the file row. Bulk-select is
+    still reachable via the toolbar's Select button — once `select_mode`
+    is on, clicks toggle selection instead of opening the modal.
   """
   use PhoenixKitWeb, :live_component
 
@@ -151,6 +152,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Map.has_key?(assigns, :pending_upload) ->
         {:ok, process_pending_upload(socket, assigns.pending_upload)}
 
+      # Background processing finished (see attach_file_event_forwarding/1).
+      Map.has_key?(assigns, :file_processed) ->
+        {:ok, refresh_processed_file(socket, assigns.file_processed)}
+
       # The header-image picker (MediaSelectorModal) reports back here via
       # `notify: {__MODULE__, id}`: a confirmed selection sets the cover or logo
       # (per `@image_picker_target`); a close just dismisses the picker.
@@ -198,6 +203,40 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       )
 
       assign(socket, :batch_scheduled, true)
+    end
+  end
+
+  # A ProcessFileJob finished for `file_uuid` — its dimensions, variants,
+  # and status just landed. If the file is on the current page or open in
+  # the modal viewer, swap in a freshly-enriched map so thumbnails and the
+  # correctly-proportioned canvas appear without a manual reload. (The
+  # viewer's canvas-viewer LC id encodes dims + variant count, so the swap
+  # remounts it with the real canvas instead of the 1000x1000 placeholder.)
+  # Files not in view are skipped — their next load reads fresh rows anyway.
+  defp refresh_processed_file(socket, file_uuid) do
+    viewer = socket.assigns[:viewer_file]
+    viewing? = is_map(viewer) and viewer.file_uuid == file_uuid
+    in_grid? = Enum.any?(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
+
+    fresh =
+      if viewing? or in_grid? do
+        case Storage.get_file(file_uuid) do
+          %Storage.File{} = file -> enrich_files([file]) |> List.first()
+          _ -> nil
+        end
+      end
+
+    if fresh do
+      socket
+      |> assign(
+        :uploaded_files,
+        Enum.map(socket.assigns.uploaded_files, fn f ->
+          if f.file_uuid == file_uuid, do: fresh, else: f
+        end)
+      )
+      |> then(&if(viewing?, do: assign(&1, :viewer_file, fresh), else: &1))
+    else
+      socket
     end
   end
 
@@ -532,6 +571,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         auto_upload: true,
         progress: &__MODULE__.parent_progress/3
       )
+      |> attach_file_event_forwarding()
+    end
+  end
+
+  # Live-refresh plumbing: subscribe the parent LiveView to storage file
+  # events and forward each `{:phoenix_kit_file_processed, uuid}` to every
+  # registered MediaBrowser on the page, so a just-uploaded file's
+  # dimensions/thumbnails appear without a manual reload (the component
+  # refreshes the grid row + open viewer in its `update/2`). A lifecycle
+  # hook (not an injected clause) so it composes with host LiveViews that
+  # define their own handle_info; it {:halt}s, so the message never leaks
+  # to host clauses. Guarded by setup_uploads' run-once check above —
+  # attach_hook raises on duplicate names.
+  defp attach_file_event_forwarding(socket) do
+    if connected?(socket) do
+      Storage.subscribe_to_file_events()
+
+      attach_hook(socket, :phoenix_kit_mb_file_events, :handle_info, fn
+        {:phoenix_kit_file_processed, file_uuid}, socket ->
+          socket.assigns[:media_browser_ids]
+          |> Kernel.||(MapSet.new())
+          |> Enum.each(&send_update(__MODULE__, id: &1, file_processed: file_uuid))
+
+          {:halt, socket}
+
+        _msg, socket ->
+          {:cont, socket}
+      end)
+    else
+      socket
     end
   end
 
@@ -1446,23 +1515,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_folders, MapSet.put(socket.assigns.selected_folders, uuid))}
   end
 
+  # In selection mode, clicks toggle the file in/out and stay in selection
+  # mode (the toolbar's "Select" button is how callers reach bulk-select).
+  # Otherwise open the in-place modal viewer for that file — admin context
+  # gets the same popup, plus an "Open details page" button in the sidebar
+  # (see `details_path`) for the full /admin/media/:uuid page.
   def handle_event("click_file", %{"file-uuid" => file_uuid}, socket) do
-    cond do
-      # Already in selection mode → toggle this file in/out, stay in selection mode.
-      # The toolbar's "Select" button is how callers reach bulk-select; once on,
-      # clicks add/remove rather than open the modal.
-      socket.assigns.select_mode ->
-        {:noreply, do_toggle_file(socket, file_uuid)}
-
-      # Admin context → navigate to the rich admin detail page.
-      socket.assigns.admin ->
-        {:noreply, push_navigate(socket, to: Routes.path("/admin/media/#{file_uuid}"))}
-
-      # Anywhere else (non-admin, not in select mode) → open the in-place
-      # modal viewer for that file. This is the default and is what every
-      # embedded MediaBrowser gets unless `admin={true}` is set.
-      true ->
-        {:noreply, open_viewer(socket, find_uploaded_file(socket, file_uuid))}
+    if socket.assigns.select_mode do
+      {:noreply, do_toggle_file(socket, file_uuid)}
+    else
+      {:noreply, open_viewer(socket, find_uploaded_file(socket, file_uuid))}
     end
   end
 

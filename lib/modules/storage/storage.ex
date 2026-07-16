@@ -45,6 +45,9 @@ defmodule PhoenixKit.Modules.Storage do
 
   @default_path "priv/uploads"
 
+  # PubSub topic for file lifecycle events (see subscribe_to_file_events/0).
+  @files_topic "phoenix_kit:media:files"
+
   # ===== MODULE STATUS =====
 
   @doc """
@@ -58,6 +61,32 @@ defmodule PhoenixKit.Modules.Storage do
       true
   """
   def module_enabled?, do: true
+
+  # ===== FILE EVENTS (PubSub) =====
+
+  @doc """
+  Subscribes the current process to file lifecycle events.
+
+  Messages delivered:
+
+    * `{:phoenix_kit_file_processed, file_uuid}` — background processing
+      finished for the file (dimensions extracted, variants generated —
+      or processing failed; reload the row to see which). Broadcast by
+      `PhoenixKit.Modules.Storage.ProcessFileJob` so open UIs can refresh
+      a just-uploaded file without a page reload.
+  """
+  def subscribe_to_file_events do
+    PhoenixKit.PubSub.Manager.subscribe(@files_topic)
+  end
+
+  @doc """
+  Broadcasts that background processing finished for `file_uuid`.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_file_processed(file_uuid) when is_binary(file_uuid) do
+    PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_processed, file_uuid})
+  end
 
   # ===== BUCKETS =====
 

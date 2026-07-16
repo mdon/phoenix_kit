@@ -2309,11 +2309,12 @@
   <% end %>
 
   <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>
-  <%!-- Default click target for non-admin, non-select_mode browsers — the    --%>
-  <%!-- click_file handler stashes the clicked file in :viewer_file and this  --%>
-  <%!-- block renders the preview + metadata + Download. Pickers reach        --%>
-  <%!-- bulk-select via the toolbar's Select button (`select_mode` toggle).   --%>
-  <%!-- Closes via X / Esc / backdrop click.                                  --%>
+  <%!-- Default click target for non-select_mode browsers — the click_file    --%>
+  <%!-- handler stashes the clicked file in :viewer_file and this block       --%>
+  <%!-- renders the preview + metadata + Download. Admin browsers get the     --%>
+  <%!-- same popup plus an "Open details page" sidebar button (details_path). --%>
+  <%!-- Pickers reach bulk-select via the toolbar's Select button             --%>
+  <%!-- (`select_mode` toggle). Closes via X / Esc / backdrop click.          --%>
   <%= if assigns[:viewer_file] do %>
     <% f = @viewer_file %>
     <% viewer_idx = Enum.find_index(@uploaded_files, &(&1.file_uuid == f.file_uuid)) %>
@@ -2346,16 +2347,20 @@
         <%!-- with filename + Download + metadata + comments thread) is  --%>
         <%!-- owned by the MediaCanvasViewer child LiveComponent. Its id --%>
         <%!-- includes the file uuid so prev/next destroys and remounts  --%>
-        <%!-- on file change (clean canvas re-hydration).                 --%>
+        <%!-- on file change (clean canvas re-hydration), plus the dims  --%>
+        <%!-- + variant count so a processing-completion refresh (see    --%>
+        <%!-- refresh_processed_file/2) remounts with the real canvas    --%>
+        <%!-- instead of the 1000x1000 placeholder.                      --%>
         <.live_component
           module={PhoenixKitWeb.Components.MediaCanvasViewer}
-          id={"media-canvas-viewer-" <> f.file_uuid}
+          id={"media-canvas-viewer-#{f.file_uuid}-#{f.width || 0}x#{f.height || 0}-#{map_size(f.urls)}"}
           file={f}
           current_user={assigns[:phoenix_kit_current_user]}
           parent_id={@id}
           has_prev={has_prev}
           has_next={has_next}
           persist_rotation={@admin}
+          details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
         />
       </div>
       <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>

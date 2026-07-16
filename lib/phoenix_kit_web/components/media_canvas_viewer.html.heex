@@ -195,6 +195,29 @@
           </div>
       <% end %>
 
+      <%!-- Transient rotation save-status pill — persist_rotation writes  --%>
+      <%!-- are otherwise invisible (indistinguishable from a view-only     --%>
+      <%!-- rotation). Shown for a moment after each actual save / failure; --%>
+      <%!-- auto-hidden by the :clear_rotation_status timer.                 --%>
+      <div
+        :if={@rotation_status}
+        class={[
+          "absolute bottom-4 left-1/2 -translate-x-1/2 z-20 badge shadow-lg gap-1",
+          @rotation_status == :saved && "badge-success",
+          @rotation_status == :error && "badge-error"
+        ]}
+      >
+        <.icon
+          name={
+            if @rotation_status == :saved, do: "hero-check", else: "hero-exclamation-triangle"
+          }
+          class="w-3.5 h-3.5"
+        />
+        {if @rotation_status == :saved,
+          do: gettext("Rotation saved"),
+          else: gettext("Failed to save rotation")}
+      </div>
+
       <%!-- Floating annotation composer — positioned above the just-drawn --%>
       <%!-- shape by the AnnotationComposerPosition JS hook (it looks up    --%>
       <%!-- the shape via [data-uuid="…"]). Sidebar comments stay visible   --%>
@@ -239,17 +262,28 @@
         {f.filename}
       </h2>
 
-      <%= if f.urls["original"] do %>
-        <a
-          href={f.urls["original"]}
-          download={f.filename}
-          target="_blank"
-          rel="noopener"
-          class="btn btn-primary btn-sm gap-2 self-start"
+      <div class="flex flex-wrap items-center gap-2">
+        <%= if f.urls["original"] do %>
+          <a
+            href={f.urls["original"]}
+            download={f.filename}
+            target="_blank"
+            rel="noopener"
+            class="btn btn-primary btn-sm gap-2"
+          >
+            <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext("Download")}
+          </a>
+        <% end %>
+        <%!-- Admin-context hosts pass details_path — full-page detail view --%>
+        <%!-- with the metadata editor, variants, and storage locations.    --%>
+        <.link
+          :if={@details_path}
+          navigate={@details_path}
+          class="btn btn-ghost btn-sm gap-2"
         >
-          <.icon name="hero-arrow-down-tray" class="w-4 h-4" /> {gettext("Download")}
-        </a>
-      <% end %>
+          <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> {gettext("Details")}
+        </.link>
+      </div>
 
       <div class="text-sm space-y-2 mt-1">
         <div>
