@@ -26,17 +26,18 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     3. **Pool Configuration** — Pool size, checkout timeout, queue settings
     4. **PgBouncer Detection** — Is PgBouncer between app and PostgreSQL?
     5. **Migration State** — PhoenixKit version (COMMENT), schema_migrations alignment
-    6. **Pending Migrations** — Migration files not yet recorded in schema_migrations
-    7. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
-    8. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
-    9. **Orphaned FK References** — Detects orphaned rows that block FK constraint creation
-   10. **Lock Conflicts** — Any blocked or long-running queries?
-   11. **Orphaned Connections** — Idle-in-transaction or stuck connections
-   12. **Oban Configuration** — Queues and plugins that consume pool connections
-   13. **Supervisor Children** — What's running (update_mode vs full)?
-   14. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
-   15. **Update Mode** — Is update_mode active?
-   16. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
+    6. **Schema Drift** — Columns a migration should have added but the DB lacks
+    7. **Pending Migrations** — Migration files not yet recorded in schema_migrations
+    8. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
+    9. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
+   10. **Orphaned FK References** — Detects orphaned rows that block FK constraint creation
+   11. **Lock Conflicts** — Any blocked or long-running queries?
+   12. **Orphaned Connections** — Idle-in-transaction or stuck connections
+   13. **Oban Configuration** — Queues and plugins that consume pool connections
+   14. **Supervisor Children** — What's running (update_mode vs full)?
+   15. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
+   16. **Update Mode** — Is update_mode active?
+   17. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
   """
 
   use Mix.Task
@@ -81,6 +82,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Pool Configuration", fn -> check_pool_config() end),
       run_check("PgBouncer Detection", fn -> check_pgbouncer() end),
       run_check("Migration State", fn -> check_migration_state(prefix) end),
+      run_check("Schema Drift", fn -> check_schema_drift(prefix) end),
       run_check("Pending Migrations", fn -> check_pending_migrations() end),
       run_check("UUID Column Types", fn -> check_uuid_column_types(prefix) end),
       run_check("NULL UUIDs in FK Sources", fn -> check_null_uuids(prefix) end),
@@ -243,6 +245,71 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         {:warn, "DB version > code version.\n       #{info}"}
     end
   end
+
+  # Columns a given migration version adds. If the version marker claims that
+  # version (or higher) but the column is missing at the prefix, the install
+  # drifted — the marker is ahead of the actual schema (e.g. a version renumber
+  # that crossed an upgrade, or an earlier prefix-confused migration run). A
+  # query that selects the column then crashes at runtime, and re-running the
+  # migrator is a no-op because the marker already covers that version.
+  @expected_columns [
+    {150, "phoenix_kit_users_tokens", "browser"},
+    {150, "phoenix_kit_users_tokens", "os"}
+  ]
+
+  defp check_schema_drift(prefix) do
+    repo = get_repo!()
+    escaped_prefix = String.replace(prefix, "'", "\\'")
+    marker = get_comment_version(repo, escaped_prefix)
+
+    if marker == 0 do
+      {:pass, "PhoenixKit not installed at prefix #{inspect(prefix)} — nothing to check."}
+    else
+      missing =
+        @expected_columns
+        |> Enum.filter(fn {min_version, _t, _c} -> marker >= min_version end)
+        |> Enum.reject(fn {_v, table, column} ->
+          column_exists?(repo, escaped_prefix, table, column)
+        end)
+
+      report_schema_drift(missing, marker, prefix)
+    end
+  end
+
+  defp report_schema_drift([], marker, _prefix),
+    do: {:pass, "Columns expected at V#{marker} are present."}
+
+  defp report_schema_drift(missing, marker, prefix) do
+    names = Enum.map_join(missing, ", ", fn {v, t, c} -> "#{t}.#{c} (V#{v})" end)
+    lowest = missing |> Enum.map(fn {v, _t, _c} -> v end) |> Enum.min()
+    p = if prefix == "public", do: "public.", else: "#{prefix}."
+
+    {:fail,
+     "Marker says V#{marker} but these columns are missing: #{names}. The install drifted " <>
+       "(marker ahead of schema). Roll the marker back one version and re-run the migrator — " <>
+       "the column adds are idempotent (add_if_not_exists), so this is safe:\n" <>
+       "       COMMENT ON TABLE #{p}phoenix_kit IS '#{lowest - 1}';\n" <>
+       "       mix phoenix_kit.update#{prefix_flag(prefix)}"}
+  end
+
+  defp column_exists?(repo, escaped_prefix, table, column) do
+    query = """
+    SELECT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_schema = '#{escaped_prefix}'
+      AND table_name = '#{table}'
+      AND column_name = '#{column}'
+    )
+    """
+
+    case repo.query(query, [], log: false) do
+      {:ok, %{rows: [[true]]}} -> true
+      _ -> false
+    end
+  end
+
+  defp prefix_flag("public"), do: ""
+  defp prefix_flag(prefix), do: " --prefix=#{prefix}"
 
   defp check_pending_migrations do
     repo = get_repo!()
