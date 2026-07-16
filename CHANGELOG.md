@@ -1,3 +1,36 @@
+## 1.7.198 - 2026-07-16
+
+### Added
+- Live refresh for the `MediaBrowser` popup viewer: `ProcessFileJob` and
+  `AnnotationThumbnailJob` now broadcast completion over PubSub
+  (`Storage.subscribe_to_file_events/0`), so a just-uploaded file's
+  dimensions/variants and a rebaked annotated thumbnail appear in an open
+  browser/viewer without a manual reload. Thumbnail updates refresh the
+  grid row only — an open annotator session is never remounted mid-edit.
+- Collapsible info sidebar in the popup viewer (filename/Download/
+  metadata/comments), toggled from a corner button and persisted per-user
+  so it survives prev/next, reopen, and reload.
+- Rotation-save confirmation: a transient status pill over the canvas
+  confirms each persisted rotation (or surfaces a failure) — previously
+  the write was invisible, indistinguishable from a view-only rotation.
+- Admin-context `MediaBrowser` clicks now open the same in-place modal
+  viewer as everyone else (previously they navigated straight to
+  `/admin/media/:uuid`); the viewer sidebar gains an "Open details page"
+  link to the full admin page instead.
+- Folder view now scrolls as a single region — breadcrumbs, hero header,
+  toolbar, and file grid scroll together instead of the grid owning its
+  own nested scrollport — fixing the list view's sticky column header not
+  pinning correctly against the real scroll area.
+- Bumped `etcher` to 0.8.0, `fresco` to 0.9.0, `tessera` to 0.3.3.
+
+### Fixed
+- `MarkdownEditor`'s unsaved-changes navigation guard is now opt-in
+  (`protect_navigation={true}`), off by default. The old `true` default
+  never actually armed the guard — a boolean renders as a bare HEEx
+  attribute, which failed the JS hook's `=== "true"` string check — so
+  this makes the previously-inert behavior deliberate, and hosts that
+  pass `protect_navigation={true}` now get a real (working) guard.
+
 ## 1.7.197 - 2026-07-16
 
 ### Added
