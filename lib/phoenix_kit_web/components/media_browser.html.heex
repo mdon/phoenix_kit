@@ -135,8 +135,13 @@
           <% end %>
 
           <div class="min-h-0 flex-1 flex flex-col">
+            <%!-- The single scroll area for the whole content column —
+                 breadcrumbs, folder hero header, toolbar, and the file grid
+                 all scroll together (the grid wrapper below is NOT its own
+                 scroll region). The list view's sticky column header pins to
+                 the top of this scrollport once the header scrolls past. --%>
             <div
-              class="px-2 pb-2 min-h-0 flex-1 flex flex-col"
+              class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto"
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
@@ -273,10 +278,10 @@
               <% show_file_count = header_folder && header_folder.header_show_file_count %>
               <% show_creation_info = show_creator || show_date || show_file_count %>
               <% show_description = header_folder && header_folder.header_show_description %>
-              <%!-- `relative z-30` lifts the whole header above the list's
-                   scroll area (which comes later in the DOM), so the toolbar
-                   dropdowns open *over* the sticky table header instead of
-                   being painted behind it. --%>
+              <%!-- `relative z-30` lifts the whole header above the file area
+                   below (same scroll container, later in the DOM), so the
+                   toolbar dropdowns open *over* the sticky table header
+                   (z-10) instead of being painted behind it. --%>
               <div class={[
                 "relative z-30 rounded-xl mb-3 sm:mb-4 flex flex-col justify-end",
                 header_min_h
@@ -1137,7 +1142,7 @@
                 so the wrapper isn't a drop target there.
               --%>
               <div
-                class="rounded-lg min-h-0 flex-1 overflow-auto pr-1"
+                class="rounded-lg min-h-0 flex-1 pr-1"
                 data-drop-folder={
                   if not @filter_trash and @file_view != "all" do
                     if @current_folder, do: @current_folder.uuid, else: "root"
