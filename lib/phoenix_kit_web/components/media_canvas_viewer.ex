@@ -80,6 +80,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   @default_etcher_line_params %{"width" => 2, "opacity" => 1, "dash" => "solid"}
   @etcher_dash_values ~w(solid dashed dotted)
 
+  # Whether the info sidebar (filename / Download / metadata / comments) is
+  # collapsed to give the viewer the full popup width. Per-user, one value
+  # across every viewer — stored in `custom_fields` ("user meta") like the
+  # Etcher palette, so it survives prev/next remounts, reopen, and reload.
+  @viewer_info_collapsed_key "media_viewer_info_collapsed"
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -98,6 +104,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:persist_rotation, false)
      |> assign(:rotation_status, nil)
      |> assign(:rotation_status_token, 0)
+     |> assign(:sidebar_collapsed, false)
      |> assign(:details_path, nil)}
   end
 
@@ -171,6 +178,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         # edit, where the parent's `current_user` may be stale.
         |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
         |> assign(:etcher_line_params, load_user_line_params(assigns[:current_user]))
+        |> assign(:sidebar_collapsed, load_sidebar_collapsed(assigns[:current_user]))
       else
         socket
       end
@@ -278,6 +286,16 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       end
 
     {:noreply, socket}
+  end
+
+  # Collapse/expand the info sidebar so the viewer gets the full popup
+  # width (the win is biggest on small screens). Persisted per-user so
+  # prev/next — which remounts this component — and later opens keep
+  # the choice. Helpers live in "Info sidebar collapse" below.
+  def handle_event("toggle_viewer_sidebar", _params, socket) do
+    collapsed = not socket.assigns[:sidebar_collapsed]
+    persist_sidebar_collapsed(socket.assigns[:current_user], collapsed)
+    {:noreply, assign(socket, :sidebar_collapsed, collapsed)}
   end
 
   # ──────────────────────────────────────────────────────────────
@@ -388,6 +406,35 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   end
 
   defp normalize_rotation(_), do: 0
+
+  # ──────────────────────────────────────────────────────────────
+  # Info sidebar collapse (see handle_event "toggle_viewer_sidebar")
+  # ──────────────────────────────────────────────────────────────
+
+  # Fresh read (not the parent-passed struct), matching the Etcher palette
+  # helpers — keeps the value correct on modal prev/next after an
+  # in-session toggle. Anything but a stored `true` means expanded.
+  defp load_sidebar_collapsed(%{uuid: uuid} = user) do
+    fresh = Auth.get_user(uuid) || user
+    Auth.get_user_field(fresh, @viewer_info_collapsed_key) == true
+  end
+
+  defp load_sidebar_collapsed(_), do: false
+
+  # Merge into a freshly-read copy so a concurrent custom_fields change
+  # elsewhere isn't clobbered. No user → session-local only (the assign
+  # still toggles; it just won't survive a remount).
+  defp persist_sidebar_collapsed(%{uuid: uuid} = user, collapsed) do
+    fresh = Auth.get_user(uuid) || user
+    merged = Map.put(fresh.custom_fields || %{}, @viewer_info_collapsed_key, collapsed)
+
+    case Auth.update_user_custom_fields(fresh, merged) do
+      {:ok, _updated} -> :ok
+      {:error, _changeset} -> :ok
+    end
+  end
+
+  defp persist_sidebar_collapsed(_, _), do: :ok
 
   # ──────────────────────────────────────────────────────────────
   # Annotation persistence + canvas blob

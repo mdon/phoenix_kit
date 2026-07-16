@@ -393,6 +393,51 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Info sidebar collapse — viewer-only mode for small screens, per-user sticky
+  # ---------------------------------------------------------------------------
+
+  describe "info sidebar collapse in the popup" do
+    test "collapse hides the sidebar, persists across reopen, expand restores it",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "MIME:"
+
+      # Collapse via the divider strip — the metadata sidebar disappears and
+      # the expand affordance takes its place.
+      html = view |> element("[phx-click='toggle_viewer_sidebar']") |> render_click()
+      refute html =~ "MIME:"
+      assert html =~ "Show details"
+
+      # Close and reopen — the choice is persisted per-user (user meta), so
+      # the popup opens collapsed.
+      view |> element("#media-browser-viewer-modal .modal-backdrop") |> render_click()
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      refute html =~ "MIME:"
+
+      # Expand brings the sidebar back.
+      html = view |> element("[phx-click='toggle_viewer_sidebar']") |> render_click()
+      assert html =~ "MIME:"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Live refresh — ProcessFileJob's broadcast updates the grid + open viewer
   # ---------------------------------------------------------------------------
 
