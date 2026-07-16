@@ -20,6 +20,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
       socket
       |> assign(:send_profile, nil)
       |> assign(:project_title, Settings.get_project_title())
+      |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign(:connections_by_provider, load_connections())
 
     {:ok, socket}
@@ -139,5 +140,9 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
       %{name: name} -> name
       _ -> provider_key
     end
+  end
+
+  defp get_current_path(locale) do
+    Routes.path("/admin/settings/email-sending/profiles", locale: locale)
   end
 end

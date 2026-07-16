@@ -62,6 +62,21 @@ defmodule PhoenixKit.Email.SendProfiles do
 
       get_send_profile!(uuid)
     end)
+  rescue
+    # Two concurrent "make default" clicks race on the partial unique index:
+    # each transaction's clear-step can't see the other's uncommitted set-step,
+    # so the loser's set-step trips the index and `update_all` RAISES — it
+    # bypasses changesets, so nothing translates the constraint into an error
+    # tuple. Normalize it: the LiveView's generic {:error, _} clause then shows
+    # "could not set default" instead of the whole view crashing. Anything
+    # other than exactly this constraint re-raises untouched.
+    e in Postgrex.Error ->
+      if e.postgres[:code] == :unique_violation and
+           e.postgres[:constraint] == "idx_email_send_profiles_default" do
+        {:error, :concurrent_default_change}
+      else
+        reraise e, __STACKTRACE__
+      end
   end
 
   defp repo, do: PhoenixKit.RepoHelper.repo()

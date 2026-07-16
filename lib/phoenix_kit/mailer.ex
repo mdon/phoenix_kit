@@ -245,6 +245,15 @@ defmodule PhoenixKit.Mailer do
   # than failing the send outright. NOT used by `deliver_via_integration/3`
   # itself (which takes an explicit uuid), so there is no recursion risk
   # here: this function never calls `deliver_email/2`.
+  #
+  # Why credentials-present (`connected?/1`) is the gate and a status check
+  # would be wrong (review question, settled 2026-07-16): `disconnect/2`
+  # WIPES stored credentials, so "disconnected must not send" already holds —
+  # `connected?/1` is false without creds. The remaining case is status
+  # "error" (a failed Test Connection) with credentials still stored: that
+  # one deliberately still routes, because a stale or false-negative test
+  # silently rerouting ALL mail to the built-in path is the worse surprise —
+  # a genuinely broken integration fails the send loudly instead.
   @spec default_send_integration_uuid() :: {:ok, String.t()} | :error
   defp default_send_integration_uuid do
     with uuid when is_binary(uuid) and uuid != "" <-
