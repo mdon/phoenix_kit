@@ -21,17 +21,19 @@
       <.form_section title={gettext("Profile Details")} icon="hero-adjustments-horizontal">
         <.form id="send-profile-form" for={@form} phx-change="validate" phx-submit="save">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <.input
-              field={@form[:name]}
-              type="text"
-              label={gettext("Name *")}
-              placeholder={gettext("Marketing")}
-            />
+            <div>
+              <.label for={@form[:name].id}>
+                {gettext("Name")} <span class="text-error">*</span>
+              </.label>
+              <.input field={@form[:name]} type="text" placeholder={gettext("Marketing")} />
+            </div>
 
             <div>
+              <.label for={@form[:integration_uuid].id}>
+                {gettext("Integration")} <span class="text-error">*</span>
+              </.label>
               <.select
                 field={@form[:integration_uuid]}
-                label={gettext("Integration *")}
                 prompt={gettext("Select an integration...")}
                 options={integration_select_options(@connections_by_provider)}
               />

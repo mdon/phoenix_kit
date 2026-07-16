@@ -82,7 +82,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfiles do
       },
       %{
         label: gettext("Status"),
-        value: if(send_profile.enabled, do: gettext("Active"), else: gettext("Disabled"))
+        value: enabled_badge(%{enabled: send_profile.enabled, size: :sm, class: ""})
       }
     ]
   end
