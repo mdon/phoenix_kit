@@ -117,11 +117,19 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
 
         <span class="select-none">
           <span class={has_description? && "font-medium"}>
-            <%= if @inner_block != [] do %>
-              {render_slot(@inner_block)}
-            <% else %>
-              {@label}
-            <% end %>
+            <%!-- Render the label attr AND the default slot, in that order —
+                 never either/or. The old `if @inner_block != []` guard read as
+                 "rich content replaces the label", but HEEx assigns the
+                 component BODY to the default slot even when that body holds
+                 nothing except named-slot tags and their surrounding
+                 whitespace — so every `label=` + `<:description>` caller got a
+                 whitespace-only inner_block that silently replaced the label
+                 with a blank. Whitespace-only slot output collapses in HTML,
+                 so label-only, rich-only and label+description callers all
+                 render what they wrote, and a caller providing both label and
+                 body text gets both instead of losing the label. --%>
+            {@label}
+            {render_slot(@inner_block)}
           </span>
           <span :if={has_description?} class="block text-xs text-base-content/60">
             {render_slot(@description)}
