@@ -14,7 +14,10 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   ## Options
 
-    * `--prefix` - Database schema prefix (default: "public")
+    * `--prefix` - Database schema prefix. When omitted, resolves from
+      `config :phoenix_kit, :prefix`, then `"public"` — the same resolution
+      `mix phoenix_kit.update` / `--status` use, so a prefixed install is
+      diagnosed against the schema it actually lives in.
 
   ## Checks Performed
 
@@ -39,6 +42,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   use Mix.Task
 
   alias PhoenixKit.Install.ChildOrder
+  alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
@@ -50,10 +54,21 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   def run(argv) do
     {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
 
-    prefix = opts[:prefix] || "public"
-
     # Start app with minimal footprint (same approach as phoenix_kit.update)
     Mix.Task.run("app.config")
+
+    # Resolve the prefix AFTER app.config loads config, so a configured
+    # non-public prefix is honored — same resolution the updater/status use
+    # (--prefix flag → config :phoenix_kit, :prefix → "public"). Reading
+    # opts[:prefix] || "public" here queries the version marker at public and
+    # reports a prefixed install as "not installed".
+    prefix = PrefixConfig.resolve_prefix(opts)
+
+    # Snapshot the host's Oban config BEFORE cap_repo_pool_size/1 zeroes its
+    # queues/plugins (it does that to conserve connections in update_mode) —
+    # otherwise the Oban Configuration check reports "0 queues, 0 plugins".
+    oban_config = Application.get_env(Mix.Project.config()[:app], Oban)
+
     cap_repo_pool_size(2)
     Application.put_env(:phoenix_kit, :update_mode, true)
     Mix.Task.run("app.start")
@@ -72,7 +87,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Orphaned FK References", fn -> check_orphaned_fk_refs(prefix) end),
       run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
       run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
-      run_check("Oban Configuration", fn -> check_oban_config() end),
+      run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
       run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
       run_check("Child Start Order", fn -> check_child_order() end),
       run_check("Update Mode", fn -> check_update_mode() end),
@@ -580,21 +595,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-  defp check_oban_config do
-    app = Mix.Project.config()[:app]
+  # Reports the Oban config snapshotted in run/1 BEFORE cap_repo_pool_size/1
+  # zeroed its queues/plugins — reading it live here would always show 0/0.
+  defp check_oban_config(nil), do: {:pass, "Oban not configured"}
 
-    case Application.get_env(app, Oban) do
-      nil ->
-        {:pass, "Oban not configured"}
+  defp check_oban_config(config) when is_list(config) do
+    queues = Keyword.get(config, :queues, [])
+    plugins = Keyword.get(config, :plugins, [])
 
-      config ->
-        queues = Keyword.get(config, :queues, [])
-        plugins = Keyword.get(config, :plugins, [])
-
-        {:pass,
-         "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."}
-    end
+    {:pass,
+     "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."}
   end
+
+  defp check_oban_config(_other), do: {:pass, "Oban configured (non-keyword config)"}
 
   defp check_supervisor_state do
     case Process.whereis(PhoenixKit.Supervisor) do
