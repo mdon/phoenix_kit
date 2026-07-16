@@ -74,6 +74,13 @@ defmodule PhoenixKit.Modules.Storage do
       or processing failed; reload the row to see which). Broadcast by
       `PhoenixKit.Modules.Storage.ProcessFileJob` so open UIs can refresh
       a just-uploaded file without a page reload.
+
+    * `{:phoenix_kit_file_thumbnail_updated, file_uuid}` — the file's
+      baked annotated thumbnail was regenerated or removed. Broadcast by
+      `PhoenixKit.Modules.Storage.AnnotationThumbnailJob` so grids can
+      swap in the fresh thumbnail. Lighter than `file_processed`:
+      consumers should refresh thumbnails only, not remount open viewers
+      (the annotator is usually still working in one).
   """
   def subscribe_to_file_events do
     PhoenixKit.PubSub.Manager.subscribe(@files_topic)
@@ -86,6 +93,18 @@ defmodule PhoenixKit.Modules.Storage do
   """
   def broadcast_file_processed(file_uuid) when is_binary(file_uuid) do
     PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_processed, file_uuid})
+  end
+
+  @doc """
+  Broadcasts that the baked annotated thumbnail changed for `file_uuid`.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_file_thumbnail_updated(file_uuid) when is_binary(file_uuid) do
+    PhoenixKit.PubSub.Manager.broadcast(
+      @files_topic,
+      {:phoenix_kit_file_thumbnail_updated, file_uuid}
+    )
   end
 
   # ===== BUCKETS =====

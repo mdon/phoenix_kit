@@ -55,16 +55,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
     file
   end
 
-  # An "original" variant row — the browser builds `urls` solely from
-  # FileInstance rows, and the viewer canvas only renders when a usable
-  # URL exists, so hook-driven viewer tests need one.
-  defp create_instance!(file_uuid) do
+  # A variant row ("original" by default) — the browser builds `urls`
+  # solely from FileInstance rows, and the viewer canvas only renders
+  # when a usable URL exists, so hook-driven viewer tests need one.
+  defp create_instance!(file_uuid, variant_name \\ "original") do
     n = System.unique_integer([:positive])
 
     {:ok, instance} =
       Repo.insert(%Storage.FileInstance{
         file_uuid: file_uuid,
-        variant_name: "original",
+        variant_name: variant_name,
         file_name: "instance_#{n}.jpg",
         mime_type: "image/jpeg",
         ext: "jpg",
@@ -438,6 +438,47 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Thumbnail live refresh — AnnotationThumbnailJob's broadcast updates the
+  # grid row without remounting an open viewer
+  # ---------------------------------------------------------------------------
+
+  describe "thumbnail live refresh" do
+    test "thumbnail_updated broadcast swaps the grid thumbnail, open viewer untouched",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      # Only the "original" variant exists — the grid card falls back to it.
+      refute html =~ "#{file.uuid}/small"
+
+      # Simulate the bake job completing: a new variant lands on the file,
+      # then the completion broadcast fires.
+      create_instance!(file.uuid, "small")
+      Storage.broadcast_file_thumbnail_updated(file.uuid)
+
+      # Two round-trips: the hook's send_update can be queued as a separate
+      # mailbox message behind the first render call.
+      _ = render(view)
+      html = render(view)
+      # The grid card swapped to the fresh variant...
+      assert html =~ "#{file.uuid}/small"
+      # ...but the open viewer was NOT remounted — its LC id encodes the
+      # variant count and would read ...-0x0-2 if viewer_file were swapped.
+      assert html =~ "media-canvas-viewer-#{file.uuid}-0x0-1"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Live refresh — ProcessFileJob's broadcast updates the grid + open viewer
   # ---------------------------------------------------------------------------
 
@@ -466,6 +507,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       {:ok, _} = Storage.update_file(Storage.get_file(file.uuid), %{width: 800, height: 600})
       Storage.broadcast_file_processed(file.uuid)
 
+      # Two round-trips: the hook's send_update can be queued as a separate
+      # mailbox message behind the first render call.
+      _ = render(view)
       html = render(view)
       assert html =~ ~s(data-canvas-width="800")
       assert html =~ ~s(data-canvas-height="600")

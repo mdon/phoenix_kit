@@ -156,6 +156,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Map.has_key?(assigns, :file_processed) ->
         {:ok, refresh_processed_file(socket, assigns.file_processed)}
 
+      # Annotated thumbnail (re)baked — refresh the grid row only. The open
+      # viewer must NOT be swapped: the annotator is usually still working
+      # in it, and a viewer_file swap changes the canvas-viewer LC id
+      # (it encodes the variant count), remounting the canvas mid-edit.
+      Map.has_key?(assigns, :thumbnail_updated) ->
+        {:ok, refresh_processed_file(socket, assigns.thumbnail_updated, viewer: false)}
+
       # The header-image picker (MediaSelectorModal) reports back here via
       # `notify: {__MODULE__, id}`: a confirmed selection sets the cover or logo
       # (per `@image_picker_target`); a close just dismisses the picker.
@@ -206,16 +213,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  # A ProcessFileJob finished for `file_uuid` — its dimensions, variants,
-  # and status just landed. If the file is on the current page or open in
-  # the modal viewer, swap in a freshly-enriched map so thumbnails and the
-  # correctly-proportioned canvas appear without a manual reload. (The
-  # viewer's canvas-viewer LC id encodes dims + variant count, so the swap
-  # remounts it with the real canvas instead of the 1000x1000 placeholder.)
-  # Files not in view are skipped — their next load reads fresh rows anyway.
-  defp refresh_processed_file(socket, file_uuid) do
+  # A background job finished for `file_uuid` — fresh dimensions, variants,
+  # status, or a rebaked annotated thumbnail just landed. If the file is on
+  # the current page or open in the modal viewer, swap in a freshly-enriched
+  # map so thumbnails and the correctly-proportioned canvas appear without a
+  # manual reload. (The viewer's canvas-viewer LC id encodes dims + variant
+  # count, so the swap remounts it with the real canvas instead of the
+  # 1000x1000 placeholder.) `viewer: false` limits the swap to the grid row —
+  # used for thumbnail-only updates, where remounting an open viewer would
+  # kick the annotator out mid-edit. Files not in view are skipped — their
+  # next load reads fresh rows anyway.
+  defp refresh_processed_file(socket, file_uuid, opts \\ []) do
     viewer = socket.assigns[:viewer_file]
-    viewing? = is_map(viewer) and viewer.file_uuid == file_uuid
+
+    viewing? =
+      Keyword.get(opts, :viewer, true) and is_map(viewer) and viewer.file_uuid == file_uuid
+
     in_grid? = Enum.any?(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
 
     fresh =
@@ -576,10 +589,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Live-refresh plumbing: subscribe the parent LiveView to storage file
-  # events and forward each `{:phoenix_kit_file_processed, uuid}` to every
-  # registered MediaBrowser on the page, so a just-uploaded file's
-  # dimensions/thumbnails appear without a manual reload (the component
-  # refreshes the grid row + open viewer in its `update/2`). A lifecycle
+  # events and forward each one to every registered MediaBrowser on the
+  # page, so a just-uploaded file's dimensions/thumbnails — and freshly
+  # baked annotated thumbnails — appear without a manual reload (the
+  # component refreshes the affected rows in its `update/2`). A lifecycle
   # hook (not an injected clause) so it composes with host LiveViews that
   # define their own handle_info; it {:halt}s, so the message never leaks
   # to host clauses. Guarded by setup_uploads' run-once check above —
@@ -590,11 +603,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       attach_hook(socket, :phoenix_kit_mb_file_events, :handle_info, fn
         {:phoenix_kit_file_processed, file_uuid}, socket ->
-          socket.assigns[:media_browser_ids]
-          |> Kernel.||(MapSet.new())
-          |> Enum.each(&send_update(__MODULE__, id: &1, file_processed: file_uuid))
+          {:halt, forward_to_browsers(socket, file_processed: file_uuid)}
 
-          {:halt, socket}
+        {:phoenix_kit_file_thumbnail_updated, file_uuid}, socket ->
+          {:halt, forward_to_browsers(socket, thumbnail_updated: file_uuid)}
 
         _msg, socket ->
           {:cont, socket}
@@ -602,6 +614,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       socket
     end
+  end
+
+  defp forward_to_browsers(socket, update) do
+    socket.assigns[:media_browser_ids]
+    |> Kernel.||(MapSet.new())
+    |> Enum.each(&send_update(__MODULE__, [{:id, &1} | update]))
+
+    socket
   end
 
   @doc false
