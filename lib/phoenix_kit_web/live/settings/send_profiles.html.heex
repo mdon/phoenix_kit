@@ -8,200 +8,171 @@
   <div class="container flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={Routes.path("/admin/settings/email-sending")}
+      back_label={gettext("Email Sending")}
       title={gettext("Send Profiles")}
-      subtitle={gettext("Manage send profiles used to deliver email")}
+      subtitle={
+        gettext(
+          "Service-wide default profile used by newsletter broadcasts. Transactional mail (auth, notifications) is routed by the Default Transactional Integration on the Email Sending page."
+        )
+      }
     />
 
-    <%!-- Actions Bar --%>
-    <div class="flex justify-end mb-6">
-      <.pk_link
-        navigate="/admin/settings/email-sending/profiles/new"
-        class="btn btn-sm btn-primary"
+    <%!-- Send Profiles table --%>
+    <div :if={@send_profiles != []}>
+      <.table_default
+        id="send-profiles-table"
+        toggleable
+        items={@send_profiles}
+        card_fields={&send_profile_card_fields/1}
       >
-        <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("New send profile")}
-      </.pk_link>
+        <:toolbar_title>
+          <span class="text-sm text-base-content/60">
+            {ngettext("%{count} profile", "%{count} profiles", length(@send_profiles),
+              count: length(@send_profiles)
+            )}
+          </span>
+        </:toolbar_title>
+        <:toolbar_actions>
+          <.pk_link
+            navigate="/admin/settings/email-sending/profiles/new"
+            class="btn btn-primary btn-sm"
+          >
+            <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New send profile")}
+          </.pk_link>
+        </:toolbar_actions>
+
+        <:card_header :let={send_profile}>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-medium">{send_profile.name}</span>
+            <span :if={send_profile.is_default} class="badge badge-info badge-xs">
+              {gettext("Default Newsletter Profile")}
+            </span>
+          </div>
+        </:card_header>
+
+        <.table_default_header>
+          <.table_default_row>
+            <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("Provider")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("From")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("Rate")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("Actions")}</.table_default_header_cell>
+          </.table_default_row>
+        </.table_default_header>
+
+        <.table_default_body>
+          <.table_default_row :for={send_profile <- @send_profiles}>
+            <.table_default_cell>
+              <div class="font-medium">{send_profile.name}</div>
+              <span :if={send_profile.is_default} class="badge badge-xs badge-info mt-0.5">
+                {gettext("Default Newsletter Profile")}
+              </span>
+            </.table_default_cell>
+            <.table_default_cell>
+              <span class="badge badge-sm badge-ghost">{send_profile.provider_kind}</span>
+            </.table_default_cell>
+            <.table_default_cell class="text-xs">
+              <%= if send_profile.from_email do %>
+                {send_profile.from_name || send_profile.from_email}
+              <% else %>
+                <span class="text-base-content/40">-</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell class="text-xs text-base-content/70">
+              <%= if send_profile.rate_per_hour do %>
+                {gettext("%{count}/hr", count: send_profile.rate_per_hour)}
+              <% else %>
+                <span class="text-base-content/40">-</span>
+              <% end %>
+            </.table_default_cell>
+            <.table_default_cell>
+              <.enabled_badge enabled={send_profile.enabled} />
+            </.table_default_cell>
+            <.table_default_cell>
+              <.table_row_menu
+                id={"send-profile-menu-#{send_profile.uuid}"}
+                mode="dropdown"
+                label={gettext("Actions")}
+              >
+                <.table_row_menu_button
+                  :if={!send_profile.is_default}
+                  phx-click="make_default"
+                  phx-value-uuid={send_profile.uuid}
+                  icon="hero-star"
+                  label={gettext("Make default")}
+                />
+                <.table_row_menu_link
+                  navigate={
+                    Routes.path(
+                      "/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit"
+                    )
+                  }
+                  icon="hero-pencil"
+                  label={gettext("Edit")}
+                />
+                <.table_row_menu_divider />
+                <.table_row_menu_button
+                  phx-click="delete_send_profile"
+                  phx-value-uuid={send_profile.uuid}
+                  icon="hero-trash"
+                  label={gettext("Delete")}
+                  variant="error"
+                  data-confirm={gettext("This send profile will be permanently deleted.")}
+                />
+              </.table_row_menu>
+            </.table_default_cell>
+          </.table_default_row>
+        </.table_default_body>
+
+        <:card_actions :let={send_profile}>
+          <.table_row_menu
+            id={"send-profile-card-menu-#{send_profile.uuid}"}
+            mode="dropdown"
+            label={gettext("Actions")}
+          >
+            <.table_row_menu_button
+              :if={!send_profile.is_default}
+              phx-click="make_default"
+              phx-value-uuid={send_profile.uuid}
+              icon="hero-star"
+              label={gettext("Make default")}
+            />
+            <.table_row_menu_link
+              navigate={
+                Routes.path("/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit")
+              }
+              icon="hero-pencil"
+              label={gettext("Edit")}
+            />
+            <.table_row_menu_divider />
+            <.table_row_menu_button
+              phx-click="delete_send_profile"
+              phx-value-uuid={send_profile.uuid}
+              icon="hero-trash"
+              label={gettext("Delete")}
+              variant="error"
+              data-confirm={gettext("This send profile will be permanently deleted.")}
+            />
+          </.table_row_menu>
+        </:card_actions>
+      </.table_default>
     </div>
 
-    <%!-- Confirm Modal --%>
-    <%= if @show_confirm_modal do %>
-      <div class="modal modal-open">
-        <div class="modal-box">
-          <h3 class="font-bold text-lg mb-4">{@confirm_title}</h3>
-          <p class="mb-4">{@confirm_message}</p>
-          <div class="modal-action">
-            <button phx-click="hide_confirm" class="btn btn-outline">{gettext("Cancel")}</button>
-            <button phx-click="confirm_action" class="btn btn-error">{@confirm_title}</button>
-          </div>
-        </div>
-      </div>
-    <% end %>
-
-    <%!-- Send Profiles Table (desktop) --%>
-    <%= if length(@send_profiles) > 0 do %>
-      <div class="hidden md:block">
-        <.table_default variant="zebra" size="sm" class="w-full">
-          <.table_default_header>
-            <.table_default_row>
-              <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
-              <.table_default_header_cell>{gettext("Provider")}</.table_default_header_cell>
-              <.table_default_header_cell>{gettext("From")}</.table_default_header_cell>
-              <.table_default_header_cell>{gettext("Rate")}</.table_default_header_cell>
-              <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-              <.table_default_header_cell>{gettext("Actions")}</.table_default_header_cell>
-            </.table_default_row>
-          </.table_default_header>
-
-          <.table_default_body>
-            <%= for send_profile <- @send_profiles do %>
-              <.table_default_row>
-                <.table_default_cell>
-                  <div class="font-medium">{send_profile.name}</div>
-                  <%= if send_profile.is_default do %>
-                    <span class="badge badge-xs badge-info ml-1">{gettext("Default")}</span>
-                  <% end %>
-                </.table_default_cell>
-                <.table_default_cell>
-                  <span class="badge badge-sm badge-ghost">{send_profile.provider_kind}</span>
-                </.table_default_cell>
-                <.table_default_cell class="text-xs">
-                  <%= if send_profile.from_email do %>
-                    {send_profile.from_name || send_profile.from_email}
-                  <% else %>
-                    <span class="text-base-content/40">-</span>
-                  <% end %>
-                </.table_default_cell>
-                <.table_default_cell class="text-xs text-base-content/70">
-                  <%= if send_profile.rate_per_hour do %>
-                    {gettext("%{count}/hr", count: send_profile.rate_per_hour)}
-                  <% else %>
-                    <span class="text-base-content/40">-</span>
-                  <% end %>
-                </.table_default_cell>
-                <.table_default_cell>
-                  <%= if send_profile.enabled do %>
-                    <span class="badge badge-sm badge-success">{gettext("Enabled")}</span>
-                  <% else %>
-                    <span class="badge badge-sm badge-ghost">{gettext("Disabled")}</span>
-                  <% end %>
-                </.table_default_cell>
-                <.table_default_cell>
-                  <div class="flex gap-1">
-                    <%= unless send_profile.is_default do %>
-                      <button
-                        phx-click="make_default"
-                        phx-value-uuid={send_profile.uuid}
-                        class="btn btn-xs btn-outline"
-                        title={gettext("Make default")}
-                      >
-                        <.icon name="hero-star" class="w-3 h-3 hidden sm:inline" />
-                        <span class="sm:hidden whitespace-nowrap">{gettext("Make default")}</span>
-                      </button>
-                    <% end %>
-                    <.pk_link
-                      navigate={"/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit"}
-                      class="btn btn-xs btn-outline"
-                      title={gettext("Edit")}
-                    >
-                      <.icon name="hero-pencil" class="w-3 h-3 hidden sm:inline" />
-                      <span class="sm:hidden whitespace-nowrap">{gettext("Edit")}</span>
-                    </.pk_link>
-                    <button
-                      phx-click="show_confirm"
-                      phx-value-action="delete"
-                      phx-value-uuid={send_profile.uuid}
-                      class="btn btn-xs btn-outline btn-error"
-                      title={gettext("Delete")}
-                    >
-                      <.icon name="hero-trash" class="w-3 h-3 hidden sm:inline" />
-                      <span class="sm:hidden whitespace-nowrap">{gettext("Delete")}</span>
-                    </button>
-                  </div>
-                </.table_default_cell>
-              </.table_default_row>
-            <% end %>
-          </.table_default_body>
-        </.table_default>
-      </div>
-
-      <%!-- Send Profiles Cards (mobile) --%>
-      <div class="md:hidden mb-6">
-        <div class="space-y-3">
-          <%= for send_profile <- @send_profiles do %>
-            <div class="card card-border card-sm bg-base-100">
-              <div class="card-body gap-3">
-                <%!-- Header: name + status --%>
-                <div class="flex items-start justify-between gap-2">
-                  <div class="flex flex-col min-w-0">
-                    <span class="font-medium text-sm truncate">{send_profile.name}</span>
-                    <%= if send_profile.is_default do %>
-                      <span class="badge badge-xs badge-info mt-0.5">{gettext("Default")}</span>
-                    <% end %>
-                  </div>
-                  <%= if send_profile.enabled do %>
-                    <span class="badge badge-sm badge-success">{gettext("Enabled")}</span>
-                  <% else %>
-                    <span class="badge badge-sm badge-ghost">{gettext("Disabled")}</span>
-                  <% end %>
-                </div>
-
-                <%!-- Body: key/value grid --%>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div class="text-base-content/60">{gettext("Provider")}</div>
-                  <div>
-                    <span class="badge badge-sm badge-ghost">{send_profile.provider_kind}</span>
-                  </div>
-
-                  <div class="text-base-content/60">{gettext("From")}</div>
-                  <div>{send_profile.from_name || send_profile.from_email || "-"}</div>
-                </div>
-
-                <%!-- Footer: actions --%>
-                <div class="card-actions justify-end pt-1 border-t border-base-200">
-                  <%= unless send_profile.is_default do %>
-                    <button
-                      phx-click="make_default"
-                      phx-value-uuid={send_profile.uuid}
-                      class="btn btn-xs btn-outline"
-                    >
-                      <.icon name="hero-star" class="w-3 h-3" /> {gettext("Make default")}
-                    </button>
-                  <% end %>
-                  <.pk_link
-                    navigate={"/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit"}
-                    class="btn btn-xs btn-outline"
-                  >
-                    <.icon name="hero-pencil" class="w-3 h-3" /> {gettext("Edit")}
-                  </.pk_link>
-                  <button
-                    phx-click="show_confirm"
-                    phx-value-action="delete"
-                    phx-value-uuid={send_profile.uuid}
-                    class="btn btn-xs btn-outline btn-error"
-                  >
-                    <.icon name="hero-trash" class="w-3 h-3" /> {gettext("Delete")}
-                  </button>
-                </div>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    <% else %>
-      <div class="text-center py-12">
-        <.icon name="hero-paper-airplane" class="w-16 h-16 mx-auto mb-4 opacity-30" />
-        <h3 class="text-lg font-medium text-base-content mb-2">
-          {gettext("No send profiles yet")}
-        </h3>
-        <p class="text-base-content/70 mb-4">
-          {gettext("Create a send profile to choose how outbound email is delivered.")}
-        </p>
-        <.pk_link
-          navigate="/admin/settings/email-sending/profiles/new"
-          class="btn btn-primary btn-sm"
-        >
-          <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Create first send profile")}
-        </.pk_link>
-      </div>
-    <% end %>
+    <%!-- Empty state --%>
+    <.empty_state
+      :if={@send_profiles == []}
+      variant="featured"
+      icon="hero-paper-airplane"
+      title={gettext("No send profiles yet")}
+      description={gettext("Create a send profile to choose how outbound email is delivered.")}
+    >
+      <.pk_link
+        navigate="/admin/settings/email-sending/profiles/new"
+        class="btn btn-primary btn-lg"
+      >
+        <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create first send profile")}
+      </.pk_link>
+    </.empty_state>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>

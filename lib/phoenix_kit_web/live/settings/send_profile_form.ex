@@ -142,6 +142,17 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
     end
   end
 
+  # Builds the `<.select>` grouped-options list for the integration picker —
+  # one optgroup per provider with at least one connection, skipping empty
+  # provider groups the same way the old raw <optgroup> loop did.
+  defp integration_select_options(connections_by_provider) do
+    connections_by_provider
+    |> Enum.reject(fn {_provider, connections} -> connections == [] end)
+    |> Enum.map(fn {provider, connections} ->
+      {provider_label(provider), Enum.map(connections, &{&1.name, &1.uuid})}
+    end)
+  end
+
   defp get_current_path(locale) do
     Routes.path("/admin/settings/email-sending/profiles", locale: locale)
   end

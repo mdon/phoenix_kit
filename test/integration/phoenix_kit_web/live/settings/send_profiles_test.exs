@@ -36,6 +36,8 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
     uuid
   end
 
+  defp table_row_menu_id(uuid), do: "send-profile-menu-#{uuid}"
+
   defp seed_aws_ses(name) do
     {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", name)
 
@@ -105,18 +107,18 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
 
       {:ok, view, _html} = live(conn, @list_path)
 
-      # Both the desktop table and the mobile card render a "make_default"
-      # button with the same phx-value-uuid — scope to the desktop table.
+      # The table-row dropdown and the card-view dropdown render duplicate
+      # buttons with the same phx-value-uuid — scope to the table row menu.
       view
       |> element(
-        ~s(div.hidden.md\\:block button[phx-click="make_default"][phx-value-uuid="#{profile.uuid}"])
+        ~s(##{table_row_menu_id(profile.uuid)} button[phx-click="make_default"][phx-value-uuid="#{profile.uuid}"])
       )
       |> render_click()
 
       assert SendProfiles.get_default_send_profile().uuid == profile.uuid
     end
 
-    test "confirming delete removes the send profile", %{conn: conn} do
+    test "deleting a send profile removes it from the list", %{conn: conn} do
       uuid = seed_smtp()
 
       {:ok, profile} =
@@ -128,18 +130,18 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
 
       {:ok, view, _html} = live(conn, @list_path)
 
-      # Both the desktop table and the mobile card render a "show_confirm"
-      # delete button with the same phx-value-uuid — scope to the desktop table.
-      view
-      |> element(
-        ~s(div.hidden.md\\:block button[phx-click="show_confirm"][phx-value-uuid="#{profile.uuid}"])
-      )
-      |> render_click()
+      # No server-side confirm round-trip anymore — deletion is gated by a
+      # browser-native `data-confirm` dialog, which LiveViewTest bypasses
+      # (there's no real browser), so the click dispatches straight through.
+      delete_button =
+        element(
+          view,
+          ~s(##{table_row_menu_id(profile.uuid)} button[phx-click="delete_send_profile"][phx-value-uuid="#{profile.uuid}"])
+        )
 
-      html =
-        view
-        |> element("button[phx-click=\"confirm_action\"]")
-        |> render_click()
+      assert render(delete_button) =~ "data-confirm"
+
+      html = render_click(delete_button)
 
       refute html =~ "Marketing"
       assert SendProfiles.get_send_profile(profile.uuid) == nil

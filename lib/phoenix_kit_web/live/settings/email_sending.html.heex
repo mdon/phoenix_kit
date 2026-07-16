@@ -23,30 +23,20 @@
       </:subtitle>
       <form id="sender-identity-form" phx-submit="save_sender_identity" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("From name")}</span>
-            </label>
-            <input
-              type="text"
-              name="from_name"
-              value={@from_name}
-              placeholder={@effective_from_name}
-              class="input input-bordered w-full"
-            />
-          </div>
-          <div class="form-control w-full">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("From email")}</span>
-            </label>
-            <input
-              type="email"
-              name="from_email"
-              value={@from_email}
-              placeholder={@effective_from_email}
-              class="input input-bordered w-full"
-            />
-          </div>
+          <.input
+            name="from_name"
+            type="text"
+            value={@from_name}
+            label={gettext("From name")}
+            placeholder={@effective_from_name}
+          />
+          <.input
+            name="from_email"
+            type="email"
+            value={@from_email}
+            label={gettext("From email")}
+            placeholder={@effective_from_email}
+          />
         </div>
         <p class="text-xs text-base-content/50">
           {gettext(
@@ -61,21 +51,37 @@
 
     <.form_section title={gettext("Transport")} icon="hero-server-stack" body_class="space-y-4">
       <:subtitle>
-        {gettext("Used when no default send integration is selected below.")}
+        {gettext("Used when no default transactional integration is selected below.")}
       </:subtitle>
 
-      <p class="text-sm">
-        <%= if @mailer_built_in? do %>
-          {gettext("Static mailer: built-in PhoenixKit mailer")}
-        <% else %>
-          {gettext("Static mailer: parent app mailer (%{module})",
-            module: inspect(@mailer_module)
-          )}
-        <% end %>
-        <span :if={@mailer_adapter} class="text-base-content/50">
-          ({gettext("adapter")}: {inspect(@mailer_adapter)})
-        </span>
-      </p>
+      <div class={["alert", if(@mailer_adapter, do: "alert-success", else: "alert-warning")]}>
+        <.icon name="hero-server-stack" class="w-5 h-5 shrink-0" />
+        <div>
+          <h3 class="font-bold flex items-center gap-2">
+            <%= if @mailer_built_in? do %>
+              {gettext("Static mailer: built-in PhoenixKit mailer")}
+            <% else %>
+              {gettext("Static mailer: parent app mailer (%{module})",
+                module: inspect(@mailer_module)
+              )}
+            <% end %>
+            <span class={[
+              "badge badge-sm",
+              if(@mailer_adapter, do: "badge-success", else: "badge-warning")
+            ]}>
+              {if @mailer_adapter, do: gettext("Configured"), else: gettext("Not configured")}
+            </span>
+          </h3>
+          <p :if={@mailer_adapter} class="text-sm mt-1">
+            {gettext("adapter")}: {inspect(@mailer_adapter)}
+          </p>
+          <p :if={!@mailer_adapter} class="text-sm mt-1">
+            {gettext(
+              "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
+            )}
+          </p>
+        </div>
+      </div>
 
       <div>
         <h4 class="font-medium text-sm mb-2">{gettext("Email-capable integrations")}</h4>
@@ -121,27 +127,23 @@
       </div>
     </.form_section>
 
-    <.form_section title={gettext("Default Send Integration")} icon="hero-paper-airplane">
+    <.form_section title={gettext("Default Transactional Integration")} icon="hero-paper-airplane">
       <:subtitle>
         {gettext(
-          "All outbound email — auth mail, notifications, and modules — routes through this integration when set. Leave unset to use the static mailer above."
+          "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
         )}
+        <.pk_link navigate="/admin/settings/email-sending/profiles" class="link link-primary">
+          {gettext("Send Profiles")}
+        </.pk_link>.
       </:subtitle>
       <form id="default-integration-form" phx-change="select_default_integration">
-        <label class="select w-full max-w-md">
-          <select name="integration_uuid">
-            <option value="" selected={@default_integration_uuid in [nil, ""]}>
-              {gettext("None — use the static mailer")}
-            </option>
-            <option
-              :for={conn <- @email_connections}
-              value={conn.uuid}
-              selected={conn.uuid == @default_integration_uuid}
-            >
-              {conn.provider.name} — {conn.name}
-            </option>
-          </select>
-        </label>
+        <.select
+          name="integration_uuid"
+          value={@default_integration_uuid}
+          prompt={gettext("None — use the static mailer")}
+          options={Enum.map(@email_connections, &{"#{&1.provider.name} — #{&1.name}", &1.uuid})}
+          class="max-w-md"
+        />
       </form>
     </.form_section>
 
@@ -151,18 +153,15 @@
         phx-submit="send_test_email"
         class="flex flex-col sm:flex-row gap-3 items-start sm:items-end"
       >
-        <div class="form-control w-full max-w-sm">
-          <label class="label">
-            <span class="label-text font-medium">{gettext("Recipient")}</span>
-          </label>
-          <input
-            type="email"
-            name="recipient"
-            placeholder="you@example.com"
-            class="input input-bordered w-full"
-            required
-          />
-        </div>
+        <.input
+          name="recipient"
+          type="email"
+          value=""
+          label={gettext("Recipient")}
+          placeholder="you@example.com"
+          wrapper_class="w-full max-w-sm"
+          required
+        />
         <button type="submit" class="btn btn-outline btn-sm">
           {gettext("Send test email")}
         </button>
