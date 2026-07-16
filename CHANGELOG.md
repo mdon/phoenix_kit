@@ -1,3 +1,47 @@
+## 1.7.197 - 2026-07-16
+
+### Added
+- V151: `supplier_source` (`crm_company | crm_contact | local`, CHECK-backed)
+  and `is_primary` (partial-unique, one primary per item) columns on
+  `phoenix_kit_cat_item_supplier_info` — completes the V149 junction for the
+  merged `phoenix_kit_catalogue` sourcing layer, which reads/writes both on
+  every insert/update.
+- V151: normalizes `phoenix_kit_crm_contacts.email` /
+  `phoenix_kit_crm_companies.email` to `citext`, a prerequisite for
+  case-insensitive email matching in the CRM v2 backfill and the
+  user↔contact bridge.
+- `mix phoenix_kit.doctor` gains three checks: **Schema Drift** (a version
+  marker claiming a column that's actually missing at the resolved prefix —
+  surfaces an installer/migration-runner drift with no other self-service
+  signal), **Child Start Order** (reads the host `application.ex` and fails
+  when `PhoenixKit.Supervisor`/`Oban` are listed before the Repo, the boot
+  crash class where Oban opens a pool against a database connection that
+  doesn't exist yet), and prefix resolution now goes through the same
+  `PrefixConfig.resolve_prefix/1` as `phoenix_kit.update --status`, fixing
+  doctor reporting "not installed" against a prefixed install it was
+  actually diagnosing at the wrong schema.
+
+### Fixed
+- Closed an `HtmlSanitizer` stored-XSS bypass: the `href`/`src` scheme
+  filter only blacklisted literal `javascript:`/`vbscript:`/`data:`, so
+  entity-encoded (`jav&#x61;script:`), whitespace-obfuscated
+  (`java&Tab;script:`), and raw-control-char variants slipped through into
+  any markdown-rendered rich-text sink. Replaced it with an allowlist
+  (`http`/`https`/`mailto`/`tel` + relative/fragment URLs) evaluated over a
+  decoded, control-char-stripped, normalized value — the transform only
+  ever removes an attribute, never rewrites the visible URL.
+- Fixed the admin sidebar's width flipping by ~15px around a modal's
+  scroll-lock on long admin pages (the drawer grid's auto-sized sidebar
+  column resolves differently depending on whether the page root currently
+  has a scrollbar).
+- `phoenix_kit.doctor`'s Oban Configuration check reported `0 queues, 0
+  plugins` because doctor's own pool-capping zeroed the app-env Oban config
+  before the check read it; now snapshotted before capping.
+- Silenced a dialyzer false positive (`call_without_opaque`) in
+  `QrLogin.location_for/1`'s `Task.Supervisor.async_nolink` +
+  `Task.yield`/`Task.shutdown` idiom, matching the existing `auth.ex`
+  ignore-list precedent for the same opaque-widening class.
+
 ## 1.7.196 - 2026-07-15
 
 ### Added
