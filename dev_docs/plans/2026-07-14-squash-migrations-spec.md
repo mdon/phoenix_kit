@@ -1,413 +1,413 @@
 # Migration-chain consolidation (squash) + verify-and-repair — SPECIFICATION
 
-Status: **DRAFT for review** (spec only; implementation not started).
-Written 2026-07-14 at v1.7.193/V148; **revised 2026-07-16 at v1.7.196/V150** (chain V01..V150,
-150 modules, 25,405 lines). Branch: `squash-migrations` (rebased onto upstream 1.7.196).
-Supersedes: `2026-06-15-squash-migrations-plan.md` (June plan; stale — written at v135/1.7.152,
-before the 2026-07 prefix-safety overhaul and before the verify-and-repair requirement).
-Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations:
-seeds / backfills / drops / hazards).
+Status: **REVIEWED DRAFT r2** (spec only; implementation not started).
+Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at **v1.7.196/V150** (chain V01..V150,
+150 modules, 25,405 lines); **r2 = post-review revision** incorporating a 7-reviewer round:
+4 internal adversarial agents (claims / design / completeness / ops) + GLM-5.2, Kimi K2.7,
+Mistral Medium. Verdicts: claims-verifier APPROVE (all mechanical claims confirmed against HEAD;
+line refs re-anchored below), all others NEEDS-WORK → their ~50 findings are folded in here.
+Branch: `squash-migrations` (rebased onto upstream 1.7.196).
+Supersedes: `2026-06-15-squash-migrations-plan.md` (June plan; stale).
+Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations).
 
-Method: 10 parallel research agents over current code (mechanics, delta-since-June, full-chain
-inventory ×4, floor/consumers, verification env, upstream strategy, repair design) + 3 external
-LLM consultants (GLM-5.2, Kimi K2.7, Mistral Medium — independent, code-grounded reviews; all
-converged on the floor rule, repair placement, and versioning below; GLM additionally contributed
-the fresh-path clamp (D13) and the no-delta-re-execution rule (§6.1)).
-
-`file:line` citations were verified at v1.7.193; between 1.7.193 → 1.7.196 only the `postgres.ex`
-moduledoc grew (+13 lines before the code section — code-section refs shift by that amount) and
-`v149.ex`/`v150.ex` were added. The review pass re-anchors load-bearing refs to HEAD.
+All `postgres.ex` line refs are re-anchored to v1.7.196 HEAD (verified by grep):
+`@initial_version`/`@current_version` :1311-1312, `@uuid_fn_version` :1319, `up/1` :1328-1343,
+`down/1` :1346-1370, `migrated_version/1` :1373-1410 (legacy no-comment→1 at :1400), heal
+:1530-1568, `version_checks/0` :1572-1586, dispatch :1627-1629, `handle_version_recording/4`
+:1641-1655 (multi-step-only stamp :1646-1648), `record_version/2` :1686-1689.
 
 ---
 
 ## 0. Goal and non-goals
 
-**Goal.** Collapse versioned migrations `V01..V{floor}` (today 150 modules, 25,405 lines) into ONE
-baseline module `V{floor}`, keeping `V{floor+1}..V{current}` as individual deltas, without changing
-the resulting schema byte-for-byte, and without breaking any existing install — including consumer
-apps' accumulated wrapper migrations. Additionally ship an idempotent, additive-only
-**verify-and-repair** capability that is safe to run against a live production database: it
-verifies every expected object, creates only what is missing, and reports (never fixes) anything
+**Goal.** Collapse versioned migrations `V01..V{floor}` into ONE baseline module `V{floor}`,
+keeping `V{floor+1}..V{current}` as individual deltas, reproducing the resulting schema
+**byte-for-byte modulo an explicit, enumerated divergence whitelist** (§5.1 `:legacy_optional`;
+the old chain itself produces bimodal end-states — see §3.7), without breaking any existing
+install, including consumer apps' accumulated wrapper migrations. Additionally ship an
+idempotent, additive-only **verify-and-repair** capability safe against live production DBs:
+verifies every expected object, creates only what is missing, reports (never fixes) anything
 divergent.
 
 **Non-goals.** No schema changes; no data conversions beyond what the chain already does; no
-change to the Oban-style version-tracking mechanism (COMMENT on `{prefix}.phoenix_kit`); no
-per-module migration chains (verified: feature modules have NO chains of their own — all module
-DDL lives in the core chain, see §3.3); no automatic destructive repair, ever.
+change to the version-tracking mechanism (COMMENT on `{prefix}.phoenix_kit`); no per-module
+migration chains (modules have none — all module DDL lives in the core chain, §3.3); no
+automatic destructive repair, ever; repair is NOT a migration bridge (§6.4).
 
 ---
 
 ## 1. Ratified decisions (summary)
 
-| # | Decision | Choice | Rationale ref |
-|---|---|---|---|
-| D1 | Floor rule | `floor = min(confirmed migrated_version across all supported installs)`; **parameterized** in tooling, fixed only at execution time. Margin below the confirmed min is false safety (it protects against nothing an unsurveyed install wouldn't also break) — the binding input is survey completeness | §4 |
-| D2 | Floor candidate today | **121** (hydroforce_prod, UNCONFIRMED as of pre-2026-06-15) — the single blocking input; if prod re-confirms ≥ 135, floor = 135 | §4 |
-| D3 | Skip semantics | Unchanged Oban-style comment-gated skip; existing installs ≥ floor never run the baseline | §5.2 |
-| D4 | Below-floor contract (existing installs) | `0 < migrated < floor` → hard `BelowFloorError` with actionable bridge-release message, in `up/1`, `down/1`, and generator tooling | §5.2 |
-| D5 | Single source of truth | One tool-generated **ExpectedSchema manifest** (every object tagged `since: version`); baseline `V{floor}.up` applies its `since ≤ floor` slice; verify/repair consume the same manifest — no second schema description can drift | §5.1, §6.1 |
-| D6 | Repair placement | `PhoenixKit.Migrations.Repair` (runtime, immediate queries) + `mix phoenix_kit.repair`; NOT inside migration context; **never re-executes delta modules** (V137-dedup / V144-conditional-drop class is not additive) | §6 |
-| D7 | Backfills | **Zero historical backfills in the baseline**; fresh installs seed final state directly; repair backfills only columns it itself just added, from declared defaults | §5.4 |
-| D8 | Version | **2.0.0** (breaking upgrade contract + Hex `~> 1.7` resolver never auto-pulls 2.0.0 — stragglers stay safe) | §7 |
-| D9 | Rollout | Last 1.7.x = frozen **bridge release**; ONE atomic squash PR (baseline + deletions + guards + clamp); 1.7.x security-only ~90 days | §7 |
-| D10 | Baseline construction | Generated from a real migrated scratch DB by **incremental catalog introspection** (per-version diffs → `since` tags), emitted in `Helpers.*` idioms, hand-reviewed, verified by normalized `pg_dump` + seed-row diffs; generator is a **repeatable tool**, not a one-off | §6.3, §8.3 |
-| D11 | Re-squash cadence | Institutionalized: re-run tooling when above-floor delta > ~100 versions or annually (chain grows ~16 versions/month) | §7.3 |
-| D12 | Verification env | Requires an operator-provided scratch DB (options ranked §8.1); NOTHING destructive ever touches the live DB | §8 |
-| D13 | Fresh-DB clamp | `initial == 0` with `opts.version < floor` → **clamp**: run the baseline (single step), do NOT raise — this is what keeps consumer repos with accumulated `v1_to_vX` wrapper histories working on fresh `mix ecto.setup` | §5.2, §5.3 |
+| # | Decision | Choice |
+|---|---|---|
+| D1 | Floor rule | `floor = min(confirmed migrated_version across the COMPLETE surveyed set of supported installs)`; parameterized in tooling; fixed only at execution time from FRESH readings (DBs can regress via backup restores). Margin below the confirmed min is false safety — survey completeness is the binding input |
+| D2 | Floor candidate today | **121** (hydroforce_prod, UNCONFIRMED, pre-2026-06-15) — blocking input; all design text is `{floor}`-parameterized, no artifact hardwires 121 |
+| D3 | Skip semantics | Unchanged Oban-style comment-gated skip |
+| D4 | Below-floor contract (existing installs) | `0 < migrated < floor` → hard `BelowFloorError` (bridge message; test-DB variant says `mix test.reset`) in `up/1`, `down/1`, and generator tooling |
+| D5 | Single source of truth | One tool-generated **ExpectedSchema manifest** spanning `V01..@current_version` (objects tagged `since:`, shape-`revisions:`, `presence:`, plus data-invariant assertions); baseline `V{floor}.up` applies its `since ≤ floor` slice; verify/repair consume the same manifest |
+| D6 | Repair placement | `PhoenixKit.Migrations.Repair` (runtime, immediate queries, raw comment read) + `mix phoenix_kit.repair`; never re-executes delta modules; Oban is delegated, never manifested |
+| D7 | Backfills | Zero historical backfills in the baseline; repair backfills only columns it itself just added, from declared defaults |
+| D8 | Version | **2.0.0**; every future floor raise is likewise a MAJOR bump with its own bridge (§7.3) |
+| D9 | Rollout | Two-stage delivery: pre-squash PR (repair engine + generator + tooling fixes, zero `v*.ex` contention), then ONE atomic squash PR with a same-day regenerate-rebase-merge protocol; last 1.7.x = frozen bridge (permanently available on Hex; ~90 days = security-backport window only) |
+| D10 | Baseline construction | Generated from a real migrated scratch DB by **incremental per-version catalog introspection** (→ `since`/revision tags), emitted deterministically in `Helpers.*` idioms, hand-reviewed, verified by normalized dump + seed-row diffs; repeatable tool |
+| D11 | Re-squash cadence | Institutionalized (delta > ~100 versions or annually); each re-squash = major bump + its own bridge; manifest regeneration is per-migration-release regardless |
+| D12 | Verification env | Operator-provided scratch DB (§8.1); nothing destructive near the live DB; at least one matrix cell on a second PG major |
+| D13 | Fresh-DB clamp | `initial == 0` with `opts.version < floor` → clamp: run the baseline, don't raise. Contract: covers PK **wrapper** migrations only; consumer-authored migrations depending on below-floor intermediate shapes are a documented breakage class (§5.3) |
 
 ---
 
-## 2. Background: how the machinery works today (verified 2026-07-14 @1.7.193; line refs per header note)
+## 2. Background: machinery facts (verified at HEAD v1.7.196)
 
 - Version state = table COMMENT on `{prefix}.phoenix_kit`, read via `obj_description`
-  (`postgres.ex:1360-1397`); *table exists but no comment → assumed version 1* (`:1386-1387`);
-  table absent → 0. Written by `record_version/2` (`:1673-1676`) and by **every** version module
-  self-stamping (150/150 currently self-stamp, incl. `v149.ex`/`v150.ex`; the multi-step
-  auto-stamp at `:1633-1635` is a redundant safety net — single-step runs must self-stamp, a trap
-  for future modules and load-bearing for the D13 clamp path).
-- `up/1` (`postgres.ex:1315-1330`): fresh (`0`) → `change(@initial_version..target)`; behind →
-  `change((migrated+1)..target)` with a `uuid_generate_v7` re-ensure when starting ≥ V40 (`:1324`);
-  at/ahead → **silent no-op** (`:1327-1328`) — this is what makes consumers' accumulated wrapper
-  migrations harmless on the up path.
-- Dispatch is dynamic: `Module.concat([__MODULE__, "V#{pad}"]) |> apply(dir, [opts])`
-  (`:1614-1616`). A missing module in the live range raises `UndefinedFunctionError` mid-run —
-  this is the crash the guards/clamp must pre-empt. There is NO completeness check that every
-  version in `[@initial_version, @current_version]` has a module (release_check asserts only the
-  max — §5.3).
-- `down/1` (`:1333-1357`) rolls `current..(target+1)` downward — stale consumer wrappers'
-  `down(version: X<floor)` would dispatch into deleted modules (§5.2 down-semantics).
-- `@initial_version 1` / `@current_version 150`; `@uuid_fn_version 40` (`:1302-1306`); heal
-  registry `version_checks/0` has exactly one entry `{83, …}` (`:1559-1573`).
-- `ensure_current/2` (`migration.ex:308-324`) re-enters `up/1` on every test boot; a raised floor
-  changes it from "always heals" to "heals iff fresh or ≥ floor" — the guard's message is the only
-  operator signal (`test/test_helper.exs:49`, `prefix_migration_test.exs:66-67,191`).
-- Consumer surface: installer emits an **unpinned** `add_phoenix_kit_tables.exs` (targets the
-  installed lib's current version at run time); `phoenix_kit.update` emits
-  `*_phoenix_kit_update_vXX_to_vYY.exs` with `@disable_ddl_transaction true`, from-version taken
-  from the **live DB comment** (`update.ex:415-540`); `gen.migration` takes from-version from
-  **filenames** (`gen.migration.ex:58-89`) — and has a pre-existing bug: it scans for
-  `create_phoenix_kit_tables` but the installer writes `add_phoenix_kit_tables` (`:83`).
-- 2026-07 prefix-safety overhaul (PR #628 + #631) is load-bearing for the baseline:
-  `Helpers.validate_prefix!/1`, privilege-aware `Helpers.ensure_extension!/1,2` (immediate, never
-  bare `CREATE EXTENSION`), schema-qualified `Helpers.ensure_uuid_v7_function/1,2` +
-  `uuid_v7_call/1`, bare index names on CREATE, schema-anchored existence checks, name-based
-  `pg_constraint` JOINs instead of regclass casts in immediate checks (the V146 trap: a regclass
-  cast on a missing relation poisons the whole migration transaction with 25P02).
-- **In-repo repair prior art** the design builds on: `UUIDRepair` (runtime additive repairer with
-  dry-run, `uuid_repair.ex`), `heal_version_comment/2` (artifact-probe → stamp, `postgres.ex:
-  1517-1573`), `mix phoenix_kit.doctor` (report-only checks, PgBouncer heuristic `doctor.ex:171`),
-  V141's normalize-on-every-up, and `Helpers`' dual migration/runtime variants.
+  (`postgres.ex:1373-1410`); *table exists but no comment → legacy-mapped to version 1*
+  (`:1400`); table absent → 0. Written by `record_version/2` (`:1686-1689`) and by every version
+  module self-stamping (150/150 currently self-stamp; the multi-step auto-stamp `:1646-1648`
+  fires only when `total_steps > 1` — single-step runs rely entirely on self-stamps, which the
+  D13 clamp path depends on).
+- `up/1` (`:1328-1343`): fresh → `change(@initial_version..target)`; behind → deltas with a
+  `uuid_generate_v7` re-ensure when starting ≥ V40 (`:1337`); at/ahead → silent no-op
+  (`:1340-1341`).
+- Dispatch is dynamic (`:1627-1629`); a missing module in the live range raises
+  `UndefinedFunctionError`. NOTHING checks range completeness today (release_check asserts only
+  the max — §5.3). Direct calls to `PhoenixKit.Migrations.Postgres.VNN` bypass `up/1` guards
+  entirely; they are not a supported API and get no clamp (documented, not defended).
+- `down/1` (`:1346-1370`) rolls `current..(target+1)`; the target itself is not down-migrated.
+- `@initial_version 1` / `@current_version 150` (`:1311-1312`); `@uuid_fn_version 40` (`:1319`);
+  heal registry `version_checks/0` holds exactly `{83, …}` (`:1572-1586`).
+- `ensure_current/2` (`migration.ex:308-324`) re-enters `up/1` on every test boot
+  (`test/test_helper.exs:49`, `prefix_migration_test.exs:66-67,191`).
+- Consumer surface: installer emits an **unpinned** `add_phoenix_kit_tables.exs`;
+  `phoenix_kit.update` emits pinned wrappers with `@disable_ddl_transaction true`, from-version
+  from the live DB comment (`update.ex:415-540`); `gen.migration` derives from-version from
+  FILENAMES and scans for `create_phoenix_kit_tables` while the installer writes
+  `add_phoenix_kit_tables` (`gen.migration.ex:83`) — pre-existing bug.
+- 2026-07 prefix-safety overhaul (PR #628/#631) is load-bearing: `Helpers.validate_prefix!/1`,
+  privilege-aware `ensure_extension!`, schema-qualified `ensure_uuid_v7_function` +
+  `uuid_v7_call/1`, bare index names on CREATE, schema-anchored checks, name-based
+  `pg_constraint` JOINs — never regclass casts in immediate checks (V146 trap: 25P02 poisons the
+  whole migration transaction).
+- In-repo repair prior art: `UUIDRepair` (runtime additive repairer + dry-run),
+  `heal_version_comment/2` (artifact-probe → stamp, raise-only), `mix phoenix_kit.doctor`
+  (report-only, PgBouncer heuristic `doctor.ex:155-174`), V141 normalize-on-every-up, `Helpers`'
+  dual migration/runtime variants.
 
 ## 3. Key research facts that shaped the design
 
-1. **Churn kills frozen baselines.** 40 of 135 legacy files (~30%) were modified since 2026-06-15
-   (prefix overhaul, hardened-install fixes, 3 behavioral fixes); the chain gains ~16 new versions
-   per month (V149+V150 landed within two days of this spec's first draft); **five**
-   version-renumber events in fork history (latest: V149→V150 on 2026-07-15, `6201b2cb`, because
-   upstream took V149). ⇒ the baseline must be **regenerable by tooling** (D10, D11), and the June
-   draft artifacts are stale by construction.
-2. **The chain is largely idempotent already** (50 files use `create_if_not_exists`, 27 use
-   `ADD COLUMN IF NOT EXISTS`, 21 seed with `ON CONFLICT`), but NOT uniformly: early-era files
-   (e.g. V10) crash on re-run; **V20's `Local Storage` bucket seed has no `ON CONFLICT` and no
-   unique constraint** (re-run duplicates the row); V35 seeds a role with `DO UPDATE` (an upsert).
-   ⇒ repair cannot be "re-run the old chain"; it needs the manifest (D5) with per-object guards.
-3. **Feature modules have no own chains.** All `phoenix_kit_cat_*`, `location_*`, `warehouse_*`,
-   crm/staff/projects/... DDL lives in core versions (inventory table in
-   `2026-07-14-squash-inventory.md`; V149 — catalogue sourcing-info — continues the pattern). The
-   baseline generator must include module tables — the June plan's implicit "core-auth only"
-   framing is wrong.
-4. **Only one live consumer is local** (`/www/app`, Andi/MebelKit, verified at comment `'147'`
-   with 9 schema markers consistent — no drift). 41 accumulated phoenix_kit wrapper files there
-   form the consumer-side regression surface (§5.3). docker1 installs (hydroforce DEV,
-   decor_3d_print = 135 @ 2026-06-15; hydroforce_prod = 121, stale) are operator-confirmed only.
-5. **Nobody has done this before in this ecosystem.** Upstream has zero squash intent (issues/PRs
-   searched 2026-07-14); Oban (the pattern source) has never squashed — but Oban adds ~2
-   versions/year vs our ~16/month, so its do-nothing strategy does not transfer. Django's squash
-   semantics (bridge release, elidable data ops, delete-later) and Rails squasher (baseline from
-   real DB state) provide the transferable rules used in D9/D10.
-6. **Live verification environment exists but is read-only today**: direct PG 17.4 at
-   172.18.0.13:5432 reachable (creds in `.git/squash_verify.pgpass`, host field stale), client
-   psql/pg_dump 17.10 ≥ server — no dump mismatch; role has NO createdb; PgBouncer at
-   `pgbouncer:6432` must never carry DDL. All destructive scenarios need an operator-provided DB
-   (§8.1).
+1. **Churn kills frozen baselines**: ~30% of legacy files modified in the last month; ~16 new
+   versions/month; **five** renumber events (latest V149→V150, 2026-07-15). Baseline must be
+   tool-regenerable.
+2. **The chain is not uniformly idempotent**: early files (V10) crash on re-run; V20's bucket
+   seed has no conflict guard; V35 seeds via upsert. Repair needs the manifest, not chain re-runs.
+3. **Feature modules have no own chains** — all module DDL (catalogue/locations/warehouse/crm/
+   staff/…, incl. V149) lives in core versions; the baseline covers module tables too.
+4. **One local consumer** (`/www/app`, Andi, verified at '147', no drift; 41 wrapper files —
+   §5.3's regression surface, including real consumer-authored migrations that ALTER phoenix_kit
+   tables, e.g. `20260402133000_phoenix_kit_catalogue_v013_base_price.exs`). docker1 numbers are
+   operator-confirmed only and stale.
+5. **No ecosystem precedent** (upstream: zero squash intent; Oban never squashed at ~2
+   versions/year vs our ~16/month). Django (bridge-in-time, elidable data ops) and Rails
+   squasher (baseline from real DB state) supply the transferable rules.
+6. **Verification env is read-only today**: direct PG 17.4 at 172.18.0.13:5432 OK (pgpass host
+   field stale), psql/pg_dump 17.10, NO createdb, PgBouncer must never carry DDL.
+7. **The old chain's end-state is bimodal** (single-run installs vs incrementally-upgraded
+   installs differ), because immediate-query guards see pre-flush state on single runs: fresh
+   single-run chains RETAIN `users.preferred_locale` + index (V30's immediate guard misses V28's
+   queued add — `v30.ex:91-105`) and BOTH V13+V22 duplicate partial unique indexes; upgraded
+   installs don't. Verified live: bimodality is real in the fleet (Andi's initial install was a
+   single multi-step run). Consequence: "byte-for-byte" needs the §5.1 `presence:` model and the
+   S1 whitelist.
 
 ---
 
 ## 4. Floor decision
 
-**Rule (D1):** `floor = min(confirmed migrated_version across all installs the maintainer commits
-to seamless upgrades for)`. **No arbitrary safety margin below the minimum**: a margin of N
-versions does not protect against an unsurveyed install sitting below the margin — floor 110 and
-floor 121 strand a hypothetical v90 install identically. The only real protection for stragglers
-is the guard + bridge stopover (D4/D9), which works at ANY floor; the only way to avoid stranding
-someone silently is to survey every supported install. Keep a small margin only on concrete
-suspicion of a specific unsurveyed install.
+**Rule (D1):** floor = min(confirmed `migrated_version`) across the **complete** list of installs
+the maintainer commits to seamless upgrades for. No margin below the confirmed min (a margin
+protects nothing an unsurveyed install wouldn't also break; the guard + permanent bridge protect
+stragglers at ANY floor). Confirmation must be a **fresh reading at implementation time** —
+`migrated_version` can regress via backup restores.
 
-**Data (2026-07-16):**
+**Data (2026-07-16 — CONFIRM BEFORE IMPLEMENTATION):**
 
 | install | version | as of | status |
 |---|---|---|---|
 | Andi/MebelKit (local) | 147 | 2026-07-14 | verified live (comment + 9 markers) |
-| hydroforce DEV | 135 | 2026-06-15 | stale, likely higher |
-| decor_3d_print | 135 | 2026-06-15 | stale, likely higher |
-| hydroforce_prod | 121 | pre-2026-06-15 | **UNCONFIRMED — the single blocking input** |
+| hydroforce DEV | 135 | 2026-06-15 | stale |
+| decor_3d_print | 135 | 2026-06-15 | stale |
+| hydroforce_prod | 121 | pre-2026-06-15 | **UNCONFIRMED — blocking** |
 
-**Floor candidates math** (repo at V150, 25,405 lines across 150 files; per-floor deleted-line
-figures unchanged since v01..v147 were not touched by 1.7.194-196):
+Open with the operator: is this list COMPLETE? Any other host/app under the seamless-upgrade
+commitment makes its version a floor input too (§10 Q1).
 
-| floor | files deleted | lines deleted | delta files remaining (of 150) |
+**Floor candidates** (repo at V150, 25,405 lines / 150 files; per-floor figures unchanged by
+1.7.194-196 — v01..v147 untouched):
+
+| floor | legacy files removed (v01..v{floor-1} deleted + v{floor} replaced by baseline) | lines removed | delta files remaining |
 |---|---|---|---|
-| 110 (June) | 110 | 19,725 | 40 |
-| **121** | 121 | 21,537 | 29 |
-| **135** | 135 | 23,231 | 15 |
-| 147 | 147 | 25,155 | 3 |
-
-**Action:** ask the docker1 operator for
-`SELECT obj_description(to_regclass('public.phoenix_kit')::oid, 'pg_class');` on hydroforce_prod
-(and refresh DEV/decor numbers) immediately before implementation. Everything in this spec is
-parameterized on `floor`; no other artifact depends on the choice.
+| 110 | 109 + 1 | 19,725 | 40 |
+| **121** | 120 + 1 | 21,537 | 29 |
+| **135** | 134 + 1 | 23,231 | 15 |
+| 147 | 146 + 1 | 25,155 | 3 |
 
 ---
 
 ## 5. Design
 
-### 5.1 Baseline module `V{floor}` — thin shell over the ExpectedSchema manifest
-
-`lib/phoenix_kit/migrations/postgres/v{floor}.ex` (replacing the existing delta of that number —
-the module name MUST stay `V{floor}` so no new version number is consumed and in-flight upstream
-v151+ PRs cannot collide).
+### 5.1 ExpectedSchema manifest + thin baseline `V{floor}`
 
 ```elixir
 defmodule PhoenixKit.Migrations.ExpectedSchema do
-  # TOOL-GENERATED (regenerated whenever a migration is added; §8.3), hand-reviewed.
-  # Ordered object manifest — the ONLY schema description in the codebase.
-  # Object.t :: %{id: String.t(), since: pos_integer(),          # version that introduced it
-  #               class: :extension | :function | :table | :column | :index | :constraint
-  #                      | :sequence | :seed | :oban | :comment,
-  #               check: {:catalog, spec} | sql,   # parameterized, schema-anchored, non-raising
-  #               create: sql | {:helper, mfa},    # additive-only statement
-  #               expected: map(),                 # for verify-mode catalog comparison
-  #               backfill: nil | :default | {:manual, sql_text}}
+  @moduledoc false  # tool-generated; documented in Repair's docs; huge module must not hit hexdocs
+  # Regenerated by the generator (§8.3) whenever a migration is added. Deterministic emit order
+  # (since, class, id) so diffs are append-mostly; NEVER hand-merged — regenerate after rebase.
+  # Object.t :: %{
+  #   id: String.t(), class: :extension | :function | :sequence | :table | :column | :index
+  #        | :constraint | :seed | :comment,          # NO :oban class — Oban is delegated (§6.1)
+  #   since: pos_integer(),                           # version that INTRODUCED the object
+  #   revisions: [{as_of_version :: pos_integer(), shape :: map()}],  # ordered; multi-step
+  #        # objects (e.g. role_permissions.module_key VARCHAR(50)@53 → VARCHAR(120)@142) carry
+  #        # one revision per alteration; single-shape entries are FORBIDDEN for any object the
+  #        # generator's per-version diff pass saw altered
+  #   presence: :required | :legacy_optional,         # :legacy_optional = known bimodal drift
+  #        # (§3.7: preferred_locale + index, V13-vs-V22 duplicate index): verify reports
+  #        # info-level either way; repair NEVER creates them
+  #   check: {:catalog, spec} | sql,                  # parameterized, schema-anchored, non-raising
+  #   create: sql | {:helper, mfa},                   # additive-only
+  #   backfill: nil | :default | {:manual, sql_text}}
+  # plus: data_invariants :: [%{since: v, assert: sql, desc: ...}] — generator-emitted assertions
+  #   for upgrade-only transforms (minimum set: post-V114 no composite "integration:*" settings
+  #   keys; V137 email_events/aws_message_id uniqueness; V109/V77 renamed keys absent). Used by
+  #   verify (report-only) and as the --adopt gate (§6.4 R4).
   def objects(prefix) :: [Object.t()]
+  def data_invariants() :: [...]
+  def chain_hash() :: String.t()   # hash over v*.ex set at generation time (staleness detector)
 end
 
 defmodule PhoenixKit.Migrations.Postgres.V{floor} do
   use Ecto.Migration
-  def up(opts)    # applies ExpectedSchema slice `since <= {floor}` via queued execute/flush,
-                  # class-ordered: extensions < functions < tables < columns < indexes
-                  # < constraints < seeds < comment; SELF-STAMPS '{floor}'
-  def down(opts)  # teardown to version 0: generated reverse-order drops of the slice
-                  # + Oban.Migration.down; never drops shared extensions/public functions
+  def up(opts)    # applies the since <= {floor} slice via queued execute/flush, class-ordered:
+                  # extensions < functions < SEQUENCES < tables < columns < indexes < constraints
+                  # < seeds < comment (sequences before tables: V140 nextval() column DEFAULTs);
+                  # ALWAYS self-stamps '{floor}' regardless of range membership (single-step runs
+                  # get no auto-stamp; multi-step range-end stamp then overwrites — correct, S15)
+  def down(opts)  # teardown of the baseline slice to version 0 (reverse order) +
+                  # Oban.Migration.down; never drops shared extensions / public functions
 end
 ```
 
-Requirements distilled from the chain inventory (complete lists in the companion doc):
+Baseline content requirements (details per inventory; all floors below assume ≥ 121):
 
-- **Owns V01's responsibilities**: schema existence pre-check + `CREATE SCHEMA` only when missing
-  and `create_schema: true`, else operator-facing raise (V01 semantics, `v01.ex:8-28`).
-- **Extensions**: `Helpers.ensure_extension!/1` for citext + pgcrypto (+ pg_trgm when floor ≥ 111
-  — all candidate floors qualify). Immediate execution BEFORE queued DDL flushes.
-- **Functions**: `Helpers.ensure_uuid_v7_function/1` (schema-qualified; pgcrypto-schema-resolved)
-  and `extract_primary_slug()` (`v52.ex:41`, `CREATE OR REPLACE`). All defaults/calls via
-  `Helpers.uuid_v7_call/1`. Keep `@uuid_fn_version 40` and the `up/1` re-ensure line — both remain
-  correct with floor ≥ 40.
-- **Tables/columns/indexes/sequences**: final-state shapes only (post-drop, post-rename: e.g.
-  `settings.value` nullable since V12, no `db_sync_*` artifacts — 43 versions drop/rename objects;
-  the generator works from migrated end-states so elided objects can never leak in). Index names
-  BARE on CREATE. Per-column `ADD COLUMN IF NOT EXISTS` entries for every column of every table
-  (table-level `IF NOT EXISTS` alone cannot heal column drift in repair mode).
-- **Constraints**: catalog-guarded (name-based `pg_constraint` JOIN with `nspname = $1` — never
-  regclass in immediate checks); in repair mode FKs added `NOT VALID` + `VALIDATE` (§6).
-- **Oban**: delegate `Oban.Migration.up(prefix: prefix, create_schema: false)` exactly as V27 does
-  (`v27.ex:56`); never hand-create oban tables (repair delegates too). NB: baseline output for
-  Oban objects therefore depends on the host's Oban version — pin it in the verify harness (§8.2
-  S16, §9).
-- **Seeds (final state, from inventory)**: roles (incl. V35's SupportAgent — as plain
-  `ON CONFLICT (name) DO NOTHING` in baseline; the historical `DO UPDATE` upsert is
-  upgrade-semantics, wrong for repair), settings with their FINAL keys/values/module tags (e.g.
-  V03 seeds carry `module='system'` directly, folding V04's retro-tag; no
-  `ai_text_processing_slots` — seeded by V32, deleted by V34), currencies, payment options,
-  storage dimensions, admin role permissions (ordered after roles; conditional on Admin existing),
-  publishing/legal/tickets/… settings. **Fix the V20 bucket seed**: guard `Local Storage` INSERT
-  with `WHERE NOT EXISTS` (no unique constraint exists to hang `ON CONFLICT` on). Email templates
-  stay **best-effort optional** (V15/V31 seed via app-level seeder with rescue) — repair treats
-  them as re-seedable, not as missing-object errors.
-- **Self-stamps** `COMMENT ... IS '{floor}'` at the end of `up` — single-step runs get no
-  auto-stamp (`postgres.ex:1633-1635`), and the D13 clamp path IS a single-step run. On a fresh
-  multi-step run (`change(floor..current)`) the range-end auto-stamp then overwrites `'{floor}'`
-  with `'{current}'` — correct, but subtle enough to pin with a test (§8.2 S15).
-- **No historical backfills** (D7): every below-floor backfill (V08 usernames, V40/56/61/63 uuid
-  fills, V47/80 JSONB wraps, V88 versions derivation, V107/114 integrations rewrite, V120
-  doc-categories, V135 skills parse, …) converts pre-floor data and is definitionally dead on a
-  fresh DB. They live only in the git history of the deleted files (and in the bridge release).
+- Owns V01's semantics: schema pre-check + `CREATE SCHEMA` only when missing and
+  `create_schema: true`, else operator-facing raise.
+- Extensions via `Helpers.ensure_extension!/1` (citext, pgcrypto, pg_trgm), immediate, before
+  queued DDL. Functions via `Helpers.ensure_uuid_v7_function/1` + `extract_primary_slug()`
+  (`v52.ex:41`); all call sites via `Helpers.uuid_v7_call/1`. `@uuid_fn_version 40` + the `up/1`
+  re-ensure stay.
+- Final-state shapes only (post-drop/rename); bare index names; per-column
+  `ADD COLUMN IF NOT EXISTS` coverage for repair-mode column healing; constraints via name-based
+  catalog guards; NO regclass in immediate checks.
+- **Oban**: `Oban.Migration.up(prefix:, create_schema: false)` exactly as V27; Oban objects are
+  **delegated, never manifested** — verify/repair resolve Oban state via `Oban.Migration`'s own
+  version/diagnostics, not shape comparison (host Oban versions legitimately differ; a manifested
+  snapshot would flag every host as drifted).
+- **Seeds (final state)**: roles (SupportAgent as `DO NOTHING`, not the historical upsert),
+  settings with final keys/values/module tags (V03 seeds carry `module='system'`; V35 `tickets_*`
+  keys materialize as `customer_support_*` at any candidate floor — V77→V109 double rename; no
+  `ai_text_processing_slots`), currencies, payment options, storage dimensions, admin role
+  permissions (after roles, conditional on Admin; the V53 'tickets' permission key materializes
+  as 'customer_support'), publishing/legal/… settings. **V20 bucket seed gets a
+  `WHERE NOT EXISTS` guard** (no unique constraint to hang `ON CONFLICT` on). **System email
+  templates**: manifest `:seed` entries with `create: {:helper, {mod, fun, args}}` wrapping the
+  existing seeder in the same apply/rescue best-effort semantics (their only current call sites,
+  `v15.ex:130-151`/`v31.ex:523-525`, die with the deleted files — without this, 2.0 fresh
+  installs ship an empty templates table and S2 as first drafted would not notice).
+- No historical backfills (D7).
 
 ### 5.2 Registry changes (`postgres.ex`)
 
-- `@initial_version {floor}`; `@current_version` unchanged (max on disk).
-- **`up/1` semantics** (new cond, replacing the current 3-way):
+- `@initial_version {floor}`; `@current_version` unchanged.
+- **`up/1`** (new cond order):
   1. `initial > 0 and initial < @initial_version` → raise `PhoenixKit.Migrations.BelowFloorError`
-     naming the DB version, the floor, and the bridge release ("upgrade to phoenix_kit {bridge}
-     and run mix phoenix_kit.update first").
-  2. `initial == 0` → **clamp** (D13): `change(@initial_version..max(opts.version,
-     @initial_version), :up, opts)` — a stale consumer wrapper pinning `version: 27` on a fresh DB
-     runs the baseline only (stamps `'{floor}'` via self-stamp); later wrappers no-op below floor
-     and continue above it; the final unpinned/current wrapper completes the chain. Without the
-     clamp, every consumer repo with a pinned below-floor wrapper crashes on fresh
-     `mix ecto.setup` (previously: descending-range `UndefinedFunctionError`).
+     (struct fields: db_version, floor, bridge_version, message; message names the bridge; the
+     `ensure_current/2` path decorates it with the test-DB hint "if this is a test/CI database,
+     run `mix test.reset`" — GLM M6: a consumer's persistent CI DB is the common below-floor case
+     and "install the bridge" is the wrong advice there).
+  2. `initial == 0` → clamp (D13): `change(@initial_version..max(opts.version,
+     @initial_version), :up, opts)`. Covers pinned below-floor wrappers AND pathological
+     `version: 0`/negative pins. Consumer-facing doc: `up(version: 27)` on a fresh DB now lands
+     at `{floor}`, not 27 — by design.
   3. `initial < opts.version` → deltas as today (uuid re-ensure retained).
-  4. else `:ok`.
-- **`down/1` semantics**: `0 < current < @initial_version` → `BelowFloorError`. Target handling:
-  `target == 0` → full teardown (baseline `down` runs last); `0 < target < @initial_version` →
-  **clamp target to `@initial_version`** with a logged warning (roll back deltas only, keep the
-  baseline) — a stale wrapper's `down(version: 45)` then rolls back to the floor instead of
-  crashing into deleted modules. Rationale: rollback of a squashed range is semantically
-  "rollback to the baseline"; going lower is only meaningful as full teardown (`version: 0`).
-- Moduledoc: collapse V01..V{floor-1} narrative into one baseline entry; fix the stale V27-era
-  "Migration Paths" examples; keep the `⚡ LATEST` marker discipline.
-- `version_checks/0`: drop the `{83, …}` entry (dead below any candidate floor). The heal
-  mechanism itself stays for future above-floor entries.
-- `UUIDRepair` + its `phoenix_kit.update` caller: retire (floor ≥ 40 makes it unreachable);
-  its job is subsumed by `mix phoenix_kit.repair`.
+  4. else `:ok`. (A comment ahead of `@current_version` is a silent no-op here — repair/doctor
+     own that detection, §6.4 R6.)
+- **`down/1`**: `0 < current < @initial_version` → `BelowFloorError` (note: a below-floor install
+  cannot uninstall via 2.0.0 — bridge first; documented). Targets: `target == 0` → full teardown,
+  implemented as `change(current..(floor+1)//-1, :down)` **plus a direct `V{floor}.down(opts)`
+  call outside the range machinery** — the range MUST NOT cross the floor boundary or it
+  dispatches deleted modules (GLM M3). `0 < target < @initial_version` → clamp target to
+  `@initial_version` with a logged warning.
+  **Clamped-down invariant (stated, tested):** a clamped down is a *recorded no-op* — Ecto marks
+  the consumer wrapper rolled back while the PK comment stays at `{floor}`; the disagreement is
+  intentional; below-floor rollback of PK state is unsupported (only `version: 0` teardown
+  changes pre-floor state). Consumer downs interleaved below floor run against the floor shape —
+  must be shape-guarded (same breakage class as §5.3). verify/doctor flag "comment at floor but
+  consumer wrapper history rolled back" as a warning.
+- Moduledoc collapse; stale V27-era examples fixed; `version_checks/0` `{83,…}` dropped (heal
+  mechanism stays); `UUIDRepair` + its update-task caller retired.
+- Terminology: "below-floor" (hyphenated) everywhere, matching `BelowFloorError`.
 
-### 5.3 Consumer-app compatibility (the 41-wrapper surface)
+### 5.3 Consumer-app compatibility — scope and limits of the guarantee
 
-Verified semantics that MUST survive (regression tests in §8.2):
+**Guaranteed (no consumer changes):** replay of PK **wrapper** migrations — unpinned installer
+first (jumps to current; clamp never fires) or pinned below-floor chains (clamp → baseline →
+no-ops → deltas). Traced and test-pinned (S5 i/ii).
 
-- Fresh `ecto.setup` with accumulated wrappers: the unpinned install wrapper runs first → baseline
-  + deltas → comment `'{current}'`; every later `up(version: Y)` wrapper hits the `:ok` no-op arm.
-  **Works with no consumer-side changes.**
-- Fresh setup where the earliest surviving wrapper pins a below-floor version (install wrapper
-  deleted — real consumer repos have `v1_to_v27`-style chains): **works via the D13 clamp**
-  (baseline → no-ops → deltas). Acceptance test = explicit multi-wrapper replay (§8.2 S5).
-- `down` into below-floor range: clamped to floor with warning; `down(version: 0)` = full
-  teardown; below-floor DB state raises `BelowFloorError` (§5.2).
-- `mix phoenix_kit.update`: from-version comes from the live DB comment (≥ floor after guard) —
-  mechanically unaffected; add a generation-time below-floor refusal with the bridge message
-  (`update.ex:428-447` area) so operators are told at generate time, not migrate time.
-- `mix phoenix_kit.gen.migration`: fix the from-version filename scan to also match
-  `add_phoenix_kit_tables` (pre-existing bug, `gen.migration.ex:83`); emitted `down` pins
-  clamp-safe versions.
-- `mix phoenix_kit.release_check`: extend check 3 with `min(vNN on disk) == @initial_version`,
-  **contiguity of `{floor}..{current}`** (today NOTHING catches an accidentally-deleted delta
-  file — the crash surfaces at runtime on whatever install needs it), and "baseline module
-  applies the ExpectedSchema floor slice" assertions. Plus a DB-free unit test asserting every
-  `n in @initial_version..@current_version` resolves to a loadable module.
-- Optional post-2.0 nicety (not in scope): `mix phoenix_kit.consolidate_wrappers` collapsing a
-  consumer's accumulated wrapper files into one — the clamp makes it unnecessary for correctness.
+**NOT guaranteed (documented breakage class):** consumer-AUTHORED migrations interleaved between
+wrappers that depend on below-floor intermediate shapes — any object in the inventory's
+Drops/renames list (43 versions: V74 bigint-id drops, V47/V80 string→JSONB, V84 `mailing_*`→
+`newsletters_*`, V89 `price`→`base_price`, …). Real instance in the flagship consumer:
+`…_phoenix_kit_catalogue_v013_base_price.exs` (survives only via its hand-added IF EXISTS
+guard); `…_add_prefix_to_phoenix_kit_cat_catalogues.exs` shows the unguarded pattern. Pre-squash
+these replayed against the exact intermediate shape; post-squash they replay against `{floor}`
+shape. Remedy (upgrade guide, named breakage class): shape-guard such migrations (IF EXISTS /
+column checks) or collapse history — **`mix phoenix_kit.consolidate_wrappers` is promoted from
+nice-to-have to a shipped 2.0.0 deliverable** (collapses accumulated wrappers into one; makes
+the class moot for repos that adopt it). S5 gains variant (iii) pinning the documented failure
+mode and (iv) a rollback→migrate round-trip (§8.2).
 
-### 5.4 What is deliberately NOT carried into 2.0.0
+**Tooling:**
+- `mix phoenix_kit.update`: unaffected mechanically (from-version = live comment); add
+  generation-time below-floor refusal with the bridge message; upgrade guide: confirm comment ≥
+  floor on EVERY environment's DB (dev/staging/prod) before bumping the pin — a dep bump bundled
+  with an unapplied wrapper otherwise fails at deploy-time migrate (risk row §9).
+- `mix phoenix_kit.gen.migration`: fix the `create_`/`add_` filename-scan bug; emitted `down`
+  pins clamp-safe versions.
+- `mix phoenix_kit.release_check`: add `min(vNN on disk) == @initial_version`, contiguity of
+  `{floor}..{current}`, loadable-module range assertion, manifest `chain_hash` freshness. PLUS a
+  DB-free unit test in the plain `mix test` suite asserting the same hash (release_check runs
+  only via the `prerelease` alias and CI is manual-only — the habitual gate must catch staleness
+  too).
 
-- Historical backfills and one-off data conversions below floor (bridge release carries them).
-- `UUIDRepair` module + pre-migration invocation.
-- The V83 heal entry.
-- Dead `describe_version_changes` hardcodes (`common.ex:323-338`) and `migration.ex` moduledoc
-  `version: 2` examples — refreshed as documentation cleanup.
-- Phantom `PhoenixKit.Migrations.SQLite` / `.MyXQL` references in `migration.ex:326-333` (modules
-  do not exist; cosmetic cleanup, flagged for upstream).
+**Test surface (per-floor disposition; task file requires it):** at floor 121 delete
+`v106/v107/v112/v113/v114_test.exs` (reference deleted modules → S14 compile gate), floor 135
+additionally `v125_test.exs`; `v145_test.exs` survives all candidates. Load-bearing schema-state
+assertions from deleted tests (e.g. V112's dropped-index and NULL-vs-0 pins) migrate into
+manifest `expected` revisions exercised by S8/S9. New unit tests: below-floor guard messages,
+clamp arithmetic, range-completeness.
+
+### 5.4 Deliberately NOT carried into 2.0.0
+
+Historical backfills below floor (bridge carries them); `UUIDRepair` + caller;
+`PhoenixKit.Migrations.UUIDFKColumns` (callers v56/v57/v70 are all below any candidate floor —
+orphaned dead code otherwise); the `{83,…}` heal entry; stale `describe_version_changes`
+hardcodes + `migration.ex` moduledoc `version: 2` examples; phantom `Migrations.SQLite`/`MyXQL`
+references (`migration.ex:326-333`). **Docs cleanup includes AGENTS.md/CLAUDE.md**: its
+prefix-safe-migrations section pins semantics to V01/V27/V40/V51 files that the squash deletes —
+rewrite those references to the baseline module + Helpers.
 
 ---
 
 ## 6. Verify-and-repair
 
-### 6.1 Architecture (D5/D6): one manifest, three consumers, no delta re-execution
-
-Chosen over (a) comment-gated-baseline-only — fails the maintainer requirement and the historical
-record (≥5 chain versions exist solely to patch drift: V57, V61, V63, V70, V129; plus the
-PgBouncer-dropped-DDL and lying-comment field incidents) — and over (c) an independent
-hand-maintained expected-schema — a second copy of schema truth WILL diverge across ~16 new
-versions/month. The manifest is tool-generated (D10) and shared: installer and doctor cannot
-disagree.
+### 6.1 Architecture: one manifest, three consumers, no delta re-execution
 
 ```
-lib/phoenix_kit/migrations/expected_schema.ex     # tool-generated manifest (§5.1), since-tagged
-lib/phoenix_kit/migrations/postgres/v{floor}.ex   # thin: applies slice since <= floor (§5.1)
-lib/phoenix_kit/migrations/repair.ex              # runtime executor: verify/repair modes
+lib/phoenix_kit/migrations/expected_schema.ex     # generated manifest (§5.1)
+lib/phoenix_kit/migrations/postgres/v{floor}.ex   # thin baseline (slice since <= floor)
+lib/phoenix_kit/migrations/repair.ex              # runtime executor: verify/repair
 lib/mix/tasks/phoenix_kit.repair.ex               # UX
 ```
 
-```elixir
-PhoenixKit.Migrations.Repair.verify(opts)  :: {:ok, Report.t()} | {:error, term}
-PhoenixKit.Migrations.Repair.repair(opts)  :: {:ok, Report.t()} | {:error, term}
-# opts: prefix:, repo:, dry_run:, adopt:, unsafe_pooled:, validate_fks: (default true)
 ```
-
-```
-mix phoenix_kit.repair              # verify → apply additive repairs → re-verify → report
-mix phoenix_kit.repair --dry-run    # report + planned SQL only
-mix phoenix_kit.repair --prefix auth | --json | --adopt | --unsafe-pooled
+mix phoenix_kit.repair [--dry-run] [--prefix P] [--json] [--adopt] [--unsafe-pooled]
+                       [--heal-comment]
 # exit codes: 0 clean / 1 repairs applied-or-pending / 2 report-only divergences present
 ```
 
-**Scope rule (supersedes any delta re-run idea): repair applies manifest objects with
-`since <= comment` only.** Objects with `since > comment` are *pending migrations* — reported
-("run mix phoenix_kit.update"), never pre-applied, because deltas may carry data migrations that
-must run through the chain. Delta *modules* are never re-executed by repair: the chain contains
-non-additive, host-state-dependent operations (V137's dedup `DELETE`, V144's conditional
-`DROP TABLE`-when-empty, V141's constraint drop-and-readd) that are chain-legal but repair-illegal.
-Everything repair applies comes from the manifest's additive `create` statements — destructive
-delta operations are structurally absent from the manifest (they are data ops, not objects).
+**Comment reading:** repair reads the **raw** `obj_description` (NULL vs numeric) and NEVER
+routes through `migrated_version/1`'s legacy no-comment→1 mapping (`postgres.ex:1400`) — that
+mapping would swallow the half-installed/adopted case into the below-floor error (§6.4 R3/R4
+dichotomy). Migration entry points keep the legacy mapping; repair does not.
 
-Execution: validate prefix → resolve repo (direct-connection probe; §6.3) → read comment → branch
-per §6.4 → for each manifest object with `since <= comment`, class-ordered: run `check`
-(parameterized, schema-anchored, non-raising); missing → apply `create` via autocommit
-`repo.query!` (FKs `NOT VALID` + `VALIDATE`); present → compare catalogs vs `expected` →
-`Oban.Migration.up(prefix:, create_schema: false)` → final verify → comment policy (§6.4) →
-`Report`.
+**Scope rule:** repair applies manifest objects with `since <= comment` only, each at the newest
+**revision** with `as_of_version <= comment` (never a future shape — the later delta performs the
+alteration exactly as the chain would). Objects with `since > comment` are *pending migrations* —
+reported, never pre-applied (deltas may carry data migrations that must run through the chain).
+Delta modules are never re-executed (V137 dedup-DELETE / V144 conditional-DROP class is
+chain-legal but repair-illegal). Verify compares each object against the same revision choice —
+so a healthy DB at comment 135 with `module_key VARCHAR(50)` (final shape arrives at V142) is
+clean, not falsely divergent.
 
-### 6.2 Additive-only safety rules (engine-enforced, not convention)
+**Concurrency (enforced, not documented):** repair takes an advisory lock; `Postgres.up/down`
+take the SAME lock key on direct connections so repair-vs-migration exclusion is real. Repair
+re-reads the comment immediately after acquiring the lock and again before the final verify —
+if it moved, abort with a distinct "concurrent migration detected" status (S18). The create path
+tolerates `duplicate_object`/`duplicate_column` as `:already_present` (races resolve additively).
+Any `create` failure (e.g. unique index over data whose dedup-delta never ran — Kimi's V137
+scenario) is caught per-statement and reported as `:create_failed` with a diagnostic query, never
+a crash, never an implicit retry (S19).
 
-Never: `DROP` anything, `ALTER COLUMN TYPE`, `SET/DROP NOT NULL` on pre-existing columns, UPDATE/
-DELETE user data, rename, touch objects outside `phoenix_kit*`/`oban_*` in the target schema.
-The manifest generator restricts `create` fields to `CREATE …` / `ALTER … ADD …` /
-`INSERT … ON CONFLICT DO NOTHING` (or `WHERE NOT EXISTS`) / `COMMENT`.
-Detect-and-REPORT only: wrong type/length/default, unexpected NOT NULL, same-named index or
-constraint with divergent definition (`pg_indexes.indexdef` / `pg_get_constraintdef` normalized),
-FK whose `VALIDATE` failed (report orphan-count diagnostic; leave `NOT VALID` — new writes are
-still enforced), unknown extra `phoenix_kit_*` objects (info-level; e.g. consumer-created bridge
-tables — never drop), comment/schema disagreement.
-Repair-mode backfill: ONLY the declared default expression of a column repair itself just added
-(PG 11+ fast-default; V40-style batched loop only for volatile defaults on huge tables).
-Seeds in repair mode: `DO NOTHING` semantics strictly (never clobber operator-tuned values).
+Execution: validate prefix → resolve repo (pooled probe §6.3) → advisory lock → read raw comment
+→ branch per §6.4 → apply/verify slice class-ordered (extensions < functions < sequences <
+tables < columns < indexes < constraints < seeds; comment handled ONLY per §6.4, not as a generic
+sliced object) → `Oban.Migration.up(prefix:, create_schema: false)` → re-read comment → final
+verify (objects + data invariants, report-only) → comment policy → `Report`.
 
-Report struct (`--json`-able, severity-ordered): per finding `{severity, class, object, status ::
-:missing | :divergent | :repaired | :would_repair | :report_only | :validate_failed | :pending,
-expected, actual, action_sql | nil, detail}` + `versions: %{comment, floor, code}` + summary
-counts.
+### 6.2 Additive-only safety rules (engine-enforced)
+
+Never: DROP anything, ALTER TYPE, SET/DROP NOT NULL on pre-existing columns, UPDATE/DELETE user
+data, rename, touch objects outside `phoenix_kit*`/`oban_*` in the target schema. Generator
+restricts `create` to `CREATE…`/`ALTER … ADD …`/`INSERT … ON CONFLICT DO NOTHING` (or
+`WHERE NOT EXISTS`)/`COMMENT`. Repair-mode backfill: only the declared default of a column repair
+itself just added. Seeds: strict `DO NOTHING` (never clobber operator-tuned values).
+
+**Divergence detection is structural, not deparse-text** (PG majors render `pg_get_indexdef`/
+`pg_get_constraintdef` differently — cast decoration, ANY(ARRAY[…]), NULLS NOT DISTINCT):
+columns via `information_schema`/`pg_attribute` attributes (type, typmod, nullability, default
+normalized through the TARGET server's `pg_get_expr`); constraints via
+contype/conkey/confkey/confdeltype + predicate re-normalized on the target; indexes via
+indkey/opclass/predicate likewise; raw-text equality only where no structural decomposition
+exists. Preflight asserts `server_version` within a declared supported range (§6.3).
+Severity mapping (explicit, load-bearing for R4): `:missing`+creatable → repaired/would_repair;
+wrong type/length/default, unexpected NOT NULL, divergent index/constraint definition,
+`:create_failed`, failed data invariant → **error-severity, report-only**; `:legacy_optional`
+presence either way, unknown extra `phoenix_kit_*` objects, pending versions → info.
 
 ### 6.3 Environment rules
 
-- Immediate `repo.query!/3` per statement, statement-at-a-time autocommit, no wrapping transaction
-  (the `@disable_ddl_transaction` rationale, `update.ex:482-495`), no queued `execute` → the
-  entire flush-ordering bug family is structurally absent. **No regclass casts anywhere** (V146
-  lesson); every probe parameterized + schema-anchored + non-raising.
-- **PgBouncer**: statement-level autocommit is pooling-tolerant, but repair still detects pooled
-  connections (doctor heuristic `doctor.ex:155-174` + `pg_backend_pid()` sampling), warns,
-  requires `--unsafe-pooled`, and skips `VALIDATE CONSTRAINT` + advisory locking in pooled mode.
-  Recommended and documented: direct connection only (Andi runtime goes through `pgbouncer:6432` —
-  repair must be pointed at 172.18.0.13:5432).
-- No `CREATE INDEX CONCURRENTLY` in v1 (failure leaves an INVALID index = a drop obligation that
-  violates additive-only; revisit behind a flag later).
-- `pg_try_advisory_lock` for the run on direct connections; document "not concurrently with
-  migrations".
+Immediate `repo.query!/3` per statement, autocommit, no queued `execute`, no regclass casts.
+PgBouncer: detect pooled connections (doctor heuristic + `pg_backend_pid()` sampling), warn,
+require `--unsafe-pooled` (skips FK `VALIDATE` + advisory locking). Direct connection
+recommended/documented (Andi runtime rides `pgbouncer:6432`; repair targets 172.18.0.13:5432).
+No `CREATE INDEX CONCURRENTLY` in v1. FKs added `NOT VALID` + `VALIDATE` (validation failure →
+leave NOT VALID, report orphan diagnostic).
 
-### 6.4 Version-comment policy
+### 6.4 Version-comment policy (raw comment; R# referenced from code)
 
 1. **Never lower the comment.**
-2. `comment >= floor`: repair heals drift within the claimed version (`since <= comment` slice);
-   comment untouched; pending deltas above comment REPORTED, never executed.
-3. `0 < comment < floor`: hard error, bridge message (baseline `IF NOT EXISTS` semantics cannot
-   converge a pre-floor schema: renames/derivations don't replay; repair is a completeness tool,
-   NOT a migration bridge — non-additive intermediates like V58 timestamptz, V74 PK promotion,
-   V114 key rewrite cannot be bridged additively).
-4. Comment absent/0 but `phoenix_kit*` tables exist (half-installed or adopted DB): refuse by
-   default; `--adopt` force-applies the full manifest then stamps `{floor}`/`{current}` **only
-   if** the final verify pass is clean (zero `:missing`, zero error-severity divergences) — a
-   half-converged DB must never acquire a clean version number. NB: the legacy mapping "table
-   exists, no comment → version 1" (`postgres.ex:1386-1387`) routes genuine ancient installs into
-   the below-floor guard — correct.
-5. Lying-comment drift (the 2026-06 renumber incident): healed naturally by rule 2 (missing
-   objects for versions ≤ comment get created); verify additionally cross-checks the newest
-   version's marker objects and flags "comment ahead of schema" as a warning.
+2. Numeric comment in `[floor..current]`: heal drift within the claimed version (revision-scoped
+   slice); comment untouched; pending deltas reported. **Stale-LOW comment** (schema demonstrably
+   ahead of comment — marker probes for versions above it succeed; the V80 class and the 2026-06
+   renumber incident): repair does NOT auto-raise; it reports prominently with the evidence and
+   offers `--heal-comment` (generalized `heal_version_comment`: stamp the highest version whose
+   marker probes all pass). Warning attached: running `mix phoenix_kit.update` from a stale-low
+   comment re-runs deltas whose data ops are not all no-ops (V137 dedup, V141 normalize).
+3. Numeric `0 < comment < floor`: hard `BelowFloorError`, bridge message. Repair is a
+   completeness tool, not a migration bridge — non-additive intermediates (V58 timestamptz, V74
+   PK promotion, V114 key rewrite) cannot be bridged additively.
+4. Comment **NULL** (or meta table absent) while `phoenix_kit*` tables exist — the
+   half-installed / adopted / PgBouncer-ate-the-comment class: refuse by default, name `--adopt`
+   in the message (NOT the bridge — the bridge's 1.7.x `up(from=1)` would replay non-idempotent
+   early files into a built schema). `--adopt` applies the **`since <= floor` slice only**, then
+   stamps `'{floor}'` **iff** the verify pass shows zero `:missing` AND zero error-severity
+   divergences AND all floor-level data invariants pass; then directs to `mix phoenix_kit.update`
+   for deltas (whose guarded data ops re-establish delta-era invariants through the real chain).
+   Any failure → no stamp, report, message "this DB has pre-transform data or divergent objects;
+   --adopt is not a migration bridge".
+5. Lying-HIGH within `[floor..current]`: healed naturally by R2 (missing objects ≤ comment get
+   created); newest-version marker cross-check flags "comment ahead of schema" as a warning.
+6. **Comment > `@current_version`**: hard error ("DB claims version N but this code supports
+   ≤ {current}; upgrade phoenix_kit first") — both in repair AND as a doctor/verify warning;
+   `up/1` silently no-ops in this state, so repair/doctor are the only detection surface.
 
 ---
 
@@ -415,106 +415,114 @@ counts.
 
 ### 7.1 Version: 2.0.0
 
-Breaking change to the documented upgrade contract (below-floor upgrades removed) → semver MAJOR.
-Decisive mechanical argument: Hex `~> 1.7` pins auto-resolve to 1.8.0 but never to 2.0.0 — a
-below-floor install with a loose pin must not be *pulled into* the squash at deploy time; 2.0.0
-makes the stopover an explicit opt-in. (All three external consultants independently endorsed
-2.0.0 + bridge.)
+Breaking upgrade contract → MAJOR. Hex-resolver mechanics: loose `~> 1.7` pins never auto-resolve
+to 2.0.0 — stragglers stay safe; NB the property protects **direct** pins only (a
+transitive-only consumer gets pulled once modules widen; the guard is the loud backstop).
 
-### 7.2 Sequencing
+### 7.2 Sequencing (two-stage, no hold-window)
 
-1. Freeze **bridge** = last 1.7.x tag (full V01..V{current} chain, all backfills). Documented path
-   for any below-floor install: pin bridge → `mix phoenix_kit.update` → confirm `≥ floor` → move
-   to `~> 2.0`.
-2. **ONE atomic PR** to upstream: baseline `V{floor}` + ExpectedSchema + delete
-   `v01..v{floor-1}` + `@initial_version` bump + guards/clamp + repair engine + tooling/test/docs.
-   Baseline-first / delete-later (Django two-phase) is mechanically impossible here: the
-   dispatcher has no `replaces` metadata, and the baseline must define the same module name as the
-   existing `v{floor}.ex` — two files, one module, compile-time redefinition. Django's deployment
-   safety is delivered by the bridge in TIME instead.
-3. Upstream window: was verified clean on 2026-07-14 (1 open PR, zero migration files touched) —
-   **re-verify at PR time** (the chain gained V149-V150 within two days; expect motion). The
-   squash PR consumes NO new version number (baseline replaces `V{floor}` in place) so v151+ PRs
-   merge before/after with only trivial `@current_version`/moduledoc rebases. Ask the maintainer
-   to hold migration-adding merges during the review window.
-4. Post-2.0.0: 1.7.x gets security-only backports ~90 days.
-5. CHANGELOG/@version: normally maintainer-owned; this task is maintainer-sanctioned (same
-   arrangement as the June plan).
+1. **Pre-squash PR** (lands first, zero `v*.ex` contention, works at `@initial_version 1`):
+   repair engine + ExpectedSchema generator + manifest + gen.migration/release_check fixes +
+   consolidate_wrappers. Independently valuable (repair works against the FULL chain).
+2. **Atomic squash PR**: baseline `V{floor}` + deletions + `@initial_version` bump + guards/clamp
+   + test-surface disposition + docs. Merge protocol agreed with the maintainer: regenerate
+   manifest at merge-day HEAD, rebase, merge same day (hours, not a multi-day hold — at ~1.4
+   releases/day a hold-window ask is unrealistic and, since the baseline consumes no new version
+   number, unnecessary).
+3. Bridge = last 1.7.x tag; **permanently available on Hex** (packages are immutable) — the
+   stopover path never expires; the ~90-day window bounds security backports only. Documented
+   path: pin bridge → update → confirm ≥ floor on EVERY environment → move to `~> 2.0`.
+4. CHANGELOG/@version: maintainer-sanctioned for this task.
 
-### 7.3 Re-squash institutionalized (D11)
+### 7.3 Re-squash institutionalized
 
-At ~16 new versions/month a one-shot squash decays to today's state within a year. The tooling
-(§8.3) is committed to the repo (hex-excluded) and parameterized on floor; policy: re-squash when
-delta > ~100 versions or annually, new floor = then-current min deployed, same bridge/guard/atomic
-pattern. Subsequent floor raises under the SAME contract are minor bumps of 2.x. The ExpectedSchema
-manifest is regenerated on every migration-adding release regardless (it is the repair source of
-truth), so re-squash reduces to "re-slice the manifest at a new floor + delete files".
+Policy: re-squash when delta > ~100 versions or annually. **Every floor raise is a MAJOR bump
+with its own bridge release** (the 7.1 auto-pull argument applies identically to every raise;
+"2.x minors for floor raises" is withdrawn as self-contradictory). Manifest regeneration happens
+per migration-adding release regardless; re-squash then reduces to re-slice + delete + bridge.
+Re-squash correctness itself is an UNTESTED invariant of this spec (deferred; first re-squash
+must re-run the full matrix).
+
+### 7.4 Module-ecosystem pin coordination (new; blocking for adoption)
+
+Every published `phoenix_kit_*` module pins core with a three-segment `~> 1.7.x` requirement
+(verified in /www: manufacturing/warehouse `~> 1.7.190`, locations/catalogue/ecommerce
+`~> 1.7.189`, projects `~> 1.7.130`, document_creator `~> 1.7.118`; survey the rest — billing,
+comments, entities, staff, crm, ai, publishing, sync, …). Consequence: `{:phoenix_kit, "~> 2.0"}`
++ any module = hard resolver conflict; hex-based consumers are blocked from 2.0.0 until ALL
+module packages ship widened pins (`"~> 1.7.196 or ~> 2.0"`). Verified: no module calls migration
+internals → widening is a **patch release per module** (~14 coordinated releases), sequenced
+BEFORE/with the 2.0.0 publish (P5). Risk row §9; consumers advised to keep a direct core pin
+(transitive auto-pull).
 
 ---
 
-## 8. Verification plan (adversarial; nothing destructive near the live DB)
+## 8. Verification plan
 
 ### 8.1 Environment — operator request (ranked)
 
-All options on the direct 5432 endpoint. On PG 13+ citext/pgcrypto/pg_trgm are *trusted*: a DB
-owner can create them without superuser.
-
-- **(a) BEST: CREATEDB** on 172.18.0.13 for the app role (or a dedicated `pk_squash_verify`
-  role): unlimited throwaway DBs, full matrix incl. clean-`public` equivalence runs AND unlocks
-  `mix test.setup` (integration suite + prefix oracle).
-- **(b) Fallback: three pre-created DBs owned by the role**: `pk_squash_a`, `pk_squash_b`,
-  `phoenix_kit_test`. Reset via `DROP SCHEMA public CASCADE; CREATE SCHEMA public`.
-- **(c) Operator-side disposable Postgres 17 container** (no docker in this container): superuser
-  matrix incl. the hardened low-privilege field-report scenario — the one thing (a)/(b) can't
-  test.
-- **Minimum viable: (b) with just `phoenix_kit_test`** — suite + prefix oracle + scratch schemas.
+(a) **CREATEDB** on 172.18.0.13 (best; unlocks everything incl. `mix test.setup`);
+(b) three pre-created owned DBs `pk_squash_a`/`pk_squash_b`/`phoenix_kit_test` (reset via
+`DROP SCHEMA public CASCADE`; trusted extensions come with DB ownership on PG13+);
+(c) operator-side disposable PG container — required anyway for TWO cells: the hardened
+low-privilege recipe AND a **second PG major** (§6.2 deparse/structural risk).
+Minimum viable: (b) with just `phoenix_kit_test`.
+S12's pooled-endpoint cell: `--dry-run` detection-path only against the pooled live endpoint
+(zero writes), or operator adds one scratch DB to the pgbouncer config for the full degraded-mode
+test (§10 Q6).
 
 ### 8.2 Scenario matrix
 
 | # | Scenario | Oracle |
 |---|---|---|
-| S1 | Fresh-install equivalence: NEW (baseline+deltas) vs OLD chain (bridge tag) on two clean DBs | normalized `pg_dump --schema-only` diff == empty |
-| S2 | **Seed-data equivalence** (schema-only dumps miss ROWS): dump seeded tables (roles, settings, currencies, payment options, dimensions, permissions), normalized (volatile uuids/timestamps) | diff == empty |
-| S3 | Existing-install upgrade: DB migrated OLD to exactly `floor` (and to `floor+k`), then NEW code `up()` | runs only deltas; final comment = current; no data loss (row-count + checksum probes) |
-| S4 | Below-floor guard: DB at `floor-1` + NEW code `up`/`down`/`update`-generation | **specific `BelowFloorError`** naming bridge (assert struct/message, not just "something raised") |
-| S5 | Consumer wrapper replay: (i) Andi's real 41-file set; (ii) synthetic `[up(v:27), up(v:50), up(v:120), up(v:current)]` on fresh DBs — the D13 clamp acceptance | setup completes at current; below-floor wrappers baseline-then-no-op; `down(version: 45)` clamps to floor with warning |
-| S6 | Baseline `down` to 0 + re-`up` idempotency; Oban teardown via `Oban.Migration.down`; shared extensions/public functions NOT dropped | clean teardown, identical re-create |
-| S7 | Repair tamper matrix: from a migrated DB, drop {table, column, index, constraint, function, seed row, sequence} one at a time → `repair` | object restored; `pg_dump` diff vs reference empty; pre-existing EXTRA objects untouched |
-| S8 | Repair idempotence: healthy DB → `repair` twice | empty plan both times; byte-identical dumps |
-| S9 | Repair divergence reporting: wrong column type / extra NOT NULL / same-named-different index | `:report_only`, schema untouched, exit code 2 |
-| S10 | Repair data preservation: seeded + user rows survive repair (incl. operator-modified settings values NOT clobbered) | row checksums unchanged |
-| S11 | Prefixed install: S1+S7 into a named schema alongside a public install (dual-install cross-leak check; `prefix_migration_test.exs` must pass unchanged — incl. in-prefix uuid function, pinned defaults, empty-search_path execution) | markers in the right schema only |
-| S12 | Pooled-connection refusal: repair via pgbouncer:6432 | warns + requires `--unsafe-pooled`; VALIDATE skipped |
-| S13 | `--adopt` on half-installed DB (partial baseline) | converges + stamps only on clean verify; dirty → no stamp, report |
-| S14 | DB-free gates: `mix compile --warnings-as-errors`, format, credo, `release_check` (extended: floor/contiguity/manifest-freshness), unit suite incl. range-completeness test | all green |
-| S15 | Stamp semantics: single-step `up(version: floor)` on fresh DB → comment `'{floor}'` (self-stamp); multi-step fresh run → `'{current}'` (range-end overwrite) | comments exactly as specified |
-| S16 | Oban forward-compat: baseline's Oban objects == `Oban.Migration.up` current output for the PINNED harness Oban version; document the pin | diff == empty |
-| S17 | Repair `since`-scoping: DB at comment `floor+k` missing both a `since <= floor+k` object and nothing else → healed; manifest objects with `since > comment` | absent object healed; pending versions reported, NOT applied |
+| S1 | Fresh-install equivalence: NEW vs OLD chain (bridge tag), clean DBs | normalized `pg_dump --schema-only` diff empty **modulo the committed `:legacy_optional` whitelist; any UNLISTED diff fails**; normalization rules written down (dollar-quote-aware splitting, stable ordering, no index-shift diffing) |
+| S2 | Seed-data equivalence: dump seeded tables incl. **email templates** (tolerance: rows match when the seeder ran; absence allowed only in release-mode) | diff empty; note: repair-mode seed semantics intentionally differ from historical upserts (V35/V45 `DO UPDATE` → `DO NOTHING`) |
+| S3 | Existing-install upgrade from exactly `floor` and `floor+k` | deltas only; comment = current; row-count+checksum probes unchanged |
+| S4 | Below-floor guard: `up`/`down`/update-generation at `floor-1` | **specific `BelowFloorError`** (struct+message asserted; ensure_current variant carries the test-reset hint) |
+| S5 | Consumer wrapper replay: (i) Andi's real 41-file set; (ii) synthetic pinned chain `[27,50,120,current]`; (iii) **interleaved consumer migration touching a below-floor-shaped object** → documented, actionable failure; (iv) rollback→migrate round-trip incl. one interleaved consumer down → final state ≡ fresh setup; repair afterwards creates NO spurious columns; doctor flags the desync | as stated |
+| S6 | Baseline down to 0 (range + direct `V{floor}.down` split) + re-up; Oban teardown via `Oban.Migration.down`; shared extensions/functions survive | clean teardown, identical re-create |
+| S7 | Repair tamper matrix: drop each object class one at a time → repair | restored; dump diff empty; EXTRA objects untouched |
+| S8 | Repair idempotence: healthy DB, twice | empty plan ×2; byte-identical dumps |
+| S9 | Divergence reporting: wrong type / extra NOT NULL / same-named-different index (on the SAME and on a SECOND PG major) | `:report_only`, schema untouched, exit 2, no deparse false-positives |
+| S10 | Data preservation: seeded + user rows + operator-tuned settings survive repair | checksums unchanged |
+| S11 | Prefixed install: S1+S7 into named schema alongside public install; `prefix_migration_test.exs` passes unchanged | no cross-schema leaks |
+| S12 | Pooled-connection: dry-run detection against pooled endpoint; degraded mode if Q6 env granted | warns; requires `--unsafe-pooled`; VALIDATE skipped |
+| S13 | `--adopt`: (a) comment stripped from healthy floor-state DB → converges, stamps `'{floor}'`, subsequent update runs deltas; (b) half-installed → no stamp, report; (c) object-clean but **data-invariant-failing** (composite integration keys present) → no stamp | stamp value asserted; invariants gate |
+| S14 | DB-free gates: compile/format/credo; release_check extended (min/contiguity/loadable-range/manifest-hash); the same hash as a plain unit test; baseline-slice static checks | all green |
+| S15 | Stamp semantics: single-step `up(version: floor)` fresh → `'{floor}'`; multi-step fresh → `'{current}'` | exact comments |
+| S16 | Oban: baseline delegation output == host `Oban.Migration` for the pinned harness version; repair/verify SKIP oban objects (delegated) | no oban entries in Report |
+| S17 | Repair since/revision scoping: missing `since<=comment` object healed at the comment-era revision; `since>comment` reported pending; healthy old-shape multi-revision object (module_key@50 at comment 135) verifies CLEAN; after heal, `phoenix_kit.update` converges the shape | as stated |
+| S18 | Concurrency: chain `up()` advances the comment mid-repair | repair aborts with "concurrent migration detected"; re-run converges |
+| S19 | Data-dependent non-additive drift: missing V137-class unique index + duplicate rows present | `:create_failed` with orphan/dup diagnostic; no crash, no invalid index |
+| S20 | Comment > `@current_version` | repair hard-errors; doctor warns; `up()` no-op documented |
 
-Manual (operator-side, can't run under suite superuser): the 2026-07-12 hardened-install recipe
-(pre-created schema, app role without CREATE, PG15+ non-writable public) — re-verify baseline +
-repair against it.
+Manual (operator-side): the 2026-07-12 hardened-install recipe (pre-created schema, no-CREATE
+role, PG15+ non-writable public) against baseline + repair.
 
-### 8.3 Tooling (rewrite of `dev_docs/squash/`, all findings from the env audit)
+### 8.3 Tooling (rewrite of `dev_docs/squash/`)
 
-- `generate_baseline.exs` → **rewrite as manifest generator**: current version does not compile
-  (`#{p}` interpolation at `:337`), its dollar-quote splitter is broken (`$$` toggles twice), and
-  its preamble regresses the 2026-07 fixes (bare `CREATE EXTENSION`, unqualified
-  `uuid_generate_v7`). New generator: scratch DB → run chain **version-by-version, recording
-  per-version catalog diffs** (→ `since` tags) → emit ExpectedSchema entries in `Helpers.*` idioms
-  → hand review. Commit the normalized reference dump as a snapshot (ash_postgres pattern).
-  DB-free staleness detector: release_check asserts a hash over `v*.ex` matches the one recorded
-  in ExpectedSchema (manifest regenerated ⟺ chain changed).
-- `migration_runner.ex` → keep pattern, fix CRITICAL prefix bug (`Ecto.Migrator.up` without
-  `:prefix` writes bookkeeping into live `public.schema_migrations`), derive floor/current from
-  `Postgres.initial_version/0`/`current_version/0`.
-- `dump_helper.ex` → keep skeleton; dollar-quote-aware statement splitting, word-boundary schema
-  substitution, `diff -u` via `System.cmd`.
-- `verify.exs` → keep scenario structure; fix Mode A; implement S5, S7–S13, S15–S17; ensure schema
-  cleanup on scenario exceptions; below-floor assertions match the specific error (the old
-  harness's any-raise-passes check is exactly how a missing guard would slip through).
-- Update `.git/squash_verify.pgpass` host field `172.18.0.6` → `172.18.0.13` (creds verified
-  valid).
+- `generate_baseline.exs` → **manifest generator**: scratch DB → chain **version-by-version in
+  separate migrator runs** (per-version catalog diffs → `since` + `revisions`; separate runs also
+  reproduce the *upgraded* end-state, making the §3.7 bimodality enumerable: a fresh single-run
+  dump vs the incremental dump yields the `:legacy_optional` whitelist mechanically) → emit
+  ExpectedSchema (deterministic order; `chain_hash`) + data invariants → hand review. Old draft
+  is unusable (does not compile; broken dollar-quote splitter; preamble regresses the 2026-07
+  fixes). The generator refuses to emit `:required` entries for objects the inventory marks
+  excluded.
+- `migration_runner.ex` → keep pattern; fix the CRITICAL missing-`:prefix` bug (pollutes live
+  `public.schema_migrations`); derive floor/current from `Postgres.initial_version/0` /
+  `current_version/0`.
+- `dump_helper.ex` → dollar-quote-aware splitting, word-boundary schema substitution,
+  `diff -u` via System.cmd, **seed-table data dumping + uuid/timestamp normalization (S2)**.
+- `verify.exs` → implement S1–S13, S15–S20; Mode A fix; cleanup on exceptions; below-floor
+  assertions match the specific error struct (an any-raise-passes check is how a missing guard
+  slips through).
+- `README.md` → rewrite: floor-parameterized, no-CREATEDB reality, 172.18.0.13, option-(b) reset
+  recipe. Reference dump snapshot lives under `dev_docs/squash/` (hex whitelist excludes it).
+- pgpass host field `172.18.0.6` → `172.18.0.13`.
+- Merge policy: the manifest is never hand-merged; after any rebase touching `v*.ex`, regenerate.
+  The hash assertion is a release-time gate — a migration PR may land with a stale manifest as
+  long as regeneration happens before publish; renumber events ⇒ regenerate (runbook).
 
 ---
 
@@ -522,40 +530,53 @@ repair against it.
 
 | Risk | Mitigation |
 |---|---|
-| hydroforce_prod below assumed floor | D1: floor fixed only after operator confirmation; guard + bridge protects any surprise install |
-| Baseline diverges from real chain output | Generated from a migrated DB + S1/S2 diff oracles; regenerable per release (D10) |
-| `IF NOT EXISTS` name-match blindness (same-named divergent object) | verify layer compares catalog definitions; divergences are report-only (S9) |
-| ExpectedSchema staleness (migration added, manifest not regenerated) | release_check hash assertion (S14); regeneration is part of the add-a-migration workflow |
-| Comment lies (renumber-drift class) | repair heals under 6.4(2)/(5); marker cross-check warns |
-| PgBouncer silently drops DDL | repair = autocommit statements + pooled-connection detection + `--unsafe-pooled` gate (S12) |
-| Stale consumer wrappers | up-path no-op preserved + D13 clamp (S5); down-path clamp/raise; gen.migration fixes |
-| Oban version coupling (baseline delegates live) | pin Oban version in verify harness; S16 asserts equivalence; document host-Oban implications |
-| Upstream lands v151+ mid-review | baseline consumes no new number; disjoint hunks; hold-window agreed with maintainer (5 renumber events say: expect contention, design already avoids it) |
-| Below-floor test/CI DBs (long-lived) break on `ensure_current` | guard raises with actionable message; docs updated |
-| Manifest executor is novel machinery | de-scoping lever: if review rejects it, fall back to imperative baseline + verify-probes-only (drops auto-repair to report-only); the contracts (§6.2/6.4) survive either way |
-| Baseline `down/1` semantics surprise | explicit: `down` to 0 only; below-floor targets clamp-with-warning (S4/S5/S6) |
+| hydroforce_prod below assumed floor / install list incomplete | D1: fresh readings + completeness confirmation at implementation time; guard + permanent bridge |
+| Baseline diverges from real chain output | generated from migrated DB; S1/S2 oracles; regenerable |
+| Fresh-vs-upgraded bimodal end-states | `presence: :legacy_optional` + S1 whitelist; repair never creates them |
+| IF-NOT-EXISTS name-match blindness | structural verify layer; report-only (S9) |
+| PG-major deparse differences → false divergences | structural comparison + target-server pg_get_expr + version preflight + second-major matrix cell |
+| Manifest staleness (migration added, not regenerated) | chain_hash in release_check AND plain unit test; runbook; §10 Q5 upstream commitment |
+| Manifest merge conflicts between parallel PRs | deterministic emit order; never-hand-merge policy; release-time gate |
+| Comment lies (high, low, > current) | §6.4 R2/R5/R6 + marker probes + `--heal-comment` |
+| PgBouncer drops DDL / pooled repair | autocommit statements; pooled detection + `--unsafe-pooled`; comment-strip case lands in R4 --adopt |
+| Stale consumer wrappers / interleaved consumer migrations | clamp + qualified guarantee + consolidate_wrappers + S5(i-iv); down-desync invariant + doctor warning |
+| Repair races a live migration | shared advisory lock in up/down/repair + re-read + S18 |
+| Repair create fails on data-dependent drift | per-statement `:create_failed` + diagnostics (S19) |
+| Oban version skew | delegated-not-manifested; S16 |
+| Module pins block 2.0 adoption / auto-pull transitive consumers | §7.4 coordinated pin-widening before publish; direct-pin advice |
+| Dep bump bundled with unapplied wrapper fails at deploy-time migrate | upgrade guide: confirm ≥ floor on every env; BelowFloorError message echoes it |
+| ensure_current on persistent CI DBs | test-reset hint in the error (S4) |
+| hexdocs bloat from generated module | `@moduledoc false`; snapshot under dev_docs |
+| Re-squash correctness untested | acknowledged; first re-squash re-runs full matrix; each raise = major + bridge |
+| Manifest executor is novel machinery | de-scoping lever: imperative baseline + verify-probes-only (drops auto-repair to report-only); contracts survive |
 
 ## 10. Open questions for the operator (block implementation, not review)
 
-1. **hydroforce_prod current version** (+ refresh DEV/decor numbers) → fixes `floor` (D2).
-2. **Scratch-DB option** (§8.1 a/b/c) — which will be provided? ("ещё одна база в контейнере" —
-   recommend (a) CREATEDB or (b) three owned DBs).
-3. Confirm 2.0.0 + bridge-release policy (~90-day security window on 1.7.x).
-4. Repair v1 scope sign-off: FK `VALIDATE` on by default? `--adopt` in v1 or deferred?
-5. Timing of the upstream hold-window ask.
+1. **hydroforce_prod version** (fresh reading) + refresh DEV/decor + **confirm the four installs
+   are the COMPLETE seamless-upgrade set** → fixes `floor`.
+2. **Scratch-DB option** (§8.1 a/b/c; recommend (a), or (b)×3). Plus (c) for the second-PG-major
+   and hardened-install cells.
+3. Confirm 2.0.0 + bridge policy (permanent bridge, ~90-day security window) + "every floor raise
+   = major + own bridge" (§7.3).
+4. Repair v1 scope: FK VALIDATE default-on? `--adopt` in v1? `--heal-comment` in v1?
+5. **Upstream maintainer commitment**: adopt the regenerate-manifest-per-migration-release
+   workflow (needs a scratch DB in their release env) + the same-day squash-PR merge protocol +
+   ~14 module pin-widening releases (§7.4).
+6. Add one scratch DB behind pgbouncer for S12's degraded-mode cell (optional; else S12 =
+   dry-run-only detection).
 
-## 11. Implementation phases (after spec sign-off — NOT part of this task)
+## 11. Implementation phases (after spec sign-off — NOT this task)
 
-1. **P0 — prerequisites**: floor confirmation; scratch DB; pgpass host fix.
-2. **P1 — tooling**: rewrite generator (manifest emission + `since` tagging), runner/dump/verify
-   harness (§8.3); prove S1/S2 oracles on the OLD chain alone (self-diff == empty).
-3. **P2 — baseline**: generate ExpectedSchema at `{current}`; slice at `floor` → `V{floor}`;
-   hand-review against inventory doc (seeds/drops/hazards); registry changes + guards/clamp
-   (§5.2); consumer tooling fixes (§5.3).
-4. **P3 — repair**: executor + mix task + report (§6); doctor wiring.
-5. **P4 — verification**: full S1–S17 matrix; fix; re-run to green.
-6. **P5 — release**: tests/CHANGELOG/version (maintainer-sanctioned); atomic upstream PR; bridge
-   tag; docs (upgrade guide + re-squash runbook).
+1. **P0**: floor confirmation (fresh, complete); scratch DB(s); pgpass fix.
+2. **P1**: tooling (§8.3): generator + runner + dump + verify; prove S1/S2 self-oracles on the
+   OLD chain (incl. bimodality enumeration → whitelist).
+3. **P2 (pre-squash PR)**: ExpectedSchema + repair engine + mix task + gen.migration/
+   release_check/unit-hash fixes + consolidate_wrappers; S7-S20 subset that runs pre-squash.
+4. **P3 (squash PR)**: baseline V{floor} from the manifest slice; deletions; guards/clamp;
+   test-surface disposition (§5.3); moduledoc/docs incl. AGENTS.md.
+5. **P4**: full S1–S20 matrix + manual hardened-install recipe; fix; re-run to green.
+6. **P5**: module pin-widening wave (§7.4); CHANGELOG/version; atomic squash PR merge protocol;
+   bridge tag; upgrade guide + re-squash/regeneration runbook.
 
-Estimated diff: −{19,725…23,231} lines of migrations, +1 thin baseline + ExpectedSchema manifest
-(~2-4k combined), +repair engine (~1k), +tooling/tests. Net repo shrink ≈ 16-20k lines.
+Estimated diff: −{19,725…23,231} migration lines; +thin baseline + ExpectedSchema (~2-4k) +
+repair engine (~1-1.5k) + tooling/tests. Net repo shrink ≈ 15-20k lines.
