@@ -31,12 +31,14 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
    11. **Orphaned Connections** — Idle-in-transaction or stuck connections
    12. **Oban Configuration** — Queues and plugins that consume pool connections
    13. **Supervisor Children** — What's running (update_mode vs full)?
-   14. **Update Mode** — Is update_mode active?
-   15. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
+   14. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
+   15. **Update Mode** — Is update_mode active?
+   16. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
   """
 
   use Mix.Task
 
+  alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Migrations.Postgres
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
@@ -72,6 +74,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
       run_check("Oban Configuration", fn -> check_oban_config() end),
       run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
+      run_check("Child Start Order", fn -> check_child_order() end),
       run_check("Update Mode", fn -> check_update_mode() end),
       run_check("daisyUI Version", fn -> check_daisyui() end)
     ]
@@ -605,6 +608,45 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
+  # Reads the host application.ex and verifies the Repo starts BEFORE
+  # PhoenixKit.Supervisor and Oban — a child listed before the Repo crashes the
+  # app at boot (PhoenixKit reads Settings from the DB; Oban needs the pool).
+  # The runtime supervisor check above can't catch this (by the time doctor
+  # runs, everything has already started), so we read the source order.
+  defp check_child_order do
+    repo = get_repo!()
+
+    case host_application_source() do
+      {:ok, path, source} ->
+        where = Path.relative_to_cwd(path)
+
+        case ChildOrder.check(source, repo) do
+          {:ok, detail} ->
+            {:pass, "#{detail} (#{where})"}
+
+          {:misordered, mods} ->
+            names = Enum.map_join(mods, ", ", &inspect/1)
+
+            {:fail,
+             "#{names} start BEFORE #{inspect(repo)} in #{where}. PhoenixKit.Supervisor " <>
+               "reads Settings from the database and Oban needs the connection pool, so both " <>
+               "must be listed AFTER your Repo. Move #{inspect(repo)} above them in the " <>
+               "children list to fix the boot crash."}
+
+          :no_repo_in_children ->
+            {:warn,
+             "Couldn't find #{inspect(repo)} in the children list of #{where} — verify " <>
+               "PhoenixKit.Supervisor and Oban are started after your Repo."}
+
+          :no_children ->
+            {:warn, "Couldn't locate a children list in #{where} to verify start order."}
+        end
+
+      :error ->
+        {:warn, "Couldn't locate your application.ex to verify child start order."}
+    end
+  end
+
   defp check_update_mode do
     update_mode = Application.get_env(:phoenix_kit, :update_mode, false)
 
@@ -624,6 +666,40 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       [repo | _] -> repo
       [] -> raise "No :ecto_repos configured for :#{app}"
     end
+  end
+
+  # Locate the host's application.ex — first via the compiled application
+  # module's source path, then the conventional lib/<app>/application.ex.
+  defp host_application_source do
+    app = Mix.Project.config()[:app]
+
+    candidates =
+      [
+        case Application.spec(app, :mod) do
+          {mod, _args} -> module_source(mod)
+          _ -> nil
+        end,
+        Path.join(["lib", "#{app}", "application.ex"])
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(candidates, :error, fn path ->
+      case File.read(path) do
+        {:ok, source} -> {:ok, path, source}
+        _ -> nil
+      end
+    end)
+  end
+
+  defp module_source(mod) do
+    with {:module, _} <- Code.ensure_loaded(mod),
+         source when not is_nil(source) <- mod.module_info(:compile)[:source] do
+      to_string(source)
+    else
+      _ -> nil
+    end
+  rescue
+    _ -> nil
   end
 
   defp cap_repo_pool_size(pool_size) do
