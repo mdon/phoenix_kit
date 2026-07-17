@@ -15,7 +15,7 @@ MAINTAINER-ONLY tooling for the PhoenixKit migration-chain consolidation
 | Path | What it is |
 |---|---|
 | `repo_helper.ex` | `PhoenixKit.Squash.RepoHelper` — env-wired Ecto repo bring-up (direct connection, sandbox escape) |
-| `dump_helper.ex` | `PhoenixKit.Squash.DumpHelper` — pg_dump + deterministic normalization (S1 oracle), seed-data dumping + uuid/timestamp normalization (S2 oracle), whitelist compare, `diff -u` |
+| `dump_helper.ex` | `PhoenixKit.Squash.DumpHelper` — pg_dump + deterministic normalization (S1 oracle), seed-data dumping + uuid/timestamp normalization (S2 oracle), whitelist compare, `diff -u`. NB the S1 schema dump deliberately INCLUDES `oban_*` tables (the manifest excludes them, spec §6.1): S1 therefore also pins Oban-package consistency — an Oban version bump between the bridge reference build and the squash checkout will surface as an S1 diff (re-pin, don't chase phantom drift) |
 | `migration_runner.ex` | `PhoenixKit.Squash.MigrationRunner` — version-bounded `PhoenixKit.Migrations.up/down` runs via ephemeral `Ecto.Migrator` wrappers (prefix-threaded bookkeeping), stepwise per-version execution, below-floor assertion with a specific error matcher |
 | `verify.exs` | Scenario harness for the §8.2 matrix (S1-S13, S15-S20) — see the scenario table below |
 | `generate_baseline.exs` | ExpectedSchema manifest generator (stepwise chain + per-version catalog diffs); its authoritative env/flag contract lives in its own header |
@@ -249,9 +249,16 @@ against baseline + repair.
 4. **The prefix is always threaded** into `Ecto.Migrator` so
    `schema_migrations` bookkeeping lands in the scratch schema, never in a
    shared `public` (the June draft polluted live `public.schema_migrations`).
-5. **The only `lib/` write** in this directory is `generate_baseline.exs`
-   emitting the manifest/baseline — and only when explicitly invoked. The
-   verify harness never writes to `lib/`.
+5. **Neither script writes to `lib/` under normal use.**
+   `generate_baseline.exs` emits its manifest/baseline artifacts under
+   `--output-dir` (default `dev_docs/squash/output/`) for hand review — its
+   own header is explicit: "nothing is written into lib/ (that is P2/P3)".
+   `verify.exs` never writes to `lib/` either. Promoting a reviewed artifact
+   into `lib/` is a distinct, manual, P2/P3-only step that neither tool
+   takes on its own. Caveat: `--output-dir` is an unvalidated CLI string —
+   an operator who explicitly points it at `lib/phoenix_kit/migrations/...`
+   defeats this guarantee themselves; that is a deliberate P2/P3 promotion
+   action, not sanctioned default behavior.
 6. Any SQL added to this tooling follows the prefix-safe rules from
    AGENTS.md: bare index names on CREATE, schema-anchored catalog checks, no
    regclass casts in immediate checks, extensions/schemas only through

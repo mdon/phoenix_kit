@@ -45,8 +45,13 @@ defmodule PhoenixKit.Squash.DumpHelper do
   known bimodal presence (spec section 3.7: `preferred_locale` + its index, the
   V13-vs-V22 duplicate partial unique index). Semantics:
 
-  - Statement LINES matching a whitelisted name on a word boundary are removed
-    from BOTH sides before comparison and reported back as tolerated.
+  - A statement LINE is removed (from BOTH sides, reported back as tolerated)
+    only when the identifier it DECLARES — the column being defined, or the
+    object being created (`CREATE INDEX` name, `ADD CONSTRAINT` name) —
+    matches a whitelisted name on a word boundary. A line that merely
+    REFERENCES a whitelisted name (an index definition over a whitelisted
+    column) is kept, so the whitelist cannot mask one-sided drift of other
+    objects — the false S1 pass this oracle exists to prevent.
   - A statement whose every content line matches is dropped whole (covers
     single-line `CREATE INDEX ...`).
   - While the whitelist is active, trailing commas are stripped from ALL
@@ -95,6 +100,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
     "phoenix_kit_currencies",
     "phoenix_kit_payment_options",
     "phoenix_kit_storage_dimensions",
+    "phoenix_kit_buckets",
     "phoenix_kit_role_permissions",
     "phoenix_kit_email_templates"
   ]
@@ -105,6 +111,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
     "phoenix_kit_currencies" => ["code"],
     "phoenix_kit_payment_options" => ["code"],
     "phoenix_kit_storage_dimensions" => ["name"],
+    "phoenix_kit_buckets" => ["name"],
     "phoenix_kit_role_permissions" => ["module_key"],
     "phoenix_kit_email_templates" => ["slug"]
   }
@@ -794,7 +801,12 @@ defmodule PhoenixKit.Squash.DumpHelper do
         lines = String.split(stmt, "\n")
 
         {dropped, remaining} =
-          Enum.split_with(lines, fn line -> Enum.any?(regexes, &Regex.match?(&1, line)) end)
+          Enum.split_with(lines, fn line ->
+            case declared_identifier(line) do
+              nil -> false
+              ident -> Enum.any?(regexes, &Regex.match?(&1, ident))
+            end
+          end)
 
         remaining = Enum.map(remaining, &strip_trailing_comma/1)
 
@@ -811,6 +823,33 @@ defmodule PhoenixKit.Squash.DumpHelper do
       end)
 
     {Enum.reverse(kept), Enum.reverse(removed)}
+  end
+
+  # The identifier a dump line DECLARES: the object name for single-object
+  # statements (CREATE [UNIQUE] INDEX, ADD CONSTRAINT), else the first token
+  # of a column-definition line. A whitelist name may only remove a line that
+  # declares it; references inside other objects' definitions never match
+  # (their declared identifier is the other object's name).
+  defp declared_identifier(line) do
+    trimmed = String.trim_leading(line)
+
+    cond do
+      m =
+          Regex.run(
+            ~r/\ACREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z0-9_]+)"?/i,
+            trimmed
+          ) ->
+        Enum.at(m, 1)
+
+      m = Regex.run(~r/\A(?:ADD\s+)?CONSTRAINT\s+"?([A-Za-z0-9_]+)"?/i, trimmed) ->
+        Enum.at(m, 1)
+
+      m = Regex.run(~r/\A"?([A-Za-z_][A-Za-z0-9_]*)"?[\s,]/, trimmed) ->
+        Enum.at(m, 1)
+
+      true ->
+        nil
+    end
   end
 
   defp strip_trailing_comma(line) do

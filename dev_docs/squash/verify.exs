@@ -1043,10 +1043,40 @@ defmodule PhoenixKit.Squash.Verify do
 
   # Spec section 8.1 option (b) reset recipe. Reached only behind the
   # PK_SQUASH_ALLOW_RESET gate (enforced before any scenario runs).
+  # Tripwire ON TOP of the gate: a database whose public schema carries a
+  # populated phoenix_kit_users table is a LIVE INSTALL, not a scratch DB —
+  # refuse even with the gate set (no override; point PG* at a scratch DB).
   defp reset_public!(ctx) do
+    refuse_live_install!(ctx)
     IO.puts("  resetting public (DROP SCHEMA public CASCADE)...")
     RepoHelper.query!(ctx.repo, "DROP SCHEMA public CASCADE")
     RepoHelper.query!(ctx.repo, "CREATE SCHEMA public")
+    :ok
+  end
+
+  defp refuse_live_install!(ctx) do
+    %{rows: [[reg]]} =
+      RepoHelper.query!(ctx.repo, "SELECT to_regclass('public.phoenix_kit_users')::text")
+
+    users =
+      if reg do
+        %{rows: [[n]]} =
+          RepoHelper.query!(ctx.repo, "SELECT count(*) FROM public.phoenix_kit_users")
+
+        n
+      else
+        0
+      end
+
+    if users > 0 do
+      raise """
+      refusing DROP SCHEMA public: this database has #{users} row(s) in
+      public.phoenix_kit_users — it looks like a LIVE PhoenixKit install, not a
+      scratch DB. There is deliberately no override; point PG* env at the
+      operator-provided scratch database (spec section 8.1).
+      """
+    end
+
     :ok
   end
 

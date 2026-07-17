@@ -835,7 +835,7 @@ defmodule PhoenixKit.Squash.Generate.InventoryGuard do
     {"column:phoenix_kit_cat_items.price", "price"},
     {"column:phoenix_kit_locations.location_type_uuid", "location_type_uuid"},
     {"column:phoenix_kit_publishing_posts.scheduled_at", "scheduled_at"},
-    {"column:phoenix_kit_publishing_posts.status", "idx_publishing_posts_group_status"},
+    {"column:phoenix_kit_publishing_posts.status", "scheduled_at/status"},
     {"column:phoenix_kit_publishing_posts.published_at", "published_at"},
     {"column:phoenix_kit_publishing_posts.primary_language", "primary_language"},
     # V28's users.preferred_locale may exist ONLY as :legacy_optional (section 3.7)
@@ -1402,6 +1402,12 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
     slice =
       objects
       |> Enum.filter(&(&1.presence == :required and &1.since <= floor))
+      # Real captured rows for :skip-strategy seed tables (email_templates: the
+      # Mix-task seeder can insert actual rows during a live stepwise run) are
+      # helper-seeded, never their own INSERT — the same exclusion build_objects/1
+      # applies for the manifest. Without it, seed_insert_sql/3 hits its
+      # "unreachable" branch the first time a real template row exists.
+      |> Enum.reject(&skip_seed_row?/1)
       |> Enum.map(fn object -> Map.put(object, :shape, shape_at(object, floor)) end)
       |> Enum.reject(&is_nil(&1.shape))
       |> Enum.sort_by(&{&1.since, Differ.class_rank(&1.class), &1.id})
@@ -1951,7 +1957,7 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     {objects, notes} = Bimodality.apply_to_objects(objects, history, bidiff)
     check_legacy!(objects, notes, bidiff)
 
-    objects = objects ++ [fixture_helper_seed()]
+    objects = objects ++ [fixture_helper_seed(), fixture_real_template_row()]
 
     InventoryGuard.assert_catalog!(objects)
     check_guard_rejects!(objects)
@@ -2218,6 +2224,29 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     }
   end
 
+  # A REAL captured seed row (no create_override) for a :skip-strategy table —
+  # regression fixture for the case where the email-template Mix-task seeder
+  # inserts actual rows during a live stepwise run (v15/v31 lineage). Both
+  # emitters must exclude these exactly like build_objects/1's skip_seed_row?
+  # does: helper-seeded, never their own INSERT statement.
+  defp fixture_real_template_row do
+    %{
+      class: :seed,
+      key: {"phoenix_kit_email_templates", "fixture_real_row"},
+      id: "seed:phoenix_kit_email_templates:fixture_real_row",
+      since: 2,
+      revisions: [
+        {2,
+         %{
+           key_column: "slug",
+           key_value: "fixture_real_row",
+           values: %{"slug" => "fixture_real_row"}
+         }}
+      ],
+      presence: :required
+    }
+  end
+
   # ---------------------------------------------------------------------------
   # Assertions
   # ---------------------------------------------------------------------------
@@ -2346,6 +2375,11 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
       assert!(String.contains?(src, needle), "manifest: source contains #{inspect(needle)}")
     end
 
+    assert!(
+      not String.contains?(src, "fixture_real_row"),
+      "manifest: real captured :skip-strategy seed row excluded (no create_override)"
+    )
+
     src
   end
 
@@ -2467,7 +2501,13 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
       assert!(String.contains?(src5, needle), "baseline v5: source contains #{inspect(needle)}")
     end
 
-    for absent <- ["character varying(50)", "legacy_col", "fix_locale", "name_index"] do
+    for absent <- [
+          "character varying(50)",
+          "legacy_col",
+          "fix_locale",
+          "name_index",
+          "fixture_real_row"
+        ] do
       assert!(
         not String.contains?(src5, absent),
         "baseline v5: source must NOT contain #{inspect(absent)}"
@@ -2582,6 +2622,7 @@ defmodule PhoenixKit.Squash.Generate.Main do
     Fixture.run_all()
     check_chain_hash!()
     check_config_parsing!()
+    check_seed_tables_sync!()
 
     IO.puts(
       "OK generate_baseline.exs --check: helper self-checks, inventory-doc cross-check, " <>
@@ -2635,6 +2676,24 @@ defmodule PhoenixKit.Squash.Generate.Main do
     :ok
   end
 
+  # Guards against the two independently-maintained seed-table sets drifting
+  # apart: Catalog.@seed_capture (what the manifest emits :seed objects for)
+  # and DumpHelper.@default_seed_tables (what the S2 oracle dumps by default).
+  # A silent mismatch here is exactly how a real bucket-seeding divergence
+  # (or any future new seed table) would go undetected by S2.
+  defp check_seed_tables_sync! do
+    generator_tables = Enum.sort(Catalog.seed_tables())
+    oracle_tables = Enum.sort(DumpHelper.default_seed_tables())
+
+    unless generator_tables == oracle_tables do
+      raise "seed-table drift: Catalog.seed_tables/0 #{inspect(generator_tables)} != " <>
+              "DumpHelper.default_seed_tables/0 #{inspect(oracle_tables)} — keep the " <>
+              "manifest's seed-capture set and the S2 oracle's dump set in sync"
+    end
+
+    :ok
+  end
+
   # ---------------------------------------------------------------------------
   # Full generation [DB]
   # ---------------------------------------------------------------------------
@@ -2674,11 +2733,14 @@ defmodule PhoenixKit.Squash.Generate.Main do
       dump_step = DumpHelper.dump!(config.schema_stepwise)
       dump_single = DumpHelper.dump!(config.schema_single)
 
+      # Catalog.seed_tables/0 is the single source of truth for "which tables
+      # this generator captures as seeds" (mirrors @seed_capture exactly);
+      # deriving from it here — instead of hand-patching DumpHelper's own S2
+      # oracle default — means a future @seed_capture addition flows into the
+      # reference dump without a second edit. check_seed_tables_sync!/0 (in
+      # --check) guards against the two sets drifting apart silently.
       seed_dump =
-        DumpHelper.dump_seed_data!(config.schema_stepwise,
-          tables: DumpHelper.default_seed_tables() ++ ["phoenix_kit_buckets"],
-          order_by: %{"phoenix_kit_buckets" => ["name"]}
-        )
+        DumpHelper.dump_seed_data!(config.schema_stepwise, tables: Catalog.seed_tables())
 
       IO.puts("Step 4: per-version diffing + bimodality enumeration ...")
       history = Differ.history(snapshots)
@@ -2821,8 +2883,14 @@ defmodule PhoenixKit.Squash.Generate.Main do
   end
 
   defp report(meta, config, objects, drops, bidiff, legacy_notes, whitelist, compare_result) do
+    # Counted post Emitter.build_objects/1 (the same filter render_manifest/1
+    # applies) so this matches what actually lands in expected_schema.ex —
+    # NOT the raw intermediate list, which still carries :skip-strategy seed
+    # rows (e.g. real V15/V31 email-template rows captured during a live
+    # stepwise run) that build_objects/1 silently drops before emission.
     class_counts =
       objects
+      |> Emitter.build_objects()
       |> Enum.frequencies_by(& &1.class)
       |> Enum.sort()
       |> Enum.map_join("\n", fn {class, count} -> "- #{class}: #{count}" end)
@@ -2859,7 +2927,7 @@ defmodule PhoenixKit.Squash.Generate.Main do
     - Schemas: #{config.schema_stepwise} (stepwise/canonical) / #{config.schema_single} (single-shot)
     - S1 mode cross-check (normalized dumps, whitelist-filtered): #{compare_line}
 
-    ## Object counts (manifest)
+    ## Object counts (as emitted into expected_schema.ex; post seed-skip filtering)
 
     #{class_counts}
 
@@ -2890,13 +2958,21 @@ defmodule PhoenixKit.Squash.Generate.Main do
           module tags).
     - [ ] Baseline slice compiles and passes `mix format --check-formatted` once moved
           into lib/ (P3), and reads sanely next to a recent hand-written version module.
+    - [ ] Non-uuid function bodies (emitted verbatim from pg_get_functiondef) are
+          schema-qualified at every internal call site — an unqualified reference
+          inside a body is search_path-dependent (spec section 6.2 / CLAUDE.md
+          prefix rules); the generator does not assert this mechanically.
     - [ ] Constraint names in the baseline match the manifest (historical *_pkey names
           survive table renames on purpose).
     """
   end
 
+  defp drop_schema(_repo, "public") do
+    raise "refusing DROP SCHEMA on public — the generator only drops its own scratch schemas"
+  end
+
   defp drop_schema(repo, schema) do
-    RepoHelper.query!(repo, "DROP SCHEMA IF EXISTS #{schema} CASCADE")
+    RepoHelper.query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
     :ok
   rescue
     error ->
