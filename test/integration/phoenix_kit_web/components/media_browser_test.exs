@@ -379,6 +379,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       # The save is confirmed with a flash — otherwise it's invisible.
       assert render(view) =~ "Rotation saved"
 
+      # The save also broadcasts a thumbnail refresh, so the grid card behind
+      # the popup picks up the new orientation without a reload (thumbnails
+      # render it as a CSS transform). Scoped to `img` on purpose — the
+      # viewer's own collapse chevron carries a rotate-90 class of its own.
+      _ = render(view)
+      assert has_element?(view, "img.rotate-90")
+
       # Close and reopen — the saved rotation seeds `initial_rotation`,
       # surfacing as data-initial-rotation on the canvas element.
       view |> element("##{"media-browser"}-viewer-modal .modal-backdrop") |> render_click()

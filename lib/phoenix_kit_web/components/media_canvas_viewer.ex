@@ -351,6 +351,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
           case Storage.update_file(file, %{metadata: merged}) do
             {:ok, _updated} ->
+              # Thumbnails render the saved orientation via a CSS transform
+              # (MediaThumbnail.rotation_class/1), so a rotation changes what
+              # every grid should show — same live-refresh rail the annotated
+              # bake uses. Grid-only by design: the viewer this rotation came
+              # from must not remount mid-interaction.
+              Storage.broadcast_file_thumbnail_updated(file_uuid)
+
               socket
               |> assign(:viewer_rotation, rotation)
               |> show_rotation_status(:saved)

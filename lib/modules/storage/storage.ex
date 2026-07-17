@@ -75,12 +75,13 @@ defmodule PhoenixKit.Modules.Storage do
       `PhoenixKit.Modules.Storage.ProcessFileJob` so open UIs can refresh
       a just-uploaded file without a page reload.
 
-    * `{:phoenix_kit_file_thumbnail_updated, file_uuid}` — the file's
-      baked annotated thumbnail was regenerated or removed. Broadcast by
-      `PhoenixKit.Modules.Storage.AnnotationThumbnailJob` so grids can
-      swap in the fresh thumbnail. Lighter than `file_processed`:
-      consumers should refresh thumbnails only, not remount open viewers
-      (the annotator is usually still working in one).
+    * `{:phoenix_kit_file_thumbnail_updated, file_uuid}` — how the file's
+      thumbnail should render changed: its baked annotated variant was
+      regenerated/removed (`AnnotationThumbnailJob`), or its saved
+      rotation moved (`MediaCanvasViewer`, which thumbnails apply as a CSS
+      transform). Lighter than `file_processed`: consumers should refresh
+      thumbnails only, not remount open viewers — the user is usually
+      still working in one, and it is what emitted the change.
   """
   def subscribe_to_file_events do
     PhoenixKit.PubSub.Manager.subscribe(@files_topic)
@@ -96,7 +97,8 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
-  Broadcasts that the baked annotated thumbnail changed for `file_uuid`.
+  Broadcasts that how `file_uuid`'s thumbnail should render changed (a
+  rebaked annotated variant, or a new saved rotation).
 
   See `subscribe_to_file_events/0` for the message shape.
   """

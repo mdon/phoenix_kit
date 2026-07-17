@@ -99,4 +99,54 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   end
 
   def resolve_url(_, _), do: nil
+
+  @doc """
+  Tailwind class rotating a thumbnail to the image's saved orientation.
+
+  The orientation lives on the file row (`metadata["rotation"]`, written by
+  the viewer's `persist_rotation` bridge) and applies to the whole image, so
+  every rendering of it — canvas *and* thumbnail — should honor it. Baked
+  variants stay unrotated: rendering the saved angle with a CSS transform
+  costs nothing, needs no re-encode, and keeps annotations (which live in
+  the image's own coordinate space) aligned as they rotate along.
+
+  Sound only for **square** thumbnail boxes, which is every call site today
+  (`aspect-square` grid cards, `w-10 h-10` list cells): a 90°/270° rotation
+  of a square leaves the same square, and because `object-cover` crops about
+  the center — which rotation maps onto itself — cropping-then-rotating shows
+  exactly what rotating-then-cropping would. A non-square box would need the
+  swapped-dimension math instead.
+
+  Nil-tolerant: files whose maps carry no `:rotation` (gallery / selector
+  builds) and unrotated or garbage values return `nil`.
+
+  ## Examples
+
+      <img src={url} class={["w-full h-full object-cover", rotation_class(file)]} />
+  """
+  @spec rotation_class(map()) :: String.t() | nil
+  def rotation_class(file) when is_map(file) do
+    case normalize_rotation(Map.get(file, :rotation)) do
+      90 -> "rotate-90"
+      180 -> "rotate-180"
+      270 -> "-rotate-90"
+      _ -> nil
+    end
+  end
+
+  def rotation_class(_), do: nil
+
+  # Mirrors MediaCanvasViewer's own normalization: only the four snapped
+  # angles Fresco emits count; anything else (nil, garbage, a legacy string)
+  # reads as unrotated.
+  defp normalize_rotation(deg) when is_integer(deg), do: Integer.mod(deg, 360)
+
+  defp normalize_rotation(deg) when is_binary(deg) do
+    case Integer.parse(deg) do
+      {n, _} -> normalize_rotation(n)
+      :error -> 0
+    end
+  end
+
+  defp normalize_rotation(_), do: 0
 end

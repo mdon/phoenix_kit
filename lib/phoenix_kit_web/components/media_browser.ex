@@ -2443,7 +2443,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             <img
               src={url}
               alt={@file.filename}
-              class="w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity"
+              class={[
+                "w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity",
+                rotation_class(@file)
+              ]}
             />
           <% else %>
             <div class="grid place-items-center w-full aspect-square text-base-content/50">
@@ -2869,6 +2872,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         # doesn't crash.
         width: file.width,
         height: file.height,
+        # The image's saved orientation, applied to thumbnails as a CSS
+        # transform (see `MediaThumbnail.rotation_class/1`) so the grid
+        # matches what the viewer's canvas shows. Baked variants are
+        # unrotated on disk; nil/garbage reads as unrotated.
+        rotation: Map.get(file.metadata || %{}, "rotation"),
         folder_path: Map.get(folder_paths, file.folder_uuid),
         urls: urls,
         variant_widths: variant_widths

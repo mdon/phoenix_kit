@@ -1439,7 +1439,10 @@
                                 <img
                                   src={url}
                                   alt={file.filename}
-                                  class="w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity"
+                                  class={[
+                                    "w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity",
+                                    rotation_class(file)
+                                  ]}
                                   onerror="this.parentElement.querySelector('.image-error-placeholder').style.display='grid';"
                                 />
                                 <div class="image-error-placeholder hidden absolute inset-0 bg-base-300 grid place-items-center text-base-content/50">
@@ -2033,7 +2036,10 @@
                                     <%= if url do %>
                                       <img
                                         src={url}
-                                        class="w-full h-full object-cover"
+                                        class={[
+                                          "w-full h-full object-cover",
+                                          rotation_class(file)
+                                        ]}
                                         alt={file.filename}
                                       />
                                     <% else %>
