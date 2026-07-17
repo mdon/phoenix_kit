@@ -802,13 +802,16 @@
                           </button>
                         <% end %>
 
+                        <%!-- Cancel, not "Done": the ✕ exits selection mode
+                             without applying anything — "Done" reads like a
+                             confirm/apply, which this button never does. --%>
                         <button
                           phx-click="toggle_select_mode"
                           phx-target={@myself}
                           class="btn btn-sm btn-neutral gap-1.5"
                           title={gettext("Exit selection")}
                         >
-                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
+                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
                         </button>
                       </div>
                     </div>
