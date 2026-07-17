@@ -52,6 +52,37 @@ defmodule PhoenixKit.Migrations.Postgres.V152Test do
     exists
   end
 
+  # information_schema reports citext columns as data_type "USER-DEFINED";
+  # udt_name carries the real type name.
+  defp column_udt_name(table, column) do
+    %{rows: [[udt_name]]} =
+      Repo.query!(
+        """
+        SELECT udt_name
+        FROM information_schema.columns
+        WHERE table_name = $1 AND column_name = $2
+        """,
+        [table, column]
+      )
+
+    udt_name
+  end
+
+  # Returns the ON DELETE action ('a' no action, 'r' restrict, 'c' cascade,
+  # 'n' set null, 'd' set default) for a named FK constraint.
+  defp fk_delete_rule(constraint_name) do
+    %{rows: rows} =
+      Repo.query!(
+        "SELECT confdeltype FROM pg_constraint WHERE conname = $1",
+        [constraint_name]
+      )
+
+    case rows do
+      [[rule]] -> rule
+      [] -> nil
+    end
+  end
+
   describe "phoenix_kit_email_send_profiles table" do
     test "exists with the expected columns" do
       assert %{type: "uuid", nullable: "NO"} =
@@ -259,6 +290,248 @@ defmodule PhoenixKit.Migrations.Postgres.V152Test do
         ])
 
       assert name == "Original"
+    end
+  end
+
+  describe "phoenix_kit_crm_lists table" do
+    test "exists with the expected columns" do
+      assert %{type: "uuid", nullable: "NO"} = column("phoenix_kit_crm_lists", "uuid")
+
+      assert %{type: "character varying", nullable: "NO"} =
+               column("phoenix_kit_crm_lists", "name")
+
+      assert %{type: "character varying", nullable: "NO"} =
+               column("phoenix_kit_crm_lists", "slug")
+
+      assert %{type: "text", nullable: "YES"} =
+               column("phoenix_kit_crm_lists", "description")
+
+      assert %{type: "character varying", nullable: "NO", default: default} =
+               column("phoenix_kit_crm_lists", "status")
+
+      assert default =~ "'active'"
+
+      assert %{type: "boolean", nullable: "NO", default: "false"} =
+               column("phoenix_kit_crm_lists", "subscribable")
+
+      assert %{type: "integer", nullable: "NO", default: "0"} =
+               column("phoenix_kit_crm_lists", "subscriber_count")
+
+      assert %{type: "jsonb", nullable: "NO", default: default} =
+               column("phoenix_kit_crm_lists", "metadata")
+
+      assert default =~ ~r/'\{\}'::jsonb/
+
+      assert %{type: "timestamp with time zone", nullable: "NO"} =
+               column("phoenix_kit_crm_lists", "inserted_at")
+
+      assert %{type: "timestamp with time zone", nullable: "NO"} =
+               column("phoenix_kit_crm_lists", "updated_at")
+    end
+
+    test "status only accepts active/archived" do
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_lists (name, slug, status) VALUES ($1, $2, $3)",
+          ["Bad", "bad-status", "bogus"]
+        )
+      end
+    end
+
+    test "slug is unique" do
+      assert index_exists?("idx_crm_lists_slug")
+
+      Repo.query!(
+        "INSERT INTO phoenix_kit_crm_lists (name, slug) VALUES ($1, $2)",
+        ["Newsletter", "newsletter"]
+      )
+
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_lists (name, slug) VALUES ($1, $2)",
+          ["Newsletter Duplicate", "newsletter"]
+        )
+      end
+    end
+  end
+
+  describe "phoenix_kit_crm_list_members table" do
+    setup do
+      %{rows: [[contact_bin]]} =
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_contacts (name, email) VALUES ($1, $2) RETURNING uuid",
+          ["Import Test Contact", "import.test@example.com"]
+        )
+
+      %{rows: [[list_bin]]} =
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_lists (name, slug) VALUES ($1, $2) RETURNING uuid",
+          ["Members Test List", "members-test-list"]
+        )
+
+      %{contact_uuid: contact_bin, list_uuid: list_bin}
+    end
+
+    test "exists with the expected columns" do
+      assert %{type: "uuid", nullable: "NO"} = column("phoenix_kit_crm_list_members", "uuid")
+
+      assert %{type: "uuid", nullable: "NO"} =
+               column("phoenix_kit_crm_list_members", "list_uuid")
+
+      assert %{type: "uuid", nullable: "NO"} =
+               column("phoenix_kit_crm_list_members", "contact_uuid")
+
+      assert %{type: "USER-DEFINED", nullable: "YES"} =
+               column("phoenix_kit_crm_list_members", "email")
+
+      assert column_udt_name("phoenix_kit_crm_list_members", "email") == "citext"
+
+      assert %{type: "character varying", nullable: "NO", default: status_default} =
+               column("phoenix_kit_crm_list_members", "status")
+
+      assert status_default =~ "'subscribed'"
+
+      assert %{type: "timestamp with time zone", nullable: "YES"} =
+               column("phoenix_kit_crm_list_members", "subscribed_at")
+
+      assert %{type: "timestamp with time zone", nullable: "YES"} =
+               column("phoenix_kit_crm_list_members", "unsubscribed_at")
+
+      assert %{type: "character varying", nullable: "NO", default: source_default} =
+               column("phoenix_kit_crm_list_members", "source")
+
+      assert source_default =~ "'manual'"
+
+      assert %{type: "jsonb", nullable: "NO", default: metadata_default} =
+               column("phoenix_kit_crm_list_members", "metadata")
+
+      assert metadata_default =~ ~r/'\{\}'::jsonb/
+
+      assert %{type: "timestamp with time zone", nullable: "NO"} =
+               column("phoenix_kit_crm_list_members", "inserted_at")
+
+      assert %{type: "timestamp with time zone", nullable: "NO"} =
+               column("phoenix_kit_crm_list_members", "updated_at")
+    end
+
+    test "status only accepts subscribed/pending/removed", %{
+      contact_uuid: contact_uuid,
+      list_uuid: list_uuid
+    } do
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid, status) VALUES ($1, $2, $3)",
+          [list_uuid, contact_uuid, "bogus"]
+        )
+      end
+    end
+
+    test "source only accepts manual/import/form/api", %{
+      contact_uuid: contact_uuid,
+      list_uuid: list_uuid
+    } do
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid, source) VALUES ($1, $2, $3)",
+          [list_uuid, contact_uuid, "bogus"]
+        )
+      end
+    end
+
+    test "list_uuid FK cascades on delete" do
+      assert fk_delete_rule("phoenix_kit_crm_list_members_list_uuid_fkey") == "c"
+    end
+
+    test "contact_uuid FK cascades on delete" do
+      assert fk_delete_rule("phoenix_kit_crm_list_members_contact_uuid_fkey") == "c"
+    end
+
+    test "has a plain index on contact_uuid" do
+      assert index_exists?("idx_crm_list_members_contact")
+    end
+
+    test "enforces one membership per (list_uuid, contact_uuid)", %{
+      contact_uuid: contact_uuid,
+      list_uuid: list_uuid
+    } do
+      assert index_exists?("idx_crm_list_members_list_contact")
+
+      Repo.query!(
+        "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid) VALUES ($1, $2)",
+        [list_uuid, contact_uuid]
+      )
+
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid) VALUES ($1, $2)",
+          [list_uuid, contact_uuid]
+        )
+      end
+    end
+
+    test "enforces unique (list_uuid, email) only among non-null emails", %{
+      list_uuid: list_uuid
+    } do
+      assert index_exists?("idx_crm_list_members_list_email")
+
+      %{rows: [[indexdef]]} =
+        Repo.query!(
+          "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_crm_list_members_list_email'"
+        )
+
+      assert indexdef =~ "UNIQUE"
+      assert indexdef =~ "email IS NOT NULL"
+
+      %{rows: [[contact_a]]} =
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_contacts (name, email) VALUES ($1, $2) RETURNING uuid",
+          ["Contact A", "shared@example.com"]
+        )
+
+      %{rows: [[contact_b]]} =
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_contacts (name, email) VALUES ($1, $2) RETURNING uuid",
+          ["Contact B", "other@example.com"]
+        )
+
+      Repo.query!(
+        "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid, email) VALUES ($1, $2, $3)",
+        [list_uuid, contact_a, "shared@example.com"]
+      )
+
+      # Same list, same email, a *different* contact — blocked by the
+      # partial-unique index even though (list_uuid, contact_uuid) differs.
+      assert_raise Postgrex.Error, fn ->
+        Repo.query!(
+          "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid, email) VALUES ($1, $2, $3)",
+          [list_uuid, contact_b, "shared@example.com"]
+        )
+      end
+
+      # NULL emails are unconstrained — any number of rows may have one.
+      Repo.query!(
+        "INSERT INTO phoenix_kit_crm_list_members (list_uuid, contact_uuid, email) VALUES ($1, $2, NULL)",
+        [list_uuid, contact_b]
+      )
+    end
+  end
+
+  describe "phoenix_kit_crm_contacts additions" do
+    test "locale is a nullable varchar(10)" do
+      assert %{type: "character varying", nullable: "YES"} =
+               column("phoenix_kit_crm_contacts", "locale")
+    end
+
+    test "opted_out_at is a nullable timestamptz" do
+      assert %{type: "timestamp with time zone", nullable: "YES"} =
+               column("phoenix_kit_crm_contacts", "opted_out_at")
+    end
+
+    test "consent is a JSONB NOT NULL default '{}'" do
+      assert %{type: "jsonb", nullable: "NO", default: default} =
+               column("phoenix_kit_crm_contacts", "consent")
+
+      assert default =~ ~r/'\{\}'::jsonb/
     end
   end
 
