@@ -1,3 +1,24 @@
+## 1.7.199 - 2026-07-17
+
+### Added
+- `MultilangForm.mount_multilang/2` now auto-attaches a `:handle_event`
+  hook that intercepts the `"switch_language"` event pushed by
+  `<.multilang_tabs>` — consumers no longer need their own
+  `handle_event("switch_language", …)` clause (forgetting it used to crash
+  the LiveView on the first tab click). Opt out with
+  `auto_switch_language: false` to handle the event manually.
+- `SearchPicker` gains a `search_on_focus` attr (default `false`) that
+  opens the dropdown on focus/click of an empty input — promotes the
+  previously JS-only `data-search-on-focus` behavior to a documented,
+  first-class attribute (the raw rest attr is still honored).
+- Event-based `NavTabs` buttons now pulse (`animate-pulse`) while
+  `phx-click-loading` is applied, giving instant feedback for a tab
+  switch whose content needs a server round-trip.
+
+### Fixed
+- Closed a test-coverage gap on the new `mount_multilang/2`
+  switch-language hook (and its `auto_switch_language: false` opt-out).
+
 ## 1.7.198 - 2026-07-16
 
 ### Added
