@@ -1099,11 +1099,38 @@
                           >
                             <.icon name="hero-ellipsis-vertical" class="w-5 h-5" />
                           </div>
+                          <%!-- The complete list of this page's media actions.
+                               Add Media + Search also have prominent
+                               quick-access controls (the primary button and the
+                               magnifier) — they're duplicated here so the ⋯ is a
+                               single place that holds everything, which also
+                               keeps them reachable when the toolbar wraps tight.
+                               Contextual destructive actions (Empty Trash /
+                               Delete all orphaned) live only on their own view's
+                               red button — not duplicated into the menu. --%>
                           <ul
                             tabindex="0"
                             onclick="document.activeElement.blur()"
-                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-48 p-2 shadow border border-base-200"
                           >
+                            <li :if={not @filter_trash}>
+                              <button phx-click="toggle_upload" phx-target={@myself}>
+                                <%= if @show_upload do %>
+                                  <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext(
+                                    "Cancel upload"
+                                  )}
+                                <% else %>
+                                  <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                                <% end %>
+                              </button>
+                            </li>
+                            <li>
+                              <button phx-click="toggle_search" phx-target={@myself}>
+                                <.icon name="hero-magnifying-glass" class="w-4 h-4" /> {gettext(
+                                  "Search"
+                                )}
+                              </button>
+                            </li>
                             <li>
                               <button
                                 phx-click="toggle_select_mode"
