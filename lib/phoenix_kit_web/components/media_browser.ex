@@ -232,34 +232,62 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     viewing? =
       Keyword.get(opts, :viewer, true) and is_map(viewer) and viewer.file_uuid == file_uuid
 
-    # On screen means either list — the page's, or an expanded stack's (a
-    # stacks-view file is only ever in the latter). See `locate_file/2`.
-    in_view? = is_tuple(locate_file(socket, file_uuid))
-
-    fresh =
-      if viewing? or in_view? do
-        case Storage.get_file(file_uuid) do
-          %Storage.File{} = file -> enrich_files([file]) |> List.first()
-          _ -> nil
-        end
-      end
-
-    if fresh do
-      swap = fn f -> if f.file_uuid == file_uuid, do: fresh, else: f end
-
-      socket
-      |> assign(:uploaded_files, Enum.map(socket.assigns.uploaded_files, swap))
-      |> assign(
-        :stack_files,
-        Map.new(socket.assigns[:stack_files] || %{}, fn {uuid, files} ->
-          {uuid, Enum.map(files, swap)}
-        end)
-      )
-      |> assign(:viewer_siblings, Enum.map(socket.assigns[:viewer_siblings] || [], swap))
-      |> then(&if(viewing?, do: assign(&1, :viewer_file, fresh), else: &1))
-    else
-      socket
+    case fresh_file(socket, file_uuid, viewing?) do
+      nil -> socket
+      fresh -> swap_file(socket, file_uuid, fresh, viewing?)
     end
+  end
+
+  # Re-enrich from the DB, but only when the file is actually on screen —
+  # anything else re-reads fresh rows on its next load anyway.
+  defp fresh_file(socket, file_uuid, viewing?) do
+    if viewing? or rendered?(socket, file_uuid) do
+      case Storage.get_file(file_uuid) do
+        %Storage.File{} = file -> enrich_files([file]) |> List.first()
+        _ -> nil
+      end
+    end
+  end
+
+  defp swap_file(socket, file_uuid, fresh, viewing?) do
+    swap = fn f -> if f.file_uuid == file_uuid, do: fresh, else: f end
+
+    socket
+    |> assign(:uploaded_files, Enum.map(socket.assigns.uploaded_files, swap))
+    |> assign(
+      :stack_files,
+      Map.new(socket.assigns[:stack_files] || %{}, fn {uuid, files} ->
+        {uuid, Enum.map(files, swap)}
+      end)
+    )
+    |> assign(
+      :stack_previews,
+      Map.new(socket.assigns[:stack_previews] || %{}, fn {uuid, entry} ->
+        {uuid, Map.update(entry, :previews, [], &Enum.map(&1, swap))}
+      end)
+    )
+    |> assign(:viewer_siblings, Enum.map(socket.assigns[:viewer_siblings] || [], swap))
+    |> then(&if(viewing?, do: assign(&1, :viewer_file, fresh), else: &1))
+  end
+
+  # Every list the browser paints file thumbnails from: the current page's
+  # (`uploaded_files`), each expanded stack's (`stack_files`), and each
+  # collapsed pile's fanned previews (`stack_previews`). A refresh has to
+  # consider — and rewrite — all three, or an update lands on some
+  # thumbnails and not others: the pile is built once per stacks render, so
+  # skipping it left it showing a stale orientation forever while the grid
+  # and viewer moved on.
+  #
+  # Distinct from `locate_file/2`, which is about *clicking*: a pile preview
+  # isn't clickable and its 4-file list must never become the viewer's
+  # prev/next siblings.
+  defp rendered?(socket, file_uuid) do
+    lists =
+      [socket.assigns.uploaded_files] ++
+        Map.values(socket.assigns[:stack_files] || %{}) ++
+        Enum.map(Map.values(socket.assigns[:stack_previews] || %{}), &Map.get(&1, :previews, []))
+
+    Enum.any?(lists, fn list -> Enum.any?(list, fn f -> f.file_uuid == file_uuid end) end)
   end
 
   defp commit_upload_batch(socket) do

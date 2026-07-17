@@ -403,6 +403,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   # Stacks view — files inside an expanded stack are clickable
   # ---------------------------------------------------------------------------
 
+  describe "stacks view live refresh" do
+    test "a rotation refreshes the collapsed pile's preview thumbnails", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      parent = create_folder!()
+      stack = create_folder!(%{name: "stack", parent_uuid: parent.uuid})
+      file = create_file!(stack.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{parent.uuid}")
+      view |> element("[phx-click='set_view_mode'][phx-value-mode='stacks']") |> render_click()
+
+      refute has_element?(view, "img.rotate-90")
+
+      # The pile is built once per stacks render and holds its own enriched
+      # copies — the regression this covers: it kept a stale orientation
+      # while the grid and viewer moved on.
+      {:ok, _} =
+        Storage.update_file(Storage.get_file(file.uuid), %{metadata: %{"rotation" => 90}})
+
+      Storage.broadcast_file_thumbnail_updated(file.uuid)
+
+      _ = render(view)
+      assert has_element?(view, "img.rotate-90")
+    end
+  end
+
   describe "stacks view click_file" do
     test "opens the viewer for a file inside an expanded stack", %{conn: conn} do
       {user, _token} = create_admin_user()
