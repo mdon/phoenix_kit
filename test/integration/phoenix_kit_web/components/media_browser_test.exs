@@ -400,6 +400,39 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Stacks view — files inside an expanded stack are clickable
+  # ---------------------------------------------------------------------------
+
+  describe "stacks view click_file" do
+    test "opens the viewer for a file inside an expanded stack", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      # A file nested one level down is only ever rendered from `stack_files`,
+      # never from the page's `uploaded_files` — the regression this covers:
+      # clicking it silently no-oped because the lookup only searched the
+      # latter, so the viewer opened on nil.
+      parent = create_folder!()
+      stack = create_folder!(%{name: "stack", parent_uuid: parent.uuid})
+      file = create_file!(stack.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{parent.uuid}")
+
+      view |> element("[phx-click='set_view_mode'][phx-value-mode='stacks']") |> render_click()
+      # The tile's phx-click is a JS.push targeting the component.
+      view |> element("[data-stack-tile='#{stack.uuid}']") |> render_click()
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "media-browser-viewer-modal"
+      assert html =~ "MIME:"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Info sidebar collapse — viewer-only mode for small screens, per-user sticky
   # ---------------------------------------------------------------------------
 

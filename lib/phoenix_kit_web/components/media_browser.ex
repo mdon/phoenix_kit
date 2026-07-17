@@ -126,6 +126,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       |> assign_new(:viewer_file, fn -> nil end)
+      # The list the open viewer's prev/next steps through — the page's
+      # files, or an expanded stack's own (see `locate_file/2`).
+      |> assign_new(:viewer_siblings, fn -> [] end)
       # When true, the browser fills its parent's width + height (flex-1)
       # instead of the default fixed-height card. Used by the full-page
       # admin media view; modal/gallery embeds keep the bounded default.
@@ -229,10 +232,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     viewing? =
       Keyword.get(opts, :viewer, true) and is_map(viewer) and viewer.file_uuid == file_uuid
 
-    in_grid? = Enum.any?(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
+    # On screen means either list — the page's, or an expanded stack's (a
+    # stacks-view file is only ever in the latter). See `locate_file/2`.
+    in_view? = is_tuple(locate_file(socket, file_uuid))
 
     fresh =
-      if viewing? or in_grid? do
+      if viewing? or in_view? do
         case Storage.get_file(file_uuid) do
           %Storage.File{} = file -> enrich_files([file]) |> List.first()
           _ -> nil
@@ -240,13 +245,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end
 
     if fresh do
+      swap = fn f -> if f.file_uuid == file_uuid, do: fresh, else: f end
+
       socket
+      |> assign(:uploaded_files, Enum.map(socket.assigns.uploaded_files, swap))
       |> assign(
-        :uploaded_files,
-        Enum.map(socket.assigns.uploaded_files, fn f ->
-          if f.file_uuid == file_uuid, do: fresh, else: f
+        :stack_files,
+        Map.new(socket.assigns[:stack_files] || %{}, fn {uuid, files} ->
+          {uuid, Enum.map(files, swap)}
         end)
       )
+      |> assign(:viewer_siblings, Enum.map(socket.assigns[:viewer_siblings] || [], swap))
       |> then(&if(viewing?, do: assign(&1, :viewer_file, fresh), else: &1))
     else
       socket
@@ -1544,7 +1553,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if socket.assigns.select_mode do
       {:noreply, do_toggle_file(socket, file_uuid)}
     else
-      {:noreply, open_viewer(socket, find_uploaded_file(socket, file_uuid))}
+      # `locate_file/2` also finds files inside expanded stacks, and hands
+      # back the list prev/next should step through. A miss (stale click
+      # against a since-reloaded page) leaves the viewer alone rather than
+      # opening it empty.
+      case locate_file(socket, file_uuid) do
+        {file, siblings} -> {:noreply, open_viewer(socket, file, siblings)}
+        nil -> {:noreply, socket}
+      end
     end
   end
 
@@ -2066,16 +2082,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Look up the clicked file's enriched map (filename, mime_type, size, urls,
   # …) inside the current page's uploaded_files list so the modal can render
   # without an extra DB roundtrip.
-  defp find_uploaded_file(socket, file_uuid) do
-    Enum.find(socket.assigns.uploaded_files, fn f -> f.file_uuid == file_uuid end)
+  # Rendered files live in TWO places: the current page's list
+  # (`uploaded_files`) and, in stacks view, each expanded stack's own list
+  # (`stack_files`, keyed by folder uuid). Resolve against both — searching
+  # only `uploaded_files` silently no-oped every click on a file inside an
+  # expanded stack, since the lookup missed and the viewer opened on `nil`.
+  #
+  # Returns the file *and* the list it came from, so the viewer's prev/next
+  # steps through the right siblings (a stack's own files, not the page's).
+  defp locate_file(socket, file_uuid) do
+    stacks = Map.values(socket.assigns[:stack_files] || %{})
+
+    Enum.find_value([socket.assigns.uploaded_files | stacks], fn list ->
+      case Enum.find(list, fn f -> f.file_uuid == file_uuid end) do
+        nil -> nil
+        file -> {file, list}
+      end
+    end)
   end
 
-  # Advance the modal viewer by one step in the current page's file list.
-  # Stops at the boundary (no wrap-around) so the user knows they hit the
-  # edge instead of being silently teleported to the other end.
+  # Advance the modal viewer by one step through the list it was opened
+  # from (see `locate_file/2`). Stops at the boundary (no wrap-around) so
+  # the user knows they hit the edge instead of being silently teleported
+  # to the other end.
   defp step_viewer(socket, direction) do
     current = socket.assigns.viewer_file
-    list = socket.assigns.uploaded_files
+    list = socket.assigns[:viewer_siblings] || []
 
     with %{file_uuid: uuid} <- current,
          idx when is_integer(idx) <-
@@ -2095,8 +2127,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # heex — it loads its own annotations on mount based on the file
   # we pass through `assigns[:file]`. MediaBrowser only owns the
   # modal open/close lifecycle and which file is currently shown.
-  defp open_viewer(socket, nil), do: assign(socket, :viewer_file, nil)
-  defp open_viewer(socket, %{file_uuid: _} = file), do: assign(socket, :viewer_file, file)
+  # `siblings` is the list prev/next steps through. Passing `nil` keeps the
+  # list already in play — how `step_viewer/2` moves within it without
+  # re-deciding which list the viewer belongs to.
+  defp open_viewer(socket, file, siblings \\ nil)
+
+  defp open_viewer(socket, nil, _siblings) do
+    socket |> assign(:viewer_file, nil) |> assign(:viewer_siblings, [])
+  end
+
+  defp open_viewer(socket, %{file_uuid: _} = file, nil), do: assign(socket, :viewer_file, file)
+
+  defp open_viewer(socket, %{file_uuid: _} = file, siblings) do
+    socket |> assign(:viewer_file, file) |> assign(:viewer_siblings, siblings)
+  end
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do
     if controlled_mode?(socket) do

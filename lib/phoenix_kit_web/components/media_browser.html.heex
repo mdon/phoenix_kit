@@ -2328,9 +2328,13 @@
   <%!-- (`select_mode` toggle). Closes via X / Esc / backdrop click.          --%>
   <%= if assigns[:viewer_file] do %>
     <% f = @viewer_file %>
-    <% viewer_idx = Enum.find_index(@uploaded_files, &(&1.file_uuid == f.file_uuid)) %>
+    <%!-- Step through the list the viewer was opened from (the page's files,
+         or an expanded stack's own) — not always `@uploaded_files`, which
+         doesn't contain files that live inside a stack. --%>
+    <% siblings = @viewer_siblings %>
+    <% viewer_idx = Enum.find_index(siblings, &(&1.file_uuid == f.file_uuid)) %>
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
-    <% has_next = is_integer(viewer_idx) and viewer_idx < length(@uploaded_files) - 1 %>
+    <% has_next = is_integer(viewer_idx) and viewer_idx < length(siblings) - 1 %>
     <div
       id={"#{@id}-viewer-modal"}
       class="modal modal-open"
