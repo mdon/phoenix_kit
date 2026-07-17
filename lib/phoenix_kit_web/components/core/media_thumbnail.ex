@@ -110,31 +110,56 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   costs nothing, needs no re-encode, and keeps annotations (which live in
   the image's own coordinate space) aligned as they rotate along.
 
-  Sound only for **square** thumbnail boxes, which is every call site today
-  (`aspect-square` grid cards, `w-10 h-10` list cells): a 90°/270° rotation
-  of a square leaves the same square, and because `object-cover` crops about
-  the center — which rotation maps onto itself — cropping-then-rotating shows
-  exactly what rotating-then-cropping would. A non-square box would need the
-  swapped-dimension math instead.
+  In a **square** box (`aspect-square` cards, `w-10 h-10` list cells) a
+  quarter turn needs nothing else: rotating a square leaves the same square,
+  and because `object-cover` crops about the center — which rotation maps
+  onto itself — cropping-then-rotating shows exactly what
+  rotating-then-cropping would.
 
-  Nil-tolerant: files whose maps carry no `:rotation` (gallery / selector
-  builds) and unrotated or garbage values return `nil`.
+  A **non-square** box needs the quarter turn to scale back up, or the
+  covered image (now turned onto its side) would letterbox: pass `box:` and
+  the scale rides along. Half turns never need it. The scale literal per box
+  shape is hardcoded rather than computed — Tailwind only emits arbitrary
+  values it can *see* in source, so an interpolated `scale-[…]` would
+  silently render as no scale at all.
+
+  Nil-tolerant: unrotated, garbage, and maps carrying no `:rotation` at all
+  return `nil`.
+
+  ## Options
+
+    * `:box` — the thumbnail box's aspect: `:square` (default) or
+      `:landscape_4_3` (the stacks preview pile's `w-32 h-24`).
 
   ## Examples
 
       <img src={url} class={["w-full h-full object-cover", rotation_class(file)]} />
+
+      <img src={url} class={["w-full h-full object-cover",
+                             rotation_class(file, box: :landscape_4_3)]} />
   """
-  @spec rotation_class(map()) :: String.t() | nil
-  def rotation_class(file) when is_map(file) do
+  @spec rotation_class(map(), keyword()) :: String.t() | nil
+  def rotation_class(file, opts \\ [])
+
+  def rotation_class(file, opts) when is_map(file) do
     case normalize_rotation(Map.get(file, :rotation)) do
-      90 -> "rotate-90"
+      90 -> quarter_turn("rotate-90", opts)
       180 -> "rotate-180"
-      270 -> "-rotate-90"
+      270 -> quarter_turn("-rotate-90", opts)
       _ -> nil
     end
   end
 
-  def rotation_class(_), do: nil
+  def rotation_class(_, _), do: nil
+
+  defp quarter_turn(rotate, opts) do
+    case Keyword.get(opts, :box, :square) do
+      :square -> rotate
+      # A quarter turn leaves a 4:3-covered image standing 3:4 inside the
+      # 4:3 box; scaling by 4/3 makes it cover again.
+      :landscape_4_3 -> rotate <> " scale-[1.3334]"
+    end
+  end
 
   # Mirrors MediaCanvasViewer's own normalization: only the four snapped
   # angles Fresco emits count; anything else (nil, garbage, a legacy string)

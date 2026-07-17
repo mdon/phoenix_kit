@@ -2365,7 +2365,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             ]}>
               <.thumbnail_url :let={url} file={pf} size={:card}>
                 <%= if url do %>
-                  <img src={url} alt="" class="w-full h-full object-cover" />
+                  <img
+                    src={url}
+                    alt=""
+                    class={[
+                      "w-full h-full object-cover",
+                      rotation_class(pf, box: :landscape_4_3)
+                    ]}
+                  />
                 <% else %>
                   <div class="w-full h-full grid place-items-center text-base-content/40">
                     <.icon name={file_icon_for(pf)} class="w-8 h-8" />
