@@ -272,3 +272,6 @@ RANGE-WIDE FACTS (v116-v148), all verified against current code: (1) ZERO seed r
 - V150 (ddl): `phoenix_kit_users_tokens.browser`/`os` VARCHAR(100) via Ecto DSL
   `add_if_not_exists`; no backfill possible (raw UA never stored). Self-stamps '150'.
   NB: renumbered V149→V150 on 2026-07-15 because upstream took V149 — the 5th renumber event.
+- V151 (ddl, 2026-07-17 refresh): source/primary columns on
+  `phoenix_kit_cat_item_supplier_info` (extends V149's junction) + citext email columns on
+  CRM tables (citext enabled since V01). Additive, `IF NOT EXISTS`-guarded, self-stamps '151'.

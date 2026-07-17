@@ -1,16 +1,19 @@
 # Migration-chain consolidation (squash) + verify-and-repair — SPECIFICATION
 
 Status: **REVIEWED DRAFT r2** (spec only; implementation not started).
-Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at **v1.7.196/V150** (chain V01..V150,
-150 modules, 25,405 lines); **r2 = post-review revision** incorporating a 7-reviewer round:
+Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at v1.7.196/V150; counters refreshed
+2026-07-17 at **v1.7.198/V151** (chain V01..V151, 151 modules, 25,602 lines — the chain grew
+V149→V151 across the four days of spec work, live confirmation of §3.1's cadence point);
+**r2 = post-review revision** incorporating a 7-reviewer round:
 4 internal adversarial agents (claims / design / completeness / ops) + GLM-5.2, Kimi K2.7,
 Mistral Medium. Verdicts: claims-verifier APPROVE (all mechanical claims confirmed against HEAD;
 line refs re-anchored below), all others NEEDS-WORK → their ~50 findings are folded in here.
-Branch: `squash-migrations` (rebased onto upstream 1.7.196).
+Branch: `squash-migrations` (rebased onto upstream 1.7.198).
 Supersedes: `2026-06-15-squash-migrations-plan.md` (June plan; stale).
 Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations).
 
-All `postgres.ex` line refs are re-anchored to v1.7.196 HEAD (verified by grep):
+All `postgres.ex` line refs are re-anchored to v1.7.196 HEAD (verified by grep; 1.7.197-198
+added only the V149-V151 moduledoc entries above the code section — same-shift caveat applies):
 `@initial_version`/`@current_version` :1311-1312, `@uuid_fn_version` :1319, `up/1` :1328-1343,
 `down/1` :1346-1370, `migrated_version/1` :1373-1410 (legacy no-comment→1 at :1400), heal
 :1530-1568, `version_checks/0` :1572-1586, dispatch :1627-1629, `handle_version_recording/4`
@@ -139,15 +142,15 @@ stragglers at ANY floor). Confirmation must be a **fresh reading at implementati
 Open with the operator: is this list COMPLETE? Any other host/app under the seamless-upgrade
 commitment makes its version a floor input too (§10 Q1).
 
-**Floor candidates** (repo at V150, 25,405 lines / 150 files; per-floor figures unchanged by
-1.7.194-196 — v01..v147 untouched):
+**Floor candidates** (repo at V151, 25,602 lines / 151 files; per-floor figures unchanged by
+1.7.194-198 — v01..v147 untouched):
 
 | floor | legacy files removed (v01..v{floor-1} deleted + v{floor} replaced by baseline) | lines removed | delta files remaining |
 |---|---|---|---|
-| 110 | 109 + 1 | 19,725 | 40 |
-| **121** | 120 + 1 | 21,537 | 29 |
-| **135** | 134 + 1 | 23,231 | 15 |
-| 147 | 146 + 1 | 25,155 | 3 |
+| 110 | 109 + 1 | 19,725 | 41 |
+| **121** | 120 + 1 | 21,537 | 30 |
+| **135** | 134 + 1 | 23,231 | 16 |
+| 147 | 146 + 1 | 25,155 | 4 |
 
 ---
 
