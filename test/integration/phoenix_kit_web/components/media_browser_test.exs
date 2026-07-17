@@ -379,6 +379,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       # The save is confirmed with a flash — otherwise it's invisible.
       assert render(view) =~ "Rotation saved"
 
+      # The save also broadcasts a thumbnail refresh, so the grid card behind
+      # the popup picks up the new orientation without a reload (thumbnails
+      # render it as a CSS transform). Scoped to `img` on purpose — the
+      # viewer's own collapse chevron carries a rotate-90 class of its own.
+      _ = render(view)
+      assert has_element?(view, "img.rotate-90")
+
       # Close and reopen — the saved rotation seeds `initial_rotation`,
       # surfacing as data-initial-rotation on the canvas element.
       view |> element("##{"media-browser"}-viewer-modal .modal-backdrop") |> render_click()
@@ -389,6 +396,66 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
         |> render_click()
 
       assert html =~ ~s(data-initial-rotation="90")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Stacks view — files inside an expanded stack are clickable
+  # ---------------------------------------------------------------------------
+
+  describe "stacks view live refresh" do
+    test "a rotation refreshes the collapsed pile's preview thumbnails", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      parent = create_folder!()
+      stack = create_folder!(%{name: "stack", parent_uuid: parent.uuid})
+      file = create_file!(stack.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{parent.uuid}")
+      view |> element("[phx-click='set_view_mode'][phx-value-mode='stacks']") |> render_click()
+
+      refute has_element?(view, "img.rotate-90")
+
+      # The pile is built once per stacks render and holds its own enriched
+      # copies — the regression this covers: it kept a stale orientation
+      # while the grid and viewer moved on.
+      {:ok, _} =
+        Storage.update_file(Storage.get_file(file.uuid), %{metadata: %{"rotation" => 90}})
+
+      Storage.broadcast_file_thumbnail_updated(file.uuid)
+
+      _ = render(view)
+      assert has_element?(view, "img.rotate-90")
+    end
+  end
+
+  describe "stacks view click_file" do
+    test "opens the viewer for a file inside an expanded stack", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      # A file nested one level down is only ever rendered from `stack_files`,
+      # never from the page's `uploaded_files` — the regression this covers:
+      # clicking it silently no-oped because the lookup only searched the
+      # latter, so the viewer opened on nil.
+      parent = create_folder!()
+      stack = create_folder!(%{name: "stack", parent_uuid: parent.uuid})
+      file = create_file!(stack.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{parent.uuid}")
+
+      view |> element("[phx-click='set_view_mode'][phx-value-mode='stacks']") |> render_click()
+      # The tile's phx-click is a JS.push targeting the component.
+      view |> element("[data-stack-tile='#{stack.uuid}']") |> render_click()
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "media-browser-viewer-modal"
+      assert html =~ "MIME:"
     end
   end
 

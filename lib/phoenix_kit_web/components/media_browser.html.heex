@@ -802,13 +802,16 @@
                           </button>
                         <% end %>
 
+                        <%!-- Cancel, not "Done": the ✕ exits selection mode
+                             without applying anything — "Done" reads like a
+                             confirm/apply, which this button never does. --%>
                         <button
                           phx-click="toggle_select_mode"
                           phx-target={@myself}
                           class="btn btn-sm btn-neutral gap-1.5"
                           title={gettext("Exit selection")}
                         >
-                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Done")}
+                          <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
                         </button>
                       </div>
                     </div>
@@ -1096,11 +1099,38 @@
                           >
                             <.icon name="hero-ellipsis-vertical" class="w-5 h-5" />
                           </div>
+                          <%!-- The complete list of this page's media actions.
+                               Add Media + Search also have prominent
+                               quick-access controls (the primary button and the
+                               magnifier) — they're duplicated here so the ⋯ is a
+                               single place that holds everything, which also
+                               keeps them reachable when the toolbar wraps tight.
+                               Contextual destructive actions (Empty Trash /
+                               Delete all orphaned) live only on their own view's
+                               red button — not duplicated into the menu. --%>
                           <ul
                             tabindex="0"
                             onclick="document.activeElement.blur()"
-                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+                            class="dropdown-content menu bg-base-100 rounded-box z-20 w-48 p-2 shadow border border-base-200"
                           >
+                            <li :if={not @filter_trash}>
+                              <button phx-click="toggle_upload" phx-target={@myself}>
+                                <%= if @show_upload do %>
+                                  <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext(
+                                    "Cancel upload"
+                                  )}
+                                <% else %>
+                                  <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                                <% end %>
+                              </button>
+                            </li>
+                            <li>
+                              <button phx-click="toggle_search" phx-target={@myself}>
+                                <.icon name="hero-magnifying-glass" class="w-4 h-4" /> {gettext(
+                                  "Search"
+                                )}
+                              </button>
+                            </li>
                             <li>
                               <button
                                 phx-click="toggle_select_mode"
@@ -1439,7 +1469,10 @@
                                 <img
                                   src={url}
                                   alt={file.filename}
-                                  class="w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity"
+                                  class={[
+                                    "w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity",
+                                    rotation_class(file)
+                                  ]}
                                   onerror="this.parentElement.querySelector('.image-error-placeholder').style.display='grid';"
                                 />
                                 <div class="image-error-placeholder hidden absolute inset-0 bg-base-300 grid place-items-center text-base-content/50">
@@ -2033,7 +2066,10 @@
                                     <%= if url do %>
                                       <img
                                         src={url}
-                                        class="w-full h-full object-cover"
+                                        class={[
+                                          "w-full h-full object-cover",
+                                          rotation_class(file)
+                                        ]}
                                         alt={file.filename}
                                       />
                                     <% else %>
@@ -2322,9 +2358,13 @@
   <%!-- (`select_mode` toggle). Closes via X / Esc / backdrop click.          --%>
   <%= if assigns[:viewer_file] do %>
     <% f = @viewer_file %>
-    <% viewer_idx = Enum.find_index(@uploaded_files, &(&1.file_uuid == f.file_uuid)) %>
+    <%!-- Step through the list the viewer was opened from (the page's files,
+         or an expanded stack's own) — not always `@uploaded_files`, which
+         doesn't contain files that live inside a stack. --%>
+    <% siblings = @viewer_siblings %>
+    <% viewer_idx = Enum.find_index(siblings, &(&1.file_uuid == f.file_uuid)) %>
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
-    <% has_next = is_integer(viewer_idx) and viewer_idx < length(@uploaded_files) - 1 %>
+    <% has_next = is_integer(viewer_idx) and viewer_idx < length(siblings) - 1 %>
     <div
       id={"#{@id}-viewer-modal"}
       class="modal modal-open"
