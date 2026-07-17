@@ -1,3 +1,29 @@
+## 1.7.200 - 2026-07-17
+
+### Added
+- Media thumbnails (browser grid/list/stacks, gallery, both media-selector
+  pickers) now render a file's saved rotation as a CSS transform, matching
+  what the popup viewer's canvas shows — no re-encode needed, and baked
+  annotated thumbnails stay untouched on disk.
+- The media browser's "⋯" overflow menu now also lists Add Media, Cancel
+  upload, and Search, so every page action is reachable from one place even
+  when the toolbar wraps tight.
+- 4 strings (`Failed to save rotation`, `Hide details`, `Rotation saved`,
+  `Show details`) translated to et/ru.
+
+### Fixed
+- A file's rotation or rebaked annotated thumbnail is now reflected in a
+  collapsed stack's pile preview — previously only the grid and open
+  viewer picked up the live refresh, leaving the pile stuck on the stale
+  thumbnail.
+- Clicking a file inside an expanded stack now opens the popup viewer
+  (previously a silent no-op, since the lookup only searched the current
+  page's file list, not the stack's own); the viewer's prev/next now steps
+  through the correct sibling list in both stacked and flat views.
+- Select-mode toolbar's exit button now reads "Cancel" instead of "Done" —
+  it exits without applying anything, so "Done" read like a confirm it
+  never was.
+
 ## 1.7.199 - 2026-07-17
 
 ### Added
