@@ -1273,6 +1273,16 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings => "settings",
     PhoenixKitWeb.Live.Settings.Users => "settings",
     PhoenixKitWeb.Live.Settings.Organization => "settings",
+    # Integrations + Email Sending settings pages: none of these resolve
+    # through the later inference layers (their PhoenixKitWeb namespace has no
+    # ModuleRegistry entry), so an explicit mapping is required — unmapped
+    # views fail closed and custom roles holding the "settings" permission
+    # were denied pages whose nav links they could see.
+    PhoenixKitWeb.Live.Settings.Integrations => "settings",
+    PhoenixKitWeb.Live.Settings.IntegrationForm => "settings",
+    PhoenixKitWeb.Live.Settings.EmailSending => "settings",
+    PhoenixKitWeb.Live.Settings.SendProfiles => "settings",
+    PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
     PhoenixKitWeb.Live.Settings.SEO => "seo",
     PhoenixKitWeb.Live.Modules.Languages => "languages",
     PhoenixKitWeb.Live.Modules.Maintenance.Settings => "maintenance",

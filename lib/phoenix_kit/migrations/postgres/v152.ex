@@ -9,6 +9,26 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
   Keep each section's DDL self-contained and idempotent, same as any other
   migration in this chain.
 
+  > #### The accumulator's one sharp edge — read before appending {: .warning}
+  >
+  > The chain tracks progress by a **single version comment** on the
+  > `phoenix_kit` table. A database that has already stamped `'152'` will
+  > **never re-enter this module**, so a section appended *after* that
+  > stamp silently never applies there. Two hard consequences:
+  >
+  > 1. **The moment V152 ships in a release, it is CLOSED.** The next DDL
+  >    opens V153 — the one-open-migration rule applies only to the
+  >    unreleased window. Appending to a released version would strand
+  >    every already-migrated host with missing DDL and no error.
+  > 2. **Dev/staging databases running this branch must re-apply after
+  >    every appended section**: `mix ecto.rollback --step 1` (the file
+  >    migration downs the whole version — data written by earlier
+  >    sections survives via their own down/up copy cycles), then
+  >    `mix phoenix_kit.update` to run the version again with all
+  >    sections. Skipping this dance leaves the stamp at `'152'` with
+  >    only the older sections applied — the exact silent-skip failure
+  >    this warning exists to prevent.
+
   ## Section: send profiles move to core Email
 
   Creates `phoenix_kit_email_send_profiles` — the same shape V145 gave
