@@ -209,7 +209,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert result =~ ~s(phx-submit="do_search")
     end
 
-    test "no form wrapper when on_submit is nil" do
+    test "form wrapper is present even without on_submit (Enter falls back to on_change)" do
+      # This test used to pin the OPPOSITE (refute <form) — codifying the bug
+      # where phx-change on a form-less input silently never reaches the
+      # server. The component now always renders the form.
       assigns = %{}
 
       result =
@@ -217,7 +220,8 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
         <.search_toolbar value="" />
         """)
 
-      refute result =~ "<form"
+      assert result =~ "<form"
+      assert result =~ ~s(phx-submit="search")
     end
 
     test "default placeholder uses dgettext fallback" do
@@ -384,6 +388,39 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
 
       assert result =~ "<th"
       assert result =~ "w-8"
+    end
+  end
+
+  describe "search_toolbar/1 form wrapping (regression)" do
+    test "always wraps the input in a form (phx-change outside a form is dead)" do
+      # Regression: the no-on_submit branch used to render a bare <div> —
+      # LiveView's client throws on phx-change for an input outside a form
+      # and the event silently never reaches the server. First real caller
+      # (CRM list members search) shipped against that trap.
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.search_toolbar value="" />
+        """)
+
+      assert html =~ "<form"
+      assert html =~ ~s(phx-change="search")
+      # Enter falls back to the change event when no on_submit is given.
+      assert html =~ ~s(phx-submit="search")
+    end
+
+    test "explicit on_submit wins for the form's submit event" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.search_toolbar value="x" on_change="filter" on_submit="run_search" />
+        """)
+
+      assert html =~ ~s(phx-submit="run_search")
+      assert html =~ ~s(phx-change="filter")
+      assert html =~ ~s(value="x")
     end
   end
 end
