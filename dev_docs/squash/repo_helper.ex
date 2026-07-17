@@ -13,11 +13,17 @@ defmodule PhoenixKit.Squash.RepoHelper do
   but its connection config is overridden from env so the squash scripts can
   point at a different host/database than the normal test DB.
 
-  Required env vars:
-    PGHOST, PGPORT, PGUSER, PGPASSWORD (or PGPASSFILE), PGDATABASE
+  Required env vars: `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`.
+  `PGPASSWORD` is genuinely mandatory: Postgrex never reads `.pgpass`, so a
+  missing password would only fail later with an opaque auth error — we
+  validate eagerly instead.
 
-  Optional:
-    PGSSL  — set to "true" to enable SSL
+  Optional: `PGPORT` (default 5432), `PGSSL` ("true" enables SSL).
+
+  Functions tagged `[DB]` need a live direct Postgres connection (never
+  PgBouncer — it silently drops transactional DDL). Everything else is pure;
+  `run_self_checks/0` exercises the env parsing offline for verify.exs
+  `--check`.
   """
 
   @repo PhoenixKit.Test.Repo
@@ -29,6 +35,9 @@ defmodule PhoenixKit.Squash.RepoHelper do
   @doc """
   Start the repo and return {:ok, repo_module} or {:error, reason}.
   Idempotent: safe to call multiple times.
+
+  Uses `pool: DBConnection.ConnectionPool` (not the test sandbox) so scripts
+  get real autocommit connections and can run DDL outside a transaction.
 
   [DB] — requires a live Postgres connection.
   """
@@ -81,38 +90,62 @@ defmodule PhoenixKit.Squash.RepoHelper do
   end
 
   @doc """
-  Run Ecto.Migrator.up/4 for a single migration module at a synthetic version.
-  This is the proven pattern from the task spec.
+  Build a connection map from env vars (used for the repo config and for
+  pg_dump/psql subprocess env). Pure given an explicit `env` map; reads
+  `System.get_env/0` when called without arguments.
 
-  [DB]
+  Raises with an operator-facing message when a required variable is missing
+  or blank.
   """
-  def run_migration_module(repo, migration_module, opts \\ []) do
-    prefix = Keyword.get(opts, :prefix, "public")
-    log = Keyword.get(opts, :log, false)
+  def connection_env(env \\ nil) do
+    env = env || System.get_env()
 
-    # Each migration runner needs a unique fake version number so
-    # Ecto.Migrator doesn't deduplicate them via schema_migrations.
-    fake_version = :os.system_time(:microsecond)
-
-    Ecto.Migrator.up(repo, fake_version, migration_module,
-      prefix: prefix,
-      log: log
-    )
+    %{
+      host: fetch!(env, "PGHOST"),
+      port: String.to_integer(Map.get(env, "PGPORT", "5432")),
+      username: fetch!(env, "PGUSER"),
+      password: fetch!(env, "PGPASSWORD"),
+      database: fetch!(env, "PGDATABASE"),
+      ssl: Map.get(env, "PGSSL") == "true"
+    }
   end
 
   @doc """
-  Build and return a connection keyword list from env vars (for use with
-  Postgrex directly if needed, e.g. for pg_dump subprocess args).
+  Offline self-test of the env parsing (no DB, no real env). Returns `:ok` or
+  raises with the failing check's name. Called by verify.exs `--check`.
   """
-  def connection_env do
-    %{
-      host: env!("PGHOST"),
-      port: String.to_integer(System.get_env("PGPORT", "5432")),
-      username: env!("PGUSER"),
-      password: System.get_env("PGPASSWORD", ""),
-      database: System.get_env("PGDATABASE", ""),
-      ssl: System.get_env("PGSSL") == "true"
+  def run_self_checks do
+    full = %{
+      "PGHOST" => "db.example",
+      "PGPORT" => "6543",
+      "PGUSER" => "u",
+      "PGPASSWORD" => "secret",
+      "PGDATABASE" => "d",
+      "PGSSL" => "true"
     }
+
+    ce = connection_env(full)
+    check!(ce.host == "db.example" and ce.port == 6543, "connection_env: parses host/port")
+    check!(ce.ssl == true, "connection_env: PGSSL flag")
+
+    check!(
+      connection_env(Map.delete(full, "PGPORT")).port == 5432,
+      "connection_env: default port"
+    )
+
+    check!(connection_env(Map.delete(full, "PGSSL")).ssl == false, "connection_env: default ssl")
+
+    check!(
+      raised_message(fn -> connection_env(Map.delete(full, "PGPASSWORD")) end) =~ "PGPASSWORD",
+      "connection_env: missing PGPASSWORD raises eagerly"
+    )
+
+    check!(
+      raised_message(fn -> connection_env(Map.put(full, "PGDATABASE", "")) end) =~ "PGDATABASE",
+      "connection_env: blank PGDATABASE raises eagerly"
+    )
+
+    :ok
   end
 
   # -------------------------------------------------------------------------
@@ -127,7 +160,7 @@ defmodule PhoenixKit.Squash.RepoHelper do
       port: ce.port,
       username: ce.username,
       password: ce.password,
-      database: database_name(ce.database),
+      database: ce.database,
       ssl: ce.ssl,
       pool_size: 5,
       # Disable sandbox so scripts can run DDL outside a transaction
@@ -136,19 +169,36 @@ defmodule PhoenixKit.Squash.RepoHelper do
     ]
   end
 
-  defp database_name(""), do: raise("PGDATABASE env var is required")
-  defp database_name(db), do: db
+  defp fetch!(env, name) do
+    case Map.get(env, name) do
+      value when is_binary(value) and value != "" ->
+        value
 
-  defp env!(name) do
-    case System.get_env(name) do
-      nil -> raise "Required env var #{name} is not set"
-      value -> value
+      _ ->
+        raise "Required env var #{name} is not set#{fetch_hint(name)}"
     end
+  end
+
+  defp fetch_hint("PGPASSWORD"),
+    do: " (Postgrex never reads .pgpass; export PGPASSWORD explicitly)"
+
+  defp fetch_hint(_name), do: ""
+
+  # Returns the raised RuntimeError message, or "" when nothing raised (so a
+  # missing raise fails the =~ assertion instead of crashing it).
+  defp raised_message(fun) do
+    fun.()
+    ""
+  rescue
+    e in RuntimeError -> e.message
   end
 
   defp ensure_applications_started do
-    for app <- [:telemetry, :db_connection, :ecto, :postgrex] do
+    for app <- [:telemetry, :db_connection, :ecto, :ecto_sql, :postgrex] do
       Application.ensure_all_started(app)
     end
   end
+
+  defp check!(true, _name), do: :ok
+  defp check!(false, name), do: raise("RepoHelper self-check failed: #{name}")
 end
