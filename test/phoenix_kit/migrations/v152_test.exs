@@ -317,6 +317,9 @@ defmodule PhoenixKit.Migrations.Postgres.V152Test do
       assert %{type: "integer", nullable: "NO", default: "0"} =
                column("phoenix_kit_crm_lists", "subscriber_count")
 
+      assert %{type: "character varying", nullable: "YES"} =
+               column("phoenix_kit_crm_lists", "locale")
+
       assert %{type: "jsonb", nullable: "NO", default: default} =
                column("phoenix_kit_crm_lists", "metadata")
 

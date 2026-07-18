@@ -57,7 +57,9 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
 
     * `phoenix_kit_crm_lists` — a named, sluggable list (`status`
       active/archived, `subscribable` pre-provisioned for the Stage-4
-      preference center, `subscriber_count` a maintained cache).
+      preference center, `subscriber_count` a maintained cache, `locale`
+      a nullable content-language tag the admin UI can bulk-apply to the
+      list's contacts).
     * `phoenix_kit_crm_list_members` — the list↔contact join, carrying a
       denormalized `email` snapshot taken at add-time (so a list survives
       a later change to the contact's own email) and its own `status`
@@ -204,6 +206,7 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
         CHECK (status IN ('active', 'archived')),
       subscribable BOOLEAN NOT NULL DEFAULT FALSE,
       subscriber_count INTEGER NOT NULL DEFAULT 0,
+      locale VARCHAR(10),
       metadata JSONB NOT NULL DEFAULT '{}',
       inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
