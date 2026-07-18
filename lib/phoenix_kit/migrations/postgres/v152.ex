@@ -78,6 +78,32 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
 
   citext (already ensured by V151) backs `email` here too, for the same
   case-insensitive matching. All operations are idempotent.
+
+  ## Section: broadcasts can source recipients from a CRM list
+
+  Minimal Stage-4 groundwork: a broadcast can now target either its own
+  `phoenix_kit_newsletters_lists` list (unchanged default behavior) or a
+  `phoenix_kit_crm_lists` list, tagged by the new `source_type` column
+  (`'newsletters_list'` default / `'crm_list'`) — validated at the Ecto
+  layer only, same as `broadcasts.status` already is (no DB CHECK on
+  either). `crm_list_uuid` is a bare UUID with no FK, matching
+  `send_profile_uuid`'s existing soft-reference pattern: newsletters must
+  not hard-depend on the CRM module being installed.
+
+  `broadcasts.list_uuid` and `deliveries.user_uuid` both drop their `NOT
+  NULL` — a `crm_list` broadcast has no newsletters list, and a
+  CRM-sourced delivery generally has no core `User` row at all (most CRM
+  contacts never log in). `deliveries.recipient_email` is the new
+  column that makes such a delivery addressable: a CITEXT snapshot of the
+  recipient's email taken when the send is enqueued, mirroring how
+  `phoenix_kit_crm_list_members.email` already snapshots at add-time.
+
+  `down/1` deliberately does **not** restore the two `NOT NULL`s — by the
+  time this ships, a dev database exercising this feature will have rows
+  with `list_uuid`/`user_uuid` NULL, and re-imposing the constraint would
+  make the documented rollback-and-reapply dance (see the warning above)
+  fail on exactly the data this section exists to create. Only the new
+  columns are dropped.
   """
 
   use Ecto.Migration
@@ -96,6 +122,7 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
 
     up_send_profiles_to_core_email(opts, prefix, p)
     up_crm_contact_lists(opts, prefix, p)
+    up_broadcast_crm_source(opts, prefix, p)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '152'")
   end
@@ -104,7 +131,9 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    # Reverse of up/1: CRM contact lists was added second, so it unwinds first.
+    # Reverse of up/1: added third, so it unwinds first.
+    down_broadcast_crm_source(opts, prefix, p)
+    # CRM contact lists was added second, so it unwinds next.
     down_crm_contact_lists(opts, prefix, p)
     down_send_profiles_to_core_email(opts, prefix, p)
 
@@ -278,6 +307,68 @@ defmodule PhoenixKit.Migrations.Postgres.V152 do
 
     execute("DROP TABLE IF EXISTS #{p}phoenix_kit_crm_list_members CASCADE")
     execute("DROP TABLE IF EXISTS #{p}phoenix_kit_crm_lists CASCADE")
+  end
+
+  # ── Section: broadcasts can source recipients from a CRM list ──
+
+  defp up_broadcast_crm_source(_opts, _prefix, p) do
+    Helpers.ensure_extension!("citext")
+
+    # A crm_list broadcast has no newsletters list of its own.
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts
+    ALTER COLUMN list_uuid DROP NOT NULL
+    """)
+
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts
+    ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) NOT NULL DEFAULT 'newsletters_list'
+    """)
+
+    # Bare UUID, no FK — same soft-reference pattern as send_profile_uuid:
+    # newsletters must not hard-depend on the CRM module being installed.
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts
+    ADD COLUMN IF NOT EXISTS crm_list_uuid UUID
+    """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS idx_newsletters_broadcasts_crm_list
+    ON #{p}phoenix_kit_newsletters_broadcasts (crm_list_uuid)
+    WHERE crm_list_uuid IS NOT NULL
+    """)
+
+    # A CRM-sourced delivery generally has no core User row at all (most
+    # CRM contacts never log in) — recipient_email is the address that
+    # makes such a delivery addressable, snapshotted when the send is
+    # enqueued (same idea as phoenix_kit_crm_list_members.email).
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_deliveries
+    ALTER COLUMN user_uuid DROP NOT NULL
+    """)
+
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_deliveries
+    ADD COLUMN IF NOT EXISTS recipient_email CITEXT
+    """)
+  end
+
+  defp down_broadcast_crm_source(_opts, _prefix, p) do
+    # Deliberately does NOT restore the NOT NULLs — see the module doc's
+    # "Section: broadcasts can source recipients from a CRM list" note.
+    execute("DROP INDEX IF EXISTS #{p}idx_newsletters_broadcasts_crm_list")
+
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts DROP COLUMN IF EXISTS crm_list_uuid"
+    )
+
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts DROP COLUMN IF EXISTS source_type"
+    )
+
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_newsletters_deliveries DROP COLUMN IF EXISTS recipient_email"
+    )
   end
 
   # ── Shared helpers ──

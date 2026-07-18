@@ -538,6 +538,51 @@ defmodule PhoenixKit.Migrations.Postgres.V152Test do
     end
   end
 
+  describe "phoenix_kit_newsletters_broadcasts — CRM list source" do
+    test "list_uuid dropped its NOT NULL" do
+      assert %{type: "uuid", nullable: "YES"} =
+               column("phoenix_kit_newsletters_broadcasts", "list_uuid")
+    end
+
+    test "source_type is a NOT NULL varchar defaulting to newsletters_list" do
+      assert %{type: "character varying", nullable: "NO", default: default} =
+               column("phoenix_kit_newsletters_broadcasts", "source_type")
+
+      assert default =~ "'newsletters_list'"
+    end
+
+    test "crm_list_uuid is a nullable, unconstrained uuid" do
+      assert %{type: "uuid", nullable: "YES"} =
+               column("phoenix_kit_newsletters_broadcasts", "crm_list_uuid")
+    end
+
+    test "has a partial index on crm_list_uuid" do
+      assert index_exists?("idx_newsletters_broadcasts_crm_list")
+
+      %{rows: [[indexdef]]} =
+        Repo.query!(
+          "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_newsletters_broadcasts_crm_list'"
+        )
+
+      assert indexdef =~ "crm_list_uuid IS NOT NULL"
+    end
+  end
+
+  describe "phoenix_kit_newsletters_deliveries — CRM recipient source" do
+    test "user_uuid dropped its NOT NULL" do
+      assert %{type: "uuid", nullable: "YES"} =
+               column("phoenix_kit_newsletters_deliveries", "user_uuid")
+    end
+
+    test "recipient_email is a nullable citext column" do
+      assert %{type: "USER-DEFINED", nullable: "YES"} =
+               column("phoenix_kit_newsletters_deliveries", "recipient_email")
+
+      assert column_udt_name("phoenix_kit_newsletters_deliveries", "recipient_email") ==
+               "citext"
+    end
+  end
+
   describe "version marker" do
     test "phoenix_kit table comment is at or past V152" do
       %{rows: [[comment]]} =
