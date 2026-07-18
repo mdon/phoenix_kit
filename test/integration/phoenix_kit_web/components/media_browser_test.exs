@@ -462,6 +462,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Trash is scoped to the folder you're in — not other roots' trash
+  # ---------------------------------------------------------------------------
+
+  describe "trash view scoping" do
+    test "opening trash inside a folder shows only that folder's trash", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      r1 = create_folder!(%{name: "root_one"})
+      r2 = create_folder!(%{name: "root_two"})
+      here = create_file!(r1.uuid)
+      elsewhere = create_file!(r2.uuid)
+      {:ok, _} = Storage.trash_file(here)
+      {:ok, _} = Storage.trash_file(elsewhere)
+      conn = log_in_user(conn, user)
+
+      # Land inside r1, then open Trash. Before the fix the browser passed a
+      # nil scope, so trash showed every root's trashed files.
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{r1.uuid}")
+      html = view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+      assert html =~ here.uuid
+      refute html =~ elsewhere.uuid
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Info sidebar collapse — viewer-only mode for small screens, per-user sticky
   # ---------------------------------------------------------------------------
 

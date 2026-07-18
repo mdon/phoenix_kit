@@ -1346,36 +1346,36 @@ defmodule PhoenixKit.Modules.Storage do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
 
-    query =
-      from(f in Folder,
-        where: not is_nil(f.trashed_at),
-        order_by: [desc: f.trashed_at],
-        limit: ^limit,
-        offset: ^offset
-      )
-
-    query =
-      if scope_folder_id do
-        from(f in query, where: f.uuid != ^scope_folder_id)
-      else
-        query
-      end
-
-    repo().all(query)
+    from(f in Folder,
+      where: not is_nil(f.trashed_at),
+      order_by: [desc: f.trashed_at],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> scope_trashed_folders(scope_folder_id)
+    |> repo().all()
   end
 
   @doc "Counts trashed folders (with optional scope)."
   def count_trashed_folders(scope_folder_id \\ nil) do
-    query = from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
+    from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
+    |> scope_trashed_folders(scope_folder_id)
+    |> repo().one()
+    |> Kernel.||(0)
+  end
 
-    query =
-      if scope_folder_id do
-        from(f in query, where: f.uuid != ^scope_folder_id)
-      else
-        query
-      end
+  # Restrict trashed folders to the scope folder's own subtree — the folders
+  # trashed *under* it — so a folder's Trash never shows folders trashed in a
+  # sibling root. nil scope = all trashed folders (the top-level view).
+  # `folder_subtree_uuids/1` walks children by parent_uuid without filtering
+  # trashed_at, so a trashed subfolder's trashed children are still reachable.
+  # The subtree includes the scope folder itself; drop it — the scope folder
+  # is where you're standing, not a trashed row.
+  defp scope_trashed_folders(query, nil), do: query
 
-    repo().one(query) || 0
+  defp scope_trashed_folders(query, scope_folder_id) do
+    descendants = folder_subtree_uuids(scope_folder_id) -- [scope_folder_id]
+    from(f in query, where: f.uuid in ^descendants)
   end
 
   @doc """
