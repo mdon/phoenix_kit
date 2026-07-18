@@ -336,10 +336,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
          to_string(socket.assigns.current_folder.uuid) == to_string(folder_uuid) do
       # Editor-time path (infrequent): load both URLs unconditionally so the
       # Edit-header previews stay correct even with the show toggles off.
+      cover = folder_image_data(updated.cover_file_uuid)
+      logo = folder_image_data(updated.logo_file_uuid)
+
       socket
       |> assign(:current_folder, updated)
-      |> assign(:folder_cover_url, folder_image_url(updated.cover_file_uuid))
-      |> assign(:folder_logo_url, folder_image_url(updated.logo_file_uuid))
+      |> assign(:folder_cover_url, cover.url)
+      |> assign(:folder_cover_rotation, cover.rotation)
+      |> assign(:folder_logo_url, logo.url)
+      |> assign(:folder_logo_rotation, logo.rotation)
     else
       socket
     end
@@ -1413,8 +1418,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      # Load the cover/logo previews up front (unconditionally) so the editor
      # shows them even when their show toggles are off — navigation gates these
      # on the toggles, so they may be nil when the editor opens.
-     |> assign(:folder_cover_url, folder && folder_image_url(folder.cover_file_uuid))
-     |> assign(:folder_logo_url, folder && folder_image_url(folder.logo_file_uuid))}
+     |> assign_folder_image(:folder_cover, folder && folder_image_data(folder.cover_file_uuid))
+     |> assign_folder_image(:folder_logo, folder && folder_image_data(folder.logo_file_uuid))}
   end
 
   def handle_event("folder_header_input", params, socket) do
@@ -2735,22 +2740,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # previews still work with the toggles off.
   defp assign_folder_header_media(socket, %{} = folder) do
     creator = if folder.header_show_creator, do: folder_creator_user(folder)
-    cover = if folder.header_show_background, do: folder_image_url(folder.cover_file_uuid)
-    logo = if folder.header_show_icon, do: folder_image_url(folder.logo_file_uuid)
+    cover = if folder.header_show_background, do: folder_image_data(folder.cover_file_uuid)
+    logo = if folder.header_show_icon, do: folder_image_data(folder.logo_file_uuid)
 
     socket
     |> assign(:folder_creator_user, creator)
     |> assign(:folder_creator_name, creator_label(creator))
-    |> assign(:folder_cover_url, cover)
-    |> assign(:folder_logo_url, logo)
+    |> assign_folder_image(:folder_cover, cover)
+    |> assign_folder_image(:folder_logo, logo)
   end
 
   defp assign_folder_header_media(socket, _no_folder) do
     socket
     |> assign(:folder_creator_user, nil)
     |> assign(:folder_creator_name, nil)
-    |> assign(:folder_cover_url, nil)
-    |> assign(:folder_logo_url, nil)
+    |> assign_folder_image(:folder_cover, nil)
+    |> assign_folder_image(:folder_logo, nil)
+  end
+
+  # Splits a `folder_image_data/1` result into the `<prefix>_url` +
+  # `<prefix>_rotation` assign pair (nil data → no image).
+  defp assign_folder_image(socket, prefix, nil) do
+    socket
+    |> assign(:"#{prefix}_url", nil)
+    |> assign(:"#{prefix}_rotation", 0)
+  end
+
+  defp assign_folder_image(socket, prefix, %{url: url, rotation: rotation}) do
+    socket
+    |> assign(:"#{prefix}_url", url)
+    |> assign(:"#{prefix}_rotation", rotation)
   end
 
   defp folder_creator_user(%{user_uuid: user_uuid}) when is_binary(user_uuid),
@@ -2764,20 +2783,44 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Display URL for a folder header image (cover or logo) by file uuid, or nil.
   # Loads the referenced file and enriches it for its signed URLs.
-  defp folder_image_url(uuid) when is_binary(uuid) do
+  # Resolve a folder's cover/logo image together with the file's saved
+  # rotation, so folder header media renders the same way up as every other
+  # thumbnail of the file.
+  defp folder_image_data(uuid) when is_binary(uuid) do
     case Storage.get_file(uuid) do
       nil ->
-        nil
+        %{url: nil, rotation: 0}
 
       file ->
-        case enrich_files([file]) do
-          [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
-          _ -> nil
-        end
+        url =
+          case enrich_files([file]) do
+            [%{urls: urls}] -> urls["original"] || urls |> Map.values() |> List.first()
+            _ -> nil
+          end
+
+        %{url: url, rotation: normalized_rotation(Map.get(file.metadata || %{}, "rotation"))}
     end
   end
 
-  defp folder_image_url(_), do: nil
+  defp folder_image_data(_), do: %{url: nil, rotation: 0}
+
+  # Class list for a folder-cover `<img>` honoring the saved rotation. The
+  # cover box's aspect is arbitrary (hero height depends on header size and
+  # viewport), so quarter turns can't use a fixed re-cover scale like the
+  # stacks pile does — instead the image swaps its dimensions via
+  # container-query units (width from the box's height and vice versa; the
+  # wrapping div is the size container) and rotates about the center, which
+  # covers the box exactly.
+  defp cover_image_class(rotation) when rotation in [90, 270] do
+    [
+      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none",
+      "w-[100cqh] h-[100cqw] object-cover",
+      if(rotation == 90, do: "rotate-90", else: "-rotate-90")
+    ]
+  end
+
+  defp cover_image_class(180), do: "absolute inset-0 w-full h-full object-cover rotate-180"
+  defp cover_image_class(_), do: "absolute inset-0 w-full h-full object-cover"
 
   defp reset_folder_header_edit(socket) do
     socket

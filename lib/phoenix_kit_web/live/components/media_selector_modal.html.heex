@@ -31,12 +31,24 @@
                 {selection_hint(@mode, @file_type_filter)}
                 <%= if @selected_uuids != [] do %>
                   <span class="badge badge-primary ml-2">
-                    {ngettext(
-                      "%{count} selected",
-                      "%{count} selected",
-                      length(@selected_uuids),
-                      count: length(@selected_uuids)
-                    )}
+                    <%= if @max_select && @mode == :multiple do %>
+                      {gettext("%{count} of %{max} selected",
+                        count: length(@selected_uuids),
+                        max: @max_select
+                      )}
+                    <% else %>
+                      {ngettext(
+                        "%{count} selected",
+                        "%{count} selected",
+                        length(@selected_uuids),
+                        count: length(@selected_uuids)
+                      )}
+                    <% end %>
+                  </span>
+                <% end %>
+                <%= if @limit_hit do %>
+                  <span class="badge badge-warning ml-2">
+                    {gettext("Maximum %{count} files", count: @max_select)}
                   </span>
                 <% end %>
               </p>

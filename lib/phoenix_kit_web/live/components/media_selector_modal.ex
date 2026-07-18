@@ -108,6 +108,11 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       # a consumer passing "multiple" as a string used to work for clicking
       # but crash the upload auto-select's case.
       |> then(&assign(&1, :mode, normalize_mode(&1.assigns[:mode])))
+      # Optional cap on how many files a :multiple picker accepts (nil =
+      # unlimited). MediaGallery passes its max_count so users can't select
+      # past the limit only to have the gallery silently truncate on confirm.
+      |> assign_new(:max_select, fn -> nil end)
+      |> assign_new(:limit_hit, fn -> false end)
       |> assign_new(:user_uuid, fn -> nil end)
       # When set, restricts both the browse query and the post-upload
       # home folder to this folder UUID. Plugins scoping the picker to
@@ -139,11 +144,16 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
         assigns[:show] && !was_shown ->
           selected_uuids_list = assigns[:selected_uuids] || []
 
-          assign(
-            socket,
+          socket
+          |> assign(
             :selected_uuids,
-            normalize_selection(selected_uuids_list, socket.assigns.mode)
+            normalize_selection(
+              selected_uuids_list,
+              socket.assigns.mode,
+              socket.assigns.max_select
+            )
           )
+          |> assign(:limit_hit, false)
 
         # Modal already open and has selection state - preserve it
         is_list(previous_selected_uuids) ->
@@ -187,6 +197,29 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       true ->
         # No buckets - don't allow upload
         socket
+    end
+  end
+
+  # The upload `accept` list is fixed at allow_upload time, so the OS file
+  # dialog wouldn't follow the in-modal type dropdown. Re-allow with the new
+  # accept whenever the dropdown changes and nothing is in flight
+  # (disallow_upload raises on active entries); the server-side type gate in
+  # handle_progress still backstops the in-flight case.
+  defp refresh_upload_accept(socket, filter) do
+    uploads = socket.assigns[:uploads]
+    config = uploads && uploads[:media_files]
+
+    if socket.assigns.has_buckets && config && config.entries == [] do
+      socket
+      |> disallow_upload(:media_files)
+      |> allow_upload(:media_files,
+        accept: accept_for(filter),
+        max_entries: 10,
+        auto_upload: true,
+        progress: &handle_progress/3
+      )
+    else
+      socket
     end
   end
 
@@ -241,20 +274,30 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
     # `update/2` normalizes :mode, so only the two atoms reach here. Appending
     # (not set-insertion) keeps the user's pick order — see update/2.
-    new_selected_uuids =
+    {new_selected_uuids, limit_hit} =
       case mode do
         :multiple ->
-          if file_uuid in selected_uuids do
-            List.delete(selected_uuids, file_uuid)
-          else
-            selected_uuids ++ [file_uuid]
+          cond do
+            file_uuid in selected_uuids ->
+              {List.delete(selected_uuids, file_uuid), false}
+
+            selection_at_cap?(selected_uuids, socket.assigns.max_select) ->
+              # At the cap: reject the add and surface the limit instead of
+              # letting the consumer silently truncate on confirm.
+              {selected_uuids, true}
+
+            true ->
+              {selected_uuids ++ [file_uuid], false}
           end
 
         :single ->
-          [file_uuid]
+          {[file_uuid], false}
       end
 
-    {:noreply, assign(socket, :selected_uuids, new_selected_uuids)}
+    {:noreply,
+     socket
+     |> assign(:selected_uuids, new_selected_uuids)
+     |> assign(:limit_hit, limit_hit)}
   end
 
   def handle_event("confirm_selection", _params, socket) do
@@ -309,6 +352,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       socket
       |> assign(:file_type_filter, parsed_filter)
       |> assign(:current_page, 1)
+      |> refresh_upload_accept(parsed_filter)
 
     {files, total_count} = load_files(socket, 1)
     total_pages = ceil(total_count / socket.assigns.per_page)
@@ -394,8 +438,17 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
               selected_uuids =
                 case socket.assigns.mode do
-                  :single -> [file_uuid]
-                  :multiple -> Enum.uniq(socket.assigns.selected_uuids ++ [file_uuid])
+                  :single ->
+                    [file_uuid]
+
+                  :multiple ->
+                    # Respect the cap: an upload past it still stores the file
+                    # (it appears in the grid), it just isn't auto-selected.
+                    if selection_at_cap?(socket.assigns.selected_uuids, socket.assigns.max_select) do
+                      socket.assigns.selected_uuids
+                    else
+                      Enum.uniq(socket.assigns.selected_uuids ++ [file_uuid])
+                    end
                 end
 
               socket
@@ -642,9 +695,19 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   # Seeded selections keep their order but drop duplicates; a :single picker
   # keeps only the first uuid — otherwise a multi-uuid seed lets Confirm
-  # return several files from a single-select modal.
-  defp normalize_selection(uuids, :single), do: uuids |> Enum.uniq() |> Enum.take(1)
-  defp normalize_selection(uuids, _mode), do: Enum.uniq(uuids)
+  # return several files from a single-select modal. A :multiple picker with
+  # a max_select cap clamps the seed the same way.
+  defp normalize_selection(uuids, :single, _max), do: uuids |> Enum.uniq() |> Enum.take(1)
+
+  defp normalize_selection(uuids, _mode, max) when is_integer(max) and max > 0,
+    do: uuids |> Enum.uniq() |> Enum.take(max)
+
+  defp normalize_selection(uuids, _mode, _max), do: Enum.uniq(uuids)
+
+  defp selection_at_cap?(selected, max) when is_integer(max) and max > 0,
+    do: length(selected) >= max
+
+  defp selection_at_cap?(_selected, _max), do: false
 
   defp format_file_size(bytes), do: Format.bytes(bytes, decimals: 2, unknown: "0 B")
 
