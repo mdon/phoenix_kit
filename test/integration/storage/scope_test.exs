@@ -298,6 +298,31 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
                Storage.list_files_in_scope(scope.uuid, folder_uuid: sibling.uuid)
     end
 
+    test "a file used as the folder's cover/logo still appears in its listing" do
+      # Setting a folder's hero background/icon must not hide that file from
+      # the folder — it stays a normal file in the folder. Regression: the
+      # listing used to drop cover_file_uuid / logo_file_uuid.
+      folder = create_folder!(%{name: "decorated_#{System.unique_integer([:positive])}"})
+      cover = create_file!(folder.uuid)
+      logo = create_file!(folder.uuid)
+      plain = create_file!(folder.uuid)
+
+      {:ok, _} =
+        Storage.update_folder(
+          folder,
+          %{cover_file_uuid: cover.uuid, logo_file_uuid: logo.uuid},
+          nil
+        )
+
+      {files, count} = Storage.list_files_in_scope(nil, folder_uuid: folder.uuid)
+      uuids = Enum.map(files, & &1.uuid)
+
+      assert cover.uuid in uuids
+      assert logo.uuid in uuids
+      assert plain.uuid in uuids
+      assert count == 3
+    end
+
     test "folder_uuid within scope filters to that folder" do
       %{scope: scope, child_a: child_a, child_b: child_b} = build_tree()
       f_a = create_file!(child_a.uuid)

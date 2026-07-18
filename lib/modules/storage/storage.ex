@@ -1503,7 +1503,6 @@ defmodule PhoenixKit.Modules.Storage do
         build_scope_file_query(scope_folder_id, folder_uuid, search, include_orphaned)
         |> where([f], f.status != "trashed")
         |> exclude_system_managed()
-        |> exclude_folder_header_assets(folder_uuid)
         |> maybe_filter_file_type(file_type)
 
       total = repo().aggregate(query, :count, :uuid)
@@ -1523,26 +1522,6 @@ defmodule PhoenixKit.Modules.Storage do
   # "audio", "archive", "other"); "all"/nil leaves it unfiltered.
   defp maybe_filter_file_type(query, type) when type in [nil, "all", ""], do: query
   defp maybe_filter_file_type(query, type), do: where(query, [f], f.file_type == ^type)
-
-  # A folder's own cover/logo are folder assets, not part of its visible file
-  # listing — drop them from the per-folder grid. They remain real files
-  # (re-selectable via the header's media picker); we just don't show them as
-  # loose files in the folder they decorate. Only applies when listing a
-  # specific folder; flat views (all/orphaned/search) pass folder_uuid = nil.
-  defp exclude_folder_header_assets(query, nil), do: query
-
-  defp exclude_folder_header_assets(query, folder_uuid) do
-    case get_folder(folder_uuid) do
-      %{} = folder ->
-        case Enum.reject([folder.cover_file_uuid, folder.logo_file_uuid], &is_nil/1) do
-          [] -> query
-          excluded -> where(query, [f], f.uuid not in ^excluded)
-        end
-
-      _ ->
-        query
-    end
-  end
 
   # Sort whitelist for the media browser toolbar — defaults to newest first.
   # Every order carries `f.uuid` as a stable tiebreaker so equal values
