@@ -1,3 +1,14 @@
+## 1.7.202 - 2026-07-18
+
+### Fixed
+- Media rotation now persists for any user, not just admins. The embedded
+  `MediaBrowser` popup opts every viewer into `persist_rotation` (previously
+  gated on `@admin`) — rotation is the file's shared orientation
+  (`metadata["rotation"]`), not a per-user preference, so a non-admin who
+  could open and rotate a file in an embedded browser saw the turn but it
+  never stuck. The admin detail page already did this unconditionally; the
+  popup now matches. The `Details` link stays admin-only.
+
 ## 1.7.201 - 2026-07-18
 
 ### Fixed
