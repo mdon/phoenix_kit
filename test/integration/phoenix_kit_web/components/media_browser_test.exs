@@ -343,10 +343,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Rotation persistence — admin popup opts in via persist_rotation={@admin}
+  # Rotation persistence — the popup opts in unconditionally (any user who can
+  # open and rotate a file saves its shared orientation). Exercised via the
+  # admin route since that's the only in-suite MediaBrowser host.
   # ---------------------------------------------------------------------------
 
-  describe "rotation persistence in the admin popup" do
+  describe "rotation persistence in the popup" do
     test "fresco:rotate persists to file metadata and seeds the next open",
          %{conn: conn} do
       {user, _token} = create_admin_user()
