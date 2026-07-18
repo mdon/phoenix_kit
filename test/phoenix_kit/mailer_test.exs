@@ -197,6 +197,40 @@ defmodule PhoenixKit.MailerTest do
     test "missing provider key is rejected" do
       assert {:error, :unsupported_provider} = Mailer.swoosh_config_for(%{})
     end
+
+    test "aws_ses credentials missing a required field are rejected, not raised" do
+      creds = %{
+        "provider" => "aws_ses",
+        "access_key" => "AKIA_T",
+        "secret_key" => "S",
+        "aws_region" => nil
+      }
+
+      assert {:error, {:incomplete_credentials, ["aws_region"]}} =
+               Mailer.swoosh_config_for(creds)
+    end
+
+    test "smtp credentials with a blank host are rejected, not raised" do
+      # A stored connection's `status` can say "connected" while `host` was
+      # blanked out after the last successful validation. Regression for a
+      # bug where this reached Swoosh.Mailer.deliver/2 and raised an
+      # ArgumentError with the full config — password included — inlined in
+      # the (uncaught) exception message.
+      creds = %{
+        "provider" => "smtp",
+        "host" => "",
+        "port" => "587",
+        "username" => "sub1@smtp-brevo.com",
+        "password" => "xsmtpsib-1"
+      }
+
+      assert {:error, {:incomplete_credentials, ["host"]}} = Mailer.swoosh_config_for(creds)
+    end
+
+    test "brevo_api credentials with a blank api_key are rejected, not raised" do
+      assert {:error, {:incomplete_credentials, ["api_key"]}} =
+               Mailer.swoosh_config_for(%{"provider" => "brevo_api", "api_key" => ""})
+    end
   end
 
   describe "deliver_email/2 — recipient blocklist enforcement (E2)" do

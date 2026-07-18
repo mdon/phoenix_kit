@@ -1,6 +1,52 @@
-## Unreleased
+## 1.7.203 - 2026-07-18
+
+### Added
+- **Send Profiles moved from `phoenix_kit_newsletters` into core.**
+  `PhoenixKit.Email.SendProfile`/`SendProfiles` are now shared infrastructure
+  any module can send through, routed via the profile's `Integrations`
+  connection (per-provider `ProviderOptions`, including SES/Brevo
+  configuration-set and tag options). App-config transport is now
+  detect-and-display only.
+- **New Settings → Email Sending page**: transport detection, default-profile
+  picker, and a seam (`email_settings_sections/0`) where external modules
+  (e.g. the `emails` package) mount their own settings sections as
+  live_components instead of owning a separate Settings tab. Send Profiles
+  CRUD gets its own nested sidebar entry under Email Sending.
+- **Quota/credits surfacing per send profile**: SES `GetSendQuota` and Brevo
+  `/account` (plan + credits) are now shown per profile; a validator that
+  cannot verify actual sending capability (e.g. SES credentials scoped to
+  `ses:SendEmail` alone) says so instead of showing a bare green tick.
+- **Migration V152**: `email_send_profiles` created in core (uuid-preserving
+  copy from the old newsletters table, which is then dropped); CRM contact
+  list groundwork (`phoenix_kit_crm_lists`, `phoenix_kit_crm_list_members`,
+  citext member email); broadcasts can now source recipients from a CRM list
+  (`source_type`/`crm_list_uuid`, soft reference).
 
 ### Fixed
+- **A stored email connection with a blank required field (SMTP `host`, SES
+  `aws_region`) could crash mail delivery with the plaintext secret embedded
+  in the crash message.** A connection's `status` can say "connected" while
+  an individual field was blanked out after the last successful validation;
+  that reached `Swoosh.Mailer.deliver/2` uncaught, which raises with the
+  *entire* adapter config — password/access key included — inlined in the
+  exception text. `PhoenixKit.Mailer.swoosh_config_for/1` now validates
+  required fields itself and fails closed with
+  `{:error, {:incomplete_credentials, [field_names]}}` before any
+  secret-bearing config is built.
+- **`pagination_range/2` could OOM the whole BEAM.** An unclamped
+  `current_page` (e.g. `?page=9999999999`) built a descending
+  `9999999997..56` Range — ~10 billion iterations in the component's `for`.
+  Now clamps into `[1, max(total_pages, 1)]` with an explicit `//1` step as
+  a second guard; `pagination_controls/1` additionally gained a
+  `total_pages > 1` outer guard.
+- `table_default`'s search toolbar rendered no `<form>` when only
+  `on_change` was given — `phx-change` on a formless input dies silently
+  client-side. The form is now always rendered.
+- Admin view permission map: five settings LiveViews (Integrations,
+  IntegrationForm, EmailSending, SendProfiles, SendProfileForm) resolved to
+  nil → custom "settings"-scoped roles were denied. Mapped explicitly.
+- A plugin module assigning `page_section` was a silent no-op —
+  `admin.html.heex` now forwards it (and `page_section_path`) to the layout.
 - **The universal `smtp` integration provider could not send at all.** gen_smtp
   supplies no TLS options of its own and OTP's `:ssl` now defaults to
   `verify: :verify_peer` with no CA store, so port 465 died with

@@ -316,6 +316,10 @@ defmodule PhoenixKit.Mailer do
     resolved). Send-rate limits are NOT enforced here — see the module's
     soft-dependency note.
   - `{:error, :not_configured | :deleted}` — the integration uuid didn't resolve
+  - `{:error, {:incomplete_credentials, [String.t()]}}` — the connection's
+    `status` says connected, but a required field (e.g. SMTP `host`, SES
+    `aws_region`) is blank — most likely edited after the last successful
+    validation. Listed field names are the credential keys, never values.
   - `{:error, {:unsupported_provider, String.t()} | :unsupported_provider}` —
     the integration's provider has no known Swoosh adapter mapping (the bare
     atom when the credentials carry no provider key at all)
@@ -358,30 +362,59 @@ defmodule PhoenixKit.Mailer do
   # must never log or `inspect` it.
   @spec swoosh_config_for(map()) :: {:ok, {module(), keyword()}} | {:error, term()}
   def swoosh_config_for(%{"provider" => "aws_ses"} = creds) do
-    {:ok,
-     {Swoosh.Adapters.AmazonSES,
-      [
-        region: creds["aws_region"],
-        access_key: creds["access_key"],
-        secret: creds["secret_key"]
-      ]}}
+    with :ok <- require_fields(creds, ~w(aws_region access_key secret_key)) do
+      {:ok,
+       {Swoosh.Adapters.AmazonSES,
+        [
+          region: creds["aws_region"],
+          access_key: creds["access_key"],
+          secret: creds["secret_key"]
+        ]}}
+    end
   end
 
   def swoosh_config_for(%{"provider" => "smtp"} = creds) do
-    case SmtpTransport.config(creds) do
-      {:ok, options} -> {:ok, {Swoosh.Adapters.SMTP, options}}
-      {:error, _reason} = error -> error
+    # `SmtpTransport.config/2` is a pure function of the credentials and
+    # deliberately builds valid TLS options even with a blank host (it is
+    # also used by the "Test Connection" probe path) — it is not the layer
+    # that decides whether a connection is ready to actually send. That
+    # check belongs here, before the (secret-bearing) config reaches
+    # `Swoosh.Mailer.deliver/2`. See `require_fields/2`.
+    with :ok <- require_fields(creds, ~w(host)),
+         {:ok, options} <- SmtpTransport.config(creds) do
+      {:ok, {Swoosh.Adapters.SMTP, options}}
     end
   end
 
   def swoosh_config_for(%{"provider" => "brevo_api"} = creds) do
-    {:ok, {Swoosh.Adapters.Brevo, [api_key: creds["api_key"]]}}
+    with :ok <- require_fields(creds, ~w(api_key)) do
+      {:ok, {Swoosh.Adapters.Brevo, [api_key: creds["api_key"]]}}
+    end
   end
 
   def swoosh_config_for(%{"provider" => provider}),
     do: {:error, {:unsupported_provider, provider}}
 
   def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
+
+  # A stored connection's `status` can say "connected" while an individual
+  # required field is blank (e.g. edited after the last successful
+  # validation) -- `Integrations.has_credentials?/1` trusts that status
+  # flag, not per-field presence. Without this check, a blank field reaches
+  # `Swoosh.Mailer.deliver/2`, which calls the adapter's `validate_config/1`
+  # and raises `ArgumentError` with `inspect(config)` -- the FULL config,
+  # secrets included -- in the (uncaught) exception message. Fail closed
+  # here instead, before any secret-bearing config is built.
+  @spec require_fields(map(), [String.t()]) ::
+          :ok | {:error, {:incomplete_credentials, [String.t()]}}
+  defp require_fields(creds, keys) do
+    case Enum.filter(keys, &blank?(creds[&1])) do
+      [] -> :ok
+      missing -> {:error, {:incomplete_credentials, missing}}
+    end
+  end
+
+  defp blank?(value), do: value in [nil, ""]
 
   defp check_recipient_allowed(%Swoosh.Email{} = email) do
     # cc/bcc too, not just to: a suppression list with a hole in it is a
