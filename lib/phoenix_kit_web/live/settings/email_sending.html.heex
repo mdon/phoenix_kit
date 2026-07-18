@@ -2,12 +2,8 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={gettext("Email Sending")}
-  page_subtitle={
-    gettext(
-      "Sender identity, transport, and the default integration used to deliver outbound email"
-    )
-  }
+  page_title={@page_title}
+  page_subtitle={@page_subtitle}
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}

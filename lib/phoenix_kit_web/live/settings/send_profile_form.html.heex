@@ -2,21 +2,13 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
+  page_subtitle={@page_subtitle}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
   current_path={@current_path}
   project_title={@project_title}
 >
   <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={Routes.path("/admin/settings/email-sending/profiles")}
-      back_label={gettext("Send Profiles")}
-      title={@page_title}
-      subtitle={
-        if @send_profile,
-          do: gettext("Edit send profile settings"),
-          else: gettext("Create a new send profile")
-      }
-    />
-
     <div class="max-w-2xl">
       <.form_section title={gettext("Profile Details")} icon="hero-adjustments-horizontal">
         <.form id="send-profile-form" for={@form} phx-change="validate" phx-submit="save">
@@ -158,9 +150,6 @@
           </div>
 
           <div class="flex justify-end gap-2 mt-6">
-            <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-ghost">
-              {gettext("Cancel")}
-            </.pk_link>
             <button type="submit" class="btn btn-primary">
               <.icon name="hero-check" class="w-4 h-4 mr-1" />
               {if @send_profile,

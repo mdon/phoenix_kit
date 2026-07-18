@@ -45,6 +45,12 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
     socket =
       socket
       |> assign(:page_title, gettext("Email Sending"))
+      |> assign(
+        :page_subtitle,
+        gettext(
+          "Sender identity, transport, and the default integration used to deliver outbound email"
+        )
+      )
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign_sender_identity()

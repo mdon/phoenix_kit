@@ -18,6 +18,14 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfiles do
     socket =
       socket
       |> assign(:page_title, gettext("Send Profiles"))
+      |> assign(
+        :page_subtitle,
+        gettext(
+          "Service-wide default profile used by newsletter broadcasts. Transactional mail (auth, notifications) is routed by the Default Transactional Integration on the Email Sending page."
+        )
+      )
+      |> assign(:page_section, gettext("Email Sending"))
+      |> assign(:page_section_path, Routes.path("/admin/settings/email-sending"))
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign(:send_profiles, [])

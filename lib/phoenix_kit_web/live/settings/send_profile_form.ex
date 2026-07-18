@@ -19,6 +19,8 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
     socket =
       socket
       |> assign(:send_profile, nil)
+      |> assign(:page_section, gettext("Send Profiles"))
+      |> assign(:page_section_path, Routes.path("/admin/settings/email-sending/profiles"))
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign(:connections_by_provider, load_connections())
@@ -32,6 +34,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
     {:noreply,
      socket
      |> assign(:page_title, gettext("Edit send profile: %{name}", name: send_profile.name))
+     |> assign(:page_subtitle, gettext("Edit send profile settings"))
      |> assign(:send_profile, send_profile)
      |> assign_form(SendProfile.changeset(send_profile, %{}))}
   rescue
@@ -46,6 +49,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
     {:noreply,
      socket
      |> assign(:page_title, gettext("New send profile"))
+     |> assign(:page_subtitle, gettext("Create a new send profile"))
      |> assign(:send_profile, nil)
      |> assign_form(SendProfile.changeset(%SendProfile{}, %{}))}
   end
