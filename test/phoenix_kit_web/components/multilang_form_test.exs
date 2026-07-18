@@ -5,6 +5,8 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
   import Phoenix.Component, only: [sigil_H: 2]
   import PhoenixKitWeb.Components.MultilangForm
 
+  alias Phoenix.LiveView.Lifecycle
+
   # ── Test helpers ─────────────────────────────────────────────
 
   defp html(assigns) do
@@ -826,14 +828,14 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
 
   describe "mount_multilang/2 auto-switch-language hook" do
     defp bare_socket do
-      %Phoenix.LiveView.Socket{private: %{lifecycle: %Phoenix.LiveView.Lifecycle{}}}
+      %Phoenix.LiveView.Socket{private: %{lifecycle: %Lifecycle{}}}
     end
 
     test "intercepts and halts the switch_language event" do
       socket = mount_multilang(bare_socket())
 
       assert {:halt, %Phoenix.LiveView.Socket{}} =
-               Phoenix.LiveView.Lifecycle.handle_event(
+               Lifecycle.handle_event(
                  "switch_language",
                  %{"lang" => "en"},
                  socket
@@ -844,14 +846,14 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
       socket = mount_multilang(bare_socket())
 
       assert {:cont, ^socket} =
-               Phoenix.LiveView.Lifecycle.handle_event("some_other_event", %{}, socket)
+               Lifecycle.handle_event("some_other_event", %{}, socket)
     end
 
     test "auto_switch_language: false skips the hook — event passes through" do
       socket = mount_multilang(bare_socket(), auto_switch_language: false)
 
       assert {:cont, ^socket} =
-               Phoenix.LiveView.Lifecycle.handle_event(
+               Lifecycle.handle_event(
                  "switch_language",
                  %{"lang" => "en"},
                  socket
