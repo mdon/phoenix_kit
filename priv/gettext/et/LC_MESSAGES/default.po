@@ -9020,7 +9020,7 @@ msgstr "Toiming:"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2006
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Add description"
-msgstr "Kirjeldus"
+msgstr "Lisa kirjeldus"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:847
 #, elixir-autogen, elixir-format, fuzzy
@@ -9035,7 +9035,7 @@ msgstr "Märgistatud pisipildid"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:852
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Archives"
-msgstr "Arhiveeritud"
+msgstr "Arhiivid"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:851
 #, elixir-autogen, elixir-format
@@ -9051,7 +9051,7 @@ msgstr "Tagasi"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:475
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Background image"
-msgstr "Taustapilt (lauaarvuti)"
+msgstr "Taustapilt"
 
 #: lib/modules/storage/web/settings.html.heex:436
 #, elixir-autogen, elixir-format
@@ -9077,7 +9077,7 @@ msgstr "Muuda"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:502
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose"
-msgstr "Sulge"
+msgstr "Vali"
 
 #: lib/phoenix_kit/integrations/providers.ex:611
 #, elixir-autogen, elixir-format, fuzzy
@@ -9093,7 +9093,7 @@ msgstr "Klõpsa **Loo API võti**, anna sellele nimi"
 #: lib/phoenix_kit_web/live/users/users.html.heex:259
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Close search"
-msgstr "Tühjenda"
+msgstr "Sulge otsing"
 
 #: lib/phoenix_kit/integrations/providers.ex:601
 #, elixir-autogen, elixir-format, fuzzy
@@ -9113,7 +9113,7 @@ msgstr "Loo ja muuda pildi/video suuruse eelseadeid, mida kasutatakse üleslaadi
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2362
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create folder"
-msgstr "Loo roll"
+msgstr "Loo kaust"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:709
 #, elixir-autogen, elixir-format
@@ -9145,7 +9145,7 @@ msgstr "Eemaldatud"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:850
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Documents"
-msgstr "Kommentaarid"
+msgstr "Dokumendid"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1728
 #, elixir-autogen, elixir-format
@@ -9212,7 +9212,7 @@ msgstr "Seade uuendamine ebaõnnestus"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:943
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Filter"
-msgstr "Fail"
+msgstr "Filter"
 
 #: lib/modules/storage/web/settings.html.heex:564
 #, elixir-autogen, elixir-format, fuzzy
@@ -9222,7 +9222,7 @@ msgstr "Sidumata failid"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:395
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Folder name"
-msgstr "Kaust teisaldatud"
+msgstr "Kausta nimi"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:1505
 #, elixir-autogen, elixir-format
@@ -9281,7 +9281,7 @@ msgstr "Ruudustikuvaade"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:524
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Header size"
-msgstr "Pealkiri"
+msgstr "Päise suurus"
 
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:192
 #, elixir-autogen, elixir-format
@@ -9306,7 +9306,7 @@ msgstr "Keeled"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:530
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Large"
-msgstr "Sihtmärk"
+msgstr "Suur"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:843
 #, elixir-autogen, elixir-format
@@ -9335,17 +9335,17 @@ msgstr "Meedia on põhisüsteemi moodul, mis on alati lubatud ja mida ei saa kee
 #: lib/phoenix_kit_web/components/media_browser.html.heex:529
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Medium"
-msgstr "Meedia"
+msgstr "Keskmine"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:841
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name A–Z"
-msgstr "Nimi"
+msgstr "Nimi A–Z"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:842
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name Z–A"
-msgstr "Nimi"
+msgstr "Nimi Z–A"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2334
 #, elixir-autogen, elixir-format
@@ -9365,7 +9365,7 @@ msgstr "Taustata"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:695
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No description — add one"
-msgstr "Kirjeldus puudub"
+msgstr "Kirjeldus puudub — lisa see"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:2487
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1670
@@ -9457,7 +9457,7 @@ msgstr "Näita loomise kuupäeva"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:562
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Show description"
-msgstr "Kirjeldus puudub"
+msgstr "Näita kirjeldust"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:560
 #, elixir-autogen, elixir-format
@@ -9684,7 +9684,7 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Play / Pause"
-msgstr ""
+msgstr "Esita / Peata"
 
 #: lib/phoenix_kit/theme_config.ex:122
 #, elixir-autogen, elixir-format
@@ -9724,7 +9724,7 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:185
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your browser does not support the audio tag."
-msgstr "Teie brauser ei toeta video-elementi."
+msgstr "Teie brauser ei toeta heli-elementi."
 
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:237
 #, elixir-autogen, elixir-format, fuzzy
