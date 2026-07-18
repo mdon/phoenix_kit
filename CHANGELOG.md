@@ -40,6 +40,55 @@
   the check can prove the credentials are valid but not that they can send, and it
   now says so on screen instead of only in the log.
 
+## 1.7.202 - 2026-07-18
+
+### Fixed
+- Media rotation now persists for any user, not just admins. The embedded
+  `MediaBrowser` popup opts every viewer into `persist_rotation` (previously
+  gated on `@admin`) — rotation is the file's shared orientation
+  (`metadata["rotation"]`), not a per-user preference, so a non-admin who
+  could open and rotate a file in an embedded browser saw the turn but it
+  never stuck. The admin detail page already did this unconditionally; the
+  popup now matches. The `Details` link stays admin-only.
+
+## 1.7.201 - 2026-07-18
+
+### Fixed
+- `/admin/media/:file_uuid` was declared before `/admin/media/selector`,
+  so the router matched `selector` as a `:file_uuid` param and the
+  dedicated selector route was unreachable — reordered.
+- Folder header cover/logo images now render the file's saved rotation
+  (previously always unrotated, unlike every other thumbnail surface).
+- `MediaSelectorModal`/`MediaSelector` selection is now an ordered list
+  instead of a `MapSet`, so pick order survives to `MediaGallery`'s
+  "featured image" (first entry) instead of being silently reshuffled.
+  Multi-select pickers also gained an optional `max_select` cap with a
+  "Maximum N files" indicator instead of the consumer silently truncating
+  on confirm.
+- Media browser bug sweep: "Select all" now covers files inside expanded
+  stacks; download (single + bulk) resolves selections that span pages or
+  live inside a stack instead of silently no-oping; permanent delete now
+  double-checks `status == "trashed"`; leaving trash view reloads the real
+  folder list instead of reusing the stale trashed one; switching between
+  trash/normal view clears any carried-over selection; paging in
+  controlled mode no longer drops the trash/orphaned views through a URL
+  round-trip they can't address; deleting the last item on a page clamps
+  back to the last populated page instead of showing an empty grid;
+  "Delete folder" copy now correctly says contents are deleted recursively
+  (not moved to the parent).
+- `MediaDetail` no longer crashes on a malformed `file_uuid` route segment
+  (falls back to the "not found" state).
+- `MediaSelector`'s `return_to` param is now restricted to same-origin
+  paths (rejects `//host` / `/\host` bypasses); `page` no longer crashes
+  the mount on a non-numeric value; pagination links use `patch` instead
+  of `navigate` so a page change doesn't drop the in-memory multi-select;
+  the browse query now excludes trashed/system-managed files; a failed
+  upload no longer crashes the LiveView.
+- `storage_max_upload_size_mb` setting no longer crashes every media
+  surface at mount if the stored value isn't numeric.
+- Dependency bumps: `beamlab_countries` 1.0.8 → 1.1.0,
+  `beamlab_ex_aws_sqs` 4.0.0 → 4.1.0.
+
 ## 1.7.200 - 2026-07-17
 
 ### Added

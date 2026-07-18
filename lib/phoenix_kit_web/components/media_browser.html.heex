@@ -294,11 +294,16 @@
                        the nav path) can't bleed into the all-files / trash /
                        orphaned / search views where `header_folder` is nil. --%>
                   <% header_folder && show_background && @folder_cover_url -> %>
-                    <img
-                      src={@folder_cover_url}
-                      alt=""
-                      class="absolute inset-0 w-full h-full object-cover rounded-xl"
-                    />
+                    <%!-- The wrapper is the size container so a quarter-turned
+                         cover can swap its dimensions via cq units — see
+                         `cover_image_class/1`. --%>
+                    <div class="absolute inset-0 rounded-xl overflow-hidden [container-type:size]">
+                      <img
+                        src={@folder_cover_url}
+                        alt=""
+                        class={cover_image_class(@folder_cover_rotation)}
+                      />
+                    </div>
                   <% hero_hex -> %>
                     <div
                       class="absolute inset-0 rounded-xl"
@@ -427,7 +432,10 @@
                                   <img
                                     src={@folder_logo_url}
                                     alt=""
-                                    class="absolute inset-0 w-full h-full object-contain p-1"
+                                    class={[
+                                      "absolute inset-0 w-full h-full object-contain p-1",
+                                      rotation_class(%{rotation: @folder_logo_rotation})
+                                    ]}
                                   />
                                 <% else %>
                                   <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
@@ -473,11 +481,13 @@
                               class="group relative block w-full aspect-[16/7] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
                             >
                               <%= if @folder_cover_url do %>
-                                <img
-                                  src={@folder_cover_url}
-                                  alt=""
-                                  class="absolute inset-0 w-full h-full object-cover"
-                                />
+                                <div class="absolute inset-0 [container-type:size]">
+                                  <img
+                                    src={@folder_cover_url}
+                                    alt=""
+                                    class={cover_image_class(@folder_cover_rotation)}
+                                  />
+                                </div>
                               <% else %>
                                 <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
                                   <.icon name="hero-photo" class="w-7 h-7" />
@@ -623,6 +633,7 @@
                         alt=""
                         class={[
                           "object-contain shrink-0 drop-shadow-lg",
+                          rotation_class(%{rotation: @folder_logo_rotation}),
                           case header_folder.header_size do
                             "small" -> "w-12 h-12 sm:w-16 sm:h-16"
                             "large" -> "w-14 h-14 sm:w-20 sm:h-20"
@@ -1199,6 +1210,19 @@
                         <p class="text-base-content/50 text-sm mt-1">
                           {gettext("Deleted files will appear here")}
                         </p>
+                      <% @search_query != "" -> %>
+                        <%!-- Zero search results is not "no media" — files exist,
+                             they just don't match. --%>
+                        <.icon
+                          name="hero-magnifying-glass"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">
+                          {gettext("No files match your search.")}
+                        </p>
+                        <p class="text-base-content/50 text-sm mt-1">
+                          {gettext("Try a different term or clear the search")}
+                        </p>
                       <% @current_folder -> %>
                         <.icon
                           name="hero-cloud-arrow-up"
@@ -1419,9 +1443,16 @@
                                   phx-target={@myself}
                                   phx-value-id={folder.uuid}
                                   data-confirm={
-                                    gettext("Delete '%{name}'? Files move to parent.",
-                                      name: folder.name
-                                    )
+                                    if @filter_trash,
+                                      do:
+                                        gettext(
+                                          "Permanently delete '%{name}' and all its contents? This cannot be undone.",
+                                          name: folder.name
+                                        ),
+                                      else:
+                                        gettext("Move '%{name}' and all its contents to trash?",
+                                          name: folder.name
+                                        )
                                   }
                                   icon="hero-trash"
                                   label={gettext("Delete")}
@@ -2016,9 +2047,17 @@
                                         phx-target={@myself}
                                         phx-value-id={folder.uuid}
                                         data-confirm={
-                                          gettext("Delete '%{name}'? Files move to parent.",
-                                            name: folder.name
-                                          )
+                                          if @filter_trash,
+                                            do:
+                                              gettext(
+                                                "Permanently delete '%{name}' and all its contents? This cannot be undone.",
+                                                name: folder.name
+                                              ),
+                                            else:
+                                              gettext(
+                                                "Move '%{name}' and all its contents to trash?",
+                                                name: folder.name
+                                              )
                                         }
                                         icon="hero-trash"
                                         label={gettext("Delete")}
@@ -2396,6 +2435,10 @@
         <%!-- + variant count so a processing-completion refresh (see    --%>
         <%!-- refresh_processed_file/2) remounts with the real canvas    --%>
         <%!-- instead of the 1000x1000 placeholder.                      --%>
+        <%!-- persist_rotation is unconditional: rotation is the file's   --%>
+        <%!-- shared orientation, so anyone who can open the viewer and   --%>
+        <%!-- rotate saves it for everyone (not admin-only). The Details  --%>
+        <%!-- link stays admin-only — it targets the admin detail page.   --%>
         <.live_component
           module={PhoenixKitWeb.Components.MediaCanvasViewer}
           id={"media-canvas-viewer-#{f.file_uuid}-#{f.width || 0}x#{f.height || 0}-#{map_size(f.urls)}"}
@@ -2404,7 +2447,7 @@
           parent_id={@id}
           has_prev={has_prev}
           has_next={has_next}
-          persist_rotation={@admin}
+          persist_rotation={true}
           details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
         />
       </div>

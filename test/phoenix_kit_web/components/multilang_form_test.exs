@@ -828,7 +828,7 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
 
   describe "mount_multilang/2 auto-switch-language hook" do
     defp bare_socket do
-      %Phoenix.LiveView.Socket{private: %{lifecycle: %Phoenix.LiveView.Lifecycle{}}}
+      %Phoenix.LiveView.Socket{private: %{lifecycle: %Lifecycle{}}}
     end
 
     test "intercepts and halts the switch_language event" do

@@ -21,13 +21,13 @@
             <% else %>
               {gettext("Select one or more images")}
             <% end %>
-            <%= if MapSet.size(@selected_uuids) > 0 do %>
+            <%= if @selected_uuids != [] do %>
               <span class="badge badge-primary ml-2">
                 {ngettext(
                   "%{count} selected",
                   "%{count} selected",
-                  MapSet.size(@selected_uuids),
-                  count: MapSet.size(@selected_uuids)
+                  length(@selected_uuids),
+                  count: length(@selected_uuids)
                 )}
               </span>
             <% end %>
@@ -40,7 +40,7 @@
           <button
             phx-click="confirm_selection"
             class="btn btn-primary"
-            disabled={MapSet.size(@selected_uuids) == 0}
+            disabled={@selected_uuids == []}
           >
             <.icon name="hero-check" class="w-4 h-4 mr-1" /> {gettext("Confirm Selection")}
           </button>
@@ -151,7 +151,7 @@
         <% else %>
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <%= for file <- @uploaded_files do %>
-              <% is_selected = MapSet.member?(@selected_uuids, file.file_uuid) %>
+              <% is_selected = file.file_uuid in @selected_uuids %>
               <div
                 phx-click="toggle_selection"
                 phx-value-file-uuid={file.file_uuid}
@@ -175,7 +175,7 @@
 
                   <%!-- Selection Indicator --%>
                   <%= if is_selected do %>
-                    <div class="absolute top-2 right-2 bg-primary text-primary-content rounded-full p-2">
+                    <div class="absolute top-2 right-2 bg-primary text-primary-content rounded-full w-9 h-9 flex items-center justify-center">
                       <.icon name="hero-check" class="w-5 h-5" />
                     </div>
                   <% else %>
@@ -214,9 +214,11 @@
     <%= if @total_pages > 1 do %>
       <div class="flex justify-center">
         <div class="join">
+          <%!-- `patch` (not `navigate`): a full remount would wipe the
+               in-memory selection when paging in multiple mode. --%>
           <%= if @current_page > 1 do %>
             <.link
-              navigate={
+              patch={
                 "#{@current_path}?page=#{@current_page - 1}&return_to=#{URI.encode_www_form(@return_to)}&mode=#{@selection_mode}&filter=#{@file_type_filter}"
               }
               class="join-item btn"
@@ -232,7 +234,7 @@
               <button class="join-item btn btn-disabled">...</button>
             <% else %>
               <.link
-                navigate={
+                patch={
                   "#{@current_path}?page=#{page}&return_to=#{URI.encode_www_form(@return_to)}&mode=#{@selection_mode}&filter=#{@file_type_filter}"
                 }
                 class={"join-item btn #{if page == @current_page, do: "btn-active"}"}
@@ -244,7 +246,7 @@
 
           <%= if @current_page < @total_pages do %>
             <.link
-              navigate={
+              patch={
                 "#{@current_path}?page=#{@current_page + 1}&return_to=#{URI.encode_www_form(@return_to)}&mode=#{@selection_mode}&filter=#{@file_type_filter}"
               }
               class="join-item btn"
