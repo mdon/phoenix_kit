@@ -29,13 +29,13 @@
               </h2>
               <p class="text-base-content/70 text-sm mt-1">
                 {selection_hint(@mode, @file_type_filter)}
-                <%= if MapSet.size(@selected_uuids) > 0 do %>
+                <%= if @selected_uuids != [] do %>
                   <span class="badge badge-primary ml-2">
                     {ngettext(
                       "%{count} selected",
                       "%{count} selected",
-                      MapSet.size(@selected_uuids),
-                      count: MapSet.size(@selected_uuids)
+                      length(@selected_uuids),
+                      count: length(@selected_uuids)
                     )}
                   </span>
                 <% end %>
@@ -64,7 +64,7 @@
               phx-click="confirm_selection"
               phx-target={@myself}
               class="btn btn-primary btn-sm flex-1 sm:flex-none"
-              disabled={MapSet.size(@selected_uuids) == 0}
+              disabled={@selected_uuids == []}
             >
               <.icon name="hero-check" class="w-4 h-4" /> {gettext("Confirm")}
             </button>
@@ -241,7 +241,7 @@
           <% else %>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               <%= for file <- @uploaded_files do %>
-                <% is_selected = MapSet.member?(@selected_uuids, file.file_uuid) %>
+                <% is_selected = file.file_uuid in @selected_uuids %>
                 <div
                   phx-click="toggle_selection"
                   phx-value-file-uuid={file.file_uuid}

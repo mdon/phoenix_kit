@@ -476,6 +476,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Sort + file-type filter opts from the toolbar, for the listing query.
+  # The setting is free-text in the DB — a non-numeric value must degrade to
+  # the default, not crash every media surface at mount (String.to_integer).
+  defp max_upload_size_mb do
+    case Integer.parse(Settings.get_setting_cached("storage_max_upload_size_mb", "500")) do
+      {n, _} when n > 0 -> n
+      _ -> 500
+    end
+  end
+
   defp list_extra(socket) do
     [
       sort: socket.assigns[:sort_by] || "newest",
@@ -608,9 +617,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if socket.assigns[:uploads] do
       socket
     else
-      max_size_mb =
-        Settings.get_setting_cached("storage_max_upload_size_mb", "500")
-        |> String.to_integer()
+      max_size_mb = max_upload_size_mb()
 
       socket
       |> assign(:max_upload_size_mb, max_size_mb)
@@ -728,11 +735,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp maybe_allow_upload(socket, has_buckets) do
     if has_buckets do
-      max_size_mb =
-        Settings.get_setting_cached("storage_max_upload_size_mb", "500")
-        |> String.to_integer()
-
-      assign(socket, :max_upload_size_mb, max_size_mb)
+      assign(socket, :max_upload_size_mb, max_upload_size_mb())
     else
       assign(socket, :max_upload_size_mb, 0)
     end
@@ -1033,9 +1036,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {files, total_count} =
         if file_view == "all" do
-          load_all_view_files(scope, 1, per_page, query)
+          load_all_view_files(scope, 1, per_page, query, list_extra(socket))
         else
-          load_scoped_files(scope, 1, per_page, folder_uuid, query)
+          load_scoped_files(scope, 1, per_page, folder_uuid, query, list_extra(socket))
         end
 
       folders =
@@ -1088,9 +1091,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {files, total_count} =
         if file_view == "all" do
-          load_all_view_files(scope, 1, per_page, "")
+          load_all_view_files(scope, 1, per_page, "", list_extra(socket))
         else
-          load_scoped_files(scope, 1, per_page, folder_uuid, "")
+          load_scoped_files(scope, 1, per_page, folder_uuid, "", list_extra(socket))
         end
 
       folders =
@@ -1648,7 +1651,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("select_all", _params, socket) do
-    all_file_uuids = Enum.map(socket.assigns.uploaded_files, & &1.file_uuid)
+    # Files rendered on screen live in `uploaded_files` AND, in stacks view,
+    # in each expanded stack's own list — cover both so "Select all" matches
+    # what the user sees (same duality as `locate_file/2`).
+    stack_file_uuids =
+      (socket.assigns[:stack_files] || %{})
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.map(& &1.file_uuid)
+
+    all_file_uuids = Enum.map(socket.assigns.uploaded_files, & &1.file_uuid) ++ stack_file_uuids
     all_folder_uuids = Enum.map(socket.assigns.folders, & &1.uuid)
 
     {:noreply,
@@ -1658,9 +1670,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("deselect_all", _params, socket) do
+    # "Clear" only empties the selection — the toolbar's separate Cancel
+    # button (toggle_select_mode) is what exits selection mode.
     {:noreply,
      socket
-     |> assign(:select_mode, false)
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())}
   end
@@ -1772,11 +1785,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     repo = PhoenixKit.Config.get_repo()
 
     if socket.assigns.filter_trash do
-      # Permanent delete from trash (with scope guard)
+      # Permanent delete from trash (with scope guard). The status check is a
+      # belt-and-braces guard: only files actually in the trash may be
+      # destroyed, no matter how a uuid ended up in the selection.
       Enum.each(socket.assigns.selected_files, fn file_uuid ->
         file = repo.get(Storage.File, file_uuid)
 
-        if file && Storage.within_scope?(file.folder_uuid, scope) do
+        if file && file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) do
           Storage.delete_file_completely(file)
         end
       end)
@@ -1825,9 +1840,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("download_selected", _params, socket) do
+    # Selection survives paging, stacks, and folder navigation, so resolve it
+    # from the DB (scope-guarded, like delete_selected) instead of the
+    # currently-rendered lists — an assigns-only lookup silently skipped
+    # every selected file that wasn't on the visible page.
+    scope = scope_folder_id(socket)
+    repo = PhoenixKit.Config.get_repo()
+    uuids = MapSet.to_list(socket.assigns.selected_files)
+
     files =
-      socket.assigns.uploaded_files
-      |> Enum.filter(&MapSet.member?(socket.assigns.selected_files, &1.file_uuid))
+      from(f in Storage.File, where: f.uuid in ^uuids)
+      |> repo.all()
+      |> Enum.filter(&Storage.within_scope?(&1.folder_uuid, scope))
+      |> enrich_files()
       |> Enum.map(fn f ->
         %{url: Map.get(f.urls, "original") || Map.get(f.urls, :original), name: f.filename}
       end)
@@ -1845,7 +1870,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     file = repo.get(Storage.File, file_uuid)
 
     if file && Storage.within_scope?(file.folder_uuid, scope) do
-      if socket.assigns.filter_trash do
+      # Same status guard as delete_selected: permanent deletion only for
+      # files actually in the trash (the row could have been restored from
+      # another session since this view rendered).
+      if socket.assigns.filter_trash and file.status == "trashed" do
         Storage.delete_file_completely(file)
       else
         Storage.trash_file(file)
@@ -1871,7 +1899,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # missing URL here is a stale assigns / race condition — silent no-op is
   # the right call.
   def handle_event("download_file", %{"file-uuid" => file_uuid}, socket) do
-    file = Enum.find(socket.assigns.uploaded_files, &(&1.file_uuid == file_uuid))
+    # `locate_file/2` also covers files inside expanded stacks — the stack
+    # card renders the same Download kebab, and an uploaded_files-only lookup
+    # silently no-oped it.
+    file =
+      case locate_file(socket, file_uuid) do
+        {file, _list} -> file
+        nil -> nil
+      end
+
     url = file && (Map.get(file.urls || %{}, "original") || Map.get(file.urls || %{}, :original))
 
     if url do
@@ -1891,14 +1927,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         load_trashed_files(scope, 1, socket.assigns.per_page)
       else
         folder_uuid = current_folder_uuid(socket)
-        load_scoped_files(scope, 1, socket.assigns.per_page, folder_uuid, "")
+        load_scoped_files(scope, 1, socket.assigns.per_page, folder_uuid, "", list_extra(socket))
       end
 
     # In trash view `@folders` becomes the trashed-folder list so the
     # grid/list rows render trashed folders alongside trashed files.
-    # Outside trash it stays the active folder set.
+    # Leaving trash must RELOAD the active folder set — the assign still
+    # holds the trashed list at that point, which left trashed folder
+    # cards on screen in the normal view.
     folders =
-      if filter_trash, do: Storage.list_trashed_folders(scope), else: socket.assigns.folders
+      if filter_trash,
+        do: Storage.list_trashed_folders(scope),
+        else: Storage.list_folders(current_folder_uuid(socket), scope)
 
     {:noreply,
      socket
@@ -1909,6 +1949,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:total_count, total_count)
      |> assign(:total_pages, ceil(total_count / socket.assigns.per_page))
      |> assign(:current_page, 1)
+     # Trash and normal view show disjoint rows, so a carried-over selection
+     # is invisible — and dangerous: delete_selected keys its permanent
+     # branch off the view, so active files selected before the switch
+     # would be permanently destroyed.
+     |> assign(:selected_files, MapSet.new())
+     |> assign(:selected_folders, MapSet.new())
      |> assign(:trash_count, full_trash_count(scope))}
   end
 
@@ -1994,7 +2040,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         if filter_orphaned do
           load_orphaned_files(1, per_page)
         else
-          load_scoped_files(scope, 1, per_page, folder_uuid, search)
+          load_scoped_files(scope, 1, per_page, folder_uuid, search, list_extra(socket))
         end
 
       orphaned_count =
@@ -2057,7 +2103,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         _ -> 1
       end
 
-    if controlled_mode?(socket) do
+    # Trash and orphaned are not URL-addressable views (the nav contract only
+    # carries folder/q/page/view), so page them locally even in controlled
+    # mode — a {:navigate} round-trip would silently exit the view. The local
+    # branch goes through `reload_current_page/1`, which keeps the trash arm
+    # and the sort/type filters the old hand-rolled loader here dropped.
+    local_only_view? = socket.assigns[:filter_trash] || socket.assigns.filter_orphaned
+
+    if controlled_mode?(socket) and not local_only_view? do
       folder_uuid = current_folder_uuid(socket)
       q = socket.assigns.search_query
       file_view = socket.assigns.file_view
@@ -2070,25 +2123,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {:noreply, socket}
     else
-      folder_uuid = current_folder_uuid(socket)
-      per_page = socket.assigns.per_page
-      search = socket.assigns.search_query
-      scope = scope_folder_id(socket)
-      file_view = socket.assigns.file_view
-
-      {files, total_count} =
-        cond do
-          socket.assigns.filter_orphaned -> load_orphaned_files(page, per_page)
-          file_view == "all" -> load_all_view_files(scope, page, per_page, search)
-          true -> load_scoped_files(scope, page, per_page, folder_uuid, search)
-        end
-
       {:noreply,
        socket
-       |> assign(:uploaded_files, files)
        |> assign(:current_page, page)
-       |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))}
+       |> reload_current_page()}
     end
   end
 
@@ -2177,7 +2215,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       scope = scope_folder_id(socket)
       per_page = socket.assigns.per_page
-      {files, total_count} = load_scoped_files(scope, 1, per_page, nil, "")
+      {files, total_count} = load_scoped_files(scope, 1, per_page, nil, "", list_extra(socket))
 
       {:noreply,
        socket
@@ -2222,7 +2260,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       breadcrumbs = Storage.folder_breadcrumbs(actual_uuid, scope)
       folders = Storage.list_folders(actual_uuid, scope)
       per_page = socket.assigns.per_page
-      {files, total_count} = load_scoped_files(scope, 1, per_page, actual_uuid, "")
+
+      {files, total_count} =
+        load_scoped_files(scope, 1, per_page, actual_uuid, "", list_extra(socket))
 
       {:noreply,
        socket
@@ -2317,12 +2357,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
       end
 
-    socket
-    |> assign(:uploaded_files, files)
-    |> assign(:total_count, total_count)
-    |> assign(:total_pages, ceil(total_count / per_page))
-    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
-    |> assign_stacks()
+    total_pages = ceil(total_count / per_page)
+
+    # Deleting the last item of the last page leaves current_page out of
+    # range — an empty grid with the pagination footer hidden. Clamp back to
+    # the last populated page and reload once (the changed-page condition
+    # guarantees termination).
+    if files == [] and page > 1 and total_count > 0 and max(total_pages, 1) != page do
+      socket
+      |> assign(:current_page, max(total_pages, 1))
+      |> reload_current_page()
+    else
+      socket
+      |> assign(:uploaded_files, files)
+      |> assign(:total_count, total_count)
+      |> assign(:total_pages, total_pages)
+      |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+      |> assign_stacks()
+    end
   end
 
   # Stacks view: for each child folder, load a few preview thumbnails + the
@@ -2875,7 +2927,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Loads files within scope with optional folder/search filters.
   # When scope=nil AND folder_uuid=nil AND search="", passes include_orphaned: true
   # to preserve the /admin/media root view behavior of showing only orphan files.
-  defp load_scoped_files(scope, page, per_page, folder_uuid, search, extra \\ []) do
+  defp load_scoped_files(scope, page, per_page, folder_uuid, search, extra) do
     at_real_root = is_nil(scope) and is_nil(folder_uuid) and search in [nil, ""]
 
     opts = extra ++ [page: page, per_page: per_page]
@@ -2894,7 +2946,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Loads ALL files in the system (or within scope subtree when scope is set).
   # Used for the view=all flat listing. Does not apply folder or orphan filters.
-  defp load_all_view_files(scope, page, per_page, search, extra \\ []) do
+  defp load_all_view_files(scope, page, per_page, search, extra) do
     opts = extra ++ [page: page, per_page: per_page]
     opts = if search && search != "", do: [{:search, search} | opts], else: opts
 
@@ -3271,8 +3323,28 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     file_count = MapSet.size(selected_files)
     folder_count = MapSet.size(selected_folders)
 
+    # The wording must match what the handler actually does: folders are
+    # deleted RECURSIVELY (their whole subtree rides along, nothing moves to
+    # the parent), and inside the trash view every branch is permanent.
     cond do
-      filter_trash and file_count > 0 ->
+      filter_trash and folder_count > 0 and file_count > 0 ->
+        files = ngettext("%{count} file", "%{count} files", file_count)
+        folders = ngettext("%{count} folder", "%{count} folders", folder_count)
+
+        gettext(
+          "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone.",
+          files: files,
+          folders: folders
+        )
+
+      filter_trash and folder_count > 0 ->
+        ngettext(
+          "Permanently delete %{count} folder and all its contents? This cannot be undone.",
+          "Permanently delete %{count} folders and all their contents? This cannot be undone.",
+          folder_count
+        )
+
+      filter_trash ->
         ngettext(
           "Permanently delete %{count} file? This cannot be undone.",
           "Permanently delete %{count} files? This cannot be undone.",
@@ -3284,15 +3356,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         folders = ngettext("%{count} folder", "%{count} folders", folder_count)
 
         gettext(
-          "Delete %{files} (to trash) and %{folders}? Folder contents will be moved to parent.",
+          "Move %{files} and %{folders} (including all folder contents) to trash?",
           files: files,
           folders: folders
         )
 
       folder_count > 0 ->
         ngettext(
-          "Delete %{count} folder? Folder contents will be moved to parent.",
-          "Delete %{count} folders? Folder contents will be moved to parent.",
+          "Move %{count} folder and all its contents to trash?",
+          "Move %{count} folders and all their contents to trash?",
           folder_count
         )
 

@@ -1419,9 +1419,16 @@
                                   phx-target={@myself}
                                   phx-value-id={folder.uuid}
                                   data-confirm={
-                                    gettext("Delete '%{name}'? Files move to parent.",
-                                      name: folder.name
-                                    )
+                                    if @filter_trash,
+                                      do:
+                                        gettext(
+                                          "Permanently delete '%{name}' and all its contents? This cannot be undone.",
+                                          name: folder.name
+                                        ),
+                                      else:
+                                        gettext("Move '%{name}' and all its contents to trash?",
+                                          name: folder.name
+                                        )
                                   }
                                   icon="hero-trash"
                                   label={gettext("Delete")}
@@ -2016,9 +2023,17 @@
                                         phx-target={@myself}
                                         phx-value-id={folder.uuid}
                                         data-confirm={
-                                          gettext("Delete '%{name}'? Files move to parent.",
-                                            name: folder.name
-                                          )
+                                          if @filter_trash,
+                                            do:
+                                              gettext(
+                                                "Permanently delete '%{name}' and all its contents? This cannot be undone.",
+                                                name: folder.name
+                                              ),
+                                            else:
+                                              gettext(
+                                                "Move '%{name}' and all its contents to trash?",
+                                                name: folder.name
+                                              )
                                         }
                                         icon="hero-trash"
                                         label={gettext("Delete")}

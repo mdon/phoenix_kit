@@ -59,7 +59,8 @@ defmodule PhoenixKitWeb.Live.Components.UserMediaSelectorModal do
 
   @impl true
   def handle_event("confirm_selection", _params, socket) do
-    selected_uuids = socket.assigns.selected_uuids |> MapSet.to_list()
+    # `selected_uuids` is an ordered list (see MediaSelectorModal.update/2).
+    selected_uuids = socket.assigns.selected_uuids
 
     case socket.assigns[:on_select] do
       {module, id, action} ->

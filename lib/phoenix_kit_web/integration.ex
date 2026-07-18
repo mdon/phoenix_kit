@@ -435,8 +435,8 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/activity/:uuid", Live.Activity.Show, :show
       live "/admin/notifications", Live.Modules.Notifications.Index, :index
       live "/admin/media", Live.Users.Media, :index
-      live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
       live "/admin/media/selector", Live.Users.MediaSelector, :index
+      live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
       live "/admin/settings", Live.Settings, :index
       live "/admin/settings/users", Live.Settings.Users, :index
       live "/admin/settings/authorization", Live.Settings.Authorization, :index
