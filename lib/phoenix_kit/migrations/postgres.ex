@@ -529,7 +529,13 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V152 - Newsletters/CRM/Core restructuring (accumulator) ⚡ LATEST
+  ### V153 - Folder header size defaults to small ⚡ LATEST
+  - Flips `phoenix_kit_media_folders.header_size` column default from
+    'medium' (V134) to 'small', and backfills existing 'medium' rows to
+    'small' ('medium' was the old default, so it reads as untouched;
+    'large' is a deliberate choice and is left alone)
+
+  ### V152 - Newsletters/CRM/Core restructuring (accumulator)
   - Unreleased — per the "one open migration" rule, every DDL step of the
     restructuring plan lands in V152 as its own section until it ships;
     later stages append here rather than opening V153.
@@ -1323,7 +1329,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 152
+  @current_version 153
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
