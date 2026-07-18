@@ -94,8 +94,7 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
   end
 
   describe "pagination_controls/1" do
-    # Unlike pagination/1, this one has no `total_pages > 1` outer guard —
-    # it calls pagination_range/2 unconditionally, so it needs its own
+    # Shares pagination_range/2 with pagination/1, so it needs its own
     # regression coverage for the same crash.
     test "current_page far beyond total_pages doesn't hang or blow up the range" do
       assigns = %{}
@@ -114,7 +113,10 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
       refute has_page_link?(result, 1)
     end
 
-    test "total_pages = 0 doesn't crash" do
+    # Used to render a clickable "1" and a "Prev" button for a genuinely
+    # empty list (total_pages == 0) — garbage controls for nothing to
+    # paginate. Now guarded the same way as pagination/1.
+    test "total_pages = 0 renders nothing" do
       assigns = %{}
 
       result =
@@ -126,7 +128,7 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
         />
         """)
 
-      assert has_page_link?(result, 1)
+      assert String.trim(result) == ""
     end
 
     test "renders Prev/Next and a normal page-number range" do

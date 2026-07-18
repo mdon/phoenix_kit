@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
 
   def pagination_controls(assigns) do
     ~H"""
-    <div class={["btn-group", @class]}>
+    <div :if={@total_pages > 1} class={["btn-group", @class]}>
       <%= if @page > 1 do %>
         <.link patch={@build_url.(@page - 1)} class="btn btn-sm">
           « Prev
@@ -301,7 +301,7 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   # small total_pages used to produce a DESCENDING range spanning billions
   # of integers (`a..b` picks step -1 whenever a > b), and iterating that in
   # the `:for` below allocated a component per step until the VM OOMed.
-  # Clamping current_page into [1, total_pages] first guarantees
+  # Clamping current_page into [1, max(total_pages, 1)] first guarantees
   # start_page <= end_page; the explicit `//1` step is a second, independent
   # guard — if start_page were ever still > end_page (e.g. total_pages is 0
   # so the clamp itself has nothing valid to land on), an explicit positive
