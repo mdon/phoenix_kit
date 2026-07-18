@@ -153,9 +153,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:has_prev, assigns[:has_prev] || false)
       |> assign(:has_next, assigns[:has_next] || false)
       |> assign(:viewer_only, assigns[:viewer_only] || false)
-      # Opt-in: only admin-context hosts persist a rotation back to the shared
-      # file row (see handle_event "fresco:rotate"). Public hosts still seed
-      # `initial_rotation` below so everyone sees the saved orientation.
+      # Opt-in: hosts that pass `persist_rotation` write a rotation back to the
+      # shared file row (see handle_event "fresco:rotate") — the media browser
+      # popup and the detail page do, so any user who can open and rotate a file
+      # saves its orientation for everyone. Hosts that don't opt in (the gallery
+      # lightbox) still seed `initial_rotation` below so the saved orientation
+      # shows; they just don't write.
       |> assign(:persist_rotation, assigns[:persist_rotation] || false)
       |> assign(:details_path, assigns[:details_path])
 
@@ -305,8 +308,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Fresco's opt-in server bridge: fires on every rotation change when the
   # canvas is mounted with `persist_rotation`. The rotation lives on the shared
   # file row (`metadata["rotation"]`) — it's the image's saved orientation for
-  # every viewer, not a per-user preference — so only persist when the host
-  # opted in (admin contexts). Seeds `initial_rotation` on the next open.
+  # every viewer, not a per-user preference — so it persists whenever the host
+  # opted in (the browser popup and detail page, for any user). Seeds
+  # `initial_rotation` on the next open.
   @impl true
   def handle_event("fresco:rotate", %{"rotation" => rotation}, socket) do
     file = socket.assigns[:file]

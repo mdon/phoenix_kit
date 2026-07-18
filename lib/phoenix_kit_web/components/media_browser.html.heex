@@ -2396,6 +2396,10 @@
         <%!-- + variant count so a processing-completion refresh (see    --%>
         <%!-- refresh_processed_file/2) remounts with the real canvas    --%>
         <%!-- instead of the 1000x1000 placeholder.                      --%>
+        <%!-- persist_rotation is unconditional: rotation is the file's   --%>
+        <%!-- shared orientation, so anyone who can open the viewer and   --%>
+        <%!-- rotate saves it for everyone (not admin-only). The Details  --%>
+        <%!-- link stays admin-only — it targets the admin detail page.   --%>
         <.live_component
           module={PhoenixKitWeb.Components.MediaCanvasViewer}
           id={"media-canvas-viewer-#{f.file_uuid}-#{f.width || 0}x#{f.height || 0}-#{map_size(f.urls)}"}
@@ -2404,7 +2408,7 @@
           parent_id={@id}
           has_prev={has_prev}
           has_next={has_next}
-          persist_rotation={@admin}
+          persist_rotation={true}
           details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
         />
       </div>
