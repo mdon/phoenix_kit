@@ -28,8 +28,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     locale =
       params["locale"] || socket.assigns[:current_locale]
 
-    # Get file_uuid from params
-    file_uuid = params["file_uuid"]
+    # Get file_uuid from params. A non-UUID segment (truncated link, typo)
+    # must land on the "file not found" state, not raise Ecto.Query.CastError.
+    file_uuid =
+      case Ecto.UUID.cast(params["file_uuid"] || "") do
+        {:ok, uuid} -> uuid
+        :error -> nil
+      end
 
     # Batch load all settings needed for this page
     settings =
@@ -46,7 +51,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       |> assign(:file_uuid, file_uuid)
       |> assign(:show_delete_modal, false)
       |> load_file_data(file_uuid)
-      |> assign(:viewer_annotations, MediaCanvasViewer.load_annotations_for(file_uuid))
+      |> assign(
+        :viewer_annotations,
+        if(file_uuid, do: MediaCanvasViewer.load_annotations_for(file_uuid), else: [])
+      )
       |> maybe_select_annotation(file_uuid, params["annotation"])
 
     {:ok, socket}
@@ -57,7 +65,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   # is anchored to. Push the select-shape event; the JS bridge retries until the
   # canvas layer is ready (the event is a no-op on the static mount).
   defp maybe_select_annotation(socket, file_uuid, annotation_uuid)
-       when is_binary(annotation_uuid) and annotation_uuid != "" do
+       when is_binary(file_uuid) and is_binary(annotation_uuid) and annotation_uuid != "" do
     Phoenix.LiveView.push_event(socket, "etcher:select-shape", %{
       fresco_id: "media-zoom-" <> file_uuid,
       uuid: annotation_uuid
@@ -202,6 +210,12 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  defp load_file_data(socket, nil) do
+    socket
+    |> assign(:file, nil)
+    |> assign(:file_data, nil)
+  end
 
   defp load_file_data(socket, file_uuid) do
     repo = PhoenixKit.Config.get_repo()

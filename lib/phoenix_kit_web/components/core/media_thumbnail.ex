@@ -161,9 +161,17 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
     end
   end
 
-  # Mirrors MediaCanvasViewer's own normalization: only the four snapped
-  # angles Fresco emits count; anything else (nil, garbage, a legacy string)
-  # reads as unrotated.
+  @doc """
+  Normalizes a raw saved-rotation value (`metadata["rotation"]`) to one of the
+  four snapped angles.
+
+  Mirrors MediaCanvasViewer's own normalization: only the four snapped
+  angles Fresco emits count; anything else (nil, garbage, a legacy string)
+  reads as unrotated (`0`).
+  """
+  @spec normalized_rotation(term()) :: 0 | 90 | 180 | 270
+  def normalized_rotation(deg), do: normalize_rotation(deg)
+
   defp normalize_rotation(deg) when is_integer(deg), do: Integer.mod(deg, 360)
 
   defp normalize_rotation(deg) when is_binary(deg) do

@@ -42,11 +42,11 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     project_title = Settings.get_project_title()
 
     # Parse query parameters
-    return_to = params["return_to"] || "/"
+    return_to = parse_return_to(params["return_to"])
     mode = parse_mode(params["mode"])
     selected_uuids = parse_selected_uuids(params["selected"])
     filter = parse_filter(params["filter"])
-    page = String.to_integer(params["page"] || "1")
+    page = parse_page(params["page"])
 
     # Allow file uploads
     socket =
@@ -73,7 +73,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   end
 
   def handle_params(params, _uri, socket) do
-    page = String.to_integer(params["page"] || "1")
+    page = parse_page(params["page"])
 
     # Load files based on current filters and page
     {files, total_count} = load_files(socket, page)
@@ -97,14 +97,16 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
       case mode do
         :single ->
           # Single mode: replace selection
-          MapSet.new([file_uuid])
+          [file_uuid]
 
         :multiple ->
-          # Multiple mode: toggle selection
-          if MapSet.member?(selected_uuids, file_uuid) do
-            MapSet.delete(selected_uuids, file_uuid)
+          # Multiple mode: toggle selection. Selection is an ordered list —
+          # append keeps the user's pick order, which consumers receive
+          # through `selected_media`.
+          if file_uuid in selected_uuids do
+            List.delete(selected_uuids, file_uuid)
           else
-            MapSet.put(selected_uuids, file_uuid)
+            selected_uuids ++ [file_uuid]
           end
       end
 
@@ -116,7 +118,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     selected_uuids = socket.assigns.selected_uuids
 
     # Build return URL with selected_media param
-    selected_media_param = selected_uuids |> MapSet.to_list() |> Enum.join(",")
+    selected_media_param = Enum.join(selected_uuids, ",")
 
     return_url =
       if String.contains?(return_to, "?") do
@@ -194,13 +196,43 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
 
   defp handle_progress(:media_files, entry, socket) do
     if entry.done? do
-      # Process the completed upload
-      consume_uploaded_entry(socket, entry, fn %{path: path} ->
-        process_upload(socket, path, entry)
-      end)
-    end
+      result =
+        consume_uploaded_entry(socket, entry, fn %{path: path} ->
+          process_upload(socket, path, entry)
+        end)
 
-    {:noreply, socket}
+      socket =
+        case result do
+          file_uuid when is_binary(file_uuid) ->
+            # Refresh the grid so the new file is visible, and auto-select it —
+            # uploading into a picker means "I want this one".
+            {files, total_count} = load_files(socket, 1)
+
+            selected =
+              case socket.assigns.selection_mode do
+                :single -> [file_uuid]
+                :multiple -> Enum.uniq(socket.assigns.selected_uuids ++ [file_uuid])
+              end
+
+            socket
+            |> assign(:current_page, 1)
+            |> assign(:uploaded_files, files)
+            |> assign(:total_count, total_count)
+            |> assign(:total_pages, ceil(total_count / socket.assigns.per_page))
+            |> assign(:selected_uuids, selected)
+
+          _ ->
+            put_flash(
+              socket,
+              :error,
+              gettext("Upload failed. Check that at least one storage bucket is configured.")
+            )
+        end
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp process_upload(socket, path, entry) do
@@ -234,8 +266,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
         {:ok, file.uuid}
 
       {:error, reason} ->
+        # consume_uploaded_entry only accepts {:ok, _} | {:postpone, _} —
+        # returning {:error, _} here raised and crashed the LiveView.
         Logger.error("Upload failed: #{inspect(reason)}")
-        {:error, reason}
+        {:postpone, :error}
     end
   end
 
@@ -245,8 +279,11 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     filter = socket.assigns.file_type_filter
     search = socket.assigns.search_query
 
-    # Build query
-    query = from(f in File, order_by: [desc: f.inserted_at])
+    # Build query. Same exclusions as MediaSelectorModal: a picker must not
+    # offer trashed or system-managed files.
+    query =
+      from(f in File, order_by: [desc: f.inserted_at])
+      |> where([f], f.status != "trashed" and f.system_managed == false)
 
     # Apply file type filter
     query =
@@ -351,17 +388,35 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   defp parse_mode("multiple"), do: :multiple
   defp parse_mode(_), do: :single
 
-  defp parse_selected_uuids(nil), do: MapSet.new()
+  # `return_to` is user-controlled (query param) and fed to `push_navigate` —
+  # accept only local paths so a crafted link can't bounce through the selector
+  # to an external site (or crash navigation with a full URL).
+  defp parse_return_to(<<"/", next, _::binary>> = path) when next not in [?/, ?\\], do: path
+  defp parse_return_to("/"), do: "/"
+  defp parse_return_to(_), do: "/"
+
+  # Malformed or non-positive `?page=` values fall back to 1 instead of
+  # crashing the mount (String.to_integer) or producing a negative OFFSET.
+  defp parse_page(page) when is_binary(page) do
+    case Integer.parse(page) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_), do: 1
+
+  defp parse_selected_uuids(nil), do: []
 
   defp parse_selected_uuids(selected_string) when is_binary(selected_string) do
     selected_string
     |> String.split(",")
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
-    |> MapSet.new()
+    |> Enum.uniq()
   end
 
-  defp parse_selected_uuids(_), do: MapSet.new()
+  defp parse_selected_uuids(_), do: []
 
   defp parse_filter(nil), do: :all
   defp parse_filter("image"), do: :image

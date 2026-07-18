@@ -29,14 +29,26 @@
               </h2>
               <p class="text-base-content/70 text-sm mt-1">
                 {selection_hint(@mode, @file_type_filter)}
-                <%= if MapSet.size(@selected_uuids) > 0 do %>
+                <%= if @selected_uuids != [] do %>
                   <span class="badge badge-primary ml-2">
-                    {ngettext(
-                      "%{count} selected",
-                      "%{count} selected",
-                      MapSet.size(@selected_uuids),
-                      count: MapSet.size(@selected_uuids)
-                    )}
+                    <%= if @max_select && @mode == :multiple do %>
+                      {gettext("%{count} of %{max} selected",
+                        count: length(@selected_uuids),
+                        max: @max_select
+                      )}
+                    <% else %>
+                      {ngettext(
+                        "%{count} selected",
+                        "%{count} selected",
+                        length(@selected_uuids),
+                        count: length(@selected_uuids)
+                      )}
+                    <% end %>
+                  </span>
+                <% end %>
+                <%= if @limit_hit do %>
+                  <span class="badge badge-warning ml-2">
+                    {gettext("Maximum %{count} files", count: @max_select)}
                   </span>
                 <% end %>
               </p>
@@ -64,7 +76,7 @@
               phx-click="confirm_selection"
               phx-target={@myself}
               class="btn btn-primary btn-sm flex-1 sm:flex-none"
-              disabled={MapSet.size(@selected_uuids) == 0}
+              disabled={@selected_uuids == []}
             >
               <.icon name="hero-check" class="w-4 h-4" /> {gettext("Confirm")}
             </button>
@@ -241,7 +253,7 @@
           <% else %>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               <%= for file <- @uploaded_files do %>
-                <% is_selected = MapSet.member?(@selected_uuids, file.file_uuid) %>
+                <% is_selected = file.file_uuid in @selected_uuids %>
                 <div
                   phx-click="toggle_selection"
                   phx-value-file-uuid={file.file_uuid}
@@ -268,7 +280,7 @@
                     </.thumbnail_url>
                     <%!-- Selection Indicator --%>
                     <%= if is_selected do %>
-                      <div class="absolute top-1 right-1 bg-primary text-primary-content rounded-full p-1.5">
+                      <div class="absolute top-1 right-1 bg-primary text-primary-content rounded-full w-7 h-7 flex items-center justify-center">
                         <.icon name="hero-check" class="w-4 h-4" />
                       </div>
                     <% else %>
