@@ -628,12 +628,15 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-envelope",
       auth_type: :key_secret,
       oauth_config: nil,
+      # Checked against the SES API itself (GetSendQuota) — see
+      # PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :aws_ses},
       setup_fields: [
-        # Field key is `access_key`, NOT `access_key_id` — the
-        # credential-detection gate (`has_credentials?/1` in
-        # integrations.ex) only recognizes `:key_secret` creds via
-        # `data["access_key"]`. The human-facing label still says
-        # "Access Key ID".
+        # Field key is `access_key`, NOT `access_key_id` — the human-facing
+        # label still says "Access Key ID". The credential-detection gate
+        # (`has_credentials?/1` in integrations.ex) now requires EVERY field a
+        # `:key_secret` provider declares `required: true`, so renaming this key
+        # without renaming it there leaves SES permanently "not configured".
         %{
           key: "access_key",
           label: gettext("Access Key ID"),
@@ -677,6 +680,9 @@ defmodule PhoenixKit.Integrations.Providers do
       icon: "hero-envelope",
       auth_type: :credentials,
       oauth_config: nil,
+      # Checked by opening a real session and authenticating — see
+      # PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :smtp},
       setup_fields: [
         %{
           key: "host",
@@ -736,14 +742,10 @@ defmodule PhoenixKit.Integrations.Providers do
       base_url: "https://api.brevo.com/v3",
       # Makes "Test Connection" tell the truth for this provider: without a
       # validation map `do_validate/2` falls through to `:ok` and stamps the
-      # connection "connected" without ever checking the key. Brevo
-      # authenticates with a bare `api-key` header (no Bearer prefix).
-      validation: %{
-        url: "https://api.brevo.com/v3/account",
-        method: :get,
-        auth_header: "api-key",
-        auth_prefix: ""
-      },
+      # connection "connected" without ever checking the key. Checked against
+      # the account endpoint itself, which also reports remaining credits —
+      # see PhoenixKit.Integrations.Validators.brevo_api/1.
+      validation: %{strategy: :brevo_api},
       setup_fields: [
         %{
           key: "api_key",

@@ -347,6 +347,14 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           |> assign(:success, gettext("Connection verified"))
           |> assign(:error, nil)
 
+        # The check passed but could not verify everything — say so instead of
+        # showing a bare "verified" the operator would read as "sending works".
+        {:ok, note} ->
+          socket
+          |> assign(:data, data)
+          |> assign(:success, "#{gettext("Connection verified")} — #{note}")
+          |> assign(:error, nil)
+
         {:error, reason} ->
           socket
           |> assign(:data, data)
@@ -440,6 +448,12 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         {:noreply,
          socket
          |> assign(:success, gettext("Connection verified"))
+         |> assign(:error, nil)}
+
+      {:ok, note} ->
+        {:noreply,
+         socket
+         |> assign(:success, "#{gettext("Connection verified")} — #{note}")
          |> assign(:error, nil)}
 
       {:error, reason} ->

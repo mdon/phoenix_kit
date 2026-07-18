@@ -108,8 +108,11 @@
                 <div>
                   <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
                   <span
-                    :if={conn.data["status"] == "error" && conn.data["validation_status"]}
-                    class="text-xs text-error block mt-0.5"
+                    :if={conn.data["validation_status"] not in [nil, "", "ok"]}
+                    class={[
+                      "text-xs block mt-0.5",
+                      if(conn.data["status"] == "error", do: "text-error", else: "text-warning")
+                    ]}
                   >
                     {conn.data["validation_status"]}
                   </span>

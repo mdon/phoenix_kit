@@ -26,6 +26,7 @@ defmodule PhoenixKit.Mailer do
 
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Users.Auth.User
 
   require Logger
@@ -182,8 +183,14 @@ defmodule PhoenixKit.Mailer do
   @doc """
   Delivers an email using the appropriate mailer.
 
-  If a parent application mailer is configured, delegates to it.
-  Otherwise uses the built-in PhoenixKit mailer.
+  If Settings key `"default_email_integration_uuid"` is set and resolves to
+  an Integrations connection with valid credentials, delivery is routed
+  through that connection via `deliver_via_integration/3` (set on the core
+  Email Sending settings page). Otherwise, if a parent application mailer is
+  configured, delegates to it; failing that, uses the built-in PhoenixKit
+  mailer. The setting being absent, blank, or pointing at a
+  deleted/unconfigured connection is a no-op — behavior is unchanged from
+  before this routing existed.
 
   This function also integrates with the email tracking system to log
   outgoing emails when tracking is enabled. Recipients blocklisted by the
@@ -193,6 +200,13 @@ defmodule PhoenixKit.Mailer do
   here — see the soft-dependency note at the top of this module.
   """
   def deliver_email(email, opts \\ []) do
+    case default_send_integration_uuid() do
+      {:ok, uuid} -> deliver_via_integration(email, uuid, opts)
+      :error -> deliver_via_configured_mailer(email, opts)
+    end
+  end
+
+  defp deliver_via_configured_mailer(email, opts) do
     with :ok <- check_recipient_allowed(email) do
       # Intercept email for tracking before sending
       tracked_email = Provider.current().intercept_before_send(email, opts)
@@ -221,6 +235,33 @@ defmodule PhoenixKit.Mailer do
       Provider.current().handle_after_send(tracked_email, result)
 
       result
+    end
+  end
+
+  # Resolves the operator-chosen default send integration, if any. Only
+  # returns `{:ok, uuid}` when the setting is a non-blank uuid that actually
+  # resolves to a connection with valid credentials — a stale or deleted
+  # uuid falls back to the built-in/parent-mailer path (`:error`) rather
+  # than failing the send outright. NOT used by `deliver_via_integration/3`
+  # itself (which takes an explicit uuid), so there is no recursion risk
+  # here: this function never calls `deliver_email/2`.
+  #
+  # Why credentials-present (`connected?/1`) is the gate and a status check
+  # would be wrong (review question, settled 2026-07-16): `disconnect/2`
+  # WIPES stored credentials, so "disconnected must not send" already holds —
+  # `connected?/1` is false without creds. The remaining case is status
+  # "error" (a failed Test Connection) with credentials still stored: that
+  # one deliberately still routes, because a stale or false-negative test
+  # silently rerouting ALL mail to the built-in path is the worse surprise —
+  # a genuinely broken integration fails the send loudly instead.
+  @spec default_send_integration_uuid() :: {:ok, String.t()} | :error
+  defp default_send_integration_uuid do
+    with uuid when is_binary(uuid) and uuid != "" <-
+           PhoenixKit.Settings.get_setting("default_email_integration_uuid"),
+         true <- Integrations.connected?(uuid) do
+      {:ok, uuid}
+    else
+      _ -> :error
     end
   end
 
@@ -280,6 +321,13 @@ defmodule PhoenixKit.Mailer do
     atom when the credentials carry no provider key at all)
   - `{:error, {:invalid_smtp_port, term()}}` — the SMTP connection's port is
     not a number
+  - `{:error, :no_ca_store}` — SMTP only, and a **behaviour change**: there is no
+    system CA bundle, so the relay's certificate cannot be verified and the
+    password would go out to an unauthenticated server. Sending stops. It used to
+    proceed with `verify: :verify_none`, which is why slim images (distroless,
+    scratch, some Alpine builds) never noticed they had no CA store. Install one
+    (e.g. `ca-certificates`) to restore sending. A relay with no credentials to
+    protect still degrades rather than failing.
   """
   @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
@@ -320,21 +368,9 @@ defmodule PhoenixKit.Mailer do
   end
 
   def swoosh_config_for(%{"provider" => "smtp"} = creds) do
-    case parse_smtp_port(creds["port"]) do
-      nil ->
-        # A non-integer port silently becomes gen_smtp's default (25), which
-        # would relay plaintext to an unintended server — surface it instead.
-        {:error, {:invalid_smtp_port, creds["port"]}}
-
-      port ->
-        base = [
-          relay: creds["host"],
-          port: port,
-          username: creds["username"],
-          password: creds["password"]
-        ]
-
-        {:ok, {Swoosh.Adapters.SMTP, base ++ smtp_transport(port, creds)}}
+    case SmtpTransport.config(creds) do
+      {:ok, options} -> {:ok, {Swoosh.Adapters.SMTP, options}}
+      {:error, _reason} = error -> error
     end
   end
 
@@ -347,52 +383,6 @@ defmodule PhoenixKit.Mailer do
 
   def swoosh_config_for(_creds), do: {:error, :unsupported_provider}
 
-  # Port 465 = implicit TLS (SMTPS): gen_smtp decides the protocol solely from
-  # the `ssl` option (gen_smtp_client.erl:854 — `ssl: true` → ssl socket, else
-  # plaintext tcp). The `tls` option only controls a STARTTLS *upgrade after* a
-  # plaintext connect, so `tls: :always` on 465 would open plaintext to an
-  # SMTPS port and hang.
-  defp smtp_transport(465, _creds), do: [ssl: true]
-
-  defp smtp_transport(_port, creds) do
-    if blank?(creds["username"]) and blank?(creds["password"]) do
-      # No credentials on the wire (local dev relay like MailHog:1025, or an
-      # internal plaintext smarthost) — nothing to protect, so allow the
-      # connection when the relay offers no STARTTLS.
-      [tls: :if_available]
-    else
-      # Credentials ARE on the wire: mandatory STARTTLS. Fail closed rather
-      # than let a stripped STARTTLS capability downgrade us to plaintext.
-      [tls: :always]
-    end
-  end
-
-  defp blank?(nil), do: true
-  defp blank?(""), do: true
-  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
-  defp blank?(_), do: false
-
-  # Setup fields are typed `:number` but travel through LiveView form
-  # params and JSONB storage as strings — normalize either shape.
-  defp parse_smtp_port(port) when is_integer(port), do: port
-
-  defp parse_smtp_port(port) when is_binary(port) do
-    case Integer.parse(port) do
-      {int, _} -> int
-      :error -> nil
-    end
-  end
-
-  defp parse_smtp_port(_), do: nil
-
-  # Checks every `to` recipient against the emails module's blocklist/rate
-  # limiter before a message reaches a Swoosh adapter. Must run before
-  # `intercept_before_send/2` — that callback returns a `Swoosh.Email.t()`
-  # with no abort channel, so it has no way to refuse a blocked send. This
-  # is the one chokepoint `deliver_email/2` and `deliver_via_integration/3`
-  # both pass through, so enforcement lives here rather than in the
-  # interceptor.
-  @spec check_recipient_allowed(Swoosh.Email.t()) :: :ok | {:error, {:blocked, atom()}}
   defp check_recipient_allowed(%Swoosh.Email{} = email) do
     # cc/bcc too, not just to: a suppression list with a hole in it is a
     # compliance problem, and this Mailer carries all app mail, not only
@@ -410,9 +400,9 @@ defmodule PhoenixKit.Mailer do
     if Code.ensure_loaded?(@emails_rate_limiter) and
          function_exported?(@emails_rate_limiter, :check_blocklist, 1) do
       # apply/3 intentionally, to avoid compile-time module resolution --
-      # a direct `@emails_rate_limiter.check_blocklist/1` call would fail
-      # `--warnings-as-errors` when the optional emails package isn't a
-      # dependency (the compiler can prove the module is undefined).
+      # a direct call would fail `--warnings-as-errors` when the optional
+      # emails package isn't a dependency (the compiler can prove the module
+      # is undefined).
       # credo:disable-for-next-line Credo.Check.Refactor.Apply
       apply(@emails_rate_limiter, :check_blocklist, [address])
     else
@@ -516,9 +506,16 @@ defmodule PhoenixKit.Mailer do
 
   defp detect_parent_app_provider(_mailer), do: "unknown"
 
-  # Get the from email address from configuration or use a default
-  # Priority: Settings Database > Config file > Default
-  defp get_from_email do
+  @doc """
+  Gets the effective "from" email address.
+
+  Priority: Settings Database (runtime) > Config file (compile-time) >
+  built-in default (`"noreply@localhost"`). Public so the Email Sending
+  settings page can display the value that's actually in effect, even
+  when no Settings override is set.
+  """
+  @spec get_from_email() :: String.t()
+  def get_from_email do
     # Priority 1: Settings Database (runtime)
     case PhoenixKit.Settings.get_setting("from_email") do
       nil ->
@@ -534,9 +531,16 @@ defmodule PhoenixKit.Mailer do
     end
   end
 
-  # Get the from name from configuration or use a default
-  # Priority: Settings Database > Config file > Default
-  defp get_from_name do
+  @doc """
+  Gets the effective "from" name.
+
+  Priority: Settings Database (runtime) > Config file (compile-time) >
+  built-in default (`"PhoenixKit"`). Public so the Email Sending settings
+  page can display the value that's actually in effect, even when no
+  Settings override is set.
+  """
+  @spec get_from_name() :: String.t()
+  def get_from_name do
     # Priority 1: Settings Database (runtime)
     case PhoenixKit.Settings.get_setting("from_name") do
       nil ->

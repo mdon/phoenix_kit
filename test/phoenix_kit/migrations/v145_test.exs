@@ -8,6 +8,11 @@ defmodule PhoenixKit.Migrations.Postgres.V145Test do
   verified at boot: `test_helper.exs` runs `ensure_current/2` (now through
   V145) before any test, so these assertions pin the post-V145 shape and a
   regression that drops/re-adds the wrong thing surfaces here.
+
+  V152 later moves the send-profile table itself to core Email and drops
+  `phoenix_kit_newsletters_send_profiles` — those table/index assertions
+  now live in `V152Test`. What's left here is `send_profile_uuid`, the
+  one V145 change V152 doesn't touch.
   """
 
   use PhoenixKit.DataCase, async: false
@@ -31,109 +36,6 @@ defmodule PhoenixKit.Migrations.Postgres.V145Test do
 
       [] ->
         nil
-    end
-  end
-
-  defp index_exists?(name) do
-    %{rows: [[exists]]} =
-      Repo.query!("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)", [name])
-
-    exists
-  end
-
-  describe "phoenix_kit_newsletters_send_profiles table" do
-    test "exists with the expected columns" do
-      assert %{type: "uuid", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "uuid")
-
-      assert %{type: "character varying", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "name")
-
-      assert %{type: "uuid", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "integration_uuid")
-
-      assert %{type: "character varying", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "provider_kind")
-
-      assert %{type: "character varying", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "from_name")
-
-      assert %{type: "character varying", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "from_email")
-
-      assert %{type: "character varying", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "reply_to")
-
-      assert %{type: "text", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "signature_html")
-
-      assert %{type: "text", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "signature_text")
-
-      assert %{type: "integer", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "rate_per_hour")
-
-      assert %{type: "integer", nullable: "YES"} =
-               column("phoenix_kit_newsletters_send_profiles", "rate_per_day")
-
-      assert %{type: "integer", nullable: "YES", default: "0"} =
-               column("phoenix_kit_newsletters_send_profiles", "pause_seconds")
-
-      assert %{type: "jsonb", nullable: "NO", default: default} =
-               column("phoenix_kit_newsletters_send_profiles", "advanced")
-
-      assert default =~ ~r/'\{\}'::jsonb/
-
-      assert %{type: "boolean", nullable: "NO", default: "true"} =
-               column("phoenix_kit_newsletters_send_profiles", "enabled")
-
-      assert %{type: "boolean", nullable: "NO", default: "false"} =
-               column("phoenix_kit_newsletters_send_profiles", "is_default")
-
-      assert %{type: "timestamp with time zone", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "inserted_at")
-
-      assert %{type: "timestamp with time zone", nullable: "NO"} =
-               column("phoenix_kit_newsletters_send_profiles", "updated_at")
-    end
-
-    test "has an index on integration_uuid" do
-      assert index_exists?("idx_nl_send_profiles_integration")
-    end
-
-    test "enforces at most one default profile via a partial unique index" do
-      assert index_exists?("idx_nl_send_profiles_default")
-
-      %{rows: [[indexdef]]} =
-        Repo.query!(
-          "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_nl_send_profiles_default'"
-        )
-
-      assert indexdef =~ "UNIQUE"
-      assert indexdef =~ "is_default = true"
-    end
-
-    test "two profiles may share one integration_uuid, but a second default is rejected" do
-      {:ok, integration_uuid} = Ecto.UUID.dump(Ecto.UUID.generate())
-
-      insert = fn attrs ->
-        Repo.query!(
-          """
-          INSERT INTO phoenix_kit_newsletters_send_profiles
-            (name, integration_uuid, provider_kind, is_default)
-          VALUES ($1, $2, $3, $4)
-          """,
-          [attrs.name, integration_uuid, "smtp", attrs.is_default]
-        )
-      end
-
-      assert insert.(%{name: "Profile A", is_default: false})
-      assert insert.(%{name: "Profile B", is_default: false})
-      assert insert.(%{name: "Profile C (default)", is_default: true})
-
-      assert_raise Postgrex.Error, fn ->
-        insert.(%{name: "Profile D (also default)", is_default: true})
-      end
     end
   end
 

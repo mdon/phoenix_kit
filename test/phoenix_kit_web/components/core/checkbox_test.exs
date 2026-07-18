@@ -57,4 +57,49 @@ defmodule PhoenixKitWeb.Components.Core.CheckboxTest do
     assert html =~ ~s(name="agree")
     refute html =~ ~s(checked="checked")
   end
+
+  test "label survives a :description slot (regression: blank labels)" do
+    # HEEx hands the component BODY to the default slot even when that body
+    # contains nothing but named-slot tags and whitespace. The old either/or
+    # guard (`if @inner_block != []`) then rendered that whitespace INSTEAD of
+    # the label, blanking every label= + <:description> checkbox app-wide.
+    assigns = %{}
+
+    html =
+      render(~H"""
+      <.checkbox name="opt" checked={false} label="Enabled">
+        <:description>Disabled profiles are never used.</:description>
+      </.checkbox>
+      """)
+
+    assert html =~ "Enabled"
+    assert html =~ "Disabled profiles are never used."
+  end
+
+  test "rich default-slot content renders alongside (not instead of) the label" do
+    assigns = %{}
+
+    html =
+      render(~H"""
+      <.checkbox name="opt" checked={false} label="Allow login">
+        Connects the contact to a user account.
+      </.checkbox>
+      """)
+
+    assert html =~ "Allow login"
+    assert html =~ "Connects the contact to a user account."
+  end
+
+  test "a slot-only checkbox (no label attr) still renders its content" do
+    assigns = %{}
+
+    html =
+      render(~H"""
+      <.checkbox name="opt" checked={false}>
+        <span class="badge">Rich label</span>
+      </.checkbox>
+      """)
+
+    assert html =~ "Rich label"
+  end
 end

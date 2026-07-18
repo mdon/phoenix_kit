@@ -1,0 +1,167 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  page_subtitle={@page_subtitle}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
+  current_path={@current_path}
+  project_title={@project_title}
+>
+  <div class="container flex-col mx-auto px-4 py-6">
+    <div class="max-w-2xl">
+      <.form_section title={gettext("Profile Details")} icon="hero-adjustments-horizontal">
+        <.form id="send-profile-form" for={@form} phx-change="validate" phx-submit="save">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <.label for={@form[:name].id}>
+                {gettext("Name")} <span class="text-error">*</span>
+              </.label>
+              <.input field={@form[:name]} type="text" placeholder={gettext("Marketing")} />
+            </div>
+
+            <div>
+              <.label for={@form[:integration_uuid].id}>
+                {gettext("Integration")} <span class="text-error">*</span>
+              </.label>
+              <.select
+                field={@form[:integration_uuid]}
+                prompt={gettext("Select an integration...")}
+                options={integration_select_options(@connections_by_provider)}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext("Manage integrations under Settings → Integrations")}
+              </p>
+            </div>
+
+            <.input
+              field={@form[:from_name]}
+              type="text"
+              label={gettext("From name")}
+              placeholder={gettext("Acme Newsletter")}
+            />
+
+            <.input
+              field={@form[:from_email]}
+              type="email"
+              label={gettext("From email")}
+              placeholder="news@example.com"
+            />
+
+            <div class="md:col-span-2">
+              <.input
+                field={@form[:reply_to]}
+                type="email"
+                label={gettext("Reply-to")}
+                placeholder="support@example.com"
+              />
+            </div>
+
+            <.input
+              field={@form[:rate_per_hour]}
+              type="number"
+              min="0"
+              label={gettext("Rate per hour")}
+            />
+
+            <.input
+              field={@form[:rate_per_day]}
+              type="number"
+              min="0"
+              label={gettext("Rate per day")}
+            />
+
+            <div>
+              <.input
+                field={@form[:pause_seconds]}
+                type="number"
+                min="0"
+                label={gettext("Pause between sends (seconds)")}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "Sends are spaced out to respect these limits — the tightest of the three wins. Leave empty for no limit."
+                )}
+              </p>
+            </div>
+
+            <div class="flex items-end">
+              <.checkbox field={@form[:enabled]} label={gettext("Enabled")}>
+                <:description>
+                  {gettext("Disabled profiles are never used to send, not even as the default.")}
+                </:description>
+              </.checkbox>
+            </div>
+
+            <div class="md:col-span-2">
+              <.textarea
+                field={@form[:signature_html]}
+                label={gettext("Signature (HTML)")}
+                rows="3"
+                placeholder="<p>Best,<br>The Team</p>"
+                class="font-mono text-sm"
+              />
+            </div>
+
+            <div class="md:col-span-2">
+              <.textarea
+                field={@form[:signature_text]}
+                label={gettext("Signature (plain text)")}
+                rows="3"
+                placeholder={gettext("Best,\nThe Team")}
+              />
+            </div>
+
+            <%!-- Provider-specific send settings. Rendered from
+                ProviderOptions.fields_for/1, which declares only options the
+                chosen provider's Swoosh adapter actually reads — so the form
+                cannot offer a setting that would silently do nothing. --%>
+            <div :if={@provider_fields != []} class="md:col-span-2">
+              <div class="divider text-xs text-base-content/60 mb-0">
+                {gettext("%{provider} settings", provider: provider_label(@provider_kind))}
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div :for={field <- @provider_fields}>
+                  <label class="label" for={"send_profile_advanced_#{field.key}"}>
+                    {field.label}
+                  </label>
+                  <input
+                    type={if field.type == :number, do: "number", else: "text"}
+                    id={"send_profile_advanced_#{field.key}"}
+                    name={"send_profile[advanced][#{field.key}]"}
+                    value={ProviderOptions.to_input_value(field, @advanced)}
+                    placeholder={field.placeholder}
+                    class="input w-full"
+                  />
+                  <p class="text-xs text-base-content/60 mt-1">{field.help}</p>
+                </div>
+              </div>
+            </div>
+
+            <p
+              :if={@provider_kind == "smtp"}
+              class="md:col-span-2 text-xs text-base-content/60"
+            >
+              {gettext(
+                "SMTP has no per-profile provider settings — relay, port and TLS come from the integration itself."
+              )}
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-2 mt-6">
+            <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-ghost">
+              {gettext("Cancel")}
+            </.pk_link>
+            <button type="submit" class="btn btn-primary">
+              <.icon name="hero-check" class="w-4 h-4 mr-1" />
+              {if @send_profile,
+                do: gettext("Update send profile"),
+                else: gettext("Create send profile")}
+            </button>
+          </div>
+        </.form>
+      </.form_section>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

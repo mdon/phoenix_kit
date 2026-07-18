@@ -103,9 +103,10 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
           "password" => "xsmtpsib-1"
         })
 
-      :ok = Integrations.validate_connection(uuid1)
-      Integrations.record_validation(uuid1, :ok)
-
+      # No validate_connection here on purpose: SMTP is now validated for real
+      # (a live session + AUTH), so fabricated credentials are rejected -- which
+      # is the point. Retrievability comes from save_setup stamping "configured"
+      # once every required flat field is present.
       assert {:ok, %{"host" => "smtp-relay.brevo.com", "password" => "xsmtpsib-1"}} =
                Integrations.get_credentials(uuid1)
 
@@ -120,14 +121,27 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
           "password" => "pw2"
         })
 
-      :ok = Integrations.validate_connection(uuid2)
-      Integrations.record_validation(uuid2, :ok)
-
       assert {:ok, %{"host" => "smtp.example.com"}} = Integrations.get_credentials(uuid2)
 
       connections = Integrations.list_connections("smtp")
       uuids = Enum.map(connections, & &1.uuid)
       assert uuid1 in uuids and uuid2 in uuids
+    end
+
+    test "Test Connection really connects: an unreachable relay is rejected" do
+      # Before the validators existed this returned :ok and the connection was
+      # stamped "connected" -- a green check on a relay that does not exist.
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("smtp", "dead relay")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "host" => "127.0.0.1",
+          "port" => "1",
+          "username" => "u",
+          "password" => "p"
+        })
+
+      assert {:error, _reason} = Integrations.validate_connection(uuid)
     end
   end
 

@@ -444,6 +444,19 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/integrations", Live.Settings.Integrations, :index
       live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
       live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
+
+      # "email-sending", not "emails" — the optional emails module registers its
+      # own routable "Emails" settings tab at /admin/settings/emails (via
+      # settings_tabs/0 + the module route generator below). A5 will collapse
+      # the two into one page; until then they coexist under different paths.
+      live "/admin/settings/email-sending", Live.Settings.EmailSending, :index
+      live "/admin/settings/email-sending/profiles", Live.Settings.SendProfiles, :index
+      live "/admin/settings/email-sending/profiles/new", Live.Settings.SendProfileForm, :new
+
+      live "/admin/settings/email-sending/profiles/:uuid/edit",
+           Live.Settings.SendProfileForm,
+           :edit
+
       live "/admin/modules", Live.Modules, :index
 
       live "/admin/settings/languages", Live.Modules.Languages, :index

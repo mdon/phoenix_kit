@@ -38,6 +38,15 @@ defmodule PhoenixKitWeb.Components.Core.AWSCredentialsVerify do
   attr :message, :string, default: ""
   attr :disabled, :boolean, default: false
   attr :phx_click, :string, required: true
+
+  # Where the click event is routed. A plain LiveView caller leaves this nil
+  # (phx-target={nil} renders nothing, so the event bubbles to the LiveView —
+  # the pre-existing behavior, unchanged for every current caller). A caller
+  # embedding this inside a live_component MUST pass phx_target={@myself},
+  # otherwise the click bubbles PAST the component to the parent LiveView,
+  # which has no handler clause for it and crashes.
+  attr :phx_target, :any, default: nil
+
   attr :class, :string, default: ""
   attr :permissions, :map, default: %{}
 
@@ -55,6 +64,7 @@ defmodule PhoenixKitWeb.Components.Core.AWSCredentialsVerify do
         <button
           type="button"
           phx-click={@phx_click}
+          phx-target={@phx_target}
           disabled={@disabled}
           class={[
             "btn btn-sm",

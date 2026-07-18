@@ -85,7 +85,14 @@ defmodule PhoenixKit.Settings.Setting do
     "auth_background_color",
     # Maintenance Schedule (can be empty when no schedule is set)
     "maintenance_scheduled_start",
-    "maintenance_scheduled_end"
+    "maintenance_scheduled_end",
+    # Email Sending (blank falls back to app config, then a built-in default —
+    # see PhoenixKit.Mailer.get_from_name/0, get_from_email/0)
+    "from_name",
+    "from_email",
+    # Blank means "no default send integration" — deliver_email/2 falls back
+    # to the static app-config/built-in mailer (see PhoenixKit.Mailer)
+    "default_email_integration_uuid"
   ]
 
   @doc false

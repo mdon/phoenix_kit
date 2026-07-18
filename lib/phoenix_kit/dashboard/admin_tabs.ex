@@ -278,6 +278,24 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         :admin_settings,
         "settings"
       ),
+      admin_subtab(
+        :admin_settings_email_sending,
+        gettext_noop("Email Sending"),
+        "hero-envelope",
+        "email-sending",
+        916,
+        :admin_settings,
+        "settings"
+      ),
+      admin_subtab(
+        :admin_settings_send_profiles,
+        gettext_noop("Send Profiles"),
+        "hero-adjustments-horizontal",
+        "email-sending/profiles",
+        917,
+        :admin_settings_email_sending,
+        "settings"
+      ),
       %Tab{
         id: :admin_settings_media,
         label: gettext_noop("Media"),

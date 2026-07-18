@@ -800,8 +800,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   @doc """
   Renders a search input with a magnifying glass icon and debounce.
 
-  By default emits `phx-change="search"` with a 300ms debounce. When
-  `on_submit` is provided the input is wrapped in a `<form>` element.
+  Emits `phx-change="search"` (override via `on_change`) with a 300ms
+  debounce. The input is ALWAYS wrapped in a `<form>` — LiveView's client
+  refuses `phx-change` on an input outside a form (it throws in the
+  browser console and the event never reaches the server, which reads as
+  "search silently does nothing"; the component's original no-`on_submit`
+  branch rendered exactly that trap and its first real caller hit it).
+  Pressing Enter fires `on_submit` when given, otherwise the same
+  `on_change` event — so Enter always means "search now".
   """
   attr :value, :string, required: true
   attr :on_change, :string, default: "search"
@@ -814,42 +820,28 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   def search_toolbar(assigns) do
     assigns =
-      assign(assigns, :placeholder, assigns.placeholder || dgettext("default", "Search..."))
+      assigns
+      |> assign(:placeholder, assigns.placeholder || dgettext("default", "Search..."))
+      |> assign(:submit_event, assigns.on_submit || assigns.on_change)
 
     ~H"""
-    <%= if @on_submit do %>
-      <form
-        phx-submit={@on_submit}
+    <form
+      phx-submit={@submit_event}
+      phx-target={@target}
+      class={["flex items-center gap-2", @class]}
+    >
+      <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
+      <input
+        type="text"
+        name={@name}
+        value={@value}
+        placeholder={@placeholder}
+        phx-change={@on_change}
+        phx-debounce={@debounce}
         phx-target={@target}
-        class={["flex items-center gap-2", @class]}
-      >
-        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
-        <input
-          type="text"
-          name={@name}
-          value={@value}
-          placeholder={@placeholder}
-          phx-change={@on_change}
-          phx-debounce={@debounce}
-          phx-target={@target}
-          class="input input-sm flex-1 min-w-0"
-        />
-      </form>
-    <% else %>
-      <div class={["flex items-center gap-2", @class]}>
-        <.icon name="hero-magnifying-glass" class="w-4 h-4 text-base-content/50 shrink-0" />
-        <input
-          type="text"
-          name={@name}
-          value={@value}
-          placeholder={@placeholder}
-          phx-change={@on_change}
-          phx-debounce={@debounce}
-          phx-target={@target}
-          class="input input-sm flex-1 min-w-0"
-        />
-      </div>
-    <% end %>
+        class="input input-sm flex-1 min-w-0"
+      />
+    </form>
     """
   end
 

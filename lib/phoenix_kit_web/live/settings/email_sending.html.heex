@@ -1,0 +1,184 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  page_subtitle={@page_subtitle}
+  current_path={@current_path}
+  project_title={@project_title}
+  current_locale={@current_locale}
+>
+  <div class="container flex flex-col mx-auto px-4 py-6 gap-6">
+    <.form_section
+      title={gettext("Sender Identity")}
+      icon="hero-identification"
+      body_class="space-y-4"
+    >
+      <:subtitle>
+        {gettext("Currently effective:")} {@effective_from_name} &lt;{@effective_from_email}&gt;
+      </:subtitle>
+      <form id="sender-identity-form" phx-submit="save_sender_identity" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <.input
+            name="from_name"
+            type="text"
+            value={@from_name}
+            label={gettext("From name")}
+            placeholder={@effective_from_name}
+          />
+          <.input
+            name="from_email"
+            type="email"
+            value={@from_email}
+            label={gettext("From email")}
+            placeholder={@effective_from_email}
+          />
+        </div>
+        <p class="text-xs text-base-content/50">
+          {gettext(
+            "Leave a field blank to fall back to the application config or built-in default."
+          )}
+        </p>
+        <button type="submit" class="btn btn-primary btn-sm">
+          {gettext("Save sender identity")}
+        </button>
+      </form>
+    </.form_section>
+
+    <.form_section title={gettext("Transport")} icon="hero-server-stack" body_class="space-y-4">
+      <:subtitle>
+        {gettext("Used when no default transactional integration is selected below.")}
+      </:subtitle>
+
+      <div class={["alert", if(@mailer_adapter, do: "alert-success", else: "alert-warning")]}>
+        <.icon name="hero-server-stack" class="w-5 h-5 shrink-0" />
+        <div>
+          <h3 class="font-bold flex items-center gap-2">
+            <%= if @mailer_built_in? do %>
+              {gettext("Static mailer: built-in PhoenixKit mailer")}
+            <% else %>
+              {gettext("Static mailer: parent app mailer (%{module})",
+                module: inspect(@mailer_module)
+              )}
+            <% end %>
+            <span class={[
+              "badge badge-sm",
+              if(@mailer_adapter, do: "badge-success", else: "badge-warning")
+            ]}>
+              {if @mailer_adapter, do: gettext("Configured"), else: gettext("Not configured")}
+            </span>
+          </h3>
+          <p :if={@mailer_adapter} class="text-sm mt-1">
+            {gettext("adapter")}: {inspect(@mailer_adapter)}
+          </p>
+          <p :if={!@mailer_adapter} class="text-sm mt-1">
+            {gettext(
+              "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="font-medium text-sm mb-2">{gettext("Email-capable integrations")}</h4>
+        <%= if @email_connections == [] do %>
+          <p class="text-sm text-base-content/60">
+            {gettext("No email-capable integrations connected yet.")}
+            <.pk_link navigate="/admin/settings/integrations/new" class="link link-primary">
+              {gettext("Add one")}
+            </.pk_link>
+          </p>
+        <% else %>
+          <.table_default variant="zebra" size="sm" class="w-full">
+            <.table_default_header>
+              <.table_default_row>
+                <.table_default_header_cell>{gettext("Service")}</.table_default_header_cell>
+                <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
+                <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
+              </.table_default_row>
+            </.table_default_header>
+            <.table_default_body>
+              <.table_default_row :for={conn <- @email_connections}>
+                <.table_default_cell>
+                  <div class="flex items-center gap-2">
+                    <.icon name={conn.provider.icon} class="w-4 h-4 text-base-content/60" />
+                    <span>{conn.provider.name}</span>
+                  </div>
+                </.table_default_cell>
+                <.table_default_cell>{conn.name}</.table_default_cell>
+                <.table_default_cell>
+                  <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
+                  <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
+                  <span
+                    :if={conn.data["validation_status"] not in [nil, "", "ok"]}
+                    class="text-xs block mt-0.5 text-base-content/70"
+                  >
+                    {conn.data["validation_status"]}
+                  </span>
+                </.table_default_cell>
+              </.table_default_row>
+            </.table_default_body>
+          </.table_default>
+        <% end %>
+      </div>
+    </.form_section>
+
+    <.form_section title={gettext("Default Transactional Integration")} icon="hero-paper-airplane">
+      <:subtitle>
+        {gettext(
+          "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
+        )}
+        <.pk_link navigate="/admin/settings/email-sending/profiles" class="link link-primary">
+          {gettext("Send Profiles")}
+        </.pk_link>.
+      </:subtitle>
+      <form id="default-integration-form" phx-change="select_default_integration">
+        <.select
+          name="integration_uuid"
+          value={@default_integration_uuid}
+          prompt={gettext("None — use the static mailer")}
+          options={Enum.map(@email_connections, &{"#{&1.provider.name} — #{&1.name}", &1.uuid})}
+          class="max-w-md"
+        />
+      </form>
+    </.form_section>
+
+    <.form_section title={gettext("Test Send")} icon="hero-paper-airplane">
+      <form
+        id="test-send-form"
+        phx-submit="send_test_email"
+        class="flex flex-col sm:flex-row gap-3 items-start sm:items-end"
+      >
+        <.input
+          name="recipient"
+          type="email"
+          value=""
+          label={gettext("Recipient")}
+          placeholder="you@example.com"
+          wrapper_class="w-full max-w-sm"
+          required
+        />
+        <button type="submit" class="btn btn-outline btn-sm">
+          {gettext("Send test email")}
+        </button>
+      </form>
+    </.form_section>
+
+    <.form_section title={gettext("Send Profiles")} icon="hero-adjustments-horizontal">
+      <:subtitle>
+        {gettext("Per-account sender identity, rate limits, and provider-specific options.")}
+      </:subtitle>
+      <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-outline btn-sm">
+        {gettext("Manage send profiles")}
+      </.pk_link>
+    </.form_section>
+
+    <.form_section
+      :for={section <- @email_settings_sections}
+      title={section.title}
+      icon="hero-puzzle-piece"
+    >
+      <.live_component module={section.component} id={section.id} />
+    </.form_section>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

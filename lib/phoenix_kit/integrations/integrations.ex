@@ -74,6 +74,7 @@ defmodule PhoenixKit.Integrations do
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.OAuth
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Integrations.Validators
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
@@ -823,7 +824,8 @@ defmodule PhoenixKit.Integrations do
   For API key / bot token: calls the provider's validation endpoint if defined.
   Returns `:ok` or `{:error, reason}`.
   """
-  @spec validate_connection(String.t(), String.t() | nil) :: :ok | {:error, String.t()}
+  @spec validate_connection(String.t(), String.t() | nil) ::
+          :ok | {:ok, String.t()} | {:error, String.t()}
   def validate_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
     {result, log_provider, log_name} =
       case resolve_uuid(uuid) do
@@ -850,6 +852,19 @@ defmodule PhoenixKit.Integrations do
           log_provider,
           log_name,
           %{"result" => "ok"},
+          "manual",
+          actor_uuid
+        )
+
+      # Passed, but with something the operator needs to know — e.g. SES accepted the
+      # signature while refusing GetSendQuota, which proves the credentials are real
+      # without proving they can send.
+      {:ok, note} ->
+        log_activity(
+          "integration.validated",
+          log_provider,
+          log_name,
+          %{"result" => "ok", "note" => note},
           "manual",
           actor_uuid
         )
@@ -905,7 +920,7 @@ defmodule PhoenixKit.Integrations do
   useful for api_key / bot_token providers where the secret the
   user just typed IS the credential.
   """
-  @spec validate_credentials(String.t(), map()) :: :ok | {:error, String.t()}
+  @spec validate_credentials(String.t(), map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def validate_credentials(provider_key, attrs)
       when is_binary(provider_key) and is_map(attrs) do
     case Providers.get(provider_key) do
@@ -936,6 +951,21 @@ defmodule PhoenixKit.Integrations do
       true -> check_http(userinfo_url, [{"authorization", "Bearer #{token}"}])
     end
   end
+
+  # Providers that cannot be checked with a plain authenticated GET declare a
+  # strategy instead. Without these clauses these fell through to the `:ok`
+  # catch-all below (Brevo), or to the generic status-code-only check below
+  # (Brevo before this validator existed), so "Test Connection" stamped the
+  # connection "connected" without verifying anything, or without reporting
+  # anything useful beyond a bare pass.
+  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
+    do: Validators.aws_ses(data)
+
+  defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
+    do: Validators.smtp(data)
+
+  defp do_validate(%{auth_type: :api_key, validation: %{strategy: :brevo_api}}, data),
+    do: Validators.brevo_api(data)
 
   defp do_validate(%{auth_type: auth_type} = provider, data)
        when auth_type in [:api_key, :bot_token] do
@@ -981,7 +1011,7 @@ defmodule PhoenixKit.Integrations do
   actual state change so high-frequency automatic paths (e.g. token
   refresh failing on every API call) don't spam listing-LV reloads.
   """
-  @spec record_validation(String.t(), :ok | {:error, term()}) :: :ok
+  @spec record_validation(String.t(), :ok | {:ok, String.t()} | {:error, term()}) :: :ok
   def record_validation(uuid, result) when is_binary(uuid) do
     {new_status, validation_text} = validation_fields(result)
 
@@ -1005,9 +1035,12 @@ defmodule PhoenixKit.Integrations do
         # reads as "didn't update even though it connected"). This
         # also matches the OAuth `exchange_code/4` path, which
         # always overwrites `connected_at` on a successful token
-        # exchange — keeping the two paths consistent.
+        # exchange — keeping the two paths consistent. `{:ok, note}`
+        # successes (SES quota / Brevo credits / scoped-credential
+        # notes) are successful connections too — the credentials
+        # provably worked — so they bump the timestamp the same way.
         update =
-          if result == :ok do
+          if result == :ok or match?({:ok, _}, result) do
             Map.put(base_update, "connected_at", now_iso)
           else
             base_update
@@ -1032,6 +1065,11 @@ defmodule PhoenixKit.Integrations do
   end
 
   defp validation_fields(:ok), do: {"connected", "ok"}
+
+  # A check that succeeded but could not verify everything it would have liked to.
+  # The connection is usable; the note is what the operator must know about it, and
+  # it belongs on screen rather than in a log line nobody reads.
+  defp validation_fields({:ok, note}) when is_binary(note), do: {"connected", note}
 
   defp validation_fields({:error, reason}),
     do: {"error", "error: #{format_validation_reason(reason)}"}
@@ -1184,7 +1222,7 @@ defmodule PhoenixKit.Integrations do
           :oauth2 -> has_token?(data)
           :api_key -> present?(data["api_key"])
           :bot_token -> present?(data["bot_token"])
-          :key_secret -> present?(data["access_key"])
+          :key_secret -> has_flat_credential_fields?(provider, data)
           :credentials -> has_custom_creds?(data) or has_flat_credential_fields?(provider, data)
         end
 
@@ -1215,7 +1253,7 @@ defmodule PhoenixKit.Integrations do
   defp has_credentials?(data),
     do:
       present?(data["access_token"]) or present?(data["api_key"]) or present?(data["bot_token"]) or
-        present?(data["access_key"]) or has_custom_creds?(data) or
+        has_custom_creds?(data) or
         has_flat_credential_fields?(Providers.get(data["provider"]), data)
 
   defp has_custom_creds?(%{"credentials" => creds}) when is_map(creds) and map_size(creds) > 0,
@@ -1230,7 +1268,8 @@ defmodule PhoenixKit.Integrations do
   # credentials once every *required* setup field the provider declares is
   # present. Data-driven off the provider's own field list, so it applies
   # to any `:credentials` provider without hardcoding field names here.
-  defp has_flat_credential_fields?(%{auth_type: :credentials, setup_fields: fields}, data) do
+  defp has_flat_credential_fields?(%{auth_type: auth_type, setup_fields: fields}, data)
+       when auth_type in [:credentials, :key_secret] do
     required = Enum.filter(fields, & &1.required)
 
     # Guard the empty-required-list footgun: `Enum.all?([], _)` is `true`, which

@@ -8,6 +8,9 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
   @doc """
   Renders an admin page header with title, subtitle, and optional actions.
@@ -20,9 +23,14 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
 
   - `title` - Page title as a string attribute
   - `subtitle` - Page subtitle as a string attribute
-  - `back` - Deprecated, no-op. Retained so existing callers compile; the back
-    arrow no longer renders. Remove from call sites at your convenience.
-  - `back_click` - Deprecated, no-op. Same rationale as `back`.
+  - `back` - Path to navigate to when the back arrow is clicked. Must already be
+    resolved (e.g. via `Routes.path/1` / `PhoenixKit.Utils.Routes.path/1`) — this
+    renders a plain `<.link navigate>`, it does NOT re-apply the PhoenixKit URL
+    prefix the way `<.pk_link>` would. When set, renders a compact ghost
+    back-affordance (arrow icon, optionally labeled) above the title.
+  - `back_label` - Optional text shown next to the back arrow. When omitted the
+    button is icon-only (still gets an accessible label).
+  - `back_click` - Deprecated, no-op. Retained so existing callers compile.
 
   ## Slots
 
@@ -36,6 +44,13 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
 
       <%!-- With subtitle --%>
       <.admin_page_header title="Settings" subtitle="Configure system" />
+
+      <%!-- With a back affordance --%>
+      <.admin_page_header
+        back={Routes.path("/admin/settings/email-sending")}
+        back_label="Email Sending"
+        title="Send Profiles"
+      />
 
       <%!-- With actions --%>
       <.admin_page_header title="Posts">
@@ -51,6 +66,7 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
       </.admin_page_header>
   """
   attr :back, :string, default: nil
+  attr :back_label, :string, default: nil
   attr :back_click, :string, default: nil
   attr :title, :string, default: nil
   attr :subtitle, :string, default: nil
@@ -69,6 +85,15 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
   def admin_page_header(assigns) do
     ~H"""
     <header class={@class || "mb-3 sm:mb-6"}>
+      <.link
+        :if={@back}
+        navigate={@back}
+        class="btn btn-ghost btn-sm -ml-2 mb-1 gap-1"
+        aria-label={@back_label || gettext("Back")}
+      >
+        <.icon name="hero-arrow-left" class="w-4 h-4" />
+        <span :if={@back_label}>{@back_label}</span>
+      </.link>
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
           <div class="min-w-0">
