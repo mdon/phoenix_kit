@@ -816,6 +816,12 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   attr :debounce, :integer, default: 300
   attr :name, :string, default: "search"
   attr :target, :any, default: nil
+
+  attr :loading_indicator, :boolean,
+    default: true,
+    doc:
+      "Show a spinner while the change event is in flight (LiveView's `phx-change-loading` on the input). Pass false when results appear instantly anyway — e.g. a client-side filter (TableLocalSearch) — where a spinner would be noise."
+
   attr :class, :any, default: ""
 
   def search_toolbar(assigns) do
@@ -841,6 +847,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         phx-target={@target}
         class="input input-sm flex-1 min-w-0"
       />
+      <%!-- Sibling selector: the input (the element LiveView stamps
+           `phx-change-loading` on while the debounced query is in
+           flight) precedes this span, so `.phx-change-loading ~ &`
+           shows the spinner exactly for the round-trip window. --%>
+      <span
+        :if={@loading_indicator}
+        class="hidden [.phx-change-loading~&]:inline-block loading loading-spinner loading-xs shrink-0 text-base-content/50"
+      ></span>
     </form>
     """
   end
