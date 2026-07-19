@@ -2095,6 +2095,65 @@ if (typeof window.Chart === "undefined") {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TableLocalSearch Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Client-instant narrowing for list tables that use <.search_toolbar>:
+  // while the debounced server round-trip is in flight, rows are hidden
+  // locally so the filter feels immediate. The server response stays
+  // authoritative — its patch replaces the row set, and `updated()`
+  // re-applies the live query so the two never fight.
+  //
+  // Attach to an element wrapping BOTH the search input and the rows:
+  //
+  //   <div id="..." phx-hook="TableLocalSearch"
+  //        data-local-search-enabled={to_string(@all_rows_loaded?)}>
+  //     <.search_toolbar ... />
+  //     ...rows carrying a lowercase data-search="haystack" attribute...
+  //     <p data-local-search-empty class="hidden">No matches</p>
+  //   </div>
+  //
+  // When `data-local-search-enabled` != "true" (the row set is incomplete
+  // because server pagination is in play), the hook does nothing — hiding
+  // only the loaded rows would falsely report "no matches" for rows that
+  // live beyond the current page. The server search covers that case.
+  window.PhoenixKitHooks.TableLocalSearch = {
+    mounted() {
+      this._onInput = (e) => {
+        const input = this._input();
+        if (!input || e.target !== input) return;
+        this._apply();
+      };
+      this.el.addEventListener("input", this._onInput);
+    },
+    updated() {
+      // A server patch landed (authoritative row set) — re-apply the
+      // current query so re-added rows don't flash unfiltered, and so
+      // client-added `hidden` classes get reconciled with server truth.
+      this._apply();
+    },
+    destroyed() {
+      this.el.removeEventListener("input", this._onInput);
+    },
+    _input() {
+      return this.el.querySelector('input[name="search"]');
+    },
+    _apply() {
+      if (this.el.dataset.localSearchEnabled !== "true") return;
+      const input = this._input();
+      const q = ((input && input.value) || "").trim().toLowerCase();
+      let visible = 0;
+      this.el.querySelectorAll("[data-search]").forEach((row) => {
+        const match = q === "" || (row.dataset.search || "").includes(q);
+        row.classList.toggle("hidden", !match);
+        if (match) visible += 1;
+      });
+      const empty = this.el.querySelector("[data-local-search-empty]");
+      if (empty) empty.classList.toggle("hidden", !(q !== "" && visible === 0));
+    }
+  };
+
   // NOTE: no scrollbar-gutter games here. Old daisyUI (5.0.x) reserved a
   // scrollbar gutter unconditionally while a modal was open, and this hook
   // used to counter it with an inline `scrollbar-gutter: auto` override —
