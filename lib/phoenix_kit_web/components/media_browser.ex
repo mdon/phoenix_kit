@@ -1557,14 +1557,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("toggle_select_mode", _params, socket) do
     if socket.assigns.select_mode do
-      {:noreply,
-       socket
-       |> assign(:select_mode, false)
-       |> assign(:selected_files, MapSet.new())
-       |> assign(:selected_folders, MapSet.new())}
+      {:noreply, exit_select_mode(socket)}
     else
       {:noreply, assign(socket, :select_mode, true)}
     end
+  end
+
+  # Esc leaves select mode from anywhere, mirroring the toolbar's Cancel — the
+  # window-keydown is only attached while select mode is on (see the heex).
+  def handle_event("exit_select_mode", _params, socket) do
+    {:noreply, exit_select_mode(socket)}
   end
 
   # Long-press on a card (from the MediaDragDrop JS hook) enters select mode and
@@ -2156,6 +2158,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         else: MapSet.put(selected, file_uuid)
 
     assign(socket, :selected_files, selected)
+  end
+
+  # Leave select mode and drop any selection — shared by the toolbar Cancel
+  # button and the Esc key.
+  defp exit_select_mode(socket) do
+    socket
+    |> assign(:select_mode, false)
+    |> assign(:selected_files, MapSet.new())
+    |> assign(:selected_folders, MapSet.new())
   end
 
   # Look up the clicked file's enriched map (filename, mime_type, size, urls,

@@ -1,9 +1,13 @@
 <%!-- MediaBrowser LiveComponent template.
      All phx-* events route to the component via phx-target={@myself} on the root div. --%>
+<%!-- Esc exits select mode (same as the toolbar Cancel), only while it's on
+     so the window listener isn't attached otherwise. --%>
 <div
   id={@id}
   phx-target={@myself}
   phx-hook="MediaDragDrop"
+  phx-window-keydown={@select_mode && "exit_select_mode"}
+  phx-key="Escape"
   class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
 >
   <style>

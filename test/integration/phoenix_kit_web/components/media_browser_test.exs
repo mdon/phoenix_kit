@@ -462,6 +462,30 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Select mode — Esc exits it like the toolbar Cancel
+  # ---------------------------------------------------------------------------
+
+  describe "select mode" do
+    test "Escape exits select mode and clears the selection", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      _file = create_file!(folder.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      # Enter select mode via the overflow menu's Select (the only
+      # toggle_select_mode control rendered while not selecting).
+      html = view |> element("[phx-click='toggle_select_mode']") |> render_click()
+      assert html =~ ~s(phx-click="select_all")
+
+      # Esc exits — the window-keydown is attached only while selecting.
+      html = view |> element("#media-browser") |> render_keydown(%{"key" => "Escape"})
+      refute html =~ ~s(phx-click="select_all")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Trash is scoped to the folder you're in — not other roots' trash
   # ---------------------------------------------------------------------------
 
