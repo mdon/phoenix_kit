@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.204"
+  @version "1.7.205"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -204,7 +204,11 @@ defmodule PhoenixKit.MixProject do
       # all — see its README for the full migration notes (response
       # bodies are now raw JSON maps, e.g. `%{"QueueUrl" => ...}`, not
       # `%{body: %{queue_url: ...}}`).
-      {:beamlab_ex_aws_sqs, "~> 4.0"},
+      # v5.0.0 renamed the compiled OTP app back to `:ex_aws_sqs` (only the
+      # Hex package name is `beamlab_ex_aws_sqs`), making it a proper
+      # drop-in for anything depending on `:ex_aws_sqs` directly — hence the
+      # `hex:` override below instead of `{:beamlab_ex_aws_sqs, "~> 5.0"}`.
+      {:ex_aws_sqs, "~> 5.0", hex: :beamlab_ex_aws_sqs},
       {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
