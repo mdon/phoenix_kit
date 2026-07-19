@@ -462,6 +462,37 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Per-file kebab rotate — saves the rotation like the viewer's rotate button
+  # ---------------------------------------------------------------------------
+
+  describe "kebab rotate" do
+    test "Rotate right/left steps the file's saved rotation by ±90", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      right =
+        "[phx-click='rotate_file'][phx-value-file-uuid='#{file.uuid}'][phx-value-dir='right']"
+
+      left = "[phx-click='rotate_file'][phx-value-file-uuid='#{file.uuid}'][phx-value-dir='left']"
+
+      view |> element(right) |> render_click()
+      assert %{metadata: %{"rotation" => 90}} = Storage.get_file(file.uuid)
+
+      view |> element(left) |> render_click()
+      assert %{metadata: %{"rotation" => 0}} = Storage.get_file(file.uuid)
+
+      # Left from 0 wraps to 270 (the other direction).
+      view |> element(left) |> render_click()
+      assert %{metadata: %{"rotation" => 270}} = Storage.get_file(file.uuid)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Select mode — Esc exits it like the toolbar Cancel
   # ---------------------------------------------------------------------------
 

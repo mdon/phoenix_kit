@@ -1874,6 +1874,35 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Single-file delete via the per-row kebab menu. Mirrors `delete_selected`
   # for one file — soft-delete to trash when outside the trash view, permanent
   # delete when already inside it. Scope-guarded the same way.
+  # Rotate a single file's saved orientation ±90 from the per-file kebab.
+  # Same persistence as the viewer's rotate button — writes
+  # metadata["rotation"] and broadcasts the thumbnail refresh — so the grid
+  # reorients its thumbnail via the rotation_class CSS transform (no
+  # re-encode, no open viewer needed). Images only; scope-guarded like the
+  # other per-file mutations.
+  def handle_event("rotate_file", %{"file-uuid" => file_uuid, "dir" => dir}, socket) do
+    delta = if dir == "left", do: -90, else: 90
+    scope = scope_folder_id(socket)
+
+    with %Storage.File{} = file <- Storage.get_file(file_uuid),
+         true <- Storage.within_scope?(file.folder_uuid, scope) do
+      current = normalized_rotation(Map.get(file.metadata || %{}, "rotation"))
+      next = Integer.mod(current + delta, 360)
+      merged = Map.put(file.metadata || %{}, "rotation", next)
+
+      case Storage.update_file(file, %{metadata: merged}) do
+        {:ok, _} ->
+          Storage.broadcast_file_thumbnail_updated(file_uuid)
+          {:noreply, refresh_processed_file(socket, file_uuid, viewer: false)}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, gettext("Could not rotate the image."))}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("delete_file", %{"file-uuid" => file_uuid}, socket) do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
@@ -2653,6 +2682,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           phx-value-file-uuid={@file.file_uuid}
           icon="hero-arrow-down-tray"
           label={gettext("Download")}
+        />
+        <%!-- Rotate the saved orientation ±90 (images only). Persists like
+              the viewer; the thumbnail reorients live. --%>
+        <.table_row_menu_button
+          :if={@file.file_type == "image"}
+          phx-click="rotate_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          phx-value-dir="left"
+          icon="hero-arrow-uturn-left"
+          label={gettext("Rotate left")}
+        />
+        <.table_row_menu_button
+          :if={@file.file_type == "image"}
+          phx-click="rotate_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          phx-value-dir="right"
+          icon="hero-arrow-uturn-right"
+          label={gettext("Rotate right")}
         />
         <.table_row_menu_button
           phx-click="prepare_move_file"
