@@ -45,7 +45,7 @@ defmodule PhoenixKit.Migrations.Postgres.V153 do
   end
 
   @doc """
-  Rolls V152 back.
+  Rolls V153 back.
 
   Restores the column default to `'medium'` (its V134 value). **Lossy:** the
   `medium → small` backfill is not reversed — the folders that were reset
