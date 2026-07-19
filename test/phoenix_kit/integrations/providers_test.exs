@@ -100,14 +100,14 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
           "host" => "smtp-relay.brevo.com",
           "port" => "587",
           "username" => "sub1@smtp-brevo.com",
-          "password" => "xsmtpsib-1"
+          "password" => "not-a-real-smtp-secret"
         })
 
       # No validate_connection here on purpose: SMTP is now validated for real
       # (a live session + AUTH), so fabricated credentials are rejected -- which
       # is the point. Retrievability comes from save_setup stamping "configured"
       # once every required flat field is present.
-      assert {:ok, %{"host" => "smtp-relay.brevo.com", "password" => "xsmtpsib-1"}} =
+      assert {:ok, %{"host" => "smtp-relay.brevo.com", "password" => "not-a-real-smtp-secret"}} =
                Integrations.get_credentials(uuid1)
 
       # a second named connection of the same provider coexists independently

@@ -9,7 +9,7 @@ defmodule PhoenixKit.Mailer.SmtpTransportTest do
         "host" => "smtp-relay.brevo.com",
         "port" => "587",
         "username" => "sub1@smtp-brevo.com",
-        "password" => "xsmtpsib-1"
+        "password" => "not-a-real-smtp-secret"
       },
       overrides
     )

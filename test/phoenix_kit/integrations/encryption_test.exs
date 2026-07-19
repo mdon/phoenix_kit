@@ -126,11 +126,11 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       assert Encryption.enabled?()
 
-      encrypted = Encryption.encrypt_fields(%{"password" => "xsmtpsib-secret"})
+      encrypted = Encryption.encrypt_fields(%{"password" => "not-a-real-smtp-secret"})
       assert String.starts_with?(encrypted["password"], "enc:v1:")
 
       decrypted = Encryption.decrypt_fields(encrypted)
-      assert decrypted["password"] == "xsmtpsib-secret"
+      assert decrypted["password"] == "not-a-real-smtp-secret"
     end
   end
 

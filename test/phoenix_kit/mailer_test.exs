@@ -112,14 +112,14 @@ defmodule PhoenixKit.MailerTest do
         "host" => "smtp-relay.brevo.com",
         "port" => "587",
         "username" => "sub1@smtp-brevo.com",
-        "password" => "xsmtpsib-1"
+        "password" => "not-a-real-smtp-secret"
       }
 
       assert {:ok, {Swoosh.Adapters.SMTP, config}} = Mailer.swoosh_config_for(creds)
       assert config[:relay] == "smtp-relay.brevo.com"
       assert config[:port] == 587
       assert config[:username] == "sub1@smtp-brevo.com"
-      assert config[:password] == "xsmtpsib-1"
+      assert config[:password] == "not-a-real-smtp-secret"
       # 587 = mandatory STARTTLS, fail-closed (no plaintext downgrade)
       assert config[:tls] == :always
       refute Keyword.has_key?(config, :ssl)
@@ -221,7 +221,7 @@ defmodule PhoenixKit.MailerTest do
         "host" => "",
         "port" => "587",
         "username" => "sub1@smtp-brevo.com",
-        "password" => "xsmtpsib-1"
+        "password" => "not-a-real-smtp-secret"
       }
 
       assert {:error, {:incomplete_credentials, ["host"]}} = Mailer.swoosh_config_for(creds)
