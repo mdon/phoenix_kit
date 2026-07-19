@@ -441,7 +441,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:filter_trash, false)
     |> assign(:file_view, file_view)
     |> assign(:orphaned_count, orphaned_count)
-    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+    # Badge counts the trash of the folder being navigated to (its subtree),
+    # matching the scope the Trash view will use — read from the local
+    # `current_folder`, since the pre-pipe socket still holds the old one.
+    |> assign(:trash_count, full_trash_count(folder_or_scope(current_folder, scope)))
     |> assign(:uploaded_files, files)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, ceil(total_count / per_page))
@@ -1554,14 +1557,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("toggle_select_mode", _params, socket) do
     if socket.assigns.select_mode do
-      {:noreply,
-       socket
-       |> assign(:select_mode, false)
-       |> assign(:selected_files, MapSet.new())
-       |> assign(:selected_folders, MapSet.new())}
+      {:noreply, exit_select_mode(socket)}
     else
       {:noreply, assign(socket, :select_mode, true)}
     end
+  end
+
+  # Esc leaves select mode from anywhere, mirroring the toolbar's Cancel — the
+  # window-keydown is only attached while select mode is on (see the heex).
+  def handle_event("exit_select_mode", _params, socket) do
+    {:noreply, exit_select_mode(socket)}
   end
 
   # Long-press on a card (from the MediaDragDrop JS hook) enters select mode and
@@ -1869,6 +1874,35 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Single-file delete via the per-row kebab menu. Mirrors `delete_selected`
   # for one file — soft-delete to trash when outside the trash view, permanent
   # delete when already inside it. Scope-guarded the same way.
+  # Rotate a single file's saved orientation ±90 from the per-file kebab.
+  # Same persistence as the viewer's rotate button — writes
+  # metadata["rotation"] and broadcasts the thumbnail refresh — so the grid
+  # reorients its thumbnail via the rotation_class CSS transform (no
+  # re-encode, no open viewer needed). Images only; scope-guarded like the
+  # other per-file mutations.
+  def handle_event("rotate_file", %{"file-uuid" => file_uuid, "dir" => dir}, socket) do
+    delta = if dir == "left", do: -90, else: 90
+    scope = scope_folder_id(socket)
+
+    with %Storage.File{} = file <- Storage.get_file(file_uuid),
+         true <- Storage.within_scope?(file.folder_uuid, scope) do
+      current = normalized_rotation(Map.get(file.metadata || %{}, "rotation"))
+      next = Integer.mod(current + delta, 360)
+      merged = Map.put(file.metadata || %{}, "rotation", next)
+
+      case Storage.update_file(file, %{metadata: merged}) do
+        {:ok, _} ->
+          Storage.broadcast_file_thumbnail_updated(file_uuid)
+          {:noreply, refresh_processed_file(socket, file_uuid, viewer: false)}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, gettext("Could not rotate the image."))}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("delete_file", %{"file-uuid" => file_uuid}, socket) do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
@@ -1925,12 +1959,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("toggle_trash_filter", _params, socket) do
     filter_trash = !socket.assigns.filter_trash
-    scope = scope_folder_id(socket)
+    # Trash is scoped to the current folder's subtree (see trash_scope/1);
+    # the active-file reload below uses the plain embedded scope.
+    t_scope = trash_scope(socket)
 
     {files, total_count} =
       if filter_trash do
-        load_trashed_files(scope, 1, socket.assigns.per_page)
+        load_trashed_files(t_scope, 1, socket.assigns.per_page)
       else
+        scope = scope_folder_id(socket)
         folder_uuid = current_folder_uuid(socket)
         load_scoped_files(scope, 1, socket.assigns.per_page, folder_uuid, "", list_extra(socket))
       end
@@ -1942,8 +1979,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # cards on screen in the normal view.
     folders =
       if filter_trash,
-        do: Storage.list_trashed_folders(scope),
-        else: Storage.list_folders(current_folder_uuid(socket), scope)
+        do: Storage.list_trashed_folders(t_scope),
+        else: Storage.list_folders(current_folder_uuid(socket), scope_folder_id(socket))
 
     {:noreply,
      socket
@@ -1960,7 +1997,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      # would be permanently destroyed.
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
-     |> assign(:trash_count, full_trash_count(scope))}
+     |> assign(:trash_count, full_trash_count(t_scope))}
   end
 
   def handle_event("restore_selected", _params, socket) do
@@ -2008,7 +2045,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("empty_trash", _params, socket) do
-    {:ok, count} = Storage.empty_trash(scope_folder_id(socket))
+    # Scoped to the folder you're viewing the Trash of — emptying a folder's
+    # trash must not purge sibling roots' trashed files.
+    {:ok, count} = Storage.empty_trash(trash_scope(socket))
 
     {:noreply,
      socket
@@ -2148,6 +2187,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         else: MapSet.put(selected, file_uuid)
 
     assign(socket, :selected_files, selected)
+  end
+
+  # Leave select mode and drop any selection — shared by the toolbar Cancel
+  # button and the Esc key.
+  defp exit_select_mode(socket) do
+    socket
+    |> assign(:select_mode, false)
+    |> assign(:selected_files, MapSet.new())
+    |> assign(:selected_folders, MapSet.new())
   end
 
   # Look up the clicked file's enriched map (filename, mime_type, size, urls,
@@ -2299,7 +2347,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     folders =
       cond do
-        filter_trash -> Storage.list_trashed_folders(scope)
+        filter_trash -> Storage.list_trashed_folders(trash_scope(socket))
         file_view == "all" -> []
         true -> Storage.list_folders(parent_uuid, scope)
       end
@@ -2356,7 +2404,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     {files, total_count} =
       cond do
-        socket.assigns[:filter_trash] -> load_trashed_files(scope, page, per_page)
+        socket.assigns[:filter_trash] -> load_trashed_files(trash_scope(socket), page, per_page)
         socket.assigns.filter_orphaned -> load_orphaned_files(page, per_page)
         file_view == "all" -> load_all_view_files(scope, page, per_page, search, extra)
         true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
@@ -2377,7 +2425,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(:uploaded_files, files)
       |> assign(:total_count, total_count)
       |> assign(:total_pages, total_pages)
-      |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+      |> assign(:trash_count, full_trash_count(trash_scope(socket)))
       |> assign_stacks()
     end
   end
@@ -2634,6 +2682,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           phx-value-file-uuid={@file.file_uuid}
           icon="hero-arrow-down-tray"
           label={gettext("Download")}
+        />
+        <%!-- Rotate the saved orientation ±90 (images only). Persists like
+              the viewer; the thumbnail reorients live. --%>
+        <.table_row_menu_button
+          :if={@file.file_type == "image"}
+          phx-click="rotate_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          phx-value-dir="left"
+          icon="hero-arrow-uturn-left"
+          label={gettext("Rotate left")}
+        />
+        <.table_row_menu_button
+          :if={@file.file_type == "image"}
+          phx-click="rotate_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          phx-value-dir="right"
+          icon="hero-arrow-uturn-right"
+          label={gettext("Rotate right")}
         />
         <.table_row_menu_button
           phx-click="prepare_move_file"
@@ -2940,6 +3008,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp scope_folder_id(socket), do: socket.assigns[:scope_folder_id]
+
+  # The scope for the Trash view + badge: the folder you're currently in (its
+  # whole subtree), falling back to the embedded browser scope at the root.
+  # Keeps a folder's Trash to what was deleted under it — never a sibling
+  # root's trash. At the true root (no current folder, no embed scope) this is
+  # nil, so the top-level view still shows all trash.
+  defp trash_scope(socket), do: current_folder_uuid(socket) || scope_folder_id(socket)
+
+  # trash_scope/1 reads the socket's `current_folder`, but on the nav path the
+  # target folder is only a local (the socket still holds the old one), so this
+  # resolves the same "this folder's subtree, else the embed scope" from
+  # explicit args.
+  defp folder_or_scope(nil, scope), do: scope
+  defp folder_or_scope(folder, _scope), do: folder.uuid
 
   defp controlled_mode?(socket), do: socket.assigns[:on_navigate] != nil
 

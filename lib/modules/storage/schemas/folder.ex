@@ -23,10 +23,13 @@ defmodule PhoenixKit.Modules.Storage.Folder do
     # Folder hero-header customization. The cover (background) and logo (icon)
     # are media files living in the folder, excluded from its visible listing.
     # `header_size` is small/medium/large; the `header_show_*` flags toggle each
-    # header element. All defaulted so existing folders render as before.
+    # header element. New folders default to a small header (less vertical
+    # space up front). Existing rows keep their stored size — the DB column
+    # default (v134, "medium") only applies to raw inserts, which never happen
+    # here; folders are always created via changeset, so this default wins.
     field :cover_file_uuid, UUIDv7
     field :logo_file_uuid, UUIDv7
-    field :header_size, :string, default: "medium"
+    field :header_size, :string, default: "small"
     field :header_show_title, :boolean, default: true
     field :header_show_icon, :boolean, default: true
     field :header_show_creator, :boolean, default: true

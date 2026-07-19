@@ -1,9 +1,13 @@
 <%!-- MediaBrowser LiveComponent template.
      All phx-* events route to the component via phx-target={@myself} on the root div. --%>
+<%!-- Esc exits select mode (same as the toolbar Cancel), only while it's on
+     so the window listener isn't attached otherwise. --%>
 <div
   id={@id}
   phx-target={@myself}
   phx-hook="MediaDragDrop"
+  phx-window-keydown={@select_mode && "exit_select_mode"}
+  phx-key="Escape"
   class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
 >
   <style>
@@ -1569,6 +1573,27 @@
                                 icon="hero-arrow-down-tray"
                                 label={gettext("Download")}
                               />
+                              <%!-- Rotate the saved orientation ±90 (images
+                                    only). Persists like the viewer's rotate
+                                    button; the thumbnail reorients live. --%>
+                              <.table_row_menu_button
+                                :if={file.file_type == "image"}
+                                phx-click="rotate_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                phx-value-dir="left"
+                                icon="hero-arrow-uturn-left"
+                                label={gettext("Rotate left")}
+                              />
+                              <.table_row_menu_button
+                                :if={file.file_type == "image"}
+                                phx-click="rotate_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                phx-value-dir="right"
+                                icon="hero-arrow-uturn-right"
+                                label={gettext("Rotate right")}
+                              />
                               <.table_row_menu_button
                                 phx-click="prepare_move_file"
                                 phx-target={@myself}
@@ -2175,6 +2200,27 @@
                                       phx-value-file-uuid={file.file_uuid}
                                       icon="hero-arrow-down-tray"
                                       label={gettext("Download")}
+                                    />
+                                    <%!-- Rotate the saved orientation ±90
+                                          (images only). Persists like the
+                                          viewer; the thumbnail reorients live. --%>
+                                    <.table_row_menu_button
+                                      :if={file.file_type == "image"}
+                                      phx-click="rotate_file"
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      phx-value-dir="left"
+                                      icon="hero-arrow-uturn-left"
+                                      label={gettext("Rotate left")}
+                                    />
+                                    <.table_row_menu_button
+                                      :if={file.file_type == "image"}
+                                      phx-click="rotate_file"
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      phx-value-dir="right"
+                                      icon="hero-arrow-uturn-right"
+                                      label={gettext("Rotate right")}
                                     />
                                     <.table_row_menu_button
                                       phx-click="prepare_move_file"

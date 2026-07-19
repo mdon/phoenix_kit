@@ -462,6 +462,86 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Per-file kebab rotate — saves the rotation like the viewer's rotate button
+  # ---------------------------------------------------------------------------
+
+  describe "kebab rotate" do
+    test "Rotate right/left steps the file's saved rotation by ±90", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      right =
+        "[phx-click='rotate_file'][phx-value-file-uuid='#{file.uuid}'][phx-value-dir='right']"
+
+      left = "[phx-click='rotate_file'][phx-value-file-uuid='#{file.uuid}'][phx-value-dir='left']"
+
+      view |> element(right) |> render_click()
+      assert %{metadata: %{"rotation" => 90}} = Storage.get_file(file.uuid)
+
+      view |> element(left) |> render_click()
+      assert %{metadata: %{"rotation" => 0}} = Storage.get_file(file.uuid)
+
+      # Left from 0 wraps to 270 (the other direction).
+      view |> element(left) |> render_click()
+      assert %{metadata: %{"rotation" => 270}} = Storage.get_file(file.uuid)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Select mode — Esc exits it like the toolbar Cancel
+  # ---------------------------------------------------------------------------
+
+  describe "select mode" do
+    test "Escape exits select mode and clears the selection", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      _file = create_file!(folder.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      # Enter select mode via the overflow menu's Select (the only
+      # toggle_select_mode control rendered while not selecting).
+      html = view |> element("[phx-click='toggle_select_mode']") |> render_click()
+      assert html =~ ~s(phx-click="select_all")
+
+      # Esc exits — the window-keydown is attached only while selecting.
+      html = view |> element("#media-browser") |> render_keydown(%{"key" => "Escape"})
+      refute html =~ ~s(phx-click="select_all")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Trash is scoped to the folder you're in — not other roots' trash
+  # ---------------------------------------------------------------------------
+
+  describe "trash view scoping" do
+    test "opening trash inside a folder shows only that folder's trash", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      r1 = create_folder!(%{name: "root_one"})
+      r2 = create_folder!(%{name: "root_two"})
+      here = create_file!(r1.uuid)
+      elsewhere = create_file!(r2.uuid)
+      {:ok, _} = Storage.trash_file(here)
+      {:ok, _} = Storage.trash_file(elsewhere)
+      conn = log_in_user(conn, user)
+
+      # Land inside r1, then open Trash. Before the fix the browser passed a
+      # nil scope, so trash showed every root's trashed files.
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{r1.uuid}")
+      html = view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+      assert html =~ here.uuid
+      refute html =~ elsewhere.uuid
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Info sidebar collapse — viewer-only mode for small screens, per-user sticky
   # ---------------------------------------------------------------------------
 

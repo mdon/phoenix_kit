@@ -298,6 +298,31 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
                Storage.list_files_in_scope(scope.uuid, folder_uuid: sibling.uuid)
     end
 
+    test "a file used as the folder's cover/logo still appears in its listing" do
+      # Setting a folder's hero background/icon must not hide that file from
+      # the folder — it stays a normal file in the folder. Regression: the
+      # listing used to drop cover_file_uuid / logo_file_uuid.
+      folder = create_folder!(%{name: "decorated_#{System.unique_integer([:positive])}"})
+      cover = create_file!(folder.uuid)
+      logo = create_file!(folder.uuid)
+      plain = create_file!(folder.uuid)
+
+      {:ok, _} =
+        Storage.update_folder(
+          folder,
+          %{cover_file_uuid: cover.uuid, logo_file_uuid: logo.uuid},
+          nil
+        )
+
+      {files, count} = Storage.list_files_in_scope(nil, folder_uuid: folder.uuid)
+      uuids = Enum.map(files, & &1.uuid)
+
+      assert cover.uuid in uuids
+      assert logo.uuid in uuids
+      assert plain.uuid in uuids
+      assert count == 3
+    end
+
     test "folder_uuid within scope filters to that folder" do
       %{scope: scope, child_a: child_a, child_b: child_b} = build_tree()
       f_a = create_file!(child_a.uuid)
@@ -351,6 +376,44 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       assert length(page1) == 2
       assert length(page2) == 2
       assert total >= 5
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Trash scoping — a folder's Trash shows only its own subtree, never siblings
+  # ---------------------------------------------------------------------------
+
+  describe "trash scoping" do
+    test "list/count_trashed_files scoped to a folder covers only its subtree" do
+      %{scope: scope, grandchild: grandchild, sibling: sibling} = build_tree()
+      in_scope = create_file!(grandchild.uuid)
+      out = create_file!(sibling.uuid)
+      {:ok, _} = Storage.trash_file(in_scope)
+      {:ok, _} = Storage.trash_file(out)
+
+      scoped = Storage.list_trashed_files(scope.uuid) |> Enum.map(& &1.uuid)
+      assert in_scope.uuid in scoped
+      refute out.uuid in scoped
+      assert Storage.count_trashed_files(scope.uuid) == 1
+
+      # Unscoped (the true-root view) still sees both.
+      all = Storage.list_trashed_files() |> Enum.map(& &1.uuid)
+      assert in_scope.uuid in all
+      assert out.uuid in all
+    end
+
+    test "list/count_trashed_folders scoped to a folder covers only its subtree" do
+      %{scope: scope, grandchild: grandchild, sibling: sibling} = build_tree()
+      sib_child = create_folder!(%{name: "sib_child", parent_uuid: sibling.uuid})
+      {:ok, _} = Storage.trash_folder(grandchild, nil)
+      {:ok, _} = Storage.trash_folder(sib_child, nil)
+
+      scoped = Storage.list_trashed_folders(scope.uuid) |> Enum.map(& &1.uuid)
+      assert grandchild.uuid in scoped
+      refute sib_child.uuid in scoped
+      # the scope folder itself is where you're standing, not a trashed row
+      refute scope.uuid in scoped
+      assert Storage.count_trashed_folders(scope.uuid) == 1
     end
   end
 
