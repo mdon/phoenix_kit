@@ -93,6 +93,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Prefixed path (via `PhoenixKit.Utils.Routes.path/1`) the `page_section` crumb links to. Renders as plain text when omitted."
 
+  attr :page_action, :map,
+    default: nil,
+    doc:
+      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus."
+
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
@@ -285,6 +290,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               page_subtitle: assigns[:page_subtitle],
               page_section: assigns[:page_section],
               page_section_path: assigns[:page_section_path],
+              page_action: assigns[:page_action],
               phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
               project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
               current_locale: assigns[:current_locale],
@@ -403,6 +409,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       >
                         {@page_subtitle}
                       </span>
+                      <.link
+                        :if={@page_action}
+                        navigate={@page_action[:navigate]}
+                        class="btn btn-xs btn-primary btn-circle shrink-0"
+                        title={@page_action[:label]}
+                        aria-label={@page_action[:label]}
+                      >
+                        <PhoenixKitWeb.Components.Core.Icon.icon
+                          name={@page_action[:icon] || "hero-plus"}
+                          class="w-4 h-4"
+                        />
+                      </.link>
                     </span>
                   </div>
                 </div>
