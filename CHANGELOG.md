@@ -28,6 +28,16 @@
   the wrong string entirely (e.g. "Header size" read as "Pealkiri"/Title,
   "Documents" read as "Kommentaarid"/Comments) rather than being merely
   untranslated.
+- **"Test email" on the Email Sending settings page showed a raw
+  `{:incomplete_credentials, [...]}` tuple** when the active send
+  integration was missing a required field. Now shows a plain-language
+  message naming the missing field(s).
+- **Migration V152**: a newsletters delivery row could be saved addressable
+  by neither a core `User` nor a snapshotted `recipient_email`, making it
+  unreachable by any send path. Added a `CHECK (user_uuid IS NOT NULL OR
+  recipient_email IS NOT NULL)` constraint as a DB-level backstop (the Ecto
+  insert path already guarded this; the constraint just closes the gap for
+  anything that bypasses it).
 
 ## 1.7.203 - 2026-07-18
 
