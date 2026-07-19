@@ -1,3 +1,34 @@
+## 1.7.204 - 2026-07-19
+
+### Added
+- Media browser: per-file kebab menu gained Rotate left/right (counter-
+  clockwise + clockwise), saving `metadata["rotation"]` the same way the
+  viewer's rotate button does and refreshing the grid thumbnail live.
+- Esc now exits the media browser's select mode, mirroring the toolbar's
+  Cancel button.
+
+### Changed
+- **New folders default to a small hero header** instead of medium
+  (`PhoenixKit.Modules.Storage.Folder.header_size` default flips to
+  `"small"`). **Migration V153** flips the DB column default to match and
+  backfills existing `'medium'` rows to `'small'` (indistinguishable from
+  "never customized"); rows already on `'large'` or `'small'` are left
+  alone. `@current_version` bumped 152 → 153.
+- **A folder's Trash is now scoped to that folder's own subtree** instead
+  of always listing every trashed folder/file across the whole install —
+  opening Trash inside a folder no longer shows what was trashed under
+  unrelated sibling roots. Applies to the trash view, the trash-count
+  badge, and Empty Trash.
+
+### Fixed
+- **A folder's own cover/logo files were hidden from that folder's file
+  listing.** They're real, re-selectable files (not synthetic assets) and
+  now show up like any other file in the folder they decorate.
+- Estonian (`et`) translations: several `default.po` entries were mapped to
+  the wrong string entirely (e.g. "Header size" read as "Pealkiri"/Title,
+  "Documents" read as "Kommentaarid"/Comments) rather than being merely
+  untranslated.
+
 ## 1.7.203 - 2026-07-18
 
 ### Added
