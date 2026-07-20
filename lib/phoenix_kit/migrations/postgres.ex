@@ -529,7 +529,22 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V153 - Folder header size defaults to small ⚡ LATEST
+  ### V154 - Delivery CRM contact id + per-broadcast dedup ⚡ LATEST
+  - Adds `crm_contact_uuid` (bare, nullable UUID, no FK — same soft-ref
+    pattern as `crm_list_uuid`) to `phoenix_kit_newsletters_deliveries`,
+    plus a plain index on it
+  - Replaces `phoenix_kit_newsletters_deliveries_recipient_check` (same
+    name) with a widened CHECK: still requires an addressable recipient
+    (`user_uuid` or `recipient_email`), and now additionally forbids a
+    row claimed by both `user_uuid` and `crm_contact_uuid` at once —
+    deliberately NOT a strict XOR; see V154's moduledoc for why
+  - Adds three partial unique indexes — `(broadcast_uuid, user_uuid)`,
+    `(broadcast_uuid, crm_contact_uuid)`, `(broadcast_uuid,
+    recipient_email)`, each `WHERE ... IS NOT NULL` — the first DB-level
+    per-broadcast delivery dedup; `insert_all` previously had no
+    `ON CONFLICT` guard at all
+
+  ### V153 - Folder header size defaults to small
   - Flips `phoenix_kit_media_folders.header_size` column default from
     'medium' (V134) to 'small', and backfills existing 'medium' rows to
     'small' ('medium' was the old default, so it reads as untouched;
@@ -1329,7 +1344,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 153
+  @current_version 154
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
