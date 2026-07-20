@@ -491,7 +491,19 @@ defmodule PhoenixKit.ModuleRegistry do
           acc
 
         backend when is_atom(backend) ->
-          Map.put(acc, meta.key, {backend, Map.get(meta, :gettext_domain) || "default"})
+          # A backend that can't answer dgettext/3 would raise at render
+          # time (see Permissions.localized_module_label/1) — drop it here
+          # so one bad module can't break the permissions matrix.
+          if Code.ensure_loaded?(backend) and function_exported?(backend, :__gettext__, 1) do
+            Map.put(acc, meta.key, {backend, Map.get(meta, :gettext_domain) || "default"})
+          else
+            Logger.warning(
+              "[ModuleRegistry] Ignoring gettext_backend #{inspect(backend)} of " <>
+                "#{inspect(meta.key)}: not a loaded Gettext backend (no __gettext__/1)"
+            )
+
+            acc
+          end
 
         _ ->
           acc

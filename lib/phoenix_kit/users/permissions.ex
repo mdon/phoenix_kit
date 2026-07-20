@@ -183,13 +183,13 @@ defmodule PhoenixKit.Users.Permissions do
     }
 
     meta =
-      case Keyword.get(opts, :gettext_backend) do
-        backend when is_atom(backend) and not is_nil(backend) ->
+      case validate_gettext_backend(Keyword.get(opts, :gettext_backend), key) do
+        nil ->
+          meta
+
+        backend ->
           domain = opts |> Keyword.get(:gettext_domain) |> coerce_string("default")
           Map.merge(meta, %{gettext_backend: backend, gettext_domain: domain})
-
-        _ ->
-          meta
       end
 
     # Note: persistent_term has no CAS, so concurrent register_custom_key calls
@@ -564,6 +564,33 @@ defmodule PhoenixKit.Users.Permissions do
     do: {backend, meta[:gettext_domain] || "default"}
 
   defp custom_label_gettext(_), do: nil
+
+  # A backend that isn't a loaded Gettext module would raise from
+  # `dgettext/3` at render time — taking down the whole permissions matrix
+  # for one bad registration. Reject it here instead, where the caller can
+  # see the warning at boot.
+  defp validate_gettext_backend(nil, _key), do: nil
+
+  defp validate_gettext_backend(backend, _key)
+       when is_atom(backend) and backend != nil do
+    if Code.ensure_loaded?(backend) and function_exported?(backend, :__gettext__, 1) do
+      backend
+    else
+      Logger.warning(
+        "[Permissions] Ignoring gettext_backend #{inspect(backend)}: not a loaded Gettext backend (no __gettext__/1)"
+      )
+
+      nil
+    end
+  end
+
+  defp validate_gettext_backend(backend, key) do
+    Logger.warning(
+      "[Permissions] Ignoring non-module gettext_backend #{inspect(backend)} for key #{inspect(key)}"
+    )
+
+    nil
+  end
 
   @doc "Returns a Heroicon name for a module key (sub-permission keys inherit the parent module's icon)."
   @spec module_icon(String.t()) :: String.t()

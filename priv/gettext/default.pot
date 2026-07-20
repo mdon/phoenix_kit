@@ -10663,3 +10663,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Maintenance"
 msgstr ""
+
+#: lib/phoenix_kit_web/users/auth.ex:1229
+#, elixir-autogen, elixir-format
+msgid "%{label} module is not enabled"
+msgstr ""
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "DB"
+msgstr ""

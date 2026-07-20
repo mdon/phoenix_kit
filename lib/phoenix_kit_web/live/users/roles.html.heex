@@ -399,7 +399,9 @@
                     phx-click="toggle_permission"
                     phx-value-key={sub.key}
                   />
-                  <span class="text-sm text-base-content/80">{sub.label}</span>
+                  <span class="text-sm text-base-content/80">
+                    {PhoenixKit.Users.Permissions.localized_module_label(sub.key)}
+                  </span>
                 </label>
               <% end %>
             <% end %>

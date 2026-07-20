@@ -176,6 +176,15 @@ defmodule PhoenixKit.Users.PermissionsTest do
     after
       Permissions.unregister_custom_key("bad_backend")
     end
+
+    test "register_custom_key rejects an atom that is not a Gettext backend" do
+      # Would raise UndefinedFunctionError from dgettext/3 at render time.
+      Permissions.register_custom_key("not_a_backend", label: "X", gettext_backend: :nope)
+      refute Map.has_key?(Permissions.custom_keys_map()["not_a_backend"], :gettext_backend)
+      assert Permissions.localized_module_label("not_a_backend") == "X"
+    after
+      Permissions.unregister_custom_key("not_a_backend")
+    end
   end
 
   describe "module_icon/1" do

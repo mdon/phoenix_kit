@@ -1223,9 +1223,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp deny_module_disabled(socket, module_key) do
     label = Permissions.localized_module_label(module_key)
 
+    # The label is localized, so the sentence around it must be too — an
+    # English frame around a translated name reads worse than either alone.
+    message =
+      Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "%{label} module is not enabled",
+        label: label
+      )
+
     socket =
       socket
-      |> Phoenix.LiveView.put_flash(:error, "#{label} module is not enabled")
+      |> Phoenix.LiveView.put_flash(:error, message)
       |> Phoenix.LiveView.redirect(to: Routes.path("/admin/modules"))
 
     {:halt, socket}
