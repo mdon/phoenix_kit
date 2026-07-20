@@ -75,7 +75,7 @@ plugin) with several unrelated admin list-UI / breadcrumb / sidebar enhancements
 
 ### 1. `@disable_ddl_transaction true` on `V154` is likely a no-op
 
-`lib/phoenix_kit/migrations/postgres/v154.ex:75` sets
+`lib/phoenix_kit/migrations/postgres/v154.ex:30` sets
 `@disable_ddl_transaction true`, but `V154` is never itself the module registered
 with `Ecto.Migrator` — the host app's generated migration file (see
 `phoenix_kit.gen.migration.ex:133` / `phoenix_kit.update.ex:495`) is, and *that* file
@@ -89,7 +89,7 @@ follow-up to avoid implying the DDL-transaction control lives here.
 
 ### 2. `canvas JSONB NOT NULL DEFAULT '{}'` — possible array/object mismatch
 
-`v154.ex:86` defaults `canvas` to `'{}'` (empty JSON *object*). The moduledoc
+`v154.ex:41` defaults `canvas` to `'{}'` (empty JSON *object*). The moduledoc
 describes it as "JSONB canvas *element list*" and the column comment as "reusable OG
 canvas designs; JSONB `canvas` element list" — language that suggests the top-level
 value may be expected to be a JSON *array* (`'[]'`) by the (external,
