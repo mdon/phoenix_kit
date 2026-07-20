@@ -17,7 +17,6 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   def mount(_params, _session, socket) do
     current_settings = Settings.list_all_settings()
     defaults = Settings.get_defaults()
-    setting_options = Settings.get_setting_options()
 
     merged_settings = Map.merge(defaults, current_settings)
     changeset = Settings.change_settings(merged_settings)
@@ -27,7 +26,6 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       |> assign(:page_title, "Authorization Settings")
       |> assign(:settings, merged_settings)
       |> assign(:saved_settings, merged_settings)
-      |> assign(:setting_options, setting_options)
       |> assign(:changeset, changeset)
       |> assign(:saving, false)
       |> assign(
