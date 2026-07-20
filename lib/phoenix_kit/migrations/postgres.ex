@@ -529,7 +529,28 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V154 - OpenGraph templates + assignments (`phoenix_kit_og`) ⚡ LATEST
+  ### V155 - Delivery CRM contact id + per-broadcast dedup ⚡ LATEST
+  - Adds `crm_contact_uuid` (bare, nullable UUID, no FK — same soft-ref
+    pattern as `crm_list_uuid`) to `phoenix_kit_newsletters_deliveries`,
+    plus a plain index on it
+  - Replaces `phoenix_kit_newsletters_deliveries_recipient_check` (same
+    name) with a widened CHECK: still requires an addressable recipient
+    (`user_uuid` or `recipient_email`), and now additionally forbids a
+    row claimed by both `user_uuid` and `crm_contact_uuid` at once —
+    deliberately NOT a strict XOR; see V155's moduledoc for why
+  - Adds three partial unique indexes — `(broadcast_uuid, user_uuid)`,
+    `(broadcast_uuid, crm_contact_uuid)`, `(broadcast_uuid,
+    recipient_email)`, each `WHERE ... IS NOT NULL` — the first DB-level
+    per-broadcast delivery dedup; `insert_all` previously had no
+    `ON CONFLICT` guard at all
+  - Adds `source_params JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_newsletters_broadcasts`, for the new `user_group`
+    (core-role) recipient source — a role set, so JSONB rather than
+    another scalar soft-ref uuid column. Shape:
+    `%{"role_uuids" => [...], "role_names_snapshot" => [...]}` — uuids
+    resolve (a role's name is mutable), the name snapshot is display-only
+
+  ### V154 - OpenGraph templates + assignments (`phoenix_kit_og`)
   - Adds `phoenix_kit_og_templates` (reusable OG canvas designs; JSONB
     `canvas` element list) and `phoenix_kit_og_assignments` (binds a
     template to a `module_key × scope_type × scope_uuid` scope with a JSONB
@@ -1337,7 +1358,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 154
+  @current_version 155
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
