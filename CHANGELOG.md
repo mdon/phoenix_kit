@@ -1,3 +1,42 @@
+## 1.7.206 - 2026-07-20
+
+### Added
+- **Migration V154** — `phoenix_kit_og_templates` (reusable OpenGraph canvas
+  designs; JSONB `canvas`) and `phoenix_kit_og_assignments` (binds a template
+  to a `module_key × scope_type × scope_uuid` scope via a partial-index pair),
+  powering the upcoming `phoenix_kit_og` plugin. `@current_version` bumped
+  153 → 154.
+- **Migration V155** — `crm_contact_uuid` on `phoenix_kit_newsletters_deliveries`
+  (soft reference, no FK, matching the `crm_list_uuid` convention), a widened
+  `..._recipient_check` CHECK (still requires an addressable recipient, and
+  now also forbids a row claimed by both `user_uuid` and `crm_contact_uuid`),
+  the first DB-level per-broadcast delivery dedup (three partial unique
+  indexes), and `source_params` JSONB on `..._broadcasts` for the new
+  `user_group` (core-role) recipient source. `@current_version` bumped
+  154 → 155.
+- `<.bulk_actions_toolbar>` gained a `:trailing` slot for far-right toolbar
+  content (e.g. a view-mode switcher) that should sit apart from the
+  left-aligned sort/filter controls.
+- `<.search_toolbar>` shows a loading spinner while its debounced search is
+  in flight; opt out with `loading_indicator={false}` for client-instant
+  filters (pairs with the new `TableLocalSearch` hook).
+- `TableLocalSearch` JS hook: client-instant row narrowing for
+  `<.search_toolbar>` tables once the full row set is already loaded, without
+  waiting on the server round-trip.
+- `AdminSidebarScroll` JS hook: the admin sidebar keeps its scroll position
+  across live redirects and full reloads instead of resetting to the top.
+- `<.tab_item>` sets `aria-current="page"` on the active tab.
+- `<PhoenixKitWeb.Components.LayoutWrapper.app_layout>` gained `page_action`:
+  a compact circular action button rendered next to the breadcrumb title.
+- `PhoenixKit.Settings.timezone_options/0` and `get_timezone_label/1`: a cheap
+  timezone-label accessor that resolves without building the full
+  `get_setting_options/0` map, so callers that only need the timezone string
+  no longer pay for a `Roles.list_roles/0` query on every call.
+
+### Changed
+- Bumped `etcher` to `0.8.2` (fixes invisible circle annotations on a rotated
+  canvas).
+
 ## 1.7.205 - 2026-07-19
 
 ### Changed
