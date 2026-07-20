@@ -119,13 +119,24 @@ defmodule PhoenixKit.Module do
   sub-permissions are additive grants the module checks itself (via
   `PhoenixKit.Users.Auth.Scope.can?/2`) for specific in-module capabilities.
   A sub-permission is only effective while its parent module is enabled.
+
+  `:gettext_backend` / `:gettext_domain` (optional) let the module's
+  permission label render translated in the admin permissions matrix, the
+  same way `PhoenixKit.Dashboard.Tab` translates sidebar labels: the label
+  string is used as the msgid against the given backend (domain defaults to
+  `"default"`). Sub-permission labels inherit the module's backend. Without
+  a backend the label falls back to the library's own `PhoenixKitWeb.Gettext`
+  lookup, which resolves for core-shipped modules and is a no-op msgid
+  fallback for everyone else.
   """
   @type permission_meta :: %{
           required(:key) => String.t(),
           required(:label) => String.t(),
           required(:icon) => String.t(),
           required(:description) => String.t(),
-          optional(:sub_permissions) => [sub_permission()]
+          optional(:sub_permissions) => [sub_permission()],
+          optional(:gettext_backend) => module(),
+          optional(:gettext_domain) => String.t()
         }
 
   # Required callbacks

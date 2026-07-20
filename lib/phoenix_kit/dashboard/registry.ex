@@ -963,10 +963,14 @@ defmodule PhoenixKit.Dashboard.Registry do
     builtin_keys = Permissions.core_section_keys() ++ Permissions.feature_module_keys()
 
     unless perm == "" or perm in builtin_keys do
+      # Forward the tab's gettext config so the permissions matrix renders
+      # the key's label in the same locale the sidebar tab already does.
       Permissions.register_custom_key(perm,
         label: Map.get(tab_config, :label),
         icon: Map.get(tab_config, :icon),
-        description: Map.get(tab_config, :description)
+        description: Map.get(tab_config, :description),
+        gettext_backend: Map.get(tab_config, :gettext_backend),
+        gettext_domain: Map.get(tab_config, :gettext_domain)
       )
     end
 

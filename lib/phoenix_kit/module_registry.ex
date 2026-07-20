@@ -476,6 +476,41 @@ defmodule PhoenixKit.ModuleRegistry do
     |> Map.new(fn %{key: key, label: label} -> {key, label} end)
   end
 
+  @doc """
+  Returns the optional gettext `{backend, domain}` pairs registered modules
+  declare for translating their permission labels (see
+  `PhoenixKit.Module.permission_meta/0`). Modules without a
+  `gettext_backend` are absent from the map.
+  """
+  @spec permission_gettext() :: %{String.t() => {module(), String.t()}}
+  def permission_gettext do
+    all_permission_metadata()
+    |> Enum.reduce(%{}, fn meta, acc ->
+      case Map.get(meta, :gettext_backend) do
+        nil ->
+          acc
+
+        backend when is_atom(backend) ->
+          # A backend that can't answer dgettext/3 would raise at render
+          # time (see Permissions.localized_module_label/1) — drop it here
+          # so one bad module can't break the permissions matrix.
+          if Code.ensure_loaded?(backend) and function_exported?(backend, :__gettext__, 1) do
+            Map.put(acc, meta.key, {backend, Map.get(meta, :gettext_domain) || "default"})
+          else
+            Logger.warning(
+              "[ModuleRegistry] Ignoring gettext_backend #{inspect(backend)} of " <>
+                "#{inspect(meta.key)}: not a loaded Gettext backend (no __gettext__/1)"
+            )
+
+            acc
+          end
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
   @doc "Returns permission icons map from registered modules."
   @spec permission_icons() :: %{String.t() => String.t()}
   def permission_icons do

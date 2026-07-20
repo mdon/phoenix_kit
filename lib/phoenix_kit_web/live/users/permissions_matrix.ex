@@ -135,7 +135,7 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
     granted_by_uuid = Scope.user_uuid(scope)
     role_uuid = to_string(role.uuid)
     role_keys = Map.get(socket.assigns.matrix, role_uuid, MapSet.new())
-    label = Permissions.module_label(key)
+    label = Permissions.localized_module_label(key)
 
     if MapSet.member?(role_keys, key) do
       # Authoritative, race-free revoke authorization: the context re-checks the
