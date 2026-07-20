@@ -83,11 +83,22 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
   by role rather than a CRM list or the newsletters list. Roles are a
   *set* (a broadcast can target more than one), unlike the scalar
   `crm_list_uuid`/`list_uuid` the other two sources already have — so
-  this is a JSONB bag (`%{"role_names" => [...]}` is the shape the
-  newsletters-side resolver reads/writes) rather than another single
-  soft-ref uuid column. Same convention as `crm_lists.metadata`/
-  `crm_list_members.metadata` elsewhere in this chain: flexible,
-  Ecto-validated, no DB CHECK on its contents.
+  this is a JSONB bag rather than another single soft-ref uuid column.
+  Shape the newsletters-side resolver reads/writes:
+  `%{"role_uuids" => [...], "role_names_snapshot" => [...]}`.
+
+  **Uuids, not names, are what gets resolved** — a role's `name` is
+  mutable (`Roles.update_role/2` doesn't protect it, not even for
+  system roles), so storing names would let a rename silently re-target
+  (or empty out) an already-saved broadcast with no signal anywhere.
+  `role_names_snapshot` exists purely so the UI can still show what a
+  broadcast targeted after a role is later renamed or deleted — same
+  precedent as `recipient_email`/`supplier_name_snapshot` elsewhere in
+  this chain. Same flexible-JSONB convention as `crm_lists.metadata`/
+  `crm_list_members.metadata`: Ecto-validated, no DB CHECK on its
+  contents (and none on the `role_uuids`/`role_names_snapshot` shape
+  either — that contract lives entirely on the newsletters side, in
+  `Broadcast.role_uuids/1`/`role_names_snapshot/1`).
 
   `source_type`'s own three-value enum (`newsletters_list`/`crm_list`/
   `user_group`) stays Ecto-only, unchanged from V152's convention for

@@ -545,8 +545,10 @@ defmodule PhoenixKit.Migrations.Postgres do
     `ON CONFLICT` guard at all
   - Adds `source_params JSONB NOT NULL DEFAULT '{}'` to
     `phoenix_kit_newsletters_broadcasts`, for the new `user_group`
-    (core-role) recipient source — a role-name set, so JSONB rather than
-    another scalar soft-ref uuid column
+    (core-role) recipient source — a role set, so JSONB rather than
+    another scalar soft-ref uuid column. Shape:
+    `%{"role_uuids" => [...], "role_names_snapshot" => [...]}` — uuids
+    resolve (a role's name is mutable), the name snapshot is display-only
 
   ### V153 - Folder header size defaults to small
   - Flips `phoenix_kit_media_folders.header_size` column default from

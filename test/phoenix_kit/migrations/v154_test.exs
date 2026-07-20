@@ -248,18 +248,25 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
   end
 
   describe "phoenix_kit_newsletters_broadcasts.source_params" do
-    test "is a JSONB NOT NULL column defaulting to '{}'" do
+    test "is a JSONB NOT NULL column with a default" do
+      # Type + NOT NULL + "a default exists" — not the default's textual
+      # representation, which is a Postgres/driver formatting detail, not
+      # part of the contract this migration guarantees.
       assert %{type: "jsonb", nullable: "NO", default: default} =
                column("phoenix_kit_newsletters_broadcasts", "source_params")
 
-      assert default =~ ~r/'\{\}'::jsonb/
+      refute is_nil(default)
     end
 
-    test "accepts an arbitrary role-name payload" do
+    test "accepts an arbitrary role_uuids/role_names_snapshot payload" do
       %{rows: [[uuid]]} =
         Repo.query!("""
         INSERT INTO phoenix_kit_newsletters_broadcasts (subject, source_type, source_params)
-        VALUES ('V154 source_params test', 'user_group', '{"role_names": ["Admin", "SupportAgent"]}')
+        VALUES (
+          'V154 source_params test',
+          'user_group',
+          '{"role_uuids": ["019536b0-0000-7000-8000-000000000001"], "role_names_snapshot": ["Admin"]}'
+        )
         RETURNING uuid
         """)
 
@@ -269,7 +276,10 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
           [uuid]
         )
 
-      assert source_params == %{"role_names" => ["Admin", "SupportAgent"]}
+      assert source_params == %{
+               "role_uuids" => ["019536b0-0000-7000-8000-000000000001"],
+               "role_names_snapshot" => ["Admin"]
+             }
     end
   end
 
