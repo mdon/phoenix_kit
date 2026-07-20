@@ -79,8 +79,19 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
 
   Unwinds in reverse: drops the three unique indexes, restores the V152
   CHECK (single-clause, no `crm_contact_uuid` term), then drops the
-  `crm_contact_uuid` index and column. Non-lossy — nothing here is a
-  backfill, so there's no derived data to lose on rollback.
+  `crm_contact_uuid` index and column. Non-lossy **relative to the
+  original V152 schema** — this migration adds no backfill, so nothing
+  it creates is derived from data that predates it. That is not the same
+  as "safe to run at any time": once the newsletters module (which
+  writes `crm_contact_uuid` on every CRM-sourced delivery — see
+  `phoenix_kit_newsletters`'s `Broadcaster`) has actually sent anything,
+  the column holds real contact references, and `DROP COLUMN` destroys
+  them same as any other rollback of a populated column. Because that
+  writer lives in a separate package with its own release cycle, V154
+  and the newsletters version that depends on it must be rolled back
+  **together** — reverting V154 alone while that newsletters release is
+  still deployed breaks it outright (its `insert_all` targets a column
+  that no longer exists).
   """
 
   use Ecto.Migration
