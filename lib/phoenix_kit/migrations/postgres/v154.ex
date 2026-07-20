@@ -75,6 +75,25 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
   recipient_email)` duplicates, so all three indexes create cleanly with
   no pre-migration cleanup needed.
 
+  ## Section: `source_params` for the user_group recipient source
+
+  Adds `source_params JSONB NOT NULL DEFAULT '{}'` to
+  `phoenix_kit_newsletters_broadcasts`, for Stage 4's third recipient
+  source (spec §1/§7): `source_type = "user_group"` targets core users
+  by role rather than a CRM list or the newsletters list. Roles are a
+  *set* (a broadcast can target more than one), unlike the scalar
+  `crm_list_uuid`/`list_uuid` the other two sources already have — so
+  this is a JSONB bag (`%{"role_names" => [...]}` is the shape the
+  newsletters-side resolver reads/writes) rather than another single
+  soft-ref uuid column. Same convention as `crm_lists.metadata`/
+  `crm_list_members.metadata` elsewhere in this chain: flexible,
+  Ecto-validated, no DB CHECK on its contents.
+
+  `source_type`'s own three-value enum (`newsletters_list`/`crm_list`/
+  `user_group`) stays Ecto-only, unchanged from V152's convention for
+  that column (v152.ex's "Section: broadcasts can source recipients
+  from a CRM list").
+
   ## down/1
 
   Unwinds in reverse: drops the three unique indexes, restores the V152
@@ -92,6 +111,12 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
   **together** — reverting V154 alone while that newsletters release is
   still deployed breaks it outright (its `insert_all` targets a column
   that no longer exists).
+
+  `source_params` is lossy on rollback in the ordinary sense — a
+  `user_group` broadcast's role selection is genuinely destroyed, not
+  merely orphaned — but it's a UI selection, not delivery-identifying
+  history, so this doesn't carry the same "outlives the column" risk
+  `crm_contact_uuid` does.
   """
 
   use Ecto.Migration
@@ -102,6 +127,7 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
     up_crm_contact_uuid(p)
     up_recipient_check(p)
     up_dedup_indexes(p)
+    up_source_params(p)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '154'")
   end
@@ -109,7 +135,8 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
   def down(opts) do
     p = prefix_str(Map.get(opts, :prefix, "public"))
 
-    # Reverse of up/1: dedup indexes added last, unwind first.
+    # Reverse of up/1: source_params added last, unwind first.
+    down_source_params(p)
     down_dedup_indexes(p)
     down_recipient_check(p)
     down_crm_contact_uuid(p)
@@ -200,6 +227,21 @@ defmodule PhoenixKit.Migrations.Postgres.V154 do
     execute("DROP INDEX IF EXISTS #{p}idx_newsletters_deliveries_uniq_broadcast_email")
     execute("DROP INDEX IF EXISTS #{p}idx_newsletters_deliveries_uniq_broadcast_contact")
     execute("DROP INDEX IF EXISTS #{p}idx_newsletters_deliveries_uniq_broadcast_user")
+  end
+
+  # ── Section: source_params for the user_group recipient source ──
+
+  defp up_source_params(p) do
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts
+    ADD COLUMN IF NOT EXISTS source_params JSONB NOT NULL DEFAULT '{}'::jsonb
+    """)
+  end
+
+  defp down_source_params(p) do
+    execute(
+      "ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts DROP COLUMN IF EXISTS source_params"
+    )
   end
 
   defp prefix_str("public"), do: "public."

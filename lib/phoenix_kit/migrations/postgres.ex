@@ -543,6 +543,10 @@ defmodule PhoenixKit.Migrations.Postgres do
     recipient_email)`, each `WHERE ... IS NOT NULL` — the first DB-level
     per-broadcast delivery dedup; `insert_all` previously had no
     `ON CONFLICT` guard at all
+  - Adds `source_params JSONB NOT NULL DEFAULT '{}'` to
+    `phoenix_kit_newsletters_broadcasts`, for the new `user_group`
+    (core-role) recipient source — a role-name set, so JSONB rather than
+    another scalar soft-ref uuid column
 
   ### V153 - Folder header size defaults to small
   - Flips `phoenix_kit_media_folders.header_size` column default from

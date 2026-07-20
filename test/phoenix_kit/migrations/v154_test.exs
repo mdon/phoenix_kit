@@ -247,6 +247,32 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
     end
   end
 
+  describe "phoenix_kit_newsletters_broadcasts.source_params" do
+    test "is a JSONB NOT NULL column defaulting to '{}'" do
+      assert %{type: "jsonb", nullable: "NO", default: default} =
+               column("phoenix_kit_newsletters_broadcasts", "source_params")
+
+      assert default =~ ~r/'\{\}'::jsonb/
+    end
+
+    test "accepts an arbitrary role-name payload" do
+      %{rows: [[uuid]]} =
+        Repo.query!("""
+        INSERT INTO phoenix_kit_newsletters_broadcasts (subject, source_type, source_params)
+        VALUES ('V154 source_params test', 'user_group', '{"role_names": ["Admin", "SupportAgent"]}')
+        RETURNING uuid
+        """)
+
+      %{rows: [[source_params]]} =
+        Repo.query!(
+          "SELECT source_params FROM phoenix_kit_newsletters_broadcasts WHERE uuid = $1",
+          [uuid]
+        )
+
+      assert source_params == %{"role_names" => ["Admin", "SupportAgent"]}
+    end
+  end
+
   describe "version marker" do
     test "phoenix_kit table comment is at or past V154" do
       %{rows: [[comment]]} =
