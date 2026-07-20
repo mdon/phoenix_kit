@@ -10691,3 +10691,8 @@ msgstr "Moodul %{label} ei ole sisse lülitatud"
 #, elixir-autogen, elixir-format
 msgid "DB"
 msgstr "Andmebaas"
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "Dashboards"
+msgstr "Töölauad"
