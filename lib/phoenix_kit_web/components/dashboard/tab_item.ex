@@ -95,6 +95,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         class={@tab_class}
         style={@tab_style}
         title={Tab.localized_tooltip(@tab)}
+        aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
       >
@@ -116,6 +117,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         class={@tab_class}
         style={@tab_style}
         title={Tab.localized_tooltip(@tab)}
+        aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
       >

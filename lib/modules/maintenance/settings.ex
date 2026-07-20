@@ -37,7 +37,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
 
     # Get the system timezone offset for display and conversion
     tz_offset = Settings.get_setting_cached("time_zone", "0")
-    tz_label = Settings.get_timezone_label(tz_offset, Settings.get_setting_options())
+    tz_label = Settings.get_timezone_label(tz_offset)
 
     # Format datetimes for datetime-local inputs (converted to system timezone)
     scheduled_start_str = format_datetime_for_input(config.scheduled_start, tz_offset)

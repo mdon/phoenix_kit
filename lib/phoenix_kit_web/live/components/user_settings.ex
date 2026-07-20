@@ -143,8 +143,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:password_form, fn -> to_form(Auth.change_user_password(user)) end)
       |> assign_new(:profile_form, fn -> to_form(Auth.change_user_profile(user)) end)
       |> assign_new(:timezone_options, fn ->
-        setting_options = Settings.get_setting_options()
-        [{"Use System Default", nil} | setting_options["time_zone"]]
+        [{"Use System Default", nil} | Settings.timezone_options()]
       end)
       |> assign_new(:browser_timezone_name, fn -> nil end)
       |> assign_new(:browser_timezone_offset, fn -> nil end)

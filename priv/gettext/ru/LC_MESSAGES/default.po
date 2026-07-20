@@ -10698,3 +10698,23 @@ msgstr "Ни один файл не соответствует поиску."
 #, elixir-autogen, elixir-format
 msgid "Try a different term or clear the search"
 msgstr "Попробуйте другой запрос или очистите поиск"
+
+#: lib/modules/maintenance/maintenance.ex:510
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr "Обслуживание"
+
+#: lib/phoenix_kit_web/users/auth.ex:1229
+#, elixir-autogen, elixir-format
+msgid "%{label} module is not enabled"
+msgstr "Модуль %{label} не включён"
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "DB"
+msgstr "База данных"
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "Dashboards"
+msgstr "Панели"

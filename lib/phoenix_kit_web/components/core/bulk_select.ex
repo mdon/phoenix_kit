@@ -177,6 +177,10 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
     doc:
       "Content rendered on the left of the toolbar before the action buttons. Common use: tuck a sort selector in here so the toolbar reads as one widget."
 
+  slot :trailing,
+    doc:
+      "Content rendered at the far right of the toolbar, after the contextual Reorder/Delete/Clear buttons. Common use: a view-mode switcher that should sit visually apart from the filter/sort controls on the left."
+
   def bulk_actions_toolbar(assigns) do
     assigns =
       assigns
@@ -236,6 +240,8 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
         >
           {@clear_label}
         </button>
+
+        {render_slot(@trailing)}
       </div>
     </div>
     """

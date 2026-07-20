@@ -115,6 +115,78 @@ defmodule PhoenixKit.Users.PermissionsTest do
     end
   end
 
+  describe "localized_module_label/1" do
+    test "translates core-section labels via the library's own gettext" do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "ru")
+      assert Permissions.localized_module_label("users") == "Пользователи"
+    after
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+    end
+
+    test "falls back to the raw label when the locale has no translation" do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      assert Permissions.localized_module_label("users") == "Users"
+    end
+
+    test "translates a custom key through its registered backend" do
+      # PhoenixKitWeb.Gettext stands in for a host-app backend: the label is
+      # a msgid the backend's po files carry.
+      Permissions.register_custom_key("i18n_key",
+        label: "Users",
+        gettext_backend: PhoenixKitWeb.Gettext
+      )
+
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "et")
+      assert Permissions.localized_module_label("i18n_key") == "Kasutajad"
+    after
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      Permissions.unregister_custom_key("i18n_key")
+    end
+
+    test "custom key without a backend returns the raw label" do
+      Permissions.register_custom_key("plain_key", label: "Plain Label")
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "ru")
+      assert Permissions.localized_module_label("plain_key") == "Plain Label"
+    after
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      Permissions.unregister_custom_key("plain_key")
+    end
+
+    test "a nil gettext_backend option leaves the key untranslated" do
+      # Tab-driven auto-registration passes the option through unconditionally;
+      # tabs without gettext config must not gain a bogus backend.
+      Permissions.register_custom_key("nil_backend",
+        label: "Users",
+        gettext_backend: nil,
+        gettext_domain: nil
+      )
+
+      refute Map.has_key?(Permissions.custom_keys_map()["nil_backend"], :gettext_backend)
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "et")
+      assert Permissions.localized_module_label("nil_backend") == "Users"
+    after
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      Permissions.unregister_custom_key("nil_backend")
+    end
+
+    test "register_custom_key ignores a non-module gettext_backend" do
+      Permissions.register_custom_key("bad_backend", label: "X", gettext_backend: "nope")
+      refute Map.has_key?(Permissions.custom_keys_map()["bad_backend"], :gettext_backend)
+      assert Permissions.localized_module_label("bad_backend") == "X"
+    after
+      Permissions.unregister_custom_key("bad_backend")
+    end
+
+    test "register_custom_key rejects an atom that is not a Gettext backend" do
+      # Would raise UndefinedFunctionError from dgettext/3 at render time.
+      Permissions.register_custom_key("not_a_backend", label: "X", gettext_backend: :nope)
+      refute Map.has_key?(Permissions.custom_keys_map()["not_a_backend"], :gettext_backend)
+      assert Permissions.localized_module_label("not_a_backend") == "X"
+    after
+      Permissions.unregister_custom_key("not_a_backend")
+    end
+  end
+
   describe "module_icon/1" do
     test "returns correct icons for built-in keys" do
       assert Permissions.module_icon("dashboard") == "hero-home"

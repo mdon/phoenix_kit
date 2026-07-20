@@ -47,9 +47,11 @@ defmodule PhoenixKitWeb.Users.UserForm do
     # Load default role for new user creation
     default_role = Settings.get_setting("new_user_default_role", "User")
 
-    # Load timezone options
-    setting_options = Settings.get_setting_options()
-    timezone_options = [{"Use System Default", nil} | setting_options["time_zone"]]
+    # Load timezone options — timezone_options/0 directly, not
+    # get_setting_options/0: this form already loads all_roles above for
+    # its own role-management UI, so building the whole options map here
+    # too would query roles a second time for nothing.
+    timezone_options = [{"Use System Default", nil} | Settings.timezone_options()]
 
     # Organization accounts
     org_accounts_enabled =

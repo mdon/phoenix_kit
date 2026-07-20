@@ -1,13 +1,13 @@
-defmodule PhoenixKit.Migrations.Postgres.V154Test do
+defmodule PhoenixKit.Migrations.Postgres.V155Test do
   @moduledoc """
-  Tests V154's schema state — Delivery CRM contact id + per-broadcast
+  Tests V155's schema state — Delivery CRM contact id + per-broadcast
   dedup.
 
-  V154.up/down can't be invoked outside an `Ecto.Migrator` runner — same
+  V155.up/down can't be invoked outside an `Ecto.Migrator` runner — same
   constraint as V106Test/V107Test/V112Test/V125Test/V145Test/V152Test.
   The schema is verified at boot: `test_helper.exs` runs
-  `ensure_current/2` (now through V154) before any test, so these
-  assertions pin the post-V154 shape.
+  `ensure_current/2` (now through V155) before any test, so these
+  assertions pin the post-V155 shape.
   """
 
   use PhoenixKit.DataCase, async: false
@@ -46,7 +46,7 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
     %{rows: [[uuid]]} =
       Repo.query!("""
       INSERT INTO phoenix_kit_newsletters_broadcasts (subject)
-      VALUES ('V154 dedup test')
+      VALUES ('V155 dedup test')
       RETURNING uuid
       """)
 
@@ -56,7 +56,7 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
   defp insert_user! do
     %User{}
     |> User.guest_user_changeset(%{
-      email: "v154-test-#{System.unique_integer([:positive])}@example.com"
+      email: "v155-test-#{System.unique_integer([:positive])}@example.com"
     })
     |> Repo.insert!()
   end
@@ -263,7 +263,7 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
         Repo.query!("""
         INSERT INTO phoenix_kit_newsletters_broadcasts (subject, source_type, source_params)
         VALUES (
-          'V154 source_params test',
+          'V155 source_params test',
           'user_group',
           '{"role_uuids": ["019536b0-0000-7000-8000-000000000001"], "role_names_snapshot": ["Admin"]}'
         )
@@ -284,13 +284,13 @@ defmodule PhoenixKit.Migrations.Postgres.V154Test do
   end
 
   describe "version marker" do
-    test "phoenix_kit table comment is at or past V154" do
+    test "phoenix_kit table comment is at or past V155" do
       %{rows: [[comment]]} =
         Repo.query!("SELECT obj_description('phoenix_kit'::regclass, 'pg_class')")
 
       # >= rather than ==: pinning the exact latest version breaks this
       # test every time a NEWER migration ships.
-      assert String.to_integer(comment) >= 154
+      assert String.to_integer(comment) >= 155
     end
   end
 end

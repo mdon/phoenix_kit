@@ -10676,3 +10676,23 @@ msgstr "Ühtegi faili ei vasta otsingule."
 #, elixir-autogen, elixir-format
 msgid "Try a different term or clear the search"
 msgstr "Proovi teist otsingusõna või tühjenda otsing"
+
+#: lib/modules/maintenance/maintenance.ex:510
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr "Hooldus"
+
+#: lib/phoenix_kit_web/users/auth.ex:1229
+#, elixir-autogen, elixir-format
+msgid "%{label} module is not enabled"
+msgstr "Moodul %{label} ei ole sisse lülitatud"
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "DB"
+msgstr "Andmebaas"
+
+#: lib/phoenix_kit/users/permissions.ex:467
+#, elixir-autogen, elixir-format
+msgid "Dashboards"
+msgstr "Töölauad"
