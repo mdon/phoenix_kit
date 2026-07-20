@@ -1003,52 +1003,97 @@ defmodule PhoenixKit.Settings do
         {"Saturday", "6"},
         {"Sunday", "7"}
       ],
-      "time_zone" => [
-        {"UTC-12 (Baker Island)", "-12"},
-        {"UTC-11 (Pago Pago, Niue)", "-11"},
-        {"UTC-10 (Honolulu, Tahiti)", "-10"},
-        {"UTC-9 (Anchorage, Juneau)", "-9"},
-        {"UTC-8 (Los Angeles, Vancouver, Seattle)", "-8"},
-        {"UTC-7 (Denver, Phoenix, Calgary)", "-7"},
-        {"UTC-6 (Chicago, Mexico City, Guatemala)", "-6"},
-        {"UTC-5 (New York, Toronto, Bogotá, Lima)", "-5"},
-        {"UTC-4 (Halifax, Caracas, Santiago)", "-4"},
-        {"UTC-3 (Buenos Aires, São Paulo, Montevideo)", "-3"},
-        {"UTC-2 (South Georgia)", "-2"},
-        {"UTC-1 (Azores, Cape Verde)", "-1"},
-        {"UTC+0 (London, Dublin, Lisbon, Accra)", "0"},
-        {"UTC+1 (Paris, Berlin, Rome, Madrid, Lagos)", "1"},
-        {"UTC+2 (Kyiv, Athens, Helsinki, Cairo, Johannesburg)", "2"},
-        {"UTC+3 (Istanbul, Riyadh, Nairobi, Baghdad, Moscow)", "3"},
-        {"UTC+4 (Dubai, Baku, Tbilisi)", "4"},
-        {"UTC+5 (Karachi, Tashkent, Yekaterinburg)", "5"},
-        {"UTC+5:30 (Mumbai, Delhi, Kolkata, Colombo)", "5.5"},
-        {"UTC+6 (Dhaka, Almaty, Bishkek)", "6"},
-        {"UTC+7 (Bangkok, Jakarta, Ho Chi Minh City)", "7"},
-        {"UTC+8 (Beijing, Singapore, Hong Kong, Perth)", "8"},
-        {"UTC+9 (Tokyo, Seoul, Pyongyang)", "9"},
-        {"UTC+9:30 (Adelaide, Darwin)", "9.5"},
-        {"UTC+10 (Sydney, Melbourne, Brisbane)", "10"},
-        {"UTC+11 (Honiara, Noumea)", "11"},
-        {"UTC+12 (Auckland, Fiji, Wellington)", "12"},
-        {"UTC+13 (Nuku'alofa, Apia)", "13"},
-        {"UTC+14 (Kiritimati)", "14"}
-      ],
+      "time_zone" => timezone_options(),
       "date_format" => UtilsDate.get_date_format_options(),
       "time_format" => UtilsDate.get_time_format_options()
     }
   end
 
   @doc """
-  Gets the display label for a timezone value.
+  The static timezone offset options, as {label, value} tuples.
+
+  This is the single source for the `"time_zone"` entry in
+  `get_setting_options/0` and for `get_timezone_label/1` — callers that
+  only need the timezone list (not the whole options map, which also
+  queries roles via `get_role_options/0`) should use this directly
+  instead of duplicating the list or paying for `get_setting_options/0`.
+
+  ## Examples
+
+      iex> {"UTC+0 (London, Dublin, Lisbon, Accra)", "0"} in PhoenixKit.Settings.timezone_options()
+      true
+  """
+  @spec timezone_options() :: [{String.t(), String.t()}]
+  def timezone_options do
+    [
+      {"UTC-12 (Baker Island)", "-12"},
+      {"UTC-11 (Pago Pago, Niue)", "-11"},
+      {"UTC-10 (Honolulu, Tahiti)", "-10"},
+      {"UTC-9 (Anchorage, Juneau)", "-9"},
+      {"UTC-8 (Los Angeles, Vancouver, Seattle)", "-8"},
+      {"UTC-7 (Denver, Phoenix, Calgary)", "-7"},
+      {"UTC-6 (Chicago, Mexico City, Guatemala)", "-6"},
+      {"UTC-5 (New York, Toronto, Bogotá, Lima)", "-5"},
+      {"UTC-4 (Halifax, Caracas, Santiago)", "-4"},
+      {"UTC-3 (Buenos Aires, São Paulo, Montevideo)", "-3"},
+      {"UTC-2 (South Georgia)", "-2"},
+      {"UTC-1 (Azores, Cape Verde)", "-1"},
+      {"UTC+0 (London, Dublin, Lisbon, Accra)", "0"},
+      {"UTC+1 (Paris, Berlin, Rome, Madrid, Lagos)", "1"},
+      {"UTC+2 (Kyiv, Athens, Helsinki, Cairo, Johannesburg)", "2"},
+      {"UTC+3 (Istanbul, Riyadh, Nairobi, Baghdad, Moscow)", "3"},
+      {"UTC+4 (Dubai, Baku, Tbilisi)", "4"},
+      {"UTC+5 (Karachi, Tashkent, Yekaterinburg)", "5"},
+      {"UTC+5:30 (Mumbai, Delhi, Kolkata, Colombo)", "5.5"},
+      {"UTC+6 (Dhaka, Almaty, Bishkek)", "6"},
+      {"UTC+7 (Bangkok, Jakarta, Ho Chi Minh City)", "7"},
+      {"UTC+8 (Beijing, Singapore, Hong Kong, Perth)", "8"},
+      {"UTC+9 (Tokyo, Seoul, Pyongyang)", "9"},
+      {"UTC+9:30 (Adelaide, Darwin)", "9.5"},
+      {"UTC+10 (Sydney, Melbourne, Brisbane)", "10"},
+      {"UTC+11 (Honiara, Noumea)", "11"},
+      {"UTC+12 (Auckland, Fiji, Wellington)", "12"},
+      {"UTC+13 (Nuku'alofa, Apia)", "13"},
+      {"UTC+14 (Kiritimati)", "14"}
+    ]
+  end
+
+  @doc """
+  Gets the display label for a timezone value — the cheap path.
+
+  Resolves against `timezone_options/0` only. Unlike `get_timezone_label/2`,
+  this never builds the full `get_setting_options/0` map, so it never
+  queries roles (`get_role_options/0` → `Roles.list_roles/0`). Prefer this
+  whenever only the timezone label is needed — most callers.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.get_timezone_label("0")
+      "UTC+0 (London, Dublin, Lisbon, Accra)"
+  """
+  @spec get_timezone_label(String.t()) :: String.t()
+  def get_timezone_label(value) do
+    resolve_timezone_label(value, timezone_options())
+  end
+
+  @doc """
+  Gets the display label for a timezone value from an already-built
+  `get_setting_options/0` map. Kept for callers that already have the
+  full options map on hand (e.g. rendering several dropdowns on the same
+  page) — for everyone else, `get_timezone_label/1` is cheaper.
 
   ## Examples
 
       iex> PhoenixKit.Settings.get_timezone_label("0", get_setting_options())
       "UTC+0 (GMT/London)"
   """
+  @spec get_timezone_label(String.t(), map()) :: String.t()
   def get_timezone_label(value, setting_options) do
-    case Enum.find(setting_options["time_zone"], fn {_label, val} -> val == value end) do
+    resolve_timezone_label(value, setting_options["time_zone"] || timezone_options())
+  end
+
+  defp resolve_timezone_label(value, options) do
+    case Enum.find(options, fn {_label, val} -> val == value end) do
       {label, _value} -> label
       nil -> "UTC#{if value != "0", do: value, else: ""}"
     end
