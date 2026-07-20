@@ -980,12 +980,9 @@ defmodule PhoenixKit.Settings do
 
   ## Examples
 
-      iex> PhoenixKit.Settings.get_setting_options()
-      %{
-        "time_zone" => [{"UTC-12", "-12"}, {"UTC+0 (GMT)", "0"}, {"UTC+8", "8"}],
-        "date_format" => [{"YYYY-MM-DD", "Y-m-d"}, {"MM/DD/YYYY", "m/d/Y"}],
-        "time_format" => [{"24 Hour (15:30)", "H:i"}, {"12 Hour (3:30 PM)", "h:i A"}]
-      }
+      iex> options = PhoenixKit.Settings.get_setting_options()
+      iex> {"UTC+0 (London, Dublin, Lisbon, Accra)", "0"} in options["time_zone"]
+      true
   """
   def get_setting_options do
     %{
@@ -1084,8 +1081,8 @@ defmodule PhoenixKit.Settings do
 
   ## Examples
 
-      iex> PhoenixKit.Settings.get_timezone_label("0", get_setting_options())
-      "UTC+0 (GMT/London)"
+      iex> PhoenixKit.Settings.get_timezone_label("0", PhoenixKit.Settings.get_setting_options())
+      "UTC+0 (London, Dublin, Lisbon, Accra)"
   """
   @spec get_timezone_label(String.t(), map()) :: String.t()
   def get_timezone_label(value, setting_options) do

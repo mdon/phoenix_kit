@@ -94,6 +94,12 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
   # in whichever process executes :telemetry.execute (i.e. whichever
   # process issued the query), so filtering on self() inside the handler
   # isolates counts to queries issued by this test's own process.
+  #
+  # The event name below is not the conventional [otp_app, :repo, :query]
+  # — Ecto derives its telemetry prefix from the REPO MODULE's own name
+  # (Module.split/1, underscored), not the OTP app. This suite's repo is
+  # PhoenixKit.Test.Repo, so the prefix is [:phoenix_kit, :test, :repo],
+  # and the query event is that prefix with :query appended.
   defp count_repo_queries(fun) do
     handler_id = "count-repo-queries-#{inspect(self())}-#{System.unique_integer()}"
     counter = :counters.new(1, [])
