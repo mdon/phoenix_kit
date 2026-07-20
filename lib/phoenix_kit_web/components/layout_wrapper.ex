@@ -475,7 +475,17 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                    lock changes ambient scroll state, shifting the whole content pane.
                    Scoped to lg (the drawer-open column mode); the mobile overlay
                    drawer needs no gutter. --%>
-              <div class="drawer-side lg:[scrollbar-gutter:stable]">
+              <%!-- id + hook: AdminSidebarScroll keeps the menu's scroll
+                   position across navigations (a live redirect replaces
+                   this whole container; cross-live_session navigation is
+                   a full reload). The hook restores pre-paint; the save
+                   side lives in phoenix_kit.js as document-level
+                   listeners so no per-element cleanup is needed. --%>
+              <div
+                id="pk-admin-sidebar"
+                phx-hook="AdminSidebarScroll"
+                class="drawer-side lg:[scrollbar-gutter:stable]"
+              >
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
                 <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
                   <%!-- Navigation (fills available space) --%>

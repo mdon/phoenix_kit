@@ -2154,6 +2154,121 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // AdminSidebarScroll — keep the admin menu's scroll position across
+  // navigations.
+  // ---------------------------------------------------------------------------
+  //
+  // Every sidebar navigation rebuilds the sidebar DOM: a live redirect
+  // replaces the whole main container, and cross-live_session navigation
+  // (each feature module has its own session) is a full page reload. Both
+  // reset the menu's scrollTop to 0 — on short screens most of the menu
+  // lives below the fold, so the user loses their place on every click.
+  //
+  // Design (per the sidebar-scroll design review):
+  //   * scroll position is client/viewport state — it is saved to
+  //     sessionStorage (per-tab) and restored, never sent to the server;
+  //   * SAVE: one document-level capture listener (scroll doesn't bubble,
+  //     but it does capture), rAF-throttled, plus flushes on
+  //     phx:page-loading-start and pagehide so the final position right
+  //     before a navigation is never lost. Document/window listeners
+  //     survive live redirects, so there is nothing to re-bind or clean up.
+  //   * RESTORE: the AdminSidebarScroll hook's mounted() — which re-fires
+  //     on every live redirect because the container is replaced — runs
+  //     synchronously with the DOM patch, before paint (no flash at 0).
+  //     Full page loads restore at DOMContentLoaded, before the LiveView
+  //     socket connects.
+  //   * CORRECTION: when nothing is saved (fresh tab, deep link) or the
+  //     restored offset leaves the current page's [aria-current="page"]
+  //     link off-screen (menu shape changed: permissions, locale, module
+  //     set), center the active link instead. Direct scrollTop math, not
+  //     scrollIntoView — the latter can scroll ancestor containers too.
+  (function () {
+    const EL_ID = "pk-admin-sidebar";
+    const KEY = "phoenix_kit:admin:sidebar:scroll";
+
+    function readSaved() {
+      try {
+        const v = sessionStorage.getItem(KEY);
+        if (v == null) return null;
+        const n = parseInt(v, 10);
+        return isNaN(n) ? null : n;
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function save(el) {
+      try {
+        sessionStorage.setItem(KEY, String(Math.round(el.scrollTop)));
+      } catch (_e) {
+        // Storage unavailable (private browsing etc.) — degrade to the
+        // active-item fallback on the next load.
+      }
+    }
+
+    function restore(el) {
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      const saved = readSaved();
+      if (saved != null) {
+        el.scrollTop = Math.min(saved, max);
+      }
+
+      const active = el.querySelector('[aria-current="page"]');
+      if (!active) return;
+      const er = el.getBoundingClientRect();
+      const ar = active.getBoundingClientRect();
+      const visible = ar.top >= er.top && ar.bottom <= er.bottom;
+      if (saved == null || !visible) {
+        const target = el.scrollTop + (ar.top - er.top) - (el.clientHeight - ar.height) / 2;
+        el.scrollTop = Math.min(Math.max(0, target), max);
+      }
+    }
+
+    // Save side — bound once per full page load, element-independent.
+    let saveQueued = false;
+    document.addEventListener(
+      "scroll",
+      function (e) {
+        const el = e.target;
+        if (!el || el.id !== EL_ID || saveQueued) return;
+        saveQueued = true;
+        requestAnimationFrame(function () {
+          saveQueued = false;
+          const live = document.getElementById(EL_ID);
+          if (live) save(live);
+        });
+      },
+      { capture: true, passive: true }
+    );
+
+    function flush() {
+      const el = document.getElementById(EL_ID);
+      if (el) save(el);
+    }
+    window.addEventListener("phx:page-loading-start", flush);
+    window.addEventListener("pagehide", flush);
+
+    // Restore on full page loads (before the socket connects).
+    function early() {
+      const el = document.getElementById(EL_ID);
+      if (el) restore(el);
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", early);
+    } else {
+      early();
+    }
+
+    // Restore on live redirects (mounted re-fires on the fresh container,
+    // pre-paint). Idempotent with the early restore on full loads.
+    window.PhoenixKitHooks.AdminSidebarScroll = {
+      mounted() {
+        restore(this.el);
+      }
+    };
+  })();
+
   // NOTE: no scrollbar-gutter games here. Old daisyUI (5.0.x) reserved a
   // scrollbar gutter unconditionally while a modal was open, and this hook
   // used to counter it with an inline `scrollbar-gutter: auto` override —
