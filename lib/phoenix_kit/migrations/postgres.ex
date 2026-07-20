@@ -529,7 +529,15 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V153 - Folder header size defaults to small ⚡ LATEST
+  ### V154 - OpenGraph templates + assignments (`phoenix_kit_og`) ⚡ LATEST
+  - Adds `phoenix_kit_og_templates` (reusable OG canvas designs; JSONB
+    `canvas` element list) and `phoenix_kit_og_assignments` (binds a
+    template to a `module_key × scope_type × scope_uuid` scope with a JSONB
+    `slot_mapping`). Uniqueness via a partial-index pair (NULL `scope_uuid`
+    is the module-wide default tier); `template_uuid` cascades on delete.
+    Powers the `phoenix_kit_og` plugin.
+
+  ### V153 - Folder header size defaults to small
   - Flips `phoenix_kit_media_folders.header_size` column default from
     'medium' (V134) to 'small', and backfills existing 'medium' rows to
     'small' ('medium' was the old default, so it reads as untouched;
@@ -1329,7 +1337,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 153
+  @current_version 154
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

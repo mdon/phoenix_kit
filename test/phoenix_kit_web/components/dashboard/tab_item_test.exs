@@ -43,6 +43,22 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItemTest do
       assert html =~ "Home"
     end
 
+    test "active tab carries aria-current=page; inactive does not" do
+      # The AdminSidebarScroll JS (phoenix_kit.js) locates the current
+      # page's link via [aria-current="page"] to center it when no saved
+      # scroll position exists — and it's the accessible marker anyway.
+      tab = Tab.new!(id: :home, label: "Home", path: "/home", icon: "hero-home")
+
+      active_html =
+        render_component(&TabItem.tab_item/1, tab: tab, active: true, locale: nil)
+
+      inactive_html =
+        render_component(&TabItem.tab_item/1, tab: tab, active: false, locale: nil)
+
+      assert active_html =~ ~s(aria-current="page")
+      refute inactive_html =~ "aria-current"
+    end
+
     test "renders translated label when gettext_backend is set and locale is ru" do
       Gettext.put_locale(@backend, "ru")
 
