@@ -521,6 +521,16 @@ defmodule PhoenixKit.Users.Permissions do
 
   When the msgid has no translation for the active locale, gettext returns
   the msgid itself, so this never renders worse than `module_label/1`.
+
+  > #### Labels are runtime msgids {: .info}
+  >
+  > `mix gettext.extract` scans for `gettext`/`gettext_noop` call sites, so
+  > it cannot see a label that only exists as data in `permission_metadata/0`
+  > or a `register_custom_key/2` option. A module's label translates only if
+  > its exact string is already a msgid in the target backend's `.po` files —
+  > most core labels are, because the admin sidebar tabs mark the same
+  > strings with `gettext_noop/1`. When adding a module whose label is not
+  > yet a tab label, add the msgid to the backend's `.po` files by hand.
   """
   @spec localized_module_label(String.t()) :: String.t()
   def localized_module_label(key) do

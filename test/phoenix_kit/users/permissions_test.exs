@@ -152,6 +152,23 @@ defmodule PhoenixKit.Users.PermissionsTest do
       Permissions.unregister_custom_key("plain_key")
     end
 
+    test "a nil gettext_backend option leaves the key untranslated" do
+      # Tab-driven auto-registration passes the option through unconditionally;
+      # tabs without gettext config must not gain a bogus backend.
+      Permissions.register_custom_key("nil_backend",
+        label: "Users",
+        gettext_backend: nil,
+        gettext_domain: nil
+      )
+
+      refute Map.has_key?(Permissions.custom_keys_map()["nil_backend"], :gettext_backend)
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "et")
+      assert Permissions.localized_module_label("nil_backend") == "Users"
+    after
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      Permissions.unregister_custom_key("nil_backend")
+    end
+
     test "register_custom_key ignores a non-module gettext_backend" do
       Permissions.register_custom_key("bad_backend", label: "X", gettext_backend: "nope")
       refute Map.has_key?(Permissions.custom_keys_map()["bad_backend"], :gettext_backend)

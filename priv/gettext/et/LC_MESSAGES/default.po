@@ -10676,3 +10676,8 @@ msgstr "Ühtegi faili ei vasta otsingule."
 #, elixir-autogen, elixir-format
 msgid "Try a different term or clear the search"
 msgstr "Proovi teist otsingusõna või tühjenda otsing"
+
+#: lib/modules/maintenance/maintenance.ex:510
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr "Hooldus"
