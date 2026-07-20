@@ -131,10 +131,21 @@ defmodule PhoenixKit.Users.Permissions do
   - `:label` - Human-readable label (default: capitalized key)
   - `:icon` - Heroicon name (default: `"hero-squares-2x2"`)
   - `:description` - Short description (default: `""`)
+  - `:gettext_backend` - Optional Gettext backend module; when set,
+    `localized_module_label/1` translates the label with it (the label
+    string is the msgid), mirroring `PhoenixKit.Dashboard.Tab`
+  - `:gettext_domain` - Gettext domain for the label (default: `"default"`;
+    only meaningful together with `:gettext_backend`)
 
   ## Examples
 
       Permissions.register_custom_key("analytics", label: "Analytics", icon: "hero-chart-bar")
+
+      Permissions.register_custom_key("analytics",
+        label: "Analytics",
+        gettext_backend: MyAppWeb.Gettext,
+        gettext_domain: "admin"
+      )
   """
   @spec register_custom_key(String.t(), keyword()) :: :ok
   def register_custom_key(key, opts \\ []) when is_binary(key) do
@@ -170,6 +181,16 @@ defmodule PhoenixKit.Users.Permissions do
         |> coerce_string("")
         |> String.slice(0, @max_description_length)
     }
+
+    meta =
+      case Keyword.get(opts, :gettext_backend) do
+        backend when is_atom(backend) and not is_nil(backend) ->
+          domain = opts |> Keyword.get(:gettext_domain) |> coerce_string("default")
+          Map.merge(meta, %{gettext_backend: backend, gettext_domain: domain})
+
+        _ ->
+          meta
+      end
 
     # Note: persistent_term has no CAS, so concurrent register_custom_key calls
     # could theoretically exceed the limit by 1-2 keys. This is acceptable since
@@ -482,6 +503,57 @@ defmodule PhoenixKit.Users.Permissions do
       end
     end)
   end
+
+  @doc """
+  Returns `module_label/1` translated for the current Gettext locale.
+
+  Backend resolution mirrors `PhoenixKit.Dashboard.Tab.localized_label/1`
+  (the label string is the msgid):
+
+  * core sections and registered feature modules translate through the
+    library's own `PhoenixKitWeb.Gettext` (`"default"` domain) — the same
+    msgids the admin sidebar tabs already carry — unless the module
+    declares its own `gettext_backend`/`gettext_domain` in
+    `permission_metadata/0`;
+  * sub-permission keys inherit the parent module's backend;
+  * custom keys use the backend passed to `register_custom_key/2`, or fall
+    back to the raw label when none was registered.
+
+  When the msgid has no translation for the active locale, gettext returns
+  the msgid itself, so this never renders worse than `module_label/1`.
+  """
+  @spec localized_module_label(String.t()) :: String.t()
+  def localized_module_label(key) do
+    label = module_label(key)
+
+    case label_gettext(key) do
+      nil -> label
+      {backend, domain} -> Gettext.dgettext(backend, domain, label)
+    end
+  end
+
+  # Resolves which gettext {backend, domain} translates `key`'s label,
+  # following the same source order as module_label/1.
+  defp label_gettext(key) do
+    cond do
+      Map.has_key?(@core_labels, key) ->
+        {PhoenixKitWeb.Gettext, "default"}
+
+      Map.has_key?(ModuleRegistry.permission_labels(), key) ->
+        Map.get(ModuleRegistry.permission_gettext(), key, {PhoenixKitWeb.Gettext, "default"})
+
+      parent_key(key) != nil ->
+        label_gettext(parent_key(key))
+
+      true ->
+        custom_label_gettext(custom_key_metadata(key))
+    end
+  end
+
+  defp custom_label_gettext(%{gettext_backend: backend} = meta) when is_atom(backend),
+    do: {backend, meta[:gettext_domain] || "default"}
+
+  defp custom_label_gettext(_), do: nil
 
   @doc "Returns a Heroicon name for a module key (sub-permission keys inherit the parent module's icon)."
   @spec module_icon(String.t()) :: String.t()

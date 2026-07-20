@@ -1221,7 +1221,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp deny_module_disabled(socket, module_key) do
-    label = Permissions.module_label(module_key)
+    label = Permissions.localized_module_label(module_key)
 
     socket =
       socket
