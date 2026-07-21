@@ -540,9 +540,12 @@ defmodule PhoenixKit.Migrations.Postgres.V152Test do
   end
 
   describe "phoenix_kit_newsletters_broadcasts — CRM list source" do
-    test "list_uuid dropped its NOT NULL" do
-      assert %{type: "uuid", nullable: "YES"} =
-               column("phoenix_kit_newsletters_broadcasts", "list_uuid")
+    # V152 dropped list_uuid's NOT NULL; V156 then removed the column
+    # entirely (legacy lists migrated into CRM). The suite runs against
+    # the post-V156 schema, so the current pin is absence — the V156
+    # suite owns the positive assertions about what replaced it.
+    test "list_uuid is gone entirely (removed by V156)" do
+      assert column("phoenix_kit_newsletters_broadcasts", "list_uuid") == nil
     end
 
     test "source_type is a NOT NULL varchar defaulting to newsletters_list" do

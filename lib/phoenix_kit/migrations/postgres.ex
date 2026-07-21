@@ -529,7 +529,36 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V155 - Delivery CRM contact id + per-broadcast dedup ⚡ LATEST
+  ### V156 - Legacy newsletters lists migrated into CRM, tables dropped ⚡ LATEST
+  - **Requires a coordinated release with the newsletters module** — drops
+    tables/columns an older newsletters release still reads; see V156's
+    moduledoc warning
+  - Data: every `phoenix_kit_newsletters_lists` row copied to
+    `phoenix_kit_crm_lists` (same slug — reused if a CRM list already has
+    it), `subscribable = true`
+  - Data: a `phoenix_kit_crm_contacts` row per distinct user with a legacy
+    membership (reused if one already exists by email), linked to that
+    user's `user_uuid` via a straight UPDATE against `phoenix_kit_users` —
+    never creates a user, `connect_user/2`'s placeholder-minting is
+    structurally unreachable from this migration
+  - Data: legacy memberships copied to `phoenix_kit_crm_list_members`,
+    status mapped (`active`→`subscribed`, `unsubscribed`→`removed`),
+    `subscribed_at`/`unsubscribed_at` preserved verbatim (not `now()`);
+    `subscriber_count` recounted after
+  - Re-points every `newsletters_list` broadcast still referencing a
+    migrated list to `source_type = 'crm_list'` + `crm_list_uuid`; any
+    broadcast an orphaned `list_uuid` couldn't be re-pointed from (should
+    be none — `ON DELETE RESTRICT` guarantees referential integrity, see
+    moduledoc) has that uuid preserved into
+    `source_params->>'legacy_list_uuid'` first
+  - Drops `fk_newsletters_broadcasts_list` + `list_uuid` column, then
+    `phoenix_kit_newsletters_list_members` and `phoenix_kit_newsletters_lists`
+    themselves
+  - `down/1` restores the two tables (V79 shape) and the FK/column
+    (nullable, matching V152) — structure only, migrated/re-pointed data
+    is not moved back
+
+  ### V155 - Delivery CRM contact id + per-broadcast dedup
   - Adds `crm_contact_uuid` (bare, nullable UUID, no FK — same soft-ref
     pattern as `crm_list_uuid`) to `phoenix_kit_newsletters_deliveries`,
     plus a plain index on it
@@ -1358,7 +1387,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 155
+  @current_version 156
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
