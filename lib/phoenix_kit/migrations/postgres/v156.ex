@@ -37,8 +37,11 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
   second `up/1` run after the first one already dropped them):
 
     1. **Lists** — one `phoenix_kit_crm_lists` row per legacy list,
-       `name`/`slug`/`description`/`status` copied verbatim (both
-       schemas use the same status vocabulary, `active`/`archived`), NOT
+       `name`/`slug`/`description` copied verbatim; `status` through a
+       fail-closed CASE (`'active'` stays, anything else — including a
+       stray out-of-vocabulary value the un-CHECKed legacy column could
+       hold — becomes `'archived'`, since the CRM column's V152 CHECK
+       would otherwise abort the whole INSERT), NOT
        copied by `uuid` (unlike the V152 send-profiles precedent) — a
        fresh CRM-side `uuid` avoids relying on cross-table PK reuse. Slug
        is the idempotency key: `WHERE NOT EXISTS (... WHERE cl.slug =
@@ -50,10 +53,14 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
        than silently becoming inert bookkeeping.
 
     2. **Contacts** — a `phoenix_kit_crm_contacts` row per distinct user
-       referenced by a legacy membership, but ONLY for a user with no
-       contact yet at that email (`NOT EXISTS ... WHERE c.email =
-       u.email`); `name` falls back through first+last name, then the
-       email itself. **Guard, load-bearing:** user linking is a
+       referenced by a legacy membership, skipped only when a same-email
+       contact already exists that this user can end up attached to
+       (unlinked, or linked to this very user). A same-email contact
+       linked to a DIFFERENT user does not suppress creation — see the
+       comment on `create_contacts_for_migrating_users/1` for why that
+       carve-out is what keeps such a user's memberships from being
+       silently dropped. `name` falls back through first+last name, then
+       the email itself. **Guard, load-bearing:** user linking is a
        straight `UPDATE ... SET user_uuid = u.uuid ... WHERE
        c.user_uuid IS NULL` against `phoenix_kit_users` — reading an
        EXISTING user row, never creating one. `phoenix_kit_crm_contacts`
@@ -221,9 +228,17 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
   end
 
   defp migrate_lists(p) do
+    # Status CASE mirrors the fail-closed convention migrate_memberships/1
+    # already follows: the legacy column has no DB CHECK (V79, Ecto-only
+    # validation) while phoenix_kit_crm_lists.status DOES (V152,
+    # active/archived) — a stray legacy value must not abort the whole
+    # INSERT mid-migration, and fail-closed for a list means 'archived'
+    # (nothing can be sent to it until a human looks).
     execute("""
     INSERT INTO #{p}phoenix_kit_crm_lists (name, slug, description, status, subscribable)
-    SELECT l.name, l.slug, l.description, l.status, true
+    SELECT l.name, l.slug, l.description,
+      CASE l.status WHEN 'active' THEN 'active' ELSE 'archived' END,
+      true
     FROM #{p}phoenix_kit_newsletters_lists l
     WHERE NOT EXISTS (
       SELECT 1 FROM #{p}phoenix_kit_crm_lists cl WHERE cl.slug = l.slug
@@ -231,6 +246,17 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
     """)
   end
 
+  # Creation is skipped only when a same-email contact exists that this
+  # user can actually end up attached to: one already linked to THIS user,
+  # or an unlinked one the link step below will claim. A same-email
+  # contact linked to a DIFFERENT user does NOT suppress creation —
+  # `phoenix_kit_crm_contacts.email` carries no unique index (deliberate:
+  # always-new-contact policy, V152), and without this carve-out such a
+  # user would finish these steps with no contact carrying their
+  # user_uuid, silently dropping every membership row they had (the
+  # membership INSERT joins on `c.user_uuid = m.user_uuid`). Reachable
+  # via ordinary email drift: a user changes email, the freed address is
+  # re-registered by someone else who then subscribes.
   defp create_contacts_for_migrating_users(p) do
     execute("""
     INSERT INTO #{p}phoenix_kit_crm_contacts (name, email)
@@ -240,7 +266,9 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
     FROM #{p}phoenix_kit_users u
     WHERE u.uuid IN (SELECT DISTINCT user_uuid FROM #{p}phoenix_kit_newsletters_list_members)
       AND NOT EXISTS (
-        SELECT 1 FROM #{p}phoenix_kit_crm_contacts c WHERE c.email = u.email
+        SELECT 1 FROM #{p}phoenix_kit_crm_contacts c
+        WHERE c.email = u.email
+          AND (c.user_uuid IS NULL OR c.user_uuid = u.uuid)
       )
     """)
   end

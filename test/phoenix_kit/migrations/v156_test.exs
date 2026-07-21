@@ -113,7 +113,9 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
   defp copy_staged_lists_to_crm do
     Repo.query!("""
     INSERT INTO phoenix_kit_crm_lists (name, slug, description, status, subscribable)
-    SELECT l.name, l.slug, l.description, l.status, true
+    SELECT l.name, l.slug, l.description,
+      CASE l.status WHEN 'active' THEN 'active' ELSE 'archived' END,
+      true
     FROM staged_newsletters_lists l
     WHERE NOT EXISTS (
       SELECT 1 FROM phoenix_kit_crm_lists cl WHERE cl.slug = l.slug
@@ -131,7 +133,9 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
     FROM phoenix_kit_users u
     WHERE u.uuid IN (SELECT DISTINCT user_uuid FROM staged_newsletters_list_members)
       AND NOT EXISTS (
-        SELECT 1 FROM phoenix_kit_crm_contacts c WHERE c.email = u.email
+        SELECT 1 FROM phoenix_kit_crm_contacts c
+        WHERE c.email = u.email
+          AND (c.user_uuid IS NULL OR c.user_uuid = u.uuid)
       )
     """)
 
@@ -284,10 +288,30 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
 
       assert name == "Old Announcements"
       assert description == "Kept for history"
-      # Copied verbatim, not defaulted — proves the source value survives
-      # even when it differs from crm_lists.status's own default.
+      # Copied through the status CASE, not defaulted — proves the source
+      # value survives even when it differs from crm_lists.status's own
+      # default.
       assert status == "archived"
       assert subscribable == true
+    end
+
+    test "an out-of-vocabulary legacy status fails closed to archived instead of aborting on the CRM CHECK" do
+      stage_lists_and_members_tables()
+      slug = "v156-stray-status-#{System.unique_integer([:positive])}"
+
+      # The legacy column has no DB CHECK (V79) — only an Ecto validation
+      # — so a stray value like this is representable in a real database.
+      Repo.query!(
+        "INSERT INTO staged_newsletters_lists (uuid, name, slug, status) VALUES ($1, $2, $3, $4)",
+        [uuid!(), "Stray status", slug, "paused"]
+      )
+
+      copy_staged_lists_to_crm()
+
+      %{rows: [[status]]} =
+        Repo.query!("SELECT status FROM phoenix_kit_crm_lists WHERE slug = $1", [slug])
+
+      assert status == "archived"
     end
 
     test "reuses an existing CRM list with the same slug instead of duplicating it" do
@@ -405,6 +429,64 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
       assert length(linked) == 1
       assert [[_uuid, linked_user_uuid]] = linked
       assert linked_user_uuid == Ecto.UUID.dump!(user.uuid)
+    end
+
+    test "email claimed by a contact linked to a DIFFERENT user — a fresh contact is created and the membership survives" do
+      # Ordinary email drift: other_user's linked contact still snapshots
+      # an address that has since been freed and re-registered by `user`,
+      # who then subscribed. Without the (user_uuid IS NULL OR = u.uuid)
+      # carve-out in the creation guard, `user` would end these steps
+      # with NO contact carrying their user_uuid and the membership copy
+      # (INNER JOIN on c.user_uuid = m.user_uuid) would silently drop
+      # their rows.
+      user = insert_user!()
+      other_user = insert_user!()
+
+      foreign_contact_uuid =
+        insert_crm_contact!(%{email: user.email, user_uuid: other_user.uuid})
+
+      crm_list = insert_crm_list!()
+      stage_lists_and_members_tables()
+      legacy_list_uuid = uuid!()
+
+      Repo.query!(
+        "INSERT INTO staged_newsletters_lists (uuid, name, slug) VALUES ($1, $2, $3)",
+        [legacy_list_uuid, crm_list.name, crm_list.slug]
+      )
+
+      Repo.query!(
+        """
+        INSERT INTO staged_newsletters_list_members
+          (uuid, user_uuid, list_uuid, status, subscribed_at)
+        VALUES ($1, $2, $3, 'active', '2026-03-01T12:00:00Z')
+        """,
+        [uuid!(), Ecto.UUID.dump!(user.uuid), legacy_list_uuid]
+      )
+
+      create_and_link_contacts()
+      copy_staged_memberships_to_crm()
+
+      # A second contact now shares the email (legal: no unique index on
+      # crm_contacts.email) — the foreign one untouched, the new one
+      # linked to `user`.
+      %{rows: rows} =
+        Repo.query!(
+          "SELECT uuid, user_uuid FROM phoenix_kit_crm_contacts WHERE email = $1 ORDER BY inserted_at",
+          [user.email]
+        )
+
+      assert length(rows) == 2
+      assert [[^foreign_contact_uuid, foreign_linked], [new_contact_uuid, new_linked]] = rows
+      assert foreign_linked == Ecto.UUID.dump!(other_user.uuid)
+      assert new_linked == Ecto.UUID.dump!(user.uuid)
+
+      %{rows: [[member_count]]} =
+        Repo.query!(
+          "SELECT COUNT(*) FROM phoenix_kit_crm_list_members WHERE list_uuid = $1 AND contact_uuid = $2",
+          [crm_list.uuid, new_contact_uuid]
+        )
+
+      assert member_count == 1
     end
   end
 
