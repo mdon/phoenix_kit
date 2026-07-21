@@ -39,8 +39,11 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
       )
 
     case rows do
-      [[data_type, is_nullable, default]] -> %{type: data_type, nullable: is_nullable, default: default}
-      [] -> nil
+      [[data_type, is_nullable, default]] ->
+        %{type: data_type, nullable: is_nullable, default: default}
+
+      [] ->
+        nil
     end
   end
 
@@ -300,7 +303,9 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
 
       copy_staged_lists_to_crm()
 
-      %{rows: rows} = Repo.query!("SELECT uuid, name FROM phoenix_kit_crm_lists WHERE slug = $1", [slug])
+      %{rows: rows} =
+        Repo.query!("SELECT uuid, name FROM phoenix_kit_crm_lists WHERE slug = $1", [slug])
+
       assert [[found_uuid, "Already here"]] = rows
       assert found_uuid == existing_uuid
     end
@@ -409,8 +414,11 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
       unsubscribed_user = insert_user!()
       crm_list = insert_crm_list!()
 
-      active_contact = insert_crm_contact!(%{email: active_user.email, user_uuid: active_user.uuid})
-      unsub_contact = insert_crm_contact!(%{email: unsubscribed_user.email, user_uuid: unsubscribed_user.uuid})
+      active_contact =
+        insert_crm_contact!(%{email: active_user.email, user_uuid: active_user.uuid})
+
+      unsub_contact =
+        insert_crm_contact!(%{email: unsubscribed_user.email, user_uuid: unsubscribed_user.uuid})
 
       stage_lists_and_members_tables()
       legacy_list_uuid = uuid!()
@@ -479,7 +487,9 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
       recount([crm_list.slug])
 
       %{rows: [[subscriber_count]]} =
-        Repo.query!("SELECT subscriber_count FROM phoenix_kit_crm_lists WHERE uuid = $1", [crm_list.uuid])
+        Repo.query!("SELECT subscriber_count FROM phoenix_kit_crm_lists WHERE uuid = $1", [
+          crm_list.uuid
+        ])
 
       assert subscriber_count == 2
     end

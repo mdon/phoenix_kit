@@ -323,9 +323,7 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
 
     execute("DROP INDEX IF EXISTS #{p}idx_newsletters_broadcasts_list")
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts DROP COLUMN IF EXISTS list_uuid"
-    )
+    execute("ALTER TABLE #{p}phoenix_kit_newsletters_broadcasts DROP COLUMN IF EXISTS list_uuid")
   end
 
   defp down_drop_broadcast_list_fk(opts, prefix, p) do
