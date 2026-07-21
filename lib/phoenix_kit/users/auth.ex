@@ -1673,7 +1673,10 @@ defmodule PhoenixKit.Users.Auth do
       from(u in User,
         where: u.uuid == ^user.uuid,
         update: [
-          set: [custom_fields: fragment("? || ?", u.custom_fields, type(^additions, :map))]
+          set: [
+            custom_fields: fragment("? || ?", u.custom_fields, type(^additions, :map)),
+            updated_at: ^UtilsDate.utc_now()
+          ]
         ],
         select: u
       )
@@ -2039,7 +2042,10 @@ defmodule PhoenixKit.Users.Auth do
       from(u in User,
         where: u.uuid == ^user.uuid,
         update: [
-          set: [custom_fields: fragment("? - ?::text", u.custom_fields, ^key)]
+          set: [
+            custom_fields: fragment("? - ?::text", u.custom_fields, ^key),
+            updated_at: ^UtilsDate.utc_now()
+          ]
         ],
         select: u
       )

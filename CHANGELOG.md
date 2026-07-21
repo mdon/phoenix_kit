@@ -1,3 +1,31 @@
+## 1.7.207 - 2026-07-21
+
+### Added
+- **Migration V156** — migrates legacy `phoenix_kit_newsletters_lists` /
+  `..._list_members` into the CRM's `phoenix_kit_crm_lists` /
+  `..._crm_list_members` (spec §4.5), re-points
+  `phoenix_kit_newsletters_broadcasts` off `list_uuid` onto
+  `source_type = 'crm_list'` / `crm_list_uuid`, then drops the legacy tables
+  and column entirely. Requires a coordinated release with the newsletters
+  module — see the migration's moduledoc warning. `@current_version` bumped
+  155 → 156.
+- `PhoenixKit.Users.Auth.merge_user_custom_fields/3` — atomically merges keys
+  into a user's `custom_fields` JSONB column at the database level
+  (`custom_fields || additions` inside the `UPDATE` itself), closing a
+  lost-update race where two callers merging *different* keys concurrently
+  (e.g. a locale-preference switch and a newsletters opt-out) could silently
+  drop one writer's key. `delete_user_custom_field/3` gets the same atomic
+  treatment (`custom_fields - key`); `set_user_custom_field/3` and
+  `update_user_locale_preference/2` now route through these atomic
+  primitives instead of a read-modify-write whole-map replace.
+- `PhoenixKit.RepoHelper.update_all/3` — delegate to the configured repo's
+  `update_all/3`, needed by the atomic custom-fields primitives above.
+
+### Fixed
+- `merge_user_custom_fields/3` and `delete_user_custom_field/3` now bump
+  `updated_at` on write (missed in the initial PR since `Repo.update_all/2`,
+  unlike a changeset-backed `Repo.update/2`, doesn't auto-stamp timestamps).
+
 ## 1.7.206 - 2026-07-20
 
 ### Added

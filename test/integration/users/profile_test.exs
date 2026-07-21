@@ -172,6 +172,22 @@ defmodule PhoenixKit.Integration.Users.ProfileTest do
       assert {:error, :not_found} = Auth.merge_user_custom_fields(user, %{"key" => "value"})
     end
 
+    test "bumps updated_at, same as update_user_custom_fields/3 would" do
+      import Ecto.Query
+      user = create_user()
+
+      stale = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      PhoenixKit.RepoHelper.update_all(
+        from(u in PhoenixKit.Users.Auth.User, where: u.uuid == ^user.uuid),
+        set: [updated_at: stale]
+      )
+
+      {:ok, merged} = Auth.merge_user_custom_fields(user, %{"key" => "value"})
+
+      assert DateTime.compare(merged.updated_at, stale) == :gt
+    end
+
     test "ensure_definitions: false skips field-definition registration, same as update_user_custom_fields/3" do
       user = create_user()
       unique_key = "merge_check_#{System.unique_integer([:positive])}"
@@ -201,6 +217,22 @@ defmodule PhoenixKit.Integration.Users.ProfileTest do
 
       assert {:ok, unchanged} = Auth.delete_user_custom_field(user, "never_set")
       assert unchanged.custom_fields == (user.custom_fields || %{})
+    end
+
+    test "bumps updated_at, same as update_user_custom_fields/3 would" do
+      import Ecto.Query
+      user = create_user()
+
+      stale = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      PhoenixKit.RepoHelper.update_all(
+        from(u in PhoenixKit.Users.Auth.User, where: u.uuid == ^user.uuid),
+        set: [updated_at: stale]
+      )
+
+      {:ok, cleared} = Auth.delete_user_custom_field(user, "never_set")
+
+      assert DateTime.compare(cleared.updated_at, stale) == :gt
     end
 
     test "returns {:error, :not_found} for a deleted user" do
