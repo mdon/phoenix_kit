@@ -103,6 +103,13 @@ defmodule PhoenixKit.RepoHelper do
   end
 
   @doc """
+  Delegates to the configured repo's update_all function.
+  """
+  def update_all(queryable, updates, opts \\ []) do
+    repo().update_all(queryable, updates, opts)
+  end
+
+  @doc """
   Delegates to the configured repo's exists? function.
   """
   def exists?(queryable, opts \\ []) do

@@ -1624,6 +1624,70 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Atomically merges `additions` into a user's custom_fields JSONB column
+  at the database level (`custom_fields || additions`), instead of
+  `update_user_custom_fields/3`'s read-modify-write contract.
+
+  Every existing caller that wants to add/update a couple of keys while
+  preserving the rest follows the same pattern: fetch the user, compute
+  `Map.merge(user.custom_fields, %{"key" => value})` in Elixir, then call
+  `update_user_custom_fields/3` with the merged result. That has a real
+  lost-update race: two callers merging DIFFERENT keys into the same
+  user's custom_fields concurrently (say, a locale preference switch and
+  a newsletters opt-out) can each read the same pre-update snapshot, and
+  whichever write commits second silently overwrites the whole column
+  with a map that never saw the other's key — no error, no conflict
+  raised, just quietly missing data. Doing the merge inside the UPDATE
+  statement itself closes that window: Postgres serializes concurrent
+  writers on the same row, so the second UPDATE's `||` reads the FIRST
+  writer's already-committed value, not a stale snapshot.
+
+  Only ever ADDS or OVERWRITES the given keys — this can't clear/remove
+  one (unlike `update_user_custom_fields/3`, which replaces the whole
+  map and so CAN clear fields by omitting them from the replacement —
+  see that function's own tests). Reach for this whenever the intent is
+  "add/update these specific keys, leave everything else exactly as any
+  concurrent writer left it"; reach for `update_user_custom_fields/3`
+  when the caller genuinely needs to replace the whole map.
+
+  Returns `{:error, :not_found}` rather than raising if the user row was
+  deleted concurrently between the caller's read and this call.
+
+  ## Examples
+
+      iex> merge_user_custom_fields(user, %{"newsletters_opted_out_at" => "2026-01-01T00:00:00Z"})
+      {:ok, %User{}}
+  """
+  @spec merge_user_custom_fields(User.t(), map(), keyword()) ::
+          {:ok, User.t()} | {:error, :not_found}
+  def merge_user_custom_fields(%User{} = user, additions, opts \\ [])
+      when is_map(additions) do
+    if Keyword.get(opts, :ensure_definitions, true) do
+      CustomFields.ensure_definitions_exist(additions)
+    end
+
+    query =
+      from(u in User,
+        where: u.uuid == ^user.uuid,
+        update: [
+          set: [custom_fields: fragment("? || ?", u.custom_fields, type(^additions, :map))]
+        ]
+      )
+
+    case Repo.update_all(query, [], returning: true) do
+      {1, [updated_user]} ->
+        if Keyword.get(opts, :broadcast, true) do
+          Events.broadcast_user_updated(updated_user)
+        end
+
+        {:ok, updated_user}
+
+      {0, _} ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Updates both schema and custom fields in a single call.
 
   This is a unified update function that automatically splits the provided

@@ -2,6 +2,7 @@ defmodule PhoenixKit.Integration.Users.ProfileTest do
   use PhoenixKit.DataCase, async: true
 
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
 
   defp unique_email, do: "profile_#{System.unique_integer([:positive])}@example.com"
@@ -102,6 +103,77 @@ defmodule PhoenixKit.Integration.Users.ProfileTest do
         })
 
       assert updated.custom_fields["preferences"]["theme"] == "dark"
+    end
+  end
+
+  describe "merge_user_custom_fields/3" do
+    test "adds a new key while preserving existing ones (unlike update_user_custom_fields/3)" do
+      user = create_user()
+      {:ok, with_color} = Auth.update_user_custom_fields(user, %{"color" => "blue"})
+
+      {:ok, merged} = Auth.merge_user_custom_fields(with_color, %{"size" => "large"})
+
+      assert merged.custom_fields["color"] == "blue"
+      assert merged.custom_fields["size"] == "large"
+    end
+
+    test "overwrites an existing key's value, leaving the rest untouched" do
+      user = create_user()
+
+      {:ok, with_fields} =
+        Auth.update_user_custom_fields(user, %{"color" => "blue", "size" => "large"})
+
+      {:ok, merged} = Auth.merge_user_custom_fields(with_fields, %{"color" => "red"})
+
+      assert merged.custom_fields["color"] == "red"
+      assert merged.custom_fields["size"] == "large"
+    end
+
+    test "persists to the database" do
+      user = create_user()
+      {:ok, _} = Auth.merge_user_custom_fields(user, %{"persisted" => "yes"})
+
+      reloaded = Auth.get_user(user.uuid)
+      assert reloaded.custom_fields["persisted"] == "yes"
+    end
+
+    test "closes the lost-update race — two merges against the same stale in-memory user both survive" do
+      user = create_user()
+      {:ok, with_color} = Auth.update_user_custom_fields(user, %{"color" => "blue"})
+
+      # Both calls start from the SAME stale struct (with_color, whose
+      # in-memory custom_fields is already what the second call would
+      # read if this were a read-modify-write function) — exactly the
+      # shape of two concurrent callers racing off the same snapshot.
+      # update_user_custom_fields/3 would have the second call's write
+      # clobber the first's key entirely; merge_user_custom_fields/3
+      # merges at the database level, so neither key is lost regardless
+      # of what the caller's in-memory struct still thinks is current.
+      {:ok, _} = Auth.merge_user_custom_fields(with_color, %{"newsletters_opted_out_at" => "now"})
+      {:ok, _} = Auth.merge_user_custom_fields(with_color, %{"preferred_locale" => "et"})
+
+      reloaded = Auth.get_user(user.uuid)
+      assert reloaded.custom_fields["color"] == "blue"
+      assert reloaded.custom_fields["newsletters_opted_out_at"] == "now"
+      assert reloaded.custom_fields["preferred_locale"] == "et"
+    end
+
+    test "returns {:error, :not_found} instead of raising when the user row no longer exists" do
+      user = create_user()
+      actor = create_user()
+      {:ok, _} = Auth.delete_user(user, %{current_user: actor})
+
+      assert {:error, :not_found} = Auth.merge_user_custom_fields(user, %{"key" => "value"})
+    end
+
+    test "ensure_definitions: false skips field-definition registration, same as update_user_custom_fields/3" do
+      user = create_user()
+      unique_key = "merge_check_#{System.unique_integer([:positive])}"
+
+      {:ok, _} =
+        Auth.merge_user_custom_fields(user, %{unique_key => "x"}, ensure_definitions: false)
+
+      refute Enum.any?(CustomFields.list_field_definitions(), &(&1["key"] == unique_key))
     end
   end
 
