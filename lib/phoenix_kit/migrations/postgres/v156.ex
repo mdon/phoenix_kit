@@ -179,7 +179,16 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
     p = prefix_str(prefix)
 
     up_migrate_lists_and_members(opts, prefix, p)
-    up_repoint_broadcasts(p)
+
+    # Same guard as the data phase: the re-point UPDATE joins the legacy
+    # lists table and the orphan guard reads `list_uuid` — both are only
+    # legal while the legacy schema still exists. On a second up/1 run
+    # (table + column already dropped) section 3 must be a no-op, not an
+    # undefined_table/undefined_column error.
+    if table_exists?(opts, prefix, "phoenix_kit_newsletters_lists") do
+      up_repoint_broadcasts(p)
+    end
+
     up_drop_broadcast_list_fk(p)
     up_drop_list_tables(p)
 
@@ -302,13 +311,11 @@ defmodule PhoenixKit.Migrations.Postgres.V156 do
       AND b.source_type = 'newsletters_list'
     """)
 
-    # Orphan guard — see moduledoc. Runs unconditionally (not inside the
-    # table_exists? guard above): harmless/no-op once every
-    # 'newsletters_list' broadcast has been re-pointed, which the
-    # UPDATE above always achieves in practice (ON DELETE RESTRICT
-    # guarantees list_uuid always matched a row section 1 just
-    # migrated) — this only ever fires on data already inconsistent
-    # before this migration ran.
+    # Orphan guard — see moduledoc. In practice a no-op: ON DELETE
+    # RESTRICT guarantees every non-null list_uuid matched a row section
+    # 1 just migrated, so the UPDATE above re-points everything. This
+    # only ever fires on data already inconsistent before this migration
+    # ran.
     execute("""
     UPDATE #{p}phoenix_kit_newsletters_broadcasts b
     SET source_params = b.source_params || jsonb_build_object('legacy_list_uuid', b.list_uuid::text)

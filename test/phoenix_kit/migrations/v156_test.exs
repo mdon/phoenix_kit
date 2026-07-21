@@ -455,7 +455,7 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
         )
 
       assert status == "subscribed"
-      assert subscribed_at == ~U[2026-01-15 10:00:00Z]
+      assert DateTime.compare(subscribed_at, ~U[2026-01-15 10:00:00Z]) == :eq
       assert unsubscribed_at == nil
       assert source == "import"
 
@@ -466,8 +466,8 @@ defmodule PhoenixKit.Migrations.Postgres.V156Test do
         )
 
       assert status2 == "removed"
-      assert subscribed_at2 == ~U[2026-01-10 08:00:00Z]
-      assert unsubscribed_at2 == ~U[2026-02-01 09:30:00Z]
+      assert DateTime.compare(subscribed_at2, ~U[2026-01-10 08:00:00Z]) == :eq
+      assert DateTime.compare(unsubscribed_at2, ~U[2026-02-01 09:30:00Z]) == :eq
     end
 
     test "recount sets subscriber_count to the number of subscribed members only" do
