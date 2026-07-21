@@ -1566,17 +1566,19 @@ defmodule PhoenixKit.Users.Auth do
   def update_user_locale_preference(%User{} = user, preferred_locale) do
     case User.validate_locale_value(preferred_locale) do
       :ok ->
-        # Merge locale into existing custom_fields
-        current_fields = user.custom_fields || %{}
-
-        updated_fields =
-          if preferred_locale && preferred_locale != "" do
-            Map.put(current_fields, "preferred_locale", preferred_locale)
-          else
-            Map.delete(current_fields, "preferred_locale")
-          end
-
-        update_user_custom_fields(user, updated_fields)
+        # Both branches operate on the single affected key at the
+        # database level rather than replacing the whole map — this
+        # function is fired from the language-switcher hook and used to
+        # race (and lose against) any concurrent custom_fields writer,
+        # e.g. a newsletters opt-out. Validation stays above, on the
+        # explicit path, before anything touches the row.
+        if preferred_locale && preferred_locale != "" do
+          merge_user_custom_fields(user, %{"preferred_locale" => preferred_locale},
+            ensure_definitions: false
+          )
+        else
+          delete_user_custom_field(user, "preferred_locale")
+        end
 
       {:error, message} ->
         {:error, message}
@@ -1645,7 +1647,8 @@ defmodule PhoenixKit.Users.Auth do
   Only ever ADDS or OVERWRITES the given keys — this can't clear/remove
   one (unlike `update_user_custom_fields/3`, which replaces the whole
   map and so CAN clear fields by omitting them from the replacement —
-  see that function's own tests). Reach for this whenever the intent is
+  see that function's own tests); to remove a single key atomically use
+  `delete_user_custom_field/3`. Reach for this whenever the intent is
   "add/update these specific keys, leave everything else exactly as any
   concurrent writer left it"; reach for `update_user_custom_fields/3`
   when the caller genuinely needs to replace the whole map.
@@ -1671,10 +1674,11 @@ defmodule PhoenixKit.Users.Auth do
         where: u.uuid == ^user.uuid,
         update: [
           set: [custom_fields: fragment("? || ?", u.custom_fields, type(^additions, :map))]
-        ]
+        ],
+        select: u
       )
 
-    case Repo.update_all(query, [], returning: true) do
+    case Repo.update_all(query, []) do
       {1, [updated_user]} ->
         if Keyword.get(opts, :broadcast, true) do
           Events.broadcast_user_updated(updated_user)
@@ -2005,25 +2009,52 @@ defmodule PhoenixKit.Users.Auth do
       {:ok, %User{}}
   """
   def set_user_custom_field(%User{} = user, key, value) when is_binary(key) do
-    current_fields = user.custom_fields || %{}
-    updated_fields = Map.put(current_fields, key, value)
-    update_user_custom_fields(user, updated_fields)
+    # Delegates to the atomic merge rather than the historical
+    # Map.put + whole-map replace, so a concurrent writer touching a
+    # DIFFERENT key can no longer be silently overwritten — see
+    # merge_user_custom_fields/3.
+    merge_user_custom_fields(user, %{key => value})
   end
 
   @doc """
   Deletes a specific custom field for a user.
 
-  Removes the key from the custom_fields map.
+  Removes the key at the database level (`custom_fields - key`) — the
+  removal counterpart to `merge_user_custom_fields/3`, with the same
+  lost-update rationale: the historical Map.delete + whole-map replace
+  could silently drop a key a concurrent writer had just merged in.
+  Removing an absent key is a no-op that still returns `{:ok, user}`;
+  returns `{:error, :not_found}` if the user row was deleted
+  concurrently.
 
   ## Examples
 
       iex> delete_user_custom_field(user, "phone")
       {:ok, %User{}}
   """
-  def delete_user_custom_field(%User{} = user, key) when is_binary(key) do
-    current_fields = user.custom_fields || %{}
-    updated_fields = Map.delete(current_fields, key)
-    update_user_custom_fields(user, updated_fields)
+  @spec delete_user_custom_field(User.t(), String.t(), keyword()) ::
+          {:ok, User.t()} | {:error, :not_found}
+  def delete_user_custom_field(%User{} = user, key, opts \\ []) when is_binary(key) do
+    query =
+      from(u in User,
+        where: u.uuid == ^user.uuid,
+        update: [
+          set: [custom_fields: fragment("? - ?::text", u.custom_fields, ^key)]
+        ],
+        select: u
+      )
+
+    case Repo.update_all(query, []) do
+      {1, [updated_user]} ->
+        if Keyword.get(opts, :broadcast, true) do
+          Events.broadcast_user_updated(updated_user)
+        end
+
+        {:ok, updated_user}
+
+      {0, _} ->
+        {:error, :not_found}
+    end
   end
 
   @doc """
