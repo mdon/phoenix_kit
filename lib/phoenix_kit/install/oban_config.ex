@@ -20,6 +20,7 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_catalogue_pdf_queue: 2}
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
+  @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
   @dialyzer {:nowarn_function, add_cron_plugin_to_plugins: 2}
 
   alias Igniter.Libs.Phoenix
@@ -211,6 +212,10 @@ defmodule PhoenixKit.Install.ObanConfig do
       plugins: [
         # Pruner: delete completed/discarded jobs after 30 days
         {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+        # Lifeline: rescue jobs orphaned in :executing by a hard crash
+        # (BEAM kill -9, OOM, node failure) back to :available so they
+        # run again — without it, an orphaned job sits stuck forever.
+        {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
         {Oban.Plugins.Cron,
          crontab: [
            {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
@@ -266,13 +271,16 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> ensure_catalogue_pdf_queue(app_name)
       |> ensure_cron_plugin(app_name)
       |> ensure_pruner_max_age(app_name)
+      |> ensure_lifeline_plugin(app_name)
 
     if updated_content == content do
       Mix.shell().info(
-        "✅ Oban configuration already up-to-date (queues, cron plugin, and pruner max_age present)"
+        "✅ Oban configuration already up-to-date (queues, cron plugin, pruner max_age, and Lifeline present)"
       )
     else
-      Mix.shell().info("✅ Updated Oban configuration (queues, cron plugin, pruner retention)")
+      Mix.shell().info(
+        "✅ Updated Oban configuration (queues, cron plugin, pruner retention, Lifeline)"
+      )
     end
 
     Rewrite.Source.update(source, :content, updated_content)
@@ -534,6 +542,82 @@ defmodule PhoenixKit.Install.ObanConfig do
           Mix.shell().info("  ℹ️  Pruner configuration not found or already has options")
           content
         end
+      end
+    end
+  end
+
+  @doc """
+  Ensure the Lifeline plugin exists in an existing `config :app, Oban`
+  block's `plugins:` list, adding it if missing.
+
+  Rescues a job orphaned in `:executing` by a hard crash (BEAM `kill -9`,
+  OOM, node failure) back to `:available` so it runs again — without it,
+  an orphaned job sits stuck in `:executing` forever. That's more than a
+  stalled retry: for a unique worker whose unique `states:` includes
+  `:executing` (a self-scheduling chain deduping against its own
+  in-flight run is a common pattern — see `phoenix_kit_emails`' pollers),
+  an orphan permanently blocks every future insert for that worker too,
+  not just the one crashed job.
+
+  Public (not `defp`, unlike the sibling `ensure_*_queue/2` helpers)
+  specifically so this can be unit-tested directly against plain content
+  strings, the same way `oban_block_missing_prefix?/1` is — no live
+  Igniter/Mix context needed.
+  """
+  @spec ensure_lifeline_plugin(String.t(), atom() | String.t()) :: String.t()
+  def ensure_lifeline_plugin(content, app_name) do
+    if Regex.match?(~r/Oban\.Plugins\.Lifeline/, content) do
+      Mix.shell().info("  ℹ️  Lifeline plugin already configured")
+      content
+    else
+      Mix.shell().info("  ➕ Adding Oban.Plugins.Lifeline to Oban configuration...")
+
+      # The closing `]` is matched at the SAME indentation as the
+      # `plugins:` keyword itself (backreference `\\2`). A lazy `.*?` up
+      # to the first `]` would instead stop inside a nested list — the
+      # generated config's own Cron plugin carries `crontab: [...]`, and
+      # inserting there corrupts the file (review finding on this very
+      # function). Nested lists are always indented deeper, so anchoring
+      # the close to the keyword's indentation skips them.
+      case Regex.run(
+             ~r/(^([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
+             content,
+             capture: :all
+           ) do
+        [full_match, plugins_open, indent, plugins_content, plugins_close] ->
+          Mix.shell().info("  ✓ Found plugins block, adding Lifeline plugin")
+
+          trimmed_content = String.trim(plugins_content)
+          has_trailing_comma = String.ends_with?(trimmed_content, ",")
+
+          # Entry indentation inferred from the block's own: keyword
+          # indent + 2, matching how the generated template nests entries.
+          entry_indent = indent <> "  "
+
+          lifeline_entry =
+            entry_indent <> "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+
+          lifeline_plugin =
+            if has_trailing_comma do
+              "\n" <> lifeline_entry
+            else
+              ",\n" <> lifeline_entry
+            end
+
+          updated_plugins = plugins_open <> plugins_content <> lifeline_plugin <> plugins_close
+
+          String.replace(content, full_match, updated_plugins, global: false)
+
+        nil ->
+          Mix.shell().error(
+            "  ⚠️  Could not parse plugins block for :#{app_name} - skipping Lifeline plugin update"
+          )
+
+          Mix.shell().error(
+            "     Please manually add: {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+          )
+
+          content
       end
     end
   end
@@ -861,6 +945,8 @@ defmodule PhoenixKit.Install.ObanConfig do
         plugins: [
           # Pruner: delete completed/discarded jobs after 30 days
           {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+          # Lifeline: rescue jobs orphaned in :executing by a hard crash
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
           {Oban.Plugins.Cron,
            crontab: [
              {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
