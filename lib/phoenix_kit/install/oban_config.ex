@@ -278,7 +278,9 @@ defmodule PhoenixKit.Install.ObanConfig do
         "✅ Oban configuration already up-to-date (queues, cron plugin, pruner max_age, and Lifeline present)"
       )
     else
-      Mix.shell().info("✅ Updated Oban configuration (queues, cron plugin, pruner retention)")
+      Mix.shell().info(
+        "✅ Updated Oban configuration (queues, cron plugin, pruner retention, Lifeline)"
+      )
     end
 
     Rewrite.Source.update(source, :content, updated_content)
@@ -570,22 +572,36 @@ defmodule PhoenixKit.Install.ObanConfig do
     else
       Mix.shell().info("  ➕ Adding Oban.Plugins.Lifeline to Oban configuration...")
 
+      # The closing `]` is matched at the SAME indentation as the
+      # `plugins:` keyword itself (backreference `\\2`). A lazy `.*?` up
+      # to the first `]` would instead stop inside a nested list — the
+      # generated config's own Cron plugin carries `crontab: [...]`, and
+      # inserting there corrupts the file (review finding on this very
+      # function). Nested lists are always indented deeper, so anchoring
+      # the close to the keyword's indentation skips them.
       case Regex.run(
-             ~r/(^[ \t]+plugins:\s*\[\n)(.*?)(\n[ \t]+\])/ms,
+             ~r/(^([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
              content,
              capture: :all
            ) do
-        [full_match, plugins_open, plugins_content, plugins_close] ->
+        [full_match, plugins_open, indent, plugins_content, plugins_close] ->
           Mix.shell().info("  ✓ Found plugins block, adding Lifeline plugin")
 
           trimmed_content = String.trim(plugins_content)
           has_trailing_comma = String.ends_with?(trimmed_content, ",")
 
+          # Entry indentation inferred from the block's own: keyword
+          # indent + 2, matching how the generated template nests entries.
+          entry_indent = indent <> "  "
+
+          lifeline_entry =
+            entry_indent <> "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+
           lifeline_plugin =
             if has_trailing_comma do
-              "\n    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+              "\n" <> lifeline_entry
             else
-              ",\n    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+              ",\n" <> lifeline_entry
             end
 
           updated_plugins = plugins_open <> plugins_content <> lifeline_plugin <> plugins_close
