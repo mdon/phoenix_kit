@@ -1358,12 +1358,19 @@ defmodule PhoenixKitWeb.Integration do
         end
 
         scope unquote(internal_scope_path), PhoenixKit.Modules.Publishing.Web do
+          # :phoenix_kit_publishing_internal (restore_path) MUST run before
+          # :phoenix_kit_locale_validation — the locale plug's dialect/invalid
+          # redirects build their Location by string surgery on
+          # conn.request_path, and before the restore that path still carries
+          # the internal dispatch prefix, so the redirect leaks
+          # /__phoenix_kit_publishing_dispatch/... to the browser (404).
+          # Pipelines run after route binding, so restore_path is safe here.
           pipe_through [
             :browser,
             :phoenix_kit_auto_setup,
+            :phoenix_kit_publishing_internal,
             :phoenix_kit_locale_validation,
-            :phoenix_kit_optional_scope,
-            :phoenix_kit_publishing_internal
+            :phoenix_kit_optional_scope
           ]
 
           # Localized form — URL had a leading locale; bind :language + :group.
