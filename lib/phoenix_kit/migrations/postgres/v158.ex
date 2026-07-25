@@ -2,9 +2,10 @@ defmodule PhoenixKit.Migrations.Postgres.V158 do
   @moduledoc """
   V158: broadcast attachments (accumulator).
 
-  Per the one-open-migration rule this file is the accumulator for the
-  restructuring work until it ships in a release; later sections append
-  here rather than opening V159.
+  Opened as the accumulator for the newsletters restructuring work, with
+  one section. Shipped in 1.7.211 before a second section landed, so per
+  the one-open-migration rule it is now closed — the next restructuring
+  section opens V159 rather than appending here.
 
   ## Section: `phoenix_kit_newsletters_broadcasts.attachments`
 
@@ -27,6 +28,18 @@ defmodule PhoenixKit.Migrations.Postgres.V158 do
   the column itself only guarantees "a JSON array" via the CHECK — the
   DB-level backstop that a stray writer can't store an object/scalar
   here and crash every reader.
+
+  ## down/1
+
+  Drops the CHECK, then the column. Lossy in the ordinary sense — a
+  broadcast's attachment selection is destroyed, not merely orphaned —
+  but it's an editor selection rather than delivery-identifying history,
+  so it carries none of the "outlives the column" risk V155's
+  `crm_contact_uuid` does. The coordination rule from V155 still holds
+  though: the writer lives in `phoenix_kit_newsletters`, a separate
+  package with its own release cycle, so rolling V158 back while a
+  newsletters release that reads/writes `attachments` is still deployed
+  breaks that release outright. Roll both back together.
 
   All operations idempotent.
   """

@@ -9,13 +9,16 @@ defmodule PhoenixKit.Migrations.Postgres.V158Test do
 
   alias PhoenixKit.RepoHelper, as: Repo
 
+  # `table_schema` anchored to public: `prefix_migration_test.exs` runs the
+  # whole chain into a scratch schema on this same database, so an
+  # unanchored lookup can match two rows if a crashed run leaves it behind.
   defp column(table, name) do
     %{rows: rows} =
       Repo.query!(
         """
         SELECT data_type, is_nullable, column_default
         FROM information_schema.columns
-        WHERE table_name = $1 AND column_name = $2
+        WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2
         """,
         [table, name]
       )
@@ -42,6 +45,18 @@ defmodule PhoenixKit.Migrations.Postgres.V158Test do
         Repo.query!("""
         INSERT INTO phoenix_kit_newsletters_broadcasts (subject, attachments)
         VALUES ('V158 shape check', '{"not": "an array"}'::jsonb)
+        """)
+      end
+    end
+
+    # `jsonb_typeof` has six results; the object case above is only one of the
+    # five the CHECK must reject. A scalar is the shape a naive writer that
+    # stores a single uuid without wrapping it would produce.
+    test "the CHECK rejects a JSON scalar" do
+      assert_raise Postgrex.Error, ~r/attachments_is_array/, fn ->
+        Repo.query!("""
+        INSERT INTO phoenix_kit_newsletters_broadcasts (subject, attachments)
+        VALUES ('V158 scalar check', '"019f0000-0000-7000-8000-000000000001"'::jsonb)
         """)
       end
     end

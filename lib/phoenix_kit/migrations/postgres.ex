@@ -535,8 +535,8 @@ defmodule PhoenixKit.Migrations.Postgres do
     file uuids attached to every email of the broadcast; soft references
     (no FK) per this table's `crm_list_uuid` precedent, with a
     `jsonb_typeof = 'array'` CHECK as the DB-level shape backstop
-  - Unreleased — per the one-open-migration rule, further DDL lands here
-    as new sections until this ships
+  - Shipped in 1.7.211 — the accumulator is closed; the next restructuring
+    section opens V159
 
   ### V157 - Image annotation kind
   - Widens `phoenix_kit_annotations_kind_check` to allow `'image'`

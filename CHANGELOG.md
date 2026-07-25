@@ -1,3 +1,31 @@
+## 1.7.211 - 2026-07-25
+
+### Added
+- **Migration V158** — `attachments JSONB NOT NULL DEFAULT '[]'` on
+  `phoenix_kit_newsletters_broadcasts`: an ordered list of Storage file uuids
+  attached to every email of a broadcast, guarded by a
+  `phoenix_kit_newsletters_broadcasts_attachments_is_array` CHECK
+  (`jsonb_typeof = 'array'`). Soft references, no FK into
+  `phoenix_kit_files` — same precedent as this table's `crm_list_uuid` (V152)
+  and `source_params` (V155), so a file later deleted from Media degrades to
+  skipped-at-send rather than blocking the delete. Element-level validation
+  (uuid-ness, count cap) lives in the `phoenix_kit_newsletters` `Broadcast`
+  changeset. `@current_version` bumped 157 → 158 (PR #661).
+
+### Changed
+- `bandit` 1.12.0 → 1.12.1, `plug_crypto` 2.1.1 → 2.2.0.
+
+### Fixed
+- Post-merge review of PR #661 (`dev_docs/pull_requests/2026/661-broadcast-attachments-v158/`):
+  `v158_test.exs`'s `information_schema.columns` lookup now anchors
+  `table_schema = 'public'` — `prefix_migration_test.exs` builds the same table
+  in a scratch schema on the same database, so an interrupted run could leave
+  two matching rows and fail the suite with an unrelated `CaseClauseError`.
+  Added a CHECK-rejection test for a JSON scalar (the object case alone covered
+  one of the five non-array `jsonb_typeof` results), and a `## down/1`
+  moduledoc section recording that V158 must roll back together with the
+  newsletters release that writes the column.
+
 ## 1.7.210 - 2026-07-23
 
 ### Fixed
