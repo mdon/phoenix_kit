@@ -529,7 +529,22 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V156 - Legacy newsletters lists migrated into CRM, tables dropped ⚡ LATEST
+  ### V158 - Broadcast attachments (accumulator) ⚡ LATEST
+  - Adds `attachments JSONB NOT NULL DEFAULT '[]'` to
+    `phoenix_kit_newsletters_broadcasts` — an ordered list of Storage
+    file uuids attached to every email of the broadcast; soft references
+    (no FK) per this table's `crm_list_uuid` precedent, with a
+    `jsonb_typeof = 'array'` CHECK as the DB-level shape backstop
+  - Shipped in 1.7.211 — the accumulator is closed; the next restructuring
+    section opens V159
+
+  ### V157 - Image annotation kind
+  - Widens `phoenix_kit_annotations_kind_check` to allow `'image'`
+  - Pairs with the schema's `@kinds` (also widened) so Etcher's `:image`
+    tool — exposed in the media viewer's toolbar by PR #660 — can
+    actually persist; same regression shape as V130's `"marker"`
+
+  ### V156 - Legacy newsletters lists migrated into CRM, tables dropped
   - **Requires a coordinated release with the newsletters module** — drops
     tables/columns an older newsletters release still reads; see V156's
     moduledoc warning
@@ -1387,7 +1402,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 156
+  @current_version 158
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

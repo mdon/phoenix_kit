@@ -1,3 +1,75 @@
+## 1.7.211 - 2026-07-25
+
+### Added
+- **Migration V158** — `attachments JSONB NOT NULL DEFAULT '[]'` on
+  `phoenix_kit_newsletters_broadcasts`: an ordered list of Storage file uuids
+  attached to every email of a broadcast, guarded by a
+  `phoenix_kit_newsletters_broadcasts_attachments_is_array` CHECK
+  (`jsonb_typeof = 'array'`). Soft references, no FK into
+  `phoenix_kit_files` — same precedent as this table's `crm_list_uuid` (V152)
+  and `source_params` (V155), so a file later deleted from Media degrades to
+  skipped-at-send rather than blocking the delete. Element-level validation
+  (uuid-ness, count cap) lives in the `phoenix_kit_newsletters` `Broadcast`
+  changeset. `@current_version` bumped 157 → 158 (PR #661).
+
+### Changed
+- `bandit` 1.12.0 → 1.12.1, `plug_crypto` 2.1.1 → 2.2.0.
+
+### Fixed
+- Post-merge review of PR #661 (`dev_docs/pull_requests/2026/661-broadcast-attachments-v158/`):
+  `v158_test.exs`'s `information_schema.columns` lookup now anchors
+  `table_schema = 'public'` — `prefix_migration_test.exs` builds the same table
+  in a scratch schema on the same database, so an interrupted run could leave
+  two matching rows and fail the suite with an unrelated `CaseClauseError`.
+  Added a CHECK-rejection test for a JSON scalar (the object case alone covered
+  one of the five non-array `jsonb_typeof` results), and a `## down/1`
+  moduledoc section recording that V158 must roll back together with the
+  newsletters release that writes the column.
+
+## 1.7.210 - 2026-07-23
+
+### Fixed
+- **Issue #652** — `** (ArgumentError) flash not fetched, call fetch_flash/2`
+  on every router-rendered LiveView that redirects during mount with a flash
+  message set (e.g. `:phoenix_kit_ensure_admin`'s "You must log in to access
+  this page." redirect for unauthenticated admin-route hits). The dev/test
+  router's `:browser` pipeline had no `fetch_flash`/`fetch_live_flash` plug,
+  so `Phoenix.LiveView.Controller.live_render/3` crashed instead of
+  redirecting whenever it tried to fold the on-mount flash back onto the
+  conn. Added `plug :fetch_live_flash` to `lib/phoenix_kit_web/router.ex`'s
+  `:browser` pipeline, plus a regression test. Test-harness-only fix — real
+  parent apps generated via `mix phx.new` already carry this plug by
+  convention.
+
+## 1.7.209 - 2026-07-23
+
+### Added
+- **Etcher image annotation tool** — the media viewer's annotation toolbar
+  now exposes Etcher's `:image` tool (fresco `~> 0.10`, etcher `~> 0.9`),
+  which inserts an image annotation via the OS file picker as a `data:`
+  URL (PR #660).
+- **Migration V157** — widens `phoenix_kit_annotations_kind_check` to allow
+  the new `"image"` annotation kind, paired with `Annotation.@kinds`.
+  `@current_version` bumped 156 → 157.
+
+### Fixed
+- The `:image` toolbar tool added by PR #660 shipped without widening the
+  annotation kind whitelist/CHECK constraint to match — image annotations
+  drew fine client-side but silently failed to persist across a reload
+  (same regression class as V130's `"marker"` fix). Closed by V157 above.
+
+## 1.7.208 - 2026-07-21
+
+### Changed
+- `<.admin_page_header back={...}>`'s back affordance now renders inline
+  beside the title (a circular icon chip aligned to the title's first line)
+  instead of as a bare ghost button on its own row above it. When
+  `back_label` is set, the chip widens to show the label from the `sm`
+  breakpoint up; phones always stay icon-only. A blank `back_label=""` now
+  normalizes to absent instead of producing an empty `aria-label`/tooltip.
+  No attribute API change — all existing `back`/`back_label` call sites
+  render the new anatomy unchanged (PR #659).
+
 ## 1.7.207 - 2026-07-21
 
 ### Added
