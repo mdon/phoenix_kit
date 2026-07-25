@@ -100,4 +100,75 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       assert ObanConfig.oban_block_missing_prefix?(content)
     end
   end
+
+  describe "ensure_lifeline_plugin/2" do
+    test "adds the Lifeline plugin when the plugins list has a trailing comma" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+        ]
+      """
+
+      updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
+
+      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+      # Still valid-looking: the plugin was inserted inside the same block.
+      assert updated =~ ~r/plugins:\s*\[.*Oban\.Plugins\.Lifeline.*\]/s
+    end
+
+    test "adds the Lifeline plugin when the plugins list has no trailing comma" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}
+        ]
+      """
+
+      updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
+
+      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+    end
+
+    test "is a no-op when the Lifeline plugin is already present" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+        ]
+      """
+
+      assert ObanConfig.ensure_lifeline_plugin(content, "my_app") == content
+    end
+
+    test "a bare (no-opts) Oban.Plugins.Lifeline entry also counts as already present" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          Oban.Plugins.Lifeline
+        ]
+      """
+
+      assert ObanConfig.ensure_lifeline_plugin(content, "my_app") == content
+    end
+
+    test "leaves content unchanged when no plugins: block can be found" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10]
+      """
+
+      assert ObanConfig.ensure_lifeline_plugin(content, "my_app") == content
+    end
+  end
 end

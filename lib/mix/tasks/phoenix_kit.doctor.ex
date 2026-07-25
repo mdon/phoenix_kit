@@ -670,11 +670,29 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     queues = Keyword.get(config, :queues, [])
     plugins = Keyword.get(config, :plugins, [])
 
-    {:pass,
-     "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."}
+    base =
+      "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."
+
+    if lifeline_plugin_configured?(plugins) do
+      {:pass, base}
+    else
+      {:warn,
+       base <>
+         " Oban.Plugins.Lifeline is not configured — a job orphaned in :executing by a hard " <>
+         "crash (kill -9, OOM, node failure) is never rescued back to :available. Run " <>
+         "mix phoenix_kit.update to add {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}."}
+    end
   end
 
   defp check_oban_config(_other), do: {:pass, "Oban configured (non-keyword config)"}
+
+  defp lifeline_plugin_configured?(plugins) do
+    Enum.any?(plugins, fn
+      Oban.Plugins.Lifeline -> true
+      {Oban.Plugins.Lifeline, _opts} -> true
+      _ -> false
+    end)
+  end
 
   defp check_supervisor_state do
     case Process.whereis(PhoenixKit.Supervisor) do
