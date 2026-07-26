@@ -277,6 +277,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :time_zone, :string
       field :date_format, :string
       field :time_format, :string
+      field :editor_default_mode, :string
       field :track_registration_geolocation, :string
       field :registration_show_username, :string
       # Organization Accounts
@@ -337,6 +338,7 @@ defmodule PhoenixKit.Settings.Setting do
         :time_zone,
         :date_format,
         :time_format,
+        :editor_default_mode,
         :track_registration_geolocation,
         :registration_show_username,
         :enable_organization_accounts,
@@ -374,6 +376,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_date_format()
       |> validate_time_format()
       |> validate_track_registration_geolocation()
+      |> validate_inclusion(:editor_default_mode, ["hybrid", "visual", "markdown", "html"])
       |> validate_inclusion(:enable_organization_accounts, ["true", "false"])
     end
 
