@@ -667,8 +667,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   defp check_oban_config(nil), do: {:pass, "Oban not configured"}
 
   defp check_oban_config(config) when is_list(config) do
-    queues = Keyword.get(config, :queues, [])
-    plugins = Keyword.get(config, :plugins, [])
+    # `queues: false` / `plugins: false` is Oban's documented way to disable
+    # either wholesale (standard in test config, and used by hosts that run
+    # jobs on a separate node) — normalize so this check reports instead of
+    # raising into run_check/2's rescue as a bogus FAIL.
+    queues = config |> Keyword.get(:queues, []) |> normalize_oban_list()
+    plugins = config |> Keyword.get(:plugins, []) |> normalize_oban_list()
 
     base =
       "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."
@@ -680,11 +684,14 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        base <>
          " Oban.Plugins.Lifeline is not configured — a job orphaned in :executing by a hard " <>
          "crash (kill -9, OOM, node failure) is never rescued back to :available. Run " <>
-         "mix phoenix_kit.update to add {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}."}
+         "mix phoenix_kit.update to add {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}."}
     end
   end
 
   defp check_oban_config(_other), do: {:pass, "Oban configured (non-keyword config)"}
+
+  defp normalize_oban_list(value) when is_list(value), do: value
+  defp normalize_oban_list(_value), do: []
 
   defp lifeline_plugin_configured?(plugins) do
     Enum.any?(plugins, fn

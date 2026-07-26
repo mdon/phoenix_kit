@@ -1,3 +1,47 @@
+## 1.7.212 - 2026-07-26
+
+### Added
+- **`Oban.Plugins.Lifeline` shipped to host apps** (PR #662). The Oban config
+  `mix phoenix_kit.install` generates now carries
+  `{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}`, and
+  `mix phoenix_kit.update` backfills it into an existing host config via the
+  new `PhoenixKit.Install.ObanConfig.ensure_lifeline_plugin/2`. Without it a
+  job orphaned in `:executing` by a hard crash (`kill -9`, OOM, node loss) is
+  never returned to `:available` — and for a unique worker whose `states:`
+  includes `:executing`, that orphan permanently blocks every future insert
+  for the worker, not just the crashed job.
+- `mix phoenix_kit.doctor` warns when the host's running Oban config has no
+  Lifeline plugin, pointing at `mix phoenix_kit.update` as the remedy.
+
+### Changed
+- `bandit` 1.12.1 → 1.12.3.
+
+### Fixed
+- Post-merge review of PR #662 (`dev_docs/pull_requests/2026/662-oban-lifeline-installer/`):
+  - **`rescue_after` raised 30 → 60 minutes.** Lifeline rescues purely by
+    elapsed time and never checks whether the executing node is still alive, so
+    `rescue_after` must exceed the longest job the host can legitimately run.
+    PhoenixKit itself ships a 30-minute worker (`Storage.Workers.SyncFilesJob`),
+    and every worker without a `timeout/1` callback has no bound at all — at 30
+    minutes a long newsletters-delivery, shop-import or sitemap run would be
+    flipped back to `:available` and re-executed *concurrently with the still
+    running original* (duplicate emails on the delivery queue). 60 minutes is
+    Oban's own default and 2× the longest declared timeout. The invariant is
+    now documented in the generated `config.exs` comment and locked by a test
+    that asserts the emitted value exceeds every shipped worker's `timeout/1`.
+  - `add_cron_plugin_to_plugins/2` no longer matches its plugins-block close
+    with the un-anchored `\n[ \t]+\]`, which binds to the first *nested* list's
+    bracket — the same corruption PR #662 fixed in `ensure_lifeline_plugin/2`
+    but left in its sibling. A host whose `plugins:` list contains an entry with
+    a list option (`{Oban.Plugins.Reindexer, indexes: [...]}`, Oban Web's stats
+    plugin) would have had its `config.exs` mangled by `mix phoenix_kit.update`.
+    It now uses the same indentation-anchored pattern and derives the inserted
+    entry's indentation from the block instead of hardcoding four spaces.
+  - `mix phoenix_kit.doctor`'s Oban check no longer raises on `queues: false` /
+    `plugins: false` — Oban's documented way to disable either, standard in test
+    config and on hosts that run jobs from a dedicated node. `length(false)`
+    raised `ArgumentError`, surfacing as a bogus `FAIL Exception: ...`.
+
 ## 1.7.211 - 2026-07-25
 
 ### Added

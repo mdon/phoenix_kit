@@ -215,7 +215,13 @@ defmodule PhoenixKit.Install.ObanConfig do
         # Lifeline: rescue jobs orphaned in :executing by a hard crash
         # (BEAM kill -9, OOM, node failure) back to :available so they
         # run again — without it, an orphaned job sits stuck forever.
-        {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+        # rescue_after MUST stay above your longest-running job: Lifeline
+        # rescues purely by elapsed time, with no check that the node is
+        # still alive, so a job that legitimately runs longer is rescued
+        # mid-flight and executes a second time concurrently. 60 minutes
+        # is Oban's own default and 2x PhoenixKit's longest worker
+        # timeout (SyncFilesJob, 30 min).
+        {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)},
         {Oban.Plugins.Cron,
          crontab: [
            {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
@@ -559,6 +565,17 @@ defmodule PhoenixKit.Install.ObanConfig do
   an orphan permanently blocks every future insert for that worker too,
   not just the one crashed job.
 
+  `rescue_after` is Oban's default of 60 minutes rather than anything
+  more aggressive, and it must stay above the host's longest-running
+  job. Lifeline rescues purely by elapsed time — it never checks whether
+  the node is still alive — so a job that legitimately runs past
+  `rescue_after` is flipped back to `:available` (or `:discarded`, if its
+  attempts are exhausted) while the original process is still working,
+  and re-executes concurrently. PhoenixKit's longest declared worker
+  timeout is 30 minutes (`Storage.Workers.SyncFilesJob`); workers with no
+  `timeout/1` callback have no bound at all, which is the case the margin
+  is really protecting.
+
   Public (not `defp`, unlike the sibling `ensure_*_queue/2` helpers)
   specifically so this can be unit-tested directly against plain content
   strings, the same way `oban_block_missing_prefix?/1` is — no live
@@ -595,7 +612,7 @@ defmodule PhoenixKit.Install.ObanConfig do
           entry_indent = indent <> "  "
 
           lifeline_entry =
-            entry_indent <> "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+            entry_indent <> "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
 
           lifeline_plugin =
             if has_trailing_comma do
@@ -614,7 +631,7 @@ defmodule PhoenixKit.Install.ObanConfig do
           )
 
           Mix.shell().error(
-            "     Please manually add: {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+            "     Please manually add: {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
           )
 
           content
@@ -686,24 +703,46 @@ defmodule PhoenixKit.Install.ObanConfig do
   defp add_cron_plugin_to_plugins(content, app_name) do
     # Find the ACTIVE plugins block - must not be commented out
     # Pattern: line starts with spaces (not #), then plugins: [
+    #
+    # The closing `]` is anchored to the `plugins:` keyword's own
+    # indentation (backreference `\\2`), for the same reason as
+    # `ensure_lifeline_plugin/2`: a lazy `.*?` to the first indented `]`
+    # stops inside a nested list instead (a host plugin carrying its own
+    # list — `{Oban.Plugins.Reindexer, indexes: [...]}`, Oban Web's
+    # stats plugin — puts one right there), and inserting there corrupts
+    # the file. Nested lists are always indented deeper, so anchoring to
+    # the keyword's indentation skips them.
     case Regex.run(
-           ~r/(^[ \t]+plugins:\s*\[\n)(.*?)(\n[ \t]+\])/ms,
+           ~r/(^([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
            content,
            capture: :all
          ) do
-      [full_match, plugins_open, plugins_content, plugins_close] ->
+      [full_match, plugins_open, indent, plugins_content, plugins_close] ->
         Mix.shell().info("  ✓ Found plugins block, adding Cron plugin")
 
         # Check if content ends with comma
         trimmed_content = String.trim(plugins_content)
         has_trailing_comma = String.ends_with?(trimmed_content, ",")
 
+        # Entry indentation inferred from the block's own: keyword indent
+        # + 2, matching how the generated template nests entries.
+        entry_indent = indent <> "  "
+
+        cron_entry =
+          entry_indent <>
+            "{Oban.Plugins.Cron,\n" <>
+            entry_indent <>
+            " crontab: [\n" <>
+            entry_indent <>
+            "   {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n" <>
+            entry_indent <> " ]}"
+
         # Add cron plugin with proper formatting (matching existing indentation)
         cron_plugin =
           if has_trailing_comma do
-            "\n    {Oban.Plugins.Cron,\n     crontab: [\n       {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n     ]}"
+            "\n" <> cron_entry
           else
-            ",\n    {Oban.Plugins.Cron,\n     crontab: [\n       {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n     ]}"
+            ",\n" <> cron_entry
           end
 
         updated_plugins = plugins_open <> plugins_content <> cron_plugin <> plugins_close
@@ -946,7 +985,8 @@ defmodule PhoenixKit.Install.ObanConfig do
           # Pruner: delete completed/discarded jobs after 30 days
           {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
           # Lifeline: rescue jobs orphaned in :executing by a hard crash
-          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+          # (rescue_after must exceed your longest-running job)
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)},
           {Oban.Plugins.Cron,
            crontab: [
              {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},

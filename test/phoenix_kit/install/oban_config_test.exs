@@ -114,7 +114,7 @@ defmodule PhoenixKit.Install.ObanConfigTest do
 
       updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
 
-      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
       # Still valid-looking: the plugin was inserted inside the same block.
       assert updated =~ ~r/plugins:\s*\[.*Oban\.Plugins\.Lifeline.*\]/s
     end
@@ -131,7 +131,7 @@ defmodule PhoenixKit.Install.ObanConfigTest do
 
       updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
 
-      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}"
+      assert updated =~ "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
     end
 
     test "is a no-op when the Lifeline plugin is already present" do
@@ -141,7 +141,7 @@ defmodule PhoenixKit.Install.ObanConfigTest do
         queues: [default: 10],
         plugins: [
           {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
-          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}
         ]
       """
 
@@ -216,6 +216,39 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       """
 
       assert ObanConfig.ensure_lifeline_plugin(content, "my_app") == content
+    end
+
+    test "rescue_after stays above every worker timeout PhoenixKit ships" do
+      # Lifeline rescues purely by elapsed time and never checks whether the
+      # node is still alive, so a rescue_after at or below a real job's
+      # runtime re-runs that job concurrently with the still-live original
+      # (duplicate deliveries, duplicate syncs). Any worker that declares a
+      # longer timeout/1 — or a new long-running one — must move this value
+      # up, not the other way around.
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60}
+        ]
+      """
+
+      updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
+
+      [rescue_after_minutes] =
+        Regex.run(~r/rescue_after: :timer\.minutes\((\d+)\)/, updated, capture: :all_but_first)
+
+      rescue_after = :timer.minutes(String.to_integer(rescue_after_minutes))
+
+      longest_worker_timeout =
+        [
+          PhoenixKit.Modules.Storage.Workers.SyncFilesJob,
+          PhoenixKit.Modules.Storage.ProcessFileJob,
+          PhoenixKit.Modules.Sitemap.SchedulerWorker
+        ]
+        |> Enum.map(& &1.timeout(%Oban.Job{}))
+        |> Enum.max()
+
+      assert rescue_after > longest_worker_timeout
     end
   end
 end
