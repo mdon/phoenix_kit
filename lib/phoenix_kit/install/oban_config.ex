@@ -21,11 +21,22 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
   @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
+  @dialyzer {:nowarn_function, maybe_raise_lifeline_rescue_after: 1}
   @dialyzer {:nowarn_function, add_cron_plugin_to_plugins: 2}
 
   alias Igniter.Libs.Phoenix
   alias Igniter.Project.Application
   alias PhoenixKit.Install.IgniterHelpers
+
+  # Lifeline rescues purely by elapsed time, with no check that the node
+  # executing the job is still alive, so rescue_after must stay above the
+  # longest job a host can legitimately run or that job is rescued mid-flight
+  # and executes a second time concurrently. 60 minutes is Oban's own default;
+  # 30 is the longest timeout/1 PhoenixKit itself ships
+  # (Storage.Workers.SyncFilesJob), and is therefore the floor below which an
+  # existing entry gets raised rather than left alone.
+  @lifeline_rescue_after_minutes 60
+  @lifeline_min_rescue_after_minutes 30
 
   @doc """
   Adds or verifies Oban configuration.
@@ -221,7 +232,7 @@ defmodule PhoenixKit.Install.ObanConfig do
         # mid-flight and executes a second time concurrently. 60 minutes
         # is Oban's own default and 2x PhoenixKit's longest worker
         # timeout (SyncFilesJob, 30 min).
-        {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)},
+        #{lifeline_entry()},
         {Oban.Plugins.Cron,
          crontab: [
            {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
@@ -584,8 +595,7 @@ defmodule PhoenixKit.Install.ObanConfig do
   @spec ensure_lifeline_plugin(String.t(), atom() | String.t()) :: String.t()
   def ensure_lifeline_plugin(content, app_name) do
     if Regex.match?(~r/Oban\.Plugins\.Lifeline/, content) do
-      Mix.shell().info("  ℹ️  Lifeline plugin already configured")
-      content
+      maybe_raise_lifeline_rescue_after(content)
     else
       Mix.shell().info("  ➕ Adding Oban.Plugins.Lifeline to Oban configuration...")
 
@@ -611,14 +621,11 @@ defmodule PhoenixKit.Install.ObanConfig do
           # indent + 2, matching how the generated template nests entries.
           entry_indent = indent <> "  "
 
-          lifeline_entry =
-            entry_indent <> "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
-
           lifeline_plugin =
             if has_trailing_comma do
-              "\n" <> lifeline_entry
+              "\n" <> entry_indent <> lifeline_entry()
             else
-              ",\n" <> lifeline_entry
+              ",\n" <> entry_indent <> lifeline_entry()
             end
 
           updated_plugins = plugins_open <> plugins_content <> lifeline_plugin <> plugins_close
@@ -630,12 +637,51 @@ defmodule PhoenixKit.Install.ObanConfig do
             "  ⚠️  Could not parse plugins block for :#{app_name} - skipping Lifeline plugin update"
           )
 
-          Mix.shell().error(
-            "     Please manually add: {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}"
-          )
+          Mix.shell().error("     Please manually add: #{lifeline_entry()}")
 
           content
       end
+    end
+  end
+
+  # Single source for the entry every emit site writes, so the value and the
+  # invariant behind it can't drift apart across the template, the backfill and
+  # the manual-fallback message.
+  defp lifeline_entry do
+    "{Oban.Plugins.Lifeline, rescue_after: :timer.minutes(#{@lifeline_rescue_after_minutes})}"
+  end
+
+  # A Lifeline entry that is already present may still carry an unsafe
+  # rescue_after — hosts that hand-wrote one, or copied Oban's own docs example
+  # (`rescue_after: :timer.minutes(5)`), sit exactly in the window where a
+  # long-running job is rescued mid-flight and executes twice. Presence alone is
+  # not the thing worth checking, so raise a too-low literal instead of no-oping.
+  #
+  # Only the `:timer.minutes(N)` literal form is rewritten — the shape both
+  # PhoenixKit and Oban's docs emit. Any other expression (raw milliseconds, a
+  # module attribute, a runtime lookup) is left alone with a notice, because
+  # rewriting it blind is how an installer corrupts a host's config.
+  defp maybe_raise_lifeline_rescue_after(content) do
+    pattern =
+      ~r/\{Oban\.Plugins\.Lifeline,\s*rescue_after:\s*:timer\.minutes\((\d+)\)\}/
+
+    case Regex.run(pattern, content, capture: :all) do
+      [full_match, minutes] ->
+        if String.to_integer(minutes) <= @lifeline_min_rescue_after_minutes do
+          Mix.shell().info(
+            "  ⬆️  Raising Lifeline rescue_after #{minutes} → #{@lifeline_rescue_after_minutes} minutes " <>
+              "(at or below PhoenixKit's longest worker timeout, jobs would be rescued mid-flight)"
+          )
+
+          String.replace(content, full_match, lifeline_entry(), global: false)
+        else
+          Mix.shell().info("  ℹ️  Lifeline plugin already configured")
+          content
+        end
+
+      nil ->
+        Mix.shell().info("  ℹ️  Lifeline plugin already configured")
+        content
     end
   end
 
@@ -986,7 +1032,7 @@ defmodule PhoenixKit.Install.ObanConfig do
           {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
           # Lifeline: rescue jobs orphaned in :executing by a hard crash
           # (rescue_after must exceed your longest-running job)
-          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)},
+          #{lifeline_entry()},
           {Oban.Plugins.Cron,
            crontab: [
              {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},

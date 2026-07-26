@@ -51,6 +51,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   @switches [prefix: :string]
   @aliases [p: :prefix]
 
+  # The longest timeout/1 any worker PhoenixKit ships declares
+  # (Storage.Workers.SyncFilesJob). A Lifeline rescue_after at or below this is
+  # unsafe by construction — see check_lifeline_plugin/2.
+  @lifeline_min_rescue_after :timer.minutes(30)
+
   @impl Mix.Task
   def run(argv) do
     {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
@@ -671,20 +676,20 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     # either wholesale (standard in test config, and used by hosts that run
     # jobs on a separate node) — normalize so this check reports instead of
     # raising into run_check/2's rescue as a bogus FAIL.
+    raw_plugins = Keyword.get(config, :plugins, [])
     queues = config |> Keyword.get(:queues, []) |> normalize_oban_list()
-    plugins = config |> Keyword.get(:plugins, []) |> normalize_oban_list()
+    plugins = normalize_oban_list(raw_plugins)
 
     base =
       "#{length(queues)} queues, #{length(plugins)} plugins. Each active queue uses 1 pool connection."
 
-    if lifeline_plugin_configured?(plugins) do
-      {:pass, base}
+    # Plugins off on purpose (web-only node, test config). Nagging about
+    # Lifeline here is a false positive, and the remedy it recommends would
+    # rewrite config.exs for a node that must not run plugins at all.
+    if raw_plugins == false do
+      {:pass, base <> " Oban plugins are disabled on this node (plugins: false)."}
     else
-      {:warn,
-       base <>
-         " Oban.Plugins.Lifeline is not configured — a job orphaned in :executing by a hard " <>
-         "crash (kill -9, OOM, node failure) is never rescued back to :available. Run " <>
-         "mix phoenix_kit.update to add {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}."}
+      check_lifeline_plugin(plugins, base)
     end
   end
 
@@ -693,11 +698,45 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   defp normalize_oban_list(value) when is_list(value), do: value
   defp normalize_oban_list(_value), do: []
 
-  defp lifeline_plugin_configured?(plugins) do
-    Enum.any?(plugins, fn
-      Oban.Plugins.Lifeline -> true
-      {Oban.Plugins.Lifeline, _opts} -> true
-      _ -> false
+  # Lifeline's presence is necessary but not sufficient: it rescues purely by
+  # elapsed time with no liveness check, so a rescue_after at or below the
+  # longest job the host can run re-executes that job concurrently with the
+  # still-live original. Oban's own docs advertise :timer.minutes(5) as the
+  # "more aggressive period" example, so a too-low value is an easy thing for a
+  # host to copy in — validate the value, not just the entry.
+  defp check_lifeline_plugin(plugins, base) do
+    case lifeline_entry(plugins) do
+      nil ->
+        {:warn,
+         base <>
+           " Oban.Plugins.Lifeline is not configured — a job orphaned in :executing by a hard " <>
+           "crash (kill -9, OOM, node failure) is never rescued back to :available. Run " <>
+           "mix phoenix_kit.update to add {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}."}
+
+      {:ok, rescue_after}
+      when is_integer(rescue_after) and rescue_after <= @lifeline_min_rescue_after ->
+        {:warn,
+         base <>
+           " Oban.Plugins.Lifeline is configured with rescue_after: #{div(rescue_after, 60_000)} " <>
+           "minutes, at or below the longest job PhoenixKit ships " <>
+           "(Storage.Workers.SyncFilesJob, #{div(@lifeline_min_rescue_after, 60_000)} minutes). " <>
+           "Lifeline rescues purely by elapsed time and never checks whether the executing node " <>
+           "is alive, so a job still running at that mark is rescued and executes a second time " <>
+           "concurrently. Raise it above your longest-running job (60 minutes is Oban's default)."}
+
+      _ ->
+        {:pass, base}
+    end
+  end
+
+  # `{:ok, rescue_after}` where rescue_after is nil when unset — an unset value
+  # means Oban's own 60-minute default, which is safe.
+  defp lifeline_entry(plugins) do
+    Enum.find_value(plugins, fn
+      Oban.Plugins.Lifeline -> {:ok, nil}
+      {Oban.Plugins.Lifeline, opts} when is_list(opts) -> {:ok, Keyword.get(opts, :rescue_after)}
+      {Oban.Plugins.Lifeline, _opts} -> {:ok, nil}
+      _ -> nil
     end)
   end
 

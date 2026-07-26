@@ -206,3 +206,65 @@ and before the closing `]`. Degrades safely — the user gets the
 Gate: `mix precommit` (format + `compile --warnings-as-errors` + `credo --strict`
 + dialyzer) clean. `test/phoenix_kit/install/oban_config_test.exs` — 16 tests, 0
 failures.
+
+---
+
+## Second round (1.7.213) — external review of the 1.7.212 fixes
+
+An independent review of `2dd50a47` raised three items. All three were valid and
+are fixed; the first two are gaps in the 1.7.212 fixes themselves.
+
+### BUG - MEDIUM — presence-checking Lifeline let an unsafe `rescue_after` pass
+
+1.7.212 raised the value at every *emit* site, but both the installer and the
+doctor still only asked *is Lifeline present?*. So:
+
+- `ensure_lifeline_plugin/2` no-oped on any existing entry — a host carrying a
+  30-minute Lifeline was never upgraded by `mix phoenix_kit.update`.
+- `lifeline_plugin_configured?/1` returned a clean PASS for it.
+
+The narrow population (main-trackers who updated between the PR merge and
+1.7.212 — the 30-minute value was never published to Hex; `v1.7.212` is the
+first tag containing it) is not the real point. The general case is: Oban's own
+moduledoc advertises `rescue_after: :timer.minutes(5)` as its "more aggressive
+period" example, so a host copying from Oban's docs lands squarely in the
+duplicate-execution window and PhoenixKit told them everything was fine.
+
+**Fixed.** The doctor now validates the *value*: it warns when `rescue_after` is
+at or below `@lifeline_min_rescue_after` (30 min, the longest `timeout/1`
+PhoenixKit ships), and treats an unset `rescue_after` as safe since that means
+Oban's own 60-minute default. `ensure_lifeline_plugin/2` raises a too-low
+`:timer.minutes(N)` literal to 60 rather than no-oping. Only that literal form is
+rewritten — any other expression (raw milliseconds, an attribute, a runtime
+lookup) is left alone with a notice, because rewriting an expression the
+installer cannot evaluate is how a host's config gets corrupted.
+
+### BUG - MEDIUM — the `plugins: false` normalization created a false positive
+
+1.7.212's `normalize_oban_list/1` stopped the crash but then let `false` fall
+through as `[]` into the Lifeline branch — so a node that deliberately runs with
+plugins off got a warning telling it to run `mix phoenix_kit.update`, which would
+rewrite `config.exs` for a node that must not run plugins at all.
+
+**Fixed.** `plugins: false` now reports a pass ("Oban plugins are disabled on
+this node") and skips the Lifeline check entirely. The Lifeline warning is
+reserved for a real plugins list that omits or under-configures it.
+
+### NITPICK — the invariant test hardcoded three worker modules
+
+A new worker with a 45-minute timeout could land without touching that list, and
+the test would still pass while the margin eroded.
+
+**Fixed.** The test now discovers workers at runtime — every module in
+`:phoenix_kit` that implements the `Oban.Worker` behaviour and exports
+`timeout/1` — and asserts the emitted `rescue_after` exceeds the largest finite
+one, naming the offending module on failure. Workers with no `timeout/1` are
+excluded: Oban treats them as `:infinity`, and no finite `rescue_after` can
+protect an unbounded job, which is why the doc frames the invariant around
+*declared* timeouts. Verified the discovery finds all three (`SyncFilesJob`
+1800000, `SchedulerWorker` 600000, `ProcessFileJob` 300000).
+
+Also folded in: the `rescue_after` value now has a single source
+(`@lifeline_rescue_after_minutes` + `lifeline_entry/0`) feeding the generated
+template, the backfill, and the manual-fallback message, so the four emit sites
+can't drift again.

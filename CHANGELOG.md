@@ -1,3 +1,64 @@
+## 1.7.213 - 2026-07-26
+
+### Changed
+- **Lifeline is now validated by value, not just presence.** 1.7.212 raised the
+  shipped `rescue_after` to 60 minutes at every emit site, but both the
+  installer and `mix phoenix_kit.doctor` still only asked whether an
+  `Oban.Plugins.Lifeline` entry existed. Oban's own docs advertise
+  `rescue_after: :timer.minutes(5)` as the "more aggressive period" example, so
+  a host copying from them sat squarely in the duplicate-execution window while
+  PhoenixKit reported everything as fine.
+  - `mix phoenix_kit.doctor` warns when `rescue_after` is at or below the
+    longest `timeout/1` PhoenixKit ships (30 minutes,
+    `Storage.Workers.SyncFilesJob`). An *unset* `rescue_after` is treated as
+    safe — that means Oban's own 60-minute default.
+  - `PhoenixKit.Install.ObanConfig.ensure_lifeline_plugin/2` raises a too-low
+    `:timer.minutes(N)` literal to 60 instead of no-oping on any existing entry.
+    Only that literal form is rewritten; any other expression (raw
+    milliseconds, a module attribute, a runtime lookup) is left untouched with
+    a notice rather than blind-edited.
+  - The value now has a single source (`lifeline_entry/0`) feeding the
+    generated template, the backfill and the manual-fallback message, so the
+    emit sites cannot drift apart again.
+- **V157 `down/1` fails loudly instead of opaquely** (issue #663). Rolling back
+  re-adds the narrower `phoenix_kit_annotations_kind_check`, and Postgres
+  validates a CHECK against every existing row — so one `kind = 'image'`
+  annotation created since `up/1` made the rollback die with a bare `23514`
+  partway through. `down/1` now checks first and raises a message naming the row
+  count and the two real ways forward (remove/convert the rows, or stay on V157
+  — its widened CHECK is a superset of V156's). The check runs before anything
+  is queued, so no half-applied DDL is left behind. Deleting user annotations
+  from a rollback, and `NOT VALID` (a constraint that lies about the rows
+  already present), were both rejected as worse; see the new
+  `## down/1 is conditional, by necessity` moduledoc section.
+
+### Fixed
+- `mix phoenix_kit.doctor` no longer emits a false-positive Lifeline warning on
+  a node running `plugins: false`. 1.7.212 stopped the `length(false)` crash but
+  then let `false` fall through as `[]` into the Lifeline branch, so a
+  deliberately plugin-less node was told to run `mix phoenix_kit.update` — which
+  would rewrite `config.exs` for a node that must not run plugins at all. It now
+  reports plugins-disabled and skips the check.
+
+### Added
+- `test/phoenix_kit/migrations/v157_test.exs` (issue #663) — V157 was the one
+  recent migration with no test of its own. Deliberately narrow:
+  `annotations/annotation_kind_test.exs` already pins both layers accepting
+  `"image"`, so this file pins the CHECK's *whole* vocabulary, which is what a
+  later migration could silently narrow while leaving that file green. Not yet
+  executed against a live database — see the investigation doc.
+- The Lifeline invariant test now discovers workers at runtime (every
+  `Oban.Worker` in `:phoenix_kit` exporting `timeout/1`) instead of hardcoding
+  three modules, so a new long-running worker fails the test rather than
+  quietly eroding the margin.
+- `dev_docs/investigations/2026-07-26-issue-663-post-release-audit.md` — full
+  write-up of issue #663's four items, including the two that did **not** hold
+  up: the Tessera CDN pin (`tessera@v0.3.1` vs `mix.lock` 0.3.4) is a cosmetic
+  mismatch only — `alexdont/tessera` has no `v0.3.4` tag, so the recommended
+  bump would 404 the loader, and the asset is byte-identical across v0.3.1,
+  v0.3.2 and hex 0.3.4 — and the `#652` host-router note is already satisfied by
+  the `:browser` pipeline `mix phx.new` scaffolds.
+
 ## 1.7.212 - 2026-07-26
 
 ### Added
