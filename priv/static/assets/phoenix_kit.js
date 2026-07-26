@@ -3745,11 +3745,12 @@ if (typeof window.Chart === "undefined") {
   // LEAF EDITOR (loaded from CDN)
   //
   // Auto-loads Leaf editor JS from CDN when the hook mounts.
-  // The Elixir LiveComponent comes from the {:leaf, "~> 0.1.0"} hex dependency.
+  // The Elixir LiveComponent comes from the {:leaf, "~> 0.3"} hex dependency.
+  // Keep this pin in lockstep with the resolved hex version in mix.lock.
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.2.23/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.3.2/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
