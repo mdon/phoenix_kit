@@ -1,4 +1,4 @@
-## Unreleased
+## 1.7.215 - 2026-07-27
 
 ### Fixed
 - **Sitemap: `/users/qr-login` and `/robots.txt` no longer land in the sitemap**
