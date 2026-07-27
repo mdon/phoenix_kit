@@ -34,7 +34,7 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
       <.form_section title={gettext("Provider Configuration")}>
         <:subtitle>
           {gettext("Credentials live in")}
-          <.pk_link navigate="/admin/settings/integrations" class="link link-primary">
+          <.pk_link navigate="/admin/settings/integrations/website" class="link link-primary">
             Settings → Integrations
           </.pk_link>.
         </:subtitle>

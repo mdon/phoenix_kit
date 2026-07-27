@@ -270,15 +270,6 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         "settings"
       ),
       admin_subtab(
-        :admin_settings_integrations,
-        gettext_noop("Integrations"),
-        "hero-link",
-        "integrations",
-        915,
-        :admin_settings,
-        "settings"
-      ),
-      admin_subtab(
         :admin_settings_email_sending,
         gettext_noop("Email Sending"),
         "hero-envelope",
@@ -295,6 +286,47 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         917,
         :admin_settings_email_sending,
         "settings"
+      ),
+      # Integrations — a Settings sub-section grouping "My Integrations"
+      # (personal, "integrations" key) and "Website Integrations" (system,
+      # "integrations_system" key). Shown if the user holds EITHER key; the
+      # parent link redirects to the first sub-subtab they can actually reach
+      # (so a system-only user lands on Website, not the personal index).
+      %Tab{
+        id: :admin_integrations,
+        label: gettext_noop("Integrations"),
+        icon: "hero-link",
+        path: "integrations",
+        priority: 920,
+        level: :admin,
+        parent: :admin_settings,
+        match: :prefix,
+        subtab_display: :when_active,
+        highlight_with_subtabs: false,
+        redirect_to_first_subtab: true,
+        visible: &__MODULE__.integrations_visible?/1,
+        gettext_backend: PhoenixKitWeb.Gettext
+      },
+      admin_subtab(
+        :admin_integrations_mine,
+        gettext_noop("My Integrations"),
+        "hero-user",
+        "integrations",
+        921,
+        :admin_integrations,
+        "integrations",
+        # Active on the personal pages (/integrations, /new, /:uuid) but not on
+        # the "/integrations/website*" pages owned by the Website sub-subtab.
+        match: {:regex, ~r{^/admin/settings/integrations(?!/website)}}
+      ),
+      admin_subtab(
+        :admin_integrations_website,
+        gettext_noop("Website Integrations"),
+        "hero-globe-alt",
+        "integrations/website",
+        922,
+        :admin_integrations,
+        "integrations_system"
       ),
       %Tab{
         id: :admin_settings_media,
@@ -339,14 +371,31 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
   """
   @spec settings_visible?(map()) :: boolean()
   def settings_visible?(scope) do
-    # Settings visible if user has core "settings" permission
-    # or any module permission that provides settings tabs
+    # Settings visible if user has core "settings" permission, "media",
+    # either integrations key (the Settings › Integrations sub-section), or
+    # any module permission that provides settings tabs.
     Scope.has_module_access?(scope, "settings") or
       Scope.has_module_access?(scope, "media") or
+      integrations_visible?(scope) or
       Enum.any?(settings_tab_permissions(), &Scope.has_module_access?(scope, &1))
   rescue
     error ->
       Logger.warning("[AdminTabs] settings_visible?/1 failed: #{Exception.message(error)}")
+      false
+  end
+
+  @doc """
+  Whether the unified Integrations section is visible — the user holds the
+  personal `integrations` key OR the website-wide `integrations_system` key.
+  Each subtab is then gated by its own key.
+  """
+  @spec integrations_visible?(map()) :: boolean()
+  def integrations_visible?(scope) do
+    Scope.has_module_access?(scope, "integrations") or
+      Scope.has_module_access?(scope, "integrations_system")
+  rescue
+    error ->
+      Logger.warning("[AdminTabs] integrations_visible?/1 failed: #{Exception.message(error)}")
       false
   end
 

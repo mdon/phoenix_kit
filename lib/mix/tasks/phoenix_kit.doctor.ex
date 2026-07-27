@@ -98,7 +98,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
       run_check("Child Start Order", fn -> check_child_order() end),
       run_check("Update Mode", fn -> check_update_mode() end),
-      run_check("daisyUI Version", fn -> check_daisyui() end)
+      run_check("daisyUI Version", fn -> check_daisyui() end),
+      run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end)
     ]
 
     IO.puts("")
@@ -950,6 +951,22 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         {:warn,
          "No assets/vendor/daisyui.js — custom daisyUI setup? PhoenixKit is designed " <>
            "against daisyUI #{minimum}+; make sure your setup matches."}
+    end
+  end
+
+  # The user dashboard (/dashboard) is deprecated. It still works unchanged, so
+  # this is advisory: WARN while it's enabled (a heads-up that it's going away
+  # in favor of the unified /admin panel), PASS once a host has disabled it.
+  # install/update print the same advisory (see PhoenixKit.Install.Deprecations).
+  defp check_user_dashboard_deprecation do
+    if PhoenixKit.Config.user_dashboard_enabled?() do
+      {:warn,
+       "The user dashboard (/dashboard) is deprecated. It still works and needs no " <>
+         "action now, but will be removed in a future release — its functionality is " <>
+         "moving into the unified admin panel (/admin), which shows sections per the " <>
+         "viewer's permissions."}
+    else
+      {:pass, "User dashboard disabled — nothing to migrate."}
     end
   end
 

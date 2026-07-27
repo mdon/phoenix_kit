@@ -267,7 +267,7 @@ defmodule PhoenixKit.Integration.Users.PermissionsCascadeTest do
       assert Scope.accessible_modules(scope) == MapSet.new()
       refute Scope.has_module_access?(scope, "dashboard")
       # still admin? (holds the role) — shell access, but every gated view denies
-      assert Scope.admin?(scope)
+      assert Scope.can_access_admin_area?(scope)
     end
 
     test "emptying the table (present, migrated) does NOT restore Admin full access",

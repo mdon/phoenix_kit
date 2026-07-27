@@ -84,7 +84,10 @@
         <%= if @email_connections == [] do %>
           <p class="text-sm text-base-content/60">
             {gettext("No email-capable integrations connected yet.")}
-            <.pk_link navigate="/admin/settings/integrations/new" class="link link-primary">
+            <.pk_link
+              navigate="/admin/settings/integrations/website/new"
+              class="link link-primary"
+            >
               {gettext("Add one")}
             </.pk_link>
           </p>

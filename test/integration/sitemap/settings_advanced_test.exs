@@ -16,6 +16,10 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsAdvancedTest do
   @path Routes.path("/admin/settings/sitemap")
 
   defp setup_admin(%{conn: conn}) do
+    # The sitemap module defaults to DISABLED (`sitemap_enabled` = false); the
+    # settings LV's admin gate blocks disabled modules for everyone, so enable it
+    # or `live/2` mount is denied (and the deny's put_flash crashes the test conn).
+    Settings.update_boolean_setting("sitemap_enabled", true)
     {user, _token} = create_admin_user()
     conn = log_in_user(conn, user)
     %{conn: conn, user: user}

@@ -59,16 +59,66 @@ defmodule PhoenixKit.Users.PermissionsTest do
   end
 
   describe "all_module_keys/0" do
-    test "is the union of core and feature keys" do
-      all = Permissions.all_module_keys()
-      expected = Permissions.core_section_keys() ++ Permissions.feature_module_keys()
-      assert MapSet.new(all) == MapSet.new(expected)
+    test "includes the superadmin key plus the core, integration, and feature keys" do
+      all = MapSet.new(Permissions.all_module_keys())
+
+      assert "*" in all
+      assert MapSet.subset?(MapSet.new(Permissions.core_section_keys()), all)
+      assert MapSet.subset?(MapSet.new(Permissions.integration_keys()), all)
+      assert MapSet.subset?(MapSet.new(Permissions.feature_module_keys()), all)
     end
 
     test "has expected built-in keys count" do
-      core_count = length(Permissions.core_section_keys())
-      feature_count = length(Permissions.feature_module_keys())
-      assert length(Permissions.all_module_keys()) == core_count + feature_count
+      # "*" superadmin + core + integration + feature + sub + custom keys.
+      expected =
+        1 + length(Permissions.core_section_keys()) +
+          length(Permissions.integration_keys()) +
+          length(Permissions.feature_module_keys()) +
+          length(Permissions.sub_permission_keys()) +
+          length(Permissions.custom_keys())
+
+      assert length(Permissions.all_module_keys()) == expected
+    end
+  end
+
+  # --- operator baseline / admin_baseline_exclusions (REG-1 × REG-3) ---
+
+  describe "admin_baseline_exclusions/0 (operator baseline)" do
+    setup do
+      on_exit(fn -> Permissions.clear_custom_keys() end)
+      :ok
+    end
+
+    test "excludes the built-in opt-in key AND any auto_grant_admin: false custom key" do
+      Permissions.register_custom_key("sensitive_thing", auto_grant_admin: false)
+
+      assert "sensitive_thing" in Permissions.opt_out_custom_keys()
+      assert "sensitive_thing" in Permissions.admin_baseline_exclusions()
+      assert "integrations" in Permissions.admin_baseline_exclusions()
+    end
+
+    test "a default (auto_grant_admin: true) custom key is NOT excluded" do
+      Permissions.register_custom_key("normal_tab", auto_grant_admin: true)
+
+      refute "normal_tab" in Permissions.opt_out_custom_keys()
+      refute "normal_tab" in Permissions.admin_baseline_exclusions()
+    end
+
+    test "a default-Admin-shaped scope stays Owner-equivalent even with an opt-out custom key present" do
+      Permissions.register_custom_key("sensitive_thing", auto_grant_admin: false)
+
+      # The opt-out key IS in the grantable set, so without the exclusion a
+      # default Admin (which never holds it) would fail holds_all → REG-1.
+      assert MapSet.member?(Permissions.enabled_module_keys(), "sensitive_thing")
+
+      operator =
+        MapSet.difference(
+          Permissions.enabled_module_keys(),
+          MapSet.new(Permissions.admin_baseline_exclusions())
+        )
+
+      refute MapSet.member?(operator, "sensitive_thing")
+      assert Scope.holds_all_enabled_permissions?(%Scope{cached_permissions: operator})
     end
   end
 

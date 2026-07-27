@@ -244,7 +244,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                 <%= if PhoenixKit.Users.Auth.Scope.owner?(@scope) do %>
                   <div class="badge badge-error badge-xs">Owner</div>
                 <% else %>
-                  <%= if PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+                  <%= if PhoenixKit.Users.Auth.Scope.can_access_admin_area?(@scope) do %>
                     <div class="badge badge-warning badge-xs">Admin</div>
                   <% else %>
                     <div class="badge badge-ghost badge-xs">User</div>
@@ -498,7 +498,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             <%= if PhoenixKit.Users.Auth.Scope.owner?(@scope) do %>
               <div class="badge badge-error badge-xs">Owner</div>
             <% else %>
-              <%= if PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+              <%= if PhoenixKit.Users.Auth.Scope.can_access_admin_area?(@scope) do %>
                 <div class="badge badge-warning badge-xs">Admin</div>
               <% else %>
                 <div class="badge badge-ghost badge-xs">User</div>

@@ -433,7 +433,11 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/users/sessions", Live.Users.Sessions, :index
       live "/admin/activity", Live.Activity.Index, :index
       live "/admin/activity/:uuid", Live.Activity.Show, :show
-      live "/admin/notifications", Live.Modules.Notifications.Index, :index
+      # Notifications: personal inbox + per-type settings, both gated by the
+      # base "notifications" permission. Distinct static segments — no route
+      # shadowing, order-independent.
+      live "/admin/notifications", Live.Notifications.Inbox, :index
+      live "/admin/notifications/settings", Live.Notifications.Settings, :edit
       live "/admin/media", Live.Users.Media, :index
       live "/admin/media/selector", Live.Users.MediaSelector, :index
       live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
@@ -441,9 +445,19 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/users", Live.Settings.Users, :index
       live "/admin/settings/authorization", Live.Settings.Authorization, :index
       live "/admin/settings/organization", Live.Settings.Organization, :index
-      live "/admin/settings/integrations", Live.Settings.Integrations, :index
-      live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
-      live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
+      # Website-wide integrations — the "Website Integrations" sub-subtab of the
+      # Settings › Integrations section (gated by "integrations_system"). Declared
+      # BEFORE the personal "/:uuid" route below so the static "website" segment
+      # isn't captured as a uuid.
+      live "/admin/settings/integrations/website", Live.Settings.Integrations, :index
+      live "/admin/settings/integrations/website/new", Live.Settings.IntegrationForm, :new
+      live "/admin/settings/integrations/website/:uuid", Live.Settings.IntegrationForm, :edit
+
+      # Personal per-user integrations — the "My Integrations" sub-subtab (gated
+      # by the independent "integrations" permission).
+      live "/admin/settings/integrations", Live.Integrations.MyIntegrations, :index
+      live "/admin/settings/integrations/new", Live.Integrations.MyIntegrationForm, :new
+      live "/admin/settings/integrations/:uuid", Live.Integrations.MyIntegrationForm, :edit
 
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via
@@ -1358,18 +1372,27 @@ defmodule PhoenixKitWeb.Integration do
         end
 
         scope unquote(internal_scope_path), PhoenixKit.Modules.Publishing.Web do
+          # :phoenix_kit_publishing_internal (restore_path) MUST run before
+          # :phoenix_kit_locale_validation — the locale plug's dialect/invalid
+          # redirects build their Location by string surgery on
+          # conn.request_path, and before the restore that path still carries
+          # the internal dispatch prefix, so the redirect leaks
+          # /__phoenix_kit_publishing_dispatch/... to the browser (404).
+          # Pipelines run after route binding, so restore_path is safe here.
           pipe_through [
             :browser,
             :phoenix_kit_auto_setup,
+            :phoenix_kit_publishing_internal,
             :phoenix_kit_locale_validation,
-            :phoenix_kit_optional_scope,
-            :phoenix_kit_publishing_internal
+            :phoenix_kit_optional_scope
           ]
 
           # Localized form — URL had a leading locale; bind :language + :group.
           scope unquote(localized_sub) do
             get "/:language/:group", Controller, :show
             get "/:language/:group/*path", Controller, :show
+            # Public comment submission (dead-view POST form on post pages).
+            post "/:language/:group/*path", Controller, :create_comment
           end
 
           # Non-localized form — URL had no leading locale; bind :group only.
@@ -1380,6 +1403,7 @@ defmodule PhoenixKitWeb.Integration do
           scope unquote(root_sub) do
             get "/:group", Controller, :show
             get "/:group/*path", Controller, :show
+            post "/:group/*path", Controller, :create_comment
           end
         end
 

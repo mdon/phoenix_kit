@@ -207,9 +207,12 @@ Centralized OAuth / API key / bot token / credential management. Full design: `d
 - `lib/phoenix_kit/integrations/integrations.ex` — main context (CRUD, OAuth, validation)
 - `lib/phoenix_kit/integrations/providers.ex` — provider registry (Google, OpenRouter built-in)
 - `lib/phoenix_kit/integrations/oauth.ex` — generic OAuth 2.0 with CSRF state
-- `lib/phoenix_kit/integrations/events.ex` — PubSub events
-- `lib/phoenix_kit_web/live/settings/integrations.ex` + `integration_form.ex` — admin UI
+- `lib/phoenix_kit/integrations/events.ex` — PubSub events (owner-routed)
+- `lib/phoenix_kit/integrations/telegram.ex` — Telegram bot client (send + one-shot getUpdates)
+- `lib/phoenix_kit_web/live/settings/integrations.ex` + `integration_form.ex` — website-wide (system) UI
+- `lib/phoenix_kit_web/live/integrations/my_integrations.ex` + `my_integration_form.ex` — personal (per-user) UI
 - `lib/phoenix_kit_web/components/core/integration_picker.ex` — reusable picker
+- `lib/phoenix_kit_web/components/core/integrations_ui.ex` — shared setup UI (picker / status card / field / instructions)
 
 **Storage:** `phoenix_kit_settings` JSONB. Keys: `integration:{provider}:{name}` (e.g. `integration:google:default`). **Consumers reference connections by storage row uuid** — stable across renames.
 
@@ -236,6 +239,45 @@ A corrupted JSONB `provider`/`name` cannot leak into a new key — no public wri
 **Module callbacks:** `required_integrations/0` (declare needed providers), `integration_providers/0` (contribute custom providers).
 
 **Legacy migration:** modules implement optional `migrate_legacy/0` on `PhoenixKit.Module`. Host apps call `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0` from `Application.start/2`. Idempotent per module; errors are caught and logged. The pre-uuid `Integrations.run_legacy_migrations/0` is now a deprecated shim.
+
+### Owner scopes: website-wide + personal (per-user)
+
+Connections carry an **owner** — `:system | :any | {type, id}` (typed owners:
+`{:user, uuid}`, `{:dashboard, uuid}`, …) — stored in the **existing JSONB** as
+`owner_type` + `owner_uuid` (**no column, no migration**; owner-less / pre-typed
+rows read as `:user`). Two independent admin surfaces share the storage + the
+`integrations_ui.ex` markup:
+
+- **Personal** (`/admin/settings/integrations`, `Live.Integrations.MyIntegrations`
+  / `MyIntegrationForm`) — owner `{:user, current_uuid}`, gated by the
+  `integrations` permission key. The owner uuid comes ONLY from the request
+  scope, never params; every context call passes `owner:` explicitly (a forgotten
+  owner on `add_connection` would silently birth a SYSTEM row).
+- **Website-wide** (`/admin/settings/integrations/website`,
+  `Live.Settings.Integrations` / `IntegrationForm`) — owner `:system`, gated by
+  `integrations_system`. (Note the personal pages took the base path; the system
+  pages moved under `/website`.)
+
+Owner threading in `integrations.ex`: reads/mutations take an `:owner` opt,
+**default `:system`** (fail-safe — a personal row never leaks into a system
+workflow). `resolve_uuid/2` enforces owner on every uuid-strict mutation;
+`get_integration_by_uuid/2` is owner-scoped on the form edit-load path and fails
+closed on mismatch (never puts cross-owner decrypted creds in assigns).
+`owner_uuid` is **write-once** — set at birth by `add_connection`, preserved by
+`save_setup`/`disconnect`, and dropped from incoming attrs. SQL filter:
+`->>'owner_uuid' IS NULL` (system) / `= ?` + `COALESCE(->>'owner_type','user') = ?`
+(typed). **Do NOT encrypt `owner_uuid`** — the `->>` filter needs it plaintext.
+
+**Provider `scopes`** (`providers.ex`, `Providers.scopes_of/1` / `for_scope/1`):
+`[:system]` (default) / `[:personal]` / `[:system, :personal]`. Self-owned-secret
+providers (api_key / smtp / ses) are personal-capable; OAuth2 (Google/Microsoft)
+are `[:system]`-only. `add_connection` enforces the requested scope, so a crafted
+event can't birth a personal Google row. Personal picker uses `personal_offered/0`.
+
+**Events are owner-routed:** `Events.subscribe/1` + `topic_for_user/1` give a
+per-user topic (personal LV subscribes to its own; system LV keeps `subscribe/0`).
+Broadcast payloads carry only `uuid`/`provider`/`status` — never decrypted creds
+(`@sensitive_fields` redaction, which includes `oauth_state`).
 
 ## Core Form Components
 
@@ -282,7 +324,20 @@ absent = denied); Owner always has full access, enforced in code. The
 moduledoc is the source of truth; highlights:
 
 - **Module keys** gate admin sections/feature modules (`"billing"`,
-  `"calendar"`, …). Custom keys via `register_custom_key/2`.
+  `"calendar"`, …). Custom keys via `register_custom_key/2`. The two
+  **integration keys** (`"integrations"` personal + `"integrations_system"`
+  website-wide) are independent flat keys: `integrations_system` is auto-granted
+  to Admin, `integrations` is opt-in (never auto-granted).
+- **`"*"` superadmin key** (`Permissions.superadmin_key/0`): a blanket,
+  drift-immune grant that makes a role Owner-equivalent without enumerating keys.
+  In `all_module_keys/0` but deliberately NOT in `enabled_module_keys/0` (so it's
+  never a *required* key). `Scope.superadmin?/1` / `has_module_access?/2` /
+  `accessible_modules/1` honor it. Cannot be registered as a custom key.
+- **Admin-area gate**: `Scope.can_access_admin_area?/1` — true for Owner, Admin,
+  OR any single permission holder. (Renamed from `admin?/1`, which is now a
+  `@deprecated` alias — the old name misled: it was never "is the Admin role".)
+  `Scope.holds_all_enabled_permissions?/1` is the "can do everything, like Owner"
+  check (compares vs `enabled_module_keys − admin_baseline_exclusions`, plus `"*"`).
 - **Sub-permissions** (added 1.7.182): fine-grained dotted keys under a
   base (`"calendar.view_others"`), declared in the optional
   `sub_permissions` field of `permission_metadata/0`. The base key gates
@@ -385,6 +440,40 @@ metadata: %{
 ```
 
 Any key can be absent — Render falls back to the action lookup for the missing parts.
+
+### Delivery channels (external destinations)
+
+Pluggable per-user routing of notifications to **external** destinations
+(Telegram, Email; more via modules) on top of the in-app inbox. **Model B —
+parallel routing layer**: the inbox path above is untouched; external channels
+are computed + enqueued independently, so "Telegram on, inbox off" works with
+**no migration** (config rides `users.custom_fields`).
+
+- **`PhoenixKit.Notifications.Channel`** behaviour: `key/0`, `label/0`, `icon/0`,
+  `configured?/2`, `deliver/2`, optional `validate_config/1`. `deliver/2` takes a
+  channel-neutral, pre-rendered `t:envelope/0` (absolute URL) and returns a
+  permanent/transient error taxonomy so the worker decides retry-vs-give-up.
+- **`Channels`** registry: core `[Email, Telegram]` + modules' optional
+  `notification_channels/0` (same merge as `Types`). `Channels.Email` is
+  always-configured (sends via `Mailer`); `Channels.Telegram` auto-discovers the
+  recipient's Telegram connections + captured `chat_ids`.
+- **`ChannelConfig`** — per-channel config under
+  `custom_fields["notification_channel:<key>"]` (ONE top-level key per channel so
+  the atomic shallow `||` merge can't clobber siblings). Reserved: `enabled`
+  (default on), `types` (**fail-closed** per-type opt-in), `cadences`.
+- **`Routing`** — `targets_for_action/2` / `targets_for_type/2` / `any_target?/2`,
+  **fail-closed**: untyped / standalone sends never route out.
+- **Delivery**: `DeliveryWorker` on a dedicated `:notifications` Oban queue
+  (enqueued at creation for immediate cadences; the inbox insert is **decoupled**
+  from the enqueue, so a failed channel enqueue never costs the user their inbox
+  row). `DigestWorker` is an Oban cron (one entry per cadence: immediate / hourly
+  / 12h / daily / weekly) that counts activity in a fixed window and sends one
+  summary — no per-user last-sent state.
+- **Telegram setup** lives on the personal integration form (mode select + chat
+  capture folded into Test), NOT the notifications page. `mode`: `"single"` (lock
+  one chat) / `"multi"` (broadcast to all who started the bot); an **Unlink**
+  button clears captured `chat_ids`. The `notification_channel:telegram` config
+  holds only routing/cadence — connection + chat live on the integration.
 
 **Cleanup:** `PhoenixKit.Notifications.PruneWorker` daily (`"0 4 * * *"`). Retention: `notifications_retention_days` → falls back to `activity_retention_days` (default 90). Cascading FK deletes also remove notifications when the underlying activity is pruned.
 

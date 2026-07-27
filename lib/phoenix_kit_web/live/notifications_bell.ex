@@ -179,6 +179,18 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
               <% end %>
             </ul>
           <% end %>
+
+          <%!-- Footer: always present so the full inbox is one click away, even
+               when the recent list is empty. Built via Routes.path with the
+               recipient's own locale (like the notification links above). --%>
+          <div class="border-t border-base-200 p-2">
+            <.link
+              navigate={Routes.path("/admin/notifications", locale: @locale)}
+              class="btn btn-ghost btn-sm btn-block"
+            >
+              View all
+            </.link>
+          </div>
         </div>
       </div>
     </div>

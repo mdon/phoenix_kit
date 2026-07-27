@@ -55,37 +55,37 @@ defmodule PhoenixKit.Users.Auth.ScopeTest do
     end
   end
 
-  # --- admin?/1 ---
+  # --- can_access_admin_area?/1 (formerly admin?/1) ---
 
-  describe "admin?/1" do
+  describe "can_access_admin_area?/1" do
     test "returns true for Owner" do
       scope = build_scope(["Owner"])
-      assert Scope.admin?(scope)
+      assert Scope.can_access_admin_area?(scope)
     end
 
     test "returns true for Admin" do
       scope = build_scope(["Admin"])
-      assert Scope.admin?(scope)
+      assert Scope.can_access_admin_area?(scope)
     end
 
     test "returns false for User role without permissions" do
       scope = build_scope(["User"])
-      refute Scope.admin?(scope)
+      refute Scope.can_access_admin_area?(scope)
     end
 
     test "returns true for custom role WITH permissions" do
       scope = build_scope(["Editor"], permissions: MapSet.new(["dashboard"]))
-      assert Scope.admin?(scope)
+      assert Scope.can_access_admin_area?(scope)
     end
 
     test "returns false for custom role with empty permissions" do
       scope = build_scope(["Editor"], permissions: MapSet.new())
-      refute Scope.admin?(scope)
+      refute Scope.can_access_admin_area?(scope)
     end
 
     test "returns false for nil user" do
       scope = %Scope{user: nil, authenticated?: false}
-      refute Scope.admin?(scope)
+      refute Scope.can_access_admin_area?(scope)
     end
   end
 

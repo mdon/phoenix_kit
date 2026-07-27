@@ -49,7 +49,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
       this list can only narrow, never force-enable a disabled feature.
     * `:authenticated_links` — which authenticated-menu entries may appear, e.g.
       `[:admin, :dashboard, :settings, :logout]` (default: all). Same narrowing
-      rule as `:guest_links` — `:admin` still requires `Scope.admin?/1` to be
+      rule as `:guest_links` — `:admin` still requires `Scope.can_access_admin_area?/1` to be
       true, so listing it can't grant an entry a non-admin shouldn't see. Use
       this to hide entries (e.g. `:dashboard`) a host app's own navigation
       already covers.
@@ -103,7 +103,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
           <div class="divider my-0"></div>
 
-          <%= if :admin in @authenticated_links && PhoenixKit.Users.Auth.Scope.admin?(@scope) do %>
+          <%= if :admin in @authenticated_links && PhoenixKit.Users.Auth.Scope.can_access_admin_area?(@scope) do %>
             <li>
               <.link
                 navigate={PhoenixKit.Utils.Routes.path("/admin")}

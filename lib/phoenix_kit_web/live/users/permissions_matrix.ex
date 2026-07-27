@@ -142,7 +142,10 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
       # role's actual held keys under a lock (the cached matrix above can be
       # stale). `:unauthorized` means a concurrently-granted sub-key would have
       # been cascaded — refresh so the editor sees the current state.
-      case Permissions.revoke_permission(role_uuid, key, authorized_keys: grantable) do
+      case Permissions.revoke_permission(role_uuid, key,
+             authorized_keys: grantable,
+             actor_uuid: granted_by_uuid
+           ) do
         :ok ->
           {:noreply,
            socket
@@ -234,10 +237,17 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
       sub_permissions |> Map.values() |> List.flatten() |> Enum.map(& &1.key)
 
     core_keys = Permissions.core_section_keys()
+    integration_keys = Permissions.integration_keys()
     custom_keys = Permissions.custom_keys()
+    # The wildcard superadmin key gets its own row. Kept OUT of `visible_keys`
+    # (the per-role coverage counter denominator) — it is a meta-grant, not one
+    # of the enumerated surfaces the counter measures.
+    superadmin_keys = [Permissions.superadmin_key()]
 
     visible_keys =
-      MapSet.new(core_keys ++ enabled_feature_keys ++ enabled_sub_keys ++ custom_keys)
+      MapSet.new(
+        core_keys ++ integration_keys ++ enabled_feature_keys ++ enabled_sub_keys ++ custom_keys
+      )
 
     # Determine which roles can't be edited by the current user
     scope = socket.assigns[:phoenix_kit_current_scope]
@@ -253,6 +263,8 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
     |> assign(:roles, sorted_roles)
     |> assign(:matrix, matrix)
     |> assign(:core_keys, core_keys)
+    |> assign(:superadmin_keys, superadmin_keys)
+    |> assign(:integration_keys, integration_keys)
     |> assign(:feature_keys, enabled_feature_keys)
     |> assign(:sub_permissions, sub_permissions)
     |> assign(:custom_keys, custom_keys)

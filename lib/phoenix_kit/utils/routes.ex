@@ -293,6 +293,17 @@ defmodule PhoenixKit.Utils.Routes do
     "#{normalized_base}#{full_path}"
   end
 
+  @doc """
+  The bare base URL (scheme + host, no trailing slash), same source `url/1` uses.
+
+  For absolutizing a path that is **already** url-prefixed and locale-prefixed
+  (e.g. a notification's `link`, built via `path/1`) — concatenate it onto this
+  directly. Do NOT pass such a path to `url/1`, which re-applies `path/1` and
+  would double-prefix it.
+  """
+  @spec base_url() :: String.t()
+  def base_url, do: String.trim_trailing(get_base_url_for_emails(), "/")
+
   # Gets the base URL for email links.
   #
   # Priority:

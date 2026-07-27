@@ -26,7 +26,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       socket
       |> assign(:page_title, gettext("Add Integration"))
       |> assign(:project_title, project_title)
-      |> assign(:current_path, Routes.path("/admin/settings/integrations"))
+      |> assign(:current_path, Routes.path("/admin/settings/integrations/website"))
       |> assign(:providers, Providers.all())
       |> assign(:selected_provider, nil)
       |> assign(:provider, nil)
@@ -72,7 +72,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   end
 
   defp apply_action(socket, :edit, %{"uuid" => uuid} = params) do
-    case Integrations.get_integration_by_uuid(uuid) do
+    # Owner-scoped edit-load: the system form only ever loads SYSTEM
+    # connections, so a crafted URL to a user's personal uuid fails closed
+    # (redirects) instead of rendering that user's decrypted credentials.
+    case Integrations.get_integration_by_uuid(uuid, :system) do
       {:ok, %{provider: provider_key, name: name, data: data}} ->
         provider = Providers.get(provider_key)
 
@@ -100,7 +103,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
             %{"error" => error} ->
               description = params["error_description"] || error
-              clean_path = Routes.path("/admin/settings/integrations/#{uuid}")
+              clean_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
 
               socket
               |> put_flash(
@@ -119,14 +122,14 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       {:error, _} ->
         socket
         |> put_flash(:error, gettext("Integration not found"))
-        |> push_navigate(to: Routes.path("/admin/settings/integrations"))
+        |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))
     end
   end
 
   defp apply_action(socket, :edit, _params) do
     socket
     |> put_flash(:error, gettext("Invalid integration URL"))
-    |> push_navigate(to: Routes.path("/admin/settings/integrations"))
+    |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))
   end
 
   # ---------------------------------------------------------------------------
@@ -158,7 +161,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     provider_key = socket.assigns.selected_provider
     name = String.trim(name)
 
-    case Integrations.add_connection(provider_key, name, actor_uuid(socket)) do
+    case Integrations.add_connection(provider_key, name, actor_uuid(socket), owner: :system) do
       {:ok, %{uuid: uuid}} ->
         save_and_redirect(uuid, provider_key, name, params, socket)
 
@@ -198,7 +201,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
     # Reload data from the (now-disconnected) row
     data =
-      case Integrations.get_integration_by_uuid(uuid) do
+      case Integrations.get_integration_by_uuid(uuid, :system) do
         {:ok, %{data: d}} -> d
         _ -> %{}
       end
@@ -288,7 +291,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Connection removed"))
-         |> push_navigate(to: Routes.path("/admin/settings/integrations"))}
+         |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))}
 
       {:error, _reason} ->
         {:noreply, assign(socket, :error, gettext("Failed to remove connection."))}
@@ -334,7 +337,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     Integrations.record_validation(uuid, result)
 
     data =
-      case Integrations.get_integration_by_uuid(uuid) do
+      case Integrations.get_integration_by_uuid(uuid, :system) do
         {:ok, %{data: d}} -> d
         _ -> socket.assigns.data
       end
@@ -387,7 +390,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   # ---------------------------------------------------------------------------
 
   defp handle_oauth_callback(uuid, code, state, socket) do
-    clean_path = Routes.path("/admin/settings/integrations/#{uuid}")
+    clean_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
 
     # Verify CSRF state token if one was stored
     case verify_oauth_state(uuid, state) do
@@ -498,7 +501,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
     case Integrations.save_setup(uuid, attrs, actor_uuid(socket)) do
       {:ok, data} ->
-        edit_path = Routes.path("/admin/settings/integrations/#{uuid}")
+        edit_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
 
         socket =
           socket
@@ -589,7 +592,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp reload_data(socket) do
     if socket.assigns[:uuid] do
       data =
-        case Integrations.get_integration_by_uuid(socket.assigns.uuid) do
+        case Integrations.get_integration_by_uuid(socket.assigns.uuid, :system) do
           {:ok, %{data: d}} -> d
           _ -> %{}
         end
@@ -601,7 +604,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   end
 
   defp save_oauth_state(uuid, state) do
-    case Integrations.get_integration_by_uuid(uuid) do
+    case Integrations.get_integration_by_uuid(uuid, :system) do
       {:ok, %{data: data}} ->
         Integrations.save_setup(uuid, Map.put(data, "oauth_state", state))
 
@@ -611,7 +614,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   end
 
   defp verify_oauth_state(uuid, callback_state) do
-    case Integrations.get_integration_by_uuid(uuid) do
+    case Integrations.get_integration_by_uuid(uuid, :system) do
       {:ok, %{data: %{"oauth_state" => stored_state} = data}}
       when is_binary(stored_state) and stored_state != "" ->
         if callback_state == stored_state do
@@ -636,7 +639,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp build_redirect_uri(socket, uuid) do
     base = Settings.get_setting("site_url", "")
     locale = socket.assigns[:current_locale_base]
-    path = Routes.path("/admin/settings/integrations/#{uuid}", locale: locale)
+    path = Routes.path("/admin/settings/integrations/website/#{uuid}", locale: locale)
 
     if is_binary(base) and base != "" do
       "#{String.trim_trailing(base, "/")}#{path}"

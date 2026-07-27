@@ -529,7 +529,20 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V158 - Broadcast attachments (accumulator) ⚡ LATEST
+  ### V159 - Publishing categories + post view counters ⚡ LATEST
+  - `phoenix_kit_publishing_categories` — hierarchical per-group taxonomy
+    (nullable `parent_uuid` self-FK, V103 catalogue shape); `slug` unique
+    per group; `name_i18n` JSONB per-language display names; `position`
+    for manual ordering; group delete cascades, parent delete lifts
+    children to the root (`ON DELETE SET NULL`)
+  - `phoenix_kit_publishing_post_categories` — post↔category M:N
+    (post-level, WordPress semantics — not per-version); both sides
+    cascade
+  - `phoenix_kit_publishing_post_views` — per-day view rollups keyed
+    `(post_uuid, view_date)`, incremented in place; totals are
+    `SUM(count)`; dedup/bot filtering are app-side, no reader PII stored
+
+  ### V158 - Broadcast attachments (accumulator)
   - Adds `attachments JSONB NOT NULL DEFAULT '[]'` to
     `phoenix_kit_newsletters_broadcasts` — an ordered list of Storage
     file uuids attached to every email of the broadcast; soft references
@@ -1402,7 +1415,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 158
+  @current_version 159
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

@@ -92,6 +92,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       CssIntegration,
       DaisyUI,
       DbConnectionCheck,
+      Deprecations,
       EndpointIntegration,
       IgniterHelpers,
       JsIntegration,
@@ -637,6 +638,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # UI is designed against (the host owns the file; we never touch it)
       warn_if_daisyui_outdated()
 
+      # Advance heads-up that the user dashboard (/dashboard) is deprecated
+      # (still works unchanged; see PhoenixKit.Install.Deprecations)
+      warn_user_dashboard_deprecated()
+
       # Update JS hooks file
       JsIntegration.update_js_file()
 
@@ -985,6 +990,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         {:outdated, version} -> Mix.shell().info(DaisyUI.outdated_warning(version))
         _ -> :ok
       end
+    end
+
+    # Advance heads-up that the user dashboard (/dashboard) is deprecated. It
+    # still works unchanged — advisory only (see PhoenixKit.Install.Deprecations).
+    defp warn_user_dashboard_deprecated do
+      Mix.shell().info(Deprecations.user_dashboard_warning())
     end
 
     # Update CSS integration during PhoenixKit updates

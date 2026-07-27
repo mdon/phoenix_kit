@@ -26,6 +26,27 @@
             </tr>
           </thead>
           <tbody>
+            <%!-- Full Access (wildcard superadmin key) — a single blanket grant
+                 that makes a role Owner-equivalent and stays complete as new
+                 modules are added. Only Owner or an existing holder can grant it
+                 (the toggle authorizes against the editor's own held keys). --%>
+            <tr class="bg-warning/10">
+              <td
+                colspan={length(@roles) + 1}
+                class="sticky left-0 bg-warning/10 font-semibold text-xs uppercase tracking-wide text-warning py-2"
+              >
+                {gettext("Full Access")}
+              </td>
+            </tr>
+            <.permission_row
+              :for={key <- @superadmin_keys}
+              key={key}
+              label={PhoenixKit.Users.Permissions.localized_module_label(key)}
+              roles={@roles}
+              matrix={@matrix}
+              uneditable_role_uuids={@uneditable_role_uuids}
+            />
+
             <%!-- Core Sections Header --%>
             <tr class="bg-primary/10">
               <td
@@ -37,6 +58,24 @@
             </tr>
             <.permission_row
               :for={key <- @core_keys}
+              key={key}
+              label={PhoenixKit.Users.Permissions.localized_module_label(key)}
+              roles={@roles}
+              matrix={@matrix}
+              uneditable_role_uuids={@uneditable_role_uuids}
+            />
+
+            <%!-- Integrations Header (two independent keys: personal + system) --%>
+            <tr class="bg-primary/10">
+              <td
+                colspan={length(@roles) + 1}
+                class="sticky left-0 bg-primary/10 font-semibold text-xs uppercase tracking-wide text-primary py-2"
+              >
+                {gettext("Integrations")}
+              </td>
+            </tr>
+            <.permission_row
+              :for={key <- @integration_keys}
               key={key}
               label={PhoenixKit.Users.Permissions.localized_module_label(key)}
               roles={@roles}

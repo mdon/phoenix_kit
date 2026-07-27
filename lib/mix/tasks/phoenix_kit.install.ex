@@ -77,6 +77,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       DaisyUI,
       DbConnectionCheck,
       DemoFiles,
+      Deprecations,
       EndpointIntegration,
       JsIntegration,
       LayoutConfig,
@@ -137,6 +138,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> CssIntegration.add_automatic_css_integration()
       |> JsIntegration.add_js_integration()
       |> warn_if_daisyui_outdated()
+      |> warn_user_dashboard_deprecated()
       |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
@@ -462,6 +464,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         _ ->
           igniter
       end
+    end
+
+    # Advance heads-up that the user dashboard (/dashboard) is deprecated. It
+    # still works unchanged — this is advisory only (see
+    # PhoenixKit.Install.Deprecations).
+    defp warn_user_dashboard_deprecated(igniter) do
+      Igniter.add_warning(igniter, Deprecations.user_dashboard_warning())
     end
 
     # Add completion notice with essential next steps (reduced duplication)

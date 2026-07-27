@@ -1,37 +1,58 @@
 defmodule PhoenixKit.Notifications.Types do
   @moduledoc """
-  Registry of notification types for the per-user preferences UI.
+  Registry of notification types (and optional sub-types) for the per-user
+  preferences UI.
 
-  A type is a named group of related activity actions that a user can toggle
-  as one unit. Core types (`"account"`, `"posts"`, `"comments"`) ship with
-  PhoenixKit; external modules contribute additional types via the optional
-  `notification_types/0` callback on `PhoenixKit.Module` (same pattern the
-  integrations system uses for `integration_providers/0`).
+  A **type** is a named group of related activity actions a user can toggle as
+  one unit (`"account"`, `"posts"`, `"comments"`, …). Core types ship with
+  PhoenixKit; external modules contribute more via the optional
+  `notification_types/0` callback on `PhoenixKit.Module`.
 
-  Shape of a type:
+  A type may declare **sub-types** for finer control — e.g. `"comments"` with
+  `"replies"` and `"reactions"`. Sub-type preference keys are the base key and
+  the sub key joined by a dot (`"comments.replies"`), mirroring the permission
+  system's dotted sub-keys.
+
+  ## Master-switch semantics (NOT the permission cascade)
+
+  The base type is a **master switch evaluated at resolution time only**:
+
+    * base OFF ⇒ every sub-type under it is muted, regardless of the sub's own value;
+    * base ON  ⇒ each sub-type follows its own toggle (defaulting to the sub's `default`).
+
+  This is deliberately the OPPOSITE of `PhoenixKit.Users.Permissions`, where a
+  sub *implies* its base and grants cascade/normalize the stored set. Here nothing
+  cascades and nothing is normalized in storage — a user's per-sub choices are
+  preserved when the master is toggled off, so flipping it back on restores them.
+  See `PhoenixKit.Notifications.Prefs` for the resolution.
+
+  ## Shape
 
       %{
-        key: "posts",
-        label: "Posts",
-        description: "Likes, comments, mentions on your posts",
-        actions: ["post.liked", "post.commented", "post.mentioned"],
-        default: true
+        key: "comments",
+        label: "Comments",
+        description: "Replies and reactions to your comments",
+        actions: [],                       # base-owned actions (often [] when fully split)
+        default: true,
+        sub_types: [
+          %{key: "comments.replies",   label: "Replies",   actions: ["comment.replied"], default: true},
+          %{key: "comments.reactions", label: "Reactions", actions: ["comment.liked", "comment.disliked"], default: true}
+        ]
       }
 
-  The `maybe_create_from_activity/1` pipeline resolves the activity's action
-  back to a type via `type_for_action/1` and asks `Prefs.user_wants?/2`
-  whether the recipient has that type enabled.
-
-  Actions not matched by any registered type are treated as fail-open — the
-  notification still fires. New action types can ship without a UI update
-  while remaining visible to users.
+  Module authors declare sub keys **bare** (`"replies"`); `normalize/1` composes
+  them to `"<type>.<sub>"`. Declared keys must not contain `.` and nesting is one
+  level only — offending entries are dropped with a warning. Unknown top-level
+  map fields are preserved (a seam for future per-channel / digest metadata).
+  Sub-type labels/descriptions are runtime data — `mix gettext.extract` won't see
+  them (same caveat as permission labels).
   """
 
   require Logger
 
   alias PhoenixKit.ModuleRegistry
 
-  @type t :: %{
+  @type sub_type :: %{
           key: String.t(),
           label: String.t(),
           description: String.t(),
@@ -39,10 +60,19 @@ defmodule PhoenixKit.Notifications.Types do
           default: boolean()
         }
 
-  @doc "Full list of types — core plus module-contributed, stable order."
+  @type t :: %{
+          key: String.t(),
+          label: String.t(),
+          description: String.t(),
+          actions: [String.t()],
+          default: boolean(),
+          sub_types: [sub_type()]
+        }
+
+  @doc "Full list of types — core plus module-contributed, normalized, stable order."
   @spec list() :: [t()]
   def list do
-    core = core_types()
+    core = normalize_all(core_types())
     core_keys = MapSet.new(core, & &1.key)
 
     extras =
@@ -53,31 +83,88 @@ defmodule PhoenixKit.Notifications.Types do
     core ++ extras
   end
 
-  @doc "Look up a type by its key. Returns `nil` when not registered."
+  @doc "Look up a base type by its key. Returns `nil` when not registered (base keys only)."
   @spec find(String.t()) :: t() | nil
   def find(key) when is_binary(key) do
     Enum.find(list(), &(&1.key == key))
   end
 
   @doc """
-  Resolves an action string to the key of its owning type.
+  Resolves an action to the **most-specific** preference key that owns it — a
+  sub-type's dotted key when a sub-type claims it, otherwise the base type key,
+  otherwise `nil`.
 
-  Returns `nil` when no type claims the action — the caller treats that as
-  fail-open and still delivers the notification.
+  Backed by a deterministic action→key index (`action_index/0`): sub-types are
+  indexed before their base (so a sub wins over its base), and the FIRST claim of
+  an action wins globally (a later duplicate claim is ignored with a warning).
+  `nil` for unclaimed actions preserves the caller's fail-open behaviour.
+  """
+  @spec key_for_action(String.t()) :: String.t() | nil
+  def key_for_action(action) when is_binary(action), do: Map.get(action_index(), action)
+  def key_for_action(_), do: nil
+
+  @doc """
+  Resolves an action to the key of its owning **base** type (back-compat).
+
+  Used by `Prefs.user_wants_type?/2`. Returns the base key even when a sub-type
+  owns the action.
   """
   @spec type_for_action(String.t()) :: String.t() | nil
   def type_for_action(action) when is_binary(action) do
-    Enum.find_value(list(), fn t -> if action in t.actions, do: t.key end)
-  end
-
-  @doc "Returns the default-enabled flag for a type key. Missing types default to `true`."
-  @spec default_for(String.t()) :: boolean()
-  def default_for(key) when is_binary(key) do
-    case find(key) do
-      nil -> true
-      %{default: default} -> !!default
+    case key_for_action(action) do
+      nil -> nil
+      key -> parent_type_key(key) || key
     end
   end
+
+  def type_for_action(_), do: nil
+
+  @doc """
+  Every valid preference key — each base key followed by its sub keys, de-duped,
+  stable order. Used to sanitize saves and to build the pause-all set.
+  """
+  @spec all_pref_keys() :: [String.t()]
+  def all_pref_keys do
+    list()
+    |> Enum.flat_map(fn t -> [t.key | Enum.map(t.sub_types, & &1.key)] end)
+    |> Enum.uniq()
+  end
+
+  @doc "The base type keys only (no sub keys) — the master switches."
+  @spec base_keys() :: [String.t()]
+  def base_keys, do: Enum.map(list(), & &1.key)
+
+  @doc """
+  Base type key for a dotted sub key (`"comments.replies"` → `"comments"`).
+
+  Returns `nil` for a base key or an unkeyed value. Safe because declared keys
+  are `.`-free and nesting is one level (enforced in `normalize/1`).
+  """
+  @spec parent_type_key(String.t()) :: String.t() | nil
+  def parent_type_key(key) when is_binary(key) do
+    case String.split(key, ".", parts: 2) do
+      [_base] -> nil
+      [base, _sub] -> base
+    end
+  end
+
+  def parent_type_key(_), do: nil
+
+  @doc """
+  Default-enabled flag for a base OR dotted key.
+
+  TOTAL by contract: an unknown key returns `true` (the fail-open backstop —
+  a `false`/`nil` here would let `master AND sub` go silently falsy).
+  """
+  @spec default_for(String.t()) :: boolean()
+  def default_for(key) when is_binary(key) do
+    case find_key_meta(key) do
+      %{default: default} -> !!default
+      _ -> true
+    end
+  end
+
+  def default_for(_), do: true
 
   # ── Core types ───────────────────────────────────────────────────────
 
@@ -112,26 +199,64 @@ defmodule PhoenixKit.Notifications.Types do
       %{
         key: "posts",
         label: "Posts",
-        description: "Likes, comments, and mentions on your posts",
-        actions: [
-          "post.liked",
-          "post.disliked",
-          "post.commented",
-          "post.mentioned",
-          "post.shared"
-        ],
-        default: true
+        description: "Likes, comments, mentions, and shares on your posts",
+        # Fully split — every post.* action is owned by a sub-type below; the
+        # base acts purely as the master switch.
+        actions: [],
+        default: true,
+        sub_types: [
+          %{
+            key: "likes",
+            label: "Likes",
+            description: "Likes on your posts",
+            actions: ["post.liked", "post.disliked"],
+            default: true
+          },
+          %{
+            key: "comments",
+            label: "Comments",
+            description: "Comments on your posts",
+            actions: ["post.commented"],
+            default: true
+          },
+          %{
+            key: "mentions",
+            label: "Mentions",
+            description: "Mentions of you in posts",
+            actions: ["post.mentioned"],
+            default: true
+          },
+          %{
+            key: "shares",
+            label: "Shares",
+            description: "Shares of your posts",
+            actions: ["post.shared"],
+            default: true
+          }
+        ]
       },
       %{
         key: "comments",
         label: "Comments",
         description: "Replies and reactions to your comments",
-        actions: [
-          "comment.liked",
-          "comment.disliked",
-          "comment.replied"
-        ],
-        default: true
+        actions: [],
+        default: true,
+        sub_types: [
+          %{
+            key: "replies",
+            label: "Replies",
+            description: "Replies to your comments",
+            actions: ["comment.replied"],
+            default: true
+          },
+          %{
+            key: "reactions",
+            label: "Reactions",
+            description: "Likes and reactions to your comments",
+            actions: ["comment.liked", "comment.disliked"],
+            default: true
+          }
+        ]
       }
     ]
   end
@@ -147,8 +272,7 @@ defmodule PhoenixKit.Notifications.Types do
         []
       end
     end)
-    |> Enum.map(&normalize/1)
-    |> Enum.reject(&is_nil/1)
+    |> normalize_all()
   end
 
   defp safe_collect(mod) do
@@ -162,19 +286,107 @@ defmodule PhoenixKit.Notifications.Types do
       []
   end
 
-  defp normalize(%{key: k, label: l, actions: a} = type)
-       when is_binary(k) and is_binary(l) and is_list(a) do
-    %{
-      key: k,
-      label: l,
-      description: Map.get(type, :description, ""),
-      actions: Enum.filter(a, &is_binary/1),
-      default: Map.get(type, :default, true) == true
-    }
+  # ── Normalization ────────────────────────────────────────────────────
+
+  defp normalize_all(types) do
+    types
+    |> Enum.map(&normalize/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  # Overlay validated fields onto the input map (not a fresh map) so unknown
+  # top-level fields (future :channels / :digest / :aggregatable) survive — a seam.
+  defp normalize(%{key: k, label: l} = type) when is_binary(k) and is_binary(l) do
+    if String.contains?(k, ".") do
+      Logger.warning("[Notifications.Types] dropping type with '.' in key: #{inspect(k)}")
+      nil
+    else
+      Map.merge(type, %{
+        key: k,
+        label: l,
+        description: Map.get(type, :description, ""),
+        actions: type |> Map.get(:actions, []) |> Enum.filter(&is_binary/1),
+        default: Map.get(type, :default, true) == true,
+        sub_types: type |> Map.get(:sub_types, []) |> normalize_subs(k)
+      })
+    end
   end
 
   defp normalize(other) do
     Logger.warning("[Notifications.Types] dropping malformed type: #{inspect(other)}")
     nil
+  end
+
+  defp normalize_subs(subs, base_key) when is_list(subs) do
+    subs
+    |> Enum.map(&normalize_sub(&1, base_key))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.key)
+  end
+
+  defp normalize_subs(_subs, _base_key), do: []
+
+  defp normalize_sub(%{key: k, label: l} = sub, base_key) when is_binary(k) and is_binary(l) do
+    if String.contains?(k, ".") do
+      Logger.warning(
+        "[Notifications.Types] dropping sub-type with '.' in key #{inspect(k)} under #{inspect(base_key)}"
+      )
+
+      nil
+    else
+      Map.merge(sub, %{
+        key: "#{base_key}.#{k}",
+        label: l,
+        description: Map.get(sub, :description, ""),
+        actions: sub |> Map.get(:actions, []) |> Enum.filter(&is_binary/1),
+        default: Map.get(sub, :default, true) == true
+      })
+    end
+  end
+
+  defp normalize_sub(other, base_key) do
+    Logger.warning(
+      "[Notifications.Types] dropping malformed sub-type under #{inspect(base_key)}: #{inspect(other)}"
+    )
+
+    nil
+  end
+
+  # ── Resolution internals ─────────────────────────────────────────────
+
+  # action → most-specific key. Sub-types indexed before their base so a sub
+  # wins; first claim of an action wins globally (later duplicate → warn + keep).
+  defp action_index do
+    Enum.reduce(list(), %{}, fn type, acc ->
+      acc = Enum.reduce(type.sub_types, acc, &index_action_owner(&2, &1.actions, &1.key))
+      index_action_owner(acc, type.actions, type.key)
+    end)
+  end
+
+  defp index_action_owner(acc, actions, key) do
+    Enum.reduce(actions, acc, fn action, acc ->
+      case Map.get(acc, action) do
+        nil ->
+          Map.put(acc, action, key)
+
+        ^key ->
+          acc
+
+        existing ->
+          Logger.warning(
+            "[Notifications.Types] action #{inspect(action)} claimed by both " <>
+              "#{inspect(existing)} and #{inspect(key)}; keeping #{inspect(existing)}"
+          )
+
+          acc
+      end
+    end)
+  end
+
+  # The type OR sub-type metadata map for a key (base or dotted); nil if unknown.
+  defp find_key_meta(key) do
+    Enum.find_value(list(), fn type ->
+      if type.key == key, do: type, else: Enum.find(type.sub_types, &(&1.key == key))
+    end)
   end
 end

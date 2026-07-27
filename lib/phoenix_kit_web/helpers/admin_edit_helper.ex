@@ -32,5 +32,5 @@ defmodule PhoenixKitWeb.AdminEditHelper do
     end
   end
 
-  defp admin?(scope), do: scope != nil and Scope.admin?(scope)
+  defp admin?(scope), do: scope != nil and Scope.can_access_admin_area?(scope)
 end

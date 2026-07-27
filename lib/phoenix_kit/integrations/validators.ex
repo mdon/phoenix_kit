@@ -443,6 +443,54 @@ defmodule PhoenixKit.Integrations.Validators do
 
   defp reset_date(_end_date), do: nil
 
+  # --- Telegram ---------------------------------------------------------
+
+  @doc """
+  Validates a Telegram bot token against the Bot API's `getMe`.
+
+  Telegram embeds the token in the URL path (`/bot<token>/getMe`) rather than a
+  header, so it can't use the generic header-based check. `getMe` is the
+  cheapest authenticated call, and its reply carries the bot's username — a
+  useful confirmation the operator connected the bot they meant to.
+  """
+  @spec telegram(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  def telegram(data) do
+    token = data["bot_token"]
+
+    if blank?(token) do
+      {:error, gettext("No bot token configured")}
+    else
+      request_telegram(token)
+    end
+  end
+
+  defp request_telegram(token) do
+    case Req.get("https://api.telegram.org/bot#{token}/getMe", receive_timeout: @http_timeout) do
+      {:ok, %{status: 200, body: body}} ->
+        case telegram_username(body) do
+          nil -> :ok
+          username -> {:ok, gettext("Connected as @%{username}", username: username)}
+        end
+
+      # Telegram answers a bad or malformed token with 401/404 on this path.
+      {:ok, %{status: status}} when status in [401, 404] ->
+        {:error, gettext("Invalid bot token")}
+
+      {:ok, %{status: status}} ->
+        {:error, gettext("Telegram error %{status}", status: status)}
+
+      {:error, reason} ->
+        Logger.warning("Telegram connection check failed: #{inspect(reason)}")
+        {:error, gettext("Could not reach Telegram")}
+    end
+  end
+
+  defp telegram_username(%{"ok" => true, "result" => %{"username" => username}})
+       when is_binary(username) and username != "",
+       do: username
+
+  defp telegram_username(_body), do: nil
+
   # --- shared ---------------------------------------------------------------
 
   defp blank?(nil), do: true

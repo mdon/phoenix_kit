@@ -87,7 +87,7 @@ defmodule PhoenixKit.ResourceLinksTest do
 
       info = ResourceLinks.resolve(items) |> ResourceLinks.info_for("integration", uuid)
 
-      assert info.path == "/admin/settings/integrations/#{uuid}"
+      assert info.path == "/admin/settings/integrations/website/#{uuid}"
       assert info.prefixed == true
       # Title falls back to a generic label with no DB connection to read.
       assert is_binary(info.title)

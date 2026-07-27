@@ -26,7 +26,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
 
       Scope.has_role?(scope, "Admin")  # true/false
       Scope.owner?(scope)             # Owner role?
-      Scope.admin?(scope)             # Owner, Admin, or custom role with permissions?
+      Scope.can_access_admin_area?(scope)  # Owner, Admin, or custom role with permissions?
       Scope.system_role?(scope)       # Strictly Owner or Admin (not custom roles)?
       Scope.anonymous?(scope)         # Not authenticated?
       Scope.user_roles(scope)         # ["Admin", "User"]
@@ -98,6 +98,12 @@ defmodule PhoenixKit.Users.Auth.Scope do
       iex> scope.user
       nil
   """
+  # Mirrors `Permissions.superadmin_key/0`, kept as a local literal to avoid a
+  # compile-time call into `Permissions` (which aliases this module — a cycle).
+  # Holding this wildcard key is a blanket grant honored by `has_module_access?/2`,
+  # `base_held?/2`, and `can?/2` via `holds?/2`.
+  @superadmin_key "*"
+
   @spec for_user(User.t() | nil) :: t()
   def for_user(%User{} = user) do
     # Pre-load user roles to cache them in the scope
@@ -285,28 +291,32 @@ defmodule PhoenixKit.Users.Auth.Scope do
   def owner?(_), do: false
 
   @doc """
-  Checks if the user can access the admin panel.
+  Checks if the user can access the admin AREA — the `/admin` shell entry gate.
 
   Returns true when the user holds the Admin or Owner role, OR has been
-  explicitly granted any module-level permissions (via `RolePermission`).
-  This allows custom roles (e.g. "Editor", "Support") to access the admin
-  panel when they've been granted at least one permission.
+  explicitly granted any module-level permission (via `RolePermission`) — so a
+  custom role (e.g. "Editor", "Support") holding at least one permission can
+  enter the admin area.
 
-  Per-page access is enforced separately by `has_module_access?/2`.
+  This is a COARSE entry gate only. It does NOT mean the user is a privileged
+  operator: holding a single grant is enough. Which pages and actions are
+  actually allowed is enforced per-view by `has_module_access?/2` / `can?/2`.
+  For a "can do everything, like Owner" check use `holds_all_enabled_permissions?/1`
+  or `superadmin?/1` instead — never this.
 
   ## Examples
 
       iex> user = %PhoenixKit.Users.Auth.User{uuid: "0193a5e4-0000-7000-8000-000000000001"}
       iex> scope = PhoenixKit.Users.Auth.Scope.for_user(user)
-      iex> PhoenixKit.Users.Auth.Scope.admin?(scope)
+      iex> PhoenixKit.Users.Auth.Scope.can_access_admin_area?(scope)
       true
 
       iex> scope = PhoenixKit.Users.Auth.Scope.for_user(nil)
-      iex> PhoenixKit.Users.Auth.Scope.admin?(scope)
+      iex> PhoenixKit.Users.Auth.Scope.can_access_admin_area?(scope)
       false
   """
-  @spec admin?(t()) :: boolean()
-  def admin?(%__MODULE__{cached_roles: cached_roles, cached_permissions: perms})
+  @spec can_access_admin_area?(t()) :: boolean()
+  def can_access_admin_area?(%__MODULE__{cached_roles: cached_roles, cached_permissions: perms})
       when is_list(cached_roles) do
     roles = Role.system_roles()
 
@@ -314,7 +324,17 @@ defmodule PhoenixKit.Users.Auth.Scope do
       (not is_nil(perms) and MapSet.size(perms) > 0)
   end
 
-  def admin?(_), do: false
+  def can_access_admin_area?(_), do: false
+
+  @doc """
+  Deprecated alias for `can_access_admin_area?/1`.
+
+  The name misleads: it returns `true` for ANY permission holder, not just the
+  Admin role. Call `can_access_admin_area?/1` instead.
+  """
+  @deprecated "Use can_access_admin_area?/1 — `admin?` is true for ANY permission holder, not just the Admin role."
+  @spec admin?(t()) :: boolean()
+  def admin?(scope), do: can_access_admin_area?(scope)
 
   @doc """
   Gets all roles for the user.
@@ -405,7 +425,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
       user_full_name: user_full_name(scope),
       user_roles: user_roles(scope),
       owner?: owner?(scope),
-      admin?: admin?(scope),
+      # Map key kept as `admin?:` for back-compat; sourced from the non-deprecated fn.
+      admin?: can_access_admin_area?(scope),
       user_active?: user_active?(scope)
     }
   end
@@ -420,10 +441,77 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @spec has_module_access?(t(), String.t()) :: boolean()
   def has_module_access?(%__MODULE__{cached_permissions: perms}, module_key)
       when is_binary(module_key) and not is_nil(perms) do
-    MapSet.member?(perms, module_key)
+    holds?(perms, module_key)
   end
 
   def has_module_access?(_, _), do: false
+
+  # Does this permission set grant `key`? True if the key is held directly, OR
+  # the set holds the wildcard superadmin key (`"*"`) — a blanket grant that
+  # covers every key, present and future. For a dotted sub-key, the caller is
+  # responsible for also checking `base_held?/2` (a raw sub-key membership
+  # without its base is an orphan). Centralised so has_module_access?/base_held?/
+  # can? all honor superadmin identically.
+  defp holds?(perms, key) do
+    MapSet.member?(perms, key) or MapSet.member?(perms, @superadmin_key)
+  end
+
+  @doc """
+  Whether the scope holds the wildcard superadmin key (`"*"`) — a blanket,
+  drift-immune grant to every permission-gated FEATURE/VIEW. Owner holds it by
+  construction; a host can grant it to a custom role to make that role
+  Owner-equivalent for feature access with one grant, and unlike a "grant every
+  current key" role it stays complete as new modules are added.
+
+  Scope: feature/view access only. The Owner-only role-management safety rails
+  (editing the Admin role, assigning Owner/Admin, the last-Owner guard) remain
+  role-name-based by design and are NOT unlocked by `"*"`.
+  """
+  @spec superadmin?(t()) :: boolean()
+  def superadmin?(%__MODULE__{cached_permissions: perms}) when not is_nil(perms) do
+    MapSet.member?(perms, @superadmin_key)
+  end
+
+  def superadmin?(_), do: false
+
+  @doc """
+  Whether this scope holds EVERY currently-grantable permission key — i.e. it
+  can reach everything the permission system exposes right now, exactly like
+  Owner. Purely permission-based and role-AGNOSTIC: a custom role granted all
+  permissions returns `true`, with no role-name special-casing.
+
+  Compared against `Permissions.enabled_module_keys/0` (the grantable set the
+  permissions matrix produces), NOT `all_module_keys/0`. Disabled modules
+  expose no reachable admin surface and their keys can't be granted via the UI,
+  so a grant-all custom role legitimately lacks them — including them would
+  re-introduce the Owner-vs-custom asymmetry this is meant to remove (Owner's
+  set is a superset that trivially satisfies the subset test either way). The
+  `size > 0` guard stops an empty grantable set from making `subset?/2`
+  vacuously true (a fail-open) for every scope; in practice the 5 core + 2
+  integration keys are a non-disableable floor, but the guard never rots.
+  """
+  @spec holds_all_enabled_permissions?(t()) :: boolean()
+  def holds_all_enabled_permissions?(%__MODULE__{cached_permissions: perms} = scope)
+      when not is_nil(perms) do
+    # Compare against the OPERATOR baseline: every grantable key EXCEPT the ones
+    # a default Admin is never auto-granted — the built-in opt-in key (personal
+    # `integrations`) AND any `auto_grant_admin: false` custom key. Requiring
+    # those would wrongly deny a default Admin (which holds every operator key
+    # but not those opt-out extras) Owner-equivalence, locking it out of unmapped
+    # admin views (the REG-1 regression, which an opt-out custom key otherwise
+    # reopens). The `"*"` superadmin key satisfies this directly and
+    # drift-immunely (it is deliberately NOT in `enabled_module_keys/0`).
+    required =
+      MapSet.difference(
+        Permissions.enabled_module_keys(),
+        MapSet.new(Permissions.admin_baseline_exclusions())
+      )
+
+    superadmin?(scope) or
+      (MapSet.size(required) > 0 and MapSet.subset?(required, perms))
+  end
+
+  def holds_all_enabled_permissions?(_), do: false
 
   @doc """
   Checks whether the user holds a permission key AND that key is currently
@@ -444,7 +532,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @spec can?(t(), String.t()) :: boolean()
   def can?(%__MODULE__{cached_permissions: perms}, key)
       when is_binary(key) and not is_nil(perms) do
-    MapSet.member?(perms, key) and base_held?(perms, key) and Permissions.feature_enabled?(key)
+    holds?(perms, key) and base_held?(perms, key) and Permissions.feature_enabled?(key)
   end
 
   def can?(_, _), do: false
@@ -458,7 +546,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   defp base_held?(perms, key) do
     case Permissions.parent_key(key) do
       nil -> true
-      base -> MapSet.member?(perms, base)
+      base -> holds?(perms, base)
     end
   end
 
@@ -466,7 +554,15 @@ defmodule PhoenixKit.Users.Auth.Scope do
   Returns the set of module keys the user can access.
   """
   @spec accessible_modules(t()) :: MapSet.t()
-  def accessible_modules(%__MODULE__{cached_permissions: perms}) when not is_nil(perms), do: perms
+  def accessible_modules(%__MODULE__{cached_permissions: perms} = scope) when not is_nil(perms) do
+    # A superadmin ("*") can reach everything, so surface the full key set — the
+    # same set Owner gets. Without this, a `"*"`-only role's set is just `{"*"}`,
+    # and the callers that do raw membership (the Modules page's per-card
+    # `key in @accessible_modules`, and the matrix/roles grantable ceiling) would
+    # render an empty page / block every concrete-key grant for that role.
+    if superadmin?(scope), do: MapSet.new(Permissions.all_module_keys()), else: perms
+  end
+
   def accessible_modules(_), do: MapSet.new()
 
   @doc """
@@ -489,7 +585,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @spec has_any_module_access?(t(), [String.t()]) :: boolean()
   def has_any_module_access?(%__MODULE__{cached_permissions: perms}, keys)
       when is_list(keys) and not is_nil(perms) do
-    Enum.any?(keys, &MapSet.member?(perms, &1))
+    Enum.any?(keys, &holds?(perms, &1))
   end
 
   def has_any_module_access?(_, _), do: false
@@ -504,7 +600,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @spec has_all_module_access?(t(), [String.t()]) :: boolean()
   def has_all_module_access?(%__MODULE__{cached_permissions: perms}, keys)
       when is_list(keys) and not is_nil(perms) do
-    Enum.all?(keys, &MapSet.member?(perms, &1))
+    Enum.all?(keys, &holds?(perms, &1))
   end
 
   def has_all_module_access?(_, _), do: false

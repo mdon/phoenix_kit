@@ -237,11 +237,17 @@ defmodule PhoenixKitWeb.Live.Modules do
   # Private — Authorization
   # ============================================================================
 
-  defp authorize_toggle(socket, key) do
+  defp authorize_toggle(socket, _key) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
-    if scope &&
-         (Scope.system_role?(scope) || MapSet.member?(socket.assigns.accessible_modules, key)) do
+    # Enabling/disabling modules is the `modules` management permission — hold
+    # it and you can toggle any module. Gating on the system-role NAME instead
+    # let a stripped Admin toggle everything while a grant-all custom role (or
+    # `"*"` superadmin) could not enable a currently-DISABLED module (it can't
+    # hold a not-yet-enabled module's key). `has_module_access?/2` honors the
+    # `"*"` superadmin key, and reaching this page already requires `modules`,
+    # so this is a defense-in-depth re-check on the event, role-agnostic.
+    if scope && Scope.has_module_access?(scope, "modules") do
       :ok
     else
       {:error, :access_denied}

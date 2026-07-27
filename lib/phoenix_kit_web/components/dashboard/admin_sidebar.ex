@@ -197,15 +197,22 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
         assigns.subtab.active
       end
 
+    # A subtab may itself carry `redirect_to_first_subtab: true` (a 3-level
+    # section like Settings › Integrations). Point its link at the first child
+    # the user can reach, while keeping active-state off the original subtab's
+    # own match — the same split the top-level tab uses.
+    display_subtab = maybe_redirect_to_first_subtab(assigns.subtab, children)
+
     assigns =
       assigns
       |> assign(:children, children)
       |> assign(:show_children, show_children)
       |> assign(:subtab_active, subtab_active)
+      |> assign(:display_subtab, display_subtab)
 
     ~H"""
     <TabItem.tab_item
-      tab={@subtab}
+      tab={@display_subtab}
       active={@subtab_active}
       locale={@locale}
       parent_tab={@parent_tab}
