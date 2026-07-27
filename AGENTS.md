@@ -26,7 +26,7 @@ mix test          # run all (migrations auto via test_helper)
 mix test.reset    # drop + recreate
 ```
 
-Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Schema comes from the versioned migration chain — `test_helper.exs` runs `PhoenixKit.Migration.ensure_current/2` on every boot (there is no `test/support/postgres/migrations/` directory; that per-file approach was retired 2026-05-05).
+Test DB `phoenix_kit_test` uses embedded `PhoenixKit.Test.Repo` (`test/support/test_repo.ex`). Schema comes from the versioned migration chain — `test_helper.exs` runs `PhoenixKit.Migration.ensure_current/2` on every boot (there is no `test/support/postgres/migrations/` directory; that per-file approach was retired 2026-05-05). **Do not** swap in `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` — it goes silently stale (see `ensure_current/2` moduledoc).
 
 **Without PostgreSQL:** integration tests are auto-excluded; unit tests still run. `mix test` will print a banner and continue.
 
@@ -42,26 +42,15 @@ defmodule PhoenixKit.Integration.MyTest do
 end
 ```
 
-`test/test_helper.exs` calls `PhoenixKit.Migration.ensure_current/2`. **Do not** swap in `Ecto.Migrator.run(repo, [{0, PhoenixKit.Migration}], :up, all: true)` — it goes silently stale (see `ensure_current/2` moduledoc).
-
 ### Local cross-repo development
 
-Core has no `phoenix_kit` dependency of its own, so there is nothing to override
-here — the flow matters from the **consumer** side. Every Max-maintained feature
-module wraps its `phoenix_kit*` deps in a `pk_dep/3` helper, so a module's own
-suite can run against **uncommitted local core** without publishing. From inside
-the module's directory:
+Core has no `phoenix_kit` dep of its own — the flow matters from the **consumer** side. Every Max-maintained feature module wraps its `phoenix_kit*` deps in a `pk_dep/3` helper, so a module's suite can run against **uncommitted local core** without publishing. From inside the module's directory:
 
 ```bash
 PHOENIX_KIT_PATH=../phoenix_kit mix test
 ```
 
-Mix swaps that module's Hex pin for a local `path:` + `override: true` dep (the
-var name is the dep app upper-cased + `_PATH`; unset = the published pin, so
-`mix hex.publish` / CI are unaffected). `phoenix_kit_parent` does the same
-permanently via `path:` + `override: true` deps — use it to exercise the whole
-tree (its own tests, the running app, browser checks) against local core. Full
-write-up: workspace `AGENTS.md` → "Testing a module against local deps".
+Mix swaps the module's Hex pin for a local `path:` + `override: true` dep (var name = dep app upper-cased + `_PATH`; unset = published pin, so `mix hex.publish` / CI are unaffected). `phoenix_kit_parent` does the same permanently — use it to exercise the whole tree against local core. Full write-up: workspace `AGENTS.md` → "Testing a module against local deps".
 
 ### Code Search
 
@@ -75,8 +64,8 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
 
 ## Pull Requests
 
-- **Branch:** core integrates on **`main`** — open PRs against `main` (`gh pr create --base main --head mdon:main`). The `dev` branch was **retired 2026-06-01**; do not target it. (Historical: core used `dev` as its integration branch until then.)
-- **CI/CD:** the `.github/workflows/ci.yml` workflow is **manual-only** (`workflow_dispatch`) — the equivalent checks run locally via `mix precommit` / `mix quality.ci`. Checks: format, credo, dialyzer, compile (warnings as errors), deps audit, tests with PostgreSQL.
+- **Branch:** core integrates on **`main`** — open PRs against `main` (`gh pr create --base main --head mdon:main`). The `dev` branch was **retired 2026-06-01**; do not target it.
+- **CI/CD:** `.github/workflows/ci.yml` is **manual-only** (`workflow_dispatch`) — the equivalent checks run locally via `mix precommit` / `mix quality.ci` (format, credo, dialyzer, compile with warnings as errors, deps audit, tests with PostgreSQL).
 - **Commit messages:** start with `Add`, `Update`, `Fix`, `Remove`, `Merge`.
 - **Version management:** `mix.exs` `@version` + `CHANGELOG.md`. Run `mix compile`, `mix test`, `mix format`, `mix credo --strict` before committing. Get current versions:
   ```bash
@@ -95,213 +84,42 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
 
 ### Prefix-safe migrations (named-schema installs)
 
-The chain supports running into a named Postgres schema (`prefix:` opt /
-`--prefix`). Two bug families broke it in 2026-07 (both fixed, PR #628);
-any new `execute`-built SQL can regress them:
+The chain supports running into a named Postgres schema (`prefix:` opt / `--prefix`). Full reference + incident history: `dev_docs/guides/2026-07-27-prefix-safe-migrations.md`. Rules for any new `execute`-built SQL:
 
-- **Index names stay bare on CREATE.** Postgres rejects
-  `CREATE INDEX schema.name ...` — the index always lands in the
-  (schema-qualified) table's schema. Qualifying the *name* is only valid
-  on `DROP INDEX`.
-- **Every existence check needs a schema anchor.** `information_schema.*`
-  checks need `table_schema = '#{escaped_prefix}'`, `pg_indexes` needs
-  `schemaname`, and `pg_constraint` `conname` checks need a table anchor.
-  An unanchored check sees `public`'s objects, so a prefixed install into
-  a database that also carries a public install silently skips creating
-  the prefixed object.
-  ⚠️ For the `pg_constraint` anchor, prefer a name-based JOIN
-  (`JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n …
-  WHERE t.relname = '…' AND n.nspname = $1`) over V51's
-  `conrelid = '#{p}table'::regclass` idiom in IMMEDIATE checks
-  (`repo().query/3`): a regclass cast RAISES when the relation doesn't
-  exist yet — on a fresh chain the table's CREATE may still be queued —
-  and that aborts the whole migration transaction in a way a `rescue`
-  can't undo (every later statement dies with 25P02, surfacing at some
-  unrelated version). V146 hit exactly this; it now JOINs by name and
-  `flush()`es first. The regclass idiom is only safe after a `flush()`
-  guarantees the relation exists.
-- **Failures surface late.** Ecto queues `execute` calls; bad SQL queued
-  by one version often blows up at a *later* version's `flush()`.
-
-A 2026-07-12 field report from a hardened multi-schema install (schema
-pre-created by a DBA, app role without CREATE on the database, PG 15+
-non-writable `public`) surfaced four more families — all fixed; the
-rules for new migration code:
-
-- **Functions are created schema-qualified.** `uuid_generate_v7()` is
-  created as `<prefix>.uuid_generate_v7()` and every call site
-  (`DEFAULT`, backfill `UPDATE`s, `fragment/1`) qualifies it too — an
-  unqualified `CREATE OR REPLACE FUNCTION` lands wherever `search_path`
-  points (pollutes `public`; fails outright on PG15+). Use
-  `PhoenixKit.Migrations.Postgres.Helpers.ensure_uuid_v7_function/1` +
-  `uuid_v7_call/1`. `Postgres.up/1` re-ensures the function at the
-  prefix for upgrade chains starting ≥ V40 (which skip the creation
-  sites).
-- **Never bare `CREATE EXTENSION IF NOT EXISTS`** — Postgres checks the
-  CREATE privilege *before* the IF-NOT-EXISTS short-circuit, so it fails
-  for low-privilege roles even when the extension is installed. Use
-  `Helpers.ensure_extension!/1` (checks `pg_extension` first; raises an
-  operator-facing message listing citext/pgcrypto/pg_trgm when genuinely
-  missing and uncreatable).
-- **Same story for `CREATE SCHEMA`.** V01 checks
-  `information_schema.schemata` first and only creates when missing
-  (raising a clear error if missing + `create_schema: false`). External
-  migrators must have the flag threaded: V27 passes
-  `create_schema: false` to `Oban.Migration.up/1` — without it Oban
-  re-defaults to true for non-public prefixes and executes the failing
-  statement mid-chain.
-- **The prefix is validated at the `up/down` entry points**
-  (`Helpers.validate_prefix!/1`, `[a-z_][a-z0-9_]*`) because it is
-  interpolated into SQL mostly unquoted.
-- **Tooling resolves the prefix from config.** The installer persists
-  `config :phoenix_kit, prefix:` for non-public installs
-  (`PhoenixKit.Install.PrefixConfig`); update/status/gen.migration
-  resolve `--prefix` → config → `"public"` (`resolve_prefix/1`). And
-  `Install.Common` no longer fabricates `{:current_version, 1}` from
-  the mere existence of migration *files* — that once made
-  `phoenix_kit.update` emit a from-scratch v01→vN migration into the
-  wrong schema. Update-migration generators always emit
-  `create_schema: false` (updating implies the schema exists).
-
-`test/integration/prefix_migration_test.exs` is the oracle: it runs the
-full chain into a scratch schema on the test DB (which also has a public
-install, so it catches both families). It flips the sandbox to `:auto`
-for the run — see its moduledoc for why neither a sandbox checkout nor a
-dynamic repo instance can host the migrator. (The privilege-sensitive
-paths — pre-created schema + low-privilege role — can't run under the
-suite's superuser connection; re-verify those manually against the
-recipe in the 2026-07-12 field report if you touch them.)
-
-**Runtime prefix support (2026-07-12):** every table-backed core schema
-`use`s `PhoenixKit.SchemaPrefix`, which sets `@schema_prefix` from
-`Application.compile_env(:phoenix_kit, :prefix)` — so on a prefixed
-install ALL runtime queries (delegated, direct `repo()` calls,
-`update_all`/`insert_all`, Multi steps, preloads, joins) target the
-named schema with no `search_path` requirement on the DB role. Rules:
-
-- **New table-backed schemas must add `use PhoenixKit.SchemaPrefix`**
-  right after `use Ecto.Schema` — `test/phoenix_kit/schema_prefix_test.exs`
-  enforces it by scanning for `schema "phoenix_kit` files. Embedded
-  schemas don't need it.
-- The prefix is **compile-time** config (`config.exs`, never
-  `runtime.exs`); Mix recompiles the dep when it changes. It can't be
-  flipped per-test — the e2e check is manual: temporarily append
-  `config :phoenix_kit, prefix: "..."` to `config/test.exs`, recompile,
-  run a script exercising `register_user` against a scratch schema
-  (needs `PhoenixKit.Users.RateLimiter.Backend.start_link` +
-  `PhoenixKit.PubSub.Manager.start_link` + `:phoenix_pubsub`/`:hammer`
-  apps started), then revert + recompile.
-- **Oban rides the same prefix** — V27 creates `oban_jobs` inside the
-  named schema, so the host's `config :app, Oban` must carry
-  `prefix: "..."`. The installer writes it for new prefixed installs;
-  `mix phoenix_kit.update` warns when an existing Oban config lacks it.
-- Feature modules' own schemas (`phoenix_kit_catalogue` etc.) do NOT get
-  the prefix from core — prefixed installs using feature modules need
-  the same treatment there (open item, per-module).
+- **Index names stay bare on CREATE** — qualify only on `DROP INDEX`.
+- **Every existence check needs a schema anchor** — `table_schema` on `information_schema.*`, `schemaname` on `pg_indexes`, and a name-based `pg_class` + `pg_namespace` JOIN for `pg_constraint` (never `'p.table'::regclass` in an IMMEDIATE check — it raises when the relation doesn't exist yet and aborts the whole transaction).
+- **Schema-qualify functions** via `PhoenixKit.Migrations.Postgres.Helpers.ensure_uuid_v7_function/1` + `uuid_v7_call/1`; **never bare `CREATE EXTENSION`** (use `Helpers.ensure_extension!/1`) **or bare `CREATE SCHEMA`** (check `information_schema.schemata` first; thread `create_schema: false` to external migrators like Oban).
+- The prefix is validated at the entry points (`Helpers.validate_prefix!/1`); tooling resolves `--prefix` → `config :phoenix_kit, prefix:` → `"public"`.
+- **New table-backed schemas must `use PhoenixKit.SchemaPrefix`** right after `use Ecto.Schema` — enforced by `test/phoenix_kit/schema_prefix_test.exs`. Prefix is compile-time config (`config.exs`, never `runtime.exs`).
+- **Oban rides the same prefix** — the host's `config :app, Oban` must carry `prefix: "..."`.
+- Oracle: `test/integration/prefix_migration_test.exs` runs the full chain into a scratch schema (failures surface late — bad SQL queued by one version often blows up at a later version's `flush()`).
 
 ## Integrations System
 
-Centralized OAuth / API key / bot token / credential management. Full design: `dev_docs/plans/integrations-system.md`.
+Centralized OAuth / API key / bot token / credential management. Full reference: `dev_docs/guides/2026-07-27-integrations-system.md`; design: `dev_docs/plans/integrations-system.md`.
 
-**Files:**
-- `lib/phoenix_kit/integrations/integrations.ex` — main context (CRUD, OAuth, validation)
-- `lib/phoenix_kit/integrations/providers.ex` — provider registry (Google, OpenRouter built-in)
-- `lib/phoenix_kit/integrations/oauth.ex` — generic OAuth 2.0 with CSRF state
-- `lib/phoenix_kit/integrations/events.ex` — PubSub events (owner-routed)
-- `lib/phoenix_kit/integrations/telegram.ex` — Telegram bot client (send + one-shot getUpdates)
-- `lib/phoenix_kit_web/live/settings/integrations.ex` + `integration_form.ex` — website-wide (system) UI
-- `lib/phoenix_kit_web/live/integrations/my_integrations.ex` + `my_integration_form.ex` — personal (per-user) UI
-- `lib/phoenix_kit_web/components/core/integration_picker.ex` — reusable picker
-- `lib/phoenix_kit_web/components/core/integrations_ui.ex` — shared setup UI (picker / status card / field / instructions)
-
-**Storage:** `phoenix_kit_settings` JSONB. Keys: `integration:{provider}:{name}` (e.g. `integration:google:default`). **Consumers reference connections by storage row uuid** — stable across renames.
-
-**Auth types:** `:oauth2`, `:api_key`, `:key_secret`, `:bot_token`, `:credentials`.
-
-**Named connections:** Multiple per provider. `add_connection/3`, `remove_connection/2`, `rename_connection/3`, `list_connections/1`. `"default"` is not privileged. Names match `[a-zA-Z0-9][a-zA-Z0-9\-_]*`.
-
-**API shape (uuid-strict).** Storage-key construction (`"integration:{provider}:{name}"`) happens only in `add_connection/3` and module `migrate_legacy/0` migrators. All other public API takes a uuid:
-
-- Mutating: `save_setup`, `disconnect`, `remove_connection`, `rename_connection`, `record_validation` — all `(uuid, ...)`
-- OAuth: `authorization_url`, `exchange_code`, `refresh_access_token` — all `(uuid, ...)`
-- HTTP: `authenticated_request(uuid, ...)`, `validate_connection(uuid, actor)`
-- Read shims (uuid OR `provider:name` string): `get_integration/1`, `get_credentials/1`, `connected?/1`
-- Migration primitive: `find_uuid_by_provider_name/1`
-
-A corrupted JSONB `provider`/`name` cannot leak into a new key — no public write API derives keys from JSONB.
-
-**Consumer pattern:** modules store the uuid on their own records (`phoenix_kit_ai_endpoints.integration_uuid`, `document_creator_settings.google_connection`). Lookups via `get_integration_by_uuid/1` or `get_credentials/1`. The system does **not** silently fall back to "any connected row of this provider" — consumers specify which.
-
-**Validation:** `validate_connection/2` calls userinfo (OAuth) or validation endpoint (api_key/bot_token). Success flips `status` → `"connected"` and rewrites `connected_at`. `last_validated_at` is rewritten on every attempt.
-
-**Events (PubSub):** topic `"phoenix_kit:integrations"`. Events: `integration_setup_saved`, `integration_connected`, `integration_disconnected`, `integration_validated`, `integration_connection_added/removed/renamed`.
-
-**Module callbacks:** `required_integrations/0` (declare needed providers), `integration_providers/0` (contribute custom providers).
-
-**Legacy migration:** modules implement optional `migrate_legacy/0` on `PhoenixKit.Module`. Host apps call `PhoenixKit.ModuleRegistry.run_all_legacy_migrations/0` from `Application.start/2`. Idempotent per module; errors are caught and logged. The pre-uuid `Integrations.run_legacy_migrations/0` is now a deprecated shim.
-
-### Owner scopes: website-wide + personal (per-user)
-
-Connections carry an **owner** — `:system | :any | {type, id}` (typed owners:
-`{:user, uuid}`, `{:dashboard, uuid}`, …) — stored in the **existing JSONB** as
-`owner_type` + `owner_uuid` (**no column, no migration**; owner-less / pre-typed
-rows read as `:user`). Two independent admin surfaces share the storage + the
-`integrations_ui.ex` markup:
-
-- **Personal** (`/admin/settings/integrations`, `Live.Integrations.MyIntegrations`
-  / `MyIntegrationForm`) — owner `{:user, current_uuid}`, gated by the
-  `integrations` permission key. The owner uuid comes ONLY from the request
-  scope, never params; every context call passes `owner:` explicitly (a forgotten
-  owner on `add_connection` would silently birth a SYSTEM row).
-- **Website-wide** (`/admin/settings/integrations/website`,
-  `Live.Settings.Integrations` / `IntegrationForm`) — owner `:system`, gated by
-  `integrations_system`. (Note the personal pages took the base path; the system
-  pages moved under `/website`.)
-
-Owner threading in `integrations.ex`: reads/mutations take an `:owner` opt,
-**default `:system`** (fail-safe — a personal row never leaks into a system
-workflow). `resolve_uuid/2` enforces owner on every uuid-strict mutation;
-`get_integration_by_uuid/2` is owner-scoped on the form edit-load path and fails
-closed on mismatch (never puts cross-owner decrypted creds in assigns).
-`owner_uuid` is **write-once** — set at birth by `add_connection`, preserved by
-`save_setup`/`disconnect`, and dropped from incoming attrs. SQL filter:
-`->>'owner_uuid' IS NULL` (system) / `= ?` + `COALESCE(->>'owner_type','user') = ?`
-(typed). **Do NOT encrypt `owner_uuid`** — the `->>` filter needs it plaintext.
-
-**Provider `scopes`** (`providers.ex`, `Providers.scopes_of/1` / `for_scope/1`):
-`[:system]` (default) / `[:personal]` / `[:system, :personal]`. Self-owned-secret
-providers (api_key / smtp / ses) are personal-capable; OAuth2 (Google/Microsoft)
-are `[:system]`-only. `add_connection` enforces the requested scope, so a crafted
-event can't birth a personal Google row. Personal picker uses `personal_offered/0`.
-
-**Events are owner-routed:** `Events.subscribe/1` + `topic_for_user/1` give a
-per-user topic (personal LV subscribes to its own; system LV keeps `subscribe/0`).
-Broadcast payloads carry only `uuid`/`provider`/`status` — never decrypted creds
-(`@sensitive_fields` redaction, which includes `oauth_state`).
+- **Storage:** `phoenix_kit_settings` JSONB, keys `integration:{provider}:{name}`. Consumers reference connections by storage-row **uuid** — all public API except `add_connection/3` and the read shims is uuid-strict.
+- **Owner scopes:** `:system` (website-wide UI `/admin/settings/integrations/website`) vs `{:user, uuid}` (personal UI `/admin/settings/integrations`). Every context call takes an `:owner` opt, **default `:system`** — pass `owner:` explicitly on the personal path or a forgotten owner silently births a SYSTEM row. Never encrypt `owner_uuid`.
+- **Module callbacks:** `required_integrations/0`, `integration_providers/0`, optional `migrate_legacy/0` (run via `ModuleRegistry.run_all_legacy_migrations/0`).
 
 ## Core Form Components
 
 `PhoenixKitWeb.Components.Core.{Input, Select, Textarea, Checkbox}` — canonical form primitives. Use over raw `<input>`/`<select>`/`<textarea>` in new code. They handle `phx-feedback-for`, gettext error display, label wiring, daisyUI styling. Reference: `lib/phoenix_kit_web/users/user_form.html.heex`.
 
 - `class` attr → merges onto the **styled element** (input/label/textarea/checkbox). Pass daisyUI modifiers here: `input-sm`, `select-primary`, `checkbox-accent`, etc.
-- `<.input>` also has `wrapper_class` → goes to the outer `<div phx-feedback-for>`. (Aligned with Phoenix 1.7 generator: `class` → input element, not wrapper.)
+- `<.input>` also has `wrapper_class` → goes to the outer `<div phx-feedback-for>`.
 - Prefer FormField binding: `<.input field={@form[:email]} type="email" label="Email" />`. Raw `name=`/`value=` still works for dynamic field names.
 
 ## Core List-UI Components
 
 The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, strategy reorder, load-more pagination. All live in `lib/phoenix_kit_web/components/core/`. Reference call sites: `phoenix_kit_projects`' `projects_live.ex` / `tasks_live.ex` / `templates_live.ex`.
 
-**Sortable** — `<.sortable_tbody enabled={…} event="reorder_x" id="…">` + `<.sortable_row item_id={uuid}>`. Replaces the bespoke `<tbody phx-hook="SortableGrid" data-sortable-* …>` boilerplate. `enabled={false}` omits the hook so DnD turns off cleanly when sort_by ≠ position. Pair with `<.drag_handle_cell>` + `<.drag_handle_header_cell>` (in `table_default.ex`) — those render the grip icon and the `.pk-drag-handle` selector the SortableGrid hook reads. Rows inherit a named `group/row` Tailwind marker so the handle can hide-until-row-hover via `group-hover/row:` (named so it doesn't clobber unnamed `group-hover:` utilities nested in cells).
-
-**BulkSelect** — `<.bulk_select_scope id="…" total_count={…}>` wraps the table and attaches the `BulkSelectScope` JS hook (in `priv/static/assets/phoenix_kit.js`). Selection lives client-side; the hook reads it at action-button-click time and pushes `%{"uuids" => […]}` to the LV. Three children: `<.bulk_select_header_cell>` (tri-state checkbox), `<.bulk_select_cell value={uuid}>` (per-row), and `<.bulk_actions_toolbar on_open_reorder="…" on_bulk_delete={…} reorder_dialog_id={…}>` (the floating toolbar with Reorder / Delete / Clear). Optional `reorder_dialog_id` wires instant client-side dialog open (skip the LV round-trip) when paired with a kept-in-DOM `<.reorder_modal>`. Consumer LVs collapse 0–1 captured uuids to `:all` in `open_reorder_modal` — a single-row "reorder" is a no-op and the bulk-toolbar label reads "Reorder all" in that state.
-
-**ReorderModal** — `<.reorder_modal show on_close on_apply selected_count total_count strategies={[{value, label}…]} noun_singular noun_plural>` renders a strategy-picker dialog. Wraps `<.modal keep_in_dom={true}>` so the toolbar's `data-bulk-opens-dialog` can open it locally. The consumer LV owns the strategy whitelist (use a hardcoded `%{"name_asc" => :name_asc, …}` map for string→atom — never `String.to_existing_atom` on attacker input). Apply button carries `phx-disable-with` automatically.
-
-**Modal — `keep_in_dom` mode** — `<.modal keep_in_dom>` renders the `<dialog>` regardless of `@show`; visibility flips via `data-show` and the `PkDialog` hook calls `showModal()/close()`. Suits modals whose inner block is static (strategy picker, confirmation with fixed copy). Default conditional render is preserved for forms whose `@form` is `nil` until opened. **Pass an explicit `id=` when using `keep_in_dom`** — the auto-derived id (`pk-modal-<on_close>`) collides if two kept-in-DOM modals share the same close-event name.
-
-**SortSelector** — `<.sort_selector sort_by sort_dir options manual_field>` is the field-picker `<.select>` + direction-toggle button used in toolbars. Race-free by design: the select sends only `sort_by`, the arrow sends only `sort_dir`; the LV handler derives the missing half from `socket.assigns`. `manual_field={:position}` hides the direction toggle when the manual-order field is active (direction is meaningless when each row has a user-specified position).
-
-**Pagination — `<.load_more>`** — `<.load_more loaded={length(@items)} total={@total_count} on_load_more="load_more" noun_plural="…">` renders a status line + Load more button. Hides entirely at `total=0`; button hides at `loaded>=total`. Suits embeddable LVs (no URL state) and DnD-aware lists where rows append (don't replace) on each click — selection persists across loads because rows stay in the DOM. Page-numbered `<.pagination>` is the alternative for standalone admin pages with deep-linkable state.
+- **Sortable** — `<.sortable_tbody enabled={…} event="reorder_x" id="…">` + `<.sortable_row item_id={uuid}>`; `enabled={false}` omits the hook so DnD turns off when sort_by ≠ position. Pair with `<.drag_handle_cell>` / `<.drag_handle_header_cell>` (render the `.pk-drag-handle` the SortableGrid hook reads).
+- **BulkSelect** — `<.bulk_select_scope>` wraps the table; selection lives client-side, the hook pushes `%{"uuids" => […]}` on action-click. Children: `<.bulk_select_header_cell>`, `<.bulk_select_cell value={uuid}>`, `<.bulk_actions_toolbar>`. Consumer LVs collapse 0–1 captured uuids to `:all` (a single-row "reorder" is a no-op).
+- **ReorderModal** — `<.reorder_modal>` strategy-picker dialog. The consumer LV owns the strategy whitelist (hardcoded string→atom map — never `String.to_existing_atom` on attacker input).
+- **Modal `keep_in_dom`** — `<.modal keep_in_dom>` renders the `<dialog>` always; visibility flips via `data-show`. **Pass an explicit `id=`** — the auto-derived id collides when two kept-in-DOM modals share a close-event name.
+- **SortSelector** — `<.sort_selector sort_by sort_dir options manual_field>`; select sends only `sort_by`, arrow only `sort_dir` (race-free). `manual_field={:position}` hides the direction toggle. Accepts `id` (default `"pk-sort-selector-#{event}"`).
+- **Pagination** — `<.load_more>` for embeddable / DnD-aware lists (rows append, selection persists); `<.pagination>` for standalone pages with deep-linkable state.
 
 ## Multilang Form Components
 
@@ -319,37 +137,13 @@ Tabs, subtabs, badges, context selectors: see `lib/phoenix_kit/dashboard/README.
 
 ## Permissions
 
-`PhoenixKit.Users.Permissions` — allowlist model (row present = granted,
-absent = denied); Owner always has full access, enforced in code. The
-moduledoc is the source of truth; highlights:
+`PhoenixKit.Users.Permissions` — allowlist model (row present = granted, absent = denied); Owner always has full access, enforced in code. The moduledoc is the source of truth; highlights:
 
-- **Module keys** gate admin sections/feature modules (`"billing"`,
-  `"calendar"`, …). Custom keys via `register_custom_key/2`. The two
-  **integration keys** (`"integrations"` personal + `"integrations_system"`
-  website-wide) are independent flat keys: `integrations_system` is auto-granted
-  to Admin, `integrations` is opt-in (never auto-granted).
-- **`"*"` superadmin key** (`Permissions.superadmin_key/0`): a blanket,
-  drift-immune grant that makes a role Owner-equivalent without enumerating keys.
-  In `all_module_keys/0` but deliberately NOT in `enabled_module_keys/0` (so it's
-  never a *required* key). `Scope.superadmin?/1` / `has_module_access?/2` /
-  `accessible_modules/1` honor it. Cannot be registered as a custom key.
-- **Admin-area gate**: `Scope.can_access_admin_area?/1` — true for Owner, Admin,
-  OR any single permission holder. (Renamed from `admin?/1`, which is now a
-  `@deprecated` alias — the old name misled: it was never "is the Admin role".)
-  `Scope.holds_all_enabled_permissions?/1` is the "can do everything, like Owner"
-  check (compares vs `enabled_module_keys − admin_baseline_exclusions`, plus `"*"`).
-- **Sub-permissions** (added 1.7.182): fine-grained dotted keys under a
-  base (`"calendar.view_others"`), declared in the optional
-  `sub_permissions` field of `permission_metadata/0`. The base key gates
-  the module's admin pages; sub-keys are additive grants the module
-  checks itself via `Scope.can?/2`. A sub implies its base — granting a
-  sub auto-grants the base, revoking the base cascades its subs, and
-  `set_permissions/3` normalizes the set so no path persists an orphan
-  sub row. A sub-key is enabled iff its parent module is enabled.
-- **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit
-  their own role; only Owner can edit Admin.
-- Grant/revoke run under a per-`{role, base-key}` advisory lock so a base
-  revoke's cascade can't interleave a concurrent sub grant.
+- **Module keys** gate admin sections/feature modules; custom keys via `register_custom_key/2`. The two integration keys are independent flat keys: `integrations_system` is auto-granted to Admin, `integrations` is opt-in (never auto-granted).
+- **`"*"` superadmin key** (`Permissions.superadmin_key/0`) — a blanket Owner-equivalent grant honored by `Scope.superadmin?/1` / `has_module_access?/2` / `accessible_modules/1`. In `all_module_keys/0` but NOT `enabled_module_keys/0` (never a *required* key); cannot be registered as a custom key.
+- **Admin-area gate**: `Scope.can_access_admin_area?/1` — true for Owner, Admin, OR any single permission holder (`admin?/1` is a deprecated alias). `Scope.holds_all_enabled_permissions?/1` is the "can do everything, like Owner" check.
+- **Sub-permissions** — dotted keys under a base (`"calendar.view_others"`), declared in `permission_metadata/0`'s `sub_permissions`, checked by the module via `Scope.can?/2`. A sub implies its base (granting a sub auto-grants the base; revoking the base cascades). Grant/revoke run under a per-`{role, base-key}` advisory lock.
+- **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit their own role; only Owner can edit Admin.
 
 ## Activity Feed
 
@@ -371,12 +165,11 @@ PhoenixKit.Activity.log(%{
 **Profile/field changes** — `log_user_change/4` auto-extracts `field_from`/`field_to` from a changeset; skips logging if nothing changed:
 
 ```elixir
-PhoenixKit.Activity.log_user_change("user.profile_updated", user, changeset)
 PhoenixKit.Activity.log_user_change("user.profile_updated", user, changeset,
   actor_uuid: admin.uuid, target_uuid: user.uuid, mode: "manual", actor_role: "admin")
 ```
 
-**Conventions:** `action` = `resource.verb`; `module` = key string (`"users"`, `"posts"`); `mode` = manual/auto/cron/script; `actor_role` baked at log time (`"admin"`/`"user"`); `resource_type` usually equals `module`. Existing user actions are findable via `rg 'Activity.log' lib/phoenix_kit/users/`.
+**Conventions:** `action` = `resource.verb`; `module` = key string; `mode` = manual/auto/cron/script; `actor_role` baked at log time; `resource_type` usually equals `module`. Examples: `rg 'Activity.log' lib/phoenix_kit/users/`.
 
 **External modules** — guard with `Code.ensure_loaded?/1`:
 
@@ -390,105 +183,23 @@ end
 
 ## Notifications
 
-Per-user inbox, driven by activity log. When `Activity.log/1` records an entry with `target_uuid != actor_uuid`, a row goes into `phoenix_kit_notifications` for the target user. Admins use `/admin/activity` for audit — they do NOT receive notifications.
+Per-user inbox driven by the activity log. Full reference: `dev_docs/guides/2026-07-27-notifications.md`.
 
-Kill switch: `notifications_enabled` setting (default `"true"`).
-
-**Generation:** automatic — never insert directly into `phoenix_kit_notifications`; create the activity and let the hook in `lib/phoenix_kit/activity/activity.ex` fan out via `PhoenixKit.Notifications.maybe_create_from_activity/1`. Each row is `(activity_uuid, recipient_uuid)` with independent `seen_at`/`dismissed_at`.
-
-**Rendering:** `PhoenixKit.Notifications.Render.render(notification)` → `%{icon, text, link, actor_uuid}`. Unknown actions fall back to the raw action string.
-
-**Public API** (`PhoenixKit.Notifications`):
-- `list_for_user(user_uuid, opts)` — `:page`, `:per_page`, `:status (:unread|:all)`, `:include_dismissed`
-- `recent_for_user(user_uuid, limit \\ 10)`, `count_unread(user_uuid)`
-- `mark_seen` / `mark_all_seen` / `dismiss` / `dismiss_all` (all `(user_uuid, ...)`)
-- `get_notification(user_uuid, uuid)` — recipient-scoped
-- `enabled?/0`, `retention_days/0`, `prune/1`
-
-**PubSub topic:** `PhoenixKit.Notifications.Events.topic_for_user(user_uuid)` (`"phoenix_kit:notifications:<uuid>"`). Events: `{:notification_created, n}`, `{:notification_seen, n}`, `{:notification_dismissed, n}`, `{:notifications_bulk_updated, :seen | :dismissed}`.
-
-**UI** — no PhoenixKit-owned notifications page. Embeddable bell `PhoenixKitWeb.Live.NotificationsBell` (sticky nested LV, owns its PubSub sub):
-
-```heex
-<%= Phoenix.Component.live_render(@socket, PhoenixKitWeb.Live.NotificationsBell,
-      id: "pk-notifications-bell", sticky: true,
-      session: %{"user_uuid" => @current_user.uuid}) %>
-```
-
-"Seen" only on explicit user action — opening the dropdown does NOT auto-mark seen.
-
-**Per-user preferences:** users mute notification *types* (not actions) via `UserSettings`. Persisted in `users.custom_fields["notification_preferences"]` (V18 JSONB column). Types live in `PhoenixKit.Notifications.Types`. Core types: `"account"`, `"posts"`, `"comments"`. External modules contribute via optional `notification_types/0` on `PhoenixKit.Module`:
-
-```elixir
-@impl PhoenixKit.Module
-def notification_types do
-  [%{key: "reviews", label: "Reviews", description: "...",
-     actions: ["review.submitted", "review.edited"], default: true}]
-end
-```
-
-`Types.list/0` merges core + modules; toggle appears automatically. `Notifications.Prefs.user_wants?/2` is **fail-open** — unknown actions, missing prefs, or lookup errors return `true`.
-
-**Custom display:** `Render.render/1` honors three metadata keys before falling back:
-
-```elixir
-metadata: %{
-  "notification_text" => "Alice left you a 5-star review.",
-  "notification_icon" => "hero-star",
-  "notification_link" => "/reviews/#{review.uuid}"
-}
-```
-
-Any key can be absent — Render falls back to the action lookup for the missing parts.
-
-### Delivery channels (external destinations)
-
-Pluggable per-user routing of notifications to **external** destinations
-(Telegram, Email; more via modules) on top of the in-app inbox. **Model B —
-parallel routing layer**: the inbox path above is untouched; external channels
-are computed + enqueued independently, so "Telegram on, inbox off" works with
-**no migration** (config rides `users.custom_fields`).
-
-- **`PhoenixKit.Notifications.Channel`** behaviour: `key/0`, `label/0`, `icon/0`,
-  `configured?/2`, `deliver/2`, optional `validate_config/1`. `deliver/2` takes a
-  channel-neutral, pre-rendered `t:envelope/0` (absolute URL) and returns a
-  permanent/transient error taxonomy so the worker decides retry-vs-give-up.
-- **`Channels`** registry: core `[Email, Telegram]` + modules' optional
-  `notification_channels/0` (same merge as `Types`). `Channels.Email` is
-  always-configured (sends via `Mailer`); `Channels.Telegram` auto-discovers the
-  recipient's Telegram connections + captured `chat_ids`.
-- **`ChannelConfig`** — per-channel config under
-  `custom_fields["notification_channel:<key>"]` (ONE top-level key per channel so
-  the atomic shallow `||` merge can't clobber siblings). Reserved: `enabled`
-  (default on), `types` (**fail-closed** per-type opt-in), `cadences`.
-- **`Routing`** — `targets_for_action/2` / `targets_for_type/2` / `any_target?/2`,
-  **fail-closed**: untyped / standalone sends never route out.
-- **Delivery**: `DeliveryWorker` on a dedicated `:notifications` Oban queue
-  (enqueued at creation for immediate cadences; the inbox insert is **decoupled**
-  from the enqueue, so a failed channel enqueue never costs the user their inbox
-  row). `DigestWorker` is an Oban cron (one entry per cadence: immediate / hourly
-  / 12h / daily / weekly) that counts activity in a fixed window and sends one
-  summary — no per-user last-sent state.
-- **Telegram setup** lives on the personal integration form (mode select + chat
-  capture folded into Test), NOT the notifications page. `mode`: `"single"` (lock
-  one chat) / `"multi"` (broadcast to all who started the bot); an **Unlink**
-  button clears captured `chat_ids`. The `notification_channel:telegram` config
-  holds only routing/cadence — connection + chat live on the integration.
-
-**Cleanup:** `PhoenixKit.Notifications.PruneWorker` daily (`"0 4 * * *"`). Retention: `notifications_retention_days` → falls back to `activity_retention_days` (default 90). Cascading FK deletes also remove notifications when the underlying activity is pruned.
+- **Generation:** `Activity.log/1` with `target_uuid != actor_uuid` fans out a `phoenix_kit_notifications` row via `Notifications.maybe_create_from_activity/1` — **never insert directly**. Kill switch: `notifications_enabled` (default `"true"`).
+- **API:** `PhoenixKit.Notifications` — `list_for_user/2`, `recent_for_user/2`, `count_unread/1`, `mark_seen` / `mark_all_seen` / `dismiss` / `dismiss_all`, `get_notification/2` (recipient-scoped). Render via `Notifications.Render.render/1`, which honors `notification_text` / `notification_icon` / `notification_link` metadata keys.
+- **UI:** embeddable `PhoenixKitWeb.Live.NotificationsBell` (sticky nested LV, owns its PubSub sub); "seen" only on explicit user action. PubSub topic: `Notifications.Events.topic_for_user(uuid)`.
+- **Per-user preferences:** mute by *type*; types merge core + modules' `notification_types/0` callback. `Notifications.Prefs.user_wants?/2` is **fail-open**.
+- **External delivery channels** (Telegram, Email; modules add via `notification_channels/0`): parallel routing layer — `Channel` behaviour, `Channels` registry, `ChannelConfig` under `custom_fields["notification_channel:<key>"]`, fail-closed `Routing`, Oban `DeliveryWorker` (`:notifications` queue) + `DigestWorker` cron. The inbox insert is decoupled from channel enqueue.
+- **Cleanup:** `Notifications.PruneWorker` daily; retention `notifications_retention_days` → `activity_retention_days` (default 90).
 
 ## MediaBrowser Component
 
-Embeddable media UI: folder tree, grid/list, upload, search, selection, drag-drop, trash. `lib/phoenix_kit_web/components/media_browser.ex` (+ `.html.heex`). Used by `/admin/media` and any LV needing media picking.
+Embeddable media UI (folder tree, grid/list, upload, search, selection, trash): `lib/phoenix_kit_web/components/media_browser.ex`. Full attrs/behavior: `dev_docs/guides/2026-07-27-media-browser.md`.
 
-**One-line embed** — the macro injects upload setup, the `"validate"` upload-channel stub, and the `handle_info` delegator:
+**One-line embed** — the macro injects upload setup, the `"validate"` stub, and the `handle_info` delegator:
 
 ```elixir
-defmodule MyAppWeb.MediaPage do
-  use MyAppWeb, :live_view
-  use PhoenixKitWeb.Components.MediaBrowser.Embed
-  def mount(_params, _session, socket), do: {:ok, socket}
-end
+use PhoenixKitWeb.Components.MediaBrowser.Embed
 ```
 
 ```heex
@@ -496,45 +207,9 @@ end
   id="media-browser" parent_uploads={@uploads} />
 ```
 
-`parent_uploads={@uploads}` is required (LiveView `allow_upload` constraint).
+`parent_uploads={@uploads}` is required (LiveView `allow_upload` constraint). Key attrs: `scope_folder_id`, `on_navigate={:navigate}` (controlled mode), `initial_params`, `admin`, `select_mode`.
 
-**Click behavior** (in order):
-1. `select_mode` on → toggle file in/out of selection (toolbar Select button enters this mode).
-2. `admin={true}` → `push_navigate` to `/admin/media/:uuid`.
-3. Default → in-place modal (image/video/PDF/icon + metadata + Download). Closes via X/Esc/backdrop. Prev/Next chevrons + ←/→ keys step through current page's `uploaded_files`. If `PhoenixKitComments` is installed AND admin-enabled, a comment thread for `resource_type="file"` renders under metadata, keyed by `file_uuid`.
-
-**Other attrs:**
-- `scope_folder_id` — constrain to a virtual root (trash/tree/uploads/move all honor it)
-- `on_navigate={:navigate}` — controlled mode; component emits `{MediaBrowser, id, {:navigate, params}}` so parent can `push_patch`. Parent feeds URL params back via `send_update(..., nav_params: ...)`. Reference: `lib/phoenix_kit_web/live/users/media.ex`.
-- `initial_params` — apply URL params on first render (avoid root-view flash)
-
-**URL sync (shareable folder deep links)** — added 1.7.126. Don't hand-write the controlled-mode round-trip; opt in via the Embed macro and it's automatic — folder/search/page/view land in the URL as `?folder=<uuid>&q=&page=&view=`, so a reload or a shared link reopens that folder. Folder tracked by uuid (rename-stable; unknown/out-of-scope → root). The `push_patch` only appends the query to the **current** path, so every existing segment (locale, parent resource ids, sub-tab — e.g. `/en/admin/orders/:id/edit/files`) is preserved.
-
-```elixir
-use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: true
-# non-default component id / multiple browsers:
-use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "my-browser"]
-```
-```heex
-<.live_component module={PhoenixKitWeb.Components.MediaBrowser}
-  id="my-browser" on_navigate={:navigate} initial_params={@initial_params}
-  parent_uploads={@uploads} />
-```
-
-Implemented with LiveView lifecycle hooks (`attach_hook(:handle_params)` + `attach_hook(:handle_info)` in `on_mount`), **not** injected clauses — so it composes with a host LiveView that already defines its own `handle_params`/`handle_info` (e.g. a resource-edit page that loads its record in `handle_params`). No clash, nothing to reconcile. Public helpers `MediaBrowser.Embed.parse_nav_params/1` + `build_nav_query/1` for hosts that want a custom round-trip. `/admin/media` (`Live.Users.Media`) is the reference call site. Single-browser-per-page assumed (query keys aren't namespaced per component).
-
-**Selection actions:** `…` dropdown in header → Download (staggered `<a download>` clicks via `MediaDragDrop` hook in `priv/static/assets/phoenix_kit.js`) + Delete (move to trash, or permanently if trash view active).
-
-**Manual wiring** (if not using Embed) — Embed's `@before_compile` injection ensures user-defined clauses match first:
-
-```elixir
-def mount(_p, _s, socket), do: {:ok, PhoenixKitWeb.Components.MediaBrowser.setup_uploads(socket)}
-def handle_event("validate", _p, socket), do: {:noreply, socket}
-def handle_info({PhoenixKitWeb.Components.MediaBrowser, _, _} = msg, socket),
-  do: PhoenixKitWeb.Components.MediaBrowser.handle_parent_info(msg, socket)
-```
-
-**Files:** `media_browser.ex`/`.html.heex`/`embed.ex`, backing context `lib/modules/storage/storage.ex`, JS hooks `priv/static/assets/phoenix_kit.js`.
+**URL sync (shareable folder deep links):** `use …Embed, url_sync: true` puts folder/search/page/view in the URL via lifecycle hooks (`attach_hook`, **not** injected clauses) — composes with a host LV that has its own `handle_params`/`handle_info`. The patch appends the query to the **current** path, so locale/resource segments are preserved. Reference: `lib/phoenix_kit_web/live/users/media.ex`.
 
 ## Guidelines
 
@@ -557,13 +232,7 @@ Modules with UI implement `css_sources/0`:
 def css_sources, do: [:phoenix_kit_my_module]
 ```
 
-Discovery is automatic at compile time via `:phoenix_kit_css_sources` compiler (`lib/mix/tasks/compile.phoenix_kit_css_sources.ex`) — generates `assets/css/_phoenix_kit_sources.css`.
-
-**Parent app setup (one-time, by `mix phoenix_kit.install`):**
-1. Add `:phoenix_kit_css_sources` to `compilers:` in `mix.exs` (before `:phoenix_live_view`)
-2. `app.css` has `@import "./_phoenix_kit_sources.css";`
-
-After setup, adding/removing modules is zero-config.
+Discovery is automatic at compile time via the `:phoenix_kit_css_sources` compiler — generates `assets/css/_phoenix_kit_sources.css`. Parent setup (one-time, by `mix phoenix_kit.install`): add the compiler to `compilers:` in `mix.exs` (before `:phoenix_live_view`) and `@import "./_phoenix_kit_sources.css";` in `app.css`. After setup, adding/removing modules is zero-config.
 
 ### JavaScript Hooks for External Modules
 
@@ -573,9 +242,7 @@ PhoenixKit ships hooks (RowMenu, TableCardView, SortableGrid, etc.) in `priv/sta
 hooks: { ...window.PhoenixKitHooks, ...colocatedHooks }
 ```
 
-**Parent setup (by `mix phoenix_kit.install`):** copy `phoenix_kit.js` to `priv/static/assets/vendor/`, add `<script src={~p"/assets/vendor/phoenix_kit.js"}></script>` **before** `app.js` in root layout. `mix phoenix_kit.update` refreshes it.
-
-External modules add hooks via inline `<script>` on `window.PhoenixKitHooks` (see hello_world).
+**Parent setup (by `mix phoenix_kit.install`):** copy `phoenix_kit.js` to `priv/static/assets/vendor/`, add `<script src={~p"/assets/vendor/phoenix_kit.js"}></script>` **before** `app.js` in root layout. `mix phoenix_kit.update` refreshes it. External modules add hooks via inline `<script>` on `window.PhoenixKitHooks` (see hello_world).
 
 ### Layout Wrapper
 
@@ -614,6 +281,10 @@ url = Routes.url("/users/confirm/#{token}")
 <.pk_link_button navigate="/admin/users" variant="primary">Manage Users</.pk_link_button>
 ```
 
+### LiveView form ids
+
+Every `<form phx-change=…>` needs a unique `id` — without it LiveView form recovery is silently disabled and host test suites warn `missing_form_id`. LiveComponent → derive from `@id`; inside a comprehension → include the row uuid; `<.form for={%{}}>` needs an explicit `id` (only `for={@changeset}` supplies one for free). Detect with a multi-line-aware scanner, not line-oriented grep. Full audit: `dev_docs/investigations/2026-07-27-missing-form-id-audit.md`.
+
 ## Parent Project
 
 ### Install Commands
@@ -633,9 +304,7 @@ Routes auto-discovered at compile time via `ModuleDiscovery` beam scanning. The 
 1. **Single page** — set `live_view: {Module.Web.IndexLive, :index}` on a tab in `admin_tabs/0` or `settings_tabs/0`. Route auto-generated. Used by: hello_world, sync, catalogue, document_creator, emails (settings), user_connections, legal.
 2. **Multi-page** — implement `route_module/0` returning a module with `admin_routes/0` and `admin_locale_routes/0`. Required for sub-routes (`/new`, `/edit`, `/:id`). Do NOT also set `live_view:` on the main tab. Used by: ai, entities, publishing, newsletters.
 
-If a parent tab + subtab share a path with both having `live_view:`, the core deduplicates (first wins) — but avoid this; only one `live_view:` per path.
-
-Fallback for failed auto-discovery:
+Only one `live_view:` per path (core deduplicates, first wins — avoid). Fallback for failed auto-discovery:
 
 ```elixir
 config :phoenix_kit, route_modules: [PhoenixKitEntities.Routes]
@@ -643,33 +312,11 @@ config :phoenix_kit, route_modules: [PhoenixKitEntities.Routes]
 
 ### Publishing Routing Strategy
 
-Publishing's `/:language/:group/*path` catch-all matches every 2+ segment URL and Phoenix has no fall-through after a route matches — so any host route declared after `phoenix_kit_routes()` shaped `/:locale/<literal>/...` was silently shadowed. `compile_publishing_routing/1` in `integration.ex` emits a dispatch shim (compile-time gated on `Code.ensure_loaded?(PhoenixKitPublishing.RouterDispatch)`):
-
-1. Internal scope `/<url_prefix>/__phoenix_kit_publishing_dispatch` with `/localized` (binds `:language` + `:group`) and `/root` (binds `:group`) sub-scopes.
-2. `def call/2` override on the host router: calls `RouterDispatch.maybe_rewrite/1`; on cache hit, prepends the internal prefix to `path_info` + `request_path` (originals stashed in `conn.private`), then `super(conn, opts)` matches against the internal scope. Miss → conn passes through, host routes win.
-3. `restore_path/2` un-rewrites after route bind, before controller — without it, `default_language_no_prefix` redirect spins forever.
-
-**Known blind spot:** `mix phx.routes` shows publishing routes under the internal prefix, not at the user-facing URL.
-
-The mechanism generalizes; for now hardcoded to publishing — lift to a registry shape when a second module needs it.
+Publishing's `/:language/:group/*path` catch-all matches every 2+ segment URL and Phoenix has no fall-through — host routes declared after `phoenix_kit_routes()` shaped `/:locale/<literal>/...` were silently shadowed. Fix: `compile_publishing_routing/1` in `integration.ex` emits an internal `__phoenix_kit_publishing_dispatch` scope plus a host-router `call/2` override that prepends the internal prefix on a `RouterDispatch.maybe_rewrite/1` cache hit (`restore_path/2` un-rewrites after route bind). Known blind spot: `mix phx.routes` shows publishing routes under the internal prefix, not the user-facing URL. The mechanism generalizes — lift to a registry shape when a second module needs it.
 
 ## daisyUI version (host-owned; advisory warnings only)
 
-The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` +
-`daisyui-theme.js`, scaffolded by `mix phx.new`, upgraded manually by the
-host). Core only declares a designed-for minimum
-(`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns
-below it from `phoenix_kit.install` / `phoenix_kit.update` /
-`phoenix_kit.doctor` — advisory, never touching host files. All modal
-scrollbar-gutter compensations were removed 2026-07-12 (daisyUI ≥ 5.1 handles
-the gutter conditionally); **do NOT re-add `scrollbar-gutter` overrides in
-layouts, PkDialog, or modules**.
-
-**daisyUI version-control problem: researched in full — a vendor-in-core
-custody/auto-sync design was built, verified, and deliberately NOT
-implemented** (hosts own their assets). Full investigation, options analysis,
-and measurement gotchas:
-`dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
+The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` + `daisyui-theme.js`). Core only declares a designed-for minimum (`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns below it from `phoenix_kit.install` / `phoenix_kit.update` / `phoenix_kit.doctor` — advisory, never touching host files. Modal scrollbar-gutter compensations were removed 2026-07-12 (daisyUI ≥ 5.1 handles the gutter); **do NOT re-add `scrollbar-gutter` overrides in layouts, PkDialog, or modules**. A vendor-in-core custody design was researched and deliberately NOT implemented: `dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
 
 ## TODOs
 
