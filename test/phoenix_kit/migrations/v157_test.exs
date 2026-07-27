@@ -17,7 +17,9 @@ defmodule PhoenixKit.Migrations.Postgres.V157Test do
 
   use PhoenixKit.DataCase, async: false
 
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.RepoHelper, as: Repo
+  alias PhoenixKit.Users.Auth
 
   # Every kind V157 leaves allowed. Ordered as the constraint declares them.
   @kinds ~w(rectangle circle polygon freehand callout text dimension line marker image)
@@ -37,6 +39,34 @@ defmodule PhoenixKit.Migrations.Postgres.V157Test do
     definition
   end
 
+  # A persisted file to hang the annotations on: `file_uuid` is a NOT NULL FK to
+  # phoenix_kit_files, so a random uuid would trip the FK before the kind CHECK
+  # we're actually exercising. Insert via the schema (register a user first, as
+  # V113's user_or_parent CHECK requires an owner) and return the binary uuid the
+  # raw annotation inserts pass as `$1`.
+  defp file_uuid! do
+    n = System.unique_integer([:positive])
+
+    {:ok, user} =
+      Auth.register_user(%{email: "annot-#{n}@example.com", password: "ValidPassword123!"})
+
+    {:ok, file} =
+      Repo.insert(%StorageFile{
+        original_file_name: "shot_#{n}.png",
+        file_name: "shot_#{n}.png",
+        mime_type: "image/png",
+        file_type: "image",
+        ext: "png",
+        file_checksum: "sha256:test-#{n}",
+        user_file_checksum: "user-sha256:test-#{n}",
+        size: 1024,
+        status: "active",
+        user_uuid: user.uuid
+      })
+
+    Ecto.UUID.dump!(file.uuid)
+  end
+
   describe "phoenix_kit_annotations_kind_check" do
     test "allows every kind V157 declares, and nothing was dropped along the way" do
       definition = kind_check_def()
@@ -47,26 +77,26 @@ defmodule PhoenixKit.Migrations.Postgres.V157Test do
     end
 
     test "the constraint accepts an image annotation at the DB level" do
-      file_uuid = UUIDv7.generate()
-
       assert %{num_rows: 1} =
                Repo.query!(
                  """
-                 INSERT INTO phoenix_kit_annotations (uuid, file_uuid, kind, geometry)
-                 VALUES ($1, $2, 'image', '{"path": [[0, 0], [10, 10]]}'::jsonb)
+                 INSERT INTO phoenix_kit_annotations (uuid, file_uuid, kind, geometry, inserted_at, updated_at)
+                 VALUES (uuid_generate_v7(), $1, 'image', '{"path": [[0, 0], [10, 10]]}'::jsonb, NOW(), NOW())
                  """,
-                 [UUIDv7.generate(), file_uuid]
+                 [file_uuid!()]
                )
     end
 
     test "the constraint still rejects a kind outside the vocabulary" do
+      file_uuid = file_uuid!()
+
       assert_raise Postgrex.Error, ~r/phoenix_kit_annotations_kind_check/, fn ->
         Repo.query!(
           """
-          INSERT INTO phoenix_kit_annotations (uuid, file_uuid, kind, geometry)
-          VALUES ($1, $2, 'scribble', '{"path": [[0, 0], [10, 10]]}'::jsonb)
+          INSERT INTO phoenix_kit_annotations (uuid, file_uuid, kind, geometry, inserted_at, updated_at)
+          VALUES (uuid_generate_v7(), $1, 'scribble', '{"path": [[0, 0], [10, 10]]}'::jsonb, NOW(), NOW())
           """,
-          [UUIDv7.generate(), UUIDv7.generate()]
+          [file_uuid]
         )
       end
     end
