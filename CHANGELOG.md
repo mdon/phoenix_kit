@@ -1,3 +1,15 @@
+## Unreleased
+
+### Fixed
+- **Sitemap: `/users/qr-login` and `/robots.txt` no longer land in the sitemap**
+  — both were missing from Router Discovery's default exclude patterns. The QR
+  device-handoff login is a public route with no auth pipeline and no `on_mount`
+  hook, and the existing `"/users/log-in"` pattern does not match it; a
+  controller-served `robots.txt` reaches the router the same way (Plug.Static
+  installs are unaffected). Note that `sitemap_router_discovery_exclude_patterns`
+  *replaces* the defaults when saved, so installs that already customized the
+  list must re-copy it from `/admin/settings/sitemap` to pick these up.
+
 ## 1.7.214 - 2026-07-27
 
 ### Added

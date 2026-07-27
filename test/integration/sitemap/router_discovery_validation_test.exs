@@ -41,6 +41,21 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryValidationTest do
       # Every default must itself compile — the built-ins are never invalid.
       assert RouterDiscovery.invalid_patterns(defaults) == []
     end
+
+    # Both of these reached a real sitemap: /users/qr-login is a public route
+    # with no auth pipeline and no on_mount hook, and the "/users/log-in"
+    # pattern does not substring-match it; robots.txt reaches the router
+    # whenever a host app serves it from a controller instead of Plug.Static.
+    test "excludes the QR login page and a controller-served robots.txt" do
+      regexes =
+        RouterDiscovery.default_exclude_patterns()
+        |> Enum.map(&Regex.compile!/1)
+
+      for path <- ["/users/qr-login", "/robots.txt"] do
+        assert Enum.any?(regexes, &Regex.match?(&1, path)),
+               "expected a default exclude pattern to match #{path}"
+      end
+    end
   end
 
   describe "default_protected_pipelines/0" do

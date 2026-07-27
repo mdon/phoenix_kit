@@ -101,6 +101,10 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     "/users/confirm",
     "/users/magic-link",
     "/users/settings",
+    # QR device-handoff login: a public route with no auth pipeline and no
+    # on_mount hook (the redirect-if-authenticated check lives in its mount/3),
+    # so only this pattern keeps it out — and "/users/log-in" does not match it.
+    "/users/qr-login",
     # Internal/functional pages - not for search engine indexing
     "/checkout",
     "/cart",
@@ -111,6 +115,9 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     "/sitemap\\.",
     "/sitemaps/",
     "/assets/",
+    # Host apps that serve robots.txt from a controller (rather than
+    # Plug.Static) expose it as a GET route — it is a directive file, not a page
+    "^/robots\\.txt$",
     # Homepage is handled by Static source
     "^/$"
   ]
@@ -194,6 +201,13 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   Once that setting is saved (even as an empty list), it replaces this list
   entirely rather than adding to it. Exposed so the settings UI can show
   admins what's excluded today, before they touch the setting.
+
+  > #### Saved lists are frozen {: .warning}
+  >
+  > Because a saved setting replaces these defaults, an install that already
+  > saved a custom list does **not** pick up patterns added here in later
+  > PhoenixKit versions. When new defaults ship, such installs must re-copy
+  > this list into the settings textarea to get them.
   """
   @spec default_exclude_patterns() :: [String.t()]
   def default_exclude_patterns, do: @default_exclude_patterns
