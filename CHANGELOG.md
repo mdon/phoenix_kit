@@ -1,3 +1,26 @@
+## 1.7.216 - 2026-07-27
+
+### Fixed
+- **Every `phx-change` form now carries an `id`** — LiveView cannot perform form
+  recovery on an id-less form, so a crash or reconnect silently dropped whatever
+  the user had typed, and host test suites saw an unfixable
+  `Detected a form with phx-change but missing id` warning coming out of the
+  dep's own templates (the only workaround being
+  `config :phoenix_live_view, :test_warnings, missing_form_id: :ignore`, which
+  also mutes the host's own genuine cases). 26 forms across core, storage,
+  sitemap and maintenance were affected. Ids on LiveComponent-rendered forms are
+  derived from the component's `@id` (and, for per-row inline folder rename /
+  description editors, the folder uuid) so nothing collides when a page renders
+  more than one. `<.form for={%{}}>` call sites were affected too — a bare map
+  with no `:as` produces a `nil` id — so `MediaBrowser`'s search, the annotation
+  composer, the media selector upload form and the storage media-config form are
+  fixed as well.
+
+### Changed
+- **`<.sort_selector>` accepts an `id`** — defaults to
+  `"pk-sort-selector-#{event}"`; pass an explicit one when a page renders two
+  sort selectors that share an `event`.
+
 ## 1.7.215 - 2026-07-27
 
 ### Fixed

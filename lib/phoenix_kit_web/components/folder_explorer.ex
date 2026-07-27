@@ -369,6 +369,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         <%= if @is_renaming do %>
           <%!-- Inline rename form --%>
           <form
+            id={"folder-tree-rename-form-#{@node.folder.uuid}"}
             phx-submit="rename_folder"
             phx-change="rename_folder_input"
             phx-target={@myself}

@@ -541,7 +541,7 @@
               </label>
 
               <%!-- Display Style --%>
-              <form phx-change="update_style" class="form-control">
+              <form id="sitemap-style-form" phx-change="update_style" class="form-control">
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Display Style")}</span>
                 </label>
@@ -578,7 +578,11 @@
               />
             </div>
 
-            <form phx-change="update_interval" class="flex items-center gap-4 mt-4">
+            <form
+              id="sitemap-interval-form"
+              phx-change="update_interval"
+              class="flex items-center gap-4 mt-4"
+            >
               <span class="text-sm">{gettext("Regenerate every")}</span>
               <label class="select select-sm">
                 <select

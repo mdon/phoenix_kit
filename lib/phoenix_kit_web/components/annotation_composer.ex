@@ -353,6 +353,7 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
     <div id={@id} class="space-y-2">
       <.form
         for={%{}}
+        id={"#{@id}-form"}
         phx-submit="post"
         phx-change="update_draft"
         phx-target={@myself}

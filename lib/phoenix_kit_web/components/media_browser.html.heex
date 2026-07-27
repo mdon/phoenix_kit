@@ -1034,6 +1034,7 @@
                              blurred while empty. --%>
                         <%= if @show_search or @search_query != "" do %>
                           <form
+                            id={"#{@id}-search-form"}
                             phx-change="search"
                             phx-submit="search"
                             phx-target={@myself}
@@ -1298,6 +1299,7 @@
                                 <.icon name="hero-folder" class="w-12 h-12 mb-1" />
                               </span>
                               <form
+                                id={"#{@id}-grid-folder-description-form-#{folder.uuid}"}
                                 phx-submit="save_folder_description"
                                 phx-change="folder_description_input"
                                 phx-target={@myself}
@@ -1336,6 +1338,7 @@
                                 <.icon name="hero-folder" class="w-20 h-20 mb-2" />
                               </span>
                               <form
+                                id={"#{@id}-grid-folder-rename-form-#{folder.uuid}"}
                                 phx-submit="rename_folder"
                                 phx-target={@myself}
                                 phx-change="rename_folder_input"
@@ -1832,6 +1835,7 @@
                                   </td>
                                   <td colspan="6">
                                     <form
+                                      id={"#{@id}-list-folder-description-form-#{folder.uuid}"}
                                       phx-submit="save_folder_description"
                                       phx-change="folder_description_input"
                                       phx-target={@myself}
@@ -1884,6 +1888,7 @@
                                   </td>
                                   <td colspan="6">
                                     <form
+                                      id={"#{@id}-list-folder-rename-form-#{folder.uuid}"}
                                       phx-submit="rename_folder"
                                       phx-target={@myself}
                                       phx-change="rename_folder_input"
@@ -2379,7 +2384,12 @@
           <p class="text-sm text-base-content/60 mt-1 mb-4">
             {gettext("Name your folder, or leave it blank to use the default.")}
           </p>
-          <form phx-submit="submit_new_folder" phx-change="new_folder_input" phx-target={@myself}>
+          <form
+            id={"#{@id}-new-folder-form"}
+            phx-submit="submit_new_folder"
+            phx-change="new_folder_input"
+            phx-target={@myself}
+          >
             <input
               id="new-folder-name-input"
               type="text"

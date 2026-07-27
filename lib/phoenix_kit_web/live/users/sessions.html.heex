@@ -172,7 +172,7 @@
       }
     >
       <:toolbar_title>
-        <form phx-change="search" class="contents">
+        <form id="sessions-search-form" phx-change="search" class="contents">
           <label class="input input-sm w-40 sm:w-52 lg:w-64 min-w-0">
             <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
             <input
@@ -191,7 +191,11 @@
         <span class="text-sm text-base-content/70 whitespace-nowrap">
           {gettext("Status:")}
         </span>
-        <form phx-change="filter_by_user_status" class="contents">
+        <form
+          id="sessions-user-status-filter-form"
+          phx-change="filter_by_user_status"
+          class="contents"
+        >
           <select class="select select-sm w-40 min-w-0" name="status">
             <option value="all" selected={@filter_user_status == "all"}>
               {gettext("All Users")}

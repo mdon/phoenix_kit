@@ -115,7 +115,12 @@
               <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> {gettext("Upload New Files")}
             </h3>
             <%= if @has_buckets do %>
-              <form phx-change="validate" phx-submit="save" phx-target={@myself}>
+              <form
+                id={"#{@id}-upload-form"}
+                phx-change="validate"
+                phx-submit="save"
+                phx-target={@myself}
+              >
                 <%!-- Drag and Drop Zone --%>
                 <div
                   class={[

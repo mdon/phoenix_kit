@@ -43,6 +43,9 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
     flip. Default `"sort_form"`.
   - `target` — Optional `phx-target` for LiveComponents.
   - `class` — Extra classes on the inner `<form>` element.
+  - `id` — DOM id for the inner `<form>`. Defaults to
+    `"pk-sort-selector-\#{event}"`. Override when a page renders two sort
+    selectors that share an `event`.
 
   ## Edge cases handled
 
@@ -81,6 +84,11 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
   attr :target, :any, default: nil
   attr :class, :string, default: nil
 
+  attr :id, :string,
+    default: nil,
+    doc:
+      "DOM id for the inner `<form>`. Defaults to `\"pk-sort-selector-\#{event}\"`. LiveView needs a form id for change recovery — pass an explicit one when two sort selectors on the same page share an `event`, otherwise the ids collide."
+
   attr :manual_field, :any,
     default: nil,
     doc:
@@ -97,6 +105,7 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
       |> assign(:sort_dir_norm, normalize_dir(assigns[:sort_dir]))
       |> assign(:normalized_options, normalize_options(assigns[:options]))
       |> assign(:manual_active?, manual_active?)
+      |> assign(:form_id, assigns[:id] || "pk-sort-selector-#{assigns[:event]}")
 
     ~H"""
     <%!-- Render nothing when there's nothing to sort by. Empty options
@@ -107,6 +116,7 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
     <% else %>
       <.form
         for={%{}}
+        id={@form_id}
         phx-change={@event}
         phx-target={@target}
         class={[

@@ -237,7 +237,7 @@
           </div>
         </:toolbar_title>
         <:sort_bar :if={@show_search or @search_query != ""}>
-          <form phx-change="search" phx-submit="search">
+          <form id="users-search-form" phx-change="search" phx-submit="search">
             <label class="input input-sm input-bordered flex items-center gap-2 w-full">
               <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50 shrink-0" />
               <input

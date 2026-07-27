@@ -30,7 +30,7 @@ defmodule PhoenixKitWeb.Components.Core.PopoverPanel do
         </button>
 
         <.popover_panel id="my-filters">
-          <form phx-change="search">…</form>
+          <form id="my-filters-search" phx-change="search">…</form>
           <ul class="max-h-80 overflow-y-auto">…</ul>
         </.popover_panel>
       </div>

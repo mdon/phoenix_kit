@@ -141,6 +141,7 @@ defmodule PhoenixKitWeb.Live.Components.SearchableSelect do
         <div class="absolute top-full left-0 right-0 mt-1 bg-base-100 border border-base-300 rounded-lg shadow-xl max-h-64 overflow-hidden flex flex-col z-50">
           <%!-- Search input --%>
           <form
+            id={"#{@id}-search-form"}
             phx-change="search"
             phx-target={@myself}
             phx-submit="search"

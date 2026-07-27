@@ -380,7 +380,12 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
               <h2 class="card-title mb-4">
                 <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Page Content")}
               </h2>
-              <form phx-change="update_content" phx-submit="save" class="space-y-4">
+              <form
+                id="maintenance-content-form"
+                phx-change="update_content"
+                phx-submit="save"
+                class="space-y-4"
+              >
                 <div class="form-control">
                   <label class="label">
                     <span class="label-text font-semibold">{gettext("Header Text")}</span>

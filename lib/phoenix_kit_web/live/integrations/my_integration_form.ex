@@ -463,7 +463,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 )}
               </p>
 
-              <form phx-change="set_mode">
+              <form id="telegram-mode-form" phx-change="set_mode">
                 <.select
                   name="mode"
                   label={gettext("Who does this bot message?")}

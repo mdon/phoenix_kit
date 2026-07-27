@@ -54,7 +54,7 @@
         <h3 class="card-title text-lg mb-4">
           <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> {gettext("Upload New Files")}
         </h3>
-        <.form for={%{}} phx-change="validate" phx-submit="save">
+        <.form for={%{}} id="media-selector-upload-form" phx-change="validate" phx-submit="save">
           <.live_file_input upload={@uploads.media_files} class="hidden" id="file-upload-input" />
           <label
             for="file-upload-input"

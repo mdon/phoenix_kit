@@ -233,7 +233,7 @@ defmodule PhoenixKitWeb.Live.Notifications.Settings do
       current_locale={assigns[:current_locale]}
     >
       <div class="p-6 max-w-3xl mx-auto space-y-4">
-        <form phx-change="form_changed" phx-submit="save">
+        <form id="notification-settings-form" phx-change="form_changed" phx-submit="save">
           <%!-- Column header: In-app + one per CONNECTED channel --%>
           <div class="flex items-center gap-3 px-4 pb-1">
             <div class="flex-1"></div>
