@@ -106,3 +106,51 @@ inside a function body, so it introduces no compile-time cycle.
 
 `mix precommit` (format + `compile --warnings-as-errors` + `credo --strict` +
 dialyzer) — see the release commit.
+
+---
+
+## Second-pass review (Grok) — 2026-07-27
+
+**Scope:** Meta-review of the findings and post-merge fix above (commit
+`be0505e5`, release 1.7.214), not a full re-read of the original PR. Verified
+the single-source refactor against the current tree.
+
+**Verdict on this review:** ✅ Finding and fix hold. No release-blocking
+residuals.
+
+### Confirmed
+
+- **IMPROVEMENT MEDIUM (three allowlists)** — Real maintainability footgun. The
+  silent `:hybrid` coercion path when the picker/changeset accept a value that
+  `get_editor_mode/0` does not map is a quiet production-shaped failure, not
+  just style.
+- **Fix** — `@editor_modes` → `editor_mode_options/0` / `editor_modes/0` /
+  `List.keyfind` in `get_editor_mode/0` is clean. `Setting`'s
+  `validate_inclusion` calling `PhoenixKit.Settings.editor_modes/0` at runtime
+  (function body, not module attribute) correctly avoids a compile-time cycle.
+  Docstring on `editor_mode_options/0` no longer overclaims a single source it
+  did not own.
+- **Recorded items** — No core call site for `get_editor_mode/0` (consumers are
+  external modules), and raw `<select>` matching the rest of
+  `settings.html.heex`, are both fair. Softening the help text until modules
+  adopt the API remains a good follow-up.
+
+### Additional findings (not fixed here)
+
+- **NITPICK — residual hard-coded default.** `@default_editor_mode` is derived
+  from the head of `@editor_modes` and used by `get_editor_mode/0`, but
+  `get_defaults/0` still hardcodes `"editor_default_mode" => "hybrid"`, and the
+  unknown-value fallback in `get_editor_mode/0` is a literal `:hybrid`. Reordering
+  `@editor_modes` (or changing the default) would leave those two sites behind.
+  Wire both to `@default_editor_mode` / the list head atom when next touching
+  this code.
+- **NITPICK — no unit test locking the single source.** A one-liner that
+  asserts `editor_mode_options/0` values == `editor_modes/0` and that every
+  value round-trips through the coercion path would make the three-way-drift
+  class of bug fail the suite if someone reintroduces a hand-kept copy. Low
+  priority given the refactor already collapsed the three lists.
+
+### Gate (second pass)
+
+- Tree inspection only (no dedicated unit tests for this setting). Shipped in
+  the same 1.7.214 release as the #665 fixes; hex + `v1.7.214` tag present.

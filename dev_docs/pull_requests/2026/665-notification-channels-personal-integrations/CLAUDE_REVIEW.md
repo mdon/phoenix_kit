@@ -267,3 +267,68 @@ results in that branch. Behaviour (`:ok`) is unchanged.
 `mix precommit` (format + `compile --warnings-as-errors` + `credo --strict` +
 dialyzer) — see the release commit. Integration tests were not run: per the
 project's testing stance the gate, not `mix test`, is the bar in this repo.
+
+---
+
+## Second-pass review (Grok) — 2026-07-27
+
+**Scope:** Meta-review of the findings and post-merge fixes above (commit
+`be0505e5`, release 1.7.214), not a full re-read of the 82-file PR. Verified
+each claimed fix against the current tree and re-ran the new unit tests.
+
+**Verdict on this review:** ✅ Findings and fixes hold. No release-blocking
+residuals. Severity calibration is right; the HIGH path is real silent data
+loss, not theoretical.
+
+### Confirmed
+
+- **BUG HIGH (digest cron backfill)** — Re-traced end to end. `ensure_cron_plugin/2`
+  Case 2 short-circuits once `ProcessScheduledJobsWorker` is present; digests
+  lived only in the install template. Creation path skips the per-event inbox
+  row when cadence ≠ `"immediate"` (`inapp_immediate?/2`), and external
+  channels only enqueue when `ChannelConfig.immediate?/2` — so without
+  `DigestWorker` on cron, Daily/Weekly is silent loss for **in-app and
+  external alike**. Fix shape is solid: public helper after cron is guaranteed,
+  per-cadence converge, indent-anchored `]` (same bug class as Lifeline), drift
+  test vs `ChannelConfig.cadences() − "immediate"`. Insertion produces valid
+  Elixir (`Code.string_to_quoted` OK). All six new
+  `ensure_digest_cron_entries/2` tests pass under `mix test
+  test/phoenix_kit/install/oban_config_test.exs`.
+- **BUG MEDIUM (unvalidated form keys)** — Confirmed; contrast with
+  `save_in_app/3` was the right catch. `Map.take` against `Channels.keys()` /
+  `Types.all_pref_keys()` / `["inapp" | Channels.keys()]` plus existing
+  `sanitize_cadence/1` is the right shape. Non-map leaf values degrade to `{}`
+  via the `is_map` guards.
+- **BUG MEDIUM (`function_exported?` without `ensure_loaded?`)** — Confirmed
+  parallel-registry drift vs `Types.external_types/0`.
+- **NITPICK (Telegram all-permanent-fail → silent `:ok`)** — Fair; logging
+  without changing `:ok` is the right multi-target tradeoff.
+- **Recorded items** — Standalone-only cadence UI, Model B master-toggle
+  semantics, O(users×types) digests, mount double-query, `owner_of` /
+  `owner_where` asymmetry, PruneWorker backfill gap — all real, none blocking.
+  Leaving them unfixed was good scope discipline.
+- **Release timing** — Features and fixes landed in the **same** Hex version
+  (1.7.214). No broken digest-cadence release went out to hex users. Anyone who
+  ran git `main` between the #665 merge and `be0505e5` still needs
+  `mix phoenix_kit.update` after pulling 1.7.214.
+
+### Additional findings (not fixed here)
+
+- **NITPICK — settings param filter has no automated test.** Only the Oban
+  installer path got tests. The LV helpers are private; extracting
+  `known_channel_params` / `known_type_params` (or a pure unit around them)
+  would lock the MEDIUM fix. Acceptable given no LiveView harness for that page.
+- **IMPROVEMENT - LOW (follow-up) — PruneWorker still not backfilled.** Same
+  class of bug as digests (template-only + `ensure_cron_plugin/2` short-circuit).
+  Correctly filed as pre-existing; worth folding into the same helper family
+  later so prune + digests converge on `mix phoenix_kit.update`.
+- **IMPROVEMENT - LOW (follow-up) — inert cadence UI for standalone-only
+  types** remains the most user-visible residual on the new settings page.
+  Hide or label the control for types that never hit `DigestWorker` (e.g.
+  `"security"` via standalone).
+
+### Gate (second pass)
+
+- `mix test test/phoenix_kit/install/oban_config_test.exs` — 25 tests, 0 failures
+  (includes the six new digest-cron cases).
+- Hex + tag: `1.7.214` present on hex.pm and as `v1.7.214`.
