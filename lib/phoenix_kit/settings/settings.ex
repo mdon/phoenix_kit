@@ -1009,21 +1009,41 @@ defmodule PhoenixKit.Settings do
     }
   end
 
+  # THE canonical content-editor (Leaf) mode list: `{stored value, Leaf atom,
+  # label}`. Everything else about editor modes derives from this — the picker
+  # options, the changeset's `validate_inclusion` allowlist (via
+  # `editor_modes/0`, called from `PhoenixKit.Settings.Setting`), and the
+  # string→atom coercion in `get_editor_mode/0`. Adding a mode is a one-line
+  # change here; three hand-kept copies would drift (a value accepted by the
+  # changeset but unmapped in the coercion silently degrades to `:hybrid`).
+  # The head entry is the default.
+  @editor_modes [
+    {"hybrid", :hybrid, "Hybrid (inline live preview)"},
+    {"visual", :visual, "Visual (WYSIWYG)"},
+    {"markdown", :markdown, "Markdown (plain source)"},
+    {"html", :html, "HTML (raw markup)"}
+  ]
+
+  @default_editor_mode @editor_modes |> hd() |> elem(0)
+
   @doc """
   The content-editor (Leaf) mode options, as {label, value} tuples.
 
   Single source for the `"editor_default_mode"` entry in
-  `get_setting_options/0` and for validating `get_editor_mode/0`.
+  `get_setting_options/0`.
   """
   @spec editor_mode_options() :: [{String.t(), String.t()}]
   def editor_mode_options do
-    [
-      {"Hybrid (inline live preview)", "hybrid"},
-      {"Visual (WYSIWYG)", "visual"},
-      {"Markdown (plain source)", "markdown"},
-      {"HTML (raw markup)", "html"}
-    ]
+    Enum.map(@editor_modes, fn {value, _atom, label} -> {label, value} end)
   end
+
+  @doc """
+  The valid `"editor_default_mode"` values. Used by
+  `PhoenixKit.Settings.Setting`'s changeset so the accepted set and the
+  picker/coercion can never disagree.
+  """
+  @spec editor_modes() :: [String.t()]
+  def editor_modes, do: Enum.map(@editor_modes, fn {value, _atom, _label} -> value end)
 
   @doc """
   Returns the site-wide default content-editor mode as an atom, for
@@ -1038,11 +1058,11 @@ defmodule PhoenixKit.Settings do
   """
   @spec get_editor_mode() :: :hybrid | :visual | :markdown | :html
   def get_editor_mode do
-    case get_setting_cached("editor_default_mode", "hybrid") do
-      "visual" -> :visual
-      "markdown" -> :markdown
-      "html" -> :html
-      _ -> :hybrid
+    stored = get_setting_cached("editor_default_mode", @default_editor_mode)
+
+    case List.keyfind(@editor_modes, stored, 0) do
+      {_value, atom, _label} -> atom
+      nil -> :hybrid
     end
   end
 

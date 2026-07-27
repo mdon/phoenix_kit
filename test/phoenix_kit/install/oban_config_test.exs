@@ -2,6 +2,7 @@ defmodule PhoenixKit.Install.ObanConfigTest do
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Install.ObanConfig
+  alias PhoenixKit.Notifications.ChannelConfig
 
   describe "oban_block_missing_prefix?/1" do
     test "true when the Oban block lacks prefix:" do
@@ -306,6 +307,99 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       assert rescue_after > longest_worker_timeout,
              "rescue_after (#{rescue_after}ms) must exceed #{inspect(slowest)}'s " <>
                "timeout/1 (#{longest_worker_timeout}ms)"
+    end
+  end
+
+  describe "ensure_digest_cron_entries/2" do
+    @existing_crontab """
+    config :my_app, Oban,
+      repo: MyApp.Repo,
+      plugins: [
+        {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+        {Oban.Plugins.Cron,
+         crontab: [
+           {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+         ]}
+      ]
+    """
+
+    test "backfills every cadence into a crontab that predates the digest workers" do
+      # The regression this guards: `ensure_cron_plugin/2` returns early once
+      # ProcessScheduledJobsWorker is present, so without this pass an upgraded
+      # host keeps a digest-less crontab — and a user picking a digest cadence
+      # loses those notifications entirely (the creation path already suppresses
+      # the per-event inbox row for a non-immediate cadence).
+      updated = ObanConfig.ensure_digest_cron_entries(@existing_crontab, "my_app")
+
+      for cadence <- ~w(hourly 12h daily weekly) do
+        assert updated =~ ~r/DigestWorker[^\n]*cadence: "#{cadence}"/
+      end
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "entries land inside the crontab list, not beside it" do
+      updated = ObanConfig.ensure_digest_cron_entries(@existing_crontab, "my_app")
+
+      assert updated =~ ~r/crontab: \[.*DigestWorker.*\n\s+\]\}/s
+      # The pre-existing entry survives.
+      assert updated =~ "ProcessScheduledJobsWorker"
+    end
+
+    test "is idempotent — a fully-configured crontab is untouched" do
+      once = ObanConfig.ensure_digest_cron_entries(@existing_crontab, "my_app")
+
+      assert ObanConfig.ensure_digest_cron_entries(once, "my_app") == once
+    end
+
+    test "adds only the cadences that are missing" do
+      partial = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}}
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_digest_cron_entries(partial, "my_app")
+
+      # "hourly" was already there and must not be duplicated.
+      assert length(Regex.scan(~r/cadence: "hourly"/, updated)) == 1
+
+      for cadence <- ~w(12h daily weekly) do
+        assert updated =~ ~r/DigestWorker[^\n]*cadence: "#{cadence}"/
+      end
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "leaves content unchanged when no crontab block can be found" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10]
+      """
+
+      assert ObanConfig.ensure_digest_cron_entries(content, "my_app") == content
+    end
+
+    test "every cadence it writes is one DigestWorker actually windows" do
+      # Two lists that must not drift: the crontab entries the installer emits
+      # and `ChannelConfig.cadences/0` (what the settings UI offers). A cadence
+      # offered but never scheduled is a silently dead option.
+      updated = ObanConfig.ensure_digest_cron_entries(@existing_crontab, "my_app")
+
+      scheduled =
+        ~r/DigestWorker[^\n]*cadence: "([^"]+)"/
+        |> Regex.scan(updated, capture: :all_but_first)
+        |> List.flatten()
+        |> MapSet.new()
+
+      digestable = MapSet.delete(MapSet.new(ChannelConfig.cadences()), "immediate")
+
+      assert scheduled == digestable
     end
   end
 

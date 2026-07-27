@@ -81,9 +81,13 @@ defmodule PhoenixKitWeb.Live.Notifications.Settings do
     user = socket.assigns.user
 
     result =
-      Enum.reduce_while(params["cadence"] || %{}, {:ok, user}, fn {channel_key, leaf_map},
-                                                                  {:ok, u} ->
-        cadences = Map.new(leaf_map, fn {leaf, c} -> {leaf, sanitize_cadence(c)} end)
+      params["cadence"]
+      |> known_channel_params(cadence_mode_keys())
+      |> Enum.reduce_while({:ok, user}, fn {channel_key, leaf_map}, {:ok, u} ->
+        cadences =
+          leaf_map
+          |> known_type_params()
+          |> Map.new(fn {leaf, c} -> {leaf, sanitize_cadence(c)} end)
 
         case ChannelConfig.update(u, channel_key, fn config ->
                Map.put(config, "cadences", Map.merge(config["cadences"] || %{}, cadences))
@@ -125,11 +129,16 @@ defmodule PhoenixKitWeb.Live.Notifications.Settings do
   end
 
   defp save_channel_types(user, channel_params) do
-    Enum.reduce_while(channel_params, {:ok, user}, fn {channel_key, cfg}, {:ok, acc_user} ->
+    channel_params
+    |> known_channel_params(Channels.keys())
+    |> Enum.reduce_while({:ok, user}, fn {channel_key, cfg}, {:ok, acc_user} ->
       new_types =
         case is_map(cfg) && cfg["types"] do
-          %{} = types -> Map.new(types, fn {k, v} -> {k, v == "true"} end)
-          _ -> %{}
+          %{} = types ->
+            types |> known_type_params() |> Map.new(fn {k, v} -> {k, v == "true"} end)
+
+          _ ->
+            %{}
         end
 
       case ChannelConfig.update(acc_user, channel_key, fn config ->
@@ -140,6 +149,25 @@ defmodule PhoenixKitWeb.Live.Notifications.Settings do
       end
     end)
   end
+
+  # Form params name their own keys, so both the channel and the type key are
+  # attacker-controlled on a crafted event. Anything not in the live registry is
+  # dropped rather than persisted — otherwise a hand-rolled submit writes
+  # arbitrary `notification_channel:<key>` blobs (and arbitrary type/cadence
+  # entries inside them) into the user's `custom_fields` JSONB forever.
+  defp known_channel_params(params, allowed) when is_map(params),
+    do: Map.take(params, allowed)
+
+  defp known_channel_params(_params, _allowed), do: %{}
+
+  defp known_type_params(params) when is_map(params),
+    do: Map.take(params, Types.all_pref_keys())
+
+  defp known_type_params(_params), do: %{}
+
+  # Cadence is set per delivery MODE: the synthetic in-app inbox plus every
+  # registered channel (mirrors `aggregate_body/1`'s `@modes`).
+  defp cadence_mode_keys, do: ["inapp" | Channels.keys()]
 
   defp sanitize_cadence(c), do: if(c in ChannelConfig.cadences(), do: c, else: "immediate")
 

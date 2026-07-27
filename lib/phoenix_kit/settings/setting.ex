@@ -376,7 +376,10 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_date_format()
       |> validate_time_format()
       |> validate_track_registration_geolocation()
-      |> validate_inclusion(:editor_default_mode, ["hybrid", "visual", "markdown", "html"])
+      # Allowlist comes from the context's canonical mode list, so a new editor
+      # mode can't be accepted here while `get_editor_mode/0` still coerces it
+      # away (or offered in the picker while the changeset rejects it).
+      |> validate_inclusion(:editor_default_mode, PhoenixKit.Settings.editor_modes())
       |> validate_inclusion(:enable_organization_accounts, ["true", "false"])
     end
 

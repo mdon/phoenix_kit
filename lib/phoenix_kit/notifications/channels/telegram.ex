@@ -24,6 +24,8 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  require Logger
+
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Telegram, as: Client
 
@@ -91,9 +93,23 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
     results = Enum.map(targets, fn {uuid, chat_id} -> send(uuid, chat_id, envelope) end)
 
     cond do
-      Enum.all?(results, &match?({:ok, _}, &1)) -> :ok
-      Enum.any?(results, &transient?/1) -> {:error, {:transient, :partial}}
-      true -> :ok
+      Enum.all?(results, &match?({:ok, _}, &1)) ->
+        :ok
+
+      Enum.any?(results, &transient?/1) ->
+        {:error, {:transient, :partial}}
+
+      true ->
+        # Every send failed permanently (bot blocked/kicked everywhere, bad
+        # token, …). We still report :ok so one dead subscriber can't disable a
+        # working broadcast — but a wholly-failed send must not look like a
+        # success in the logs, or a mis-set token is invisible forever.
+        Logger.warning(
+          "[Notifications.Telegram] broadcast to #{length(targets)} chat(s) failed permanently: " <>
+            inspect(Enum.reject(results, &match?({:ok, _}, &1)))
+        )
+
+        :ok
     end
   end
 

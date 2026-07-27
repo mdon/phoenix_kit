@@ -64,7 +64,11 @@ defmodule PhoenixKit.Notifications.Channels do
   defp external_channels do
     ModuleRegistry.all_modules()
     |> Enum.flat_map(fn mod ->
-      if function_exported?(mod, :notification_channels, 0) do
+      # `Code.ensure_loaded?/1` first — `function_exported?/3` answers false for
+      # a module that simply hasn't been loaded yet (the norm under a release's
+      # lazy loading), which would silently drop that module's channels. Mirrors
+      # `PhoenixKit.Notifications.Types.external_types/0`.
+      if Code.ensure_loaded?(mod) and function_exported?(mod, :notification_channels, 0) do
         try do
           mod.notification_channels() |> List.wrap()
         rescue

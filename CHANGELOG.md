@@ -1,3 +1,117 @@
+## 1.7.214 - 2026-07-27
+
+### Added
+- **Notification delivery channels** (PR #665) — a parallel routing layer that
+  sends notifications to external destinations alongside the in-app inbox.
+  Core ships Email (always available, uses the account address) and Telegram
+  (auto-discovers the recipient's personal bot connection and its captured
+  chats); feature modules contribute more via the optional
+  `notification_channels/0` callback. Per-user, per-type opt-in lives in
+  `users.custom_fields` under one `notification_channel:<key>` key per channel,
+  so no migration is needed and the inbox path is untouched — "Telegram on,
+  inbox off" works. Delivery runs off the hot path on a dedicated
+  `:notifications` Oban queue with a permanent/transient error taxonomy (a
+  blocked bot soft-disables the channel instead of retry-storming).
+- **Notification aggregation** (PR #665) — each type can be routed on a digest
+  cadence (hourly / 12h / daily / weekly) per delivery mode instead of pinging
+  per event; `PhoenixKit.Notifications.DigestWorker` sweeps one fixed window per
+  cadence on cron and sends a single summary, with no per-user last-sent state.
+  In-app is a delivery mode too, so a digest cadence collapses the inbox to one
+  summary row.
+- **Personal (per-user) integrations** (PR #665) — connections now carry an
+  owner (`:system | :any | {type, id}`) stored in the existing JSONB
+  (`owner_type` / `owner_uuid`, write-once, no migration). Two independent
+  admin surfaces share the storage: `/admin/settings/integrations` (personal,
+  gated by the new `integrations` permission key) and
+  `/admin/settings/integrations/website` (website-wide, gated by
+  `integrations_system`). Providers declare which scopes they allow
+  (`Providers.scopes_of/1`), enforced at row birth so a crafted event cannot
+  create a personal OAuth connection.
+- **`"*"` superadmin permission key** (PR #665) — a blanket, drift-immune grant
+  that makes a role Owner-equivalent for feature access without enumerating
+  keys, honored by `Scope.has_module_access?/2`, `can?/2` and
+  `accessible_modules/1`. Owner holds it structurally; a host can grant it to a
+  custom role. Role-management safety rails (editing Admin, assigning
+  Owner/Admin, the last-Owner guard) stay role-name-based and are NOT unlocked
+  by it.
+- **Permission audit trail** (PR #665) — `permission.granted` /
+  `permission.revoked` / `permission.synced` activity entries for
+  user-initiated changes (the boot-time auto-grant sweep passes no actor, so
+  startup never floods the feed).
+- **Telegram bot client** (PR #665) — `PhoenixKit.Integrations.Telegram`:
+  `send_message/4` plus a one-shot `get_updates/2` used purely to discover a
+  user's `chat_id` during chat linking.
+- **Site-wide Default Editor Mode setting** (PR #664) — `editor_default_mode`
+  (Hybrid / Visual / Markdown / HTML) under a new "Content Editor" section on
+  `/admin/settings`, plus `PhoenixKit.Settings.get_editor_mode/0` returning the
+  mode as an atom ready for Leaf's `mode` attr. No migration: the settings LV
+  merges `get_defaults/0` over the stored rows.
+- **V159** (PR #665) — publishing categories (hierarchical per-group taxonomy,
+  `slug` unique per group, `name_i18n` per-language names), post↔category M:N
+  assignment, and per-day post view rollups.
+
+### Changed
+- `Scope.admin?/1` is renamed **`Scope.can_access_admin_area?/1`** (PR #665).
+  The old name misled — it is true for ANY permission holder, not just the
+  Admin role. `admin?/1` remains as a `@deprecated` alias. For a "can do
+  everything, like Owner" check use `holds_all_enabled_permissions?/1` or
+  `superadmin?/1`.
+- **Disabled modules are now blocked for everyone, Owner included** (PR #665),
+  uniformly across the LiveView mount hook, the fresh-mount gate and the plug —
+  previously Owner bypassed enablement in two of the three, so the same user
+  saw a disabled module's page through one gate and a redirect through another.
+- **Unmapped admin views now require a full-access scope** (PR #665) rather than
+  `system_role?`, so a named Admin whose keys an Owner partially revoked no
+  longer reaches them. A default Admin still passes (the baseline is enabled
+  keys minus the opt-in ones); a deliberately-stripped role gets blanket access
+  via the `"*"` key.
+- Every permission mutation path (`grant_permission`, `revoke_permission`,
+  `set_permissions`, `revoke_all_permissions`) now takes the **same role-row
+  lock first** (PR #665). Previously per-key grants and the whole-role sync used
+  disjoint lock objects, so a grant committed mid-`set_permissions` survived a
+  strip the Owner intended.
+- `leaf` 0.3.2 (PR #664) — hex pin and the CDN pin in
+  `priv/static/assets/phoenix_kit.js` moved in lockstep.
+- `usage_rules` 1.2.7.
+
+### Fixed
+- **`mix phoenix_kit.update` now backfills the notification digest cron
+  entries** (post-merge review of #665). `ensure_cron_plugin/2` short-circuits
+  as soon as `ProcessScheduledJobsWorker` is in the crontab, so an existing host
+  got the new `:notifications` queue but never the four `DigestWorker` entries —
+  and `DigestWorker` has no other enqueue site. Because the creation path
+  already suppresses the per-event inbox row once a type is on a non-immediate
+  cadence, a user picking "Daily" on an upgraded host got no per-event row *and*
+  no summary: the notifications were silently lost, in-app and external alike.
+  The new `ObanConfig.ensure_digest_cron_entries/2` adds each missing cadence
+  independently and anchors the crontab block's closing bracket to the
+  `crontab:` keyword's own indentation, so a lazy match cannot land entries
+  inside a nested list.
+- **The notification settings page no longer persists unvalidated keys from form
+  params** (post-merge review of #665). `save_channel_types/2` and
+  `save_cadences/2` used raw param keys as storage keys, so a crafted submit
+  wrote arbitrary `notification_channel:<anything>` blobs — with arbitrary
+  nested type/cadence entries — into the user's `custom_fields` JSONB. Both now
+  filter against `Channels.keys()` / `["inapp" | Channels.keys()]` and
+  `Types.all_pref_keys()`, matching what the sibling in-app save already did.
+- **Module-contributed notification channels are no longer dropped in a
+  release** (post-merge review of #665). `Channels.external_channels/0` guarded
+  with a bare `function_exported?/3`, which answers false for a module that has
+  not been loaded yet — the norm under lazy loading. It now calls
+  `Code.ensure_loaded?/1` first, matching the sibling `Types.external_types/0`.
+- **A wholly-failed Telegram broadcast is no longer silent** (post-merge review
+  of #665). When every chat fails permanently the channel still reports `:ok`
+  (one blocked subscriber must not disable a working broadcast), but a revoked
+  token or a bot kicked everywhere looked exactly like a successful delivery. It
+  now logs a warning naming the target count and the failures.
+- **The editor-mode allowlist has a single source** (post-merge review of #664).
+  The four modes were written out independently in `editor_mode_options/0`, the
+  changeset's `validate_inclusion`, and `get_editor_mode/0`'s coercion clauses —
+  while `editor_mode_options/0`'s docstring claimed to be the single source for
+  all three. A mode added to two of the three either saves and silently coerces
+  back to `:hybrid`, or is offered in the picker and rejected by the changeset.
+  All three now derive from one `@editor_modes` list.
+
 ## 1.7.213 - 2026-07-26
 
 ### Changed

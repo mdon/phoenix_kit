@@ -20,6 +20,8 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_catalogue_pdf_queue: 2}
   @dialyzer {:nowarn_function, ensure_notifications_queue: 2}
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
+  @dialyzer {:nowarn_function, ensure_digest_cron_entries: 2}
+  @dialyzer {:nowarn_function, add_digest_entries_to_crontab: 3}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
   @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
   @dialyzer {:nowarn_function, maybe_raise_lifeline_rescue_after: 1}
@@ -294,6 +296,7 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> ensure_catalogue_pdf_queue(app_name)
       |> ensure_notifications_queue(app_name)
       |> ensure_cron_plugin(app_name)
+      |> ensure_digest_cron_entries(app_name)
       |> ensure_pruner_max_age(app_name)
       |> ensure_lifeline_plugin(app_name)
 
@@ -796,6 +799,84 @@ defmodule PhoenixKit.Install.ObanConfig do
         String.replace(content, full_match, updated_crontab, global: false)
 
       _ ->
+        content
+    end
+  end
+
+  # The notification digest sweeps — one cron entry per cadence, matching the
+  # generated template. `DigestWorker` is ONLY ever enqueued by these entries,
+  # so a host missing them has silently-dead digest cadences: the creation path
+  # already suppresses the per-event inbox row for a non-immediate cadence
+  # (`Notifications.inapp_immediate?/2`), and with no cron there is no summary
+  # to replace it — the user's notifications just vanish.
+  @digest_cron_entries [
+    {"0 * * * *", "hourly"},
+    {"0 */12 * * *", "12h"},
+    {"0 6 * * *", "daily"},
+    {"0 6 * * 1", "weekly"}
+  ]
+
+  @doc """
+  Ensures every notification digest cadence has a crontab entry.
+
+  Runs AFTER `ensure_cron_plugin/2` (which guarantees a `crontab:` block
+  exists) and is needed because that function short-circuits as soon as
+  `ProcessScheduledJobsWorker` is present — so a host installed before the
+  digest workers existed would keep a crontab without them forever, and
+  `mix phoenix_kit.update` would never notice. Each cadence is checked
+  independently, so a partially-updated crontab converges.
+
+  Public (not `defp`, unlike the sibling `ensure_*_queue/2` helpers)
+  specifically so this can be unit-tested directly against plain content
+  strings, the same way `ensure_lifeline_plugin/2` is.
+  """
+  @spec ensure_digest_cron_entries(String.t(), atom() | String.t()) :: String.t()
+  def ensure_digest_cron_entries(content, app_name) do
+    missing =
+      Enum.reject(@digest_cron_entries, fn {_cron, cadence} -> digest?(content, cadence) end)
+
+    if missing == [] do
+      Mix.shell().info("  ℹ️  notification digest cron entries already configured")
+      content
+    else
+      Mix.shell().info("  ➕ Adding notification digest cron entries...")
+      add_digest_entries_to_crontab(content, missing, app_name)
+    end
+  end
+
+  defp digest?(content, cadence) do
+    Regex.match?(~r/DigestWorker[^\n]*cadence:\s*"#{Regex.escape(cadence)}"/, content)
+  end
+
+  # Append the missing entries to the existing crontab list. The closing `]` is
+  # anchored to the `crontab:` keyword's own indentation (backreference `\\2`)
+  # for the same reason as `add_cron_plugin_to_plugins/2`: a lazy `.*?` to the
+  # first `]` can stop inside an entry's own nested list.
+  defp add_digest_entries_to_crontab(content, missing, app_name) do
+    case Regex.run(~r/(^([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms, content, capture: :all) do
+      [full_match, crontab_open, indent, crontab_content, crontab_close] ->
+        entry_indent = indent <> "  "
+
+        new_entries =
+          Enum.map_join(missing, "", fn {cron, cadence} ->
+            ",\n#{entry_indent}{\"#{cron}\", PhoenixKit.Notifications.DigestWorker, " <>
+              "args: %{cadence: \"#{cadence}\"}}"
+          end)
+
+        updated =
+          crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
+
+        String.replace(content, full_match, updated, global: false)
+
+      nil ->
+        Mix.shell().error(
+          "  ⚠️  Could not parse crontab block for :#{app_name} - skipping digest cron entries"
+        )
+
+        Mix.shell().error(
+          "     Please manually add the PhoenixKit.Notifications.DigestWorker cron entries"
+        )
+
         content
     end
   end
