@@ -25,10 +25,15 @@ defmodule PhoenixKit.Notifications do
 
   alias PhoenixKit.Activity.Entry
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Notifications.ChannelConfig
+  alias PhoenixKit.Notifications.DeliveryWorker
   alias PhoenixKit.Notifications.Events
   alias PhoenixKit.Notifications.Notification
   alias PhoenixKit.Notifications.Prefs
+  alias PhoenixKit.Notifications.Routing
+  alias PhoenixKit.Notifications.Types
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
 
   # ── Creation ─────────────────────────────────────────────────────────
 
@@ -45,8 +50,7 @@ defmodule PhoenixKit.Notifications do
       not enabled?() -> {:ok, :skipped}
       is_nil(entry.target_uuid) -> {:ok, :skipped}
       entry.target_uuid == entry.actor_uuid -> {:ok, :skipped}
-      not Prefs.user_wants?(entry.target_uuid, entry.action) -> {:ok, :skipped}
-      true -> do_create(entry)
+      true -> route_activity(entry)
     end
   rescue
     e ->
@@ -54,28 +58,109 @@ defmodule PhoenixKit.Notifications do
       {:ok, :skipped}
   end
 
-  defp do_create(%Entry{} = entry) do
-    attrs = %{activity_uuid: entry.uuid, recipient_uuid: entry.target_uuid}
+  # Model B — the in-app inbox and external channels are INDEPENDENT
+  # destinations. Create the inbox row iff the user wants it in-app AND in-app is
+  # on the "immediate" cadence (a digest cadence skips the per-event row — the
+  # DigestWorker posts one summary row later); enqueue external delivery for
+  # every channel that wants this type. Loading the user once (the pref check +
+  # channel routing both need it) keeps this at a single extra read.
+  defp route_activity(%Entry{} = entry) do
+    user = Auth.get_user(entry.target_uuid)
 
+    {in_app?, targets} =
+      if user do
+        {Prefs.user_wants?(user, entry.action) and inapp_immediate?(user, entry.action),
+         Routing.targets_for_action(user, entry.action)}
+      else
+        {Prefs.user_wants?(entry.target_uuid, entry.action), []}
+      end
+
+    if in_app? or targets != [] do
+      do_create(entry, in_app?, targets)
+    else
+      {:ok, :skipped}
+    end
+  end
+
+  # Whether in-app delivery for this action's type is immediate (the default) vs
+  # a digest cadence. Cadence lives in the synthetic `"inapp"` channel config;
+  # absent ⇒ "immediate" ⇒ the inbox behaves exactly as before.
+  defp inapp_immediate?(user, action) do
+    case Types.key_for_action(action) do
+      nil ->
+        true
+
+      type_key ->
+        ChannelConfig.cadence(ChannelConfig.for_channel(user, "inapp"), type_key) == "immediate"
+    end
+  end
+
+  # The inbox row (if wanted) and external delivery are INDEPENDENT: insert the
+  # row first and on its own, then enqueue delivery best-effort. The delivery
+  # jobs key on the already-committed activity uuid (no inbox row required), and
+  # a failing/absent Oban must never roll back or drop the user-visible inbox
+  # row — so enqueue is deliberately NOT in the insert's transaction.
+  defp do_create(%Entry{} = entry, in_app?, targets) do
+    result = if in_app?, do: insert_inbox_row(entry), else: {:ok, :dispatched}
+    enqueue_immediate_delivery(entry, targets)
+    result
+  end
+
+  defp insert_inbox_row(%Entry{} = entry) do
     %Notification{}
-    |> Notification.changeset(attrs)
+    |> Notification.changeset(%{activity_uuid: entry.uuid, recipient_uuid: entry.target_uuid})
     |> repo().insert()
     |> case do
       {:ok, notification} ->
-        # Preload activity so subscribers can render immediately without a roundtrip
+        # Preload activity so subscribers render immediately, no roundtrip.
         notification = %{notification | activity: entry}
         Events.broadcast(entry.target_uuid, {:notification_created, notification})
         {:ok, notification}
 
-      {:error, %Ecto.Changeset{errors: [{_, {_, opts}} | _]} = cs} ->
-        if Keyword.get(opts, :constraint) == :unique do
-          # Duplicate insert (retry scenario) — treat as no-op, not an error
-          {:ok, :skipped}
-        else
-          Logger.warning("Notifications insert failed: #{inspect(cs.errors)}")
-          {:error, cs}
-        end
+      {:error, cs} ->
+        handle_insert_error(cs)
     end
+  end
+
+  # One idempotent Oban job per {source, channel} for IMMEDIATE-cadence channels
+  # (digest cadences are swept by `DigestWorker` on a cron). Best-effort: a
+  # delivery-enqueue failure — including Oban not being started — is logged and
+  # swallowed so it can never take down the inbox row or crash activity logging.
+  defp enqueue_immediate_delivery(%Entry{} = entry, targets) do
+    type_key = Types.key_for_action(entry.action)
+
+    base = %{
+      "activity_uuid" => entry.uuid,
+      "recipient_uuid" => entry.target_uuid,
+      "type_key" => type_key
+    }
+
+    if is_binary(type_key) do
+      for {channel, config} <- targets, ChannelConfig.immediate?(config, type_key) do
+        Oban.insert(DeliveryWorker.build(Map.put(base, "channel", channel.key())))
+      end
+    end
+
+    :ok
+  rescue
+    e ->
+      Logger.warning("Notifications delivery enqueue failed: #{inspect(e)}")
+      :ok
+  end
+
+  # A duplicate (activity_uuid, recipient_uuid) insert is a no-op, not an error.
+  defp handle_insert_error(%Ecto.Changeset{errors: [{_, {_, opts}} | _]} = cs) do
+    if Keyword.get(opts, :constraint) == :unique do
+      {:ok, :skipped}
+    else
+      Logger.warning("Notifications insert failed: #{inspect(cs.errors)}")
+      {:error, cs}
+    end
+  end
+
+  defp handle_insert_error(cs) do
+    Logger.warning("Notifications insert failed: #{inspect(cs.errors)}")
+    {:error, cs}
   end
 
   @doc """
@@ -159,6 +244,39 @@ defmodule PhoenixKit.Notifications do
     end
   end
 
+  @doc """
+  Insert an in-app-only notification row directly — used by the DigestWorker to
+  post an aggregated in-app summary ("1,432 likes this hour"). Bypasses the
+  kill-switch/preference checks (the digest already decided to post) and never
+  routes externally. `display` carries `:text` / `:icon` / `:link`.
+  """
+  @spec create_inapp(String.t(), map()) :: {:ok, Notification.t()} | {:error, term()}
+  def create_inapp(recipient_uuid, display) when is_binary(recipient_uuid) and is_map(display) do
+    metadata =
+      %{}
+      |> put_meta("notification_text", display[:text])
+      |> put_meta("notification_icon", display[:icon])
+      |> put_meta("notification_link", display[:link])
+
+    %Notification{}
+    |> Notification.changeset(%{
+      recipient_uuid: recipient_uuid,
+      activity_uuid: nil,
+      metadata: metadata
+    })
+    |> repo().insert()
+    |> case do
+      {:ok, notification} ->
+        notification = %{notification | activity: nil}
+        Events.broadcast(recipient_uuid, {:notification_created, notification})
+        {:ok, notification}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Logger.warning("Notifications.create_inapp failed: #{inspect(cs.errors)}")
+        {:error, cs}
+    end
+  end
+
   # Apply the optional per-recipient preference filter. `:type` checks the
   # type pref directly; `:action` maps the action to a type. With neither,
   # the send is unconditional.
@@ -172,6 +290,11 @@ defmodule PhoenixKit.Notifications do
 
   defp wants_standalone?(_attrs), do: true
 
+  # NOTE: standalone external delivery requires the inbox row (`create/1`'s
+  # `wants_standalone?` gate has already passed here) — i.e. standalone
+  # notifications are NOT independently routable the way activity-driven ones
+  # are. Standalone messages are app-authored one-offs; the per-type
+  # "inbox-off, Telegram-on" independence is an activity-driven concern.
   defp do_create_standalone(attrs) do
     metadata =
       (attrs[:metadata] || %{})
@@ -179,26 +302,78 @@ defmodule PhoenixKit.Notifications do
       |> put_meta("notification_icon", attrs[:icon])
       |> put_meta("notification_link", attrs[:link])
 
-    %Notification{}
-    |> Notification.changeset(%{
-      recipient_uuid: attrs[:recipient_uuid],
-      activity_uuid: nil,
-      metadata: metadata
-    })
-    |> repo().insert()
-    |> case do
+    recipient = attrs[:recipient_uuid]
+    user = recipient && Auth.get_user(recipient)
+    targets = standalone_targets(user, attrs)
+    type_key = standalone_type_key(attrs)
+
+    changeset =
+      Notification.changeset(%Notification{}, %{
+        recipient_uuid: recipient,
+        activity_uuid: nil,
+        metadata: metadata
+      })
+
+    # Decoupled like the activity path: the inbox row must never be lost because
+    # an external-delivery enqueue hiccuped, so we insert it in its own step and
+    # enqueue delivery best-effort afterwards (referencing the now-known uuid).
+    case repo().insert(changeset) do
       {:ok, notification} ->
         # No activity for a standalone row — pin it nil so Render takes the
         # metadata path (a freshly-inserted struct otherwise carries a
         # NotLoaded association, which Render's activity clause would choke on).
         notification = %{notification | activity: nil}
         Events.broadcast(notification.recipient_uuid, {:notification_created, notification})
+        enqueue_standalone_delivery(targets, notification.uuid, recipient, type_key)
         {:ok, notification}
 
       {:error, %Ecto.Changeset{} = cs} ->
         Logger.warning("Notifications.create insert failed: #{inspect(cs.errors)}")
         {:error, cs}
     end
+  end
+
+  # External channels wanting this standalone notification. Fail-closed: without
+  # an explicit `:type` or `:action`, nothing routes externally.
+  defp standalone_targets(nil, _attrs), do: []
+
+  defp standalone_targets(user, %{type: type}) when is_binary(type),
+    do: Routing.targets_for_type(user, type)
+
+  defp standalone_targets(user, %{action: action}) when is_binary(action),
+    do: Routing.targets_for_action(user, action)
+
+  defp standalone_targets(_user, _attrs), do: []
+
+  defp standalone_type_key(%{type: type}) when is_binary(type), do: type
+
+  defp standalone_type_key(%{action: action}) when is_binary(action),
+    do: Types.key_for_action(action)
+
+  defp standalone_type_key(_attrs), do: nil
+
+  # Delivery jobs for a standalone row — keyed on the inserted notification uuid,
+  # since there's no activity to render from. Best-effort: a failed enqueue must
+  # not cost the user the inbox row that already persisted.
+  defp enqueue_standalone_delivery([], _uuid, _recipient, _type_key), do: :ok
+
+  defp enqueue_standalone_delivery(targets, notification_uuid, recipient, type_key) do
+    for {channel, _config} <- targets do
+      Oban.insert(
+        DeliveryWorker.build(%{
+          "notification_uuid" => notification_uuid,
+          "recipient_uuid" => recipient,
+          "type_key" => type_key,
+          "channel" => channel.key()
+        })
+      )
+    end
+
+    :ok
+  rescue
+    e ->
+      Logger.warning("Notifications standalone delivery enqueue failed: #{inspect(e)}")
+      :ok
   end
 
   defp put_meta(meta, _key, nil), do: meta
@@ -213,18 +388,19 @@ defmodule PhoenixKit.Notifications do
   Options:
     * `:page` (default 1) / `:per_page` (default 25)
     * `:status` — `:unread` (seen_at nil) | `:all` (default)
-    * `:include_dismissed` — include dismissed rows (default `false`)
+    * `:dismissed` — `:exclude` (default, active only) | `:only` (the dismissed
+      "trash" view) | `:include` (both). The legacy `:include_dismissed` bool is
+      still honored (`true` ⇒ `:include`).
   """
   def list_for_user(user_uuid, opts \\ []) when is_binary(user_uuid) do
     page = Keyword.get(opts, :page, 1)
     per_page = Keyword.get(opts, :per_page, 25)
     status = Keyword.get(opts, :status, :all)
-    include_dismissed = Keyword.get(opts, :include_dismissed, false)
 
     base_query =
       Notification
       |> where([n], n.recipient_uuid == ^user_uuid)
-      |> maybe_filter_dismissed(include_dismissed)
+      |> filter_dismissed(dismissed_filter(opts))
       |> maybe_filter_unread(status)
 
     total = repo().aggregate(base_query, :count, :uuid)
@@ -342,7 +518,7 @@ defmodule PhoenixKit.Notifications do
     {count, nil}
   end
 
-  @doc "Dismisses a single notification. Idempotent."
+  @doc "Dismisses a single notification, also marking it read. Idempotent."
   def dismiss(user_uuid, uuid) when is_binary(user_uuid) and is_binary(uuid) do
     case get_notification(user_uuid, uuid) do
       nil ->
@@ -354,21 +530,48 @@ defmodule PhoenixKit.Notifications do
       %Notification{} = notification ->
         now = DateTime.utc_now() |> DateTime.truncate(:second)
 
+        # Dismiss implies "handled", so also clear the unread flag (preserving an
+        # existing seen_at). Keeps the unread badge accurate, avoids bold rows in
+        # the Dismissed list, and Restore brings the item back as read.
         notification
-        |> Ecto.Changeset.change(dismissed_at: now)
+        |> Ecto.Changeset.change(dismissed_at: now, seen_at: notification.seen_at || now)
         |> repo().update()
         |> broadcast_state(user_uuid, :notification_dismissed)
     end
   end
 
-  @doc "Bulk-dismisses all undismissed notifications. Returns `{count, nil}`."
+  @doc "Restores (un-dismisses) a single notification. Idempotent."
+  def restore(user_uuid, uuid) when is_binary(user_uuid) and is_binary(uuid) do
+    case get_notification(user_uuid, uuid) do
+      nil ->
+        {:error, :not_found}
+
+      %Notification{dismissed_at: nil} = notification ->
+        {:ok, notification}
+
+      %Notification{} = notification ->
+        notification
+        |> Ecto.Changeset.change(dismissed_at: nil)
+        |> repo().update()
+        # Reuses the dismissed-state-change event — consumers (bell, inbox) just
+        # reload, so a restored notification reappears in the active list/bell.
+        |> broadcast_state(user_uuid, :notification_dismissed)
+    end
+  end
+
+  @doc "Bulk-dismisses all undismissed notifications, also marking them read. Returns `{count, nil}`."
   def dismiss_all(user_uuid) when is_binary(user_uuid) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
+    # Also clear the unread flag on dismiss (COALESCE preserves an existing
+    # seen_at), matching dismiss/2.
     {count, _} =
       Notification
       |> where([n], n.recipient_uuid == ^user_uuid and is_nil(n.dismissed_at))
-      |> repo().update_all(set: [dismissed_at: now])
+      |> update([n],
+        set: [dismissed_at: ^now, seen_at: fragment("COALESCE(?, ?)", n.seen_at, ^now)]
+      )
+      |> repo().update_all([])
 
     Events.broadcast(user_uuid, {:notifications_bulk_updated, :dismissed})
     {count, nil}
@@ -445,13 +648,15 @@ defmodule PhoenixKit.Notifications do
       key: "notifications",
       label: "Notifications",
       icon: "hero-bell",
-      description: "Per-user in-app notifications driven by the activity log"
+      description: "Your own in-app notifications and per-type preferences"
     }
   end
 
   @impl PhoenixKit.Module
   def admin_tabs do
     [
+      # Parent "Notifications" tab. Base "notifications" permission gates the
+      # personal pages (My Notifications + Notification Settings).
       Tab.new!(
         id: :admin_notifications,
         label: "Notifications",
@@ -462,6 +667,35 @@ defmodule PhoenixKit.Notifications do
         permission: "notifications",
         match: :prefix,
         group: :admin_modules,
+        subtab_display: :when_active,
+        highlight_with_subtabs: false,
+        gettext_backend: PhoenixKitWeb.Gettext
+      ),
+      # My Notifications shares the parent path. Exact-only regex so it stays
+      # lit on the bare inbox URL and does NOT prefix-match /settings
+      # (mirrors the :admin_users_manage precedent in AdminTabs).
+      Tab.new!(
+        id: :admin_notifications_mine,
+        label: "My Notifications",
+        icon: "hero-inbox",
+        path: "notifications",
+        priority: 641,
+        level: :admin,
+        permission: "notifications",
+        parent: :admin_notifications,
+        match: {:regex, ~r{^/admin/notifications$}},
+        gettext_backend: PhoenixKitWeb.Gettext
+      ),
+      Tab.new!(
+        id: :admin_notifications_settings,
+        label: "My Settings",
+        icon: "hero-adjustments-horizontal",
+        path: "notifications/settings",
+        priority: 642,
+        level: :admin,
+        permission: "notifications",
+        parent: :admin_notifications,
+        match: :prefix,
         gettext_backend: PhoenixKitWeb.Gettext
       )
     ]
@@ -506,8 +740,18 @@ defmodule PhoenixKit.Notifications do
 
   # ── Internals ────────────────────────────────────────────────────────
 
-  defp maybe_filter_dismissed(query, true), do: query
-  defp maybe_filter_dismissed(query, false), do: where(query, [n], is_nil(n.dismissed_at))
+  # Resolve the dismissed-row filter. The explicit `:dismissed` opt wins; falls
+  # back to the legacy `:include_dismissed` bool for callers not yet updated.
+  defp dismissed_filter(opts) do
+    case Keyword.get(opts, :dismissed) do
+      nil -> if Keyword.get(opts, :include_dismissed, false), do: :include, else: :exclude
+      value -> value
+    end
+  end
+
+  defp filter_dismissed(query, :include), do: query
+  defp filter_dismissed(query, :only), do: where(query, [n], not is_nil(n.dismissed_at))
+  defp filter_dismissed(query, _exclude), do: where(query, [n], is_nil(n.dismissed_at))
 
   defp maybe_filter_unread(query, :unread), do: where(query, [n], is_nil(n.seen_at))
   defp maybe_filter_unread(query, _), do: query

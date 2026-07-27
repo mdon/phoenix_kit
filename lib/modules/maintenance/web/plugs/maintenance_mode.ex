@@ -84,7 +84,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
 
   defp admin_or_owner?(user) do
     scope = Scope.for_user(user)
-    Scope.admin?(scope) || Scope.owner?(scope)
+    Scope.can_access_admin_area?(scope)
   end
 
   defp get_user_from_session(conn) do

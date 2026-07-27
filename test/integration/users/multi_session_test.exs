@@ -3,6 +3,7 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.RoleAssignment
   alias PhoenixKit.Users.Roles
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -11,7 +12,25 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
   defp owner_user do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
-    {:ok, _} = Roles.assign_role(user, "Owner")
+
+    # `Roles.assign_role/3` deliberately refuses to assign the Owner role
+    # (`:owner_role_protected`) — Owner is only ever bootstrapped onto the first
+    # user. Insert the assignment directly so this helper deterministically
+    # yields an Owner regardless of user-creation order. `on_conflict: :nothing`
+    # covers the case where this IS the first user and already got Owner.
+    owner_role = Roles.get_role_by_name("Owner")
+
+    {:ok, _} =
+      %RoleAssignment{}
+      |> RoleAssignment.changeset(%{
+        user_uuid: user.uuid,
+        role_uuid: owner_role.uuid
+      })
+      |> Repo.insert(
+        on_conflict: :nothing,
+        conflict_target: [:user_uuid, :role_uuid]
+      )
+
     Repo.get!(Auth.User, user.uuid)
   end
 
@@ -44,6 +63,18 @@ defmodule PhoenixKit.Integration.Users.MultiSessionTest do
     |> Plug.Conn.put_session(:user_token, token)
     |> Plug.Conn.put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
     |> Plug.Conn.put_session(:pk_session_accounts, [token])
+  end
+
+  # The FIRST user registered in a fresh sandbox auto-becomes Owner
+  # (`Auth.register_user` → `Roles.ensure_first_user_is_owner`, which only
+  # promotes when no active Owner exists yet). Seed a throwaway Owner up front so
+  # the users each test builds get their INTENDED roles (plain "User" / a custom
+  # role / an explicit Owner via `owner_user/0`) instead of being silently
+  # promoted to Owner just for being the first account created.
+  setup do
+    {:ok, seed} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
+    {:ok, _} = Auth.admin_confirm_user(seed)
+    :ok
   end
 
   describe "add_account/3" do

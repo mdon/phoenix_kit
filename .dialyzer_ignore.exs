@@ -72,6 +72,12 @@
   {"lib/phoenix_kit/users/auth/scope.ex", :contract_with_opaque},
   # Callers of Scope.admin?/1 inherit the opaque mismatch from Scope.for_user/1
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
+  # Same class: these consume Scope.accessible_modules/1, whose result is a
+  # MapSet built either from the struct field or MapSet.new(all_module_keys())
+  # (the "*" superadmin branch). Dialyzer can't prove opaqueness through that
+  # union where the value flows into MapSet.subset?/member?. Runtime-correct.
+  {"lib/phoenix_kit_web/live/users/permissions_matrix.ex", :call_without_opaque},
+  {"lib/phoenix_kit_web/live/users/roles.ex", :call_without_opaque},
 
   # doctor.ex display_check - `if detail` on binary() type: Dialyzer sees binary is always
   # truthy so the nil/false branch of `if` can never succeed; this is intentional nil-guard

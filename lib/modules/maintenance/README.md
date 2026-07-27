@@ -161,7 +161,7 @@ Located at `/admin/settings/maintenance`:
 
 ### Admins see maintenance page
 - Verify user has Admin or Owner role
-- Check `Scope.admin?(scope)` or `Scope.owner?(scope)` returns true
+- Check `Scope.can_access_admin_area?(scope)` or `Scope.owner?(scope)` returns true
 
 ### Scheduled maintenance not activating
 - Times are stored and compared in UTC

@@ -44,7 +44,13 @@ defmodule PhoenixKit.Integrations.Providers do
           # are present on most built-ins but absent on a few, hence optional.
           optional(:base_url) => String.t(),
           optional(:validation) => map(),
-          optional(:instructions) => [map()]
+          optional(:instructions) => [map()],
+          # Which integration surfaces may hold a connection for this provider.
+          # `:system` = the website-wide setup; `:personal` = a user's own
+          # setup. Absent ⇒ `[:system]` (a provider opts INTO personal use
+          # explicitly — the self-owned-secret providers do; OAuth2 providers,
+          # whose setup fields are the APP's client_id/secret, stay system-only).
+          optional(:scopes) => [:system | :personal]
         }
 
   @providers_cache_key {__MODULE__, :all}
@@ -117,6 +123,54 @@ defmodule PhoenixKit.Integrations.Providers do
     end
   end
 
+  @doc """
+  The scopes a provider may hold a connection under. Defaults to `[:system]`
+  when the provider omits `:scopes` (so an external module's provider never
+  lands on the personal page unless it opts in).
+  """
+  @spec scopes_of(String.t() | provider()) :: [:system | :personal]
+  def scopes_of(%{} = provider), do: normalize_scopes(provider[:scopes])
+  def scopes_of(key) when is_binary(key), do: scopes_of(get(key) || %{})
+
+  defp normalize_scopes(scopes) when is_list(scopes) do
+    case Enum.filter(scopes, &(&1 in [:system, :personal])) do
+      [] -> [:system]
+      list -> list
+    end
+  end
+
+  defp normalize_scopes(_), do: [:system]
+
+  @doc """
+  All providers usable under `scope` (`:system` or `:personal`).
+
+  Drives the provider grid on each page — the system setup lists
+  `for_scope(:system)`, the personal setup lists `for_scope(:personal)`.
+  """
+  @spec for_scope(:system | :personal) :: [provider()]
+  def for_scope(scope) when scope in [:system, :personal] do
+    Enum.filter(all(), fn p -> scope in scopes_of(p) end)
+  end
+
+  # Providers currently OFFERED on the personal integrations "add" picker — a
+  # deliberate subset of `for_scope(:personal)`. The personal surface is kept
+  # small for now; widen this list (or drop the filter) to offer more. A
+  # provider must still declare `:personal` in its `:scopes` to appear, and
+  # already-created personal connections of any provider stay manageable in the
+  # list regardless of this allowlist.
+  @personal_offered ~w(telegram openrouter)
+
+  @doc """
+  Providers offered on the personal integrations "add" picker — the subset of
+  `for_scope(:personal)` currently exposed (see `@personal_offered`), returned
+  in that list's order.
+  """
+  @spec personal_offered() :: [provider()]
+  def personal_offered do
+    by_key = Map.new(for_scope(:personal), &{&1.key, &1})
+    Enum.flat_map(@personal_offered, fn key -> List.wrap(by_key[key]) end)
+  end
+
   # ---------------------------------------------------------------------------
   # Built-in provider definitions
   # ---------------------------------------------------------------------------
@@ -133,7 +187,8 @@ defmodule PhoenixKit.Integrations.Providers do
       elevenlabs(),
       aws_ses(),
       smtp(),
-      brevo_api()
+      brevo_api(),
+      telegram()
     ]
   end
 
@@ -250,6 +305,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp openai do
     %{
       key: "openai",
+      scopes: [:system, :personal],
       name: gettext("OpenAI"),
       description: gettext("AI models via OpenAI (GPT, embeddings, images, audio)"),
       icon: "hero-sparkles",
@@ -325,6 +381,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp openrouter do
     %{
       key: "openrouter",
+      scopes: [:system, :personal],
       name: gettext("OpenRouter"),
       description: gettext("AI model access via OpenRouter (100+ models)"),
       icon: "hero-sparkles",
@@ -382,6 +439,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp mistral do
     %{
       key: "mistral",
+      scopes: [:system, :personal],
       name: gettext("Mistral"),
       description: gettext("AI model access via Mistral AI (Mistral Large, Codestral, Pixtral)"),
       icon: "hero-sparkles",
@@ -444,6 +502,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp deepseek do
     %{
       key: "deepseek",
+      scopes: [:system, :personal],
       name: gettext("DeepSeek"),
       description: gettext("AI model access via DeepSeek (deepseek-chat, deepseek-reasoner)"),
       icon: "hero-sparkles",
@@ -503,6 +562,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp xai do
     %{
       key: "xai",
+      scopes: [:system, :personal],
       name: gettext("xAI"),
       description: gettext("AI model access via xAI (Grok models)"),
       icon: "hero-sparkles",
@@ -568,6 +628,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp elevenlabs do
     %{
       key: "elevenlabs",
+      scopes: [:system, :personal],
       name: gettext("ElevenLabs"),
       description: gettext("Text-to-speech and voice generation via ElevenLabs"),
       icon: "hero-speaker-wave",
@@ -623,6 +684,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp aws_ses do
     %{
       key: "aws_ses",
+      scopes: [:system, :personal],
       name: gettext("Amazon SES"),
       description: gettext("AWS Simple Email Service (SMTP credentials via SES API)"),
       icon: "hero-envelope",
@@ -672,6 +734,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp smtp do
     %{
       key: "smtp",
+      scopes: [:system, :personal],
       name: gettext("SMTP"),
       description:
         gettext(
@@ -734,6 +797,7 @@ defmodule PhoenixKit.Integrations.Providers do
   defp brevo_api do
     %{
       key: "brevo_api",
+      scopes: [:system, :personal],
       name: gettext("Brevo API"),
       description: gettext("Send email via the Brevo transactional email API"),
       icon: "hero-envelope",
@@ -761,6 +825,54 @@ defmodule PhoenixKit.Integrations.Providers do
         }
       ],
       capabilities: [:email_send]
+    }
+  end
+
+  defp telegram do
+    %{
+      key: "telegram",
+      # Available both website-wide (a project bot) and personal (a user's own
+      # bot for notifications).
+      scopes: [:system, :personal],
+      name: gettext("Telegram"),
+      description: gettext("Send messages and notifications via your own Telegram bot"),
+      icon: "hero-paper-airplane",
+      auth_type: :bot_token,
+      oauth_config: nil,
+      # Telegram embeds the token in the URL path (`/bot<token>/getMe`), not a
+      # header, so it declares a strategy instead of the header-based shape the
+      # generic api_key/bot_token check builds.
+      validation: %{strategy: :telegram},
+      setup_fields: [
+        %{
+          key: "bot_token",
+          label: gettext("Bot Token"),
+          type: :password,
+          required: true,
+          placeholder: "123456789:ABCdef...",
+          help: gettext("From @BotFather → /newbot (or /token for an existing bot)"),
+          options: nil
+        }
+      ],
+      capabilities: [:messaging],
+      instructions: [
+        %{
+          title: gettext("Create a bot with BotFather"),
+          steps: [
+            {gettext("Open [@BotFather](https://t.me/BotFather) in Telegram"), nil},
+            {gettext("Send **/newbot** and follow the prompts to name your bot"), nil}
+          ]
+        },
+        %{
+          title: gettext("Copy the bot token"),
+          steps: [
+            {gettext(
+               "BotFather replies with an HTTP API token like `123456789:ABCdef...` — copy it"
+             ), nil},
+            {gettext("Paste the token into the form above and press **Test Connection**"), nil}
+          ]
+        }
+      ]
     }
   end
 

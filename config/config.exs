@@ -45,14 +45,20 @@ config :phoenix_kit, Oban,
     scheduled_jobs: 1,
     sitemap: 5,
     sqs_polling: 1,
-    shop_imports: 2
+    shop_imports: 2,
+    notifications: 10
   ],
   plugins: [
     # Pruner: delete completed/discarded jobs after 30 days
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
     {Oban.Plugins.Cron,
      crontab: [
-       {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+       {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
+       # Notification digest sweeps — one per cadence (fixed windows).
+       {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
+       {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
+       {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
+       {"0 6 * * 1", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "weekly"}}
      ]}
   ]
 

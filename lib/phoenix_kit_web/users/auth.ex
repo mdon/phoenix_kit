@@ -607,7 +607,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      Scope.admin?(scope) ->
+      Scope.can_access_admin_area?(scope) ->
         socket = attach_locale_hook(socket)
         socket = maybe_subscribe_to_module_events(socket)
         socket = maybe_apply_plugin_layout(socket)
@@ -618,7 +618,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
-            "You do not have the required role to access this page."
+            "You do not have the required permission to access this page."
           )
           |> Phoenix.LiveView.redirect(to: "/")
 
@@ -653,20 +653,24 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      not Scope.admin?(scope) ->
+      not Scope.can_access_admin_area?(scope) ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
-            "You do not have the required role to access this page."
+            "You do not have the required permission to access this page."
           )
           |> Phoenix.LiveView.redirect(to: "/")
 
         {:halt, socket}
 
+      # A disabled module's admin surface is blocked for EVERYONE, Owner
+      # included — matching `enforce_admin_view_permission/2`. (Previously Owner
+      # bypassed enablement here but not on fresh LV mounts, so the same user
+      # saw a disabled module's page through one hook and a redirect through
+      # another. Enablement is now uniform across all three gates.)
       Scope.has_module_access?(scope, module_key) and
-          (Scope.owner?(scope) or
-             MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
+          MapSet.member?(Permissions.enabled_module_keys(), module_key) ->
         socket = attach_locale_hook(socket)
         {:cont, socket}
 
@@ -1001,19 +1005,19 @@ defmodule PhoenixKitWeb.Users.Auth do
     current_scope = socket.assigns[:phoenix_kit_current_scope]
 
     if Scope.user_uuid(current_scope) == user_uuid do
-      was_admin = Scope.admin?(current_scope)
+      was_admin = Scope.can_access_admin_area?(current_scope)
       {socket, new_scope} = refresh_scope_assigns(socket)
 
       socket =
         cond do
           # Lost admin role entirely
-          was_admin and not Scope.admin?(new_scope) ->
+          was_admin and not Scope.can_access_admin_area?(new_scope) ->
             socket
             |> LiveView.put_flash(:error, "You must be an admin to access this page.")
             |> LiveView.push_navigate(to: "/")
 
           # Still admin but lost access to current module
-          Scope.admin?(new_scope) and
+          Scope.can_access_admin_area?(new_scope) and
               not has_current_module_access?(socket, new_scope) ->
             redirect_to = best_available_admin_path(new_scope)
 
@@ -1127,6 +1131,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"jobs", "/admin/jobs"},
     {"db", "/admin/db"},
     {"publishing", "/admin/publishing"},
+    # A user granted only "notifications" (their own inbox+settings) has no
+    # "dashboard" access, so landing them here — not "/" — is their first
+    # reachable admin page.
+    {"notifications", "/admin/notifications"},
+    # Same for the two independent integration keys — a holder of only one of
+    # these lands on its page rather than bouncing to "/".
+    {"integrations", "/admin/settings/integrations"},
+    {"integrations_system", "/admin/settings/integrations/website"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
     {"seo", "/admin/settings/seo"},
@@ -1177,18 +1189,26 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp enforce_admin_view_permission(socket, scope) do
     case permission_key_for_admin_view(socket.view) do
       nil ->
-        # Unmapped views: fail-closed for custom roles, allow Admin/Owner.
-        # This deliberately keeps `system_role?` (not `owner?`): an unmapped
-        # view has NO permission key and NO module to enable, so Admin here
-        # isn't bypassing a revocation or a disabled module — it's the
-        # no-mapping fallback. Restricting it to Owner would lock Admin out
-        # of legitimately-unmapped core admin views with no security gain.
+        # Unmapped views (a host custom admin LV with no permission mapping):
+        # allow ONLY a scope that can reach everything, fail closed for partial
+        # roles. `holds_all_enabled_permissions?/1` is fully role-AGNOSTIC — it
+        # is satisfied by Owner (all keys by construction), by the explicit `"*"`
+        # superadmin key, and by any role granted every grantable permission.
+        #
+        # The former `or system_role?` arm was REMOVED: it let a named Admin
+        # whose keys an Owner had partially revoked still reach unmapped views,
+        # violating "no role is special for feature access". A default Admin
+        # still passes because `holds_all_enabled_permissions?/1` compares
+        # against the operator baseline (enabled keys MINUS opt-in ones), and
+        # Admin auto-holds every one of those. To keep a deliberately-stripped
+        # role's blanket access, an Owner grants it the `"*"` key — the
+        # drift-immune, role-agnostic way.
         Logger.debug(
           "[Auth] Admin view #{inspect(socket.view)} has no permission mapping — " <>
-            "allowing system roles, denying custom roles"
+            "allowing full-access scopes only, denying partial roles"
         )
 
-        if Scope.system_role?(scope) do
+        if Scope.holds_all_enabled_permissions?(scope) do
           {:cont, socket}
         else
           deny_admin_access(socket, scope)
@@ -1280,13 +1300,22 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings => "settings",
     PhoenixKitWeb.Live.Settings.Users => "settings",
     PhoenixKitWeb.Live.Settings.Organization => "settings",
+    # Login / OAuth / authorization settings — maps to the `settings` key. Like
+    # the other Settings.* pages it resolves through no inference layer, so an
+    # explicit entry is required or it falls through to the unmapped fallback.
+    PhoenixKitWeb.Live.Settings.Authorization => "settings",
     # Integrations + Email Sending settings pages: none of these resolve
     # through the later inference layers (their PhoenixKitWeb namespace has no
     # ModuleRegistry entry), so an explicit mapping is required — unmapped
     # views fail closed and custom roles holding the "settings" permission
     # were denied pages whose nav links they could see.
-    PhoenixKitWeb.Live.Settings.Integrations => "settings",
-    PhoenixKitWeb.Live.Settings.IntegrationForm => "settings",
+    # System (website-wide) integrations moved off the broad `settings` key to
+    # their own independent `integrations_system` key (grantable on its own).
+    PhoenixKitWeb.Live.Settings.Integrations => "integrations_system",
+    PhoenixKitWeb.Live.Settings.IntegrationForm => "integrations_system",
+    # Personal per-user integrations — the independent `integrations` key.
+    PhoenixKitWeb.Live.Integrations.MyIntegrations => "integrations",
+    PhoenixKitWeb.Live.Integrations.MyIntegrationForm => "integrations",
     PhoenixKitWeb.Live.Settings.EmailSending => "settings",
     PhoenixKitWeb.Live.Settings.SendProfiles => "settings",
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
@@ -1297,7 +1326,25 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Modules.Storage.BucketForm => "media",
     PhoenixKitWeb.Live.Modules.Storage.Dimensions => "media",
     PhoenixKitWeb.Live.Modules.Storage.DimensionForm => "media",
-    PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs"
+    # Media health dashboard — same `media` key as the other Storage admin LVs.
+    # (Its `PhoenixKitWeb.Live.Modules.Storage.*` namespace resolves through no
+    # inference branch, so without this it fell through to the unmapped
+    # fallback and a `media`-only custom role was wrongly denied it.)
+    PhoenixKitWeb.Live.Modules.Storage.Health => "media",
+    PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs",
+    # Notifications: the two personal pages (inbox + per-type settings) take
+    # the base key. Explicit entries are required — PhoenixKitWeb.Live.*
+    # namespaces resolve through no inference branch, so an omission fails
+    # closed for custom (non-system) roles.
+    PhoenixKitWeb.Live.Notifications.Inbox => "notifications",
+    PhoenixKitWeb.Live.Notifications.Settings => "notifications",
+    # Activity feed / audit log — gated by `dashboard` (its admin tab is too).
+    # These `PhoenixKitWeb.Live.Activity.*` modules resolve through no inference
+    # layer, so without an explicit entry they hit the unmapped fallback — which
+    # (post-fix) only a full-access scope passes, wrongly denying a custom role
+    # that legitimately holds only `dashboard`.
+    PhoenixKitWeb.Live.Activity.Index => "dashboard",
+    PhoenixKitWeb.Live.Activity.Show => "dashboard"
   }
 
   # Resolve a LiveView module to its permission key.
@@ -1373,7 +1420,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           maybe_attach_maintenance_hook(socket)
 
         # Admins and owners bypass maintenance mode
-        scope && (Scope.admin?(scope) || Scope.owner?(scope)) ->
+        scope && (Scope.can_access_admin_area?(scope) || Scope.owner?(scope)) ->
           maybe_attach_maintenance_hook(socket)
 
         # Everyone else gets the maintenance layout
@@ -1467,7 +1514,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp handle_maintenance_change({:maintenance_status_changed, _payload}, socket) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
-    if scope && (Scope.admin?(scope) || Scope.owner?(scope)) do
+    if scope && (Scope.can_access_admin_area?(scope) || Scope.owner?(scope)) do
       {:cont, socket}
     else
       # Schedule may have changed — re-read the end time and reset the auto-off timer.
@@ -1706,12 +1753,12 @@ defmodule PhoenixKitWeb.Users.Auth do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
         cond do
-          Scope.admin?(scope) ->
+          Scope.can_access_admin_area?(scope) ->
             conn
 
           Scope.authenticated?(scope) ->
             conn
-            |> put_flash(:error, "You do not have the required role to access this page.")
+            |> put_flash(:error, "You do not have the required permission to access this page.")
             |> redirect(to: "/")
             |> halt()
 
@@ -1736,15 +1783,16 @@ defmodule PhoenixKitWeb.Users.Auth do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
         cond do
-          not Scope.admin?(scope) ->
+          not Scope.can_access_admin_area?(scope) ->
             conn
-            |> put_flash(:error, "You do not have the required role to access this page.")
+            |> put_flash(:error, "You do not have the required permission to access this page.")
             |> redirect(to: "/")
             |> halt()
 
+          # Disabled modules are blocked for everyone (Owner included), matching
+          # the LiveView mount and plug gates.
           Scope.has_module_access?(scope, module_key) and
-              (Scope.owner?(scope) or
-                 MapSet.member?(Permissions.enabled_module_keys(), module_key)) ->
+              MapSet.member?(Permissions.enabled_module_keys(), module_key) ->
             conn
 
           true ->

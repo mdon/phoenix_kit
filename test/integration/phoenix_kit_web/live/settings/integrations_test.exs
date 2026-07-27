@@ -7,7 +7,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
     `"default"`)
   - /new always asks the user for a connection name (no silent default)
   - Edit page rename input is always editable, on every connection
-  - URL is uuid-based (`/admin/settings/integrations/:uuid`)
+  - URL is uuid-based (`/admin/settings/integrations/website/:uuid`)
   - Test Connection action available on connected / configured / error
     rows
 
@@ -19,8 +19,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Utils.Routes
 
-  @list_path Routes.path("/admin/settings/integrations")
-  @new_path Routes.path("/admin/settings/integrations/new")
+  @list_path Routes.path("/admin/settings/integrations/website")
+  @new_path Routes.path("/admin/settings/integrations/website/new")
 
   defp setup_admin(%{conn: conn}) do
     {user, _token} = create_admin_user()
@@ -72,8 +72,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       {:ok, _view, html} = live(conn, @list_path)
 
       # Edit URL is uuid-based — renames don't break bookmarks
-      assert html =~ "/admin/settings/integrations/#{uuid}"
-      refute html =~ "/admin/settings/integrations/openrouter/default"
+      assert html =~ "/admin/settings/integrations/website/#{uuid}"
+      refute html =~ "/admin/settings/integrations/website/openrouter/default"
     end
 
     test "Test Connection action is present on `error` status rows",
@@ -300,7 +300,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       conn = conn |> Phoenix.ConnTest.init_test_session(%{}) |> Phoenix.Controller.fetch_flash()
 
       {:error, {:live_redirect, %{to: target}}} =
-        live(conn, Routes.path("/admin/settings/integrations/#{ghost}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{ghost}"))
 
       assert target == @list_path
     end
@@ -310,7 +310,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       %{uuid: uuid} = seed_openrouter("default")
 
       {:ok, _view, html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       # No more disabled-Default-with-explainer branch; every row gets
       # a normal editable name input. The save form uses one unified
@@ -325,7 +325,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       %{uuid: uuid} = seed_openrouter("personal")
 
       {:ok, _view, html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       assert html =~ ~s(value="personal")
       assert html =~ "Save Changes"
@@ -336,7 +336,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       %{uuid: uuid} = seed_openrouter("personal")
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       view
       |> element("form[phx-submit=\"save_form\"]")
@@ -352,7 +352,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       %{uuid: uuid} = seed_openrouter("default")
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       view
       |> element("form[phx-submit=\"save_form\"]")
@@ -368,7 +368,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       seed_openrouter("work")
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       view
       |> element("form[phx-submit=\"save_form\"]")
@@ -394,7 +394,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       assert initial == "sk-test-test-with-new-key"
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       # Submit the form with a different api_key. Same submit path
       # the Test Connection button uses (Test is a `type="submit"`
@@ -435,7 +435,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       :ok = Integrations.record_validation(uuid, {:error, "previous failure"})
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       html =
         view
@@ -464,7 +464,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       %{uuid: uuid} = seed_openrouter("preserve-on-empty-test")
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+        live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
 
       view
       |> element("form[phx-submit=\"save_form\"]")

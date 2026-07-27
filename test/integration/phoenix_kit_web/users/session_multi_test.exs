@@ -3,17 +3,49 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.RoleAssignment
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.MultiSession
 
   defp unique_email, do: "smc_#{System.unique_integer([:positive])}@example.com"
 
+  # The FIRST user registered in a fresh sandbox auto-becomes Owner
+  # (`ensure_first_user_is_owner`, only when no active Owner exists). Seed a
+  # throwaway Owner so `make/1` yields users with their INTENDED role rather than
+  # an accidental Owner promotion just for being first.
+  setup do
+    {:ok, seed} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
+    {:ok, _} = Auth.admin_confirm_user(seed)
+    :ok
+  end
+
   defp make(role) do
     {:ok, user} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, user} = Auth.admin_confirm_user(user)
-    if role, do: {:ok, _} = Roles.assign_role(user, role)
+    assign_test_role(user, role)
     Repo.get!(Auth.User, user.uuid)
+  end
+
+  # `Roles.assign_role/3` refuses the Owner role (`:owner_role_protected`) — it's
+  # only ever bootstrapped onto the first user — so insert the Owner assignment
+  # directly. Other roles use the normal path; `nil` means "leave as default".
+  defp assign_test_role(_user, nil), do: :ok
+
+  defp assign_test_role(user, "Owner") do
+    owner_role = Roles.get_role_by_name("Owner")
+
+    {:ok, _} =
+      %RoleAssignment{}
+      |> RoleAssignment.changeset(%{user_uuid: user.uuid, role_uuid: owner_role.uuid})
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:user_uuid, :role_uuid])
+
+    :ok
+  end
+
+  defp assign_test_role(user, role) do
+    {:ok, _} = Roles.assign_role(user, role)
+    :ok
   end
 
   defp login(conn, user) do
@@ -29,6 +61,8 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
   describe "add_account gate" do
     test "owner can add an account", %{conn: conn} do
+      # Change 2: the gate requires multi_session_enabled — owner no longer bypasses.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       owner = make("Owner")
       other = make(nil)
       conn = login(conn, owner)
@@ -79,6 +113,9 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
   describe "switch / remove / logout" do
     setup %{conn: conn} do
+      # These exercise the controller (gated) actions, so the feature must be on.
+      # Tests that specifically assert the "off" behaviour flip it back themselves.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       owner = make("Owner")
       other = make(nil)
       conn = login(conn, owner)
@@ -101,7 +138,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
     test "logout active falls back to root", %{conn: conn, owner: owner} do
       conn = delete(conn, Routes.path("/users/log-out"))
-      assert redirected_to(conn) == "/"
+      # Still signed in (as root) → redirected to the app home, which is the
+      # locale-aware `Routes.path("/")` (not a bare "/", which is only where a
+      # FULL logout lands via log_out_user/1).
+      assert redirected_to(conn) == Routes.path("/")
       assert get_session(conn)["user_token"]
       assert Auth.get_user_by_session_token(get_session(conn)["user_token"]).uuid == owner.uuid
     end
@@ -174,6 +214,9 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
   describe "return_to open-redirect guard" do
     setup %{conn: conn} do
+      # The gate must be open for the safe-path case to reach redirect_back;
+      # the reject cases fall back to Routes.path("/") either way.
+      Settings.update_boolean_setting("multi_session_enabled", true)
       owner = make("Owner")
       conn = login(conn, owner)
       other = make(nil)

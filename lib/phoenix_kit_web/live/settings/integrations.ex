@@ -40,7 +40,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   def handle_event("disconnect", %{"uuid" => uuid}, socket) do
-    Integrations.disconnect(uuid, actor_uuid(socket))
+    Integrations.disconnect(uuid, actor_uuid(socket), owner: :system)
 
     {:noreply,
      socket
@@ -54,7 +54,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   def handle_event("remove_connection", %{"uuid" => uuid}, socket) do
-    case Integrations.remove_connection(uuid, actor_uuid(socket)) do
+    case Integrations.remove_connection(uuid, actor_uuid(socket), owner: :system) do
       :ok ->
         {:noreply,
          socket
@@ -72,8 +72,8 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
   def handle_info({:do_validate, uuid}, socket) do
     actor = actor_uuid(socket)
-    result = Integrations.validate_connection(uuid, actor)
-    Integrations.record_validation(uuid, result)
+    result = Integrations.validate_connection(uuid, actor, owner: :system)
+    Integrations.record_validation(uuid, result, owner: :system)
 
     {:noreply,
      socket
@@ -114,12 +114,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   defp load_connections(socket) do
-    providers = Providers.all()
+    # System page: only providers usable system-wide, and only SYSTEM-owned
+    # connections (owner: :system) — a user's personal connection never leaks here.
+    providers = Providers.for_scope(:system)
     provider_keys = Enum.map(providers, & &1.key)
     providers_by_key = Map.new(providers, &{&1.key, &1})
 
     # Single query for all providers instead of N+1
-    all_connections = Integrations.load_all_connections(provider_keys)
+    all_connections = Integrations.load_all_connections(provider_keys, owner: :system)
 
     connections =
       Enum.flat_map(providers, fn provider ->
@@ -159,7 +161,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   defp get_current_path(locale) do
-    Routes.path("/admin/settings/integrations", locale: locale)
+    Routes.path("/admin/settings/integrations/website", locale: locale)
   end
 
   defp integration_status_badge("connected"), do: {"badge-success", gettext("Connected")}

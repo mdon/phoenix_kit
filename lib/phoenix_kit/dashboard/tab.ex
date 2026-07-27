@@ -142,6 +142,7 @@ defmodule PhoenixKit.Dashboard.Tab do
           parent: atom() | nil,
           level: level(),
           permission: String.t() | nil,
+          auto_grant_admin: boolean(),
           live_view: {module(), atom()} | nil,
           dynamic_children: dynamic_children_fn(),
           subtab_display: subtab_display(),
@@ -185,6 +186,7 @@ defmodule PhoenixKit.Dashboard.Tab do
     :gettext_backend,
     priority: 500,
     level: :user,
+    auto_grant_admin: true,
     subtab_display: :when_active,
     redirect_to_first_subtab: false,
     highlight_with_subtabs: false,
@@ -255,6 +257,11 @@ defmodule PhoenixKit.Dashboard.Tab do
       parent: get_attr(attrs, :parent),
       level: parse_level(get_attr(attrs, :level)),
       permission: get_attr(attrs, :permission),
+      auto_grant_admin:
+        if(is_nil(get_attr(attrs, :auto_grant_admin)),
+          do: true,
+          else: get_attr(attrs, :auto_grant_admin)
+        ),
       dynamic_children: get_attr(attrs, :dynamic_children),
       subtab_display: parse_subtab_display(get_attr(attrs, :subtab_display)),
       subtab_indent: get_attr(attrs, :subtab_indent),

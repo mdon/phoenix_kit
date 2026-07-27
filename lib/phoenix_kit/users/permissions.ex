@@ -101,6 +101,37 @@ defmodule PhoenixKit.Users.Permissions do
 
   @core_section_keys ~w(dashboard users media settings modules)
 
+  # Core-managed integration permission keys. TWO INDEPENDENT flat keys (not
+  # dotted ⇒ no cascade / no sub-implies-base): `integrations` gates the
+  # personal per-user page; `integrations_system` gates the website-wide page.
+  # Each is independently grantable — an admin can hold the system page without
+  # a personal page, and a user can hold personal without system.
+  @integrations_personal_key "integrations"
+  @integrations_system_key "integrations_system"
+  @integration_keys [@integrations_personal_key, @integrations_system_key]
+
+  # The wildcard "superadmin" permission key. Holding it grants access to EVERY
+  # permission-gated surface — present and future — WITHOUT enumerating keys, so
+  # it stays complete as modules are added/enabled (drift-immune, unlike a
+  # grant-all role whose explicit rows go stale the moment a new module appears).
+  # It is NOT a module and never gates a page directly; it is honored by
+  # `Scope.has_module_access?/2` / `Scope.can?/2` as a blanket grant. Owner holds
+  # it structurally (it is in `all_module_keys/0`); it is also independently
+  # grantable in the matrix so a host can mint an Owner-equivalent custom role
+  # with a single grant. Deliberately kept OUT of `enabled_module_keys/0` — see
+  # `Scope.holds_all_enabled_permissions?/1` for why the subset check must not
+  # require it. Not a valid `register_custom_key/2` target (fails the collision
+  # guard AND the `[a-z]`-anchored pattern).
+  @superadmin_key "*"
+
+  # Keys that must NEVER be auto-granted to the Admin role — they are opt-in and
+  # appear only when an Owner explicitly grants them. The personal `integrations`
+  # page is the first: admins don't get a personal connections page they never
+  # asked for. Enforced at the single `auto_grant_to_admin_roles/1` chokepoint so
+  # BOTH the boot-time sweep (`auto_grant_new_keys_to_admin/0`) and the tab
+  # registry (`Dashboard.Registry.auto_register_custom_permission/1`) honor it.
+  @opt_in_admin_keys [@integrations_personal_key]
+
   # Persistent term keys for runtime-registered custom permission keys
   @custom_keys_pterm {PhoenixKit, :custom_permission_keys}
   @custom_views_pterm {PhoenixKit, :custom_view_permissions}
@@ -136,6 +167,9 @@ defmodule PhoenixKit.Users.Permissions do
     string is the msgid), mirroring `PhoenixKit.Dashboard.Tab`
   - `:gettext_domain` - Gettext domain for the label (default: `"default"`;
     only meaningful together with `:gettext_backend`)
+  - `:auto_grant_admin` - Auto-grant this key to the Admin role on first
+    registration (default: `true`). Set `false` for sensitive keys that should
+    require an explicit Owner grant.
 
   ## Examples
 
@@ -149,7 +183,8 @@ defmodule PhoenixKit.Users.Permissions do
   """
   @spec register_custom_key(String.t(), keyword()) :: :ok
   def register_custom_key(key, opts \\ []) when is_binary(key) do
-    if key in @core_section_keys or key in ModuleRegistry.all_feature_keys() do
+    if key == @superadmin_key or key in @core_section_keys or key in @integration_keys or
+         key in ModuleRegistry.all_feature_keys() do
       raise ArgumentError,
             "Cannot register custom permission key #{inspect(key)}: conflicts with built-in key"
     end
@@ -179,7 +214,12 @@ defmodule PhoenixKit.Users.Permissions do
         opts
         |> Keyword.get(:description)
         |> coerce_string("")
-        |> String.slice(0, @max_description_length)
+        |> String.slice(0, @max_description_length),
+      # Retained so the operator baseline can later exclude keys that were NOT
+      # auto-granted to Admin (see `admin_baseline_exclusions/0`). Without
+      # persisting it, an `auto_grant_admin: false` custom key would sit in the
+      # baseline un-held by a default Admin and lock Admin out of unmapped views.
+      auto_grant_admin: Keyword.get(opts, :auto_grant_admin, true) != false
     }
 
     meta =
@@ -211,9 +251,21 @@ defmodule PhoenixKit.Users.Permissions do
 
     :persistent_term.put(@custom_keys_pterm, Map.put(current, key, meta))
 
-    # Auto-grant custom keys to Admin role so they have access by default.
-    # Uses a settings flag to avoid re-granting after Owner explicitly revokes.
-    auto_grant_to_admin_roles(key)
+    maybe_auto_grant_custom_key(key, opts)
+
+    :ok
+  end
+
+  # Auto-grant a newly-registered custom key to Admin so a host's custom admin
+  # tab is visible to admins by default (matching built-in admin sections). Uses
+  # a settings flag to avoid re-granting after an Owner explicitly revokes. A
+  # host registering a SENSITIVE key can opt out with `auto_grant_admin: false`,
+  # in which case the key surfaces only on an explicit Owner grant — like the
+  # personal `integrations` key.
+  defp maybe_auto_grant_custom_key(key, opts) do
+    if Keyword.get(opts, :auto_grant_admin, true) do
+      auto_grant_to_admin_roles(key)
+    end
 
     :ok
   end
@@ -372,10 +424,52 @@ defmodule PhoenixKit.Users.Permissions do
 
   # --- Constants ---
 
-  @doc "Returns all built-in, sub-permission, and custom permission keys as a list. See `enabled_module_keys/0` for filtered MapSet variant."
+  @doc "Returns all built-in, sub-permission, and custom permission keys as a list (including the `\"*\"` superadmin key). See `enabled_module_keys/0` for filtered MapSet variant."
   @spec all_module_keys() :: [String.t()]
   def all_module_keys,
-    do: @core_section_keys ++ feature_module_keys() ++ sub_permission_keys() ++ custom_keys()
+    do:
+      [@superadmin_key | @core_section_keys] ++
+        @integration_keys ++ feature_module_keys() ++ sub_permission_keys() ++ custom_keys()
+
+  @doc "The two independent integration permission keys (`integrations`, `integrations_system`)."
+  @spec integration_keys() :: [String.t()]
+  def integration_keys, do: @integration_keys
+
+  @doc "The wildcard superadmin permission key (`\"*\"`). Holding it is a blanket grant honored by `Scope.has_module_access?/2` / `Scope.can?/2`."
+  @spec superadmin_key() :: String.t()
+  def superadmin_key, do: @superadmin_key
+
+  @doc """
+  Keys that are opt-in — never auto-granted to Admin, and excluded from the
+  "operator baseline" that `Scope.holds_all_enabled_permissions?/1` compares
+  against (so a default Admin, which never holds them, is still Owner-equivalent
+  for admin-view access). Currently just the personal `integrations` page.
+  """
+  @spec opt_in_admin_keys() :: [String.t()]
+  def opt_in_admin_keys, do: @opt_in_admin_keys
+
+  @doc """
+  Custom keys registered with `auto_grant_admin: false` — never auto-granted to
+  Admin, so they must be excluded from the operator baseline too.
+  """
+  @spec opt_out_custom_keys() :: [String.t()]
+  def opt_out_custom_keys do
+    custom_keys_map()
+    |> Enum.filter(fn {_key, meta} -> Map.get(meta, :auto_grant_admin, true) == false end)
+    |> Enum.map(fn {key, _meta} -> key end)
+  end
+
+  @doc """
+  Every enabled key that a default Admin is NOT auto-granted — the built-in
+  opt-in keys PLUS any `auto_grant_admin: false` custom keys.
+  `Scope.holds_all_enabled_permissions?/1` subtracts this from
+  `enabled_module_keys/0` to form the "operator baseline": the set a default
+  Admin genuinely holds, so a default Admin (and any grant-all role) stays
+  Owner-equivalent for admin-view access no matter what opt-in/opt-out keys a
+  host registers.
+  """
+  @spec admin_baseline_exclusions() :: [String.t()]
+  def admin_baseline_exclusions, do: @opt_in_admin_keys ++ opt_out_custom_keys()
 
   @doc "Returns the 5 core section keys."
   @spec core_section_keys() :: [String.t()]
@@ -406,13 +500,17 @@ defmodule PhoenixKit.Users.Permissions do
         sub_map |> Map.get(base, []) |> Enum.map(& &1.key)
       end)
 
-    MapSet.new(@core_section_keys ++ enabled_features ++ enabled_subs ++ custom_keys())
+    MapSet.new(
+      @core_section_keys ++ @integration_keys ++ enabled_features ++ enabled_subs ++ custom_keys()
+    )
   end
 
   @doc "Checks whether `key` is a known permission key (built-in, sub-permission, or custom)."
   @spec valid_module_key?(String.t()) :: boolean()
   def valid_module_key?(key) when is_binary(key) do
-    key in @core_section_keys or
+    key == @superadmin_key or
+      key in @core_section_keys or
+      key in @integration_keys or
       key in ModuleRegistry.all_feature_keys() or
       not is_nil(parent_key(key)) or
       Map.has_key?(custom_keys_map(), key)
@@ -430,7 +528,13 @@ defmodule PhoenixKit.Users.Permissions do
   Returns `false` for unknown keys.
   """
   @spec feature_enabled?(String.t()) :: boolean()
+  # The superadmin key is not a module — it is always "effective".
+  def feature_enabled?(@superadmin_key), do: true
+
   def feature_enabled?(key) when key in @core_section_keys, do: true
+
+  # The integration keys are core-managed and always "enabled" (no module toggle).
+  def feature_enabled?(key) when key in @integration_keys, do: true
 
   def feature_enabled?(key) when is_binary(key) do
     case Map.get(ModuleRegistry.feature_enabled_checks(), key) do
@@ -464,7 +568,10 @@ defmodule PhoenixKit.Users.Permissions do
     # produces `String.capitalize("db")` = `"Db"`. Pin the canonical
     # label here so the display is correct regardless of whether
     # the external module is installed.
-    "db" => "DB"
+    "db" => "DB",
+    "integrations" => "My Integrations",
+    "integrations_system" => "System Integrations",
+    "*" => "Full Access (Superadmin)"
   }
 
   @core_icons %{
@@ -475,7 +582,10 @@ defmodule PhoenixKit.Users.Permissions do
     "modules" => "hero-squares-2x2",
     # Mirrors `phoenix_kit_db`'s registered icon. See `@core_labels`
     # above for the rationale.
-    "db" => "hero-server-stack"
+    "db" => "hero-server-stack",
+    "integrations" => "hero-link",
+    "integrations_system" => "hero-link",
+    "*" => "hero-key"
   }
 
   @core_descriptions %{
@@ -486,7 +596,11 @@ defmodule PhoenixKit.Users.Permissions do
     "modules" => "Enable, disable, and configure feature modules",
     # Mirrors `phoenix_kit_db`'s registered description. See
     # `@core_labels` above for the rationale.
-    "db" => "Database explorer and schema inspection"
+    "db" => "Database explorer and schema inspection",
+    "integrations" => "Your own personal service connections (API keys, SMTP, etc.)",
+    "integrations_system" => "Website-wide integration setup shared across the app",
+    "*" =>
+      "Grants access to everything, including features added later — the drift-immune way to make a role Owner-equivalent"
   }
 
   @doc "Returns a human-readable label for a module key (sub-permission keys resolve to the sub's own label)."
@@ -855,7 +969,26 @@ defmodule PhoenixKit.Users.Permissions do
     if is_nil(role_uuid) do
       {:error, :role_not_found}
     else
-      grant_permission_locked(repo, role_uuid, module_key, granted_by_uuid)
+      case grant_permission_locked(repo, role_uuid, module_key, granted_by_uuid) do
+        {:ok, _} = result ->
+          # Audit on success. The row uuid is client-generated (UUIDv7
+          # autogenerate), so it CANNOT distinguish a real insert from an
+          # idempotent `on_conflict: :nothing` no-op — a rare re-grant of an
+          # already-held key may log a duplicate "granted". Acceptable: the only
+          # UI path (the permissions matrix) grants un-held keys, and
+          # over-logging is not a security/data concern.
+          log_permission_activity(
+            "permission.granted",
+            role_uuid,
+            resolve_user_uuid(granted_by_uuid),
+            %{"module_key" => module_key}
+          )
+
+          result
+
+        error ->
+          error
+      end
     end
   end
 
@@ -868,6 +1001,7 @@ defmodule PhoenixKit.Users.Permissions do
     base = base_key_of(module_key)
 
     repo.transaction(fn ->
+      lock_role_for_update(repo, role_uuid)
       lock_role_module(repo, role_uuid, base)
 
       case do_grant(repo, role_uuid, module_key, granted_by_uuid) do
@@ -901,6 +1035,21 @@ defmodule PhoenixKit.Users.Permissions do
       "SELECT pg_advisory_xact_lock(hashtext($1))",
       ["pk_role_perm:#{role_uuid}:#{base_key}"]
     )
+  end
+
+  # Row-level lock on the Role row, taken by EVERY mutation path
+  # (grant/revoke/set_permissions) as its FIRST lock. Without it, per-key
+  # grant/revoke (which take only the per-{role, base} advisory lock above) and
+  # the whole-role `set_permissions/3` (which locks this row) are disjoint lock
+  # objects: a grant of key X committed between `set_permissions` snapshotting
+  # `current_keys` and its delete pass is invisible to that snapshot, so X
+  # survives a strip the Owner intended — the exact interleaving the advisory
+  # lock was built to stop, reachable because the two paths never shared a lock.
+  # Always acquired before `lock_role_module/3`, so the order is consistent and
+  # cannot deadlock.
+  defp lock_role_for_update(repo, role_uuid) do
+    from(r in Role, where: r.uuid == ^role_uuid, select: r.uuid, lock: "FOR UPDATE")
+    |> repo.one()
   end
 
   defp grant_permission_insert(repo, role_uuid, module_key, granted_by_uuid) do
@@ -940,6 +1089,9 @@ defmodule PhoenixKit.Users.Permissions do
   This closes the race where a caller's cached view misses a concurrently
   granted sub-key it doesn't hold. Omitted (or `:all`) skips the check — for
   system/internal callers.
+
+  Pass `actor_uuid:` to record who performed the revoke in the audit trail
+  (`permission.revoked` activity). Omitted ⇒ no audit entry (internal callers).
   """
   @spec revoke_permission(integer() | String.t(), String.t(), keyword()) ::
           :ok | {:error, :not_found | :unauthorized}
@@ -947,6 +1099,7 @@ defmodule PhoenixKit.Users.Permissions do
     repo = RepoHelper.repo()
     role_uuid = resolve_role_uuid(role_uuid)
     authorized = Keyword.get(opts, :authorized_keys, :all)
+    actor_uuid = Keyword.get(opts, :actor_uuid)
     base = base_key_of(module_key)
 
     keys_to_remove = [module_key | Enum.map(sub_permissions_for(module_key), & &1.key)]
@@ -956,6 +1109,7 @@ defmodule PhoenixKit.Users.Permissions do
       # what the role ACTUALLY holds under the lock — so authorization can't
       # miss a sub-key granted after the caller's (cached) view was built, and
       # the base's cascade can't drop a key the caller isn't allowed to manage.
+      lock_role_for_update(repo, role_uuid)
       lock_role_module(repo, role_uuid, base)
 
       present =
@@ -985,6 +1139,14 @@ defmodule PhoenixKit.Users.Permissions do
       {:ok, :revoked} ->
         Events.broadcast_permission_revoked(role_uuid, module_key)
         notify_affected_users(role_uuid)
+
+        log_permission_activity(
+          "permission.revoked",
+          role_uuid,
+          resolve_user_uuid(actor_uuid),
+          %{"module_key" => module_key}
+        )
+
         :ok
 
       {:error, reason} ->
@@ -1014,9 +1176,10 @@ defmodule PhoenixKit.Users.Permissions do
       # there is nothing to lock, so two concurrent set_permissions calls both
       # observe an empty set and insert disjoint desired sets, leaving their
       # union rather than either requested state. The role-row lock serializes
-      # them regardless of how many permission rows exist.
-      from(r in Role, where: r.uuid == ^role_uuid, select: r.uuid, lock: "FOR UPDATE")
-      |> repo.one()
+      # them regardless of how many permission rows exist — AND serializes this
+      # whole-role sync against single-key grant/revoke, which take the same
+      # lock (see `lock_role_for_update/2`).
+      lock_role_for_update(repo, role_uuid)
 
       # Lock existing permission rows FOR UPDATE to prevent concurrent set_permissions
       # from reading the same state and computing conflicting diffs.
@@ -1077,6 +1240,14 @@ defmodule PhoenixKit.Users.Permissions do
       {:ok, filtered_keys} ->
         Events.broadcast_permissions_synced(role_uuid, filtered_keys)
         notify_affected_users(role_uuid)
+
+        log_permission_activity(
+          "permission.synced",
+          resolve_role_uuid(role_uuid),
+          resolve_user_uuid(granted_by_uuid),
+          %{"keys" => filtered_keys, "count" => length(filtered_keys)}
+        )
+
         :ok
 
       {:error, reason} ->
@@ -1085,7 +1256,12 @@ defmodule PhoenixKit.Users.Permissions do
   end
 
   @doc """
-  Grants all permission keys (built-in + custom) to a role.
+  Grants all permission keys to a role.
+
+  `all_module_keys/0` includes the `"*"` superadmin key, so this confers
+  Owner-equivalent, drift-immune access (any future module key is reachable
+  without a re-grant) — not merely the currently-registered keys. Reserve it
+  for roles that are genuinely meant to be all-powerful.
   """
   @spec grant_all_permissions(integer() | String.t(), integer() | String.t() | nil) ::
           :ok | {:error, term()}
@@ -1102,8 +1278,15 @@ defmodule PhoenixKit.Users.Permissions do
 
     role_uuid = resolve_role_uuid(role_uuid)
 
-    from(rp in RolePermission, where: rp.role_uuid == ^role_uuid)
-    |> repo.delete_all()
+    repo.transaction(fn ->
+      # Join the F2 lock regime: take the role-row lock the other whole-role and
+      # single-key mutations take, so a concurrent grant can't survive this
+      # strip (otherwise this bare delete would race grant_permission).
+      lock_role_for_update(repo, role_uuid)
+
+      from(rp in RolePermission, where: rp.role_uuid == ^role_uuid)
+      |> repo.delete_all()
+    end)
 
     Events.broadcast_permissions_synced(role_uuid, [])
     notify_affected_users(role_uuid)
@@ -1201,14 +1384,19 @@ defmodule PhoenixKit.Users.Permissions do
     _ -> false
   end
 
-  # Detect Postgrex "relation does not exist" errors (table missing)
+  # Detect Postgrex "relation does not exist" errors (table missing).
+  #
+  # Matches ONLY the structured `:undefined_table` SQLSTATE (42P01) — never a
+  # free-form message substring. `permissions_table_ready?/0` fails CLOSED on
+  # every other error, and this is the one signal that unlocks the Admin
+  # full-access fallback, so it must be precise: a looser `"does not exist"`
+  # substring match also caught `:undefined_column`/`:undefined_function`
+  # (e.g. a half-applied migration), which would misread a transient schema
+  # error as "unmigrated" and escalate a zero-row Admin to every key — a
+  # fail-OPEN. The code match cannot make that mistake.
+  # A `%Postgrex.Error{}` struct is itself a map carrying `:postgres`, so this
+  # single pattern covers both the struct and any wrapper map exposing the code.
   defp table_missing_error?(%{postgres: %{code: :undefined_table}}), do: true
-
-  defp table_missing_error?(%Postgrex.Error{postgres: %{code: :undefined_table}}), do: true
-
-  defp table_missing_error?(%{message: msg}) when is_binary(msg) do
-    String.contains?(msg, "does not exist")
-  end
 
   defp table_missing_error?(_), do: false
 
@@ -1240,6 +1428,34 @@ defmodule PhoenixKit.Users.Permissions do
       :ok
   end
 
+  # Best-effort durable audit trail for permission mutations. Fires ONLY for
+  # user-initiated changes (an actor uuid is present) — the boot-time auto-grant
+  # sweep passes no actor, so routine startup never floods the feed. `target_uuid`
+  # is nil: this records a change to a ROLE for audit, not a user notification
+  # (the notification fan-out keys on target_uuid, which a role change has none).
+  defp log_permission_activity(_action, _role_uuid, nil, _metadata), do: :ok
+
+  defp log_permission_activity(action, role_uuid, actor_uuid, metadata) do
+    if Code.ensure_loaded?(PhoenixKit.Activity) do
+      PhoenixKit.Activity.log(%{
+        action: action,
+        module: "permissions",
+        mode: "manual",
+        actor_uuid: actor_uuid,
+        resource_type: "role",
+        resource_uuid: role_uuid,
+        target_uuid: nil,
+        metadata: metadata
+      })
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("[Permissions] audit log failed for #{action}: #{Exception.message(error)}")
+      :ok
+  end
+
   # Clears the auto-grant settings flag for a custom key so that
   # re-registering it will trigger a fresh auto-grant to Admin.
   defp clear_auto_grant_flag(key) do
@@ -1262,7 +1478,12 @@ defmodule PhoenixKit.Users.Permissions do
   """
   @spec auto_grant_new_keys_to_admin() :: :ok
   def auto_grant_new_keys_to_admin do
-    (@core_section_keys ++ feature_module_keys() ++ sub_permission_keys())
+    # Auto-grant ONLY the website-wide integration key to Admin (so admins keep
+    # the system integrations page after it moved off the `settings` key). The
+    # PERSONAL `integrations` key is deliberately NOT auto-granted — it's opt-in,
+    # so admins don't silently get a personal page they didn't ask for.
+    (@core_section_keys ++
+       [@integrations_system_key] ++ feature_module_keys() ++ sub_permission_keys())
     |> Enum.each(&auto_grant_to_admin_roles/1)
 
     :ok
@@ -1274,6 +1495,12 @@ defmodule PhoenixKit.Users.Permissions do
   the key, it won't be re-granted on next application restart.
   """
   @spec auto_grant_to_admin_roles(String.t()) :: :ok
+  # Opt-in keys are never auto-granted to Admin — they surface only on an explicit
+  # Owner grant. This is the authoritative chokepoint, so the guarantee holds no
+  # matter which path requests the grant (the boot-time sweep OR the tab registry
+  # auto-registering a core/feature tab's permission).
+  def auto_grant_to_admin_roles(key) when key in @opt_in_admin_keys, do: :ok
+
   def auto_grant_to_admin_roles(key) do
     flag_key = "auto_granted_perm:#{key}"
 
@@ -1292,12 +1519,15 @@ defmodule PhoenixKit.Users.Permissions do
     end
   rescue
     error ->
-      msg = Exception.message(error)
-
       # Silently skip if the table doesn't exist yet (expected on fresh installs
-      # where the app starts before migrations have created the table)
-      unless String.contains?(msg, "undefined_table") do
-        Logger.warning("[Permissions] Failed to auto-grant #{inspect(key)} to Admin role: #{msg}")
+      # where the app starts before migrations have created the table). Uses the
+      # structured `:undefined_table` check (matching F7), not a message
+      # substring. This suppresses a log line only — a genuine grant failure
+      # still fails CLOSED (Admin simply lacks the key, retried next boot).
+      unless table_missing_error?(error) do
+        Logger.warning(
+          "[Permissions] Failed to auto-grant #{inspect(key)} to Admin role: #{Exception.message(error)}"
+        )
       end
 
       :ok

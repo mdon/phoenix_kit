@@ -514,13 +514,21 @@ defmodule PhoenixKit.Dashboard.Registry do
       :ets.insert(@ets_table, {{:tab, tab.id}, tab})
       :ets.insert(@ets_table, {{:namespace, namespace, tab.id}, true})
 
-      # Auto-register custom permission keys for admin tabs
+      # Auto-register custom permission keys for admin tabs. Thread
+      # `auto_grant_admin` (default true) so a host registering a SENSITIVE tab
+      # with `auto_grant_admin: false` isn't silently auto-granted to Admin —
+      # the flag lives on the Tab struct, so this programmatic path preserves it
+      # exactly like the `:admin_dashboard_tabs` config path.
       if tab.level == :admin and is_binary(tab.permission) do
         auto_register_custom_permission(%{
           permission: tab.permission,
           label: tab.label,
           icon: tab.icon,
-          live_view: tab.live_view
+          live_view: tab.live_view,
+          # Map.get (not tab.auto_grant_admin) so a Tab struct persisted before
+          # this field existed — possible across a hot code upgrade — defaults to
+          # true instead of raising KeyError.
+          auto_grant_admin: Map.get(tab, :auto_grant_admin, true)
         })
       end
     end)
@@ -960,7 +968,15 @@ defmodule PhoenixKit.Dashboard.Registry do
        when is_binary(perm) or is_atom(perm) do
     perm = to_string(perm)
 
-    builtin_keys = Permissions.core_section_keys() ++ Permissions.feature_module_keys()
+    # Integration keys are core-managed built-ins, NOT custom keys — include
+    # them so a core tab carrying `integrations`/`integrations_system` isn't
+    # re-registered via `register_custom_key/2` (which would double-list it in
+    # `custom_keys()`). Auto-grant for these still flows through
+    # `auto_grant_to_admin_roles/1`, whose opt-in guard keeps the PERSONAL
+    # `integrations` key from ever reaching Admin automatically.
+    builtin_keys =
+      Permissions.core_section_keys() ++
+        Permissions.integration_keys() ++ Permissions.feature_module_keys()
 
     unless perm == "" or perm in builtin_keys do
       # Forward the tab's gettext config so the permissions matrix renders
@@ -970,7 +986,8 @@ defmodule PhoenixKit.Dashboard.Registry do
         icon: Map.get(tab_config, :icon),
         description: Map.get(tab_config, :description),
         gettext_backend: Map.get(tab_config, :gettext_backend),
-        gettext_domain: Map.get(tab_config, :gettext_domain)
+        gettext_domain: Map.get(tab_config, :gettext_domain),
+        auto_grant_admin: Map.get(tab_config, :auto_grant_admin, true)
       )
     end
 

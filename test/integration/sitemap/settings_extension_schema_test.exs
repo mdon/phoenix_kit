@@ -116,6 +116,9 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsExtensionSchemaTest do
 
   describe "rendered on the settings page and toggleable" do
     setup %{conn: conn} do
+      # Sitemap module defaults to disabled; enable it so the settings LV mount
+      # isn't denied (a deny's put_flash would crash the test conn).
+      Settings.update_boolean_setting("sitemap_enabled", true)
       {user, _token} = create_admin_user()
       conn = log_in_user(conn, user)
 
@@ -142,6 +145,9 @@ defmodule PhoenixKit.Integration.Sitemap.SettingsExtensionSchemaTest do
 
   describe "boolean field declared with a non-boolean default" do
     setup %{conn: conn} do
+      # Sitemap module defaults to disabled; enable it so the settings LV mount
+      # isn't denied (a deny's put_flash would crash the test conn).
+      Settings.update_boolean_setting("sitemap_enabled", true)
       {user, _token} = create_admin_user()
       conn = log_in_user(conn, user)
 

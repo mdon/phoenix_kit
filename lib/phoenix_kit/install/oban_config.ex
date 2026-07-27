@@ -18,6 +18,7 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_shop_imports_queue: 2}
   @dialyzer {:nowarn_function, ensure_newsletters_delivery_queue: 2}
   @dialyzer {:nowarn_function, ensure_catalogue_pdf_queue: 2}
+  @dialyzer {:nowarn_function, ensure_notifications_queue: 2}
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
   @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
@@ -218,7 +219,8 @@ defmodule PhoenixKit.Install.ObanConfig do
         scheduled_jobs: 1,     # Scheduled jobs cron
         sitemap: 5,            # Sitemap generation
         newsletters_delivery: 10, # Newsletters broadcast deliveries
-        catalogue_pdf: 2       # phoenix_kit_catalogue PDF text extraction
+        catalogue_pdf: 2,      # phoenix_kit_catalogue PDF text extraction
+        notifications: 10      # Notification delivery channels (Telegram, etc.)
       ],
       plugins: [
         # Pruner: delete completed/discarded jobs after 30 days
@@ -237,7 +239,11 @@ defmodule PhoenixKit.Install.ObanConfig do
          crontab: [
            {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
            {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
-           {"0 4 * * *", PhoenixKit.Notifications.PruneWorker}
+           {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
+           {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
+           {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
+           {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
+           {"0 6 * * 1", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "weekly"}}
          ]}
       ]
     """
@@ -286,6 +292,7 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> ensure_shop_imports_queue(app_name)
       |> ensure_newsletters_delivery_queue(app_name)
       |> ensure_catalogue_pdf_queue(app_name)
+      |> ensure_notifications_queue(app_name)
       |> ensure_cron_plugin(app_name)
       |> ensure_pruner_max_age(app_name)
       |> ensure_lifeline_plugin(app_name)
@@ -523,6 +530,54 @@ defmodule PhoenixKit.Install.ObanConfig do
           )
 
           Mix.shell().error("     Please manually add: catalogue_pdf: 2")
+          content
+      end
+    end
+  end
+
+  # Ensure notifications queue exists in the queues list.
+  #
+  # `PhoenixKit.Notifications.DeliveryWorker` enqueues a `:notifications` job
+  # per external delivery (Telegram, …) so a slow bot API call never blocks the
+  # request that logged the activity. Oban only processes queues listed here, so
+  # without this entry those jobs sit `available` forever and external
+  # notifications silently never arrive. Added unconditionally (an idle queue
+  # costs nothing) so a host that later enables a channel is already wired.
+  defp ensure_notifications_queue(content, app_name) do
+    if Regex.match?(~r/notifications:\s*\d+/, content) do
+      Mix.shell().info("  ℹ️  notifications queue already configured")
+      content
+    else
+      Mix.shell().info("  ➕ Adding notifications queue to Oban configuration...")
+
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban.*?queues:\s*\[)(.*?)(\n\s*\])/ms,
+             content,
+             capture: :all
+           ) do
+        [full_match, before_queues, queues_content, after_queues] ->
+          Mix.shell().info("  ✓ Found queues block, adding notifications queue")
+
+          trimmed_content = String.trim_trailing(queues_content)
+          has_trailing_comma = String.ends_with?(trimmed_content, ",")
+
+          new_queue_entry =
+            if has_trailing_comma do
+              "\n    notifications: 10"
+            else
+              ",\n    notifications: 10"
+            end
+
+          updated_queues = before_queues <> queues_content <> new_queue_entry <> after_queues
+
+          String.replace(content, full_match, updated_queues, global: false)
+
+        nil ->
+          Mix.shell().error(
+            "  ⚠️  Could not parse queues block for :#{app_name} - skipping notifications queue update"
+          )
+
+          Mix.shell().error("     Please manually add: notifications: 10")
           content
       end
     end
@@ -1025,7 +1080,8 @@ defmodule PhoenixKit.Install.ObanConfig do
           posts: 10,
           scheduled_jobs: 1,
           sitemap: 5,
-          newsletters_delivery: 10
+          newsletters_delivery: 10,
+          notifications: 10
         ],
         plugins: [
           # Pruner: delete completed/discarded jobs after 30 days
@@ -1037,7 +1093,11 @@ defmodule PhoenixKit.Install.ObanConfig do
            crontab: [
              {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
              {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
-             {"0 4 * * *", PhoenixKit.Notifications.PruneWorker}
+             {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
+             {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
+             {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
+             {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
+             {"0 6 * * 1", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "weekly"}}
            ]}
         ]
 

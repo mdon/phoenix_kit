@@ -82,6 +82,19 @@ defmodule PhoenixKit.Integrations do
   @settings_module "integrations"
   @http_timeout 15_000
 
+  @typedoc """
+  Owner scope for a connection:
+
+    * `:system` — no owner (website-wide)
+    * `:any` — no filter (owner-agnostic reads: audit, consumer uuid pins)
+    * `{type, id}` — a typed owner, `type` an atom (`:user`, `:dashboard`,
+      `:team`, …) and `id` that entity's uuid
+
+  Passed via the `:owner` option on scoped functions. Not hardcoded to `:user`,
+  so new owner kinds (a shared dashboard, a team) need no schema change.
+  """
+  @type owner :: :system | :any | {atom(), String.t()}
+
   # ---------------------------------------------------------------------------
   # Reading credentials
   # ---------------------------------------------------------------------------
@@ -128,32 +141,40 @@ defmodule PhoenixKit.Integrations do
   Look up an integration row by its settings UUID and return a normalized
   shape with `provider`, `name`, `data`, and the original `uuid`.
 
-  Used by the integration form LV (route `/admin/settings/integrations/:uuid`)
+  Used by the integration form LV (route `/admin/settings/integrations/website/:uuid`)
   so the URL is stable across renames — the human-readable `name` lives in
   the JSONB blob, the URL stays pinned to the row's storage UUID.
   """
-  @spec get_integration_by_uuid(String.t()) ::
+  @spec get_integration_by_uuid(String.t(), owner()) ::
           {:ok, %{uuid: String.t(), provider: String.t(), name: String.t(), data: map()}}
           | {:error, :not_configured | :invalid_uuid}
-  def get_integration_by_uuid(uuid) when is_binary(uuid) and uuid != "" do
+  def get_integration_by_uuid(uuid, owner \\ :any)
+
+  def get_integration_by_uuid(uuid, owner) when is_binary(uuid) and uuid != "" do
     # The storage row is identified solely by its uuid. Provider and name
-    # both live in JSONB (`data["provider"]` / `data["name"]`). The row's
-    # `module` column is the discriminator that distinguishes integration
-    # rows from other settings.
+    # both live in JSONB. `owner` scopes the read: consumers that pinned a
+    # (system) uuid call this owner-agnostic (`:any`, the default), but the
+    # edit-form load MUST pass an explicit owner (`:system` / `{:user, uuid}`)
+    # so opening another owner's uuid can't surface decrypted credentials
+    # (the IDOR the review flagged) — mismatch fails closed as :not_configured.
     case Queries.get_setting_by_uuid(uuid) do
       %{module: "integrations", value_json: data} when is_map(data) ->
         decrypted = Encryption.decrypt_fields(data)
-        provider = Map.get(decrypted, "provider", "")
-        name = Map.get(decrypted, "name", "")
 
-        {:ok, %{uuid: uuid, provider: provider, name: name, data: decrypted}}
+        if owner_match?(decrypted, owner) do
+          provider = Map.get(decrypted, "provider", "")
+          name = Map.get(decrypted, "name", "")
+          {:ok, %{uuid: uuid, provider: provider, name: name, data: decrypted}}
+        else
+          {:error, :not_configured}
+        end
 
       _ ->
         {:error, :not_configured}
     end
   end
 
-  def get_integration_by_uuid(_), do: {:error, :invalid_uuid}
+  def get_integration_by_uuid(_, _), do: {:error, :invalid_uuid}
 
   @doc """
   Resolve a `provider:name`-style reference to the storage row's uuid.
@@ -171,28 +192,33 @@ defmodule PhoenixKit.Integrations do
   an arbitrary connection when multiple match — that's not the
   caller's intent here.
   """
-  @spec find_uuid_by_provider_name(String.t() | {String.t(), String.t()}) ::
+  @spec find_uuid_by_provider_name(String.t() | {String.t(), String.t()}, keyword()) ::
           {:ok, String.t()} | {:error, :not_found | :invalid}
-  def find_uuid_by_provider_name(input)
+  def find_uuid_by_provider_name(input, opts \\ [])
 
-  def find_uuid_by_provider_name({provider, name})
+  def find_uuid_by_provider_name({provider, name}, opts)
       when is_binary(provider) and is_binary(name) and provider != "" and name != "" do
-    case Enum.find(list_connections(provider), &(&1.name == name)) do
+    owner = Keyword.get(opts, :owner, :system)
+
+    case Enum.find(list_connections(provider, owner: owner), &(&1.name == name)) do
       %{uuid: uuid} -> {:ok, uuid}
       _ -> {:error, :not_found}
     end
   end
 
-  def find_uuid_by_provider_name(string) when is_binary(string) and string != "" do
+  def find_uuid_by_provider_name(string, opts) when is_binary(string) and string != "" do
+    owner = Keyword.get(opts, :owner, :system)
+
     case String.split(string, ":", parts: 2) do
       [provider, name] when provider != "" and name != "" ->
-        find_uuid_by_provider_name({provider, name})
+        find_uuid_by_provider_name({provider, name}, opts)
 
       [provider] when provider != "" ->
         # Bare provider — first connection of that provider (sorted by
-        # name, lowercase). Used as the "any connection of this kind"
-        # fallback by legacy paths.
-        case list_connections(provider) do
+        # name, lowercase). Defaults to the SYSTEM scope: a bare
+        # `provider:name` legacy lookup meant "the system connection",
+        # so it must never first-match a personal row.
+        case list_connections(provider, owner: owner) do
           [%{uuid: uuid} | _] -> {:ok, uuid}
           _ -> {:error, :not_found}
         end
@@ -202,7 +228,7 @@ defmodule PhoenixKit.Integrations do
     end
   end
 
-  def find_uuid_by_provider_name(_), do: {:error, :invalid}
+  def find_uuid_by_provider_name(_, _), do: {:error, :invalid}
 
   @doc """
   Resolves a binary that may be EITHER an integration row's uuid OR a
@@ -258,15 +284,29 @@ defmodule PhoenixKit.Integrations do
   Returns the full integration data map. The caller extracts what it needs
   based on the auth type (e.g., `"access_token"` for OAuth, `"api_key"` for API key).
   """
-  @spec get_credentials(String.t()) :: {:ok, map()} | {:error, :not_configured | :deleted}
-  def get_credentials(provider_key) when is_binary(provider_key) and provider_key != "" do
+  @spec get_credentials(String.t(), keyword()) ::
+          {:ok, map()} | {:error, :not_configured | :deleted}
+  def get_credentials(provider_key, opts \\ [])
+
+  def get_credentials(provider_key, opts) when is_binary(provider_key) and provider_key != "" do
+    # `:owner` defaults to `:any` (owner-agnostic) for back-compat with
+    # trusted consumers that pin a system uuid. A user-context caller
+    # (e.g. a future notification channel resolving a user's own key)
+    # passes `owner: {:user, uuid}` to verify ownership — mitigating
+    # UUIDv7-enumeration of another user's credentials. A bare
+    # `provider:name` lookup never uses `:any` (it meant "the system
+    # connection" pre-feature) — it scopes to the user or to system.
+    owner = Keyword.get(opts, :owner, :any)
     is_uuid = uuid?(provider_key)
+    # Any TYPED owner scopes the bare `provider:name` lookup to itself; only
+    # `:system`/`:any` fall back to the system scope.
+    name_scope = if match?({t, _} when is_atom(t), owner), do: owner, else: :system
 
     data =
       if is_uuid do
         Settings.get_json_setting_by_uuid(provider_key)
       else
-        case find_uuid_by_provider_name(provider_key) do
+        case find_uuid_by_provider_name(provider_key, owner: name_scope) do
           {:ok, uuid} -> Settings.get_json_setting_by_uuid(uuid)
           _ -> nil
         end
@@ -275,30 +315,39 @@ defmodule PhoenixKit.Integrations do
     case data do
       %{} = data when map_size(data) > 0 ->
         decrypted = Encryption.decrypt_fields(data)
-        if has_credentials?(decrypted), do: {:ok, decrypted}, else: {:error, :not_configured}
+
+        cond do
+          not owner_match?(decrypted, owner) -> {:error, :deleted}
+          has_credentials?(decrypted) -> {:ok, decrypted}
+          true -> {:error, :not_configured}
+        end
 
       _ ->
         # uuid lookup that missed → row was deleted; bare-provider /
-        # provider:name lookup that missed → never configured. Both
-        # surface as the appropriate atom so callers can distinguish.
+        # provider:name lookup that missed → never configured.
         if is_uuid, do: {:error, :deleted}, else: {:error, :not_configured}
     end
   end
 
-  def get_credentials(_), do: {:error, :not_configured}
+  def get_credentials(_, _), do: {:error, :not_configured}
 
   @doc """
   Check if an integration is connected and has valid credentials.
+
+  Owner-scoped via `opts` (`:owner`, default `:any`) — same contract as
+  `get_credentials/2`.
   """
-  @spec connected?(String.t()) :: boolean()
-  def connected?(provider_key) when is_binary(provider_key) do
-    case get_credentials(provider_key) do
+  @spec connected?(String.t(), keyword()) :: boolean()
+  def connected?(provider_key, opts \\ [])
+
+  def connected?(provider_key, opts) when is_binary(provider_key) do
+    case get_credentials(provider_key, opts) do
       {:ok, _} -> true
       _ -> false
     end
   end
 
-  def connected?(_), do: false
+  def connected?(_, _), do: false
 
   # ---------------------------------------------------------------------------
   # Setup (saving app-level credentials)
@@ -317,11 +366,17 @@ defmodule PhoenixKit.Integrations do
   The connection must exist (`add_connection/3` is the row-birth path).
   Returns `{:error, :not_configured}` if the uuid doesn't resolve.
   """
-  @spec save_setup(String.t(), map(), String.t() | nil) ::
+  @spec save_setup(String.t(), map(), String.t() | nil, keyword()) ::
           {:ok, map()} | {:error, :not_configured | :invalid_uuid | term()}
-  def save_setup(uuid, attrs, actor_uuid \\ nil) when is_binary(uuid) and is_map(attrs) do
+  def save_setup(uuid, attrs, actor_uuid \\ nil, opts \\ [])
+      when is_binary(uuid) and is_map(attrs) do
+    owner = Keyword.get(opts, :owner, :system)
+    # owner_type/owner_uuid are write-once (set at birth) — never let form attrs
+    # overwrite/null it (would silently reassign or promote personal→system).
+    attrs = Map.drop(attrs, ["owner_type", "owner_uuid"])
+
     with {:ok, %{provider: base_provider, name: name, setting: setting, data: existing}} <-
-           resolve_uuid(uuid) do
+           resolve_uuid(uuid, owner) do
       provider = Providers.get(base_provider)
 
       data =
@@ -343,7 +398,8 @@ defmodule PhoenixKit.Integrations do
             name,
             %{"status" => saved["status"]},
             "manual",
-            actor_uuid
+            actor_uuid,
+            uuid
           )
 
           result
@@ -410,7 +466,8 @@ defmodule PhoenixKit.Integrations do
             name,
             %{"account" => saved["external_account_id"]},
             "manual",
-            actor_uuid
+            actor_uuid,
+            uuid
           )
 
           result
@@ -441,7 +498,7 @@ defmodule PhoenixKit.Integrations do
         updated = Map.merge(data, updated_fields)
         save_integration(setting, updated)
 
-        log_activity("integration.token_refreshed", base_provider, name, %{}, "auto", nil)
+        log_activity("integration.token_refreshed", base_provider, name, %{}, "auto", nil, uuid)
 
         {:ok, new_token}
       end
@@ -465,28 +522,49 @@ defmodule PhoenixKit.Integrations do
 
   No-op when the uuid doesn't resolve (already gone).
   """
-  @spec disconnect(String.t(), String.t() | nil) :: :ok
-  def disconnect(uuid, actor_uuid \\ nil) when is_binary(uuid) do
-    case resolve_uuid(uuid) do
+  @spec disconnect(String.t(), String.t() | nil, keyword()) :: :ok
+  def disconnect(uuid, actor_uuid \\ nil, opts \\ []) when is_binary(uuid) do
+    case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
       {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} ->
         auth_type = data["auth_type"]
 
+        # `owner_type`/`owner_uuid` MUST be in the retained set — omitting them
+        # (the prior bug) silently converted an owned connection into a system
+        # one (and would now reclassify a dashboard/team owner as a user).
         cleaned =
           case auth_type do
             "oauth2" ->
               data
-              |> Map.take(["provider", "auth_type", "name", "client_id", "client_secret"])
+              |> Map.take([
+                "provider",
+                "auth_type",
+                "name",
+                "owner_type",
+                "owner_uuid",
+                "client_id",
+                "client_secret"
+              ])
               |> Map.put("status", "disconnected")
 
             _ ->
               data
-              |> Map.take(["provider", "auth_type", "name"])
+              |> Map.take(["provider", "auth_type", "name", "owner_type", "owner_uuid"])
               |> Map.put("status", "disconnected")
           end
 
         save_integration(setting, cleaned)
-        Events.broadcast_disconnected(base_provider)
-        log_activity("integration.disconnected", base_provider, name, %{}, "manual", actor_uuid)
+        Events.broadcast_disconnected(base_provider, owner_of(data))
+
+        log_activity(
+          "integration.disconnected",
+          base_provider,
+          name,
+          %{},
+          "manual",
+          actor_uuid,
+          uuid
+        )
+
         :ok
 
       {:error, _} ->
@@ -555,11 +633,11 @@ defmodule PhoenixKit.Integrations do
   (case-insensitive). Callers that need a specific provider order
   should walk `Providers.all/0` themselves.
   """
-  @spec list_integrations() :: [map()]
-  def list_integrations do
+  @spec list_integrations(keyword()) :: [map()]
+  def list_integrations(opts \\ []) do
     provider_keys = Providers.all() |> Enum.map(& &1.key)
 
-    load_all_connections(provider_keys)
+    load_all_connections(provider_keys, opts)
     |> Enum.flat_map(fn {_provider, connections} ->
       Enum.map(connections, fn %{data: data} -> data end)
     end)
@@ -583,7 +661,7 @@ defmodule PhoenixKit.Integrations do
   timestamp (UTC, second precision), useful for "Created N days ago"
   display in UI pickers.
   """
-  @spec list_connections(String.t()) :: [
+  @spec list_connections(String.t(), keyword()) :: [
           %{
             uuid: String.t(),
             name: String.t(),
@@ -591,12 +669,15 @@ defmodule PhoenixKit.Integrations do
             date_added: DateTime.t() | nil
           }
         ]
-  def list_connections(provider_key) when is_binary(provider_key) do
-    PhoenixKit.RepoHelper.repo().all(
-      from s in Setting,
-        where: s.module == ^@settings_module,
-        where: fragment("?->>'provider' = ?", s.value_json, ^provider_key)
+  def list_connections(provider_key, opts \\ []) when is_binary(provider_key) do
+    owner = Keyword.get(opts, :owner, :system)
+
+    from(s in Setting,
+      where: s.module == ^@settings_module,
+      where: fragment("?->>'provider' = ?", s.value_json, ^provider_key)
     )
+    |> owner_where(owner)
+    |> PhoenixKit.RepoHelper.repo().all()
     |> Enum.map(&to_connection_map/1)
     |> Enum.sort_by(fn %{name: name} -> String.downcase(name) end)
   end
@@ -619,7 +700,7 @@ defmodule PhoenixKit.Integrations do
   map of `provider_key => [%{uuid, name, data, date_added}]`, with every
   requested provider key present (empty list when no connections exist).
   """
-  @spec load_all_connections([String.t()]) :: %{
+  @spec load_all_connections([String.t()], keyword()) :: %{
           String.t() => [
             %{
               uuid: String.t(),
@@ -629,13 +710,16 @@ defmodule PhoenixKit.Integrations do
             }
           ]
         }
-  def load_all_connections(provider_keys) when is_list(provider_keys) do
+  def load_all_connections(provider_keys, opts \\ []) when is_list(provider_keys) do
+    owner = Keyword.get(opts, :owner, :system)
+
     all_settings =
-      PhoenixKit.RepoHelper.repo().all(
-        from s in Setting,
-          where: s.module == ^@settings_module,
-          where: fragment("?->>'provider' = ANY(?)", s.value_json, ^provider_keys)
+      from(s in Setting,
+        where: s.module == ^@settings_module,
+        where: fragment("?->>'provider' = ANY(?)", s.value_json, ^provider_keys)
       )
+      |> owner_where(owner)
+      |> PhoenixKit.RepoHelper.repo().all()
 
     grouped =
       Enum.reduce(all_settings, %{}, fn %Setting{} = setting, acc ->
@@ -669,41 +753,57 @@ defmodule PhoenixKit.Integrations do
 
   Returns `{:ok, %{uuid: uuid, data: data}}` on success.
   """
-  @spec add_connection(String.t(), String.t(), String.t() | nil) ::
+  @spec add_connection(String.t(), String.t(), String.t() | nil, keyword()) ::
           {:ok, %{uuid: String.t(), data: map()}}
-          | {:error, :empty_name | term()}
-  def add_connection(provider_key, name, actor_uuid \\ nil)
+          | {:error, :empty_name | :scope_not_allowed | term()}
+  def add_connection(provider_key, name, actor_uuid \\ nil, opts \\ [])
       when is_binary(provider_key) and is_binary(name) do
+    owner = Keyword.get(opts, :owner, :system)
     trimmed = String.trim(name)
+    # A typed owner (user, dashboard, team, …) births an owned connection, so it
+    # requires the provider to allow the `:personal` scope; `:system` requires
+    # `:system`. (A provider offered "personally" is fine for any entity owner.)
+    scope_atom = if match?({t, _} when is_atom(t), owner), do: :personal, else: :system
 
-    if trimmed == "" do
-      {:error, :empty_name}
-    else
-      data = %{
-        "provider" => provider_key,
-        "name" => trimmed,
-        "auth_type" => provider_auth_type(provider_key),
-        "status" => "disconnected"
-      }
+    cond do
+      trimmed == "" ->
+        {:error, :empty_name}
 
-      case insert_integration_row(data) do
-        {:ok, %Setting{uuid: uuid}} ->
-          Events.broadcast_connection_added(provider_key, trimmed)
+      # Enforce the provider's declared scope at row-birth, NOT just in the
+      # picker — the provider comes from a tamperable event, so a crafted
+      # create_connection can't birth (e.g.) a personal Google connection.
+      scope_atom not in Providers.scopes_of(provider_key) ->
+        {:error, :scope_not_allowed}
 
-          log_activity(
-            "integration.connection_added",
-            provider_key,
-            trimmed,
-            %{},
-            "manual",
-            actor_uuid
-          )
+      true ->
+        data =
+          %{
+            "provider" => provider_key,
+            "name" => trimmed,
+            "auth_type" => provider_auth_type(provider_key),
+            "status" => "disconnected"
+          }
+          |> put_owner(owner)
 
-          {:ok, %{uuid: uuid, data: data}}
+        case insert_integration_row(data) do
+          {:ok, %Setting{uuid: uuid}} ->
+            Events.broadcast_connection_added(provider_key, trimmed, owner)
 
-        {:error, _} = error ->
-          error
-      end
+            log_activity(
+              "integration.connection_added",
+              provider_key,
+              trimmed,
+              %{},
+              "manual",
+              actor_uuid,
+              uuid
+            )
+
+            {:ok, %{uuid: uuid, data: data}}
+
+          {:error, _} = error ->
+            error
+        end
     end
   end
 
@@ -729,13 +829,13 @@ defmodule PhoenixKit.Integrations do
   deleted integration row will surface a `:not_configured` (or similar)
   error on next use, which is the correct loud failure.
   """
-  @spec remove_connection(String.t(), String.t() | nil) :: :ok | {:error, term()}
-  def remove_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
-    case resolve_uuid(uuid) do
-      {:ok, %{provider: provider, name: name, setting: setting}} ->
+  @spec remove_connection(String.t(), String.t() | nil, keyword()) :: :ok | {:error, term()}
+  def remove_connection(uuid, actor_uuid \\ nil, opts \\ []) when is_binary(uuid) do
+    case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
+      {:ok, %{provider: provider, name: name, setting: setting, data: data}} ->
         case Settings.delete_setting(setting.key) do
           {:ok, _} ->
-            Events.broadcast_connection_removed(provider, name)
+            Events.broadcast_connection_removed(provider, name, owner_of(data))
 
             log_activity(
               "integration.connection_removed",
@@ -743,7 +843,8 @@ defmodule PhoenixKit.Integrations do
               name,
               %{},
               "manual",
-              actor_uuid
+              actor_uuid,
+              uuid
             )
 
             :ok
@@ -772,15 +873,15 @@ defmodule PhoenixKit.Integrations do
 
   Returns `{:ok, new_data}` on success.
   """
-  @spec rename_connection(String.t(), String.t(), String.t() | nil) ::
+  @spec rename_connection(String.t(), String.t(), String.t() | nil, keyword()) ::
           {:ok, map()}
           | {:error, :empty_name | :not_configured | term()}
-  def rename_connection(uuid, new_name, actor_uuid \\ nil)
+  def rename_connection(uuid, new_name, actor_uuid \\ nil, opts \\ [])
       when is_binary(uuid) and is_binary(new_name) do
     trimmed = String.trim(new_name)
 
     with {:ok, %{provider: provider, name: old_name, setting: setting, data: data}} <-
-           resolve_uuid(uuid) do
+           resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
       cond do
         trimmed == old_name ->
           {:ok, data}
@@ -793,7 +894,7 @@ defmodule PhoenixKit.Integrations do
 
           case save_integration(setting, updated) do
             {:ok, saved} ->
-              Events.broadcast_connection_renamed(provider, old_name, trimmed)
+              Events.broadcast_connection_renamed(provider, old_name, trimmed, owner_of(data))
 
               log_activity(
                 "integration.connection_renamed",
@@ -801,7 +902,8 @@ defmodule PhoenixKit.Integrations do
                 trimmed,
                 %{"old_name" => old_name, "new_name" => trimmed},
                 "manual",
-                actor_uuid
+                actor_uuid,
+                uuid
               )
 
               {:ok, saved}
@@ -824,11 +926,11 @@ defmodule PhoenixKit.Integrations do
   For API key / bot token: calls the provider's validation endpoint if defined.
   Returns `:ok` or `{:error, reason}`.
   """
-  @spec validate_connection(String.t(), String.t() | nil) ::
+  @spec validate_connection(String.t(), String.t() | nil, keyword()) ::
           :ok | {:ok, String.t()} | {:error, String.t()}
-  def validate_connection(uuid, actor_uuid \\ nil) when is_binary(uuid) do
+  def validate_connection(uuid, actor_uuid \\ nil, opts \\ []) when is_binary(uuid) do
     {result, log_provider, log_name} =
-      case resolve_uuid(uuid) do
+      case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
         {:ok, %{provider: base_provider, name: name, data: data}} ->
           provider = Providers.get(base_provider)
 
@@ -853,7 +955,8 @@ defmodule PhoenixKit.Integrations do
           log_name,
           %{"result" => "ok"},
           "manual",
-          actor_uuid
+          actor_uuid,
+          uuid
         )
 
       # Passed, but with something the operator needs to know — e.g. SES accepted the
@@ -866,7 +969,8 @@ defmodule PhoenixKit.Integrations do
           log_name,
           %{"result" => "ok", "note" => note},
           "manual",
-          actor_uuid
+          actor_uuid,
+          uuid
         )
 
       {:error, reason} ->
@@ -876,7 +980,8 @@ defmodule PhoenixKit.Integrations do
           log_name,
           %{"result" => "error", "reason" => reason},
           "manual",
-          actor_uuid
+          actor_uuid,
+          uuid
         )
     end
 
@@ -967,6 +1072,9 @@ defmodule PhoenixKit.Integrations do
   defp do_validate(%{auth_type: :api_key, validation: %{strategy: :brevo_api}}, data),
     do: Validators.brevo_api(data)
 
+  defp do_validate(%{auth_type: :bot_token, validation: %{strategy: :telegram}}, data),
+    do: Validators.telegram(data)
+
   defp do_validate(%{auth_type: auth_type} = provider, data)
        when auth_type in [:api_key, :bot_token] do
     token = data["api_key"] || data["bot_token"] || ""
@@ -1011,11 +1119,12 @@ defmodule PhoenixKit.Integrations do
   actual state change so high-frequency automatic paths (e.g. token
   refresh failing on every API call) don't spam listing-LV reloads.
   """
-  @spec record_validation(String.t(), :ok | {:ok, String.t()} | {:error, term()}) :: :ok
-  def record_validation(uuid, result) when is_binary(uuid) do
+  @spec record_validation(String.t(), :ok | {:ok, String.t()} | {:error, term()}, keyword()) ::
+          :ok
+  def record_validation(uuid, result, opts \\ []) when is_binary(uuid) do
     {new_status, validation_text} = validation_fields(result)
 
-    case resolve_uuid(uuid) do
+    case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
       {:ok, %{provider: base_provider, setting: setting, data: data}} ->
         status_changed =
           data["status"] != new_status or data["validation_status"] != validation_text
@@ -1050,7 +1159,9 @@ defmodule PhoenixKit.Integrations do
 
         case save_integration(setting, updated) do
           {:ok, _} ->
-            if status_changed, do: Events.broadcast_validated(base_provider, result)
+            if status_changed,
+              do: Events.broadcast_validated(base_provider, result, owner_of(data))
+
             :ok
 
           _ ->
@@ -1094,7 +1205,8 @@ defmodule PhoenixKit.Integrations do
           name,
           %{"reason" => reason_text},
           "auto",
-          nil
+          nil,
+          uuid
         )
 
       _ ->
@@ -1106,7 +1218,7 @@ defmodule PhoenixKit.Integrations do
     case resolve_uuid(uuid) do
       {:ok, %{provider: provider, name: name, data: %{"status" => "error"}}} ->
         record_validation(uuid, :ok)
-        log_activity("integration.auto_recovered", provider, name, %{}, "auto", nil)
+        log_activity("integration.auto_recovered", provider, name, %{}, "auto", nil, uuid)
 
       _ ->
         :ok
@@ -1122,29 +1234,126 @@ defmodule PhoenixKit.Integrations do
   defp uuid?(str), do: is_binary(str) and Regex.match?(@uuid_pattern, str)
 
   # Resolve a settings-row uuid to its storage info — single source of
-  # truth for the uuid-strict public API. Provider and name are sourced
-  # from JSONB; the live `Setting` struct is returned so callers can
-  # update in place via changeset.
-  defp resolve_uuid(uuid) when is_binary(uuid) and uuid != "" do
+  # truth for the uuid-strict public API AND the ownership chokepoint.
+  # Provider and name are sourced from JSONB; the live `Setting` struct is
+  # returned so callers can update in place via changeset.
+  #
+  # `owner` scopes the resolution (default `:system` — fail-safe):
+  #   * `:system`       → resolves only a system row (no owner_uuid)
+  #   * `{:user, uuid}` → resolves only a row owned by that user
+  #   * `:any`          → no ownership check (OAuth/internal paths only)
+  # A mismatch fails CLOSED as `{:error, :not_configured}` — the exact
+  # atom every caller already handles — so cross-owner tampering can't
+  # mutate/read another owner's connection at this single gate.
+  defp resolve_uuid(uuid, owner \\ :system)
+
+  defp resolve_uuid(uuid, owner) when is_binary(uuid) and uuid != "" do
     case Queries.get_setting_by_uuid(uuid) do
       %Setting{module: "integrations"} = setting ->
         decrypted = Encryption.decrypt_fields(setting.value_json || %{})
 
-        {:ok,
-         %{
-           uuid: uuid,
-           provider: Map.get(decrypted, "provider", ""),
-           name: Map.get(decrypted, "name", ""),
-           setting: setting,
-           data: decrypted
-         }}
+        if owner_match?(decrypted, owner) do
+          {:ok,
+           %{
+             uuid: uuid,
+             provider: Map.get(decrypted, "provider", ""),
+             name: Map.get(decrypted, "name", ""),
+             setting: setting,
+             data: decrypted
+           }}
+        else
+          {:error, :not_configured}
+        end
 
       _ ->
         {:error, :not_configured}
     end
   end
 
-  defp resolve_uuid(_), do: {:error, :invalid_uuid}
+  defp resolve_uuid(_, _), do: {:error, :invalid_uuid}
+
+  # ── Ownership helpers (the one place owner is stamped / derived / matched) ──
+  #
+  # An owner is one of:
+  #   * `:system`      — no owner (website-wide connection)
+  #   * `:any`         — no filter (owner-agnostic reads: audit, consumer pins)
+  #   * `{type, id}`   — a TYPED owner: `type` is an atom (`:user`, `:dashboard`,
+  #                      `:team`, …) and `id` is that entity's uuid.
+  #
+  # Typed owners are stored as `owner_type` + `owner_uuid` in the connection
+  # JSONB; `:system` carries neither. Nothing here is hardcoded to `:user`, so a
+  # new owner kind (a shared dashboard, a team) works with no schema change —
+  # `add_connection(..., owner: {:dashboard, id})` and everyone reads it back via
+  # the same `{:dashboard, id}` scope. Rows written before typed owners existed
+  # carry `owner_uuid` with NO `owner_type`; those are read as `{:user, uuid}`.
+
+  # Stamp the owner into a connection's JSONB. A non-uuid id is rejected loudly
+  # (never write a malformed owner).
+  defp put_owner(data, :system), do: Map.drop(data, ["owner_type", "owner_uuid"])
+
+  defp put_owner(data, {type, id}) when is_atom(type) and is_binary(id) do
+    if uuid?(id) do
+      data
+      |> Map.put("owner_type", Atom.to_string(type))
+      |> Map.put("owner_uuid", id)
+    else
+      raise ArgumentError, "invalid integration owner id: #{inspect(id)}"
+    end
+  end
+
+  # Derive a row's owner from its (decrypted) JSONB. A valid `owner_uuid` ⇒ the
+  # typed owner (`owner_type`, defaulting to `:user` for pre-typed rows);
+  # absent/nil/malformed ⇒ system (fail toward admin-visible, never toward
+  # another owner).
+  defp owner_of(data) do
+    case Map.get(data, "owner_uuid") do
+      uuid when is_binary(uuid) ->
+        if uuid?(uuid), do: {owner_type_atom(data), uuid}, else: :system
+
+      _ ->
+        :system
+    end
+  end
+
+  # `String.to_existing_atom` guards against atom exhaustion from DB data — an
+  # unrecognized type yields `:__unknown_owner__`, which matches no live scope
+  # (fail-closed). A live caller's own owner atom (e.g. `:dashboard`) is always
+  # loaded, so real owners round-trip.
+  defp owner_type_atom(data) do
+    case Map.get(data, "owner_type") do
+      type when is_binary(type) and type != "" ->
+        try do
+          String.to_existing_atom(type)
+        rescue
+          ArgumentError -> :__unknown_owner__
+        end
+
+      # pre-typed rows: an owner_uuid with no owner_type was always a user
+      _ ->
+        :user
+    end
+  end
+
+  defp owner_match?(_data, :any), do: true
+  defp owner_match?(data, scope), do: owner_of(data) == scope
+
+  # The scope's WHERE fragment for the provider-list reads. `:system` =
+  # owner_uuid absent (NULL via ->>), `:any` = all, `{type, id}` = exact owner
+  # match with owner_type defaulting to "user" for pre-typed rows.
+  defp owner_where(query, :any), do: query
+
+  defp owner_where(query, :system),
+    do: from(s in query, where: fragment("?->>'owner_uuid' IS NULL", s.value_json))
+
+  defp owner_where(query, {type, id}) when is_atom(type) and is_binary(id) do
+    type_str = Atom.to_string(type)
+
+    from(s in query,
+      where:
+        fragment("?->>'owner_uuid' = ?", s.value_json, ^id) and
+          fragment("COALESCE(?->>'owner_type', 'user') = ?", s.value_json, ^type_str)
+    )
+  end
 
   defp provider_auth_type(provider_key) do
     case Providers.get(provider_key) do
@@ -1330,18 +1539,13 @@ defmodule PhoenixKit.Integrations do
   # Activity logging
   # ---------------------------------------------------------------------------
 
-  defp log_activity(action, provider, name, metadata, mode, actor_uuid)
+  defp log_activity(action, provider, name, metadata, mode, actor_uuid, resource_uuid)
        when is_binary(provider) and is_binary(name) do
     if Code.ensure_loaded?(PhoenixKit.Activity) do
-      # Stamp the storage row's uuid so the activity deep-links to the
-      # connection's edit page (via PhoenixKit.Integrations.ResourceLinks).
-      # nil when the row can't be resolved (e.g. a disconnect that removed it) —
-      # the feed still renders, just without a link.
-      resource_uuid =
-        case find_uuid_by_provider_name({provider, name}) do
-          {:ok, uuid} -> uuid
-          _ -> nil
-        end
+      # The caller passes the row's actual uuid so the activity deep-links to the
+      # right connection. It is NEVER re-resolved by provider:name here — that
+      # first-match could bind to a DIFFERENT owner's row (wrong link, personal
+      # metadata in the global feed). `nil` simply omits the link.
 
       PhoenixKit.Activity.log(%{
         action: action,

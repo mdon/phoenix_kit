@@ -467,6 +467,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     # under `params["notification_prefs"]`. Only the types registered right
     # now are honored; any stray keys from the form are dropped so malformed
     # submissions can't sneak data into custom_fields.
+    #
+    # This page renders only BASE type toggles (no sub-types), so it MUST write
+    # via `merge/2` — a full-replace `update/2` here would drop every sub-type
+    # preference the user set on the dedicated Notification Settings page.
     raw = params["notification_prefs"] || %{}
     valid_keys = Enum.map(socket.assigns.notification_types, & &1.key)
 
@@ -475,14 +479,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> Enum.map(fn key -> {key, Map.get(raw, key) == "true"} end)
       |> Map.new()
 
-    case NotificationPrefs.update(user, prefs) do
+    case NotificationPrefs.merge(user, prefs) do
       {:ok, updated_user} ->
         send(self(), {:phoenix_kit_user_updated, updated_user})
 
         {:noreply,
          socket
          |> assign(:user, updated_user)
-         |> assign(:notification_prefs, prefs)
+         |> assign(:notification_prefs, NotificationPrefs.get(updated_user))
          |> assign(:notification_success_message, gettext("Notification preferences saved."))}
 
       {:error, _changeset} ->

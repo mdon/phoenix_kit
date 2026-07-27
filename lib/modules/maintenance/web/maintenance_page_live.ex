@@ -22,7 +22,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Page do
   @impl true
   def mount(_params, _session, socket) do
     scope = socket.assigns[:phoenix_kit_current_scope]
-    is_admin = scope && (Scope.admin?(scope) || Scope.owner?(scope))
+    is_admin = scope && Scope.can_access_admin_area?(scope)
 
     # If maintenance is not active and user is not admin, redirect away
     if Maintenance.active?() or is_admin do

@@ -2636,7 +2636,21 @@ defmodule PhoenixKit.Users.Auth do
     # Delete admin notes about this user
     delete_user_admin_notes(user.uuid)
 
+    # Delete the user's PERSONAL integration connections. These live in
+    # phoenix_kit_settings JSONB (owner_uuid) with no FK, so they must be
+    # cleaned up explicitly or they'd orphan the user's encrypted credentials.
+    delete_user_personal_integrations(user.uuid)
+
     :ok
+  end
+
+  # Delete a user's personal integration connections (owner_uuid in JSONB).
+  defp delete_user_personal_integrations(user_uuid) do
+    from(s in PhoenixKit.Settings.Setting,
+      where: s.module == "integrations",
+      where: fragment("?->>'owner_uuid' = ?", s.value_json, ^user_uuid)
+    )
+    |> Repo.repo().delete_all()
   end
 
   # Delete OAuth providers for a user (uses user_uuid for safety)

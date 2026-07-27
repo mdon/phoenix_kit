@@ -164,18 +164,33 @@ defmodule PhoenixKit.Module do
   Returns a list of notification types this module contributes.
 
   Each type is a map with:
-    * `:key` — binary, stable identifier used in user prefs (e.g. `"posts"`)
+    * `:key` — binary, stable identifier used in user prefs (e.g. `"posts"`).
+      Must not contain a `.` (the sub-type separator).
     * `:label` — binary, user-facing display (e.g. `"Posts"`)
     * `:description` — binary, short explainer shown under the toggle
     * `:actions` — list of dotted action strings (`["post.liked", "post.commented"]`)
     * `:default` — boolean, the toggle's default state for users who haven't
       set a preference
+    * `:sub_types` — OPTIONAL list of finer-grained toggles under this type, each
+      the same shape (`:key` bare + `.`-free, `:label`, `:description`, `:actions`,
+      `:default`). Sub keys are composed to `"<type>.<sub>"` at registration.
 
-  Types merge with core PhoenixKit types (`account`, `posts`, `comments`) and
-  show up automatically in the UserSettings "Notifications" section. The
-  filter in `PhoenixKit.Notifications.maybe_create_from_activity/1` resolves
-  each action to a type via `:actions` and skips the fan-out when the user
-  has muted that type.
+  When a type declares sub-types the base becomes a **master switch** (resolution
+  time only): base off ⇒ every sub muted; base on ⇒ each sub follows its own
+  toggle. This is the OPPOSITE of the permission sub-key cascade — nothing is
+  stored-normalized, so a user's per-sub choices survive toggling the master.
+  When a type is fully split, leave its own `:actions` empty so every action is
+  owned by exactly one sub. Each action should be claimed by exactly one type or
+  sub-type; a duplicate claim is resolved first-declared-wins with a warning.
+  **Note:** a NEW sub with `default: false` actively mutes that action for existing
+  users under an already-on master — pick defaults deliberately.
+
+  Types merge with core PhoenixKit types (`account`, `posts`, `comments`,
+  `security`) and show up automatically on the Notification Settings page. The
+  filter in `PhoenixKit.Notifications.maybe_create_from_activity/1` resolves each
+  action to its most-specific type/sub-type via `PhoenixKit.Notifications.Types`
+  and skips the fan-out when the user has muted it. Labels/descriptions are
+  runtime data — `mix gettext.extract` won't see them.
 
   Headless modules (no user-facing actions) can skip this callback — the
   default is `[]`.
@@ -187,14 +202,35 @@ defmodule PhoenixKit.Module do
           %{
             key: "reviews",
             label: "Reviews",
-            description: "When someone leaves you a review",
-            actions: ["review.submitted", "review.edited"],
-            default: true
+            description: "Reviews people leave you",
+            actions: [],
+            default: true,
+            sub_types: [
+              %{key: "new", label: "New reviews", actions: ["review.submitted"], default: true},
+              %{key: "edited", label: "Edited reviews", actions: ["review.edited"], default: false}
+            ]
           }
         ]
       end
   """
   @callback notification_types() :: [map()]
+
+  @doc """
+  Declares extra notification delivery channels this module contributes.
+
+  Returns a list of modules implementing the `PhoenixKit.Notifications.Channel`
+  behaviour. They are merged with the core channels by
+  `PhoenixKit.Notifications.Channels.list/0` (core first, module extras after,
+  duplicate keys rejected), exactly like `notification_types/0` merges types.
+
+  A channel is a delivery destination for a user's notifications (Telegram,
+  email, …); the default is `[]`.
+
+  ## Example
+
+      def notification_channels, do: [MyApp.Notifications.Channels.Slack]
+  """
+  @callback notification_channels() :: [module()]
 
   @doc """
   Declares how this module's resource types deep-link to their pages.
@@ -463,6 +499,7 @@ defmodule PhoenixKit.Module do
     required_integrations: 0,
     integration_providers: 0,
     notification_types: 0,
+    notification_channels: 0,
     resource_links: 0,
     css_sources: 0,
     js_sources: 0,
@@ -522,6 +559,9 @@ defmodule PhoenixKit.Module do
       def notification_types, do: []
 
       @impl PhoenixKit.Module
+      def notification_channels, do: []
+
+      @impl PhoenixKit.Module
       def resource_links, do: %{}
 
       @impl PhoenixKit.Module
@@ -555,6 +595,7 @@ defmodule PhoenixKit.Module do
                      required_integrations: 0,
                      integration_providers: 0,
                      notification_types: 0,
+                     notification_channels: 0,
                      resource_links: 0,
                      css_sources: 0,
                      js_sources: 0,

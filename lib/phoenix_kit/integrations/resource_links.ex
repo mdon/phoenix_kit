@@ -4,7 +4,7 @@ defmodule PhoenixKit.Integrations.ResourceLinks do
 
   An activity logged against an integration (`resource_type: "integration"`,
   `resource_uuid:` the storage row's uuid) resolves to the connection's edit
-  page (`/admin/settings/integrations/:uuid`), titled `provider / name`.
+  page (`/admin/settings/integrations/website/:uuid`), titled `provider / name`.
 
   Registered as the `"integration"` handler by `PhoenixKit.ResourceLinks`
   (gated on this module being loaded). Mirrors
@@ -33,7 +33,7 @@ defmodule PhoenixKit.Integrations.ResourceLinks do
   # The title lookup is best-effort: a transient settings error falls back to a
   # generic label rather than dropping the (still-valid) deep-link.
   defp info_for(uuid) when is_binary(uuid) and uuid != "" do
-    %{title: title_for(uuid), path: "/admin/settings/integrations/#{uuid}"}
+    %{title: title_for(uuid), path: "/admin/settings/integrations/website/#{uuid}"}
   end
 
   defp info_for(_), do: nil

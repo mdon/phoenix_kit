@@ -233,7 +233,7 @@ defmodule PhoenixKit.Integration.Users.PermissionsTest do
       Permissions.set_permissions(admin_uuid, ["dashboard", "users", "settings"])
 
       scope = Scope.for_user(user)
-      assert Scope.admin?(scope)
+      assert Scope.can_access_admin_area?(scope)
       assert Scope.has_module_access?(scope, "dashboard")
       assert Scope.has_module_access?(scope, "users")
     end
@@ -265,7 +265,7 @@ defmodule PhoenixKit.Integration.Users.PermissionsTest do
 
       refute Scope.authenticated?(scope)
       refute Scope.owner?(scope)
-      refute Scope.admin?(scope)
+      refute Scope.can_access_admin_area?(scope)
       assert Scope.user_roles(scope) == []
       assert Scope.accessible_modules(scope) == MapSet.new()
       assert Scope.permission_count(scope) == 0
