@@ -111,6 +111,8 @@ defmodule PhoenixKit.Settings do
       "time_zone" => "0",
       "date_format" => "Y-m-d",
       "time_format" => "H:i",
+      # Content editor (Leaf): default mode for every editor the kit renders
+      "editor_default_mode" => "hybrid",
       "track_registration_geolocation" => "false",
       "registration_show_username" => "true",
       # General branding
@@ -1002,8 +1004,46 @@ defmodule PhoenixKit.Settings do
       ],
       "time_zone" => timezone_options(),
       "date_format" => UtilsDate.get_date_format_options(),
-      "time_format" => UtilsDate.get_time_format_options()
+      "time_format" => UtilsDate.get_time_format_options(),
+      "editor_default_mode" => editor_mode_options()
     }
+  end
+
+  @doc """
+  The content-editor (Leaf) mode options, as {label, value} tuples.
+
+  Single source for the `"editor_default_mode"` entry in
+  `get_setting_options/0` and for validating `get_editor_mode/0`.
+  """
+  @spec editor_mode_options() :: [{String.t(), String.t()}]
+  def editor_mode_options do
+    [
+      {"Hybrid (inline live preview)", "hybrid"},
+      {"Visual (WYSIWYG)", "visual"},
+      {"Markdown (plain source)", "markdown"},
+      {"HTML (raw markup)", "html"}
+    ]
+  end
+
+  @doc """
+  Returns the site-wide default content-editor mode as an atom, for
+  passing straight to Leaf's `mode` attr:
+
+      <.leaf_editor id="editor" mode={PhoenixKit.Settings.get_editor_mode()} ... />
+
+  Backed by the `"editor_default_mode"` setting (admin-editable under
+  Settings → Content Editor). Unknown or missing values fall back to
+  `:hybrid`, so the return is always one of `:hybrid | :visual |
+  :markdown | :html`.
+  """
+  @spec get_editor_mode() :: :hybrid | :visual | :markdown | :html
+  def get_editor_mode do
+    case get_setting_cached("editor_default_mode", "hybrid") do
+      "visual" -> :visual
+      "markdown" -> :markdown
+      "html" -> :html
+      _ -> :hybrid
+    end
   end
 
   @doc """

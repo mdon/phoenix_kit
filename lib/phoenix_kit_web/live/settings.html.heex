@@ -353,6 +353,47 @@
             </div>
           </div>
 
+          <.section_header icon="hero-pencil-square" title={gettext("Content Editor")} />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            <%!-- Default Editor Mode Setting --%>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text text-base font-medium">
+                  {gettext("Default Editor Mode")}
+                </span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("Mode every content editor opens in")}
+                </span>
+              </label>
+              <label class="select w-full focus:select-primary">
+                <select name="settings[editor_default_mode]">
+                  <%= for {label, value} <- @setting_options["editor_default_mode"] do %>
+                    <option value={value} selected={value == @settings["editor_default_mode"]}>
+                      {label}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext(
+                    "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
+                  )}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["editor_default_mode"] != @saved_settings["editor_default_mode"]}
+                saved={
+                  get_option_label(
+                    @saved_settings["editor_default_mode"],
+                    @setting_options["editor_default_mode"]
+                  )
+                }
+              />
+            </div>
+          </div>
+
           <.section_header icon="hero-clock" title={gettext("Date & Time")} />
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
