@@ -36,25 +36,42 @@ defmodule PhoenixKitWeb.Components.Core.StatusDot do
   attr :label, :string, default: nil, doc: "Optional text next to the dot"
   attr :size, :atom, default: :md, values: [:xs, :sm, :md], doc: "Dot size"
   attr :pulse, :boolean, default: false, doc: "Animate the dot (attention/live state)"
-  attr :class, :string, default: nil, doc: "Extra classes for the wrapper"
+  attr :class, :any, default: nil, doc: "Extra classes for the wrapper"
+
+  attr :rest, :global, doc: "Extra attributes for the wrapper (aria-*, title, data-*, …)"
 
   def status_dot(assigns) do
     ~H"""
-    <span class={["inline-flex items-center gap-1.5", @class]}>
+    <span class={["inline-flex items-center gap-1.5", @class]} {@rest}>
       <span class="relative flex">
         <span
           :if={@pulse}
           class={[
-            "absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping",
+            "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
             dot_color(@variant, @up)
           ]}
         />
         <span class={["relative inline-flex rounded-full", dot_size(@size), dot_color(@variant, @up)]} />
       </span>
       <span :if={@label} class={["opacity-70", label_size(@size)]}>{@label}</span>
+      <%!-- Colour alone carries the state, which is silent to a screen reader
+           and indistinguishable to red/green colour-blind users. When there is
+           no visible label, name the state for assistive tech instead. --%>
+      <span :if={is_nil(@label)} class="sr-only">{state_name(@variant, @up)}</span>
     </span>
     """
   end
+
+  # Kept in step with dot_color/2 — the visible colour and the announced word
+  # must never disagree.
+  defp state_name(nil, true), do: "online"
+  defp state_name(nil, false), do: "offline"
+  defp state_name(nil, nil), do: "status unknown"
+  defp state_name(:success, _), do: "ok"
+  defp state_name(:error, _), do: "error"
+  defp state_name(:warning, _), do: "warning"
+  defp state_name(:info, _), do: "info"
+  defp state_name(:neutral, _), do: "inactive"
 
   defp dot_color(nil, true), do: "bg-success"
   defp dot_color(nil, false), do: "bg-error"

@@ -1417,12 +1417,13 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
-  // ConnectAccountPopup Hook
+  // PopupLink Hook
   // ---------------------------------------------------------------------------
   //
-  // Opens an OAuth account-linking flow in a named popup instead of navigating
-  // the page. Replaces an inline onclick= (CSP-hostile, and the kit removed
-  // inline handlers everywhere else for the same reason).
+  // Opens a same-origin link in a named popup instead of navigating the page.
+  // Nothing about it is OAuth-specific — connect_account_button/1 is simply its
+  // first consumer. Replaces an inline onclick= (CSP-hostile, and the kit
+  // removed inline handlers everywhere else for the same reason).
   //
   // The element is a real <a href>, so this degrades correctly: with JS off, or
   // when the popup is blocked, the browser performs the normal full-page
@@ -1432,7 +1433,7 @@ if (typeof window.Chart === "undefined") {
   // interpolated into a script string.
   //
   // Usage:
-  //   <a href="/oauth/start" phx-hook="ConnectAccountPopup"
+  //   <a href="/oauth/start" phx-hook="PopupLink"
   //      data-window-name="oauth-connect" data-window-width="480"
   //      data-window-height="680">Connect</a>
   //
@@ -1472,12 +1473,32 @@ if (typeof window.Chart === "undefined") {
     );
   }
 
-  window.PhoenixKitHooks.ConnectAccountPopup = {
+  // Pure: is this link one we may open in a popup at all? The popup keeps its
+  // `window.opener`, so a cross-origin target would hand that reference away.
+  // The Elixir component enforces this too, but the bundle is copied verbatim
+  // into host apps and the hook is a public name — a host wiring it onto an
+  // arbitrary <a> must not be able to bypass the rule.
+  function sameOrigin(href, base) {
+    // A non-string href would otherwise be stringified and resolved as a
+    // RELATIVE path ("undefined"), which lands back on our own origin and
+    // quietly passes the check.
+    if (typeof href !== "string" || href === "") return false;
+
+    try {
+      return new URL(href, base).origin === new URL(base).origin;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  window.PhoenixKitHooks.PopupLink = {
     mounted() {
       this.onClick = (event) => {
         if (!shouldOpenPopup(event)) return;
 
         var el = this.el;
+        if (!sameOrigin(el.href, window.location.href)) return;
+
         var name = el.dataset.windowName || "oauth-connect";
         var features = popupFeatures(el.dataset.windowWidth, el.dataset.windowHeight, window);
 
@@ -1491,7 +1512,9 @@ if (typeof window.Chart === "undefined") {
         // Blocked or failed → let the click through so the plain href still
         // starts the flow full-page. Cancelling here unconditionally is what
         // made the old inline onclick a dead button behind a popup blocker.
-        if (!popup) return;
+        // Some blockers hand back a window that is already closed, and others
+        // return one whose `closed` is undefined — treat both as blocked.
+        if (!popup || popup.closed || typeof popup.closed === "undefined") return;
 
         event.preventDefault();
         try {
@@ -1516,6 +1539,7 @@ if (typeof window.Chart === "undefined") {
   if (typeof module === "object" && module.exports) {
     module.exports.shouldOpenPopup = shouldOpenPopup;
     module.exports.popupFeatures = popupFeatures;
+    module.exports.sameOrigin = sameOrigin;
   }
 
   // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ defmodule PhoenixKitWeb.Components.Core.ConnectAccountButtonTest do
 
     html = render(~H|<.connect_account_button href="/oauth/start">Go</.connect_account_button>|)
 
-    assert html =~ ~s(phx-hook="ConnectAccountPopup")
+    assert html =~ ~s(phx-hook="PopupLink")
     refute html =~ "onclick"
     refute html =~ "window.open"
   end

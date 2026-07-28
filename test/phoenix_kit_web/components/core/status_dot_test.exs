@@ -80,12 +80,51 @@ defmodule PhoenixKitWeb.Components.Core.StatusDotTest do
     assert render(~H|<.status_dot up={true} class="ml-2" />|) =~ "ml-2"
   end
 
-  test "the dot alone is not announced as text to a screen reader" do
-    # A bare coloured circle carries meaning only visually; without a label
-    # there must be nothing for assistive tech to read out as content.
+  test "an unlabelled dot still names its state for assistive tech" do
+    # Colour alone is silent to a screen reader and indistinguishable to
+    # red/green colour-blind users, so the state gets a visually-hidden name.
     assigns = %{}
-    html = render(~H|<.status_dot up={false} />|)
 
-    assert html |> String.replace(~r/<[^>]*>/, "") |> String.trim() == ""
+    assert render(~H|<.status_dot up={false} />|) =~ "offline"
+    assert render(~H|<.status_dot up={true} />|) =~ "online"
+    assert render(~H|<.status_dot variant={:warning} />|) =~ "warning"
+    assert render(~H|<.status_dot up={false} />|) =~ "sr-only"
+  end
+
+  test "a visible label is not duplicated by a hidden one" do
+    assigns = %{}
+    html = render(~H|<.status_dot up={false} label="offline" />|)
+
+    refute html =~ "sr-only"
+  end
+
+  test "the announced state matches the colour shown" do
+    assigns = %{}
+
+    for {variant, colour, word} <- [
+          {:success, "bg-success", "ok"},
+          {:error, "bg-error", "error"},
+          {:info, "bg-info", "info"},
+          {:neutral, "bg-neutral", "inactive"}
+        ] do
+      assigns = Map.put(assigns, :variant, variant)
+      html = render(~H|<.status_dot variant={@variant} />|)
+
+      assert html =~ colour
+      assert html =~ word
+    end
+  end
+
+  test "the pulse animation respects reduced-motion preferences" do
+    assigns = %{}
+
+    assert render(~H|<.status_dot variant={:info} pulse />|) =~ "motion-safe:animate-ping"
+  end
+
+  test "global attributes reach the wrapper" do
+    assigns = %{}
+
+    assert render(~H|<.status_dot up={true} aria-label="Device state" />|) =~
+             ~s(aria-label="Device state")
   end
 end

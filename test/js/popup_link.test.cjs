@@ -1,6 +1,6 @@
 "use strict";
 
-// Unit tests for the pure decision logic behind the ConnectAccountPopup hook
+// Unit tests for the pure decision logic behind the PopupLink hook
 // in priv/static/assets/phoenix_kit.js. The bundle is browser code (IIFEs that
 // assign onto `window`), so stub the globals it touches at load time; the
 // DOM-using hook methods themselves are not invoked here.
@@ -73,7 +73,11 @@ global.sessionStorage = storage;
 // `globalThis.navigator` is getter-only on modern Node, so leave it be — the
 // bundle reads `window.navigator`, which is stubbed above.
 
-const { shouldOpenPopup, popupFeatures } = require("../../priv/static/assets/phoenix_kit.js");
+const {
+  shouldOpenPopup,
+  popupFeatures,
+  sameOrigin,
+} = require("../../priv/static/assets/phoenix_kit.js");
 
 test("shouldOpenPopup: a plain left click opens the popup", () => {
   assert.equal(shouldOpenPopup({ button: 0 }), true);
@@ -164,4 +168,30 @@ test("popupFeatures: an empty view object still yields a usable string", () => {
 
   assert.match(features, /^width=480,height=680,left=\d+,top=\d+,/);
   assert.doesNotMatch(features, /NaN|undefined/);
+});
+
+test("sameOrigin: accepts same-origin links, absolute or relative", () => {
+  const base = "https://app.example/settings";
+
+  assert.equal(sameOrigin("/oauth/start", base), true);
+  assert.equal(sameOrigin("https://app.example/oauth/start", base), true);
+  assert.equal(sameOrigin("oauth/start", base), true);
+});
+
+test("sameOrigin: refuses another origin, scheme or port", () => {
+  // The popup keeps window.opener, so a cross-origin target would hand that
+  // reference away. The Elixir component enforces this too, but the bundle is
+  // copied into hosts and the hook name is public.
+  const base = "https://app.example/settings";
+
+  assert.equal(sameOrigin("https://evil.example/start", base), false);
+  assert.equal(sameOrigin("//evil.example/start", base), false);
+  assert.equal(sameOrigin("http://app.example/start", base), false, "scheme differs");
+  assert.equal(sameOrigin("https://app.example:8443/start", base), false, "port differs");
+});
+
+test("sameOrigin: an unparseable href is refused, not thrown on", () => {
+  assert.equal(sameOrigin("http://[bad", "https://app.example/"), false);
+  assert.equal(sameOrigin(undefined, "https://app.example/"), false);
+  assert.equal(sameOrigin("/ok", "not-a-url"), false);
 });
