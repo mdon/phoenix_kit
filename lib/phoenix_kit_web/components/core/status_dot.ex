@@ -12,6 +12,8 @@ defmodule PhoenixKitWeb.Components.Core.StatusDot do
 
   use Phoenix.Component
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   @doc """
   Renders a status dot, optionally with a label.
 
@@ -38,9 +40,24 @@ defmodule PhoenixKitWeb.Components.Core.StatusDot do
   attr :pulse, :boolean, default: false, doc: "Animate the dot (attention/live state)"
   attr :class, :any, default: nil, doc: "Extra classes for the wrapper"
 
-  attr :rest, :global, doc: "Extra attributes for the wrapper (aria-*, title, data-*, …)"
+  attr :state_label, :string,
+    default: nil,
+    doc:
+      ~s|Overrides the announced state name. The defaults are generic | <>
+        ~s|(`up` reads "online"/"offline"); anything else — a payment, a job — | <>
+        ~s|should say so itself.|
+
+  attr :rest, :global, doc: "Extra attributes for the wrapper (title, data-*, …)"
 
   def status_dot(assigns) do
+    {color, state_name} = state(assigns.variant, assigns.up)
+
+    assigns =
+      assigns
+      |> assign(:color, color)
+      |> assign(:visible_label, presence(assigns.label))
+      |> assign(:state_name, presence(assigns.state_label) || state_name)
+
     ~H"""
     <span class={["inline-flex items-center gap-1.5", @class]} {@rest}>
       <span class="relative flex">
@@ -48,39 +65,40 @@ defmodule PhoenixKitWeb.Components.Core.StatusDot do
           :if={@pulse}
           class={[
             "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
-            dot_color(@variant, @up)
+            @color
           ]}
         />
-        <span class={["relative inline-flex rounded-full", dot_size(@size), dot_color(@variant, @up)]} />
+        <span class={["relative inline-flex rounded-full", dot_size(@size), @color]} />
       </span>
-      <span :if={@label} class={["opacity-70", label_size(@size)]}>{@label}</span>
+      <span :if={@visible_label} class={["opacity-70", label_size(@size)]}>{@visible_label}</span>
       <%!-- Colour alone carries the state, which is silent to a screen reader
-           and indistinguishable to red/green colour-blind users. When there is
-           no visible label, name the state for assistive tech instead. --%>
-      <span :if={is_nil(@label)} class="sr-only">{state_name(@variant, @up)}</span>
+           and indistinguishable to red/green colour-blind users. With no
+           visible label, name the state for assistive tech instead. --%>
+      <span :if={is_nil(@visible_label)} class="sr-only">{@state_name}</span>
     </span>
     """
   end
 
-  # Kept in step with dot_color/2 — the visible colour and the announced word
-  # must never disagree.
-  defp state_name(nil, true), do: "online"
-  defp state_name(nil, false), do: "offline"
-  defp state_name(nil, nil), do: "status unknown"
-  defp state_name(:success, _), do: "ok"
-  defp state_name(:error, _), do: "error"
-  defp state_name(:warning, _), do: "warning"
-  defp state_name(:info, _), do: "info"
-  defp state_name(:neutral, _), do: "inactive"
+  # An empty string is truthy, so `label=""` — an ordinary result of
+  # `label={@device.name}` — rendered an empty visible span AND suppressed the
+  # hidden one, leaving a dot with no accessible name at all.
+  defp presence(nil), do: nil
 
-  defp dot_color(nil, true), do: "bg-success"
-  defp dot_color(nil, false), do: "bg-error"
-  defp dot_color(nil, nil), do: "bg-neutral"
-  defp dot_color(:success, _), do: "bg-success"
-  defp dot_color(:error, _), do: "bg-error"
-  defp dot_color(:warning, _), do: "bg-warning"
-  defp dot_color(:info, _), do: "bg-info"
-  defp dot_color(:neutral, _), do: "bg-neutral"
+  defp presence(value) when is_binary(value),
+    do: if(String.trim(value) == "", do: nil, else: value)
+
+  defp presence(value), do: value
+
+  # One resolver returns BOTH the colour and the word for a state, so the two
+  # can never drift out of step as separate lookup tables could.
+  defp state(nil, true), do: {"bg-success", gettext("online")}
+  defp state(nil, false), do: {"bg-error", gettext("offline")}
+  defp state(nil, nil), do: {"bg-neutral", gettext("status unknown")}
+  defp state(:success, _), do: {"bg-success", gettext("ok")}
+  defp state(:error, _), do: {"bg-error", gettext("error")}
+  defp state(:warning, _), do: {"bg-warning", gettext("warning")}
+  defp state(:info, _), do: {"bg-info", gettext("info")}
+  defp state(:neutral, _), do: {"bg-neutral", gettext("inactive")}
 
   defp dot_size(:xs), do: "size-1.5"
   defp dot_size(:sm), do: "size-2"

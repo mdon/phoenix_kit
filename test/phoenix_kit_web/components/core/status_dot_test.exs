@@ -111,7 +111,9 @@ defmodule PhoenixKitWeb.Components.Core.StatusDotTest do
       html = render(~H|<.status_dot variant={@variant} />|)
 
       assert html =~ colour
-      assert html =~ word
+      # Match inside the sr-only span: a bare `=~ "error"` was satisfied by the
+      # `bg-error` class, so the announced word was never actually checked.
+      assert html =~ ~r/<span class="sr-only">\s*#{word}\s*<\/span>/
     end
   end
 

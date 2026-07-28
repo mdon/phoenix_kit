@@ -132,9 +132,7 @@ test("popupFeatures: falls back to screenX/screenY when screenLeft is absent", (
   assert.match(features, /top=260/); // 60 + (800-400)/2
 });
 
-test("popupFeatures: never positions the popup off the left/top edge", () => {
-  // A browser window narrower than the requested popup would compute a
-  // negative offset, which some platforms treat as "off-screen".
+test("popupFeatures: a popup larger than the window sits at the window origin", () => {
   const features = popupFeatures(1200, 1000, {
     screenLeft: 0,
     screenTop: 0,
@@ -146,6 +144,20 @@ test("popupFeatures: never positions the popup off the left/top edge", () => {
   assert.match(features, /top=0/);
 });
 
+test("popupFeatures: honours a monitor left of, or above, the primary one", () => {
+  // Negative screen coordinates are legitimate on a multi-monitor desktop.
+  // Clamping them to 0 threw the popup back onto the primary display.
+  const features = popupFeatures(480, 680, {
+    screenLeft: -1920,
+    screenTop: -200,
+    outerWidth: 1600,
+    outerHeight: 1000,
+  });
+
+  assert.match(features, /left=-1360/); // -1920 + (1600-480)/2
+  assert.match(features, /top=-40/); // -200 + (1000-680)/2
+});
+
 test("popupFeatures: tolerates the string dataset values it is actually given", () => {
   // el.dataset.* is always a string.
   const features = popupFeatures("500", "700", { screenLeft: 0, screenTop: 0 });
@@ -155,10 +167,11 @@ test("popupFeatures: tolerates the string dataset values it is actually given", 
 });
 
 test("popupFeatures: garbage or missing sizes fall back to sane defaults", () => {
-  for (const bad of [undefined, null, "", "abc", 0, -50]) {
+  for (const bad of [undefined, null, "", "abc"]) {
     const features = popupFeatures(bad, bad, {});
-    assert.match(features, /width=\d+/);
-    assert.match(features, /height=\d+/);
+    // Assert the actual defaults — /width=\d+/ was satisfied by width=1.
+    assert.match(features, /width=480/, `for ${String(bad)}`);
+    assert.match(features, /height=680/, `for ${String(bad)}`);
     assert.doesNotMatch(features, /NaN|Infinity|width=-|height=-|left=-|top=-/);
   }
 });
@@ -194,4 +207,127 @@ test("sameOrigin: an unparseable href is refused, not thrown on", () => {
   assert.equal(sameOrigin("http://[bad", "https://app.example/"), false);
   assert.equal(sameOrigin(undefined, "https://app.example/"), false);
   assert.equal(sameOrigin("/ok", "not-a-url"), false);
+});
+
+// ---------------------------------------------------------------------------
+// The hook itself. The blocked-popup branch IS the bug this component was
+// rewritten to fix — the old inline onclick cancelled navigation even when the
+// popup never opened, leaving a dead button — and it had no coverage at all.
+// ---------------------------------------------------------------------------
+
+const hook = window.PhoenixKitHooks.PopupLink;
+
+function mountHook({ open, href = "https://app.example/oauth/start" }) {
+  const listeners = {};
+  const el = {
+    href,
+    dataset: { windowName: "test", windowWidth: "480", windowHeight: "680" },
+    addEventListener(type, fn) {
+      listeners[type] = fn;
+    },
+    removeEventListener(type) {
+      delete listeners[type];
+    },
+  };
+
+  window.location = { href: "https://app.example/settings" };
+  window.open = open;
+
+  const ctx = Object.create(hook);
+  ctx.el = el;
+  ctx.mounted();
+
+  return {
+    el,
+    listeners,
+    click(overrides = {}) {
+      let prevented = false;
+      const event = {
+        button: 0,
+        preventDefault() {
+          prevented = true;
+        },
+        ...overrides,
+      };
+      listeners.click(event);
+      return prevented;
+    },
+    destroy() {
+      ctx.destroyed();
+      return listeners;
+    },
+  };
+}
+
+test("hook: a successful popup cancels the navigation", () => {
+  let focused = false;
+  const h = mountHook({ open: () => ({ closed: false, focus: () => (focused = true) }) });
+
+  assert.equal(h.click(), true, "should preventDefault when the popup opened");
+  assert.equal(focused, true, "the popup should be focused");
+});
+
+test("hook: a BLOCKED popup falls through to normal navigation", () => {
+  // The whole point of the rewrite. Cancelling here left a dead button.
+  assert.equal(mountHook({ open: () => null }).click(), false, "null");
+  assert.equal(mountHook({ open: () => ({ closed: true }) }).click(), false, "already closed");
+  assert.equal(mountHook({ open: () => ({}) }).click(), false, "closed undefined");
+});
+
+test("hook: window.open throwing falls through instead of breaking the click", () => {
+  const h = mountHook({
+    open: () => {
+      throw new Error("blocked");
+    },
+  });
+
+  assert.equal(h.click(), false);
+});
+
+test("hook: a popup that cannot be focused still counts as opened", () => {
+  const h = mountHook({
+    open: () => ({
+      closed: false,
+      focus() {
+        throw new Error("denied");
+      },
+    }),
+  });
+
+  assert.equal(h.click(), true, "focus is best-effort and must not break the flow");
+});
+
+test("hook: a cross-origin href is never popped up", () => {
+  let opened = false;
+  const h = mountHook({
+    href: "https://evil.example/start",
+    open: () => {
+      opened = true;
+      return { closed: false, focus() {} };
+    },
+  });
+
+  assert.equal(h.click(), false);
+  assert.equal(opened, false, "window.open must not even be called");
+});
+
+test("hook: modifier clicks are left to the browser", () => {
+  let opened = false;
+  const h = mountHook({
+    open: () => {
+      opened = true;
+      return { closed: false, focus() {} };
+    },
+  });
+
+  assert.equal(h.click({ metaKey: true }), false);
+  assert.equal(opened, false);
+});
+
+test("hook: destroyed unbinds the listener", () => {
+  const h = mountHook({ open: () => ({ closed: false, focus() {} }) });
+
+  assert.equal(typeof h.listeners.click, "function");
+  h.destroy();
+  assert.equal(h.listeners.click, undefined);
 });

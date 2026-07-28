@@ -47,7 +47,12 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
         </:icon>
       </.stat_card>
   """
-  attr :rounded, :string, default: "xl", doc: "Border radius size (xl, 2xl, etc.)"
+  attr :rounded, :string,
+    default: "box",
+    doc:
+      "Border radius token appended to `rounded-` (daisyUI's `box`, or Tailwind's " <>
+        "`lg`/`xl`/`full`). Was previously declared but ignored — the class was hardcoded."
+
   attr :compact, :boolean, default: false, doc: "Use compact layout with reduced height"
   attr :value, :any, required: true, doc: "The main statistic value to display"
   attr :title, :string, required: true, doc: "The card title text"
@@ -73,7 +78,8 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     ~H"""
     <div class={[
       color_classes(@color),
-      "rounded-box shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
+      "rounded-#{@rounded}",
+      "shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
       if(@compact, do: "p-4", else: "p-6")
     ]}>
       <%= if @compact do %>

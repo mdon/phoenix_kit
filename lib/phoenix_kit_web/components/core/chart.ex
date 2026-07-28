@@ -99,7 +99,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     assigns = assign(assigns, :geometry, line_geometry(assigns))
 
     ~H"""
-    <div class={["pk-chart w-full", @class]} {@rest}>
+    <div class={["pk-chart w-full h-full", @class]} {@rest}>
       <svg
         :if={@geometry}
         viewBox={"0 0 #{@width} #{@height}"}
@@ -242,6 +242,14 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   attr :class, :any, default: nil, doc: "Classes for the wrapper (set text-* for colour)"
 
   attr :aria_label, :string, default: nil, doc: "Accessible name for the chart"
+
+  attr :value_format, :any,
+    default: nil,
+    doc:
+      "1-arity fun formatting a value for its tooltip. No generic chart can infer " <>
+        "units, currency or locale, so pass your own (e.g. `&Money.to_string/1`). " <>
+        "Defaults to a compact numeric rendering."
+
   attr :rest, :global, doc: "Extra attributes for the wrapper"
 
   slot :empty, doc: "Rendered instead of the SVG when there is no usable data"
@@ -250,13 +258,13 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     assigns = assign(assigns, :geometry, bar_geometry(assigns))
 
     ~H"""
-    <div class={["pk-chart w-full", @class]} {@rest}>
+    <div class={["pk-chart w-full h-full flex flex-col", @class]} {@rest}>
       <svg
         :if={@geometry}
         id={@id}
         viewBox={"0 0 #{@width} #{@height}"}
         preserveAspectRatio="none"
-        class="w-full h-full block"
+        class="w-full flex-1 min-h-0 block"
         role="img"
         aria-label={@aria_label}
         aria-hidden={is_nil(@aria_label) && "true"}
@@ -264,7 +272,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         <title :if={@aria_label}>{@aria_label}</title>
 
         <line
-          :if={@baseline && @geometry.mixed_signs?}
+          :if={@baseline && @geometry.show_baseline?}
           x1="0"
           y1={@geometry.baseline}
           x2={@width}
@@ -290,7 +298,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         </rect>
       </svg>
 
-      <div :if={@geometry && @show_labels} class="flex text-xs opacity-60 font-mono mt-1">
+      <div :if={@geometry && @show_labels} class="flex text-xs opacity-60 font-mono mt-1 shrink-0">
         <%!-- Each label owns exactly its bar's slot so it stays under the bar.
              `justify-between` drifted: it pinned the first and last labels to
              the container edges while the bars sit at slot centres. --%>
@@ -352,8 +360,8 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         nil
 
       data ->
-        {x_min, x_max} = normalize_domain(assigns.x_domain || minmax_x(data))
-        {y_min, y_max} = normalize_domain(assigns.y_domain || padded_y_domain(data))
+        {x_min, x_max} = normalize_domain(assigns.x_domain, minmax_x(data))
+        {y_min, y_max} = normalize_domain(assigns.y_domain, padded_y_domain(data))
 
         x_span = max(x_max - x_min, 1.0e-9)
         y_span = max(y_max - y_min, 1.0e-9)
@@ -361,7 +369,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         px = fn x -> round1((x - x_min) / x_span * width) end
         py = fn y -> round1(height - (y - y_min) / y_span * height) end
 
-        points = plot_points(data, assigns.step, px, py, width)
+        points = plot_points(data, assigns.step, px, py, x_max)
         line_path = to_path(points)
         {first_x, _} = List.first(points)
         {last_x, _} = List.last(points)
@@ -377,20 +385,23 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
   # Right-open steps: each y holds until the next x, and the last extends to
   # the domain's right edge — the correct reading for interval data.
-  defp plot_points(data, true = _step, px, py, width) do
+  defp plot_points(data, true = _step, px, py, x_max) do
     data
     |> Enum.chunk_every(2, 1)
     |> Enum.flat_map(fn
       [{x, y}, {x2, _}] -> [{px.(x), py.(y)}, {px.(x2), py.(y)}]
-      [{x, y}] -> [{px.(x), py.(y)}, {round1(width * 1.0), py.(y)}]
+      # The tail runs to the domain's right EDGE, but never backwards: when the
+      # last datum itself overshoots an explicit x_domain, extending to the
+      # edge would draw a segment back leftward across the chart.
+      [{x, y}] -> [{px.(x), py.(y)}, {max(px.(x), px.(x_max)), py.(y)}]
     end)
   end
 
   # A lone point is a valid `M x,y` path that paints NOTHING. One datum is a
   # real case (the first slot of the day, a metric with a single sample), so
   # hold its value across the range instead.
-  defp plot_points([{_x, y}], false = _step, _px, py, width) do
-    [{0.0, py.(y)}, {round1(width * 1.0), py.(y)}]
+  defp plot_points([{_x, y}], false = _step, px, py, x_max) do
+    [{px.(x_max) * 0.0, py.(y)}, {px.(x_max), py.(y)}]
   end
 
   defp plot_points(data, false = _step, px, py, _width) do
@@ -426,16 +437,22 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # A reversed domain ({10, 0}) otherwise drove the span negative, which the
   # 1.0e-9 floor turned into coordinates around 1.0e12 — the chart vanished
   # off-canvas instead of simply drawing.
-  defp normalize_domain({a, b}) do
+  #
+  # An unusable bound falls back to the DATA's own domain, never to a constant:
+  # a {0, 1} fallback recreated exactly that failure, because every real x range
+  # then scaled by a factor of thousands and left the canvas just as finally.
+  defp normalize_domain(nil, fallback), do: fallback
+
+  defp normalize_domain({a, b}, fallback) do
     case {numeric(a), numeric(b)} do
-      {nil, _} -> {0, 1}
-      {_, nil} -> {0, 1}
+      {nil, _} -> fallback
+      {_, nil} -> fallback
       {lo, hi} when lo > hi -> {hi, lo}
       {lo, hi} -> {lo, hi}
     end
   end
 
-  defp normalize_domain(_), do: {0, 1}
+  defp normalize_domain(_, fallback), do: fallback
 
   defp padded_y_domain(data) do
     {y_min, y_max} = data |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
@@ -444,25 +461,39 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   end
 
   defp sparkline_points(%{values: values, width: width, height: height}) do
-    case values |> List.wrap() |> Enum.map(&numeric/1) |> Enum.reject(&is_nil/1) do
+    raw = List.wrap(values)
+    n = length(raw)
+
+    # Index BEFORE dropping: a survivor must keep the x it had. Rejecting first
+    # re-spaced the whole axis, so removing one bad sample silently changed the
+    # SHAPE of the line rather than leaving a gap in it.
+    kept =
+      raw
+      |> Enum.with_index()
+      |> Enum.filter(fn {v, _i} -> not is_nil(numeric(v)) end)
+      |> Enum.map(fn {v, i} -> {numeric(v), i} end)
+
+    case kept do
       [] ->
         nil
 
-      [_only] ->
+      [{_v, _i}] ->
         # One sample is a real state; an empty box reads as a broken chart.
         y = round1(height / 2)
         "0.0,#{y} #{round1(width * 1.0)},#{y}"
 
-      values ->
-        {v_min, v_max} = Enum.min_max(values)
-        span = max(v_max - v_min, 1.0e-9)
-        n = length(values)
+      kept ->
+        {v_min, v_max} = kept |> Enum.map(&elem(&1, 0)) |> Enum.min_max()
+        # Pad like the line chart, so a steady metric centres instead of
+        # reading as "pinned at its minimum".
+        pad = (v_max - v_min) * 0.1 + 1.0e-9
+        lo = v_min - pad
+        span = max(v_max + pad - lo, 1.0e-9)
+        last = max(n - 1, 1)
 
-        values
-        |> Enum.with_index()
-        |> Enum.map_join(" ", fn {v, i} ->
-          x = round1(i / (n - 1) * width)
-          y = round1(height - 4 - (v - v_min) / span * (height - 8))
+        Enum.map_join(kept, " ", fn {v, i} ->
+          x = round1(i / last * width)
+          y = round1(height - 4 - (v - lo) / span * (height - 8))
           "#{x},#{y}"
         end)
     end
@@ -474,7 +505,9 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # values — which SVG discards outright, so the bar silently vanished — and
   # an all-negative series divided by a 1.0e-9 floor, throwing the geometry to
   # astronomical numbers.
-  defp bar_geometry(%{data: data, width: width, height: height}) do
+  defp bar_geometry(%{data: data, width: width, height: height} = assigns) do
+    formatter = Map.get(assigns, :value_format)
+
     case normalize_bars(data) do
       [] ->
         nil
@@ -498,50 +531,78 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
         %{
           baseline: round1(baseline),
-          mixed_signs?: v_min < 0 and v_max > 0,
+          # Any negative value needs the zero line drawn: for an all-negative
+          # series the baseline sits at the TOP, which nothing else implies.
+          show_baseline?: v_min < 0,
           slot_percent: round1(100 / n),
-          bars: position_bars(bars, slot_w, bar_w, height, baseline, scale)
+          bars: position_bars(bars, slot_w, bar_w, height, baseline, scale, formatter)
         }
     end
   end
 
-  defp position_bars(bars, slot_w, bar_w, height, baseline, scale) do
+  defp position_bars(bars, slot_w, bar_w, height, baseline, scale, formatter) do
     bars
     |> Enum.with_index()
     |> Enum.map(fn {bar, i} ->
       y_value = height - scale.(bar.value)
 
+      # A zero value has zero height, and SVG paints nothing at all for that —
+      # an all-zero series rendered as a completely blank chart from perfectly
+      # valid data. Keep a hairline so the category stays visible.
+      h = max(round1(abs(y_value - baseline)), 1.0)
+
       %{
         x: round1(i * slot_w + (slot_w - bar_w) / 2),
         y: round1(min(y_value, baseline)),
         w: bar_w,
-        h: round1(abs(y_value - baseline)),
+        h: h,
         label: bar.label,
         class: bar.class,
-        title: bar_title(bar)
+        title: bar_title(bar, formatter)
       }
     end)
   end
 
+  # Accepts the same shapes as line_chart's points, plus {label, value} tuples —
+  # a caller who reaches for one and gets a silently blank chart has no way to
+  # tell the difference from "no data".
   defp normalize_bars(data) when is_list(data) do
     data
-    |> Enum.map(fn
-      %{value: value} = datum ->
-        case numeric(value) do
-          nil -> nil
-          n -> %{value: n, label: Map.get(datum, :label), class: Map.get(datum, :class)}
-        end
-
-      _ ->
-        nil
-    end)
+    |> Enum.map(&bar/1)
     |> Enum.reject(&is_nil/1)
   end
 
   defp normalize_bars(_), do: []
 
-  defp bar_title(%{label: nil, value: value}), do: format_value(value)
-  defp bar_title(%{label: label, value: value}), do: "#{label}: #{format_value(value)}"
+  defp bar(%{value: value} = datum),
+    do: build_bar(value, Map.get(datum, :label), Map.get(datum, :class))
+
+  defp bar(%{"value" => value} = datum),
+    do: build_bar(value, Map.get(datum, "label"), Map.get(datum, "class"))
+
+  defp bar({label, value}), do: build_bar(value, label, nil)
+  defp bar(value) when is_number(value), do: build_bar(value, nil, nil)
+  defp bar(_), do: nil
+
+  defp build_bar(value, label, class) do
+    case numeric(value) do
+      nil -> nil
+      n -> %{value: n, label: label, class: class}
+    end
+  end
+
+  defp bar_title(%{label: nil, value: value}, formatter), do: display(value, formatter)
+
+  defp bar_title(%{label: label, value: value}, formatter),
+    do: "#{label}: #{display(value, formatter)}"
+
+  defp display(value, formatter) when is_function(formatter, 1) do
+    to_string(formatter.(value))
+  rescue
+    _ -> format_value(value)
+  end
+
+  defp display(value, _formatter), do: format_value(value)
 
   # Tooltips show a computed number, and float arithmetic surfaces its own
   # noise: `0.1 + 0.2` renders as "0.30000000000000004". Round for DISPLAY only
@@ -552,10 +613,12 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   defp format_value(value) when is_float(value) do
     rounded = Float.round(value, 4)
 
-    if rounded == Float.round(rounded, 0) and abs(rounded) < 1.0e15 do
-      rounded |> trunc() |> Integer.to_string()
-    else
-      rounded |> :erlang.float_to_binary([:short]) |> String.trim_trailing(".0")
+    cond do
+      # Rounding a small magnitude to 4dp collapses it to "0" — a rate, a
+      # fractional percentage or a sub-cent price would read as nothing.
+      rounded == 0.0 and value != 0.0 -> :erlang.float_to_binary(value, [:short])
+      value == trunc(value) and abs(value) < 1.0e15 -> value |> trunc() |> Integer.to_string()
+      true -> :erlang.float_to_binary(rounded, [:short])
     end
   end
 

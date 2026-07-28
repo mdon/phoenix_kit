@@ -54,10 +54,16 @@ defmodule PhoenixKitWeb.Components.Core.ConnectAccountButton do
   `href` is still required to be a local path — that stops the reference
   being handed straight to an arbitrary origin, and keeps the flow
   starting on a route you control — but it is not what makes the popup
-  safe once the provider takes over. If your threat model includes the
-  provider, send `Cross-Origin-Opener-Policy: same-origin-allow-popups`
-  on the opener page and have the callback `postMessage` back (with an
-  origin check) instead of touching `opener.location`.
+  safe once the provider takes over.
+
+  Note that `Cross-Origin-Opener-Policy: same-origin-allow-popups` does
+  NOT help here: that value exists precisely to *keep* the opener
+  relationship for popups, which is the relationship in question. If the
+  provider is inside your threat model, the only real fix is to stop
+  relying on `window.opener` at all — open with `noopener` and have the
+  callback route broadcast on PubSub so the opener LiveView updates
+  itself. That is the Phoenix-native version of this flow and needs no
+  opener reference or `location.reload()`.
 
   Origin: extracted from NordSwitch's Shelly account connect flow;
   intended for any Integrations-system OAuth (Google, Stripe, …).
@@ -99,7 +105,13 @@ defmodule PhoenixKitWeb.Components.Core.ConnectAccountButton do
 
   attr :window_width, :integer, default: 480
   attr :window_height, :integer, default: 680
-  attr :class, :any, default: "btn btn-primary btn-sm"
+
+  attr :class, :any,
+    default: "btn btn-primary btn-sm",
+    doc:
+      "REPLACES the default styling rather than merging with it, so you can swap " <>
+        "`btn-primary` for `btn-outline` without a specificity fight. Pass the full " <>
+        "class list you want."
 
   attr :id, :string,
     default: nil,

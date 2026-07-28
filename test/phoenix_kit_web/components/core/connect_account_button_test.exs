@@ -58,7 +58,8 @@ defmodule PhoenixKitWeb.Components.Core.ConnectAccountButtonTest do
 
     html = render(~H|<.connect_account_button href="/oauth/start">Go</.connect_account_button>|)
 
-    assert html =~ ~r/id="[^"]+"/
+    # `~r/id="[^"]+"/` was satisfied by any *-id attribute; pin the real one.
+    assert html =~ ~r/\sid="pk-connect-[a-zA-Z0-9_-]+"/
   end
 
   test "an explicit id wins over the derived default" do

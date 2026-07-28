@@ -58,10 +58,26 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
     end
   end
 
-  defp assert_finite_numbers(html) do
-    for value <- numeric_attrs(html) ++ path_numbers(html) do
-      refute value =~ ~r/nan|inf/i, "non-finite number in rendered SVG: #{inspect(value)}"
+  # A polyline's coordinates live in `points="…"`, which contributes neither an
+  # x/y attribute nor an M/L command — so the sparkline assertions used to
+  # iterate an empty list and would have passed with points="NaN,NaN".
+  defp polyline_numbers(html) do
+    case Regex.run(~r/<polyline[^>]*\spoints="([^"]*)"/, html) do
+      [_, pts] -> pts |> String.split([" ", ","], trim: true)
+      _ -> []
+    end
+  end
 
+  defp assert_finite_numbers(html) do
+    values = numeric_attrs(html) ++ path_numbers(html) ++ polyline_numbers(html)
+
+    # Scanning the raw html catches non-finite output the number regexes skip
+    # over: `[-\d.eE+]` never matches "NaN", so a NaN coordinate simply
+    # vanished from the list instead of failing.
+    refute html =~ ~r/\b(nan|infinity)\b/i, "non-finite number in rendered SVG"
+    assert values != [], "no numbers found — the assertion would pass vacuously"
+
+    for value <- values do
       case Float.parse(value) do
         {_, ""} -> :ok
         _ -> flunk("unparseable number in rendered SVG: #{inspect(value)}")
@@ -149,8 +165,15 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       html =
         render(~H|<.line_chart id="c" data={[{0, 0}, {10, 100}]} step y_domain={{0, 100}} />|)
 
-      # Two points become four in step mode: hold, then jump.
-      assert length(path_numbers(html)) >= 8
+      # Compare against the SAME data without `step`: the stepped line must
+      # carry strictly more vertices. A bare count passed even with step
+      # removed, because path_numbers also scans the area path.
+      plain = render(~H|<.line_chart id="c" data={[{0, 0}, {10, 100}]} y_domain={{0, 100}} />|)
+
+      stepped_points = stroked_path(html) |> String.split("L") |> length()
+      plain_points = stroked_path(plain) |> String.split("L") |> length()
+
+      assert stepped_points > plain_points
       assert_finite_numbers(html)
     end
 
@@ -259,6 +282,70 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
     end
   end
 
+  describe "round-2 regressions" do
+    test "a partially-unusable domain falls back to the data, not a constant" do
+      assigns = %{}
+      # A {0, 1} fallback recreated the reversed-domain bug: every real x range
+      # then scaled by thousands and left the canvas just as finally.
+      html =
+        render(
+          ~H|<.line_chart id="c" data={[{0, 1}, {720, 5}, {1440, 3}]} x_domain={{0, nil}} />|
+        )
+
+      assert_finite_numbers(html)
+      assert_within_viewbox(html, 960, 240)
+    end
+
+    test "an entirely unusable domain also falls back to the data" do
+      assigns = %{}
+      html = render(~H|<.line_chart id="c" data={[{0, 1}, {1440, 3}]} x_domain="nonsense" />|)
+
+      assert_within_viewbox(html, 960, 240)
+    end
+
+    test "step data overshooting its x_domain does not double back" do
+      assigns = %{}
+      # The tail used to emit the viewBox width unconditionally, so the line ran
+      # forward past the edge and then back leftward.
+      html = render(~H|<.line_chart id="c" data={[{0, 1}, {20, 5}]} x_domain={{0, 10}} step />|)
+
+      xs =
+        stroked_path(html)
+        |> then(&Regex.scan(~r/[ML]([-\d.eE+]+),/, &1))
+        |> Enum.map(fn [_, x] -> elem(Float.parse(x), 0) end)
+
+      assert xs == Enum.sort(xs), "the line must not run backwards: #{inspect(xs)}"
+    end
+
+    test "dropping a sparkline sample leaves a gap instead of reshaping the line" do
+      assigns = %{}
+      # Rejecting before indexing re-spaced the axis, so removing one bad
+      # sample silently changed the SHAPE of the line rather than the gap.
+      with_hole = render(~H|<.sparkline values={[1, 2, nil, 4, 5]} />|)
+      without = render(~H|<.sparkline values={[1, 2, 3, 4, 5]} />|)
+
+      xs = fn html ->
+        [_, pts] = Regex.run(~r/points="([^"]*)"/, html)
+        pts |> String.split(" ") |> Enum.map(&(&1 |> String.split(",") |> hd()))
+      end
+
+      # The survivors keep the x positions they had in the full series.
+      assert xs.(with_hole) == xs.(without) -- ["100.0"]
+    end
+
+    test "a flat sparkline centres rather than sitting on the floor" do
+      assigns = %{}
+      html = render(~H|<.sparkline values={[3, 3, 3]} />|)
+
+      [_, pts] = Regex.run(~r/points="([^"]*)"/, html)
+      ys = pts |> String.split(" ") |> Enum.map(&(&1 |> String.split(",") |> List.last()))
+      {y, ""} = ys |> hd() |> Float.parse()
+
+      # A steady metric reading as "at its minimum" is a lie about the data.
+      assert y > 8 and y < 40, "flat series should sit mid-box, got y=#{y}"
+    end
+  end
+
   describe "data normalisation" do
     test "one bad point never takes the page down" do
       # A library primitive that raises mid-render kills the whole LiveView.
@@ -340,6 +427,66 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
         render(~H|<.bar_chart id="b" data={[%{label: "Mon", value: 12}]} />|)
 
       assert html =~ "<title>Mon: 12</title>"
+    end
+
+    test "a small magnitude is not rounded away to zero" do
+      # 4dp rounding turned a rate or a sub-cent price into "0".
+      assigns = %{data: [%{label: "rate", value: 1.234e-5}]}
+
+      html = render(~H|<.bar_chart id="b" data={@data} />|)
+
+      refute html =~ "<title>rate: 0</title>"
+    end
+
+    test "value_format takes over the tooltip entirely" do
+      assigns = %{
+        data: [%{label: "power", value: 1234}],
+        fmt: fn v -> "#{v} kWh" end
+      }
+
+      assert render(~H|<.bar_chart id="b" data={@data} value_format={@fmt} />|) =~
+               "<title>power: 1234 kWh</title>"
+    end
+
+    test "a raising value_format falls back rather than crashing the page" do
+      assigns = %{data: [%{label: "x", value: 1}], fmt: fn _ -> raise "boom" end}
+
+      assert render(~H|<.bar_chart id="b" data={@data} value_format={@fmt} />|) =~ "<title>x: 1"
+    end
+
+    test "bars accept tuples and string-keyed maps, like line_chart's points" do
+      assigns = %{
+        tuples: [{"Mon", 5}, {"Tue", 8}],
+        strings: [%{"label" => "Mon", "value" => 5}]
+      }
+
+      assert render(~H|<.bar_chart id="b" data={@tuples} />|) =~ "<rect"
+      assert render(~H|<.bar_chart id="b" data={@strings} />|) =~ "<rect"
+    end
+
+    test "an all-negative series still draws its zero line" do
+      assigns = %{}
+      # The baseline sits at the TOP there, which nothing else implies.
+      html =
+        render(
+          ~H|<.bar_chart id="b" data={[%{label: "a", value: -3}, %{label: "b", value: -8}]} />|
+        )
+
+      assert html =~ ~s(stroke-opacity="0.25")
+    end
+
+    test "an all-zero series still renders visible categories" do
+      assigns = %{}
+      # Zero-height rects paint nothing, so valid data produced a blank chart.
+      html =
+        render(
+          ~H|<.bar_chart id="b" data={[%{label: "a", value: 0}, %{label: "b", value: 0}]} />|
+        )
+
+      for [_, h] <- Regex.scan(~r/height="([^"]*)"/, html) do
+        {value, ""} = Float.parse(h)
+        assert value > 0
+      end
     end
 
     test "tooltip values are formatted for humans, not float noise" do

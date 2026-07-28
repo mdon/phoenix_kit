@@ -1464,8 +1464,11 @@ if (typeof window.Chart === "undefined") {
     var outerW = v.outerWidth || w;
     var outerH = v.outerHeight || h;
 
-    var left = Math.max(0, Math.round(originX + (outerW - w) / 2));
-    var top = Math.max(0, Math.round(originY + (outerH - h) / 2));
+    // Clamp the OFFSET, not the final coordinate: a monitor left of, or above,
+    // the primary one has negative screen coordinates, and flooring those at 0
+    // threw the popup back onto the primary display.
+    var left = Math.round(originX + Math.max(0, (outerW - w) / 2));
+    var top = Math.round(originY + Math.max(0, (outerH - h) / 2));
 
     return (
       "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top +
