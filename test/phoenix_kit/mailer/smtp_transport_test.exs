@@ -117,4 +117,133 @@ defmodule PhoenixKit.Mailer.SmtpTransportTest do
       assert tls[:cacerts] == [<<1, 2, 3>>]
     end
   end
+
+  describe "security setting (operator override of the port-based guess)" do
+    test "blank or \"auto\" keeps the historical port-based behavior" do
+      for value <- [nil, "", "auto"] do
+        assert {:ok, options} = SmtpTransport.config(creds(%{"security" => value}), [<<1>>])
+        assert options[:tls] == :always
+        refute Keyword.has_key?(options, :ssl)
+      end
+    end
+
+    test "\"ssl\" forces implicit TLS on a non-465 port" do
+      assert {:ok, options} =
+               SmtpTransport.config(creds(%{"security" => "ssl", "port" => "2465"}), [<<1>>])
+
+      assert options[:ssl] == true
+      assert options[:sockopts][:verify] == :verify_peer
+      refute Keyword.has_key?(options, :tls)
+    end
+
+    test "\"starttls\" forces the upgrade path even on 465" do
+      assert {:ok, options} =
+               SmtpTransport.config(creds(%{"security" => "starttls", "port" => 465}), [<<1>>])
+
+      assert options[:tls] == :always
+      refute Keyword.has_key?(options, :ssl)
+    end
+
+    test "\"starttls_optional\" downgrades the fail-closed rule a credentialed relay would get" do
+      assert {:ok, options} =
+               SmtpTransport.config(creds(%{"security" => "starttls_optional"}), [<<1>>])
+
+      assert options[:tls] == :if_available
+    end
+
+    test "\"none\" says :never — gen_smtp's default would still upgrade opportunistically" do
+      assert {:ok, options} = SmtpTransport.config(creds(%{"security" => "none"}), [])
+
+      assert options[:tls] == :never
+      refute Keyword.has_key?(options, :ssl)
+      refute Keyword.has_key?(options, :tls_options)
+    end
+
+    test "an unknown value is rejected rather than silently treated as auto" do
+      assert {:error, {:invalid_security, "tls1.3-please"}} =
+               SmtpTransport.config(creds(%{"security" => "tls1.3-please"}))
+    end
+  end
+
+  describe "certificate verification setting" do
+    test "verify_none is honored, and no longer needs a CA store to build a config" do
+      # The fail-closed :no_ca_store branch exists for operators who did NOT
+      # choose this; choosing it is the documented escape hatch for an internal
+      # relay with a self-signed certificate.
+      assert {:ok, options} = SmtpTransport.config(creds(%{"verify_cert" => "verify_none"}), [])
+
+      assert options[:tls_options] == [verify: :verify_none]
+    end
+
+    test "an unknown value is rejected" do
+      assert {:error, {:invalid_verify_cert, "sometimes"}} =
+               SmtpTransport.config(creds(%{"verify_cert" => "sometimes"}))
+    end
+  end
+
+  describe "custom CA bundle" do
+    test "a PEM bundle replaces the system store for this connection" do
+      pem = :public_key.pem_encode([{:Certificate, <<9, 9, 9>>, :not_encrypted}])
+
+      assert {:ok, options} = SmtpTransport.config(creds(%{"ca_cert" => pem}), [<<1, 2, 3>>])
+
+      assert options[:tls_options][:cacerts] == [<<9, 9, 9>>]
+    end
+
+    test "a PEM bundle is enough on a host with no system store at all" do
+      pem = :public_key.pem_encode([{:Certificate, <<9, 9, 9>>, :not_encrypted}])
+
+      assert {:ok, options} = SmtpTransport.config(creds(%{"ca_cert" => pem}), [])
+      assert options[:tls_options][:verify] == :verify_peer
+    end
+
+    test "garbage is rejected instead of silently falling back to the system store" do
+      # Falling back would leave the operator staring at a handshake failure
+      # against a CA they believe they installed.
+      assert {:error, :invalid_ca_cert} =
+               SmtpTransport.config(creds(%{"ca_cert" => "not a certificate"}))
+    end
+  end
+
+  describe "auth setting" do
+    test "defaults to gen_smtp's :if_available, so existing connections send unchanged" do
+      assert {:ok, options} = SmtpTransport.config(creds(), [<<1>>])
+      assert options[:auth] == :if_available
+    end
+
+    test "always and never are passed through" do
+      assert {:ok, always} = SmtpTransport.config(creds(%{"auth" => "always"}), [<<1>>])
+      assert {:ok, never} = SmtpTransport.config(creds(%{"auth" => "never"}), [<<1>>])
+
+      assert always[:auth] == :always
+      assert never[:auth] == :never
+    end
+
+    test "an unknown value is rejected" do
+      assert {:error, {:invalid_auth, "maybe"}} =
+               SmtpTransport.config(creds(%{"auth" => "maybe"}))
+    end
+  end
+
+  describe "timeout setting" do
+    test "is absent unless configured, leaving gen_smtp's own default alone" do
+      assert {:ok, options} = SmtpTransport.config(creds(), [<<1>>])
+      refute Keyword.has_key?(options, :timeout)
+    end
+
+    test "is given to gen_smtp in milliseconds" do
+      assert {:ok, from_string} = SmtpTransport.config(creds(%{"timeout" => "30"}), [<<1>>])
+      assert {:ok, from_int} = SmtpTransport.config(creds(%{"timeout" => 30}), [<<1>>])
+
+      assert from_string[:timeout] == 30_000
+      assert from_int[:timeout] == 30_000
+    end
+
+    test "rejects values that would mean 'no timeout' by accident" do
+      assert {:error, {:invalid_timeout, "0"}} = SmtpTransport.config(creds(%{"timeout" => "0"}))
+
+      assert {:error, {:invalid_timeout, "soon"}} =
+               SmtpTransport.config(creds(%{"timeout" => "soon"}))
+    end
+  end
 end

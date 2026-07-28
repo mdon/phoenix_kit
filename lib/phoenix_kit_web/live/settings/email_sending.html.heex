@@ -17,6 +17,24 @@
       <:subtitle>
         {gettext("Currently effective:")} {@effective_from_name} &lt;{@effective_from_email}&gt;
       </:subtitle>
+      <%!-- A sender the tracking module cannot log is the one failure mode with
+           no symptom: mail still goes out, the log stays empty, and nothing in
+           the UI says why. Warn where the address is edited. --%>
+      <div :if={!@sender_loggable?} class="alert alert-warning">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <div>
+          <div class="font-semibold">
+            {gettext("This sender address cannot be logged")}
+          </div>
+          <div class="text-sm">
+            {gettext(
+              "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently.",
+              email: @effective_from_email
+            )}
+          </div>
+        </div>
+      </div>
+
       <form id="sender-identity-form" phx-submit="save_sender_identity" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <.input

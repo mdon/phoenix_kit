@@ -204,9 +204,19 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   end
 
   @doc """
-  A single provider setup field. Rendered as `type="text"` even for
-  credential-shaped fields — they're API keys / tokens, not site logins, and
-  `type="password"` would trigger browsers' password-save heuristics.
+  A single provider setup field, rendered from the field's `:type`.
+
+  Credential-shaped fields stay `type="text"` on purpose — they're API keys /
+  tokens, not site logins, and `type="password"` would trigger browsers'
+  password-save heuristics. `:select`, `:textarea` and `:number` render as
+  themselves; anything else falls back to a text input, so a provider that
+  declares a type this component has never heard of still gets a usable field
+  rather than a blank spot in the form.
+
+  A `:select` with no stored value falls to the first option, so a provider
+  should list its default first (that is how the SMTP `security` / `auth` /
+  `verify_cert` fields keep their historical behavior on connections created
+  before they existed).
   """
   attr :field, :map, required: true
   attr :value, :string, default: ""
@@ -220,8 +230,37 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
           <span :if={@field.required} class="text-error">*</span>
         </span>
       </label>
+
+      <select
+        :if={@field.type == :select}
+        name={@field.key}
+        id={"field-#{@field.key}"}
+        class="select select-bordered w-full"
+        required={@field.required}
+      >
+        <option
+          :for={option <- @field.options || []}
+          value={option.value}
+          selected={option.value == @value}
+        >
+          {option.label}
+        </option>
+      </select>
+
+      <textarea
+        :if={@field.type == :textarea}
+        name={@field.key}
+        id={"field-#{@field.key}"}
+        class="textarea textarea-bordered w-full font-mono text-xs"
+        rows="5"
+        placeholder={@field.placeholder || ""}
+        required={@field.required}
+        autocomplete="off"
+      >{@value}</textarea>
+
       <input
-        type="text"
+        :if={@field.type not in [:select, :textarea]}
+        type={if @field.type == :number, do: "number", else: "text"}
         name={@field.key}
         id={"field-#{@field.key}"}
         value={@value}
@@ -230,6 +269,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         required={@field.required}
         autocomplete="off"
       />
+
       <label :if={@field.help} class="label">
         <span class="label-text-alt text-base-content/50">{@field.help}</span>
       </label>

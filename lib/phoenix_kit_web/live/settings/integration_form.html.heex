@@ -224,35 +224,24 @@
                  that whole class of UX noise; if shoulder-surfing
                  ever becomes a concern in practice we can revisit
                  with CSS-based masking. --%>
-            <div :for={field <- @provider.setup_fields} class="form-control">
-              <label class="label" for={"field-#{field.key}"}>
-                <span class="label-text">
-                  {field.label}
-                  <span :if={field.required} class="text-error">*</span>
-                </span>
-              </label>
-              <%!-- Value resolution order:
-                   1. `@form_values` — user-typed values captured
-                      during a dry-run test (`/new` flow). Without
-                      this, a failed test would re-render with empty
-                      inputs and look like the form ate the user's
-                      input.
-                   2. `@data` — the saved credential, edit mode.
-                   3. `""` — fresh /new, untouched. --%>
-              <input
-                type="text"
-                name={field.key}
-                id={"field-#{field.key}"}
-                value={Map.get(@form_values, field.key) || @data[field.key] || ""}
-                class="input input-bordered w-full"
-                placeholder={field.placeholder || ""}
-                required={field.required}
-                autocomplete="off"
-              />
-              <label :if={field.help} class="label">
-                <span class="label-text-alt text-base-content/50">{field.help}</span>
-              </label>
-            </div>
+            <%!-- Shared with the personal integrations form so the two cannot
+                 drift — this page used to hand-roll a `type="text"` input,
+                 which silently dropped every :select / :textarea / :number
+                 field a provider declared.
+
+                 Value resolution order:
+                 1. `@form_values` — user-typed values captured
+                    during a dry-run test (`/new` flow). Without
+                    this, a failed test would re-render with empty
+                    inputs and look like the form ate the user's
+                    input.
+                 2. `@data` — the saved credential, edit mode.
+                 3. `""` — fresh /new, untouched. --%>
+            <.setup_field
+              :for={field <- @provider.setup_fields}
+              field={field}
+              value={to_string(Map.get(@form_values, field.key) || @data[field.key] || "")}
+            />
 
             <%!-- Action row at the bottom of the same card body.
                  Both buttons submit the SAME form (`save_form`),

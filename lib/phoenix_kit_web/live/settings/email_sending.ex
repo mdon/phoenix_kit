@@ -76,10 +76,22 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
 
     with {:ok, _} <- Settings.update_setting("from_name", name),
          {:ok, _} <- Settings.update_setting("from_email", email) do
-      {:noreply,
-       socket
-       |> put_flash(:info, gettext("Sender identity updated"))
-       |> assign_sender_identity()}
+      socket = assign_sender_identity(socket)
+
+      # Saved either way — a host may genuinely want a local-only sender — but
+      # say so at the moment of the change, not only in the banner above.
+      {kind, message} =
+        if socket.assigns.sender_loggable? do
+          {:info, gettext("Sender identity updated")}
+        else
+          {:warning,
+           gettext(
+             "Sender identity updated, but %{email} is not a full address — the email tracking module will silently skip logging messages sent from it.",
+             email: socket.assigns.effective_from_email
+           )}
+        end
+
+      {:noreply, put_flash(socket, kind, message)}
     else
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Could not save sender identity"))}
@@ -157,12 +169,28 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   # ---------------------------------------------------------------------------
 
   defp assign_sender_identity(socket) do
+    effective_from_email = Mailer.get_from_email()
+
     socket
     |> assign(:from_name, Settings.get_setting("from_name", ""))
     |> assign(:from_email, Settings.get_setting("from_email", ""))
     |> assign(:effective_from_name, Mailer.get_from_name())
-    |> assign(:effective_from_email, Mailer.get_from_email())
+    |> assign(:effective_from_email, effective_from_email)
+    |> assign(:sender_loggable?, loggable_sender?(effective_from_email))
   end
+
+  # The email-tracking module refuses to log a message whose `from` is not a
+  # full address — its Log changeset validates ~r/^[^\s]+@[^\s]+\.[^\s]+$/ — and
+  # the interceptor swallows that rejection into a log line. The built-in default
+  # `noreply@localhost` fails it, so a freshly enabled email system records
+  # nothing at all while mail keeps going out: no rows, no error, nothing in the
+  # UI. Mirroring the rule here turns that silent dead end into a warning on the
+  # page that owns the address. Deliberately a copy and not a call: core must not
+  # depend on the optional module (and the check is one regex).
+  defp loggable_sender?(email) when is_binary(email),
+    do: Regex.match?(~r/^[^\s]+@[^\s]+\.[^\s]+$/, email)
+
+  defp loggable_sender?(_), do: false
 
   defp assign_transport_info(socket) do
     mailer = Mailer.get_mailer()
