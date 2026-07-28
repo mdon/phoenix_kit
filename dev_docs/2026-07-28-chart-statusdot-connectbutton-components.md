@@ -1,94 +1,148 @@
 # New core components: Chart, StatusDot, ConnectAccountButton (+ stat_card value_color)
 
-**Branch:** `feat/nordswitch-core-components`
-**Origin:** extracted from NordSwitch (nordswitch.eu) — the first app to dogfood
-these; its hand-rolled versions are running in production-dev today.
-**Status:** implementation done, deliberately untested — this doc is the
-handoff for the AI/dev doing tests, review and polish.
+**Origin:** extracted from NordSwitch (nordswitch.eu), whose hand-rolled versions
+run in production-dev today and will be swapped for these on release.
+**Status:** implemented, reviewed, tested. This doc is the after-action record —
+the original handoff asked for testing, review and polish, and this is what that
+pass found and changed.
 
-## What was added
+## What shipped
 
-### 1. `PhoenixKitWeb.Components.Core.Chart` (new)
+### `PhoenixKitWeb.Components.Core.Chart`
 
-Server-rendered SVG chart primitives, zero JS, theme-aware via
-`currentColor`:
+Server-rendered SVG, zero JS, theme-aware via `currentColor`:
 
-- `area_chart/1` — line/area chart over `{x, y}` number tuples; `step`
-  attr for interval data (right-open steps — each y holds until the
-  next x); optional `marker_x` dashed vertical marker ("now" line);
-  auto or explicit domains; `:empty` slot.
-- `sparkline/1` — minimal polyline over a list of numbers.
-- `bar_chart/1` — simple vertical bars over `%{label, value}` maps.
+- `line_chart/1` — line/area over `{x, y}` points; `step` for interval data
+  (right-open steps), optional `marker_x` "now" line, auto or explicit domains,
+  `:empty` slot.
+- `sparkline/1` — polyline over a list of numbers.
+- `bar_chart/1` — vertical bars from a **zero baseline**, native `<title>`
+  tooltips, optional per-datum `class`, aligned labels.
 
-Rationale: core (and the dashboards module) had **no chart primitives at
-all**; every consumer either hand-rolls SVG or pulls a JS library. These
-are LiveView-native: assigns change → SVG re-renders.
+Core (and the dashboards module) had no chart primitives at all; every consumer
+either hand-rolled SVG or pulled a JS library. These are LiveView-native:
+assigns change → SVG re-renders.
 
-Real-world usage reference (NordSwitch): a 96-slot day-ahead electricity
-price curve with a "now" marker, updating every 15 min over PubSub, and
-a 12-hour price sparkline; both currently hand-rolled in
-`NordswitchWeb.Charts` and ready to be swapped to these components.
+### `PhoenixKitWeb.Components.Core.StatusDot`
 
-### 2. `PhoenixKitWeb.Components.Core.StatusDot` (new)
+`status_dot/1` — semantic coloured dot + optional label + optional `pulse`.
+Boolean `up={bool}` convenience or explicit `variant`. Fills the gap between
+nothing and the domain-specific badges in `Badge`.
 
-`status_dot/1` — tiny semantic colored dot + optional label + optional
-`pulse` (ping animation). Boolean convenience `up={bool}` for the
-online/offline case, or explicit `variant` atom. Fills the gap between
-nothing and the domain-specific badges in `Badge` (role/user/code).
+### `PhoenixKitWeb.Components.Core.ConnectAccountButton`
 
-### 3. `PhoenixKitWeb.Components.Core.ConnectAccountButton` (new)
+`connect_account_button/1` — OAuth-popup account linking (distinct from
+`OAuthProvider`, which is app sign-in). Driven by the generic `PopupLink` hook.
 
-`connect_account_button/1` — the OAuth-popup "Connect your X account"
-pattern (window.open named popup; provider consent; callback closes
-popup + reloads opener). Distinct from `OAuthProvider` (app sign-in);
-this is for the Integrations system's third-party account linking.
-The expected callback-page script contract is documented in the
-moduledoc.
+### `stat_card` extension
 
-### 4. `stat_card` extension (modified, backward compatible)
+Optional `value_color` for values whose colour carries information (a price
+coloured by cheapness). Backward compatible; default nil.
 
-New optional `value_color` attr (CSS color string) applied as inline
-style to the value element in both compact and full layouts — for
-values whose color IS information (NordSwitch: spot price colored
-green→red by cheapness). Default nil = no change for existing callers.
+## What the review pass changed
 
-### 5. Registration
+The components were handed over deliberately untested. Testing plus two external
+review rounds (grok / kimi / codex / zai / vibe) found these:
 
-All three new modules imported in `phoenix_kit_web.ex` `core_components`
-block.
+**Crashes and silent failures**
 
-## Notes / decisions for the reviewer
+- `bar_chart` scaled from `max(value)`, so a **negative value produced a negative
+  rect height** — SVG discards those, so the bar silently vanished rather than
+  rendering below a baseline. An all-negative series divided by the `1.0e-9`
+  floor and threw the geometry to astronomical numbers. Bars are measured from a
+  zero baseline now.
+- A **single data point** produced a bare `M x,y` path, which is valid and paints
+  nothing. It holds its value across the range instead — the same reading `step`
+  mode already gave it. Same fix for a single sparkline value.
+- **Reversed domains** (`x_domain={{10, 0}}`) drove the span negative; the
+  `1.0e-9` floor then produced coordinates around `1.0e12` and the chart vanished
+  off-canvas. Both axes normalise.
+- **One bad point took the page down.** `nil`, a string, or a `Decimal` raised an
+  uncaught `ArithmeticError` mid-render — and `Decimal` is what Ecto hands you
+  for money, in a kit with a billing module. Points are normalised: tuples or
+  `%{x:, y:}` maps, Decimals converted, non-numeric dropped, `:empty` when
+  nothing usable survives.
 
-- **Charts are numeric-domain only** on purpose: no DateTime handling in
-  the component; callers map time → number. Keeps the API tiny and the
-  component future-proof. If a datetime axis helper is wanted later, it
-  should be a separate wrapper, not a widening of this API.
-- `preserveAspectRatio="none"` + `vector-effect="non-scaling-stroke"` is
-  the stretch model: the SVG fills its container, strokes stay crisp.
-  Containers control size via normal CSS (`h-48 w-full`).
-- Gradient stops use `stop-color="currentColor"` — verify on all
-  supported browsers (works in Chrome/FF/Safari current; that claim is
-  untested here).
-- `area_chart` step mode extends the last slot to the x-domain's right
-  edge — intended for interval data; check the non-step + explicit
-  x_domain combinations.
-- Suggested test areas: empty data (renders `:empty` slot / nothing),
-  single-point data (sparkline returns nil under 2 points; area_chart
-  with one point), negative values (electricity prices go negative!),
-  y_domain zero-span, bar_chart with zero max.
-- `StatusDot` `size-1.5/2/2.5` classes assume Tailwind v4 size-*
-  utilities — confirm against the kit's Tailwind setup.
-- `ConnectAccountButton` uses an inline `onclick` — if the kit prefers
-  a JS hook / `phx-click` + JS.dispatch pattern for CSP friendliness,
-  that's a fair refactor; the contract (named popup + opener reload)
-  should survive it.
-- daisyUI 5 / Tailwind 4 assumed throughout, matching the kit.
+**Security / correctness**
 
-## Follow-up candidates (not implemented)
+- `connect_account_button` used an **inline `onclick`** — CSP-hostile in a kit
+  that removed inline handlers everywhere else — whose `return false` cancelled
+  navigation *unconditionally*, including when the popup was blocked. That is
+  precisely when the documented "falls back to normal navigation" was supposed to
+  save it; the button simply did nothing. It is a hook now that preventDefaults
+  only after `window.open` returns a live window, and leaves modifier-clicks
+  alone.
+- Every unconfigured button shared **one DOM id** (`window_name` defaulted to a
+  constant), which is invalid HTML and breaks `phx-hook`. The default derives
+  from `href` now.
+- The moduledoc's security rationale was **wrong**: it claimed the local-path
+  check kept `window.opener` from third parties. The popup navigates on to the
+  provider and the opener reference survives, so the provider's origin can reach
+  `opener.location` — reverse tabnabbing. The doc now names the real mitigation
+  (COOP + `postMessage`). The local-path check is kept, for what it does do.
+- `stat_card`'s `value_color` interpolated into `style=`; a `;` could append a
+  second declaration. Stripped, and the attribute is spread conditionally
+  (HEEx renders `style={nil}` as an empty `style=""`).
 
-- The dashboards module's widgets consuming `Chart` (natural second
-  consumer; would validate the API quickly).
-- A `datetime_area_chart` wrapper with axis tick labels, if demand
-  appears.
-- NordSwitch will adopt these once released (drop-in replacements for
-  its hand-rolled versions) — ping Max/NordSwitch when a version ships.
+**Accessibility**
+
+- Charts carried `role="img"` with **no accessible name**. Optional `aria_label`
+  renders as `<title>` + `aria-label`; unlabelled charts are marked decorative.
+- `status_dot` conveyed state through **colour alone** — silent to a screen
+  reader, indistinguishable to red/green colour-blind users. Unlabelled dots
+  carry a visually-hidden state name kept in step with the colour. `pulse`
+  respects `prefers-reduced-motion`.
+
+**API, changed while it was still free (nothing consumes these yet)**
+
+- `area_chart` → **`line_chart`** (`area_chart area={false}` *was* a line chart).
+- a11y attr `label` → **`aria_label`**, so it stops colliding with bar data's own
+  `label:` key.
+- Hook `ConnectAccountPopup` → **`PopupLink`**; nothing about it is
+  OAuth-specific, and hook names freeze once hosts copy the bundle.
+- `:rest` global on all three charts and on `status_dot`.
+- Bars: `<title>` tooltips, zero baseline, per-datum `class`, rendered `id`,
+  labels sized to their own slot (`justify-between` drifted the first and last
+  labels to the container edges while bars sit at slot centres).
+- Gridlines got the `vector-effect` the line already had.
+- Bar tooltip values are formatted for display, so a computed `0.1 + 0.2` reads
+  as `0.3` rather than `0.30000000000000004`.
+
+## Tests
+
+- `test/phoenix_kit_web/components/core/{chart,status_dot,connect_account_button,stat_card}_test.exs`
+- `test/js/popup_link.test.cjs` — the hook's pure decision logic (which clicks to
+  intercept, where to place the popup, same-origin). Run via `mix test.js`, wired
+  into `mix precommit`; skips itself when node isn't installed.
+
+Verified live in `phoenix_kit_parent` at `/core-components-showcase` (local
+only): positive bars end exactly at the baseline, negatives hang below it, and
+heights stay proportional.
+
+## Known limits, deliberately not addressed
+
+- **Numeric domains only.** Callers map time → number. A datetime-axis helper, if
+  ever wanted, should be a separate wrapper rather than a widening of this API.
+- **Single series.** Overlay two absolutely-positioned charts sharing a viewBox;
+  `currentColor` makes per-series theming trivial (`text-primary` /
+  `text-secondary`).
+- **`preserveAspectRatio="none"`** protects strokes via `vector-effect`, but dash
+  patterns and the bars' `rx` corners still distort under heavy stretch.
+- **No axis tick labels.** The highest-value future addition; gridline positions
+  are already computed. Render them as HTML beside the SVG, not `<text>` inside
+  it, which the stretch model would distort.
+- **Large N:** pre-aggregate above roughly 1–2k points rather than expecting
+  decimation.
+
+## Follow-ups
+
+- `phoenix_kit_dashboards` widgets are the natural second consumer and would
+  validate the API quickly.
+- `phoenix_kit_publishing` hand-rolls a status dot
+  (`version_switcher.ex`, `status_dot_classes/3`) — the exact duplication
+  `StatusDot` exists to remove.
+- NordSwitch adopts these on release.
+- Unrelated but noticed: `priv/static/assets/phoenix_kit.js` already bundles the
+  full **Chart.js UMD library**, which sets `window.Chart`. Worth a deliberate
+  decision about whether the kit wants two charting stories now that zero-JS
+  primitives exist.
