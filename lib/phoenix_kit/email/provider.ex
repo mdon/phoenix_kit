@@ -11,6 +11,24 @@ defmodule PhoenixKit.Email.Provider do
   @callback intercept_before_send(Swoosh.Email.t(), keyword()) :: Swoosh.Email.t()
   @callback handle_after_send(Swoosh.Email.t(), {:ok, any()} | {:error, any()}) :: :ok
 
+  @doc """
+  Offers the provider the chance to take delivery over — i.e. queue the message
+  instead of sending it on this process.
+
+  Called by `PhoenixKit.Mailer` right after `intercept_before_send/2`, on both
+  the integration and the static-mailer path, so a queue covers *every* outgoing
+  message and not just the ones a caller routed through the package. Returning
+  `{:queued, ref}` means "accepted, do not send now" and `ref` is echoed back to
+  the caller as `{:ok, %{id: ref, queued: true}}`; `:continue` means send
+  normally.
+
+  Optional: it is skipped when the provider does not export it, so a package
+  built against an older core still satisfies this behaviour.
+  """
+  @callback maybe_enqueue(Swoosh.Email.t(), keyword()) :: :continue | {:queued, term()}
+
+  @optional_callbacks maybe_enqueue: 2
+
   # Templates
   @callback get_active_template_by_name(String.t()) :: map() | nil
   @callback render_template(map(), map()) :: map()

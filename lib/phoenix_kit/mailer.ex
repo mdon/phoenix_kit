@@ -207,10 +207,8 @@ defmodule PhoenixKit.Mailer do
   end
 
   defp deliver_via_configured_mailer(email, opts) do
-    with :ok <- check_recipient_allowed(email) do
-      # Intercept email for tracking before sending
-      tracked_email = Provider.current().intercept_before_send(email, opts)
-
+    with :ok <- check_recipient_allowed(email),
+         {:continue, tracked_email} <- intercept_and_offer_queue(email, opts) do
       mailer = get_mailer()
 
       result =
@@ -346,10 +344,45 @@ defmodule PhoenixKit.Mailer do
       # (plus a "no provider data" warning per send). `put_new` lets an explicit
       # caller override win.
       tracked_opts = Keyword.put_new(opts, :provider, creds["provider"])
-      tracked_email = Provider.current().intercept_before_send(email, tracked_opts)
-      result = Swoosh.Mailer.deliver(tracked_email, [adapter: adapter] ++ config)
-      Provider.current().handle_after_send(tracked_email, result)
-      result
+
+      with {:continue, tracked_email} <- intercept_and_offer_queue(email, tracked_opts) do
+        result = Swoosh.Mailer.deliver(tracked_email, [adapter: adapter] ++ config)
+        Provider.current().handle_after_send(tracked_email, result)
+        result
+      end
+    end
+  end
+
+  # Runs the tracking interceptor, then offers the message to the provider's
+  # queue. Returns `{:continue, email}` to send on this process, or the queued
+  # `{:ok, …}` result to hand straight back to the caller.
+  #
+  # The offer sits here, after interception and before *both* delivery paths, so
+  # that queueing covers every outgoing message — including the ones the host app
+  # sends through its own statically configured mailer, which never touch the
+  # package's API. `skip_queue: true` is how the queue worker asks for the real
+  # send without being handed back its own job.
+  defp intercept_and_offer_queue(email, opts) do
+    provider = Provider.current()
+    tracked_email = provider.intercept_before_send(email, opts)
+
+    if Keyword.get(opts, :skip_queue, false) do
+      {:continue, tracked_email}
+    else
+      case offer_to_queue(provider, tracked_email, opts) do
+        {:queued, ref} -> {:ok, %{id: ref, queued: true}}
+        _ -> {:continue, tracked_email}
+      end
+    end
+  end
+
+  # `maybe_enqueue/2` is an optional callback: a package built against an older
+  # core does not export it, and the DefaultProvider answers `:continue`.
+  defp offer_to_queue(provider, email, opts) do
+    if Code.ensure_loaded?(provider) and function_exported?(provider, :maybe_enqueue, 2) do
+      provider.maybe_enqueue(email, opts)
+    else
+      :continue
     end
   end
 

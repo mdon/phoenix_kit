@@ -13,6 +13,9 @@ defmodule PhoenixKit.Email.DefaultProvider do
   def intercept_before_send(email, _opts), do: email
   @impl true
   def handle_after_send(_email, _result), do: :ok
+  # No package, no queue — every message is sent on the calling process.
+  @impl true
+  def maybe_enqueue(_email, _opts), do: :continue
 
   # Templates — nil triggers hardcoded fallback
   @impl true
