@@ -540,8 +540,26 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
   defp normalize_bars(_), do: []
 
-  defp bar_title(%{label: nil, value: value}), do: to_string(value)
-  defp bar_title(%{label: label, value: value}), do: "#{label}: #{value}"
+  defp bar_title(%{label: nil, value: value}), do: format_value(value)
+  defp bar_title(%{label: label, value: value}), do: "#{label}: #{format_value(value)}"
+
+  # Tooltips show a computed number, and float arithmetic surfaces its own
+  # noise: `0.1 + 0.2` renders as "0.30000000000000004". Round for DISPLAY only
+  # — the geometry keeps full precision — and drop a trailing ".0" so whole
+  # numbers read as whole numbers.
+  defp format_value(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp format_value(value) when is_float(value) do
+    rounded = Float.round(value, 4)
+
+    if rounded == Float.round(rounded, 0) and abs(rounded) < 1.0e15 do
+      rounded |> trunc() |> Integer.to_string()
+    else
+      rounded |> :erlang.float_to_binary([:short]) |> String.trim_trailing(".0")
+    end
+  end
+
+  defp format_value(value), do: to_string(value)
 
   # `Float.round/2` raises on an integer. Every current call site is protected
   # because `/` always yields a float in Elixir, but that is a property of the

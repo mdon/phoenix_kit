@@ -342,6 +342,26 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert html =~ "<title>Mon: 12</title>"
     end
 
+    test "tooltip values are formatted for humans, not float noise" do
+      # A computed value like 0.1 + 0.2 renders as 0.30000000000000004
+      # unformatted, which is what a tooltip would have shown.
+      assigns = %{
+        data: [
+          %{label: "computed", value: 0.1 + 0.2},
+          %{label: "whole", value: 12.0},
+          %{label: "int", value: 7},
+          %{label: "money", value: Decimal.new("12.30")}
+        ]
+      }
+
+      html = render(~H|<.bar_chart id="b" data={@data} />|)
+
+      assert html =~ "<title>computed: 0.3</title>"
+      assert html =~ "<title>whole: 12</title>"
+      assert html =~ "<title>int: 7</title>"
+      assert html =~ "<title>money: 12.3</title>"
+    end
+
     test "a per-datum class colours a single bar" do
       assigns = %{data: [%{label: "a", value: 1}, %{label: "b", value: 2, class: "text-error"}]}
 
