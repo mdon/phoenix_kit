@@ -49,9 +49,12 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
   """
   attr :rounded, :string,
     default: "box",
+    values: ["box", "none", "sm", "md", "lg", "xl", "2xl", "3xl", "full"],
     doc:
-      "Border radius token appended to `rounded-` (daisyUI's `box`, or Tailwind's " <>
-        "`lg`/`xl`/`full`). Was previously declared but ignored — the class was hardcoded."
+      "Border radius. Was previously declared but ignored — the class was hardcoded. " <>
+        "The values are a fixed list because Tailwind scans SOURCE for literal class " <>
+        "names: an interpolated class is invisible to it, so the CSS " <>
+        "would simply not exist for anything not already written literally elsewhere."
 
   attr :compact, :boolean, default: false, doc: "Use compact layout with reduced height"
   attr :value, :any, required: true, doc: "The main statistic value to display"
@@ -78,7 +81,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     ~H"""
     <div class={[
       color_classes(@color),
-      "rounded-#{@rounded}",
+      rounded_class(@rounded),
       "shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
       if(@compact, do: "p-4", else: "p-6")
     ]}>
@@ -114,6 +117,20 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     </div>
     """
   end
+
+  # Written out in full so Tailwind's content scanner can see every one of
+  # them. Interpolating the token produces a class that exists in the markup
+  # but never in the stylesheet.
+  defp rounded_class("box"), do: "rounded-box"
+  defp rounded_class("none"), do: "rounded-none"
+  defp rounded_class("sm"), do: "rounded-sm"
+  defp rounded_class("md"), do: "rounded-md"
+  defp rounded_class("lg"), do: "rounded-lg"
+  defp rounded_class("xl"), do: "rounded-xl"
+  defp rounded_class("2xl"), do: "rounded-2xl"
+  defp rounded_class("3xl"), do: "rounded-3xl"
+  defp rounded_class("full"), do: "rounded-full"
+  defp rounded_class(_), do: "rounded-box"
 
   # Color class helpers
   defp color_classes("info"), do: "bg-info text-info-content"

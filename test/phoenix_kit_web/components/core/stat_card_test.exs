@@ -75,4 +75,31 @@ defmodule PhoenixKitWeb.Components.Core.StatCardTest do
     assigns = %{color: "   ", compact: false}
     refute render(card(assigns)) =~ "style="
   end
+
+  test "the rounded attr is applied, as a literal class" do
+    # It was declared and documented for a long time while the class was
+    # hardcoded. The mapping must emit literal class names: Tailwind scans
+    # SOURCE, so an interpolated `rounded-#{token}` produces markup whose CSS
+    # was never generated.
+    assigns = %{color: nil, compact: false}
+
+    default =
+      render(~H"""
+      <.stat_card value="1" title="t" subtitle="s">
+        <:icon>i</:icon>
+      </.stat_card>
+      """)
+
+    assert default =~ "rounded-box"
+
+    custom =
+      render(~H"""
+      <.stat_card value="1" title="t" subtitle="s" rounded="full">
+        <:icon>i</:icon>
+      </.stat_card>
+      """)
+
+    assert custom =~ "rounded-full"
+    refute custom =~ "rounded-box shadow"
+  end
 end
