@@ -262,3 +262,38 @@ Recording these so a later reviewer does not re-derive them:
   warnings as errors + `test.js`) — clean, exit 0, verified unpiped.
 - `mix test` for the touched unit suites — 0 failures. Integration tests are
   auto-excluded here (no PostgreSQL), per the repo's standalone-testing stance.
+
+---
+
+## Post-release verification (1.7.217, 2026-07-28)
+
+Independent re-check of the released tree (`d7008e00`) against the findings
+above — every claimed fix confirmed present in code, not just in the commit
+message:
+
+- HIGH: `loggable_sender?/1` is the single `to_string/1` clause
+  (`lib/phoenix_kit_web/live/settings/email_sending.ex:196`) — no unreachable
+  head.
+- MEDIUM: smtp `username`/`password` are `required: false`
+  (`lib/phoenix_kit/integrations/providers.ex:780`, `:792`), `host`/`port`
+  stay required; `probe_auth/1` has the symmetric no-login → `:never` branch
+  (`lib/phoenix_kit/integrations/validators.ex:134`).
+- MEDIUM: the personal form drops blanks for `:password` only and trims
+  (`lib/phoenix_kit_web/live/integrations/my_integration_form.ex:345`),
+  matching the website rule.
+- IMPROVEMENT: `Map.get(field, :type)` on both save paths
+  (`lib/phoenix_kit_web/live/settings/integration_form.ex:590`,
+  `my_integration_form.ex:349`).
+- NITPICKs: `parse_timeout/1` requires an empty remainder
+  (`lib/phoenix_kit/mailer/smtp_transport.ex:151`); the five new error reasons
+  are documented on `deliver_via_integration/3`
+  (`lib/phoenix_kit/mailer.ex:336`); the double-interception warning admonition
+  is on `maybe_enqueue/2` (`lib/phoenix_kit/email/provider.ex:31`).
+
+Gates re-run on the release commit:
+
+- `mix quality.ci` — credo 0 issues, dialyzer passed, exit 0 (the exact gate
+  the HIGH was breaking).
+- `mix format --check-formatted` — clean.
+- `mix test` on `smtp_transport_test.exs` + `providers_test.exs` — 30 tests,
+  0 failures. Integration tests auto-excluded (no PostgreSQL here).

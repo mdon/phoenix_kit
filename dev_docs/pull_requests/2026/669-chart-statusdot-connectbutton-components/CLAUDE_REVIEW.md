@@ -152,3 +152,20 @@ Recording the re-derivations so a later reviewer does not repeat them:
 - `mix test` for the four new component suites plus the SMTP suite — 122 tests,
   0 failures. Integration tests are auto-excluded here (no PostgreSQL), per the
   repo's standalone-testing stance.
+
+---
+
+## Post-release verification (1.7.217, 2026-07-28)
+
+Independent re-check of the released tree (`d7008e00`):
+
+- NITPICK: `run_js_tests/1` skips on an empty glob before the node check
+  (`mix.exs:331`), so `node --test` can no longer be handed the whole repo.
+- `mix test.js` re-run on the release commit — 21 tests, 0 failures.
+- `mix quality.ci` (credo + dialyzer, the gate that had been masking this
+  step via #668's dialyzer failure) — clean, exit 0.
+
+Both ecosystem notes remain accurate for 1.7.217: `stat_card`'s `rounded` is
+load-bearing with a closed `values:` list, and hosts need
+`mix phoenix_kit.update` for the `PopupLink` hook to reach their vendored
+`phoenix_kit.js` copy.

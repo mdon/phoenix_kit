@@ -244,3 +244,26 @@ Spot-checked and found correct:
 dialyzer) passes clean, before and after the fixes. Per `AGENTS.md` this repo
 isn't standalone-`mix test`-able (no PostgreSQL here); the added tests are
 integration-tagged and run in a DB-backed environment.
+
+---
+
+## Post-release verification (1.7.217, 2026-07-28)
+
+This PR's post-merge fixes (`bb2e76b9`) ship in release 1.7.217 — confirmed an
+ancestor of the release commit `d7008e00`. Spot-checked against the released
+tree:
+
+- `Routes.post_auth_path/1` and the deduped public `Routes.auth_page?/1` are
+  in place (`lib/phoenix_kit/utils/routes.ex:98`, `:157`), and
+  `log_in_user/3` resolves through the single `post_auth_path/1` resolver.
+- The `:rate_limit` opt-out on `deliver_user_reset_password_instructions/3`
+  is present (`lib/phoenix_kit/users/auth.ex`), with the LiveView throttling
+  before the lookup.
+- `mix test test/phoenix_kit/utils/routes_test.exs` — 21 tests, 0 failures.
+- `mix quality.ci` — clean, exit 0.
+
+**Gap found:** the 1.7.217 CHANGELOG entry covers only #668/#669. These
+user-visible fixes — the password-reset double rate-limit charge (a second
+reset within 5 minutes silently sent nothing) and the
+`?return_to=/users/log-out` sign-out loop — have no changelog entry in any
+release.
