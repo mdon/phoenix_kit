@@ -110,6 +110,12 @@ defmodule PhoenixKit.Integrations.Validators do
            setting: to_string(key) |> String.replace_prefix("invalid_", ""),
            value: inspect(value)
          )}
+
+      # This case runs OUTSIDE Probe.run and its rescue, so a reason added to
+      # SmtpTransport later would raise CaseClauseError straight out of a
+      # LiveView callback. Say something useless-but-safe instead.
+      {:error, reason} ->
+        {:error, gettext("Invalid SMTP settings: %{reason}", reason: inspect(reason))}
     end
   end
 
