@@ -45,6 +45,19 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
     end
   end
 
+  # Coordinates far outside the viewBox mean the chart is invisible even though
+  # the numbers are technically finite.
+  defp assert_within_viewbox(html, width, height) do
+    limit = max(width, height) * 10
+
+    for value <- path_numbers(html) do
+      {n, ""} = Float.parse(value)
+
+      assert abs(n) <= limit,
+             "coordinate #{n} is far outside the #{width}x#{height} viewBox"
+    end
+  end
+
   defp assert_finite_numbers(html) do
     for value <- numeric_attrs(html) ++ path_numbers(html) do
       refute value =~ ~r/nan|inf/i, "non-finite number in rendered SVG: #{inspect(value)}"
@@ -203,6 +216,37 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       html = render(~H|<.area_chart id="c" data={[{0.0, 1.5}, {1.25, 2.75}]} />|)
 
       assert_finite_numbers(html)
+    end
+
+    test "a reversed x_domain is normalised rather than exploding off-canvas" do
+      assigns = %{}
+      # {10, 0} used to drive the span negative; the 1.0e-9 floor then produced
+      # coordinates around 1.0e12 and the chart simply vanished.
+      html = render(~H|<.area_chart id="c" data={[{0, 1}, {10, 2}]} x_domain={{10, 0}} />|)
+
+      assert_finite_numbers(html)
+      assert_within_viewbox(html, 960, 240)
+    end
+
+    test "a reversed y_domain is normalised rather than exploding off-canvas" do
+      assigns = %{}
+      html = render(~H|<.area_chart id="c" data={[{0, 1}, {10, 2}]} y_domain={{5, 0}} />|)
+
+      assert_finite_numbers(html)
+      assert_within_viewbox(html, 960, 240)
+    end
+
+    test "unsorted data is drawn left-to-right" do
+      assigns = %{}
+      # Unsorted input rendered as a zigzag that reads like a chart bug.
+      html = render(~H|<.area_chart id="c" data={[{5, 1}, {0, 9}, {10, 2}]} />|)
+
+      xs =
+        stroked_path(html)
+        |> then(&Regex.scan(~r/[ML]([-\d.eE+]+),/, &1))
+        |> Enum.map(fn [_, x] -> elem(Float.parse(x), 0) end)
+
+      assert xs == Enum.sort(xs), "points must be drawn in ascending x order, got: #{inspect(xs)}"
     end
 
     test "carries an accessible name" do

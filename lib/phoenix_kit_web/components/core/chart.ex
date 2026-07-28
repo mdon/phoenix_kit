@@ -238,10 +238,14 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   defp area_geometry(%{data: nil}), do: nil
 
   defp area_geometry(assigns) do
-    %{data: data, width: width, height: height} = assigns
+    %{width: width, height: height} = assigns
 
-    {x_min, x_max} = assigns.x_domain || Enum.min_max_by(data, &elem(&1, 0)) |> minmax_x()
-    {y_min, y_max} = assigns.y_domain || padded_y_domain(data)
+    # A line chart only makes sense left-to-right, and unsorted input renders
+    # as a zigzag that reads like a bug in the chart rather than in the data.
+    data = Enum.sort_by(assigns.data, &elem(&1, 0))
+
+    {x_min, x_max} = normalize_domain(assigns.x_domain || minmax_x(data))
+    {y_min, y_max} = normalize_domain(assigns.y_domain || padded_y_domain(data))
 
     x_span = max(x_max - x_min, 1.0e-9)
     y_span = max(y_max - y_min, 1.0e-9)
@@ -295,7 +299,16 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     }
   end
 
-  defp minmax_x({{x_min, _}, {x_max, _}}), do: {x_min, x_max}
+  defp minmax_x(data) do
+    {{x_min, _}, {x_max, _}} = Enum.min_max_by(data, &elem(&1, 0))
+    {x_min, x_max}
+  end
+
+  # A reversed domain ({10, 0}) otherwise drove the span negative, which the
+  # 1.0e-9 floor turned into coordinates around 1.0e12 — the chart vanished
+  # off-canvas instead of simply drawing.
+  defp normalize_domain({a, b}) when a > b, do: {b, a}
+  defp normalize_domain({_a, _b} = domain), do: domain
 
   defp padded_y_domain(data) do
     {y_min, y_max} = data |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
