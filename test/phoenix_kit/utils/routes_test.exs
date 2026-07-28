@@ -148,5 +148,34 @@ defmodule PhoenixKit.Utils.RoutesTest do
       assert Routes.post_auth_path(["https://evil.example", "/safe"]) == "/safe"
       assert Routes.post_auth_path(["/\t/evil.example", "/safe"]) == "/safe"
     end
+
+    # A `?return_to=` is whatever a link contained, so it gets the same
+    # loop/lockout guard the saved settings get. `/users/log-out` is the one
+    # that actually hurts: it's a real GET route, so the user is signed back
+    # out the instant they sign in.
+    test "skips candidates that land on a sign-in page" do
+      assert Routes.post_auth_path(["/users/log-out", "/safe"]) == "/safe"
+      assert Routes.post_auth_path(["/users/log-in", "/safe"]) == "/safe"
+      assert Routes.post_auth_path(["/et/users/register/", "/safe"]) == "/safe"
+      assert Routes.post_auth_path(["/users/confirm?token=x", "/safe"]) == "/safe"
+    end
+  end
+
+  describe "auth_page?/1" do
+    test "matches the auth pages under any locale or mount prefix" do
+      assert Routes.auth_page?("/users/log-in")
+      assert Routes.auth_page?("/users/log-out")
+      assert Routes.auth_page?("/app/et/users/register")
+      assert Routes.auth_page?("/users/magic-link/")
+      assert Routes.auth_page?("/users/qr-login#x")
+      assert Routes.auth_page?("/users/reset-password?token=abc")
+    end
+
+    test "leaves ordinary destinations alone" do
+      refute Routes.auth_page?("/")
+      refute Routes.auth_page?("/dashboard")
+      refute Routes.auth_page?("/users/settings")
+      refute Routes.auth_page?(nil)
+    end
   end
 end

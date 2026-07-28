@@ -165,10 +165,21 @@ defmodule PhoenixKitWeb.Users.Session do
   # left alone, and a return_to carried by the form overwrites the session
   # key afterwards (maybe_store_return_to_from_params/2 runs later in the
   # shared create/3).
+  #
+  # Re-guarded on read exactly like `Routes.post_auth_path/1` does for
+  # `after_login_path`: trimmed (the changeset trims the CHANGE, but settings
+  # are persisted from `changeset.params`, so a stored value can still carry
+  # surrounding whitespace), rejected if not local, and rejected if it points
+  # at a sign-in page — a hand-edited DB row must not become an open redirect
+  # or a login loop.
   defp maybe_store_after_registration_path(conn) do
-    path = PhoenixKit.Settings.get_setting("after_registration_path", "")
+    path =
+      "after_registration_path"
+      |> PhoenixKit.Settings.get_setting("")
+      |> to_string()
+      |> String.trim()
 
-    if is_binary(path) and path != "" and Routes.local_path?(path) and
+    if path != "" and Routes.local_path?(path) and not Routes.auth_page?(path) and
          is_nil(get_session(conn, :user_return_to)) do
       put_session(conn, :user_return_to, path)
     else

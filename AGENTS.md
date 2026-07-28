@@ -168,10 +168,14 @@ settings live on the admin Users settings page (`/admin/settings/users`).
   deliberately generic copy into an account-existence oracle. Password reset had
   exactly that shape; confirmation resend had no limit at all.
 - **Email confirmation:** `require_email_confirmation` (default true) gates
-  *enforcement* only; emails always send. Honored at **six** sites — the
-  `require_authenticated_user` / `require_authenticated_scope` plugs and the
+  *enforcement* only; emails always send. Honored at **eleven** sites — the
   `ensure_authenticated`, `ensure_authenticated_scope`, `ensure_owner`,
-  `ensure_admin`, `ensure_module_access` on_mount hooks. Add it to any new gate.
+  `ensure_admin`, `ensure_module_access` on_mount hooks, the
+  `require_authenticated_user` / `require_authenticated_scope` plugs, and the
+  role/permission plugs `require_owner` / `require_admin` /
+  `require_module_access` / `require_role` (these four share the private
+  `confirmation_gate/2`, since the shipped `:phoenix_kit_admin_only` pipeline
+  runs them with NO preceding `require_authenticated_*`). Add it to any new gate.
 - **The parked `/users/confirm` page** advances users instead of stranding them:
   on mount when already confirmed (covers a direct DB flip + refresh) and live off
   the `{:user_confirmed, _}` broadcast. It subscribes *before* re-reading the user.

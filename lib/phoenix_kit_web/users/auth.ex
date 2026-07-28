@@ -107,12 +107,19 @@ defmodule PhoenixKitWeb.Users.Auth do
     token = Auth.generate_user_session_token(user, opts)
 
     # Destination: an explicit `return_to` in params wins, then whatever a gate
-    # stashed in the session. Honoring the param matters because callers pass it
-    # (the OAuth callback has always passed `"return_to"` here, and it was
-    # silently dropped — session renewal below then wiped the session copy too,
-    # so an OAuth login started from a protected page landed on the default).
+    # stashed in the session, then the `after_login_path` setting. Honoring the
+    # param matters because callers pass it (the OAuth callback has always
+    # passed `"return_to"` here, and it was silently dropped — session renewal
+    # below then wiped the session copy too, so an OAuth login started from a
+    # protected page landed on the default).
+    #
+    # Resolved by `post_auth_path/1` rather than a local guard so this shares
+    # ONE rule with the confirmation pages: local-path only AND never a
+    # sign-in page. A bare `local_path?` check let `?return_to=/users/log-out`
+    # through — a real GET route, so the user was signed back out the instant
+    # they signed in.
     user_return_to =
-      sanitize_local(params["return_to"]) || get_session(conn, :user_return_to)
+      Routes.post_auth_path([params["return_to"], get_session(conn, :user_return_to)])
 
     # Merge guest cart into user cart before session renewal clears session data.
     # The shop_session_id cookie survives renew_session (only session data is cleared).
@@ -127,7 +134,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> renew_session()
     |> put_token_in_session(token)
     |> maybe_write_remember_me_cookie(token, params)
-    |> redirect(to: user_return_to || signed_in_path(conn))
+    |> redirect(to: user_return_to)
   end
 
   defp maybe_merge_guest_cart(conn, user) do
@@ -146,10 +153,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
 
     conn
-  end
-
-  defp sanitize_local(path) do
-    if Routes.local_path?(path), do: path, else: nil
   end
 
   # The site-wide `remember_me_enabled` policy is enforced HERE rather than at

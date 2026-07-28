@@ -90,12 +90,21 @@ defmodule PhoenixKit.Utils.Routes do
       "/checkout"
       iex> PhoenixKit.Utils.Routes.post_auth_path(["https://evil.com", nil])
       "/"
+      iex> PhoenixKit.Utils.Routes.post_auth_path(["/users/log-out"])
+      "/"
 
   """
   @spec post_auth_path([term()]) :: String.t()
   def post_auth_path(candidates \\ []) when is_list(candidates) do
-    Enum.find(candidates, &local_path?/1) || after_login_path()
+    Enum.find(candidates, &safe_destination?/1) || after_login_path()
   end
+
+  # A candidate carries the same two requirements as the setting: local, and
+  # not a page that bounces an authenticated visitor. The candidates are the
+  # LESS trusted of the two — `?return_to=` is whatever a link contained — so
+  # `?return_to=/users/log-out` on any auth link would otherwise sign the user
+  # back out the instant they signed in.
+  defp safe_destination?(path), do: local_path?(path) and not auth_page?(path)
 
   @doc """
   Renders `?return_to=<path>` for a link, or `""` when there is nothing safe to
@@ -122,10 +131,35 @@ defmodule PhoenixKit.Utils.Routes do
     if local_path?(path) and not auth_page?(path), do: path, else: "/"
   end
 
-  defp auth_page?(path) do
+  @doc """
+  Whether a path lands on one of the sign-in pages (or `/users/log-out`).
+
+  Public because the `after_login_path` / `after_registration_path` changeset
+  applies the same rule when the setting is saved — one list, one predicate, so
+  a new auth route can't be guarded on read and forgotten on write.
+
+  Suffix-matched, since the real URL carries the host's mount prefix and an
+  optional locale segment (`/app/et/users/log-in`). A host page whose own path
+  happens to end in one of these segments is refused too — over-strict rather
+  than allowing a redirect loop.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.auth_page?("/users/log-in")
+      true
+      iex> PhoenixKit.Utils.Routes.auth_page?("/et/users/log-out/")
+      true
+      iex> PhoenixKit.Utils.Routes.auth_page?("/dashboard")
+      false
+
+  """
+  @spec auth_page?(term()) :: boolean()
+  def auth_page?(path) when is_binary(path) do
     trimmed = path |> String.split(["?", "#"], parts: 2) |> hd() |> String.trim_trailing("/")
     Enum.any?(@auth_paths, &(trimmed == &1 or String.ends_with?(trimmed, &1)))
   end
+
+  def auth_page?(_), do: false
 
   # NOTE: Locale override logic below exists for the publishing component system integration.
   # Switch to the upcoming media/storage helpers once they land.

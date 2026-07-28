@@ -25,12 +25,19 @@ defmodule PhoenixKitWeb.Users.ForgotPassword do
     # "Too many password reset requests" while an unregistered one still got
     # the generic notice. That turned the deliberately vague copy into a
     # precise account-existence oracle: N+1 requests told you the answer.
+    #
+    # `rate_limit: false` because that check is this request's — deliver_* still
+    # limits by default for callers without one (the admin "send reset link"
+    # action), and both hit the same per-email bucket, so charging it twice
+    # would halve a real user's allowance and swallow every second email while
+    # this page still showed the success notice.
     case RateLimiter.check_password_reset_rate_limit(email) do
       :ok ->
         if user = Auth.get_user_by_email(email) do
           Auth.deliver_user_reset_password_instructions(
             user,
-            &Routes.url("/users/reset-password/#{&1}")
+            &Routes.url("/users/reset-password/#{&1}"),
+            rate_limit: false
           )
         end
 

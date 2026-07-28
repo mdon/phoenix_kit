@@ -409,16 +409,14 @@ defmodule PhoenixKit.Settings.Setting do
     end
 
     # Validates a redirect-target setting is a local path (optional field —
-    # allows empty). Same rule as `Routes.local_path?/1`: must start with a
-    # single "/" so a saved setting can never become an open redirect.
-    # Every path that bounces an authenticated visitor elsewhere, plus log-out.
-    # Setting the post-login destination to any of them loops forever; pointing
-    # it at `/users/log-out` is worse — it is a real GET route, so every
-    # successful login immediately signs the user back out and nobody, including
-    # the admin who set it, can stay in to undo it.
-    @auth_paths ~w(/users/log-in /users/log-out /users/register /users/confirm
-    /users/magic-link /users/qr-login /users/reset-password)
-
+    # allows empty). Both rules come from `PhoenixKit.Utils.Routes`, which is
+    # also what resolves the setting on read: `local_path?/1` so a saved value
+    # can never become an open redirect, and `auth_page?/1` so it can't point
+    # at a page that bounces an authenticated visitor (a permanent loop — and
+    # `/users/log-out`, a real GET route, would sign every user straight back
+    # out with nobody left signed in to undo it). Deliberately NOT a second
+    # copy of the path list: guarded on read but forgotten on write is exactly
+    # how the two would drift.
     defp validate_local_path(changeset, field) do
       changeset
       |> update_change(field, &String.trim/1)
@@ -430,18 +428,13 @@ defmodule PhoenixKit.Settings.Setting do
           not RouteUtils.local_path?(value) ->
             [{field, "must be a local path starting with \"/\""}]
 
-          auth_page?(value) ->
+          RouteUtils.auth_page?(value) ->
             [{field, "cannot point at a sign-in page (it would loop)"}]
 
           true ->
             []
         end
       end)
-    end
-
-    defp auth_page?(value) do
-      path = value |> String.split(["?", "#"], parts: 2) |> hd() |> String.trim_trailing("/")
-      Enum.any?(@auth_paths, &(path == &1 or String.ends_with?(path, &1)))
     end
 
     # Validates URL format (optional field - allows empty)

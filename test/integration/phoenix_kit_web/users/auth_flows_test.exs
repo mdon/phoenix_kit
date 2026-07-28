@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.MagicLink
   alias PhoenixKit.Users.MagicLinkRegistration
+  alias PhoenixKit.Users.RateLimiter
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
@@ -949,6 +950,65 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
         refute html =~ "Too many"
       end
+    end
+
+    # The forgot-password LiveView throttles BEFORE the user lookup (so the
+    # response can't reveal whether the address exists), and deliver_* also
+    # throttles for callers with no limiter of their own. Both hit the same
+    # per-email bucket, so the public path has to opt the inner one out —
+    # otherwise each submission spends two of the three allowed hits and the
+    # user's SECOND reset request in a window silently sends nothing while the
+    # page still shows the success notice.
+    test "the public reset path charges the per-email bucket exactly once" do
+      user = confirmed_user()
+
+      for n <- 1..3 do
+        assert :ok = RateLimiter.check_password_reset_rate_limit(user.email),
+               "request #{n} should be within the 3-per-5-minutes budget"
+
+        assert {:ok, %Swoosh.Email{}} =
+                 Auth.deliver_user_reset_password_instructions(
+                   user,
+                   &"http://localhost/#{&1}",
+                   rate_limit: false
+                 )
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_password_reset_rate_limit(user.email)
+    end
+
+    test "deliver_user_reset_password_instructions/3 still limits by default" do
+      # The admin "send reset link" action has no limiter of its own, so the
+      # inner one must stay for callers that don't opt out.
+      user = confirmed_user()
+
+      for _ <- 1..3 do
+        assert {:ok, %Swoosh.Email{}} =
+                 Auth.deliver_user_reset_password_instructions(user, &"http://localhost/#{&1}")
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               Auth.deliver_user_reset_password_instructions(user, &"http://localhost/#{&1}")
+    end
+
+    # `?return_to=` is the least trusted of the three destination inputs, and
+    # /users/log-out is a real GET route — planted in an auth link it signs the
+    # user back out the instant they sign in.
+    test "a return_to pointing at log-out is ignored", %{conn: conn} do
+      user = confirmed_user()
+
+      conn =
+        post(conn, Routes.path("/users/log-in"), %{
+          "user" => %{
+            "email_or_username" => user.email,
+            "password" => @password,
+            "return_to" => Routes.path("/users/log-out")
+          }
+        })
+
+      refute redirected_to(conn) =~ "log-out"
+      assert redirected_to(conn) == "/"
     end
   end
 end

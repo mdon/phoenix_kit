@@ -1297,6 +1297,18 @@ defmodule PhoenixKit.Users.Auth do
   After exceeding the rate limit (default: 3 requests per 5 minutes), subsequent
   requests will be rejected with `{:error, :rate_limit_exceeded}`.
 
+  ## Options
+
+    * `:rate_limit` — set to `false` when the caller has ALREADY charged
+      `RateLimiter.check_password_reset_rate_limit/1` for this request. The
+      public forgot-password form has to throttle before the user lookup (a
+      limiter that only runs for addresses which resolve to a user is an
+      account-existence oracle), and both checks hit the same per-email bucket
+      — so leaving this on there spends two of the three allowed hits per
+      submission and silently drops every second reset email. Defaults to
+      `true` for callers with no limiter of their own (e.g. the admin
+      "send reset link" action).
+
   ## Examples
 
       iex> deliver_user_reset_password_instructions(user, &PhoenixKit.Utils.Routes.url("/users/reset-password/#{&1}"))
@@ -1306,22 +1318,26 @@ defmodule PhoenixKit.Users.Auth do
       {:error, :rate_limit_exceeded}
 
   """
-  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun)
+  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun, opts \\ [])
       when is_function(reset_password_url_fun, 1) do
-    # Check rate limit before sending reset email
-    case RateLimiter.check_password_reset_rate_limit(user.email) do
-      :ok ->
-        {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-        Repo.insert!(user_token)
-
-        UserNotifier.deliver_reset_password_instructions(
-          user,
-          reset_password_url_fun.(encoded_token)
-        )
-
-      {:error, :rate_limit_exceeded} ->
-        {:error, :rate_limit_exceeded}
+    if Keyword.get(opts, :rate_limit, true) do
+      case RateLimiter.check_password_reset_rate_limit(user.email) do
+        :ok -> send_reset_password_instructions(user, reset_password_url_fun)
+        {:error, :rate_limit_exceeded} -> {:error, :rate_limit_exceeded}
+      end
+    else
+      send_reset_password_instructions(user, reset_password_url_fun)
     end
+  end
+
+  defp send_reset_password_instructions(user, reset_password_url_fun) do
+    {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+    Repo.insert!(user_token)
+
+    UserNotifier.deliver_reset_password_instructions(
+      user,
+      reset_password_url_fun.(encoded_token)
+    )
   end
 
   @doc """

@@ -72,9 +72,14 @@ open redirect.
 they point at a page that *bounces an authenticated visitor* — every auth page
 plus **`/users/log-out`**, which is a real GET route: set it and every
 successful login signs the user straight back out, locking out the admin who
-set it. `@auth_paths` in both `Setting.SettingsForm` (save time) and `Routes`
-(read time, since `update_setting/2` bypasses the changeset) covers log-in,
-log-out, register, confirm, magic-link, qr-login and reset-password.
+set it. `Routes.auth_page?/1` is the single predicate (over one `@auth_paths`
+list covering log-in, log-out, register, confirm, magic-link, qr-login and
+reset-password) and is applied at all three points: `Setting.SettingsForm` on
+save, `Routes.after_login_path/0` and `Session.maybe_store_after_registration_path/1`
+on read (`update_setting/2` bypasses the changeset), and
+`Routes.post_auth_path/1` on each **candidate** — `?return_to=` is the least
+trusted input of the three, and `?return_to=/users/log-out` planted in any auth
+link would otherwise sign the user out the instant they signed in.
 
 > ⚠️ **`Routes.local_path?/1` is the only redirect guard in the codebase.** It
 > rejects `//`, `/\`, and **ASCII control characters**. The control-character
@@ -133,6 +138,13 @@ which means **rate-limiting before the lookup, not inside the send**:
   resolved to a user. Past the threshold a registered address got "Too many
   password reset requests" while an unknown one still got the generic notice —
   N+1 requests turned the deliberately vague copy into a precise oracle.
+  ⚠️ The limiter inside `deliver_user_reset_password_instructions/3` **stays**
+  for callers with none of their own (the admin "send reset link" action in
+  `user_form.ex`), so the forgot-password LiveView passes `rate_limit: false`.
+  Both checks hit the same per-email bucket: charging it twice spent two of the
+  three allowed hits per submission, so a real user's *second* reset request in
+  a window silently sent nothing while the page still showed the success notice.
+  Any new pre-lookup limiter must opt the inner one out the same way.
 - **Confirmation resend** had no limit at all: every request for an existing
   unconfirmed account inserted a token and sent mail synchronously, so it was
   both an unauthenticated targeted-mail-flood vector and a timing oracle.
