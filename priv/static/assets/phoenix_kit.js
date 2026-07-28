@@ -1417,6 +1417,80 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ConnectAccountPopup Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Opens an OAuth account-linking flow in a named popup instead of navigating
+  // the page. Replaces an inline onclick= (CSP-hostile, and the kit removed
+  // inline handlers everywhere else for the same reason).
+  //
+  // The element is a real <a href>, so this degrades correctly: with JS off, or
+  // when the popup is blocked, the browser performs the normal full-page
+  // navigation rather than dead-ending on a cancelled click.
+  //
+  // Geometry and window name come from data attributes so nothing is
+  // interpolated into a script string.
+  //
+  // Usage:
+  //   <a href="/oauth/start" phx-hook="ConnectAccountPopup"
+  //      data-window-name="oauth-connect" data-window-width="480"
+  //      data-window-height="680">Connect</a>
+  //
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ConnectAccountPopup = {
+    mounted() {
+      this.onClick = (event) => {
+        // Honour the ways a user asks for a new tab/window themselves.
+        if (event.defaultPrevented) return;
+        if (event.button !== 0) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        var el = this.el;
+        var name = el.dataset.windowName || "oauth-connect";
+        var width = parseInt(el.dataset.windowWidth, 10) || 480;
+        var height = parseInt(el.dataset.windowHeight, 10) || 680;
+
+        // Centre on the CURRENT screen in a multi-monitor setup; screenX/Y and
+        // the outer size describe the browser window, not the primary display.
+        var dualLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
+        var dualTop = window.screenTop !== undefined ? window.screenTop : window.screenY;
+        var outerW = window.outerWidth || document.documentElement.clientWidth || width;
+        var outerH = window.outerHeight || document.documentElement.clientHeight || height;
+        var left = Math.max(0, Math.round(dualLeft + (outerW - width) / 2));
+        var top = Math.max(0, Math.round(dualTop + (outerH - height) / 2));
+
+        var features =
+          "width=" + width + ",height=" + height + ",left=" + left + ",top=" + top +
+          ",menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes";
+
+        var popup;
+        try {
+          popup = window.open(el.href, name, features);
+        } catch (_err) {
+          popup = null;
+        }
+
+        // Blocked or failed → let the click through so the href still works.
+        if (!popup) return;
+
+        event.preventDefault();
+        try {
+          popup.focus();
+        } catch (_err) {
+          /* focus is best-effort */
+        }
+      };
+
+      this.el.addEventListener("click", this.onClick);
+    },
+
+    destroyed() {
+      if (this.onClick) this.el.removeEventListener("click", this.onClick);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // MarkdownEditor
   //
   // Drives the core MarkdownEditor LiveComponent's textarea: cursor tracking,

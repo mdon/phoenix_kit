@@ -63,7 +63,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     default: nil,
     doc:
       "Optional CSS color for the value itself — for values whose color IS information " <>
-        "(a price colored by cheapness, a temperature by severity). E.g. \"hsl(140 85% 55%)\""
+        "(a price colored by cheapness, a temperature by severity). E.g. \"hsl(140 85% 55%)\". " <>
+        "Any `;` is stripped so the value cannot append further declarations; every " <>
+        "legitimate colour syntax (hsl/oklch/var/color-mix) is unaffected."
 
   slot :icon, required: true, doc: "Icon to display in the card header"
 
@@ -81,7 +83,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
           <div class="flex-1">
-            <div class="text-2xl font-bold mb-1" style={@value_color && "color: #{@value_color}"}>
+            <div class="text-2xl font-bold mb-1" {value_style(@value_color)}>
               {@value}
             </div>
             <div class="opacity-90 font-medium text-sm">{@title}</div>
@@ -95,7 +97,7 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
         </div>
-        <div class="text-3xl font-bold mb-2" style={@value_color && "color: #{@value_color}"}>
+        <div class="text-3xl font-bold mb-2" {value_style(@value_color)}>
           {@value}
         </div>
         <div class="opacity-90 font-medium">{@title}</div>
@@ -117,4 +119,21 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
   defp color_classes("accent"), do: "bg-accent text-accent-content"
   defp color_classes("neutral"), do: "bg-neutral text-neutral-content"
   defp color_classes(_), do: "bg-info text-info-content"
+
+  # Returned as a spreadable attribute list rather than a `style={...}` value:
+  # HEEx renders a nil attribute value as `style=""` instead of dropping it, so
+  # every unstyled card carried an empty attribute.
+  #
+  # The colour is usually computed (a price coloured by cheapness), so it is
+  # kept to a single declaration — one stray `;` would otherwise let the value
+  # write arbitrary CSS onto the element. Colour functions contain no
+  # semicolons, so hsl()/oklch()/var()/color-mix() pass through untouched.
+  defp value_style(nil), do: []
+
+  defp value_style(color) do
+    case color |> to_string() |> String.replace(";", "") |> String.trim() do
+      "" -> []
+      clean -> [style: "color: " <> clean]
+    end
+  end
 end
