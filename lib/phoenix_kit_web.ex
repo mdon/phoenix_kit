@@ -120,6 +120,9 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.ThemeSwitcher
       import PhoenixKitWeb.Components.Core.Badge
       import PhoenixKitWeb.Components.Core.StatCard
+      import PhoenixKitWeb.Components.Core.Chart
+      import PhoenixKitWeb.Components.Core.StatusDot
+      import PhoenixKitWeb.Components.Core.ConnectAccountButton
       import PhoenixKitWeb.Components.Core.EmailStatusBadge
       import PhoenixKitWeb.Components.Core.TimeDisplay
       import PhoenixKitWeb.Components.Core.EventTimelineItem

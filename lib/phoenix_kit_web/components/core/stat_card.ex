@@ -59,6 +59,12 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     doc:
       "Background color theme (info, primary, success, secondary, warning, error, accent, neutral)"
 
+  attr :value_color, :string,
+    default: nil,
+    doc:
+      "Optional CSS color for the value itself — for values whose color IS information " <>
+        "(a price colored by cheapness, a temperature by severity). E.g. \"hsl(140 85% 55%)\""
+
   slot :icon, required: true, doc: "Icon to display in the card header"
 
   def stat_card(assigns) do
@@ -75,7 +81,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
           <div class="flex-1">
-            <div class="text-2xl font-bold mb-1">{@value}</div>
+            <div class="text-2xl font-bold mb-1" style={@value_color && "color: #{@value_color}"}>
+              {@value}
+            </div>
             <div class="opacity-90 font-medium text-sm">{@title}</div>
             <div class="opacity-70 text-xs">{@subtitle}</div>
           </div>
@@ -87,7 +95,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
         </div>
-        <div class="text-3xl font-bold mb-2">{@value}</div>
+        <div class="text-3xl font-bold mb-2" style={@value_color && "color: #{@value_color}"}>
+          {@value}
+        </div>
         <div class="opacity-90 font-medium">{@title}</div>
         <div class="opacity-70 text-xs mt-1">
           {@subtitle}
