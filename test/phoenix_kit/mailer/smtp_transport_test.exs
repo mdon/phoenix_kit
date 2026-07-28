@@ -223,6 +223,29 @@ defmodule PhoenixKit.Mailer.SmtpTransportTest do
       assert {:error, {:invalid_auth, "maybe"}} =
                SmtpTransport.config(creds(%{"auth" => "maybe"}))
     end
+
+    test "the IP-authenticated relay shape builds: no login, no TLS, no AUTH" do
+      # This combination is only reachable now that the provider stops marking
+      # username/password required — see providers_test. Asserted end to end
+      # because each half passing alone says nothing about the pair.
+      relay =
+        creds(%{
+          "host" => "relay.internal",
+          "port" => "25",
+          "username" => "",
+          "password" => "",
+          "security" => "none",
+          "auth" => "never"
+        })
+
+      assert {:ok, options} = SmtpTransport.config(relay, [])
+
+      assert options[:relay] == "relay.internal"
+      assert options[:auth] == :never
+      assert options[:tls] == :never
+      refute Keyword.has_key?(options, :ssl)
+      refute Keyword.has_key?(options, :tls_options)
+    end
   end
 
   describe "timeout setting" do
@@ -244,6 +267,16 @@ defmodule PhoenixKit.Mailer.SmtpTransportTest do
 
       assert {:error, {:invalid_timeout, "soon"}} =
                SmtpTransport.config(creds(%{"timeout" => "soon"}))
+    end
+
+    test "rejects a number with a unit rather than sending on the number it found" do
+      # Integer.parse/1 happily returns 30 for both of these. Waiting 30s when
+      # the operator typed 30 minutes is a wrong answer, not a lenient one.
+      assert {:error, {:invalid_timeout, "30s"}} =
+               SmtpTransport.config(creds(%{"timeout" => "30s"}))
+
+      assert {:error, {:invalid_timeout, "30 minutes"}} =
+               SmtpTransport.config(creds(%{"timeout" => "30 minutes"}))
     end
   end
 end

@@ -145,9 +145,12 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
 
   defp parse_timeout(value) when is_integer(value) and value > 0, do: {:ok, value}
 
+  # The remainder has to be empty: `Integer.parse/1` is happy to return 30 for
+  # "30s" or "30 minutes", and silently sending on a timeout the operator did
+  # not type is worse than telling them the field is wrong.
   defp parse_timeout(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, _} when int > 0 -> {:ok, int}
+    case Integer.parse(String.trim(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
       _ -> {:error, {:invalid_timeout, value}}
     end
   end

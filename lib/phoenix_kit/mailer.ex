@@ -333,6 +333,11 @@ defmodule PhoenixKit.Mailer do
     atom when the credentials carry no provider key at all)
   - `{:error, {:invalid_smtp_port, term()}}` — the SMTP connection's port is
     not a number
+  - `{:error, {:invalid_security | :invalid_verify_cert | :invalid_auth |
+    :invalid_timeout, term()}}` / `{:error, :invalid_ca_cert}` — SMTP only: one
+    of the operator's transport settings does not parse. Unknown values are
+    refused rather than coerced back to the default, so a typo can't silently
+    downgrade the connection's encryption
   - `{:error, :no_ca_store}` — SMTP only, and a **behaviour change**: there is no
     system CA bundle, so the relay's certificate cannot be verified and the
     password would go out to an unauthenticated server. Sending stops. It used to

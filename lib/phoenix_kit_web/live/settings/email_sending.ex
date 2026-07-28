@@ -187,10 +187,14 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   # UI. Mirroring the rule here turns that silent dead end into a warning on the
   # page that owns the address. Deliberately a copy and not a call: core must not
   # depend on the optional module (and the check is one regex).
-  defp loggable_sender?(email) when is_binary(email),
-    do: Regex.match?(~r/^[^\s]+@[^\s]+\.[^\s]+$/, email)
-
-  defp loggable_sender?(_), do: false
+  #
+  # One clause, not a guarded pair: `Mailer.get_from_email/0` is the only caller
+  # and always hands back a binary, so a `when is_binary/1` head plus a catch-all
+  # is dead code dialyzer fails the build over (pattern_match_cov). `to_string/1`
+  # keeps the same defensiveness without the unreachable clause — a nil settings
+  # value becomes "", which the regex rejects.
+  defp loggable_sender?(email),
+    do: Regex.match?(~r/^[^\s]+@[^\s]+\.[^\s]+$/, to_string(email))
 
   defp assign_transport_info(socket) do
     mailer = Mailer.get_mailer()
