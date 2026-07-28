@@ -231,15 +231,19 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         </span>
       </label>
 
+      <%!-- Soft accesses on purpose: providers may be contributed by external
+           modules through `integration_providers/0`, and a field map missing
+           :type / :options / :placeholder must fall back to a text input, not
+           take the whole form down with a KeyError. --%>
       <select
-        :if={@field.type == :select}
+        :if={field_type(@field) == :select}
         name={@field.key}
         id={"field-#{@field.key}"}
         class="select select-bordered w-full"
         required={@field.required}
       >
         <option
-          :for={option <- @field.options || []}
+          :for={option <- Map.get(@field, :options) || []}
           value={option.value}
           selected={option.value == @value}
         >
@@ -248,34 +252,36 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
       </select>
 
       <textarea
-        :if={@field.type == :textarea}
+        :if={field_type(@field) == :textarea}
         name={@field.key}
         id={"field-#{@field.key}"}
         class="textarea textarea-bordered w-full font-mono text-xs"
         rows="5"
-        placeholder={@field.placeholder || ""}
+        placeholder={Map.get(@field, :placeholder) || ""}
         required={@field.required}
         autocomplete="off"
       >{@value}</textarea>
 
       <input
-        :if={@field.type not in [:select, :textarea]}
-        type={if @field.type == :number, do: "number", else: "text"}
+        :if={field_type(@field) not in [:select, :textarea]}
+        type={if field_type(@field) == :number, do: "number", else: "text"}
         name={@field.key}
         id={"field-#{@field.key}"}
         value={@value}
         class="input input-bordered w-full"
-        placeholder={@field.placeholder || ""}
+        placeholder={Map.get(@field, :placeholder) || ""}
         required={@field.required}
         autocomplete="off"
       />
 
-      <label :if={@field.help} class="label">
+      <label :if={Map.get(@field, :help)} class="label">
         <span class="label-text-alt text-base-content/50">{@field.help}</span>
       </label>
     </div>
     """
   end
+
+  defp field_type(field), do: Map.get(field, :type) || :text
 
   @doc """
   Collapsible provider setup instructions (from the provider definition).

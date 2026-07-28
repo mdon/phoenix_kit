@@ -198,6 +198,16 @@ defmodule PhoenixKit.Mailer do
   `bcc`) are rejected before any tracking or delivery is attempted; see
   `check_recipient_allowed/1`. Send-rate limits are deliberately NOT enforced
   here — see the soft-dependency note at the top of this module.
+
+  ## Return shape
+
+  Normally the adapter's own `{:ok, metadata}` (metadata shape is adapter
+  specific — `%{id: message_id}` for most). When an email provider takes the
+  message over for later delivery (`maybe_enqueue/2`), the result is instead
+  `{:ok, %{id: ref, queued: true}}`, where `ref` identifies the queued message,
+  not a message id from a relay that has not seen it yet. Callers that only
+  match `{:ok, _}` are unaffected; a caller that needs the message sent on this
+  process can pass `skip_queue: true`.
   """
   def deliver_email(email, opts \\ []) do
     case default_send_integration_uuid() do

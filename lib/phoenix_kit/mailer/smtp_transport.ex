@@ -86,7 +86,7 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
          {:ok, verify} <- parse_verify_cert(creds["verify_cert"]),
          {:ok, auth} <- parse_auth(creds["auth"]),
          {:ok, timeout} <- parse_timeout(creds["timeout"]),
-         {:ok, store} <- resolve_cacerts(creds["ca_cert"], cacerts),
+         {:ok, store} <- resolve_cacerts(creds["ca_cert"], cacerts, security, verify),
          {:ok, transport} <- transport(security, port, creds, verify, store) do
       base = [
         relay: creds["host"],
@@ -162,6 +162,15 @@ defmodule PhoenixKit.Mailer.SmtpTransport do
   # one shape worth rejecting outright — silently falling back to the system
   # store would leave the operator staring at a handshake failure with a CA they
   # believe is installed.
+  # Nothing to resolve when no TLS options will be built: rejecting a plaintext
+  # relay because of a stale PEM in a field it never reads is an error about a
+  # certificate that would not have been used.
+  defp resolve_cacerts(_pem, _system_store, :none, _verify), do: {:ok, []}
+  defp resolve_cacerts(_pem, _system_store, _security, :verify_none), do: {:ok, []}
+
+  defp resolve_cacerts(pem, system_store, _security, _verify),
+    do: resolve_cacerts(pem, system_store)
+
   defp resolve_cacerts(pem, system_store) when pem in [nil, ""], do: {:ok, system_store}
 
   defp resolve_cacerts(pem, _system_store) when is_binary(pem) do
