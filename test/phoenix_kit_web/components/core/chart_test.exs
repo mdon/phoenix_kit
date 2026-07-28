@@ -68,6 +68,33 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
     end
   end
 
+  # A path whose endpoints coincide is syntactically a segment and visually
+  # nothing at all — which is exactly how a broken single-point chart passed.
+  defp assert_visible_segment(html) do
+    xs =
+      stroked_path(html)
+      |> then(&Regex.scan(~r/[ML]([-\d.eE+]+),/, &1))
+      |> Enum.map(fn [_, x] -> elem(Float.parse(x), 0) end)
+
+    assert length(Enum.uniq(xs)) > 1,
+           "the stroked path has zero length, so it paints nothing: #{inspect(xs)}"
+  end
+
+  # A rect outside the viewBox is clipped away, so "height > 0" is not the same
+  # as "visible" — the hairline floor pushed zero bars to height..height+1.
+  defp assert_bars_within_viewbox(html, view_height) do
+    rects = Regex.scan(~r/\sy="([\d.-]+)" width="[\d.]+" height="([\d.]+)"/, html)
+    assert rects != [], "no bars found"
+
+    for [_, y, h] <- rects do
+      {y, ""} = Float.parse(y)
+      {h, ""} = Float.parse(h)
+
+      assert y >= 0 and y + h <= view_height,
+             "bar spans #{y}..#{y + h}, outside the 0..#{view_height} viewBox"
+    end
+  end
+
   defp assert_finite_numbers(html) do
     values = numeric_attrs(html) ++ path_numbers(html) ++ polyline_numbers(html)
 
@@ -130,8 +157,28 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert html =~ "<svg"
       assert_finite_numbers(html)
 
-      assert stroked_path(html) =~ ~r/^M[\d.]+,[\d.]+ L/,
-             "a lone moveto paints nothing; a single point must still draw a segment"
+      # Assert the OUTCOME, not the shape of the markup: `M0,120 L0,120`
+      # satisfies a "has a segment" regex perfectly and paints nothing at all.
+      assert_visible_segment(html)
+    end
+
+    test "a single point is visible under the default (auto) domain too" do
+      assigns = %{}
+
+      # The auto domain collapses x_min == x_max, so every x maps to 0 — the
+      # configuration nearly every caller uses was the one that stayed blank.
+      for opts <- [%{}, %{step: true}] do
+        assigns = Map.merge(assigns, opts)
+
+        html =
+          if assigns[:step] do
+            render(~H|<.line_chart id="c" data={[{5, 3}]} step />|)
+          else
+            render(~H|<.line_chart id="c" data={[{5, 3}]} />|)
+          end
+
+        assert_visible_segment(html)
+      end
     end
 
     test "negative values render finite geometry" do
@@ -333,6 +380,20 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert xs.(with_hole) == xs.(without) -- ["100.0"]
     end
 
+    test "large-magnitude flat series keep their padding" do
+      # An absolute 1.0e-9 pad is below one ULP past ~1e7, so the 10% padding
+      # evaporated and the series sank onto the axis with its stroke clipped.
+      assigns = %{}
+      html = render(~H|<.sparkline values={[3.0e7, 3.0e7, 3.0e7]} />|)
+
+      [_, pts] = Regex.run(~r/points="([^"]*)"/, html)
+
+      {y, ""} =
+        pts |> String.split(" ") |> hd() |> String.split(",") |> List.last() |> Float.parse()
+
+      assert y > 8 and y < 40, "large flat series should still centre, got y=#{y}"
+    end
+
     test "a flat sparkline centres rather than sitting on the floor" do
       assigns = %{}
       html = render(~H|<.sparkline values={[3, 3, 3]} />|)
@@ -483,10 +544,9 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
           ~H|<.bar_chart id="b" data={[%{label: "a", value: 0}, %{label: "b", value: 0}]} />|
         )
 
-      for [_, h] <- Regex.scan(~r/height="([^"]*)"/, html) do
-        {value, ""} = Float.parse(h)
-        assert value > 0
-      end
+      # `height > 0` was true the whole time — the rect was simply drawn just
+      # below the viewBox and clipped away.
+      assert_bars_within_viewbox(html, 200)
     end
 
     test "tooltip values are formatted for humans, not float noise" do
@@ -507,6 +567,15 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert html =~ "<title>whole: 12</title>"
       assert html =~ "<title>int: 7</title>"
       assert html =~ "<title>money: 12.3</title>"
+    end
+
+    test "a label without String.Chars does not crash the render" do
+      # `:label` is documented as `term` and the tuple form accepts anything,
+      # so interpolating it raised Protocol.UndefinedError and took the page
+      # down over a label.
+      assigns = %{data: [%{label: {:a, :b}, value: 1}, %{label: %{k: 1}, value: 2}]}
+
+      assert render(~H|<.bar_chart id="b" data={@data} />|) =~ "<rect"
     end
 
     test "a per-datum class colours a single bar" do
@@ -559,6 +628,17 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
 
       assert html =~ "<polyline"
       assert_finite_numbers(html)
+    end
+
+    test "a zero value among positives stays inside the viewBox" do
+      assigns = %{}
+
+      html =
+        render(
+          ~H|<.bar_chart id="b" data={[%{label: "a", value: 0}, %{label: "b", value: 5}]} />|
+        )
+
+      assert_bars_within_viewbox(html, 200)
     end
 
     test "a single value draws a flat line rather than an empty box" do
@@ -643,6 +723,7 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
         assert value >= 0, "negative rect height would render nothing: #{h}"
       end
 
+      assert_bars_within_viewbox(html, 200)
       assert_finite_numbers(html)
     end
 

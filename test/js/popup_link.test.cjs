@@ -5,7 +5,7 @@
 // assign onto `window`), so stub the globals it touches at load time; the
 // DOM-using hook methods themselves are not invoked here.
 //
-// Run: node --test test/js
+// Run: mix test.js  (node --test needs the explicit file on Node 25)
 
 const test = require("node:test");
 const assert = require("node:assert/strict");

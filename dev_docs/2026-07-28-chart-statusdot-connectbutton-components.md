@@ -136,6 +136,15 @@ heights stay proportional.
 
 ## Follow-ups
 
+- `status_dot`'s state vocabulary (`online` / `offline` / `ok` / …) is gettext'd
+  but has no catalogue entries yet — it renders English until a translation pass
+  runs `mix gettext.extract --merge`. Left out of this change deliberately:
+  extraction rewrites all nine catalogues (~18k lines) and would bury the
+  component diff.
+- `connect_account_button`'s derived DOM id is lossy — `/foo/bar` and `/foo-bar`
+  slug to the same id, so two such buttons on one page would collide again.
+  Pass an explicit `id` in that case.
+
 - `phoenix_kit_dashboards` widgets are the natural second consumer and would
   validate the API quickly.
 - `phoenix_kit_publishing` hand-rolls a status dot

@@ -17,7 +17,7 @@ defmodule PhoenixKitWeb.Components.Core.ConnectAccountButton do
   ## Progressive enhancement
 
   This renders a real `<a href>`, and the popup is opened by the
-  `ConnectAccountPopup` JS hook rather than an inline `onclick` (the kit
+  `PopupLink` JS hook rather than an inline `onclick` (the kit
   removed inline handlers everywhere for CSP). The click is intercepted
   *only after* `window.open` actually returns a window, so **a blocked
   popup, JS being off, or a modifier-click all fall back to ordinary
