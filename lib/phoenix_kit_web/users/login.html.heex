@@ -51,10 +51,13 @@
         </:icon>
       </.input>
 
-      <div class="form-control mt-4">
+      <%!-- Checked by default (site-configurable); users can untick it for a
+           session-only login, and the site can forbid persistence entirely. --%>
+      <div :if={@remember_me_available} class="form-control mt-4">
         <.checkbox
           id="user_remember_me"
           name="user[remember_me]"
+          checked={@remember_me}
           label={gettext("Keep me logged in")}
         />
       </div>
@@ -98,7 +101,7 @@
         <%!-- Magic Link authentication --%>
         <%= if @magic_link_enabled do %>
           <.link
-            navigate={Routes.path("/users/magic-link")}
+            navigate={Routes.path("/users/magic-link") <> Routes.return_to_query(@return_to)}
             class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_email class="w-5 h-5 mr-2" />
@@ -108,7 +111,7 @@
         <%!-- QR code sign-in --%>
         <%= if @qr_login_enabled do %>
           <.link
-            navigate={Routes.path("/users/qr-login")}
+            navigate={Routes.path("/users/qr-login") <> Routes.return_to_query(@return_to)}
             class="btn btn-outline w-full transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_qr_code class="w-5 h-5 mr-2" />
@@ -116,7 +119,10 @@
           </.link>
         <% end %>
         <%!-- OAuth authentication --%>
-        <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons show_divider={false} />
+        <PhoenixKitWeb.Components.OAuthButtons.oauth_buttons
+          show_divider={false}
+          return_to={@return_to}
+        />
       </div>
     </div>
   <% end %>
@@ -126,7 +132,7 @@
     <div class="text-center mt-4 text-sm">
       <span>{gettext("New to %{project_title}?", project_title: @project_title)}</span>
       <.link
-        navigate={Routes.path("/users/register")}
+        navigate={Routes.path("/users/register") <> Routes.return_to_query(@return_to)}
         class="font-semibold text-primary hover:underline"
       >
         {gettext("Create an account")}

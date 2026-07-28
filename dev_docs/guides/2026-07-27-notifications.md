@@ -81,7 +81,20 @@ are computed + enqueued independently, so "Telegram on, inbox off" works with
   from the enqueue, so a failed channel enqueue never costs the user their inbox
   row). `DigestWorker` is an Oban cron (one entry per cadence: immediate / hourly
   / 12h / daily / weekly) that counts activity in a fixed window and sends one
-  summary — no per-user last-sent state.
+  summary — no per-user last-sent state. `DigestWorker` is enqueued ONLY by those
+  cron entries, so **`mix phoenix_kit.update` must backfill them into existing
+  hosts** — `ObanConfig.ensure_notifications_queue/2` + `ensure_digest_cron_entries/2`
+  edit an already-installed `config/config.exs`, since a digest cadence suppresses
+  the per-event inbox row and a missing cron entry would silently drop the
+  summary too (the same template-only gap `PruneWorker` still has). Adding config
+  to the install template alone never reaches upgraded hosts.
+- **Registry loading:** `Channels.external_channels/0` (like `Types.external_types/0`)
+  guards with `Code.ensure_loaded?(mod) and function_exported?(mod, :notification_channels, 0)`
+  — a bare `function_exported?/3` is `false` for a not-yet-loaded module under a
+  release, silently dropping the channel.
+- **Never trust param keys:** the settings LV builds channel/type/cadence maps by
+  `Map.take`-ing params against `Channels.keys()` / `Types.all_pref_keys()`, never
+  by iterating raw param keys (which name their own storage keys).
 - **Telegram setup** lives on the personal integration form (mode select + chat
   capture folded into Test), NOT the notifications page. `mode`: `"single"` (lock
   one chat) / `"multi"` (broadcast to all who started the bot); an **Unlink**

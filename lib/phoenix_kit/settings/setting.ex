@@ -71,6 +71,8 @@ defmodule PhoenixKit.Settings.Setting do
     "site_url",
     "site_icon_file_uuid",
     "default_tab_title",
+    # Post-login redirects (empty = default behavior)
+    "after_registration_path",
     # OAuth Provider Credentials
     "oauth_google_client_id",
     "oauth_google_client_secret",
@@ -260,6 +262,8 @@ defmodule PhoenixKit.Settings.Setting do
     use Ecto.Schema
     import Ecto.Changeset
 
+    alias PhoenixKit.Utils.Routes, as: RouteUtils
+
     @primary_key false
     embedded_schema do
       field :project_title, :string
@@ -280,6 +284,11 @@ defmodule PhoenixKit.Settings.Setting do
       field :editor_default_mode, :string
       field :track_registration_geolocation, :string
       field :registration_show_username, :string
+      field :require_email_confirmation, :string
+      field :remember_me_enabled, :string
+      field :remember_me_default, :string
+      field :after_login_path, :string
+      field :after_registration_path, :string
       # Organization Accounts
       field :enable_organization_accounts, :string
       # Admin Panel Languages
@@ -341,6 +350,11 @@ defmodule PhoenixKit.Settings.Setting do
         :editor_default_mode,
         :track_registration_geolocation,
         :registration_show_username,
+        :require_email_confirmation,
+        :remember_me_enabled,
+        :remember_me_default,
+        :after_login_path,
+        :after_registration_path,
         :enable_organization_accounts,
         :admin_languages,
         :oauth_google_client_id,
@@ -381,6 +395,53 @@ defmodule PhoenixKit.Settings.Setting do
       # away (or offered in the picker while the changeset rejects it).
       |> validate_inclusion(:editor_default_mode, PhoenixKit.Settings.editor_modes())
       |> validate_inclusion(:enable_organization_accounts, ["true", "false"])
+      |> validate_inclusion(:require_email_confirmation, ["true", "false"],
+        message: "must be either 'true' or 'false'"
+      )
+      |> validate_inclusion(:remember_me_enabled, ["true", "false"],
+        message: "must be either 'true' or 'false'"
+      )
+      |> validate_inclusion(:remember_me_default, ["true", "false"],
+        message: "must be either 'true' or 'false'"
+      )
+      |> validate_local_path(:after_login_path)
+      |> validate_local_path(:after_registration_path)
+    end
+
+    # Validates a redirect-target setting is a local path (optional field —
+    # allows empty). Same rule as `Routes.local_path?/1`: must start with a
+    # single "/" so a saved setting can never become an open redirect.
+    # Every path that bounces an authenticated visitor elsewhere, plus log-out.
+    # Setting the post-login destination to any of them loops forever; pointing
+    # it at `/users/log-out` is worse — it is a real GET route, so every
+    # successful login immediately signs the user back out and nobody, including
+    # the admin who set it, can stay in to undo it.
+    @auth_paths ~w(/users/log-in /users/log-out /users/register /users/confirm
+    /users/magic-link /users/qr-login /users/reset-password)
+
+    defp validate_local_path(changeset, field) do
+      changeset
+      |> update_change(field, &String.trim/1)
+      |> validate_change(field, fn ^field, value ->
+        cond do
+          value == "" ->
+            []
+
+          not RouteUtils.local_path?(value) ->
+            [{field, "must be a local path starting with \"/\""}]
+
+          auth_page?(value) ->
+            [{field, "cannot point at a sign-in page (it would loop)"}]
+
+          true ->
+            []
+        end
+      end)
+    end
+
+    defp auth_page?(value) do
+      path = value |> String.split(["?", "#"], parts: 2) |> hd() |> String.trim_trailing("/")
+      Enum.any?(@auth_paths, &(path == &1 or String.ends_with?(path, &1)))
     end
 
     # Validates URL format (optional field - allows empty)

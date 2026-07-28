@@ -105,7 +105,14 @@ defmodule PhoenixKitWeb.Users.Auth do
     opts = Keyword.merge(opts, browser: UserAgent.browser(ua), os: UserAgent.os(ua))
 
     token = Auth.generate_user_session_token(user, opts)
-    user_return_to = get_session(conn, :user_return_to)
+
+    # Destination: an explicit `return_to` in params wins, then whatever a gate
+    # stashed in the session. Honoring the param matters because callers pass it
+    # (the OAuth callback has always passed `"return_to"` here, and it was
+    # silently dropped — session renewal below then wiped the session copy too,
+    # so an OAuth login started from a protected page landed on the default).
+    user_return_to =
+      sanitize_local(params["return_to"]) || get_session(conn, :user_return_to)
 
     # Merge guest cart into user cart before session renewal clears session data.
     # The shop_session_id cookie survives renew_session (only session data is cleared).
@@ -141,12 +148,77 @@ defmodule PhoenixKitWeb.Users.Auth do
     conn
   end
 
-  defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
-    put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
+  defp sanitize_local(path) do
+    if Routes.local_path?(path), do: path, else: nil
   end
 
+  # The site-wide `remember_me_enabled` policy is enforced HERE rather than at
+  # each caller, so it holds by construction: with it off, no flow — not a
+  # forged param, not OAuth, not a future login path — can leave a persistent
+  # cookie.
+  defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
+    if remember_me_enabled?() do
+      put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
+    else
+      conn
+    end
+  end
+
+  # Not a remembered login — clear any cookie this browser still holds. Logging
+  # in mints a new token and (on a password change) deletes the old ones, so a
+  # carried-over cookie would point at a dead token: it survives until the
+  # browser drops its session cookie, then silently signs the user out and
+  # keeps failing for the cookie's full 60 days.
   defp maybe_write_remember_me_cookie(conn, _token, _params) do
-    conn
+    delete_resp_cookie(conn, @remember_me_cookie)
+  end
+
+  @doc """
+  Whether the site allows persistent ("remember me") sessions at all.
+
+  Site-wide policy via the `remember_me_enabled` setting (default `true`).
+  When false the checkbox is hidden on every auth form and no flow can write
+  the persistent cookie — logins last only as long as the browser session.
+  """
+  @spec remember_me_enabled?() :: boolean()
+  def remember_me_enabled? do
+    PhoenixKit.Settings.get_boolean_setting("remember_me_enabled", true)
+  end
+
+  @doc """
+  Whether the "remember me" checkbox starts checked.
+
+  Site-wide default via the `remember_me_default` setting (default `true`) —
+  users can still untick it per login. Flows with no UI to tick (magic-link
+  login, OAuth) follow this value directly. Always false when
+  `remember_me_enabled?/0` is false.
+  """
+  @spec remember_me_default?() :: boolean()
+  def remember_me_default? do
+    remember_me_enabled?() and
+      PhoenixKit.Settings.get_boolean_setting("remember_me_default", true)
+  end
+
+  @doc """
+  The params a no-UI login flow (magic link, OAuth) should pass to
+  `log_in_user/3` to follow the site's persistence policy.
+  """
+  @spec remember_me_params() :: map()
+  def remember_me_params do
+    if remember_me_default?(), do: %{"remember_me" => "true"}, else: %{}
+  end
+
+  @doc """
+  Whether this request already carries a persistent remember-me cookie.
+
+  Lets a re-login flow that has no checkbox of its own (the password-change
+  handoff) preserve the choice the user already made, instead of silently
+  downgrading them to a session-only login.
+  """
+  @spec remembered?(Plug.Conn.t()) :: boolean()
+  def remembered?(conn) do
+    conn = fetch_cookies(conn, signed: [@remember_me_cookie])
+    is_binary(conn.cookies[@remember_me_cookie])
   end
 
   # This function renews the session ID and erases the whole
@@ -372,8 +444,19 @@ defmodule PhoenixKitWeb.Users.Auth do
       conn = fetch_cookies(conn, signed: [@remember_me_cookie])
 
       case conn.cookies[@remember_me_cookie] do
-        token when is_binary(token) -> {token, put_token_in_session(conn, token)}
-        _ -> {nil, conn}
+        token when is_binary(token) ->
+          # Honor the master switch on READ too, not just on write. Blocking new
+          # cookies while still accepting old ones would let every cookie issued
+          # before the switch was turned off keep restoring sessions for its
+          # full 60 days — the opposite of what turning it off means.
+          if remember_me_enabled?() do
+            {token, put_token_in_session(conn, token)}
+          else
+            {nil, delete_resp_cookie(conn, @remember_me_cookie)}
+          end
+
+        _ ->
+          {nil, conn}
       end
     end
   end
@@ -468,29 +551,30 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   def on_mount(:phoenix_kit_ensure_authenticated, _params, session, socket) do
     socket = mount_phoenix_kit_current_user(socket, session)
+    user = socket.assigns.phoenix_kit_current_user
 
-    case socket.assigns.phoenix_kit_current_user do
-      %{confirmed_at: nil} ->
-        socket =
-          socket
-          |> Phoenix.LiveView.put_flash(
-            :error,
-            "Please confirm your email before accessing the application."
-          )
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/confirm"))
-
-        {:halt, socket}
-
-      %{} ->
-        {:cont, socket}
-
-      nil ->
+    cond do
+      is_nil(user) ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
           |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
 
         {:halt, socket}
+
+      is_nil(user.confirmed_at) and confirmation_required?() ->
+        socket =
+          socket
+          |> Phoenix.LiveView.put_flash(
+            :error,
+            "Please confirm your email before accessing the application."
+          )
+          |> Phoenix.LiveView.redirect(to: confirm_path_with_return_to(socket))
+
+        {:halt, socket}
+
+      true ->
+        {:cont, socket}
     end
   end
 
@@ -508,14 +592,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      Scope.authenticated?(scope) and not email_confirmed?(scope) ->
+      Scope.authenticated?(scope) and not email_confirmed?(scope) and
+          confirmation_required?() ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
             "Please confirm your email before accessing the application."
           )
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/confirm"))
+          |> Phoenix.LiveView.redirect(to: confirm_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -558,14 +643,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      Scope.authenticated?(scope) and not email_confirmed?(scope) ->
+      Scope.authenticated?(scope) and not email_confirmed?(scope) and
+          confirmation_required?() ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
             "Please confirm your email before accessing the application."
           )
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/confirm"))
+          |> Phoenix.LiveView.redirect(to: confirm_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -596,14 +682,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      Scope.authenticated?(scope) and not email_confirmed?(scope) ->
+      Scope.authenticated?(scope) and not email_confirmed?(scope) and
+          confirmation_required?() ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
             "Please confirm your email before accessing the application."
           )
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/confirm"))
+          |> Phoenix.LiveView.redirect(to: confirm_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -642,14 +729,15 @@ defmodule PhoenixKitWeb.Users.Auth do
 
         {:halt, socket}
 
-      Scope.authenticated?(scope) and not email_confirmed?(scope) ->
+      Scope.authenticated?(scope) and not email_confirmed?(scope) and
+          confirmation_required?() ->
         socket =
           socket
           |> Phoenix.LiveView.put_flash(
             :error,
             "Please confirm your email before accessing the application."
           )
-          |> Phoenix.LiveView.redirect(to: Routes.path("/users/confirm"))
+          |> Phoenix.LiveView.redirect(to: confirm_path_with_return_to(socket))
 
         {:halt, socket}
 
@@ -1653,22 +1741,25 @@ defmodule PhoenixKitWeb.Users.Auth do
   Enforces email confirmation before allowing access to the application.
   """
   def require_authenticated_user(conn, _opts) do
-    case conn.assigns[:phoenix_kit_current_user] do
-      %{confirmed_at: nil} ->
-        conn
-        |> put_flash(:error, "Please confirm your email before accessing the application.")
-        |> redirect(to: Routes.path("/users/confirm"))
-        |> halt()
+    user = conn.assigns[:phoenix_kit_current_user]
 
-      %{} ->
-        conn
-
-      nil ->
+    cond do
+      is_nil(user) ->
         conn
         |> put_flash(:error, "You must log in to access this page.")
         |> maybe_store_return_to()
         |> redirect(to: Routes.path("/users/log-in"))
         |> halt()
+
+      is_nil(user.confirmed_at) and confirmation_required?() ->
+        conn
+        |> put_flash(:error, "Please confirm your email before accessing the application.")
+        |> maybe_store_return_to()
+        |> redirect(to: Routes.path("/users/confirm"))
+        |> halt()
+
+      true ->
+        conn
     end
   end
 
@@ -1691,9 +1782,11 @@ defmodule PhoenixKitWeb.Users.Auth do
             |> redirect(to: Routes.path("/users/log-in"))
             |> halt()
 
-          Scope.authenticated?(scope) and not email_confirmed?(scope) ->
+          Scope.authenticated?(scope) and not email_confirmed?(scope) and
+              confirmation_required?() ->
             conn
             |> put_flash(:error, "Please confirm your email before accessing the application.")
+            |> maybe_store_return_to()
             |> redirect(to: Routes.path("/users/confirm"))
             |> halt()
 
@@ -1715,6 +1808,32 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp email_confirmed?(_), do: false
 
+  # Whether unconfirmed accounts are blocked from authenticated routes.
+  # Host-configurable via the `require_email_confirmation` setting (default
+  # true = historical behavior). Confirmation emails still send when off —
+  # only enforcement is gated.
+  defp confirmation_required? do
+    PhoenixKit.Settings.get_boolean_setting("require_email_confirmation", true)
+  end
+
+  # Shared confirmation gate for the role-based conn plugs. They check the role
+  # but never the email, and the shipped `:phoenix_kit_admin_only` pipeline runs
+  # `require_admin` with NO preceding `require_authenticated_*` — so a host
+  # controller route behind it enforced confirmation nowhere, even at the
+  # default. Returns `:cont` or an already-halted conn.
+  defp confirmation_gate(conn, scope) do
+    if Scope.authenticated?(scope) and not email_confirmed?(scope) and confirmation_required?() do
+      {:halt,
+       conn
+       |> put_flash(:error, "Please confirm your email before accessing the application.")
+       |> maybe_store_return_to()
+       |> redirect(to: Routes.path("/users/confirm"))
+       |> halt()}
+    else
+      :cont
+    end
+  end
+
   @doc """
   Used for routes that require the user to be an owner.
 
@@ -1725,13 +1844,19 @@ defmodule PhoenixKitWeb.Users.Auth do
   def require_owner(conn, _opts) do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
-        if Scope.owner?(scope) do
-          conn
-        else
-          conn
-          |> put_flash(:error, "You must be an owner to access this page.")
-          |> redirect(to: "/")
-          |> halt()
+        case confirmation_gate(conn, scope) do
+          {:halt, conn} ->
+            conn
+
+          :cont ->
+            if Scope.owner?(scope) do
+              conn
+            else
+              conn
+              |> put_flash(:error, "You must be an owner to access this page.")
+              |> redirect(to: "/")
+              |> halt()
+            end
         end
 
       _ ->
@@ -1752,21 +1877,30 @@ defmodule PhoenixKitWeb.Users.Auth do
   def require_admin(conn, _opts) do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
-        cond do
-          Scope.can_access_admin_area?(scope) ->
+        case confirmation_gate(conn, scope) do
+          {:halt, conn} ->
             conn
 
-          Scope.authenticated?(scope) ->
-            conn
-            |> put_flash(:error, "You do not have the required permission to access this page.")
-            |> redirect(to: "/")
-            |> halt()
+          :cont ->
+            cond do
+              Scope.can_access_admin_area?(scope) ->
+                conn
 
-          true ->
-            conn
-            |> put_flash(:error, "You must log in to access this page.")
-            |> redirect(to: Routes.path("/users/log-in"))
-            |> halt()
+              Scope.authenticated?(scope) ->
+                conn
+                |> put_flash(
+                  :error,
+                  "You do not have the required permission to access this page."
+                )
+                |> redirect(to: "/")
+                |> halt()
+
+              true ->
+                conn
+                |> put_flash(:error, "You must log in to access this page.")
+                |> redirect(to: Routes.path("/users/log-in"))
+                |> halt()
+            end
         end
 
       _ ->
@@ -1782,24 +1916,33 @@ defmodule PhoenixKitWeb.Users.Auth do
   def require_module_access(conn, module_key) when is_binary(module_key) do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
-        cond do
-          not Scope.can_access_admin_area?(scope) ->
-            conn
-            |> put_flash(:error, "You do not have the required permission to access this page.")
-            |> redirect(to: "/")
-            |> halt()
-
-          # Disabled modules are blocked for everyone (Owner included), matching
-          # the LiveView mount and plug gates.
-          Scope.has_module_access?(scope, module_key) and
-              MapSet.member?(Permissions.enabled_module_keys(), module_key) ->
+        case confirmation_gate(conn, scope) do
+          {:halt, conn} ->
             conn
 
-          true ->
-            conn
-            |> put_flash(:error, "You do not have permission to access this section.")
-            |> redirect(to: best_available_admin_path(scope))
-            |> halt()
+          :cont ->
+            cond do
+              not Scope.can_access_admin_area?(scope) ->
+                conn
+                |> put_flash(
+                  :error,
+                  "You do not have the required permission to access this page."
+                )
+                |> redirect(to: "/")
+                |> halt()
+
+              # Disabled modules are blocked for everyone (Owner included), matching
+              # the LiveView mount and plug gates.
+              Scope.has_module_access?(scope, module_key) and
+                  MapSet.member?(Permissions.enabled_module_keys(), module_key) ->
+                conn
+
+              true ->
+                conn
+                |> put_flash(:error, "You do not have permission to access this section.")
+                |> redirect(to: best_available_admin_path(scope))
+                |> halt()
+            end
         end
 
       _ ->
@@ -1812,13 +1955,19 @@ defmodule PhoenixKitWeb.Users.Auth do
   def require_role(conn, role_name) when is_binary(role_name) do
     case conn.assigns[:phoenix_kit_current_scope] do
       %Scope{} = scope ->
-        if Scope.has_role?(scope, role_name) do
-          conn
-        else
-          conn
-          |> put_flash(:error, "You must have the #{role_name} role to access this page.")
-          |> redirect(to: "/")
-          |> halt()
+        case confirmation_gate(conn, scope) do
+          {:halt, conn} ->
+            conn
+
+          :cont ->
+            if Scope.has_role?(scope, role_name) do
+              conn
+            else
+              conn
+              |> put_flash(:error, "You must have the #{role_name} role to access this page.")
+              |> redirect(to: "/")
+              |> halt()
+            end
         end
 
       _ ->
@@ -1847,30 +1996,43 @@ defmodule PhoenixKitWeb.Users.Auth do
   # it back, session.ex stashes it as :user_return_to, log_in_user/3
   # redirects there. We skip the param when the URI isn't available or
   # the user is already on the login page (guards against self-loops).
-  #
+  defp login_path_with_return_to(socket) do
+    path_with_return_to(socket, "/users/log-in")
+  end
+
+  # Same shape for the unconfirmed-account gate: /users/confirm reads the
+  # param and sends the user onward once their email is confirmed, so the
+  # originally requested page isn't lost while they're parked there.
+  defp confirm_path_with_return_to(socket) do
+    path_with_return_to(socket, "/users/confirm")
+  end
+
   # The self-loop check trims trailing slashes on both sides so
   # `/users/log-in` and `/users/log-in/` are treated as the same path —
   # without the trim, a hand-typed trailing-slash URL would round-trip
   # back to itself via `?return_to=`.
-  defp login_path_with_return_to(socket) do
-    login_path = Routes.path("/users/log-in")
-    login_path_canonical = String.trim_trailing(login_path, "/")
+  defp path_with_return_to(socket, target) do
+    target_path = Routes.path(target)
+    target_path_canonical = String.trim_trailing(target_path, "/")
 
     case Phoenix.LiveView.get_connect_info(socket, :uri) do
       %URI{path: path} = uri when is_binary(path) ->
-        if String.trim_trailing(path, "/") == login_path_canonical do
-          login_path
+        if String.trim_trailing(path, "/") == target_path_canonical do
+          target_path
         else
           query = if uri.query, do: "?" <> uri.query, else: ""
-          login_path <> "?return_to=" <> URI.encode_www_form(path <> query)
+          target_path <> "?return_to=" <> URI.encode_www_form(path <> query)
         end
 
       _ ->
-        login_path
+        target_path
     end
   end
 
-  defp signed_in_path(_conn), do: "/"
+  # Default post-login destination — the `after_login_path` setting, guarded.
+  # An explicit :user_return_to (stashed by the gates above or passed by the
+  # login form) is applied by `log_in_user/3` and wins over this default.
+  defp signed_in_path(_conn), do: Routes.post_auth_path()
 
   @doc """
   Validates and sets the locale for the current request.

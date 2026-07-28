@@ -17,9 +17,10 @@ defmodule PhoenixKitWeb.Users.Registration do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Users.Auth, as: WebAuth
 
   def mount(params, session, socket) do
-    case PhoenixKitWeb.Users.Auth.maybe_redirect_authenticated(socket) do
+    case WebAuth.maybe_redirect_authenticated(socket) do
       {:redirect, socket} ->
         {:ok, socket}
 
@@ -71,6 +72,10 @@ defmodule PhoenixKitWeb.Users.Registration do
       invitation_token = Map.get(params, "invitation")
       pending_invitation = load_pending_invitation(invitation_token)
 
+      # Support return_to query param for post-registration redirect
+      # (mirrors the login page; wins over the after_registration_path setting)
+      return_to = sanitize_return_to(params["return_to"])
+
       socket =
         socket
         |> assign(trigger_submit: false, check_errors: false)
@@ -86,6 +91,9 @@ defmodule PhoenixKitWeb.Users.Registration do
         |> assign(org_accounts_enabled: org_accounts_enabled)
         |> assign(pending_invitation: pending_invitation)
         |> assign(pending_invitation_token: invitation_token)
+        |> assign(return_to: return_to)
+        |> assign(remember_me_available: WebAuth.remember_me_enabled?())
+        |> assign(remember_me: WebAuth.remember_me_default?())
         |> assign_form(changeset)
 
       {:ok, socket, temporary_assigns: [form: nil]}
@@ -104,6 +112,7 @@ defmodule PhoenixKitWeb.Users.Registration do
 
   def handle_event("save", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
+    user_params = form_params(user_params)
 
     # If the username was never manually edited, let the schema (re)generate it
     # from the final email rather than persisting a possibly-stale preview value.
@@ -136,6 +145,11 @@ defmodule PhoenixKitWeb.Users.Registration do
               Auth.update_user_fields(user, %{
                 "pending_invitation_uuid" => socket.assigns.pending_invitation.uuid
               })
+
+              # That auto-accept only fires from `confirm_user/1`. With
+              # confirmation not required there is no confirmation step, so
+              # accept now or the invitation is never redeemed.
+              maybe_accept_invitation_without_confirmation(user)
             end
 
             case Auth.deliver_user_confirmation_instructions(
@@ -183,12 +197,20 @@ defmodule PhoenixKitWeb.Users.Registration do
 
   def handle_event("validate", %{"user" => user_params} = params, socket) do
     referral_code = params["referral_code"]
+    user_params = form_params(user_params)
 
     # Track whether the user owns the username field, then keep it in sync with
     # the email while it's still auto-managed.
     username_edited = username_manually_edited?(socket, params, user_params)
     user_params = maybe_sync_username(user_params, username_edited)
-    socket = assign(socket, username_edited: username_edited)
+
+    # The form re-renders on every change, so the checkbox has to be driven by
+    # what the user actually left it at — otherwise unticking it would snap
+    # back to the site default on the next keystroke.
+    socket =
+      socket
+      |> assign(username_edited: username_edited)
+      |> assign(remember_me: user_params["remember_me"] == "true")
 
     # Validate referral code and update error state
     case validate_referral_code(referral_code, socket) do
@@ -288,6 +310,44 @@ defmodule PhoenixKitWeb.Users.Registration do
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(16) |> Base.encode64()
+  end
+
+  # Only allow relative paths to prevent open redirect attacks
+  defp sanitize_return_to(path) do
+    if Routes.local_path?(path), do: path, else: nil
+  end
+
+  # Fields the public form is allowed to set. `registration_changeset/3` also
+  # casts `custom_fields` and the `registration_*` geo columns — legitimate for
+  # server-side callers (OAuth, the geolocation path) but attacker-controlled
+  # here, since a phx-submit payload is whatever the client sends. Writing
+  # `custom_fields` from the browser would let a visitor plant
+  # `pending_invitation_uuid` or an `oauth_avatar_url` that the admin user list
+  # renders as an <img src>.
+  @form_fields ~w(email username password first_name last_name account_type
+                  organization_name user_timezone remember_me return_to)
+
+  defp form_params(user_params) when is_map(user_params),
+    do: Map.take(user_params, @form_fields)
+
+  defp form_params(other), do: other
+
+  defp maybe_accept_invitation_without_confirmation(user) do
+    if Settings.get_boolean_setting("require_email_confirmation", true) do
+      :ok
+    else
+      user = Auth.get_user(user.uuid) || user
+      uuid = user.custom_fields && user.custom_fields["pending_invitation_uuid"]
+
+      case uuid && Invitations.accept_invitation_by_uuid(uuid, user) do
+        {:ok, _} ->
+          Auth.update_user_fields(user, %{"pending_invitation_uuid" => nil})
+          :ok
+
+        _ ->
+          :ok
+      end
+    end
   end
 
   defp load_pending_invitation(nil), do: nil

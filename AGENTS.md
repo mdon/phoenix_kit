@@ -135,6 +135,61 @@ The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, s
 
 Tabs, subtabs, badges, context selectors: see `lib/phoenix_kit/dashboard/README.md`.
 
+## Login & Registration
+
+Auth surface: session persistence, post-auth destinations, email confirmation.
+Full reference: `dev_docs/guides/2026-07-28-login-and-registration.md`. All
+settings live on the admin Users settings page (`/admin/settings/users`).
+
+- **Session persistence:** `remember_me_enabled` (default true) is the master
+  switch — off hides the checkbox everywhere AND hard-blocks the cookie inside
+  `maybe_write_remember_me_cookie/3`, so no caller or forged param can persist a
+  session. `remember_me_default` (default true) decides whether that checkbox
+  starts **checked**. Read the policy via `Auth.remember_me_enabled?/0` /
+  `remember_me_default?/0`; flows with no UI to tick (magic-link login, OAuth)
+  use `Auth.remember_me_params/0`. **Never hardcode `%{"remember_me" => "true"}`**.
+- **Post-auth destination:** one resolver, `Routes.post_auth_path/1`. Precedence:
+  explicit `return_to` (param or gate-stashed session key) > `after_registration_path`
+  > `after_login_path` > `"/"`. `log_in_user/3` honors a `"return_to"` param too.
+  Both settings validate as local paths on save and are re-guarded on read.
+- ⚠️ **`Routes.local_path?/1` is the only redirect guard** — it rejects `//`,
+  `/\`, and **ASCII control characters** (browsers strip tab/CR/LF, so
+  `"/\t/evil.com"` lands as `//evil.com`; `Phoenix.Controller.redirect/2` blocks
+  those but LiveView's `validate_local_url!` does not). Every LiveView
+  `redirect(to: ...)` of user-influenced input MUST go through it. The path
+  settings are additionally refused if they point at a page that bounces an
+  authenticated visitor — including **`/users/log-out`**, a real GET route that
+  would sign every user straight back out.
+- **Carrying `return_to`:** `Routes.return_to_query/1` threads it across the
+  links between login/register/magic-link/QR/OAuth, and the magic-link email
+  carries it in its URL. A new sign-in entry point must thread it too.
+- ⚠️ **Public auth endpoints rate-limit BEFORE the lookup** — limiting inside
+  the send only throttles addresses that resolve to a user, which turns the
+  deliberately generic copy into an account-existence oracle. Password reset had
+  exactly that shape; confirmation resend had no limit at all.
+- **Email confirmation:** `require_email_confirmation` (default true) gates
+  *enforcement* only; emails always send. Honored at **six** sites — the
+  `require_authenticated_user` / `require_authenticated_scope` plugs and the
+  `ensure_authenticated`, `ensure_authenticated_scope`, `ensure_owner`,
+  `ensure_admin`, `ensure_module_access` on_mount hooks. Add it to any new gate.
+- **The parked `/users/confirm` page** advances users instead of stranding them:
+  on mount when already confirmed (covers a direct DB flip + refresh) and live off
+  the `{:user_confirmed, _}` broadcast. It subscribes *before* re-reading the user.
+- ⚠️ **Soft-failure paths need `rescue` AND `catch :exit`** — an unreachable DB
+  raises on an unowned checkout but *exits* on a dead pool. Settings reads are
+  ETS-cached, so this only bites on a cache miss and presents as suite flakiness.
+  Never evict a real settings key in a test; read a unique probe key instead.
+- ⚠️ **Flash belongs inside the LiveView tree** (LayoutWrapper / dashboard / host
+  layout). `root.html.heex` deliberately has none — a copy there double-rendered
+  every message with duplicate ids and froze at its dead-render value.
+- ⚠️ Rate limiting keys on `Plug.Conn.get_peer_data/1`, **not**
+  `conn.remote_ip`, and the test adapter reports one peer for every conn — so a
+  login-heavy test file shares a single bucket and gets bounced under some
+  seeds. Give each test its own peer (`with_peer/2` in `auth_flows_test.exs`).
+- ⚠️ A `disabled` `<.checkbox>` still submits its **un-disabled** hidden
+  `value="false"` fallback, silently rewriting the setting on save. Don't use
+  `disabled` to mean "inactive right now" in a settings form.
+
 ## Permissions
 
 `PhoenixKit.Users.Permissions` — allowlist model (row present = granted, absent = denied); Owner always has full access, enforced in code. The moduledoc is the source of truth; highlights:
@@ -189,7 +244,7 @@ Per-user inbox driven by the activity log. Full reference: `dev_docs/guides/2026
 - **API:** `PhoenixKit.Notifications` — `list_for_user/2`, `recent_for_user/2`, `count_unread/1`, `mark_seen` / `mark_all_seen` / `dismiss` / `dismiss_all`, `get_notification/2` (recipient-scoped). Render via `Notifications.Render.render/1`, which honors `notification_text` / `notification_icon` / `notification_link` metadata keys.
 - **UI:** embeddable `PhoenixKitWeb.Live.NotificationsBell` (sticky nested LV, owns its PubSub sub); "seen" only on explicit user action. PubSub topic: `Notifications.Events.topic_for_user(uuid)`.
 - **Per-user preferences:** mute by *type*; types merge core + modules' `notification_types/0` callback. `Notifications.Prefs.user_wants?/2` is **fail-open**.
-- **External delivery channels** (Telegram, Email; modules add via `notification_channels/0`): parallel routing layer — `Channel` behaviour, `Channels` registry, `ChannelConfig` under `custom_fields["notification_channel:<key>"]`, fail-closed `Routing`, Oban `DeliveryWorker` (`:notifications` queue) + `DigestWorker` cron. The inbox insert is decoupled from channel enqueue.
+- **External delivery channels** (Telegram, Email; modules add via `notification_channels/0`): parallel routing layer — `Channel` behaviour, `Channels` registry, `ChannelConfig` under `custom_fields["notification_channel:<key>"]`, fail-closed `Routing`, Oban `DeliveryWorker` (`:notifications` queue) + `DigestWorker` cron. The inbox insert is decoupled from channel enqueue. ⚠️ `DigestWorker` runs ONLY from cron, so `mix phoenix_kit.update` must **backfill those entries into existing hosts** (`ObanConfig.ensure_digest_cron_entries/2`) — a digest cadence suppresses the per-event inbox row, so a missing entry drops the notification entirely. Registry lookups need `Code.ensure_loaded?` alongside `function_exported?/3` (false for an unloaded module under a release), and the settings LV `Map.take`s params against known keys rather than iterating raw param keys.
 - **Cleanup:** `Notifications.PruneWorker` daily; retention `notifications_retention_days` → `activity_retention_days` (default 90).
 
 ## MediaBrowser Component
