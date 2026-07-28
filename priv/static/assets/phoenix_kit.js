@@ -1438,31 +1438,48 @@ if (typeof window.Chart === "undefined") {
   //
   // ---------------------------------------------------------------------------
 
+  // Pure: should this click be turned into a popup at all? A user asking for a
+  // new tab (middle-click, cmd/ctrl-click) or a handler that already claimed
+  // the event must be left alone.
+  function shouldOpenPopup(event) {
+    if (!event) return false;
+    if (event.defaultPrevented) return false;
+    if (typeof event.button === "number" && event.button !== 0) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+    return true;
+  }
+
+  // Pure: window.open feature string, centred on the screen the browser window
+  // is actually on. screenLeft/Top describe the WINDOW, so a multi-monitor
+  // setup needs them as the origin — centring on innerWidth alone throws the
+  // popup onto the primary display.
+  function popupFeatures(width, height, view) {
+    var v = view || {};
+    var w = Math.max(1, parseInt(width, 10) || 480);
+    var h = Math.max(1, parseInt(height, 10) || 680);
+
+    var originX = v.screenLeft !== undefined ? v.screenLeft : (v.screenX || 0);
+    var originY = v.screenTop !== undefined ? v.screenTop : (v.screenY || 0);
+    var outerW = v.outerWidth || w;
+    var outerH = v.outerHeight || h;
+
+    var left = Math.max(0, Math.round(originX + (outerW - w) / 2));
+    var top = Math.max(0, Math.round(originY + (outerH - h) / 2));
+
+    return (
+      "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top +
+      ",menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes"
+    );
+  }
+
   window.PhoenixKitHooks.ConnectAccountPopup = {
     mounted() {
       this.onClick = (event) => {
-        // Honour the ways a user asks for a new tab/window themselves.
-        if (event.defaultPrevented) return;
-        if (event.button !== 0) return;
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        if (!shouldOpenPopup(event)) return;
 
         var el = this.el;
         var name = el.dataset.windowName || "oauth-connect";
-        var width = parseInt(el.dataset.windowWidth, 10) || 480;
-        var height = parseInt(el.dataset.windowHeight, 10) || 680;
-
-        // Centre on the CURRENT screen in a multi-monitor setup; screenX/Y and
-        // the outer size describe the browser window, not the primary display.
-        var dualLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
-        var dualTop = window.screenTop !== undefined ? window.screenTop : window.screenY;
-        var outerW = window.outerWidth || document.documentElement.clientWidth || width;
-        var outerH = window.outerHeight || document.documentElement.clientHeight || height;
-        var left = Math.max(0, Math.round(dualLeft + (outerW - width) / 2));
-        var top = Math.max(0, Math.round(dualTop + (outerH - height) / 2));
-
-        var features =
-          "width=" + width + ",height=" + height + ",left=" + left + ",top=" + top +
-          ",menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes";
+        var features = popupFeatures(el.dataset.windowWidth, el.dataset.windowHeight, window);
 
         var popup;
         try {
@@ -1471,14 +1488,16 @@ if (typeof window.Chart === "undefined") {
           popup = null;
         }
 
-        // Blocked or failed → let the click through so the href still works.
+        // Blocked or failed → let the click through so the plain href still
+        // starts the flow full-page. Cancelling here unconditionally is what
+        // made the old inline onclick a dead button behind a popup blocker.
         if (!popup) return;
 
         event.preventDefault();
         try {
           popup.focus();
         } catch (_err) {
-          /* focus is best-effort */
+          /* focus is best-effort; a blocked focus must not break the flow */
         }
       };
 
@@ -1486,9 +1505,18 @@ if (typeof window.Chart === "undefined") {
     },
 
     destroyed() {
-      if (this.onClick) this.el.removeEventListener("click", this.onClick);
+      if (this.onClick) {
+        this.el.removeEventListener("click", this.onClick);
+        this.onClick = null;
+      }
     }
   };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.shouldOpenPopup = shouldOpenPopup;
+    module.exports.popupFeatures = popupFeatures;
+  }
 
   // ---------------------------------------------------------------------------
   // MarkdownEditor
