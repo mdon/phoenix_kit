@@ -73,10 +73,13 @@ defmodule PhoenixKit.Integrations.Validators do
   the check exercises exactly the transport a real send uses — one source of
   truth, no drift between "tested" and "sent".
 
-  `auth: :always` is deliberate: with gen_smtp's default the AUTH exchange is
-  attempted but its failure is tolerated, so a wrong password would still open a
-  session and the check would pass. A relay that advertises no `AUTH` verb at all
-  is a different case, and is treated as a pass — see the module doc.
+  Forcing AUTH for the probe is deliberate: with gen_smtp's `:if_available` the
+  AUTH exchange is attempted but its failure is tolerated, so a wrong password
+  would still open a session and the check would pass. The operator's `auth`
+  setting is honored in one direction only — `never` stays `never` (there are no
+  credentials to prove), while `if_available` is upgraded to `always` for the
+  probe so a bad password fails the check. A relay that advertises no `AUTH` verb
+  at all is a different case, and is treated as a pass — see the module doc.
   """
   @spec smtp(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def smtp(data) do
@@ -90,15 +93,48 @@ defmodule PhoenixKit.Integrations.Validators do
       {:error, :no_ca_store} ->
         {:error,
          gettext("No system CA certificates found, so the relay's certificate cannot be verified")}
+
+      {:error, :invalid_ca_cert} ->
+        {:error,
+         gettext(
+           "The CA certificate is not a valid PEM bundle (expected a -----BEGIN CERTIFICATE----- block)"
+         )}
+
+      {:error, {:invalid_timeout, value}} ->
+        {:error, gettext("Invalid timeout: %{value}", value: inspect(value))}
+
+      {:error, {key, value}}
+      when key in [:invalid_security, :invalid_verify_cert, :invalid_auth] ->
+        {:error,
+         gettext("Invalid %{setting}: %{value}",
+           setting: to_string(key) |> String.replace_prefix("invalid_", ""),
+           value: inspect(value)
+         )}
+
+      # This case runs OUTSIDE Probe.run and its rescue, so a reason added to
+      # SmtpTransport later would raise CaseClauseError straight out of a
+      # LiveView callback. Say something useless-but-safe instead.
+      {:error, reason} ->
+        {:error, gettext("Invalid SMTP settings: %{reason}", reason: inspect(reason))}
     end
   end
 
   # --- SMTP -----------------------------------------------------------------
 
+  # `never` is the operator saying there are no credentials to prove, so leave it
+  # alone; anything else becomes `always` so a wrong password fails the check
+  # instead of being tolerated (see `smtp/1`'s doc).
+  defp probe_auth(options) do
+    case Keyword.get(options, :auth, :if_available) do
+      :never -> :never
+      _ -> :always
+    end
+  end
+
   defp open_smtp(options) do
     probe_options =
       options
-      |> Keyword.put(:auth, :always)
+      |> Keyword.put(:auth, probe_auth(options))
       # gen_smtp retries a temporarily-failing relay once by default, which doubles
       # the time to a verdict and can push a slow failure past our deadline — the
       # operator would be told "did not respond in time" instead of what went wrong.

@@ -8,6 +8,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [setup_field: 1]
+
   require Logger
 
   alias PhoenixKit.Integrations

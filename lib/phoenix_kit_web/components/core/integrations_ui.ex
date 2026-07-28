@@ -204,9 +204,19 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   end
 
   @doc """
-  A single provider setup field. Rendered as `type="text"` even for
-  credential-shaped fields — they're API keys / tokens, not site logins, and
-  `type="password"` would trigger browsers' password-save heuristics.
+  A single provider setup field, rendered from the field's `:type`.
+
+  Credential-shaped fields stay `type="text"` on purpose — they're API keys /
+  tokens, not site logins, and `type="password"` would trigger browsers'
+  password-save heuristics. `:select`, `:textarea` and `:number` render as
+  themselves; anything else falls back to a text input, so a provider that
+  declares a type this component has never heard of still gets a usable field
+  rather than a blank spot in the form.
+
+  A `:select` with no stored value falls to the first option, so a provider
+  should list its default first (that is how the SMTP `security` / `auth` /
+  `verify_cert` fields keep their historical behavior on connections created
+  before they existed).
   """
   attr :field, :map, required: true
   attr :value, :string, default: ""
@@ -220,22 +230,58 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
           <span :if={@field.required} class="text-error">*</span>
         </span>
       </label>
+
+      <%!-- Soft accesses on purpose: providers may be contributed by external
+           modules through `integration_providers/0`, and a field map missing
+           :type / :options / :placeholder must fall back to a text input, not
+           take the whole form down with a KeyError. --%>
+      <select
+        :if={field_type(@field) == :select}
+        name={@field.key}
+        id={"field-#{@field.key}"}
+        class="select select-bordered w-full"
+        required={@field.required}
+      >
+        <option
+          :for={option <- Map.get(@field, :options) || []}
+          value={option.value}
+          selected={option.value == @value}
+        >
+          {option.label}
+        </option>
+      </select>
+
+      <textarea
+        :if={field_type(@field) == :textarea}
+        name={@field.key}
+        id={"field-#{@field.key}"}
+        class="textarea textarea-bordered w-full font-mono text-xs"
+        rows="5"
+        placeholder={Map.get(@field, :placeholder) || ""}
+        required={@field.required}
+        autocomplete="off"
+      >{@value}</textarea>
+
       <input
-        type="text"
+        :if={field_type(@field) not in [:select, :textarea]}
+        type={if field_type(@field) == :number, do: "number", else: "text"}
         name={@field.key}
         id={"field-#{@field.key}"}
         value={@value}
         class="input input-bordered w-full"
-        placeholder={@field.placeholder || ""}
+        placeholder={Map.get(@field, :placeholder) || ""}
         required={@field.required}
         autocomplete="off"
       />
-      <label :if={@field.help} class="label">
+
+      <label :if={Map.get(@field, :help)} class="label">
         <span class="label-text-alt text-base-content/50">{@field.help}</span>
       </label>
     </div>
     """
   end
+
+  defp field_type(field), do: Map.get(field, :type) || :text
 
   @doc """
   Collapsible provider setup instructions (from the provider definition).

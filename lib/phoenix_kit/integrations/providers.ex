@@ -788,6 +788,81 @@ defmodule PhoenixKit.Integrations.Providers do
               "For Brevo: the SMTP key starting with xsmtpsib- (SMTP & API → SMTP tab) — not the API key (xkeysib-)."
             ),
           options: nil
+        },
+        # Everything below is optional and blank by default, which keeps an
+        # existing connection behaving exactly as it did when the port was the
+        # only signal. See PhoenixKit.Mailer.SmtpTransport for how each is
+        # applied — the send path and the Test Connection probe read the same
+        # options, so a relay that tests green sends green.
+        %{
+          key: "security",
+          label: gettext("Encryption"),
+          type: :select,
+          required: false,
+          placeholder: nil,
+          help:
+            gettext(
+              "Auto follows the port: 465 means implicit TLS, anything else STARTTLS (required when a login is set). Choose explicitly for a relay that ignores that convention."
+            ),
+          options: [
+            %{value: "auto", label: gettext("Auto (from port)")},
+            %{value: "ssl", label: gettext("Implicit TLS / SMTPS")},
+            %{value: "starttls", label: gettext("STARTTLS — required")},
+            %{value: "starttls_optional", label: gettext("STARTTLS — if offered")},
+            %{value: "none", label: gettext("None — plaintext")}
+          ]
+        },
+        %{
+          key: "auth",
+          label: gettext("Authentication"),
+          type: :select,
+          required: false,
+          placeholder: nil,
+          help:
+            gettext(
+              "Whether to send the login at all. “If offered” follows the relay; “Never” is for relays that authenticate by IP."
+            ),
+          options: [
+            %{value: "if_available", label: gettext("If offered (default)")},
+            %{value: "always", label: gettext("Always")},
+            %{value: "never", label: gettext("Never")}
+          ]
+        },
+        %{
+          key: "verify_cert",
+          label: gettext("Certificate verification"),
+          type: :select,
+          required: false,
+          placeholder: nil,
+          help:
+            gettext(
+              "Turning verification off means the login travels to whoever answers, including an impostor. Use a CA certificate below instead whenever you can."
+            ),
+          options: [
+            %{value: "verify_peer", label: gettext("Verify (default)")},
+            %{value: "verify_none", label: gettext("Do not verify")}
+          ]
+        },
+        %{
+          key: "ca_cert",
+          label: gettext("CA certificate (PEM)"),
+          type: :textarea,
+          required: false,
+          placeholder: "-----BEGIN CERTIFICATE-----",
+          help:
+            gettext(
+              "For a private or self-signed relay certificate. Replaces the system CA store for this connection only."
+            ),
+          options: nil
+        },
+        %{
+          key: "timeout",
+          label: gettext("Timeout (seconds)"),
+          type: :number,
+          required: false,
+          placeholder: "30",
+          help: gettext("Leave blank for the gen_smtp default."),
+          options: nil
         }
       ],
       capabilities: [:email_send]
