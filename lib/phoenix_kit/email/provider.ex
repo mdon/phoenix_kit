@@ -24,6 +24,12 @@ defmodule PhoenixKit.Email.Provider do
 
   Optional: it is skipped when the provider does not export it, so a package
   built against an older core still satisfies this behaviour.
+
+  The message handed here is the **intercepted** one, so whatever
+  `intercept_before_send/2` recorded or stamped on it is already in place and
+  should be carried through the queue. When the worker sends it for real it must
+  pass `skip_queue: true` (do not offer it back) and `already_intercepted: true`
+  (do not run interception a second time — it is not required to be idempotent).
   """
   @callback maybe_enqueue(Swoosh.Email.t(), keyword()) :: :continue | {:queued, term()}
 
